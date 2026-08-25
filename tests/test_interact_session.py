@@ -2050,7 +2050,9 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     )
     fcntl.flock(comments, fcntl.LOCK_EX)
     probe = """\
-original_flocked = interact.flocked
+from leaf_interact import service as service_model
+
+original_flocked = service_model.flocked
 comments = Path(os.environ["COMMENTS"]).resolve()
 marker = Path(os.environ["MARKER"])
 
@@ -2061,7 +2063,7 @@ def observed_flocked(path, **kwargs):
     with original_flocked(path, **kwargs) as stream:
         yield stream
 
-interact.flocked = observed_flocked
+service_model.flocked = observed_flocked
 sys.argv = ["leaf", "status", os.environ["PAGE"], "idle"]
 interact.cli()
 """

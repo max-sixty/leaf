@@ -21,9 +21,12 @@ complete browser file and the repository's normal suite.
 
 The `test_interact_*.py` modules exercise authored markup, the registry, the event
 log, CLI commands, vendoring, publishing, export, and server lifetime. The
-`test_render_*.py` modules drive the browser runtime and the render gate. Shared
-fixtures and browser readings live in `interact_support.py` and
-`render_support.py`. `test_site.py` reads the built site through its served URLs.
+`test_render_*.py` modules drive the browser runtime and the render gate.
+File-side fixtures live in `interact_support.py`. Browser process and page
+fixtures live in `render_harness.py`; reusable browser cases are grouped by
+interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
+`render_support.py` reexports that surface for the test modules rather than
+owning another copy. `test_site.py` reads the built site through its served URLs.
 Product documentation tests compare the docs with the shipped vocabulary and
 command surface.
 

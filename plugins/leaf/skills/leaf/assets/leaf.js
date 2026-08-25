@@ -144,15 +144,16 @@
  * detached face a stranded quote wears, and its press is refused (paintAnchors). */
 
 import { chromeStyle } from "./runtime/chrome-style.js";
-
-// TODO(2026-08-24): Give the shared mutable runtime context one owner, then split
-// projection from conversation coordination. Choosing that owner belongs in a
-// semantic commit.
+import { runtime } from "./runtime/context.js";
+import { createProjection } from "./runtime/projection.js";
 
 // ---------- widget layer ----------
 
-let agent = "Claude";
-export const agentName = () => agent;
+export const agentName = () => runtime.agent;
+
+async function undoLast(...args) {
+  return runtimeProjection.undoLast(...args);
+}
 
 // Attributes the runtime itself may paint onto elements the page owns. This is the
 // replay signature's one exclusion vocabulary as well as the source each writer uses:
@@ -352,7 +353,7 @@ function reportPageError(text) {
   postEvent({
     kind: "error",
     text,
-    ...(currentVersion != null && { version: currentVersion }),
+    ...(runtime.currentVersion != null && { version: runtime.currentVersion }),
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
@@ -703,7 +704,6 @@ async function highlightBlocks(root) {
 // this instead.
 export const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 export const SCROLL = REDUCED ? "instant" : "smooth";
-let projectingState = false;
 
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
@@ -717,7 +717,7 @@ export function motion(el, keyframes, ms) {
   // FLIP alike without a widget learning whether the page has been presented.
   if (
     REDUCED ||
-    projectingState ||
+    runtime.projectingState ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)
   )
     return null;
@@ -1144,7 +1144,7 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
   if (!actionMatches(el, action, detail)) return null;
   return post({
     kind: "action",
-    version: currentVersion,
+    version: runtime.currentVersion,
     widget: el.id,
     action,
     detail,
@@ -1160,14 +1160,14 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
 // only statement this tab knows, so its caller may paint while the outbox keeps replay
 // and undo held for a complete read.
 export function actionStands(event) {
-  if (!events.some((candidate) => candidate.id === event.id)) return true;
+  if (!runtime.events.some((candidate) => candidate.id === event.id)) return true;
   const el = elementById(event.widget);
   const spec = el && registry[el.localName]?.["x-state"]?.[event.action];
   if (!el || !spec) return false;
   const unit = unitOf(event, spec);
   if (typeof unit !== "string") return false;
   return (
-    stateProjection(currentVersion).actions.get(
+    stateProjection(runtime.currentVersion).actions.get(
       stateCoordinate(event.widget, unit, spec),
     )?.e.id === event.id
   );
@@ -1215,7 +1215,7 @@ export function conversationBox(el, hint) {
           (attempt) =>
             post({
               kind: "comment",
-              version: currentVersion,
+              version: runtime.currentVersion,
               anchor: { section: el.id },
               text,
               attempt,
@@ -1223,7 +1223,7 @@ export function conversationBox(el, hint) {
         ))
       )
         return;
-      showToast(`Sent to ${agent}`);
+      showToast(`Sent to ${runtime.agent}`);
     },
   });
   sync();
@@ -1666,7 +1666,7 @@ function reveal(el) {
 // attributes are words the page says (see renderSaid). Empty only during the real
 // fetch interval, when the already-wired chrome can legitimately be used; a failed
 // fetch still rejects startup rather than becoming an empty vocabulary.
-let registry = {};
+const registry = runtime.registry;
 let anchoringReady = false;
 // The file-side passage reader fences an upgraded element and each of its original
 // direct children when the registry cannot promise its body is verbatim. Remember
@@ -1812,7 +1812,7 @@ async function upgradeWidgets() {
     throw new Error(`leaf: registry failed to load (${response.status})`);
   const responseGeneration = response.headers.get("Leaf-Layer");
   if (responseGeneration && !sameLayer(responseGeneration)) return;
-  registry = await response.json();
+  Object.assign(registry, await response.json());
   const registryGeneration = registry.$layer?.generation;
   if (typeof registryGeneration !== "string" || !registryGeneration)
     throw new Error("leaf: registry lacks $layer.generation");
@@ -2102,7 +2102,7 @@ const LIVE_ROOT = location.pathname.endsWith("/") && !VERSION_MATCH;
 const servedVersion = document.querySelector(
   'meta[name="lf-version"][data-lf-runtime]',
 )?.content;
-let currentVersion = VERSION_MATCH
+runtime.currentVersion = VERSION_MATCH
   ? parseInt(VERSION_MATCH[1], 10)
   : servedVersion
     ? parseInt(servedVersion, 10)
@@ -2825,7 +2825,8 @@ for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false)
 // has only this control to read it back off, and a colour is not a thing a screen
 // reader announces.
 const versionLabel = (comparing) =>
-  (comparing ? "Δ " : "") + (currentVersion === null ? "▾" : `v${currentVersion} ▾`);
+  (comparing ? "Δ " : "") +
+  (runtime.currentVersion === null ? "▾" : `v${runtime.currentVersion} ▾`);
 const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
 versionBtn.setAttribute("aria-haspopup", "menu");
 versionBtn.setAttribute("aria-expanded", "false");
@@ -2852,7 +2853,8 @@ function showVersionMenu(open) {
   if (open)
     (
       versionRows().find(
-        (r) => r.dataset.lfVersion === String(diffOn ? diffBase : currentVersion),
+        (r) =>
+          r.dataset.lfVersion === String(diffOn ? diffBase : runtime.currentVersion),
       ) ?? versionRows()[0]
     )?.focus();
   else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
@@ -3164,15 +3166,14 @@ reserve(othersBtn, ["All leaves (999)"]);
 document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 
 // ---------- state ----------
-let events = [];
+
 // Until the first state answer, [] means "not read", not "no comments". Keep that
 // distinction for a Comments panel restored or opened during startup; its General
 // composer stays usable while the log-derived list says what it is waiting for.
-let statePhase = "waiting";
-let lastEventSeq = -1;
+
 let lastVersionsKey = "";
-let latestVersion = null;
-let versions = [];
+
+const versions = runtime.versions;
 let agentMsgCount = -1;
 // Replace-in-place work claims, already normalized by the server out of status.json's
 // private store. Reports join them in updateSequence below. Keeping only source records
@@ -3204,20 +3205,20 @@ let pendingAnchor = null;
 // A reply widget lives in frozen chrome and therefore sees the whole sequence. Returning
 // fresh copies keeps the private event store private.
 function sequence(widget, verb, live) {
-  return events
+  return runtime.events
     .filter(
       (event) =>
         event.kind === "action" &&
         event.widget === widget.id &&
         (!verb || event.action === verb) &&
-        (inChrome(widget) || event.version <= currentVersion) &&
+        (inChrome(widget) || event.version <= runtime.currentVersion) &&
         live(event),
     )
     .map((event) => structuredClone(event));
 }
 
 export const actionSequence = (widget, action) => {
-  const projection = stateProjection(currentVersion);
+  const projection = stateProjection(runtime.currentVersion);
   return sequence(widget, action, (e) => projectionCommitted(projection, e));
 };
 
@@ -3299,7 +3300,7 @@ function updatesFromProjection(target, projection) {
         ),
       );
     } else if (source.target.kind === "widget") {
-      effective = !events.some(
+      effective = !runtime.events.some(
         (event) =>
           event.kind === "note" &&
           event.seq > source.log_floor &&
@@ -3331,7 +3332,7 @@ function updatesFromProjection(target, projection) {
 }
 
 export const updateSequence = (target = null) =>
-  updatesFromProjection(target, stateProjection(currentVersion));
+  updatesFromProjection(target, stateProjection(runtime.currentVersion));
 
 // Do not narrate a report while its coordinate still paints the prior winner.
 function reportUpdatesCommitted(projection, target) {
@@ -3359,8 +3360,8 @@ function reportUpdatesCommitted(projection, target) {
 // one section below the banner.
 export const publishedAt = () => {
   let ts = null;
-  for (const e of events)
-    if (e.kind === "note" && e.version === currentVersion) ts = e.ts;
+  for (const e of runtime.events)
+    if (e.kind === "note" && e.version === runtime.currentVersion) ts = e.ts;
   return ts;
 };
 
@@ -3393,7 +3394,7 @@ export const watchActions = (widget, action, callback) =>
 
 export const watchUpdates = (target, callback) =>
   watch(target instanceof Element ? target : document.body, () => {
-    const projection = stateProjection(currentVersion);
+    const projection = stateProjection(runtime.currentVersion);
     if (!reportUpdatesCommitted(projection, target)) return;
     callback(updatesFromProjection(target, projection));
   });
@@ -3456,7 +3457,8 @@ const parseDraftRecord = (value) => {
     return null;
   }
 };
-const attemptAccepted = (attempt) => events.some((event) => event.attempt === attempt);
+const attemptAccepted = (attempt) =>
+  runtime.events.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {
@@ -4278,7 +4280,7 @@ function buildThreads() {
   // `resolves` to a widget-absolute unit so the two keys are the same one.
   const answers = new Map();
   const settlingActions = new Set();
-  for (const e of events)
+  for (const e of runtime.events)
     if (
       e.kind === "action" &&
       !withdrawn.has(e.id) &&
@@ -4287,7 +4289,7 @@ function buildThreads() {
       answers.set(e.widget, e);
       if (e.detail.resolves) settlingActions.add(e.id);
     }
-  for (const e of events) {
+  for (const e of runtime.events) {
     // A gesture the reader took back settles nothing, whichever way it settled: the
     // log holds it and no reading of the log stands on it. The same sentence
     // interact.py's build_threads reads, because it is the same reading.
@@ -4750,7 +4752,7 @@ async function sendReply(t, text, raw, owns) {
     post({
       kind: "reply",
       parent: id,
-      version: currentVersion,
+      version: runtime.currentVersion,
       text,
       attempt,
     }),
@@ -5193,7 +5195,7 @@ function paintWorkLines() {
         paintWorkLine(inline, update, inline.querySelector(":scope > .lf-say"), wanted);
       continue;
     }
-    if (kind !== "widget" || update.version > currentVersion) continue;
+    if (kind !== "widget" || update.version > runtime.currentVersion) continue;
     const owner = elementById(id);
     if (!owner || inChrome(owner)) continue;
     const seat = widgetWorkSeat(owner);
@@ -5256,7 +5258,7 @@ function renderThreads(threads) {
     }
     wanted.push(node);
   }
-  for (const e of events) {
+  for (const e of runtime.events) {
     if (e.kind === "done") wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
   }
   if (resolved.length) {
@@ -5347,7 +5349,7 @@ function paintNarrowing(open, shown) {
 // log's: the reader narrowing it. Nothing about the page moved, so the anchor pass is not
 // asked again — the list is rebuilt from the record it already wrote.
 function renarrow() {
-  if (statePhase !== "ready") return;
+  if (runtime.statePhase !== "ready") return;
   renderThreads(threadList);
   paintWorkLines();
   // A new set of results starts at its own beginning. Keeping the old offset lands the
@@ -5415,9 +5417,9 @@ threadsBox.addEventListener("animationend", (ev) => ev.target.classList.remove("
 // The panel and the page marks are two views of the same threads, and the paint pass
 // reports back to the list renderThreads just reconciled — always render them as a pair.
 function renderPanel() {
-  if (statePhase !== "ready") {
+  if (runtime.statePhase !== "ready") {
     waitingNote.textContent =
-      statePhase === "offline"
+      runtime.statePhase === "offline"
         ? "Current comments are unavailable while the server is offline."
         : "Loading current comments…";
     setChildren(threadsBox, [waitingNote]);
@@ -6439,7 +6441,7 @@ function* blocksOnScreen() {
 // filtered to a section the text isn't in and can only ever fail — restore then falls back
 // to the section, which doesn't absorb content added above the reader inside it.
 function captureView() {
-  const view = { v: currentVersion, y: pageScroller.scrollTop };
+  const view = { v: runtime.currentVersion, y: pageScroller.scrollTop };
   // Where the ask walk left off, which is the reader's place stated more exactly than
   // any block can state it — the walk put them there on purpose. Its element identity
   // does not survive an authored-main replacement, and the module variable does not
@@ -8314,7 +8316,7 @@ const syncComposer = wireInput(composerInput, {
       (attempt) => {
         const event = {
           kind: "comment",
-          version: currentVersion,
+          version: runtime.currentVersion,
           anchor,
           text,
           attempt,
@@ -8481,7 +8483,7 @@ const syncGeneral = wireInput(generalInput, {
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
   send: async (text, raw) => {
-    const event = { kind: "comment", version: currentVersion, text };
+    const event = { kind: "comment", version: runtime.currentVersion, text };
     if (designOn) event.about = "layer";
     const sent = await sendDraft(
       "general",
@@ -8497,7 +8499,7 @@ mirrorDraft(generalInput, syncGeneral, "general");
 
 let approving = false;
 function paintApproval() {
-  const approved = events.some((e) => e.kind === "done");
+  const approved = runtime.events.some((e) => e.kind === "done");
   approveBtn.disabled =
     approving ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
@@ -8510,7 +8512,7 @@ approveBtn.onclick = async () => {
   approveBtn.setAttribute("aria-busy", "true");
   paintApproval();
   try {
-    await post({ kind: "done", version: currentVersion, text: "Looks good" });
+    await post({ kind: "done", version: runtime.currentVersion, text: "Looks good" });
   } finally {
     approving = false;
     approveBtn.removeAttribute("aria-busy");
@@ -9304,7 +9306,7 @@ const TYPING = {
 const PANEL = {
   title: "In the comment panel",
   at: () => panelOpen && containsAcross(panel, focused()),
-  when: () => statePhase === "ready",
+  when: () => runtime.statePhase === "ready",
   rows: [
     {
       // `w` for the words the control says, the way `l` spells the leaves and `a` the
@@ -10338,7 +10340,7 @@ function answeredAsk(el, projection) {
 }
 const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
 
-function askContext(projection = stateProjection(currentVersion)) {
+function askContext(projection = stateProjection(runtime.currentVersion)) {
   const positionedParents = new Map();
   for (const { unit, e, spec } of projection.desired.values()) {
     if (spec.record?.kind !== "position") continue;
@@ -11002,7 +11004,8 @@ function applyDiff(doc, baseVersion) {
 }
 // Whether a version can be compared with the one being read: anything published
 // before it, which is which rows the menu builds a press onto.
-const comparable = (version) => currentVersion !== null && version < currentVersion;
+const comparable = (version) =>
+  runtime.currentVersion !== null && version < runtime.currentVersion;
 // Every rendering of the pair above, written in one place: the chooser's word, its
 // paint and what it says it will do, the checked state of each row's Δ, and the rail
 // down the rows the comparison spans. Called by the setter, by a menu rebuild — the
@@ -11021,7 +11024,7 @@ function paintDiff() {
     const version = +row.dataset.lfVersion;
     row.classList.toggle(
       "lf-compared",
-      diffOn && version >= diffBase && version <= currentVersion,
+      diffOn && version >= diffBase && version <= runtime.currentVersion,
     );
   }
   for (const press of versionMenu.querySelectorAll(".lf-version-diff"))
@@ -11508,7 +11511,7 @@ async function activateVersion(doc, version) {
     doc.body,
     authoredBodyAttributes,
   );
-  currentVersion = version;
+  runtime.currentVersion = version;
   activateHead(doc, version);
   document.querySelector("body > main").replaceWith(fresh);
   pruneScopedElements();
@@ -11526,22 +11529,24 @@ async function activateVersion(doc, version) {
 // version pins the view, the newest unpins it.
 let forceActivation = false;
 const goVersion = (version) => {
-  if (LIVE_ROOT && version === currentVersion) return;
-  if (LIVE_ROOT && version === latestVersion) {
+  if (LIVE_ROOT && version === runtime.currentVersion) return;
+  if (LIVE_ROOT && version === runtime.latestVersion) {
     forceActivation = true;
     showVersionMenu(false);
     poll();
     return;
   }
   const path = versionUrl(version);
-  location.href = version === latestVersion ? path : `${path}?pin`;
+  location.href = version === runtime.latestVersion ? path : `${path}?pin`;
 };
 function renderVersions(state) {
-  versions = state.versions;
+  versions.splice(0, versions.length, ...state.versions);
   const notes = {};
-  for (const e of events) if (e.kind === "note") notes[e.version] = e.text;
+  for (const e of runtime.events) if (e.kind === "note") notes[e.version] = e.text;
   const key = JSON.stringify([state.versions, notes]);
-  const current = state.versions.includes(currentVersion) ? currentVersion : null;
+  const current = state.versions.includes(runtime.currentVersion)
+    ? runtime.currentVersion
+    : null;
   // Rebuilt rather than reconciled: this runs only when the versions or their notes
   // actually changed, which on a page's whole life is a handful of times, and the
   // menu is only ever read while it is open — where a rebuild would take the focused
@@ -11595,21 +11600,22 @@ function renderVersions(state) {
     }
     paintDiff(); // a fresh list, and a standing comparison to show on it
   }
-  latestVersion = state.versions.at(-1) ?? null;
+  runtime.latestVersion = state.versions.at(-1) ?? null;
   const behind =
-    latestVersion !== null &&
-    currentVersion !== null &&
-    latestVersion !== currentVersion;
+    runtime.latestVersion !== null &&
+    runtime.currentVersion !== null &&
+    runtime.latestVersion !== runtime.currentVersion;
   // An immutable unpinned document still follows by navigation. The live root's
   // activation decision was made before this rendering, where its fetched document and
   // the composition hold were both available. Either route leaves the chip as news
   // while it is behind.
   if (behind && !LIVE_ROOT && !PINNED && !midComposition()) {
-    location.replace(versionUrl(latestVersion));
+    location.replace(versionUrl(runtime.latestVersion));
     return;
   }
   showNews(latestChip, behind);
-  if (behind) latestChip.textContent = `New version available → open v${latestVersion}`;
+  if (behind)
+    latestChip.textContent = `New version available → open v${runtime.latestVersion}`;
 }
 /** The reader's hand on a widget, in the layer's own word: a drag the log has not taken
  * yet. The class is half of `unaccountedGesture` below, so taking it up or putting it
@@ -11641,7 +11647,9 @@ export const dragging = (el, on) => {
 // gesture again, which the door refuses and the reader hears as a page that couldn't
 // reach its server.
 const unaccountedGesture = () =>
-  undoing || outbox.length > 0 || Boolean(document.querySelector(".lf-dragging"));
+  runtime.undoing ||
+  outbox.length > 0 ||
+  Boolean(document.querySelector(".lf-dragging"));
 // The user is mid-something navigation would destroy: the above, and the words they
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
@@ -11656,7 +11664,7 @@ const midComposition = () =>
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
 // live root that is an explicit in-place release of the composition hold; on an immutable
 // page it is ordinary version travel.
-latestChip.onclick = () => goVersion(latestVersion);
+latestChip.onclick = () => goVersion(runtime.latestVersion);
 
 // ---------- polling ----------
 // Rendering version V means making its DOM equal the log's desired projection.
@@ -11681,1087 +11689,83 @@ latestChip.onclick = () => goVersion(latestVersion);
 // premise nothing checked, and acknowledgement is not assent. Only a version can say
 // what the agent did with an action, and saying it is `version check`'s business now
 // (restatement_errors), not something inferred here from silence.
-// The DOM's one checkpoint: each semantic coordinate names the projected winner
-// painted there and the widget/unit nodes that held it. Event ids alone cannot prove
-// state survived a recordless rebuild or a thread reconcile; node identity can. A
-// coordinate with no winner is committed too, once its authored baseline stands.
-const committedProjection = new Map();
-// What an action rests on: the widget that sent it, and the parts of that widget
-// its detail names — a `move` rests on its card as much as on the board. Either
-// can be taken back, which is what lets a rewritten card drop its own moves while
-// the rest of the board stays where the user put it. Containment is the test,
-// not "the page has an element by that id", so a literal detail value can't
-// collide with an unrelated element that happens to be called the same thing.
-function restsOn(e, widget) {
-  // flat(), because a detail field may name several elements at once (a group's
-  // set of picks) and each of them is something the action rests on.
-  const parts = Object.values(e.detail)
-    .flat()
-    .map((v) => (typeof v === "string" ? elementById(v) : null))
-    .filter((el) => el && widget && containsAcross(widget, el))
-    .map((el) => el.id);
-  return [e.widget, ...parts];
-}
-// Which of those a later version took back. One spelling of the rule, because three
-// readings ask it — replay, the fold, and the thread list — and a decision standing in
-// one of them and retracted in another is the drift `restated` exists to prevent. The
-// ids rather than a boolean, since replay says so on the page (data-lf-restated) and
-// the other two only count them.
-//
-// A widget the page no longer holds answers for itself alone, which is what a version
-// honoring a decision leaves behind: the wrapper is retired, so there is nothing to ask
-// about containment and nothing that should read as a retraction — retirement is the
-// decision being carried out, not taken back. That is also the answer interact.py gives
-// without trying, reading a version file where the same element is simply absent.
-function retractedIds(e, floors, widget) {
-  return restsOn(e, widget).filter((id) => (floors.get(id) ?? 0) > e.version);
-}
-// Retractions: a version that rewrote the words or state under a decision says
-// so with `restated`, and publishing records it on the note that released it.
-// Reading it from the log rather than from the markup is what makes it last —
-// the version *after* the rewrite declares nothing, and its silence would
-// otherwise hand the user's retracted state straight back.
-// Retractions and settlements are separate durable relations carried by the same
-// version note. `restated` retracts reader decisions; typed `settles` targets end
-// provisional agent facts without overloading a field name or an id namespace.
-// Memoized on the log's identity and the relation/window query: `events` has one writer,
-// which replaces the array wholesale (poll), so a cached answer cannot be stale and
-// every consumer shares the same filter-and-max fold.
-const noteFloorsMemo = new WeakMap();
-function noteFloors(relation, upto, idsOf) {
-  let byQuery = noteFloorsMemo.get(events);
-  if (!byQuery) noteFloorsMemo.set(events, (byQuery = new Map()));
-  const query = `${relation}:${upto}`;
-  if (byQuery.has(query)) return byQuery.get(query);
-  const floors = new Map();
-  for (const e of events)
-    if (e.kind === "note" && e.version <= upto)
-      for (const id of idsOf(e))
-        floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
-  byQuery.set(query, floors);
-  return floors;
-}
-const retractionFloors = (upto) =>
-  noteFloors("retraction", upto, (e) => e.restated ?? []);
-// A report's end: the ids the notes in the window answered, absorbed or
-// overruled — the agent channel's mirror of retractionFloors, read from the
-// log for the same reason (the version after the answer declares nothing, and
-// its silence must not hand the report back).
-const settledReports = (upto) =>
-  noteFloors("settlement:report", upto, (e) =>
-    (e.settles ?? [])
-      .filter((target) => target.kind === "report")
-      .map((target) => target.id),
-  );
-// An id-bearing element's state as markup can say it: tag, attributes, and
-// place among its id-bearing kin. Text is deliberately absent — words are the
-// static gate's subject (restatement_errors); this is the rest, the state no
-// version file can speak. What the runtime itself paints onto page elements —
-// exactly PAGE_PAINT_ATTRIBUTES — is absent too: no version can assert those,
-// and looking away from them keeps a reading taken from the live DOM equal to
-// one taken from the file without hiding a widget's own data-lf state. Diffed around each replay batch to
-// record what replay wrote, and imported by version check --render to read the version
-// files with the same eyes, so the two readings cannot drift.
-export function shallowSigs(root) {
-  const sigs = new Map();
-  for (const el of [root, ...root.querySelectorAll("[id]")]) {
-    if (!el.id) continue;
-    const attrs = [...el.attributes]
-      .filter((a) => !PAGE_PAINT_ATTRIBUTES.has(a.name))
-      .map((a) => `${a.name}=${a.value}`)
-      .sort()
-      .join(" ");
-    const kin = [...(el.parentElement?.children ?? [])].filter((c) => c.id);
-    sigs.set(
-      el.id,
-      `${el.tagName} [${attrs}] in=${el.parentElement?.id ?? ""}#${kin.indexOf(el)}`,
-    );
-  }
-  return sigs;
-}
-// The settlement mark is the layer's paint of a logged decision, never a module
-// obligation: x-retired-when and x-parent already state which verbs settle a holder,
-// so the writer with the registry and the log both in hand is this replay. It used to
-// be each holder module's duty, documented in the scaffold and enforced nowhere — the
-// suggestion remembered, and the first module that forgot would have silently split
-// the page's reading from the file's, with `leaf comment` refusing quotes as the only
-// symptom. A module is still free to say the mark sooner as its own gesture's paint
-// (lf-suggestion does, choreographing its fold around it); this write is then the
-// no-op that makes the guarantee unconditional. Written only where an action retires
-// behind the version and retraction gates — applied, thrown, or with no applyAction
-// to call — so a pinned older page and a restated decision stay unmarked. The mark
-// follows the fold both ways: the file's standing settlement is the last surviving
-// action at that owner-unit-facet coordinate, so another outcome there displaces the
-// decision and the mark goes with it — left standing, the page would silence slots the
-// log had handed back. Returns whether it wrote, for the one caller that would otherwise
-// report nothing written.
-function markSettled(el, action) {
-  const outcomes = settlementSlots()[el.localName];
-  if (!outcomes) return false;
-  if (outcomes[action]) {
-    el.setAttribute("data-lf-state", action);
-    renderRetired(el);
-    return true;
-  }
-  const state = registry[el.localName]?.["x-state"] ?? {};
-  const spec = state[action];
-  const settlementFacet = state[el.getAttribute("data-lf-state")]?.facet;
-  if (
-    spec?.unit === "widget" &&
-    spec.facet === settlementFacet &&
-    el.hasAttribute("data-lf-state")
-  ) {
-    el.removeAttribute("data-lf-state");
-    renderRetired(el);
-    return true;
-  }
-  return false;
-}
-function clearSettled(el, facet) {
-  const action = el.getAttribute("data-lf-state");
-  const spec = registry[el.localName]?.["x-state"]?.[action];
-  if (!action || spec?.unit !== "widget" || spec.facet !== facet) return false;
-  el.removeAttribute("data-lf-state");
-  renderRetired(el);
-  return true;
-}
-// ---------- decided, awaiting the honoring version ----------
-// The registry's x-state names each verb's fold unit and record form, so one
-// pass renders "the user decided this and no version has carried it yet"
-// for every widget alike — choose had its mark, edit its tint, move nothing,
-// and the asymmetry was each widget remembering (or not) on its own. The
-// authored facets are captured once per page load, after upgrades and before
-// the first replay: the markup's initial condition, which replay then
-// overwrites in the DOM.
-const authoredFacets = new Map(); // (owner, unit, facet) -> authored record value
+const runtimeProjection = createProjection(runtime, {
+  ASK_ROW,
+  COLLAPSE,
+  MARKED_ANYWHERE,
+  MARKED_IN_PAGE,
+  PAGE_PAINT_ATTRIBUTE,
+  PAGE_PAINT_ATTRIBUTES,
+  agentName,
+  askContext,
+  askEntry,
+  containsAcross,
+  dress,
+  elementById,
+  failSoft,
+  focused,
+  inChrome,
+  isAwaiting,
+  markDeclared,
+  outbox,
+  pagePresented,
+  pageQueryAll,
+  pageShifted,
+  paintAnchors,
+  paintKeys,
+  paintWorkLines,
+  post,
+  projectedParent,
+  quoteFrom,
+  reachScrollers,
+  rememberPassageParts,
+  removeOutbox,
+  renderQuiet,
+  renderRetired,
+  reportPageError,
+  settlementSlots,
+  standOn,
+  textNodesUnder,
+  toast,
+  widgetEntries,
+});
+const {
+  authoredDetails,
+  authoredFacets,
+  authoredMarkup,
+  authoredParents,
+  authoredStatements,
+  authoredWidgets,
+  captureAuthoredFacets,
+  committedProjection,
+  coordinateProjectionCommitted,
+  domFacet,
+  foldedFacet,
+  markSettled,
+  matchesProjectedWhen,
+  paintPending,
+  projectedFacet,
+  projectionCommitted,
+  rebuild,
+  reconcileKnownState,
+  reconcileState,
+  releaseProjectedOutbox,
+  rememberAuthoredMarkup,
+  requirementMatches,
+  retractedIds,
+  retractionFloors,
+  shallowSigs,
+  stageOutboxAction,
+  standingState,
+  stateCoordinate,
+  stateProjection,
+  stateSpecs,
+  takenBack,
+  undoable,
+  unitOf,
+} = runtimeProjection;
+export { shallowSigs, standingState };
 
-// Both channels: a report's record form is a facet exactly as an action's is,
-// so the authored-facet capture and the diff's state half serve the two alike.
-// Named members rather than a tuple, because every consumer takes a different subset
-// and positional destructuring once bound a verb where it wanted the spec. Nothing
-// threw; the diff simply marked no recorded state.
-function stateSpecs() {
-  const specs = [];
-  for (const [tag, entry] of widgetEntries())
-    for (const channel of ["x-state", "x-report"])
-      for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
-        specs.push({ tag, channel, verb, spec });
-  return specs;
-}
-
-// A recorded part belongs to the nearest widget that owns recorded state, regardless
-// of tag. Custom containers and shipped widgets compose through the same registry, so
-// same-tag scoping is too weak: an outer group must not read or reset a nested group's
-// chosen members merely because the inner owner has another name.
-const recordedOwner = (member) => {
-  const selector = [
-    ...new Set(
-      stateSpecs()
-        .filter(({ spec }) => spec.record)
-        .map(({ tag }) => tag),
-    ),
-  ].join(",");
-  return selector ? member.closest(selector) : null;
-};
-const ownedRecordMembers = (widget, selector) =>
-  [...widget.querySelectorAll(selector)].filter(
-    (member) => recordedOwner(member) === widget,
-  );
-
-// What the page shows for one unit's declared record form, asked of the live
-// DOM or of the diff's parsed base document alike. An attribute record is the
-// set of elements wearing it — a group taking several picks marks several — so
-// both readings collapse to the sorted ids, and comparing them stays a !==.
-//
-// The id-bearing ones only, because an id is how a member of that set is named
-// everywhere else: in the action detail the fold reads back (foldedFacet sorts
-// the ids the log carries) and in interact.py's reading of the same page, which
-// can see none but those. One marked element without an id contributed an empty
-// string that sorted to the front of the join, so a set the two sides agreed on
-// came out with a leading space on this one.
-function domFacet(el, record) {
-  if (record.kind === "attribute")
-    return ownedRecordMembers(el, `[${record.attr}]`)
-      .map((o) => o.id)
-      .filter(Boolean)
-      .sort()
-      .join(" ");
-  if (record.kind === "value") return el.getAttribute(record.attr);
-  if (record.kind === "position") return el.closest(record.within)?.id ?? null;
-  return quoteFrom(textNodesUnder(el)); // "body": the words, read the way a quote is
-}
-
-// The state the folded action left, from the detail field the record declares,
-// collapsed the way the DOM reading collapses — its words where it is words,
-// its sorted ids where it is a set.
-function foldedFacet(e, record) {
-  const value = e.detail[record.value];
-  if (record.kind === "body")
-    return String(value ?? "")
-      .replace(COLLAPSE, " ")
-      .trim();
-  if (record.kind === "attribute") return [...value].sort().join(" ");
-  return value ?? null;
-}
-
-// One canonical current reading for action admission as for replay: the latest desired
-// action/report at an owner-unit-facet coordinate, falling back to the version's
-// captured authored facet. A gesture may already have changed the live DOM before it
-// calls sendAction, so eligibility never reads that mutable rendering.
-function projectedFacet(
-  widget,
-  spec,
-  winners = stateProjection(currentVersion).desired,
-) {
-  const coordinate = stateCoordinate(widget.id, widget.id, spec);
-  const winner = winners.get(coordinate);
-  return winner
-    ? foldedFacet(winner.e, winner.spec.record)
-    : authoredFacets.get(coordinate);
-}
-
-// x-awaits conditions normally name authored configuration attributes (choose,
-// multiple), but a value record can make the tested attribute itself current state
-// (a task's reported status). Read that field from the same fold that replay uses,
-// never from DOM a gesture or a not-yet-painted poll may already have changed.
-function matchesProjectedWhen(widget, when, projection) {
-  return Object.entries(when ?? {}).every(([attr, values]) => {
-    const declaration = stateSpecs().find(
-      ({ tag, spec }) =>
-        tag === widget.localName &&
-        spec.unit === "widget" &&
-        spec.record?.kind === "value" &&
-        spec.record.attr === attr,
-    );
-    const value = declaration
-      ? projectedFacet(widget, declaration.spec, projection.desired)
-      : widget.getAttribute(attr);
-    const present = declaration ? value !== null : widget.hasAttribute(attr);
-    return values.some((candidate) =>
-      typeof candidate === "boolean" ? present === candidate : value === candidate,
-    );
-  });
-}
-
-// Parent means the nearest enclosing vocabulary widget. The registry boundary has
-// already proved it is one of the sender's x-parent holders and that every permitted
-// holder declares this facet, so runtime code neither names nor skips widget families.
-function requirementTarget(widget, target, context) {
-  if (target === "self") return widget;
-  const permitted = registry[widget.localName]["x-parent"] ?? [];
-  for (
-    let node = projectedParent(widget, context);
-    node;
-    node = projectedParent(node, context)
-  )
-    if (registry[node.localName])
-      return permitted.includes(node.localName) && askEntry(node) ? node : null;
-  return null;
-}
-
-function requirementMatches(widget, spec, detail) {
-  if (!pagePresented()) return false;
-  const requirement = spec.requires;
-  if (requirement.change === "increase") {
-    const current = projectedFacet(widget, spec);
-    const proposed = detail?.[spec.record.value];
-    if (!/^\d+$/.test(current ?? "") || !/^\d+$/.test(proposed ?? "")) return false;
-    if (BigInt(proposed) <= BigInt(current)) return true;
-  }
-  const context = askContext();
-  const target = requirementTarget(widget, requirement.target, context);
-  if (!target) return false;
-  const awaiting = isAwaiting(target, context);
-  return awaiting === requirement.awaiting;
-}
-
-// The same capture read the other way: the detail that *states* each unit's
-// authored placement, keyed by the verb that would state it. The facet above is
-// what a comparison needs, and it is deliberately lossy — a position collapses to
-// its column, a body to its collapsed words — because the log's own detail is
-// compared collapsed. Taking a gesture back needs a statement rather than a
-// comparison, and the two are different questions about one record: a card put
-// back on the right list in the wrong place is the facet's answer, correct and
-// useless.
-const authoredDetails = new Map(); // (owner, unit, facet) -> the detail stating it
-// Reconciliation resets a dirty widget as one composition boundary before replaying
-// its winners. Position units share sibling order, so restoring only the unit whose
-// winner disappeared would make its authored index relative to a still-projected
-// container and then replay the other units from the wrong order.
-const authoredStatements = new Map(); // widget id -> coordinate -> absolute statement
-
-// And the markup itself, for the widgets whose state cannot be stated at all: one whose
-// durable verb has no record — a settlement, where "undecided" is a value no
-// verb carries. Kept only for those, because a clone is the whole subtree and every
-// other widget can be told its state in a sentence.
-//
-// Taken beside the passage fences and for the same reason, which is that both are
-// readings of what the *version* wrote: the moment after the registry lands and before
-// the modules import is the only one at which the page holds the author's markup and
-// nothing else. A clone taken a moment later is a clone of the upgraded page — the
-// injected controls, the marks, and `once`'s own stamp with them — so putting it back
-// would put back a widget that had already been upgraded and would never upgrade again.
-const authoredMarkup = new Map(); // widget id -> the markup this version wrote
-const authoredParents = new WeakMap(); // element -> its pre-upgrade parent
-// By tag rather than by verb, because a family declaring two record-less verbs — a
-// suggestion's accept and its reject — would otherwise clone every one of its
-// instances once per verb and keep the last.
-function rememberAuthoredMarkup(root = document) {
-  const elements = root.nodeType === Node.ELEMENT_NODE ? [root] : [];
-  elements.push(...root.querySelectorAll("*"));
-  for (const element of elements)
-    if (!authoredParents.has(element))
-      authoredParents.set(element, element.parentElement);
-
-  const settlements = new Set(
-    stateSpecs()
-      .filter(({ spec }) => !spec.record)
-      .map(({ tag }) => tag),
-  );
-  for (const tag of settlements) {
-    for (const widget of root.querySelectorAll(tag))
-      if (widget.id && !authoredMarkup.has(widget.id))
-        authoredMarkup.set(widget.id, widget.cloneNode(true));
-  }
-}
-
-const authoredWidgets = new Set();
-function captureAuthoredFacets(root = document) {
-  const byTag = new Map();
-  for (const statement of stateSpecs()) {
-    if (!statement.spec.record) continue;
-    const statements = byTag.get(statement.tag) ?? [];
-    statements.push(statement);
-    byTag.set(statement.tag, statements);
-  }
-  for (const [tag, statements] of byTag) {
-    for (const widget of root.querySelectorAll(tag)) {
-      if (!widget.id || authoredWidgets.has(widget.id)) continue;
-      for (const { verb, spec } of statements) {
-        if (spec.unit === "widget")
-          rememberAuthored(widget, widget, widget.id, verb, spec);
-        else
-          // A position facet is carried by the container's direct id'd children.
-          // Ownership stops at the nearest widget declaring recorded state, so an
-          // outer custom container cannot capture a nested widget's parts.
-          for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
-            if (recordedOwner(part.parentElement) === widget)
-              rememberAuthored(widget, part, part.id, verb, spec);
-      }
-      authoredWidgets.add(widget.id);
-    }
-  }
-}
-
-// The facet and the statement that restores it are both authored facts. Reports are
-// not undoable gestures, but a report can be the projected state displaced by an
-// action; when that action is withdrawn, reconciliation needs the same baseline.
-function rememberAuthored(widget, el, unit, verb, spec) {
-  const coordinate = stateCoordinate(widget.id, unit, spec);
-  authoredFacets.set(coordinate, domFacet(el, spec.record));
-  const detail = authoredDetail(el, unit, spec);
-  if (!detail) return;
-  authoredDetails.set(coordinate, detail);
-  const statements = authoredStatements.get(widget.id) ?? new Map();
-  if (!statements.has(coordinate))
-    statements.set(coordinate, { coordinate, unit, action: verb, detail, spec });
-  authoredStatements.set(widget.id, statements);
-}
-
-// Built from the record form alone, so no widget is named here and a twelfth one is
-// covered the day it declares. Null where this version's markup states no placement
-// at all — an unset scalar, a part standing outside the container its record names —
-// and a unit with no authored statement simply has no first gesture to take back.
-function authoredDetail(el, unit, spec) {
-  const record = spec.record;
-  const detail = spec.unit !== "widget" ? { [spec.unit]: unit } : {};
-  if (record.kind === "attribute")
-    detail[record.value] = ownedRecordMembers(el, `[${record.attr}]`)
-      .map((o) => o.id)
-      .filter(Boolean)
-      .sort();
-  else if (record.kind === "value") {
-    const value = el.getAttribute(record.attr);
-    if (value === null) return null;
-    detail[record.value] = value;
-  } else if (record.kind === "body")
-    // Uncollapsed, where domFacet collapses: what is being reproduced is the
-    // words, and a draft's paragraphs are the whole of the difference. The same
-    // walk either way, so the two readings cannot disagree about *which* words
-    // are the page's — only about the whitespace between them.
-    detail[record.value] = textNodesUnder(el)
-      .map((seg) => seg.node.data.slice(seg.start, seg.end))
-      .join("");
-  else {
-    const within = el.closest(record.within);
-    if (!within?.id) return null;
-    detail[record.value] = within.id;
-    // Among the container's id'd children, which is the same list the capture
-    // above walks — and the same one a board counts, a column admitting nothing
-    // but cards.
-    detail[record.order] = [...within.children].filter((c) => c.id).indexOf(el);
-  }
-  return detail;
-}
-
-// Which element one event states, per the verb's declared fold unit: the widget itself
-// where the verb is absolute across the group, and the element its detail names where
-// it is absolute per part. One sentence, because two copies of it are two readings of
-// the registry free to disagree about what an event is about.
-const unitOf = (e, spec) => (spec.unit === "widget" ? e.widget : e.detail[spec.unit]);
-// One stable representation for the semantic coordinate in every derived view.
-// JSON's array form preserves the boundary even when an id contains punctuation.
-const stateCoordinate = (owner, unit, spec) =>
-  JSON.stringify([owner, unit, spec.facet]);
-
-// A recorded action has already been painted by its widget when it enters this door.
-// Give that optimistic value the same semantic coordinate as authoritative state, and
-// commit it on the exact nodes that carry it. Record-less actions paint only after
-// acceptance, so putting one in this overlay would show a decision the server may refuse.
-function stageOutboxAction(entry) {
-  const e = entry.event;
-  if (e.kind !== "action") return;
-  const widget = elementById(e.widget);
-  const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
-  if (!spec?.record) return;
-  const unit = unitOf(e, spec);
-  if (typeof unit !== "string") return;
-  const coordinate = stateCoordinate(e.widget, unit, spec);
-  const projection = {
-    unit,
-    spec,
-    coordinate,
-    localOrder: entry.order,
-    e: { ...e, id: entry.localId },
-  };
-  entry.projection = projection;
-  committedProjection.set(coordinate, {
-    widgetId: e.widget,
-    widget,
-    unit: elementById(unit),
-    entry: projection,
-  });
-}
-
-function compareProjected(a, b) {
-  const aLogged = Number.isInteger(a.e.seq);
-  const bLogged = Number.isInteger(b.e.seq);
-  if (aLogged && bLogged) return a.e.seq - b.e.seq;
-  if (aLogged) return -1;
-  if (bLogged) return 1;
-  return a.localOrder - b.localOrder;
-}
-
-// Both durable channels projected in one pass. Actions holds the last surviving
-// reader action per coordinate. Reports keeps every live report because publishing
-// answers all of them there. Desired gives the reader's action precedence over
-// provisional agent news on the same fact.
-// The projection is deliberately pure and uncached: its declarations resolve through
-// the live DOM, which panel construction and a recordless rebuild can replace.
-function stateProjection(upto, without = null) {
-  const floors = retractionFloors(upto);
-  const withdrawn = takenBack();
-  const settled = settledReports(upto);
-  const actions = new Map();
-  const reports = new Map();
-  const classified = new Map();
-  for (const e of events) {
-    if (e.kind !== "action" && e.kind !== "report") continue;
-    const el = elementById(e.widget);
-    if (!el) {
-      classified.set(e.id, { e, terminal: true });
-      continue;
-    }
-    const chrome = inChrome(el);
-    // Reply widgets live in frozen log markup and therefore see the whole action
-    // sequence. Reports belong to versions, as do actions on page widgets.
-    if (
-      e.kind === "report" ? chrome || e.version > upto : !chrome && e.version > upto
-    ) {
-      classified.set(e.id, { e, terminal: true });
-      continue;
-    }
-    const channel = e.kind === "action" ? "x-state" : "x-report";
-    const spec = registry[el.tagName.toLowerCase()]?.[channel]?.[e.action];
-    if (!spec) {
-      classified.set(e.id, { e, terminal: true });
-      continue;
-    }
-    const unit = unitOf(e, spec);
-    if (typeof unit !== "string") {
-      classified.set(e.id, { e, terminal: true });
-      continue;
-    }
-    const coordinate = stateCoordinate(e.widget, unit, spec);
-    const entry = { unit, e, spec, coordinate };
-    classified.set(e.id, entry);
-    if (e.kind === "action") {
-      if (e.id === without || withdrawn.has(e.id)) continue;
-      const restated = chrome ? [] : retractedIds(e, floors, el);
-      entry.restated = restated;
-      if (restated.length) continue;
-      actions.set(coordinate, entry);
-    } else if (!settled.has(e.id)) {
-      const standing = reports.get(coordinate) ?? [];
-      standing.push(entry);
-      reports.set(coordinate, standing);
-    }
-  }
-  // A retained accepted attempt already appears above at its true log position. Every
-  // other surviving recorded action is newer local state, in the order the one outbox
-  // will deliver it. Rejections are tombstones, not winners.
-  const loggedAttempts = new Set(events.map((e) => e.attempt).filter(Boolean));
-  for (const out of outbox) {
-    const entry = out.projection;
-    if (!entry || out.rejected || loggedAttempts.has(out.event.attempt)) continue;
-    actions.set(entry.coordinate, entry);
-  }
-  const desired = new Map(
-    [...reports].map(([coordinate, standing]) => [coordinate, standing.at(-1)]),
-  );
-  for (const [coordinate, entry] of actions) desired.set(coordinate, entry);
-  return {
-    actions,
-    reports,
-    classified,
-    desired,
-  };
-}
-
-// What this page's folds hold, handed out so the one premise underneath them can
-// be tested from outside: every applyAction is absolute, and neither fold is a
-// fold if one isn't. `version check --render` applies each of these a second
-// time and asks what moved (RELATIVE_REPLAYS, in interact.py) — the page has
-// already replayed them, so a widget stating the whole value has nothing to do
-// and one stepping from what it reads moves again.
-//
-// Both channels, because both fold the same way: a report states an absolute
-// value exactly as an action does. The widget rather than the unit, because
-// applyAction is the widget's method and the detail is what names the part.
-//
-// In the log's own order, which is the whole of what makes re-applying them a
-// no-op. An absolute applyAction states its unit whole and says nothing about
-// any other, so where two units share an ordered container the page is the
-// *sequence's* result rather than any one action's: two cards dragged to the
-// head of one column leave it holding the second above the first, and replaying
-// the first alone lifts it back over the second. Neither implementation moved;
-// the reading did. A fold is keyed by coordinate and a Map keeps each key where it
-// first appeared, so the surviving events have to be put back in `seq` order
-// rather than taken as the fold hands them over.
-//
-// The widget and the facet are both read at the call rather than held, because
-// an application earlier in the batch is free to have replaced the element a
-// later one names. A unit the current version dropped has no facet at all —
-// its widget survived it.
-//
-// Every action this page holds, the panel's included. A widget an agent sent folds the
-// way a widget on the page does, and the poll replays its standing action over the state
-// that action already produced, exactly as it does for the page's — so the premise binds
-// it and the gate that tests the premise has to see it. A filter on `inChrome` stood here
-// and meant the one verb only a message can carry (`answer`, the Done press on a question
-// asked in a reply) was the one verb whose absoluteness nothing ever checked.
-//
-// Actions and not reports, though both channels come through here: a report has to be
-// answerable by a version and thread markup is frozen, so every door refuses one on a
-// widget an agent sent and the projection above marks any that reached the log terminal.
-export const standingState = () => {
-  const projection = stateProjection(currentVersion);
-  return [...projection.desired]
-    .sort(([, a], [, b]) => compareProjected(a, b))
-    .map(([_coordinate, { unit, e, spec }]) => ({
-      get widget() {
-        return elementById(e.widget);
-      },
-      unit,
-      facet: spec.facet,
-      record: spec.record?.kind ?? null,
-      action: e.action,
-      detail: e.detail,
-      read: () => {
-        const el = spec.record && elementById(unit);
-        return el ? domFacet(el, spec.record) : null;
-      },
-    }));
-};
-
-// ---------- taking a gesture back ----------
-// Undo withdraws; it never deletes. The log is append-only and the page is a fold over
-// it, so `z` posts one event naming the gesture it takes back, and every fold and the
-// thread reading drop that gesture. The page is then the version plus what still
-// stands — the same sentence a reload has always read, and the same one `restated`
-// already writes from the author's side. Nothing states a counter-gesture into the
-// log: a card put back where it came from would read as a decision to move it there,
-// and "undecided" is not a value any verb can carry, so a page whose reader takes back
-// an accept could never have been stated at all.
-//
-// What the reader *sees* is derived from that rather than restated, and by the
-// cheapest faithful means. Where the log still leaves the unit a state that can be
-// stated — a prior action's detail, or the placement this version's markup arrived
-// showing — the widget is told it, so the card travels back under the reader's eye and
-// keeps its focus. Where the verb records nothing, there is no such state, so the
-// widget is rebuilt from the version's own markup and whatever survives is replayed
-// onto it. Both routes are chosen by a declaration and neither knows a widget's name.
-const takenBack = () => new Set(events.filter((e) => e.undoes).map((e) => e.undoes));
-// Whether removing one action leaves the reconciler a state it can paint. The actual
-// transition belongs to reconciliation; this is only the keyboard offer, bounded to
-// the version where the gesture was made.
-function canUndoAction(e) {
-  const el = elementById(e.widget);
-  if (!el || !el.applyAction) return false;
-  const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
-  if (!spec) return false;
-  if (!spec.record) return authoredMarkup.has(e.widget);
-  const unit = unitOf(e, spec);
-  const coordinate = stateCoordinate(e.widget, unit, spec);
-  return (
-    stateProjection(currentVersion, e.id).desired.has(coordinate) ||
-    authoredDetails.has(coordinate)
-  );
-}
-
-// The newest gesture of the reader's own that still stands and can still be taken off
-// the page. Newest-first over the whole log rather than a stack this tab keeps,
-// because a stack is a second store: it would die on the reload a new version
-// performs, and a second tab would hold a different one. The reader's own — an agent's
-// `leaf resolve` is not theirs to undo — and never an undo itself, which is what makes
-// repeated presses a walk backwards instead of a toggle.
-function undoable() {
-  const withdrawn = takenBack();
-  for (let i = events.length - 1; i >= 0; i--) {
-    const e = events[i];
-    if (e.author !== "user" || e.kind === "undo" || withdrawn.has(e.id)) continue;
-    if (e.kind === "resolve" || e.kind === "unresolve") return e;
-    // On the version it was made against: a later version may have been written
-    // around the decision, and a press that paints nothing is not one to offer. What
-    // *hearing* such an undo owes is reconciliation's, and is not the same answer.
-    const widget = e.kind === "action" && elementById(e.widget);
-    if (
-      widget &&
-      (inChrome(widget) || e.version === currentVersion) &&
-      canUndoAction(e)
-    )
-      return e;
-  }
-  return null;
-}
-
-// Said in the kinds this file owns, never in the verb the action carries: `move` and
-// `edit` read as nouns in that sentence and `choose` does not, and which of the two a
-// widget's word is is not core's to know. It is the same rule that keeps "accept" out
-// of the answer-all row's words, met here in its smallest form.
-const UNDO_WORDS = {
-  resolve: "Reopened the thread",
-  unresolve: "Resolved the thread again",
-  action: "Took back your last change",
-};
-
-// This press's own record of being in flight, read by unaccountedGesture with the
-// layer's other two.
-let undoing = false;
-
-// The press posts and nothing else. What the page does about it is reconciliation's,
-// where it is done once for every tab off the log rather than here for this one off
-// the gesture — the second tab has to arrive at the same page, and a route only this
-// tab took would be a second answer to converge with. The round trip is the cost, and
-// it is the one gesture that can afford it: a drag has to follow the pointer, where a
-// keypress has nothing on screen waiting on the frame.
-async function undoLast() {
-  const e = undoable();
-  if (!e) return;
-  undoing = true;
-  paintKeys();
-  try {
-    if (await post({ kind: "undo", undoes: e.id }))
-      toast(`${UNDO_WORDS[e.kind]} — sent to ${agentName()}`);
-  } finally {
-    undoing = false;
-    paintKeys();
-  }
-}
-
-// The widget put back as the version wrote it, for the withdrawal no state can state.
-// A rebuild rather than an un-apply, because there is no un-apply to call: applyAction
-// states a value, and the value here is "whatever the markup says", which only the
-// markup holds. The clone is this version's, taken before replay first touched the
-// page, so what goes back is exactly what a reload would render before the log is read
-// — and the log is then read onto it, the same pass that reads it onto a fresh load.
-function rebuild(el) {
-  const id = el.id;
-  // Whether the reader is standing in what is about to be replaced — inside it, or on
-  // a control the widget hoisted out of it — because they have to be handed the place
-  // back afterwards. The other route never asks: a widget told its state keeps its own
-  // focus, and it was only the rebuild that dropped a reader onto <body> without a
-  // word, which is the silence the ladder's own rung exists to avoid.
-  const here = focused();
-  const standing =
-    Boolean(here) &&
-    (containsAcross(el, here) || Boolean(here.closest?.(`[${ASK_ROW}="${id}"]`)));
-  // Chrome the widget hoisted out of itself goes with it, and the widget is what takes
-  // it: a control hung in the page margin is outside the subtree being replaced, so
-  // only its owner knows to take it away, and disconnectedCallback is where the
-  // platform already asks. Sweeping `[data-lf-for]` here as well would be a second
-  // writer for one fact — and one that a widget hoisting chrome under some other
-  // marker would silently escape anyway. What holds it is the render gate, where a row
-  // left behind shows as two rows on one change.
-  const fresh = authoredMarkup.get(id).cloneNode(true);
-  // Before the insertion, as the load writes it before the modules import: a widget
-  // that declares a width model or an inline run asks for it on its first render, and
-  // connectedCallback is that render. The table is the place's: a rebuild reaches a
-  // widget in a reply too — buildMsgBody remembers its markup the same way — and in
-  // there the width half stays off for the reason that function gives, the room being
-  // the panel's rather than the document's.
-  markDeclared(fresh, inChrome(el) ? MARKED_ANYWHERE : MARKED_IN_PAGE);
-  el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
-  // The rest of what the upgrade gives every subtree beyond its module's own work. Not
-  // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
-  // widget with async work of its own settles it the way it always does.
-  dress(fresh);
-  reachScrollers(fresh);
-  // The fences the passage reading walks are node identities, and these are new nodes
-  // holding the same markup — so the index is taken again rather than left naming a
-  // subtree the page no longer has.
-  rememberPassageParts();
-  if (standing) standOn(fresh);
-  return fresh;
-}
-
-const committedEvent = (commit) => commit?.entry?.e.id ?? null;
-
-function coordinateProjectionCommitted(projection, entry) {
-  const desired = projection.desired.get(entry.coordinate);
-  const commit = committedProjection.get(entry.coordinate);
-  return (
-    commit?.widget === elementById(entry.e.widget) &&
-    commit.unit === elementById(entry.unit) &&
-    committedEvent(commit) === (desired?.e.id ?? null)
-  );
-}
-
-function projectionCommitted(projection, e) {
-  const entry = projection.classified.get(e.id);
-  if (!entry) return false;
-  if (entry.terminal) return true;
-  return coordinateProjectionCommitted(projection, entry);
-}
-
-function localCoordinateCommitted(projection, entry) {
-  const local = entry.projection;
-  if (!local) return true; // record-less actions never painted before acceptance
-  const widget = elementById(local.e.widget);
-  if (!widget) return true;
-  const desired = projection.desired.get(local.coordinate) ?? null;
-  const commit = committedProjection.get(local.coordinate);
-  return (
-    commit?.widget === widget &&
-    commit.unit === elementById(local.unit) &&
-    committedEvent(commit) === (desired?.e.id ?? null)
-  );
-}
-
-// Delivery and projection are separate facts. Accepted entries leave only after a
-// complete read has committed the coordinate that now represents them; rejected
-// entries leave only after their optimistic token no longer represents the DOM.
-function releaseProjectedOutbox() {
-  const projection = stateProjection(currentVersion);
-  let removed = false;
-  for (const entry of [...outbox]) {
-    if (!entry.answered || entry.event.kind !== "action") continue;
-    const settled = entry.rejected
-      ? localCoordinateCommitted(projection, entry)
-      : Boolean(entry.readEvent && projectionCommitted(projection, entry.readEvent));
-    if (!settled) continue;
-    removeOutbox(entry);
-    removed = true;
-  }
-  return removed;
-}
-
-// Readiness remains event-counted even though painting is coordinate-based. Every
-// superseded action and absorbed report is settled when the one state that represents
-// its coordinate has been committed; an undo is settled by that same transition back
-// to a prior winner or the authored baseline.
-function projectionCoverage(projection) {
-  let covered = 0;
-  for (const e of events) {
-    if (e.kind === "action" || e.kind === "report") {
-      if (projectionCommitted(projection, e)) covered += 1;
-    } else if (e.kind === "undo") {
-      const target = projection.classified.get(e.undoes);
-      if (!target || target.terminal || projectionCommitted(projection, target.e))
-        covered += 1;
-    }
-  }
-  return covered;
-}
-
-function rememberWrites(before, kind) {
-  const now = shallowSigs(document.body);
-  const changed = [...new Set([...before.keys(), ...now.keys()])].filter(
-    (id) => before.get(id) !== now.get(id) && !inChrome(elementById(id)),
-  );
-  if (!changed.length) return;
-  const attr =
-    kind === "action"
-      ? PAGE_PAINT_ATTRIBUTE.replayWrote
-      : PAGE_PAINT_ATTRIBUTE.reportWrote;
-  const prior = document.body.getAttribute(attr)?.split(" ") ?? [];
-  document.body.setAttribute(attr, [...new Set([...prior, ...changed])].join(" "));
-}
-
-let projectionDragObserver = null;
-function watchProjectionDrag() {
-  if (projectionDragObserver) return;
-  projectionDragObserver = new MutationObserver(() => {
-    if (document.querySelector(".lf-dragging")) return;
-    projectionDragObserver.disconnect();
-    projectionDragObserver = null;
-    if (reconcileKnownState() && releaseProjectedOutbox()) paintKeys();
-    document.dispatchEvent(new Event("lf-actions"));
-  });
-  projectionDragObserver.observe(document.body, {
-    attributes: true,
-    subtree: true,
-    attributeFilter: ["class"],
-  });
-}
-
-// Make the DOM equal the projection. A widget is the application boundary: if any of
-// its coordinates changed, all of its surviving winners are replayed in log order so
-// sibling units sharing an ordered container retain their collective placement.
-function reconcileState() {
-  if (document.querySelector(".lf-dragging")) {
-    watchProjectionDrag();
-    return;
-  }
-  projectionDragObserver?.disconnect();
-  projectionDragObserver = null;
-
-  const started = [];
-  let painted = false;
-  let projection;
-  const priorProjectionMode = projectingState;
-  if (outbox.some((entry) => entry.rejected && entry.projection))
-    projectingState = true;
-  try {
-    // A recordless baseline replaces a subtree. Restarting from the pure projection is
-    // what discovers every surviving nested coordinate on the new node identities.
-    for (;;) {
-      projection = stateProjection(currentVersion);
-      for (const entry of projection.classified.values())
-        for (const id of entry.restated ?? [])
-          elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-
-      for (const [coordinate, commit] of committedProjection)
-        if (!elementById(commit.widgetId)) committedProjection.delete(coordinate);
-
-      const coordinates = new Map();
-      for (const entry of projection.classified.values())
-        if (!entry.terminal) coordinates.set(entry.coordinate, entry);
-      for (const [coordinate, entry] of projection.desired)
-        if (!coordinates.has(coordinate)) coordinates.set(coordinate, entry);
-      for (const [coordinate, commit] of committedProjection)
-        if (!coordinates.has(coordinate)) coordinates.set(coordinate, commit.entry);
-
-      const widgets = new Map();
-      for (const [coordinate, sample] of coordinates) {
-        if (!sample) continue;
-        const widgetId = sample.e.widget;
-        const widget = elementById(widgetId);
-        if (!widget) continue;
-        const desired = projection.desired.get(coordinate) ?? null;
-        const commit = committedProjection.get(coordinate);
-        const unit = elementById(sample.unit);
-        const clean =
-          commit?.widget === widget &&
-          commit.unit === unit &&
-          committedEvent(commit) === (desired?.e.id ?? null);
-        const states = widgets.get(widgetId) ?? [];
-        states.push({ coordinate, sample, desired, commit, clean });
-        widgets.set(widgetId, states);
-      }
-
-      let rebuilt = false;
-      for (const [widgetId, states] of widgets) {
-        if (states.every((state) => state.clean)) continue;
-        let widget = elementById(widgetId);
-        if (!widget) continue;
-
-        // A newly constructed thread widget or rebuilt descendant already carries its
-        // authored baseline. A dirty recorded widget is reset whole below: its units
-        // compose through shared containers, so restoring only one authored placement
-        // would make its index relative to still-projected siblings.
-        const removals = states.filter(
-          ({ desired, commit }) =>
-            !desired && commit?.entry && commit.widget === widget,
-        );
-        const recordless = removals.find(({ commit }) => !commit.entry.spec.record);
-        if (recordless) {
-          widget = rebuild(widget);
-          committedProjection.set(recordless.coordinate, {
-            widgetId,
-            widget,
-            unit: elementById(recordless.sample.unit),
-            entry: null,
-          });
-          painted = true;
-          rebuilt = true;
-          break;
-        }
-
-        if (!widget.applyAction) {
-          if (document.body.dataset.lfUpgraded !== "1") continue;
-          for (const { commit } of removals)
-            if (commit.entry.e.kind === "action")
-              painted = clearSettled(widget, commit.entry.spec.facet) || painted;
-          for (const { desired } of states) {
-            if (desired?.e.kind !== "action") continue;
-            const before = inChrome(widget) ? null : shallowSigs(document.body);
-            if (!markSettled(widget, desired.e.action)) continue;
-            if (before) rememberWrites(before, desired.e.kind);
-            painted = true;
-          }
-        } else {
-          let deferred = false;
-          // Authored records are the zero point. Restore the widget's complete authored
-          // composition before replaying every current winner in log/local order.
-          for (const statement of authoredStatements.get(widgetId)?.values() ?? []) {
-            widget = elementById(widgetId);
-            if (!widget?.applyAction) {
-              deferred = true;
-              break;
-            }
-            const priorMotion = new Set(document.getAnimations());
-            try {
-              if (widget.applyAction(statement.action, statement.detail) === false)
-                deferred = true;
-              else clearSettled(widget, statement.spec.facet);
-            } catch (error) {
-              reportPageError(
-                `<${widget.localName}> applyAction(${statement.action}) threw: ${error?.message ?? error}`,
-              );
-              failSoft(widget, error);
-              clearSettled(widget, statement.spec.facet);
-            }
-            if (deferred) break;
-            started.push(
-              ...document
-                .getAnimations()
-                .filter((animation) => !priorMotion.has(animation)),
-            );
-            painted = true;
-          }
-          if (deferred) continue;
-
-          const desired = states
-            .map((state) => state.desired)
-            .filter(Boolean)
-            .sort(compareProjected);
-          for (const entry of desired) {
-            widget = elementById(widgetId);
-            if (!widget?.applyAction) {
-              deferred = true;
-              break;
-            }
-            const before = inChrome(widget) ? null : shallowSigs(document.body);
-            const priorMotion = new Set(document.getAnimations());
-            try {
-              if (widget.applyAction(entry.e.action, entry.e.detail) === false) {
-                deferred = true;
-                break;
-              }
-              if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-            } catch (error) {
-              reportPageError(
-                `<${widget.localName}> applyAction(${entry.e.action}) threw: ${error?.message ?? error}`,
-              );
-              failSoft(widget, error);
-              if (entry.e.kind === "action") markSettled(widget, entry.e.action);
-            }
-            if (before) rememberWrites(before, entry.e.kind);
-            started.push(
-              ...document
-                .getAnimations()
-                .filter((animation) => !priorMotion.has(animation)),
-            );
-            painted = true;
-          }
-          if (deferred) continue;
-        }
-
-        widget = elementById(widgetId);
-        if (!widget) continue;
-        for (const { coordinate, sample } of states) {
-          const desired = projection.desired.get(coordinate) ?? null;
-          committedProjection.set(coordinate, {
-            widgetId,
-            widget,
-            unit: elementById(sample.unit),
-            entry: desired,
-          });
-        }
-      }
-      if (!rebuilt) break;
-    }
-
-    if (painted) {
-      paintAnchors();
-      Promise.allSettled(started.map((animation) => animation.finished)).then(() =>
-        pageShifted(),
-      );
-    }
-    renderQuiet(document.body);
-    paintPending();
-    projection = stateProjection(currentVersion);
-    document.body.setAttribute(
-      PAGE_PAINT_ATTRIBUTE.applied,
-      String(projectionCoverage(projection)),
-    );
-  } finally {
-    projectingState = priorProjectionMode;
-  }
-}
-
-// `events` is installed before every other state surface renders, so a later throw can
-// leave it ahead of the last complete read. Only receiveState may project that candidate
-// while completing the read itself; every asynchronous wake-up must use either the
-// authored-only starting point or an event list whose whole state already committed.
-function reconcileKnownState() {
-  const eventSeq = events.at(-1)?.seq ?? 0;
-  const complete = statePhase === "ready" && eventSeq <= lastEventSeq;
-  const authoredOnly = lastEventSeq < 0 && events.length === 0;
-  if (!complete && !authoredOnly) return false;
-  reconcileState();
-  paintWorkLines();
-  return true;
-}
-
-// data-lf-pending: this element's decided state differs from what the version's
-// markup arrived showing — the record is behind the log. It clears when a
-// version carries the decision (the two agree again) or a retraction hands the
-// state back to the author. A decided suggestion has no record form to agree
-// with (honoring retires the wrapper), so it stays marked while the wrapper
-// stands.
-function paintPending() {
-  for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
-    for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-  const projection = stateProjection(currentVersion);
-  for (const [coordinate, { unit, e, spec }] of projection.desired) {
-    const el = elementById(unit);
-    if (!el || inChrome(el)) continue;
-    const behind = spec.record
-      ? foldedFacet(e, spec.record) !== authoredFacets.get(coordinate)
-      : true;
-    if (!behind) continue;
-    // The channels keep separate marks so provisional worker news never wears
-    // the reader's color. The desired projection chooses which channel owns a
-    // coordinate; independent facets can still leave both marks on one unit.
-    const attr =
-      e.kind === "action"
-        ? PAGE_PAINT_ATTRIBUTE.pending
-        : PAGE_PAINT_ATTRIBUTE.reported;
-    el.setAttribute(attr, "1");
-  }
-}
 async function poll() {
   let res;
   try {
@@ -12780,7 +11784,7 @@ async function poll() {
   const state = res?.ok ? await res.json() : null;
   if (!state) {
     const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
-    if (statePhase === "waiting") statePhase = "offline";
+    if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
     renderStatus(null);
     if (panelOpen) renderPanel();
     // The sequence consumers still hear the tick. A poll that brought nothing changes
@@ -12795,7 +11799,7 @@ async function poll() {
     // correction even when no read has succeeded yet. Never project a newer event list
     // whose surrounding state threw before lastEventSeq advanced.
     if (
-      (statePhase === "ready" || refusedCorrection) &&
+      (runtime.statePhase === "ready" || refusedCorrection) &&
       reconcileKnownState() &&
       releaseProjectedOutbox()
     )
@@ -12819,23 +11823,23 @@ async function receiveState(state) {
   // post() and the timer can poll together. The log is append-only, so a response
   // behind one already rendered is unambiguously stale; accepting it would move
   // every event-derived view backwards until the next poll.
-  if (eventSeq < lastEventSeq) return;
+  if (eventSeq < runtime.lastEventSeq) return;
   // Polls and POST answers may overlap. A document activation is the one state read
   // that cannot safely interleave: a second one would capture or replace the halfway
   // upgraded main. Let it commit, then judge this response against its resulting
   // version and sequence.
   if (activatingState) await activatingState;
-  if (eventSeq < lastEventSeq) return;
+  if (eventSeq < runtime.lastEventSeq) return;
   const targetVersion = state.versions.at(-1) ?? null;
   const wantsActivation =
     LIVE_ROOT &&
     targetVersion !== null &&
-    currentVersion !== null &&
-    targetVersion > currentVersion;
+    runtime.currentVersion !== null &&
+    targetVersion > runtime.currentVersion;
   let incoming = null;
   let incomingFailed = false;
   if (wantsActivation) {
-    latestVersion = targetVersion;
+    runtime.latestVersion = targetVersion;
     latestChip.textContent = `New version available → open v${targetVersion}`;
     showNews(latestChip, true);
   }
@@ -12864,30 +11868,30 @@ async function receiveState(state) {
   // either had an activation to await. Serialize again at the commit boundary, then
   // judge this candidate against the version and sequence the winner installed.
   if (activatingState) await activatingState;
-  if (eventSeq < lastEventSeq) return;
+  if (eventSeq < runtime.lastEventSeq) return;
   const willActivate =
     Boolean(incoming) &&
-    targetVersion > currentVersion &&
+    targetVersion > runtime.currentVersion &&
     (!midComposition() || forceActivation) &&
     !versionMenuOpen &&
     targetVersion === state.versions.at(-1);
-  const priorEvents = events;
-  const priorStatePhase = statePhase;
-  const priorLastEventSeq = lastEventSeq;
+  const priorEvents = runtime.events;
+  const priorStatePhase = runtime.statePhase;
+  const priorLastEventSeq = runtime.lastEventSeq;
   const priorClaimUpdateSources = claimUpdateSources;
   const priorClaimsHeld = claimsHeld;
   const priorAgentTurnClosed = agentTurnClosed;
   const priorClaimingSession = claimingSession;
   const apply = async () => {
-    events = nextEvents;
+    runtime.events = nextEvents;
     let activation = null;
-    statePhase = "ready";
+    runtime.statePhase = "ready";
     if (willActivate) {
       forceActivation = false;
       activation = await activateVersion(incoming, targetVersion);
     }
     settleAcceptedDrafts();
-    agent = state.agent || "Claude";
+    runtime.agent = state.agent || "Claude";
     claimUpdateSources = state.claims || [];
     claimsHeld = presented(state).held;
     agentTurnClosed = state.turn_closed || null;
@@ -12895,12 +11899,12 @@ async function receiveState(state) {
     renderStatus(state);
     renderVersions(state);
     renderOthers(state);
-    if (eventSeq > lastEventSeq || activation) {
+    if (eventSeq > runtime.lastEventSeq || activation) {
       renderPanel();
       // Sign-off is a fact in the log, not a click this tab happens to remember, so a
       // reload (or the other tab) shows it too.
       paintApproval();
-      const agentReplies = events.filter(
+      const agentReplies = runtime.events.filter(
         (e) => e.author === "claude" && e.kind === "reply",
       );
       if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelOpen)
@@ -12923,12 +11927,12 @@ async function receiveState(state) {
       paintAnchors();
       updateFab();
       if (activation.comparedFrom !== null) showComparison(activation.comparedFrom);
-      showToast(`Updated to v${currentVersion}`);
+      showToast(`Updated to v${runtime.currentVersion}`);
     }
     // Only a complete application advances the read boundary. A render fault may
     // already have changed some local surfaces, but it has not made a state safe to use
     // for replay or undo; leaving the sequence unresolved retries the whole read.
-    lastEventSeq = Math.max(lastEventSeq, eventSeq);
+    runtime.lastEventSeq = Math.max(runtime.lastEventSeq, eventSeq);
     // Accounting changes no hold by itself. It first projects this complete log plus
     // every surviving optimistic action, then releases the entries whose attempts the
     // read contained. A same-widget event later in this state can therefore never be
@@ -12969,9 +11973,9 @@ async function receiveState(state) {
     // rendering it. If any required surface refuses the state, restore the last whole
     // reading so focus, panel, and undo cannot consume a log tail the page never
     // adopted. The next poll retries the candidate from the same complete boundary.
-    events = priorEvents;
-    statePhase = priorStatePhase;
-    lastEventSeq = priorLastEventSeq;
+    runtime.events = priorEvents;
+    runtime.statePhase = priorStatePhase;
+    runtime.lastEventSeq = priorLastEventSeq;
     claimUpdateSources = priorClaimUpdateSources;
     claimsHeld = priorClaimsHeld;
     agentTurnClosed = priorAgentTurnClosed;
@@ -13175,8 +12179,8 @@ async function startPage() {
   updateFab(); // an early selection is now read from the fully upgraded page
   paintHere(); // c is live again, whether or not that selection raised the button
   landArrival();
-  if (savedView && savedView.v < currentVersion)
-    showToast(`Updated to v${currentVersion}`);
+  if (savedView && savedView.v < runtime.currentVersion)
+    showToast(`Updated to v${runtime.currentVersion}`);
   if (savedComposer)
     openComposer(
       savedComposer.anchor,

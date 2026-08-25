@@ -1,6 +1,8 @@
-"""Implementation domains behind the public interact.py script."""
+"""Implementation domains behind the public interact.py facade.
+
+Dependencies point from atomic files through the event model into service,
+registry, and projection domains. The facade composes those owners into the CLI,
+HTTP boundary, linter, renderer, and export surface.
+"""
 
 __all__ = ()
-
-# TODO(2026-08-24): Give the shared event model one owner, then split the registry,
-# projection, and service domains. Choosing that owner belongs in a semantic commit.

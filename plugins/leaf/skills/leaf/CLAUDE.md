@@ -20,7 +20,11 @@ record the sequence of implementations that led to the current one.
 ## Runtime ownership
 
 `leaf.js` is the one public ES module, with two code layers and private support
-modules behind it. The widget layer loads the vendored
+modules behind it. `runtime/context.js` owns the mutable facts shared across
+those layers, and `runtime/projection.js` owns declaration-driven state folding
+and reconciliation. The facade supplies browser and conversation dependencies
+to the projector; private modules do not become a second public helper surface.
+The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
 words, and reconciles recorded state. The comment layer polls `GET /api/state`,
 posts to `POST /api/event`, renders the status and conversation chrome, captures

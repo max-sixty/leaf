@@ -23,6 +23,8 @@ from interact_support import (
     publish,
     record_claim,
 )
+from leaf_interact import events as event_model
+from leaf_interact import service as service_model
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -621,7 +623,7 @@ def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """A no-op lock cannot honestly promise one append for one attempt."""
-    monkeypatch.setattr(interact, "fcntl", None)
+    monkeypatch.setattr(event_model, "fcntl", None)
     with (
         pytest.raises(RuntimeError, match="cross-process file locking"),
         interact.flocked(page_dir / ".lock"),
@@ -633,7 +635,8 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """Standing startup must fail before it opens a socket or records a URL."""
-    monkeypatch.setattr(interact, "fcntl", None)
+    monkeypatch.setattr(event_model, "fcntl", None)
+    monkeypatch.setattr(service_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         interact.cmd_serve(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):

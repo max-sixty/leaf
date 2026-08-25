@@ -37,11 +37,15 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
 
 - `scripts/interact.py` is the `uv` script and public CLI facade for the server,
   event log, `version check`, vendoring, and export. Pure implementation domains
-  live beside it under `scripts/leaf_interact/`. The payload's `bin/leaf` shim
+  live beside it under `scripts/leaf_interact/`: `files` owns atomic file
+  operations, `events` the append-only model, `service` host and process
+  lifetime, `registry` the merged vocabulary, and `projection` the standing
+  state derived from events. Schema, document, and render-check modules sit
+  below the facade on the same dependency path. The payload's `bin/leaf` shim
   invokes the facade. There is no daemon or database.
 - `assets/leaf.js` is the public page runtime and comment layer. Its private
-  stylesheet lives under `assets/runtime/` and is imported by that stable module.
-  There is no build step.
+  context, state projector, and chrome stylesheet live under `assets/runtime/`
+  and are composed by that stable module. There is no build step.
 - `assets/registry.json` is the integrated widget vocabulary and the layer-wide
   `$` declarations read by the runtime, linter, renderer, catalog, and docs.
 - `assets/theme.css` owns tokens, element styles, class idioms, integrated widget
@@ -400,11 +404,14 @@ handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
 
 The `test_interact_*.py` modules cover lint, vendoring, publishing, catalog,
 export, thread markup, and file-side anchors. The `test_render_*.py` modules
-cover the browser runtime and examples. Their shared fixtures and readings live
-in `interact_support.py` and `render_support.py`. `test_product_page.py` covers
-`docs/`. `test_site.py` builds and reads the published site. The journey test
-selects a passage, comments, moves a card, follows a version, and checks the
-surviving anchor and log.
+cover the browser runtime and examples. Shared file-side fixtures live in
+`interact_support.py`. `render_support.py` is the browser-test compatibility
+facade: the Playwright harness lives in `render_harness.py`, while the reusable
+case corpus is grouped by interaction, layout, navigation, and widget behavior
+in `render_cases_*.py`. `test_product_page.py` covers `docs/`. `test_site.py`
+builds and reads the published site. The journey test selects a passage,
+comments, moves a card, follows a version, and checks the surviving anchor and
+log.
 
 The browser corpus is read in both color schemes, and each example is read under
 the log it ships, so a thread and any widget a message carries are part of what

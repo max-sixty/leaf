@@ -17,6 +17,7 @@ from interact_support import (
     interact,
     record_claim,
 )
+from leaf_interact import files as interact_files
 
 
 @pytest.mark.parametrize(
@@ -919,18 +920,20 @@ def test_path_case_policy_matches_the_filesystem(tmp_path):
     probe.mkdir()
     alias_resolves = (tmp_path / "cASEpROBE").exists()
 
-    assert interact._filesystem_case_sensitive(tmp_path) is not alias_resolves
+    assert interact_files._filesystem_case_sensitive(tmp_path) is not alias_resolves
 
 
 def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch):
     upper = tmp_path / "FutureScope"
     lower = tmp_path / "fUTUREsCOPE"
-    monkeypatch.setattr(interact, "_filesystem_case_sensitive", lambda path: True)
+    monkeypatch.setattr(interact_files, "_filesystem_case_sensitive", lambda path: True)
     assert not interact.locations_overlap(
         interact._path_location(upper), interact._path_location(lower)
     )
 
-    monkeypatch.setattr(interact, "_filesystem_case_sensitive", lambda path: False)
+    monkeypatch.setattr(
+        interact_files, "_filesystem_case_sensitive", lambda path: False
+    )
     assert interact.paths_same(upper, lower)
 
 
@@ -1252,7 +1255,9 @@ def test_customize_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
-    monkeypatch.setattr(interact, "_filesystem_case_sensitive", lambda path: False)
+    monkeypatch.setattr(
+        interact_files, "_filesystem_case_sensitive", lambda path: False
+    )
     first = tmp_path / "Result.css"
     second = tmp_path / "rESULT.CSS"
 

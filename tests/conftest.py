@@ -10,18 +10,28 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 
-_spec = importlib.util.spec_from_file_location(
-    "interact",
+INTERACT_SCRIPT = (
     Path(__file__).parent.parent
     / "plugins"
     / "leaf"
     / "skills"
     / "leaf"
     / "scripts"
-    / "interact.py",
+    / "interact.py"
 )
-interact = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(interact)
+# Executing the script normally puts its directory on sys.path. Loading it by path for
+# the suite must preserve that import boundary for the implementation package beside it.
+sys.path.insert(0, str(INTERACT_SCRIPT.parent))
+try:
+    _spec = importlib.util.spec_from_file_location("interact", INTERACT_SCRIPT)
+    interact = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(interact)
+finally:
+    sys.path.pop(0)
+
+# Domain test modules import their assertions explicitly; these two support modules
+# own the shared fixtures and register them once for the complete suite.
+pytest_plugins = ("interact_support", "render_support")
 
 
 def pytest_addoption(parser):
@@ -34,9 +44,14 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Leave browser integration out of the everyday worker queues. What earns the
-    mark, and what still runs it, is in CLAUDE.md beside this file."""
-    if config.getoption("--run-nightly"):
+    """Broad discovery stays cheap; explicit selections run what they name."""
+    selected = (
+        config.getoption("keyword")
+        or config.getoption("markexpr")
+        or config.getoption("lf")
+        or any(Path(arg.split("::", 1)[0]).is_file() for arg in config.args)
+    )
+    if config.getoption("--run-nightly") or selected:
         return
     nightly = [item for item in items if "nightly" in item.keywords]
     items[:] = [item for item in items if "nightly" not in item.keywords]
@@ -46,7 +61,7 @@ def pytest_collection_modifyitems(config, items):
 # A host session states its identity in the environment, under names of its own.
 # The suite is a Claude Code session, and `host_identity` reads that set first, so
 # a test about a Codex session, or about no session at all, takes it away.
-CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID")
+CLAUDE_IDENTITY = ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_JOB_DIR")
 CODEX_IDENTITY = ("CODEX_THREAD_ID", "LEAF_SESSION_ID", "LEAF_AGENT")
 
 
@@ -76,12 +91,15 @@ def isolated_session(tmp_path_factory, monkeypatch):
     its claimant is gone — the one reaper that reaches a server spawned into a
     session of its own, and so the only thing that ends one when a run is killed
     outright (tests/CLAUDE.md, "A process the suite starts ends with the run"). A
-    test about a command run from outside a host session strips the identity:
+    run started from a background job leaves that job's directory behind too, as
+    it would any other fact about the developer's session. A test about a
+    command run from outside a host session strips the identity:
     `sessionless`."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
 

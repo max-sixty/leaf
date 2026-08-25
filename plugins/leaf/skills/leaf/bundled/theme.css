@@ -1137,6 +1137,12 @@ lf-shot .lf-shotpick input:focus-visible { outline: var(--here-ring);
   lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
 }
 
+/* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
+ * Block rather than the custom-element default inline so its box begins at the
+ * question's opening and reaches around the context and control the standing ring says
+ * are one Ask. Child margins keep the same ordinary block rhythm they have in a section. */
+lf-ask { display: block; }
+
 /* lf-specimen: quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
  * muted left gutter — not the callout's tinted field, and not the left-accent bar

@@ -28,7 +28,7 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from test_render import BOTH_STAMPS, navigate, open_page, select
+from render_support import BOTH_STAMPS, navigate, open_page, select
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
@@ -137,7 +137,7 @@ def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     assert (site / "runtime.js").read_text() == source.replace(
         '"__LEAF_LAYER_GENERATION__"', json.dumps(generation)
     ), "the runtime the site serves is not the shipped file"
-    for sub in ("widgets", "vendor", "media"):
+    for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in pages_under(EXAMPLES):
         version = site / "examples" / source.stem / "versions" / "v1.html"
@@ -209,7 +209,7 @@ def test_the_banner_says_nobody_rather_than_claiming_a_watcher(site, hosted, bro
         )
         # No tone at all — not the green of a watcher, nor the amber of one falling
         # behind. The banner's own dot: the leaves panel mirrors this page as a row, so
-        # a bare .lf-dot would resolve to that copy too (test_render.py says the same).
+        # a bare .lf-dot would resolve to that copy too (the browser suite says the same).
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )

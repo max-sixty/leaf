@@ -1,7 +1,8 @@
 # The page in the browser
 
-This file defines the contract for `assets/leaf.js`, the widget modules, and
-`assets/theme.css`. It describes the current runtime. Page-authoring commands and
+This file defines the contract for `assets/leaf.js`, its private modules under
+`assets/runtime/`, the widget modules, and `assets/theme.css`. It describes the
+current runtime. Page-authoring commands and
 markup rules live in `references/page-authoring.md`; layer overlays and widget
 scaffolding live in `references/customizing.md`. The repository-level `AGENTS.md`
 owns the rules that cross the JavaScript and Python runtimes:
@@ -18,7 +19,12 @@ record the sequence of implementations that led to the current one.
 
 ## Runtime ownership
 
-`leaf.js` is one ES module with two layers. The widget layer loads the vendored
+`leaf.js` is the one public ES module, with two code layers and private support
+modules behind it. `runtime/context.js` owns the mutable facts shared across
+those layers, and `runtime/projection.js` owns declaration-driven state folding
+and reconciliation. The facade supplies browser and conversation dependencies
+to the projector; private modules do not become a second public helper surface.
+The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
 words, and reconciles recorded state. The comment layer polls `GET /api/state`,
 posts to `POST /api/event`, renders the status and conversation chrome, captures
@@ -38,6 +44,7 @@ Each mutable fact has one writer:
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
+| local agent work | the typed, log-projected claims in `status.work` | `paintWorkLines` paints every subject seat without becoming another store |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
@@ -444,25 +451,46 @@ It includes only events for which `projectionCommitted` is true. A module must
 not narrate an action whose `applyAction` is deferred while the body still shows
 another value.
 
-`reportSequence(widget, verb)` returns report events in log order without
-dropping reports a version has answered. A module showing freshness asks when
-the log last heard from a worker, which remains useful after publishing absorbs
-that report into authored state. The semantic projection still excludes answered
-reports from current desired state.
+`updateSequence(target)` is the one reading of news about an item. Its target is
+either a widget element or an explicit `{kind, id}` pair; a bare id is not an
+identity and is rejected because a thread and a widget may spell theirs alike.
+With no target it returns the whole ordered feed. Reports from the append-only
+log and ephemeral thread work claims from status storage share a common envelope:
+`id`, typed `target`, `source`, `action`, structured `detail`, declared
+human-readable `text`, `ts`, attribution, and `disposition`. Report envelopes
+also retain their version and sequence; a claim carries `log_floor`, the log
+sequence it followed.
 
-`sequence` is the shared traversal for both channels. It applies widget,
-optional verb, kind, version window, and liveness in one place, then returns
-structured clones so modules cannot mutate the private event list.
-`watchActions` and `watchReports` subscribe those readings to `lf-actions` and
-invoke the callback immediately. The same rendering function therefore handles
-a module connected before the first state and one constructed by a later thread
-reconcile.
+The source discriminator is semantic, not an implementation leak. A report
+stands until a version note absorbs or overrules it; a claim stands until the
+thread receives an agent reply after that sequence or is resolved. The closed
+disposition is `effective` when an update contributes to current state on its
+semantic coordinate, `standing` when it still needs source-specific settlement
+but is presently outranked, and `settled` when that authority answers it. An
+older unabsorbed report can therefore be standing, and a reader action can mask
+a report that a version still owes an answer. Settled entries remain in the feed
+when their source retains history. A module showing freshness therefore still
+sees when the log last heard from a worker after publishing absorbs the worker's
+report.
+
+An x-report verb may name one required non-empty string detail field with
+`update`. That is the envelope's `text`; consumers never infer prose from a
+field, verb, or widget name. Claims use their required detail as `detail.text`
+and `text`. The state boundary performs this normalization once, before
+downstream code sees private status storage.
+
+`sequence` is the action traversal. It applies widget, optional verb, version
+window, and liveness in one place, then returns structured clones so modules
+cannot mutate the private event list. `watchActions` and `watchUpdates` subscribe
+the two public readings to `lf-actions` and invoke the callback immediately. The
+same rendering function therefore handles a module connected before the first
+state and one constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a poll whose
 event list did not grow. This lets a module refresh elapsed time and retry a
 render deferred by live input without owning a timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
-function from `watchActions` or `watchReports` when their element disconnects.
+function from `watchActions` or `watchUpdates` when their element disconnects.
 
 `publishedAt` is the timestamp of the note that published `currentVersion`. It is the
 freshness floor for authored state when no report exists. A page that reports no
@@ -506,8 +534,10 @@ The extension keys describe general behavior:
 | `x-parent` | the child widgets whose decisions belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
+| `x-ask` | the complete reading and arrival region around one nested request |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
 | `x-conversation` | the condition under which the widget owns a conversation seat |
+| `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -536,7 +566,8 @@ behavior, the layer implements it once. Current examples are:
   the theme.
 - `markSettled` paints the holder's authoritative settlement.
 - `renderRetired` marks slots retired by the declared holder relation.
-- `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
+- `rowPresence` reads `x-awaits`, while the ask tray projects a declared `x-ask`
+  region around that source where one exists; neither names a tag.
 - `standingState` exposes replay winners to the render gate without naming a
   widget, the panel's own folds included: a widget an agent sent folds the way a
   page widget does and the poll replays it the same way, so the premise that
@@ -573,6 +604,9 @@ inside a module. The scaffold names the minimum obligations:
 - Define the custom element once and make `connectedCallback` safe to run after
   reconstruction.
 - Use `once(el, fn)` for generated chrome so reconnecting does not duplicate it.
+- Reserve a control's room from inside `measure`. A widget upgrades wherever the
+  runtime connects it, and a shut panel is `display: none`, where every word
+  measures zero and the floor the press needs is nothing at all.
 - Implement `applyAction(action, detail)` as an absolute statement and return
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
@@ -786,15 +820,16 @@ parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the ask ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
 it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
-reply box. A press on a page mark does not, because `showThread` reveals the
-thread without focusing it, and nothing has put the reader in the comment.
-`paintHere` repaints it beside the ask ring, and `paintAnchors` repaints it after
-rebuilding the ranges it holds.
+reply box. A press on a page mark reaches `showThread`, which focuses the thread
+with `preventScroll` before its deliberate reveal; the page and card therefore
+both say which comment that press opened, and the next key belongs to the thread
+scope. `paintHere` repaints it beside the ask ring, and `paintAnchors` repaints
+it after rebuilding the ranges it holds.
 
 The panel paints the same fact on the card, through `.lf-thread:focus-within` —
 the same predicate, so the two halves cannot disagree about which comment the
-reader is in. Not `:focus-visible`, which is a claim about the last input device
-and left a mouse reader with the page marked and the card plain.
+reader is in. `:focus-visible` instead answers which input modality should draw
+the browser's focus indicator.
 
 `lf-mark-hover` answers a different question — which thread the pointer is
 indicating — and reads both surfaces in one frame. A card is the thread's view in
@@ -815,6 +850,11 @@ offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
 question again on the way out as well as in, because the panel is one of the two
 surfaces this reads: closing it from the keyboard, with a hand resting on a card,
 takes that card out from under a pointer that never moved.
+
+Hover state keeps both the semantic id and painted card node because reconciliation
+can replace one without changing the other. `paintAnchors` rebinds replaced ranges
+and element parts; `renderThreads`, page movement, and a version transition's end
+refresh the reading when content moves under a stationary pointer.
 
 `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
 paints glyphs, so a box takes no wash; the element mark says the same rank in the
@@ -839,21 +879,12 @@ Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
-in, so the arrival is announced there and a route added later inherits it. It
-calls `paintStanding` with the arrival, which lifts `--lf-mark-lift` from 1 to 0
-over the 1.2s the panel's own arrival takes; `MARK_RULES` carries the argument
-for why the landing needs a lift rather than a stronger resting colour. An
-element anchor's ring does not lift — it already differs from an ordinary mark's
-hairline in weight as well as hue. The theme's reduced-motion guard collapses the
-animation onto its resting end, which is the standing state.
-
-The property is registered and inherits, so it is invalidated down the subtree of
-whatever animates it. The class therefore goes on the standing mark's own boxes —
-an element anchor's parts, and the block each painted range sits in — and never
-on `body`, where the pulse cost every element on the page a style recalculation
-per frame: 663ms of recalculation and 156 layouts on the gallery against 69ms and
-56 with it confined. `paintStanding` owns that class because it is the only
-reading that knows which boxes carry the mark.
+in. The target's own box first comes into view instantly, including inside a
+sideways scroller, then `jumpBy` glides the exact mark to its final position in
+the region that holds it. The travel owns no standing or arrival state. Focus
+already supplies the durable answer through `paintStanding`, and a transient
+page effect does not observe, restart, or reconcile across the browser's
+scrolling operation.
 
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer
@@ -890,8 +921,16 @@ reading now where there is a box and once more the first time there is one. Its
 observation ends at that reading, which is what keeps a written custom property
 out of the round that triggered it.
 
-`inUi` keeps runtime chrome out of shown parts. An area greater than zero is not
-enough: clipped note text and hoisted controls can have measurable boxes while
+The chrome question takes a bound: `uiInside(el, within)`, of which `inUi` is the
+unbounded case. Unbounded, the answer is about the page — a control is the
+runtime's apparatus wherever it stands, which is what a pointer or a caret needs.
+Bounded at an element, it is about that element's own insides, which is what a
+reading of one widget needs: the panel holding a widget an agent sent is itself
+`.lf-ui`, so asked the unbounded way every child of such a widget answers yes.
+`quotable`, `shownParts` and `settledAway` all take it, and `authored` takes the
+same bound on the generated question — so what a mark may hang on, what a
+settlement has emptied, and what a quote may name cannot come apart. An area greater than zero is not enough for shown parts
+either: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
 
 A control containing a page word is built by `offer` as a selectable
@@ -1362,16 +1401,21 @@ can populate state-dependent rows. It restores intent through `showTray` without
 replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
 each persisted tray.
 
-Ask rows come from `x-awaits`, not from a list of ask tags. `itemSays` supplies
-each row's own label. Selecting a row travels through the same ask-arrival
-function as `n` and `p`, so numbered and directional navigation agree about
-focus, reveal, scroll, and `landed`.
+Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
+nested in an `x-ask` region, the row names the region: its heading, context, and
+evidence are the request the reader is being sent to, while the source remains
+the owner of the answer. `itemSays` supplies each row's own label. Selecting a
+row travels through the same ask-arrival function as `n` and `p`, so numbered
+and directional navigation agree about focus, reveal, start-aligned scroll, and
+`landed`.
 
 An ask is answered only through a verb listed in `x-awaits.answers`; do not infer
 that every state change is an answer. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
-roll-ups, and finally itself as a leaf. The visible list keeps the deepest open
-member, while `actionAvailable` may query an ancestor's exact value.
+roll-ups, and finally itself as a leaf. The standing projection keeps the
+deepest open member; an enclosing `x-ask` replaces that member only on the
+visible/navigation surface. `actionAvailable` still queries the source or an
+ancestor's exact projected value.
 
 ### Address chord
 
@@ -1453,6 +1497,17 @@ help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
 
+`.lf-work-line` is transient runtime chrome that may also stand inside a page
+widget. `paintWorkLines` is its one writer. A thread subject paints in the panel
+and every inline conversation seat; a page-widget subject paints only in the
+content or conversation seat its active `x-work` declaration names. A content
+seat is block prose, but block prose alone grants no seat. The line wears `lf-ui`
+and `data-lf-gen`:
+it is an account of the widget, not authored words of the widget, so selection
+and diff readings skip it. Reconcile widget state first and paint work afterward,
+because a module may rebuild the subtree that seats it. Keep surviving nodes
+across polls so an unchanged claim is not re-announced.
+
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still
 stands. Polling must not discard a reader's caret, focus, reply text, disclosure
@@ -1498,6 +1553,9 @@ landing in a thread in front of them — and takes the list as it stands.
 `showThread` insists: a press out on the page or in a message knows nothing of
 the narrowing it would be asking past, and a comment the reader has just written
 cannot vanish into a narrowing it does not match, so the narrowing goes instead.
+It focuses the containing thread before `revealThread` scrolls it, making the
+thread the standing result rather than a card flashed while focus remains on the
+page. `preventScroll` leaves the panel's reveal as the one writer of its position.
 A reveal that widened for a reply would take the reader's narrowing away for
 having been used, which is how the waiting-on-you list is emptied.
 
@@ -1640,6 +1698,7 @@ The JavaScript readings embedded in `interact.py` each answer one failure class:
 | `TINY_BOXES` | every declared widget has a usable rendered box |
 | `UNMARKABLE_ITEMS` | every pointable item has a visible part for an outline |
 | `MISPLACED_BOXES` | boxes stay in the column or in genuinely reachable overflow |
+| `WITHHELD_ROOM` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `CLIPPED_CONTROLS` | actionable controls are visible and reachable |
 | `UNREACHABLE_WORDS` | visible page words remain in reachable flow |
 | `COVERED_WORDS` | browser words are not silently clipped, hidden, or claimed by chrome |

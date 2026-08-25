@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-import test_render
+import render_support
 from conftest import interact
 
-serve = test_render.serve
+serve = render_support.serve
 
 ROOT = Path(__file__).parent.parent
 

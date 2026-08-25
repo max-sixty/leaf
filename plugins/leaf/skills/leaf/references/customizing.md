@@ -24,7 +24,7 @@ the fix up on a later re-vendor.
 `page init` overlays the layers in that order, lowest first: leaf's integrated layer, its
 bundled widgets, the user's, the project's (resolved against the working directory, so run
 project commands from the project root). Each mirrors one layout — `theme.css`,
-`registry.json`, `icon.svg`, `widgets/`, `vendor/`. Theme files concatenate, so a short
+`registry.json`, `icon.svg`, `runtime/`, `widgets/`, `vendor/`. Theme files concatenate, so a short
 later file overrides tokens or rules without copying the defaults; runtime, icon, widget
 and vendor files replace by path; registry files merge at the unit of the contract — a
 later layer replaces a tag's complete entry, and one member inside a `$` entry, so a new

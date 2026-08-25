@@ -12,19 +12,23 @@ rules there; state here only what a test must observe or control.
 
 ## Run the narrowest useful surface
 
-The repository guide owns setup and the everyday and complete-suite commands.
-During development, select the owning file or one named case. Both browser modules
-are marked at module scope, so include `--run-nightly`; use `-n 0` while debugging
-so the trace and process tree stay local. Before landing a browser-facing change,
-run its complete browser file and the repository's normal suite.
+The repository guide's "The suite" section owns setup and test commands. During
+development, select the owning file or one named case and use `-n 0` so the trace
+and process tree stay local. Before landing a browser-facing change, run its
+complete browser file and the repository's normal suite.
 
 ## Put each assertion at the boundary that owns it
 
-`test_interact.py` exercises authored markup, the registry, the event log, CLI
-commands, vendoring, publishing, export, and server lifetime. `test_render.py`
-drives the browser runtime and the render gate. `test_site.py` reads the built site
-through its served URLs. Product documentation tests compare the docs with the
-shipped vocabulary and command surface.
+The `test_interact_*.py` modules exercise authored markup, the registry, the event
+log, CLI commands, vendoring, publishing, export, and server lifetime. The
+`test_render_*.py` modules drive the browser runtime and the render gate.
+File-side fixtures live in `interact_support.py`. Browser process and page
+fixtures live in `render_harness.py`; reusable browser cases are grouped by
+interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
+`render_support.py` reexports that surface for the test modules rather than
+owning another copy. `test_site.py` reads the built site through its served URLs.
+Product documentation tests compare the docs with the shipped vocabulary and
+command surface.
 
 The distinction matters most around `render_version`. A property caused by a
 particular page belongs in that gate, because `version check --render` must report
@@ -32,6 +36,31 @@ it to the page's author. A property that is identical for every valid page belon
 in the suite instead. `arrival_findings`, for example, tests the layer's behavior
 when a reader returns with browser state already present; changing the authored
 page cannot repair that behavior.
+
+The same line runs through the render gate's own readings, and what decides it is
+whether a reading needs a box.
+
+A reading of text or attributes may cross into the comment panel, and several do:
+a widget an agent sent in a reply is a widget, and `UNREACHABLE_WORDS`,
+`SILENT_WORDS` and `UNDECLARED_ATTRS` answer for it. A reading of geometry may not,
+because the gate never opens the panel and a shut one has no boxes at all. Most
+stop there by construction — at `.lf-chrome`, or by starting from `main` — and
+`TINY_BOXES` and `CLIPPED_CONTROLS` stop at `checkVisibility()`.
+
+`TRAPPED_MARGINS` is the exception, and it is a box reading wearing a computed
+style reading's clothes: inside `display: none` an element's own `display` is still
+`block` and its padding and margins still resolve, so it reads the panel and gets
+plausible numbers. They are not the panel's numbers. A size container query does
+not match in there, so a rule that switches a slot between two forms is stuck on
+one of them, and a percentage margin comes back unresolved. It therefore tags each
+finding with which document it is in, and the gate takes the page's half.
+
+What the layer does with a box is the suite's — `TRAPPED_MARGINS` states why at
+the line that splits it. So the suite opens the panel, where such a widget has a
+box at last, and puts the product's own readings to it: `TINY_BOXES` and
+`CLIPPED_CONTROLS` over the open panel, and `TRAPPED_MARGINS`'s layer half. Each
+asserts its population first, and a planted fault is scoped to `.lf-chrome`, so a
+clean result cannot come from a reading that never arrived.
 
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
@@ -114,7 +143,7 @@ message carries — exists nowhere else. Pass the markup where the log would be
 noise for the subject, and say which in a comment. Reach its page directory through `serve.page_dir`
 when a test needs to publish v2 or inspect the log; do not construct a parallel
 directory whose relationship to the served URL is implicit. `page_dir` in
-`test_interact.py` owns command-level files without starting a browser. Keeping
+`interact_support.py` owns command-level files without starting a browser. Keeping
 those roles separate makes it clear whether a failure belongs to the file/CLI
 boundary or to the served runtime.
 
@@ -129,6 +158,14 @@ Use `select` for selection drags. It floors the starting coordinates to a whole
 pixel because a fractional point can straddle a glyph's caret boundary and leave an
 otherwise valid drag with an empty selection. Preserve the end coordinate: changing
 its precision can move the selected character.
+
+`locator.click()` scrolls its target into view first, so a baseline read before one
+is a reading of the page the test arranged and not of the page the press finds. A
+test that scrolls a region away and then presses something in it measures the
+driver's scroll, not the product's: it reported a panel moving 2455px to 0 for a
+press that moved nothing. Where the subject is what a press does to a scroll
+position, put the element on screen first — `scroll_into_view_if_needed()` says so
+out loud — and read the baseline after that.
 
 Nothing should be injected into the page merely to make ordinary observation easier.
 Traffic comes from Playwright's request, response, and request-failure events. Network

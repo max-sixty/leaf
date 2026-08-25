@@ -20,7 +20,7 @@ script=$root/skills/leaf/scripts/interact.py
 # page's server — is not $PPID: that is whatever the shape of the command left
 # above leaf, the codex process where the wrapping shell could exec leaf in its
 # place and a shell of the moment where a pipeline stopped it. The second exits
-# with the command and the page's server goes down behind it, so `session_pid`
+# with the command and the page's server goes down behind it, so `session_lifetime`
 # walks for the process from inside the script instead.
 if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && [ -n "${CODEX_THREAD_ID:-}" ]; then
   export LEAF_SESSION_ID=$CODEX_THREAD_ID

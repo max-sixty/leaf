@@ -68,6 +68,8 @@ import {
   actionStands,
   agentName,
   FOLD_MS,
+  inChrome,
+  measure,
   motion,
   movedWords,
   offer,
@@ -199,10 +201,32 @@ function relayout() {
     .map((row) => ({ row, rect: row.getBoundingClientRect() }))
     .sort((a, b) => a.rect.top - b.rect.top);
   let floor = -Infinity;
+  const bands = [];
   for (const { row, rect } of placed) {
     const push = Math.max(0, floor + GAP - rect.top);
     if (push) row.style.transform = `translateY(${push}px)`;
     floor = rect.top + push + rect.height;
+    bands.push({ top: rect.top + push, bottom: floor });
+  }
+  // The margin is spoken for at the rows' own heights, and nowhere else. A wide
+  // widget grows right into the very space a row hangs in — the row sits 22px off
+  // the column, not in the strip reserved at the page's far edge — so an exhibit
+  // level with a row must decline that side, and `clear`, which settles the same
+  // collision with a sidenote on the left, cannot see a positioned row. The rows'
+  // final bands are known only here, after docking and the nudge walk, so this
+  // pass is what says which exhibits a row actually reaches; the theme spends the
+  // mark (data-lf-yield), and refusing the side page-wide instead held a board
+  // 1400px below the only row to the column with the margin beside it empty.
+  // The write converges rather than cycles: declining a side can only make a box
+  // taller, which moves rows below it down by the same growth, so no band gains a
+  // widget it did not already hold, and the next observer pass repaints the same
+  // answer. The value carries the side, so a margin idiom on the left is another
+  // letter rather than a second attribute.
+  for (const el of document.querySelectorAll("[data-lf-wide]")) {
+    const box = el.getBoundingClientRect();
+    if (bands.some((band) => band.top < box.bottom && band.bottom > box.top))
+      el.setAttribute("data-lf-yield", "r");
+    else el.removeAttribute("data-lf-yield");
   }
 }
 
@@ -247,22 +271,33 @@ customElements.define(
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
       this.#row.append(this.#button("accept"), this.#button("reject"));
       this.#hang();
-      // In the document now, so each control measures its decided word in the face it
-      // actually renders in and floors itself there — the line the press is made on
-      // holds still when the word changes (see the module header).
-      for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
-        reserve(btn, WORDS[verb(btn)]);
-      // The rail is the row it holds: measured off the first row once its controls
-      // hold their decided words' room, and stated on the root element — the page's
-      // own inline style, so an exported copy keeps the value it was rendered with.
-      // theme.css spends it (body's padding-right) and deliberately states no number.
-      if (!railStated) {
+      // Off the row's own box, so it waits for one: this change may be one an agent sent
+      // in a reply, and the panel holding it opens later. Measured before, both numbers
+      // came off a row of no width at all — each control floored at nothing, so the
+      // press moved the line it was made on, and the page's rail was stated as bare
+      // margin. Neither reads as a missing measurement; they read as small numbers.
+      measure(this.#row, () => {
+        // In the document now, so each control measures its decided word in the face it
+        // actually renders in and floors itself there — the line the press is made on
+        // holds still when the word changes (see the module header).
+        for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
+          reserve(btn, WORDS[verb(btn)]);
+        // The rail is the row it holds: measured off the first row once its controls
+        // hold their decided words' room, and stated on the root element — the page's
+        // own inline style, so an exported copy keeps the value it was rendered with.
+        // theme.css spends it (body's padding-right) and deliberately states no number.
+        //
+        // The page's own row states it, and a row standing in the panel is not in the
+        // page's margin — it is beside a message, in a column of its own. A page whose
+        // only changes arrive in replies wants no rail at all, and taking one from that
+        // row would move the document's right edge when the reader opened the panel.
+        if (railStated || inChrome(this)) return;
         railStated = true;
         const width =
           this.#row.getBoundingClientRect().width +
           parseFloat(getComputedStyle(this.#row).marginLeft);
         document.documentElement.style.setProperty("--rail", Math.ceil(width) + "px");
-      }
+      });
       // The body's box carries the horizontal question (viewport, comment panel);
       // the current main's carries the vertical one, since anything that moves content
       // down the page changes its height. A live version replaces that main, so the one

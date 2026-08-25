@@ -22,8 +22,11 @@ Make improvements that follow from the code and these rules. Ask the user only
 when the decision depends on purpose or intent that the repository cannot supply.
 
 Validate data once at its boundary: browser events at `POST /api/event`, authored
-markup at `version check`, and replayed action detail in the widget's
-`applyAction`. Downstream code reads validated fields directly.
+markup at `version check`, a message's `markup` at `check_markup`, and replayed
+action detail in the widget's `applyAction`. Downstream code reads validated
+fields directly. The two markup doors read one parser and share what a fragment
+can fail in its own right; `check_markup` says which checks those are and why
+they sit where they do.
 
 ## Repository shape
 
@@ -32,11 +35,17 @@ repo-root pointers are `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json`; the payload carries one manifest for each
 host. Six parts live under `plugins/leaf/skills/leaf/`:
 
-- `scripts/interact.py` is one `uv` script containing the server, event log,
-  `version check`, vendoring, and export. The payload's `bin/leaf` shim invokes
-  it. There is no daemon or database.
-- `assets/leaf.js` is the page runtime and comment layer. Its private styles live
-  in the module. There is no build step.
+- `scripts/interact.py` is the `uv` script and public CLI facade for the server,
+  event log, `version check`, vendoring, and export. Pure implementation domains
+  live beside it under `scripts/leaf_interact/`: `files` owns atomic file
+  operations, `events` the append-only model, `service` host and process
+  lifetime, `registry` the merged vocabulary, and `projection` the standing
+  state derived from events. Schema, document, and render-check modules sit
+  below the facade on the same dependency path. The payload's `bin/leaf` shim
+  invokes the facade. There is no daemon or database.
+- `assets/leaf.js` is the public page runtime and comment layer. Its private
+  context, state projector, and chrome stylesheet live under `assets/runtime/`
+  and are composed by that stable module. There is no build step.
 - `assets/registry.json` is the integrated widget vocabulary and the layer-wide
   `$` declarations read by the runtime, linter, renderer, catalog, and docs.
 - `assets/theme.css` owns tokens, element styles, class idioms, integrated widget
@@ -61,11 +70,12 @@ server.
 `CLAUDE_PLUGIN_ROOT` as a compatibility alias. The launcher maps Codex thread
 identity into the session record Claude Code supplies directly.
 
-The session record has two independent facts: host identity and process lifetime.
-The launcher may translate the first, but it must derive the second from the host
-process itself. A pipeline or shell wrapper is command lifetime, not session
-lifetime; tying the server to it retires the page as soon as the launching command
-returns.
+The session record has two independent facts: host identity and session lifetime.
+The launcher may translate the first, but the second comes from the host itself:
+the session's own process, or for a daemon-hosted background job the record the
+daemon keeps for it. A pipeline or shell wrapper is command lifetime, and a
+background job's worker is sitting lifetime; tying the server to either retires
+the page while the session still stands.
 
 `page init` vendors the complete merged layer into a page directory. A reviewed
 page therefore keeps the assets it was reviewed with. `interact.py`'s module
@@ -126,6 +136,35 @@ outranks provisional agent news there; different coordinates still compose in
 event order. Reports remain live until a version note absorbs or overrules them.
 Actions remain live until undo or a later retraction floor ends them. Both Python
 and JavaScript derive those answers from the same registry declarations.
+
+News about an item has one canonical projection even though its sources keep the
+stores their lifetimes require. Logged widget reports and replace-in-place work
+claims share a typed envelope and deterministic order. A target is always
+`{kind, id}` because a widget id and a thread id are different identities even if
+their spelling matches. `source` keeps authority visible. The closed `disposition`
+is `effective` when an entry contributes to current state on its semantic
+coordinate, `standing` when it still awaits settlement but is presently
+outranked, and `settled` once its authority answers it. Do not infer disposition
+from presence in the feed. A report is settled by a version note. A thread work
+claim is effective while the thread is open and no later agent reply has answered
+it; resolving hides it and reopening reveals it again. Widget work survives
+unrelated versions and ends only when a later version note carries a `work`
+settlement for the widget. A new claim on either subject starts after a later log
+sequence. Registry
+`x-report.update` names the required non-empty string detail field exposed as an
+update's human-readable text; consumers do not guess it from widget vocabulary.
+
+Presence derives a widget claim's origin version from its sequence boundary
+before any consumer receives it. A version may not silently remove an active
+claim's local seat, and neither may a layer re-vendor: settle the work in a later
+version first. Pinned pages do not show widget work claimed on a later version.
+
+A widget's local seat also stays declaration-driven. `x-work` explicitly admits
+the transient line either as a generated child of block prose (`content`) or at
+the start of a matching `x-conversation` (`conversation`), optionally under a
+predicate. `x-content: prose` alone is not permission: that prose may itself be
+a holder gesture or may stand in a hidden panel. Core must refuse an undeclared
+target rather than branch on a tag name or infer a safe insertion point.
 
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
@@ -237,6 +276,8 @@ runtime branch.
 Declarations describe general behavior:
 
 - `x-upgrade` says that a module enhances the element.
+- `x-ask` says the element is the complete reading and arrival region around one
+  nested request. The nested `x-awaits` widget still owns the answer and fold.
 - `x-awaits` says the element can hold a request for the reader. It feeds the
   banner count, asks tray, keyboard walk, help, and conditional actions. Its
   answer verbs are explicit; `rollup` derives a nested plan from ordinary
@@ -361,11 +402,16 @@ handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
 
 ### The suite
 
-`test_interact.py` covers lint, vendoring, publishing, catalog, export, thread
-markup, and file-side anchors. `test_render.py` covers the browser runtime and
-examples. `test_product_page.py` covers `docs/`. `test_site.py` builds and reads
-the published site. The journey test selects a passage, comments, moves a card,
-follows a version, and checks the surviving anchor and log.
+The `test_interact_*.py` modules cover lint, vendoring, publishing, catalog,
+export, thread markup, and file-side anchors. The `test_render_*.py` modules
+cover the browser runtime and examples. Shared file-side fixtures live in
+`interact_support.py`. `render_support.py` is the browser-test compatibility
+facade: the Playwright harness lives in `render_harness.py`, while the reusable
+case corpus is grouped by interaction, layout, navigation, and widget behavior
+in `render_cases_*.py`. `test_product_page.py` covers `docs/`. `test_site.py`
+builds and reads the published site. The journey test selects a passage,
+comments, moves a card, follows a version, and checks the surviving anchor and
+log.
 
 The browser corpus is read in both color schemes, and each example is read under
 the log it ships, so a thread and any widget a message carries are part of what
@@ -387,23 +433,25 @@ the browser gate:
 uv run pytest tests
 ```
 
-`test_render.py` and `test_site.py` are marked nightly. A focused browser run must
-include `--run-nightly`; without it pytest deselects the module and exits 5. Turn
-xdist off while iterating:
+The `test_render_*.py` modules and `test_site.py` are marked nightly. Broad
+discovery leaves them out; an explicit file, node id, `-k`, `-m`, or `--lf`
+selection runs what it names. Turn xdist off while iterating:
 
 ```sh
-uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
+uv run pytest tests/test_render_widgets.py -q -n0 -k board
 ```
 
-Run the complete suite before handoff. It needs a network because the installed
-launcher's browser path may resolve Playwright outside `uv.lock`:
+After a failure, rerun only the failed cases while debugging:
 
 ```sh
-uv run pytest tests --run-nightly
+uv run pytest --lf --lfnf=none -x -n0
 ```
 
-Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` runs them and
-the suite through `.config/wt.toml`; CI repeats both on main and pull requests.
+Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` is the complete
+suite gate: `.config/wt.toml` runs them and `uv run pytest tests --run-nightly`
+once against the rebased tree. The nightly run needs a network because the
+installed launcher's browser path may resolve Playwright outside `uv.lock`. CI
+repeats both on main and pull requests.
 
 ```sh
 pre-commit run --all-files

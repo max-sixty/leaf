@@ -7,28 +7,30 @@ page whose user has said nothing yet. These hooks make the loop the harness's
 business rather than the model's memory. Stop protects a background wait where the
 host can return its result, and keeps a foreground-only host's page owner inside the
 turn polling the exact wait session. A named wait transfers that duty to the task that
-runs it. UserPromptSubmit surfaces unacknowledged events; SessionEnd idles the pages and
-stops their servers.
+runs it. UserPromptSubmit surfaces unacknowledged events; SessionEnd releases the
+session's claims, behind which a session-lifetime server retires once no live
+successor has taken the page.
 
-The decision lives in interact.py, which owns the page-directory model. This
-script exists to keep the common case cheap: it fires on every turn of every
-session that has the plugin installed, so it checks whether this session has
-served or watched a leaf page at all before paying for a `uv run`.
+This script decides nothing. Both questions — whether this session holds a page
+at all, and what to say about the ones it holds — belong to interact.py, which
+owns the page-directory model. One `uv run` per turn is what it costs to ask
+them there; a cheap answer here would be a second copy of a rule that changes
+every time a host states its session lifetime a new way.
 
-Anything unexpected — a broken claim record, a broken interact.py, a timeout —
-falls through silently and the turn proceeds. A Stop hook is the worst possible
-place for a leaf bug to strand the user.
+What is left is the one thing interact.py cannot do for itself: fail open.
+Anything unexpected — no uv on PATH, a broken interact.py, a timeout — is
+swallowed, and the turn proceeds with the guard silent. A Stop hook is the worst
+possible place for a leaf bug to strand the user, and the failures worth
+guarding hardest against are the ones where interact.py never starts.
 
-The claims path assumes the hook's environment and the shell tool's agree on
-XDG_STATE_HOME: the serve and `leaf wait` write claims from a shell
-initialized by the user's profile, while this script reads it from the agent
-host's process environment.
-A value set only in the shell profile makes the guard silently stand down —
-fail-open, like everything else here.
+The hook's environment and the shell tool's have to agree on XDG_STATE_HOME. A
+serve and a `leaf wait` write their claim records from a shell initialized by
+the user's profile, while interact.py reads them here from the environment the
+agent host hands this process. A value set only in the shell profile leaves the
+guard reading an empty claims home and saying nothing — fail-open, like
+everything else here.
 """
 
-import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -36,37 +38,13 @@ from pathlib import Path
 INTERACT = (
     Path(__file__).resolve().parents[2] / "skills" / "leaf" / "scripts" / "interact.py"
 )
-# Must match interact.py's state_home(): this script runs under plain python3
-# and can't import the uv script it fronts.
-CLAIMS = (
-    Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
-    / "leaf"
-    / "claims"
-)
-
-
-def session_has_active_claim(session_id: str) -> bool:
-    for path in CLAIMS.glob("*.json"):
-        claim = json.loads(path.read_text(encoding="utf-8"))
-        if claim["id"] != session_id or claim["released"] is not None:
-            continue
-        try:
-            os.kill(claim["pid"], 0)
-        except (ProcessLookupError, PermissionError):
-            continue
-        return True
-    return False
 
 
 def main() -> None:
     try:
-        raw = sys.stdin.read()
-        session_id = json.loads(raw)["session_id"]
-        if not session_has_active_claim(session_id):
-            return  # this session has no leaf pages; nothing to guard
         answer = subprocess.run(
             ["uv", "run", str(INTERACT), "hook"],
-            input=raw,
+            input=sys.stdin.read(),
             capture_output=True,
             text=True,
             timeout=15,

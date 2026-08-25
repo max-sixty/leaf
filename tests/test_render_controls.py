@@ -27,6 +27,7 @@ from render_support import (
     CARRIED_PAGE,
     COMMAND_HUB_PACKAGE,
     CORNER_PAGE,
+    DEEP_FOCUS,
     DEFINE_BOXES,
     DRAFT_MARK,
     EDGES,
@@ -47,8 +48,10 @@ from render_support import (
     PICTURE_PAGE,
     PRESS,
     PRINT_LOSS_PAGE,
+    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    RING_FAULTS,
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
     SCROLLED,
@@ -85,6 +88,7 @@ from render_support import (
     panel_settled,
     record_claim,
     resized,
+    ring_fault,
     round_trip,
     select,
     serious_axe_violations,
@@ -1712,9 +1716,7 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_tray_stands(
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     page.keyboard.press("l")  # the tray first, then the panel over it
-    page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
-    page.keyboard.press("Escape")  # back out of the box, onto the panel's list
+    page.keyboard.press("c")  # which stands the reader on the panel's list
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-keyline")).to_contain_text("close comments")
     page.keyboard.press("Escape")  # the panel the reader stands in, not the tray
@@ -3093,3 +3095,55 @@ customElements.define("lf-quota", class extends HTMLElement {
     assert stale_errors and all("400" in error for error in stale_errors)
     stale.close()
     current.close()
+
+
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
+    browser, serve, example
+):
+    """The same invariant asked of the whole corpus, so it is a property of the layer
+    rather than a fact about the one list that was wrong. Tab, because that is the walk
+    every page has and it reaches the page's own controls and the runtime's chrome in
+    one order; the panel is opened first so its head, its find row and its foot are in
+    it. A page's own scroll region is the document, whose top the banner stands over —
+    the same shape of collision the panel had, one layer out."""
+    url = serve(example.read_text(), comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator("body").click()
+
+    # The tab order comes back round, so the walk ends when it reaches a control it has
+    # already stood on — held by identity, since two buttons in a row can say the same
+    # words at the same scroll and are still two stops. The cap is a backstop against a
+    # page whose order never repeats; the ring count below is what would notice a walk
+    # that stopped short of one.
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    NEW_STOP = f"""() => {{
+      const e = ({DEEP_FOCUS})();
+      if (!e || e === document.body || e === document.documentElement) return false;
+      if (window.__lfSeen.has(e)) return false;
+      window.__lfSeen.add(e);
+      return true;
+    }}"""
+    stops, ringed, faults = 0, 0, []
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        page.evaluate(RENDERED)
+        if not page.evaluate(NEW_STOP):
+            break
+        stops += 1
+        if page.evaluate(RING_FAULTS)["ring"]:
+            ringed += 1
+        fault = ring_fault(page, f"tabbing to stop {stops}")
+        if fault:
+            faults.append(fault)
+    assert not faults, f"{example.name}: " + "\n  ".join(
+        [f"{len(faults)} of {stops}:"] + faults
+    )
+    assert ringed >= 3, (
+        f"{example.name} tabbed to {stops} stops and only {ringed} drew a ring, "
+        "so this asserts almost nothing"
+    )
+    assert errors == []
+    page.close()

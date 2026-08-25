@@ -1241,6 +1241,12 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
                               background: var(--card); border: 1px solid var(--border-2);
                               border-radius: var(--r); }
 :host(.lf-rendered) summary { padding: 6px 12px; font-size: var(--t-5); font-family: var(--sans); }
+/* The file's own row, and the box it opens clips (overflow above), so the ring it wears
+   is inset — theme.css's rule for a control packed into something rather than standing
+   on its own. Outside, its top run was drawn into the border the details draws and lost
+   with it. */
+:host(.lf-rendered) summary:focus-visible { outline: var(--here-ring);
+                                            outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 :host(.lf-rendered) summary code { font-family: var(--mono); font-size: var(--t-6); }

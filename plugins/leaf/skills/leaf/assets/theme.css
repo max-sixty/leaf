@@ -166,8 +166,16 @@
      the same ring was free to become three, and a reader would have had to learn
      that a blue rectangle on the banner and a blue rectangle down the page meant
      the same thing. The gap is what the ring wants outside a box that stands on
-     its own; a control packed into a list states its own inset instead. */
-  --here-ring: 2px solid var(--accent); --here-ring-gap: 3px;
+     its own; a control packed into a list states its own inset instead.
+
+     The width is a token of its own because the ring is drawn outside the box it
+     names, so a scroll region has to reserve room for it: a shorthand cannot be
+     read back in a calc, and the number was therefore being retyped wherever the
+     room was worked out. --here-ring is composed from it, so there is still one
+     place the band's thickness is decided. */
+  --here-ring-w: 2px;
+  --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
+  --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
@@ -1170,9 +1178,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * would. Docked, it is the same box in flow at that same point: a control line
  * under the block the change sits in, wherever it can't hang clear of the column.
  * Waiting, the change is inside something collapsed and there is no line yet. */
+/* The trailing room is the ring's, reserved in the row's own box rather than subtracted
+ * from the edge by whatever measures it. A row that ended exactly at the page's right
+ * edge fitted and its ring did not — the page clips there, so ✗ Reject reached with the
+ * keyboard wore a band with no right side. Carrying it here means the module's one
+ * question ("does this row fit beside the column?") is still asked of a single measured
+ * box, and nothing has to read a length out of CSS to ask it. Padding rather than
+ * margin, because a margin is not in the box that gets measured. */
 .lf-sug-actions { position: absolute; left: 100%; margin-left: 22px; top: anchor(top);
-    display: inline-flex; gap: 4px; white-space: nowrap; }
+    display: inline-flex; gap: 4px; white-space: nowrap;
+    padding-right: var(--here-ring-room); }
 .lf-sug-actions.lf-waiting { display: none; }
+/* Docked rows flow, so two changes docked in one block sit on one line. What keeps the
+ * ring on the last pill of the left pair off the first pill of the right one is the
+ * trailing room every row carries (padding-right, above) — the same room that keeps a
+ * row in the margin from ending flush against the page's clip, spent here between two
+ * rows instead of between a row and an edge. */
 .lf-sug-actions.lf-docked { position: static; margin: 2px 0 12px; }
 /* The controls are .lf-pill — the margin's press, stated once in the runtime's
  * document-level vocabulary, where the 💬 that shares this margin wears it too, and

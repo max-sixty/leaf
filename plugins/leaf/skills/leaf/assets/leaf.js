@@ -4733,7 +4733,9 @@ const groupNodes = new Map();
 function groupNode(key, group) {
   let node = groupNodes.get(key);
   if (!node) {
-    node = group.target ? el("button", "lf-group") : el("div", "lf-group");
+    node = group.target
+      ? el("button", "lf-group lf-pinned")
+      : el("div", "lf-group lf-pinned");
     if (group.target) {
       node.type = "button";
       node.title = "Jump to this part of the page";
@@ -4936,6 +4938,38 @@ function renderConversations(threads) {
     ]);
   }
 }
+
+// The one number in the list's scroll-padding that CSS cannot work out: a run heading
+// sticks over the top of this box, and a long one wraps, so how much of the top is
+// covered is a measurement rather than a constant. The tallest, not the stuck one — the
+// browser is given one number to scroll by and cannot be told which heading will be under
+// the landing, and reserving more than a shorter heading needs only lands the thread a few
+// pixels lower.
+//
+// It follows the box rather than the log. Wrapping is a function of the list's width, and
+// the reader sets that themselves by dragging the panel's edge — a drag posts no event, so
+// a reconcile never came, and a heading that had grown from one line to two went on being
+// reserved for at one. Threads then landed under it, which is the whole defect this
+// number exists to prevent. Writing a custom property does not resize the observed box,
+// so the observer cannot feed itself.
+function paintHeadRoom() {
+  // Not while the panel is shut, which is most of a page's life. Every heading measures
+  // zero in `display: none`, so the answer is never the room a heading takes — it is the
+  // absence of a panel, written at the cost of a forced layout on every reconcile for a
+  // number no reader can be standing in. That cost is not theoretical: under a loaded
+  // machine it delayed an event's acknowledgement past the window an undo is offered in,
+  // and `test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll` lost
+  // its press to a gesture that had not settled yet. The observer fires when the panel
+  // opens — a box arriving is a resize — so the measurement lands the moment it means
+  // something, which is also the only moment it can be right.
+  if (!panelOpen) return;
+  const heads = [...threadsBox.querySelectorAll(".lf-pinned")];
+  threadsBox.style.setProperty(
+    "--lf-head-room",
+    `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
+  );
+}
+new ResizeObserver(paintHeadRoom).observe(threadsBox);
 
 // A thread's node is found where it already stands — the open list or the resolved
 // disclosure — and kept: the log is append-only, so a kept node only ever gains
@@ -5306,7 +5340,7 @@ function renderThreads(threads) {
   if (resolved.length) {
     if (!resolvedBox) {
       resolvedBox = el("details", "lf-details");
-      resolvedBox.append(el("summary"));
+      resolvedBox.append(el("summary", "lf-pinned"));
     }
     const summary = resolvedBox.firstChild;
     // Counted off what the panel is showing, listed off the page: a thread still folding
@@ -5333,6 +5367,7 @@ function renderThreads(threads) {
   setChildren(threadsBox, wanted);
   if (standingIn && !threadsBox.contains(focused()))
     threadsBox.focus({ preventScroll: true });
+  paintHeadRoom();
   // A thread's widget markup is authored too, but it arrives after the page's startup
   // capture. Take its baseline on the first frame it is connected, before a reader can
   // act on it; later reconciles keep the first capture rather than mistaking a live
@@ -8542,11 +8577,62 @@ fab.onclick = () => {
 // Cancel discards. Escape and outside clicks only hide, keeping the draft either way.
 composerCancel.onclick = closeComposer;
 
+// What the general box is for, said once: its own placeholder wears it, and so does the
+// panel row whose key opens it. Two strings would be two chances to rename the mode in
+// one of them.
+const generalHint = () => (designOn ? "Comment on the layer" : "Comment on the page");
+
+// The row whose key opens that box, standing here beside the sentence they share rather
+// than down among the panel's other rows. The box paints its placeholder as `wireInput`
+// builds it, and the placeholder names this row's key — read off the row, so rebinding it
+// corrects the box too. Built later, the row is still in its dead zone at that first
+// paint and the whole layer stops on the reference. The comment above already calls the
+// two a pair; this is the pair being one thing rather than two that agree by hand.
+const PANEL_SAY = {
+  // The page's c brought the reader here; this one puts them in the box. Same letter
+  // twice because it is the same intent one scope further in, which is how the rest
+  // of the register reads too — g names a list and then a member of it. The box says
+  // the same key from its own placeholder, so the second press is discoverable from
+  // the panel without the reference open.
+  keys: ["c"],
+  does: () => generalHint(),
+  line: "comment",
+  // Dead while the reader has a passage or an item in hand. `j` is a page key that
+  // lands focus in the panel, so a reader who selected a paragraph and then walked
+  // the threads is standing in this scope with their selection still live — and this
+  // row, being the innermost, would have taken the press and spent it on the general
+  // box, collapsing the selection as the box took focus. A gesture the reader made
+  // outranks the room they happen to be standing in, so the row stands down and the
+  // page's own c answers, on the passage, saying so on the key line first.
+  //
+  // Dead inside a conversation for the same reason read the other way. This scope is
+  // live wherever focus is in the panel, a card the reader has walked to included, and
+  // that card's own reply box is a nearer answer to "comment" than the general box is
+  // — the one `Enter` reaches from here and `g c N` addresses. Standing in a
+  // conversation is the page's second destination, so the row stands down and lets it
+  // answer, and the two ways into a thread's box stay one landing. A resolved card has
+  // no box to be the nearer answer, and standingConversation reads the box rather than
+  // the class, so the press there is the general box's after all.
+  when: () => !fabAnchor && !standingConversation(),
+  run: () => generalInput.focus({ preventScroll: true }),
+};
+
 const syncGeneral = wireInput(generalInput, {
   // The box has no anchor to decide it at an open, so what it posts is decided at the
   // send, by the mode standing then — and the hint says which, so the reader typing in
   // design mode knows their remark is about the layer as a whole.
-  hint: () => (designOn ? "Comment on the layer" : "Comment on the page"),
+  hint: generalHint,
+  // The box's own address, the way a thread's reply carries "g c 2": unfocused, the
+  // placeholder reads "Comment on the page · c", which is the panel's own c and the
+  // second press of the page's. One key rather than a chord, because this box is the
+  // panel's own and the scope that offers it is the one the reader is standing in.
+  //
+  // Read off the row that answers the press rather than spelled here, which is the rule
+  // the reference states about itself: a fact about a binding written somewhere the
+  // binding cannot correct it goes on promising a key nobody rebound it with. Named for
+  // that alone — the row is otherwise `PANEL`'s like any other. The forward reference is
+  // only ever resolved at paint.
+  address: () => labelOf(PANEL_SAY),
   sends: "send",
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
@@ -8999,27 +9085,46 @@ function landIn({ held, box }) {
 // they are standing — the nearest conversation's box, then the nearest item, then the page,
 // which is what is left when they are standing nowhere in it. An element anchor answers in
 // its own word (a figure, a card), the way the panel names one.
+//
+// Three of the four are a box to write in and say so in the same sentence, so the sentence
+// is written once here and the word is what varies. The fourth is not a comment at all but
+// the room the comments are in, and states its own words rather than being bent to the
+// pattern — naming it by word alone is what produced "comment on the comments".
+const commenting = (word) => ({
+  does: `Comment on the ${word}`,
+  line: `comment on the ${word}`,
+});
 const commentDestination = () => {
   if (fabAnchor)
     return {
-      word: fabAnchor.quote
-        ? "selection"
-        : itemWord(elementById(fabAnchor.section)) || "item",
+      ...commenting(
+        fabAnchor.quote
+          ? "selection"
+          : itemWord(elementById(fabAnchor.section)) || "item",
+      ),
       go: () => fab.onclick(),
     };
   const said = standingConversation();
-  if (said) return { word: "thread", go: () => landIn(said) };
+  if (said) return { ...commenting("thread"), go: () => landIn(said) };
   const here = standingItem();
-  if (here) return { word: itemWord(here), go: () => commentOnItem(here) };
+  if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
+  // Standing nowhere the press can name, so it means "take me to the conversation" and
+  // lands on the list rather than in a box: the ring is visible, j/k walk on from it, and
+  // w and / are live, because the scope the reader is now standing in is the panel's
+  // rather than a text box's. Landing in the general box put them in the one place in the
+  // panel where the panel's own keys are all shadowed — TYPING claims a letter before
+  // PANEL can — so the reader who pressed c to reach the comments had to press Escape
+  // before they could use them. The box is one more c away (PANEL's own row), which is the
+  // shape of every other way in: a scope names its keys, and typing is a scope you enter.
   return {
-    word: "page",
+    does: "Go to the comments",
+    line: "comments",
     go: () => {
       setPanel(true);
-      generalInput.focus();
+      threadsBox.focus({ preventScroll: true });
     },
   };
 };
-const commentTarget = () => commentDestination().word;
 
 // Pages are authored documents where typing can start at any moment, so a scope whose keys
 // are bare letters stands down wherever a letter is a keystroke. That is the whole of the
@@ -9360,22 +9465,36 @@ const TYPING = {
 };
 
 // The panel's own keys. What a press acts on is whose scope it belongs to: the page holds
-// the presses whose subject is the page — `c` comments on it, `a` and `l` open what is
-// about it — and a surface holds the presses whose subject is its own contents. `w`
-// narrows this list and `/` searches it, and a list the reader is not looking at is
-// neither a thing to narrow nor a thing to search. At page scope they were two bare
-// letters spent on a panel that might be shut, promised by the key line over prose the
-// presses said nothing about.
+// the presses whose subject is the page — `a` and `l` open what is about it — and a
+// surface holds the presses whose subject is its own contents. `w` narrows this list and
+// `/` searches it, and a list the reader is not looking at is neither a thing to narrow
+// nor a thing to search. At page scope they were two bare letters spent on a panel that
+// might be shut, promised by the key line over prose the presses said nothing about.
+//
+// `c` is the one row here whose subject is not this list, and it is the rule read one
+// step further rather than the rule bending: the page's `c` follows the reader and is
+// what lands them here, and this is the same intent one scope in, the way `g` names a
+// list and then a member of it. The row's own comment carries where it stands down, so
+// the page's answer is the one that runs wherever the page has a nearer one.
 //
 // Standing in the panel is where its focus is, not merely that it is open: the Comments
 // button is the banner's, so opening by pointer leaves the reader outside, and `c`, `j`,
 // Tab or a click on a thread is what puts them in. The same line `THREAD` draws one step
 // further in, which is why that scope sits before this one and its rows shadow these.
+// Whether the page has this scope at all is not a question the log answers: every page
+// has a comment panel, and its general box stands and takes words from the first paint —
+// the offline banner says a comment will not send, not that there is nowhere to write it.
+// What the log answers is whether there is a list, which is `w`'s and `/`'s own condition
+// and is now said on each of them. Said once here for all three, it took `c` down with
+// them: the page's `c` stands the reader on the list, the panel's `c` was out of the
+// stack, and the second press was the page's own again, landing focus where it already
+// was. The box went on naming the key in its placeholder with no press able to reach it.
+
 const PANEL = {
   title: "In the comment panel",
   at: () => panelOpen && containsAcross(panel, focused()),
-  when: () => runtime.statePhase === "ready",
   rows: [
+    PANEL_SAY,
     {
       // `w` for the words the control says, the way `l` spells the leaves and `a` the
       // asks. It is the phrase the page already uses for the same question asked of its
@@ -9387,13 +9506,18 @@ const PANEL = {
       // A narrowing is a mode, so the row states it as one: the sentence and the line
       // both turn on whether it stands, and Escape takes it off through the rung ladder
       // rather than through a second binding here. Dead while there is nothing waiting
-      // and nothing hidden, which is the same fact that greys the control.
+      // and nothing hidden, which is the same fact that greys the control — and dead
+      // before the log arrives, which is the one part of that the standing narrowing
+      // cannot say for itself: `needsYou` is a flag the reader set, and it outlives a
+      // list that has gone back to empty. `/` needs no such clause, `renderPanel`
+      // emptying `threadList` at every phase but ready.
       keys: ["w"],
       does: () =>
         needsYou ? "Show every comment again" : "Show only the comments waiting on you",
       line: () => (needsYou ? "all comments" : "waiting on you"),
       also: needsBtn,
-      when: () => needsYou || threadList.some(awaitsReader),
+      when: () =>
+        runtime.statePhase === "ready" && (needsYou || threadList.some(awaitsReader)),
       run: () => needsBtn.click(),
     },
     {
@@ -9602,10 +9726,15 @@ const PAGE = {
       keys: ["c"],
       // One key, four destinations, and the surfaces name the one in front of the reader:
       // a live selection, the item a click raised the 💬 on, the box belonging to whatever
-      // the reader is standing in, or the page itself when none of those is in hand.
-      // "Comment" covered them all and so promised none of them.
-      does: () => `Comment on the ${commentTarget()}`,
-      line: () => `comment on the ${commentTarget()}`,
+      // the reader is standing in, or — when none of those is in hand — the conversation
+      // itself. "Comment" covered them all and so promised none of them.
+      //
+      // The last of the four used to be "comment on the page" and put the reader straight
+      // into the general box; it now names the room, and the panel's own c names the box
+      // in it. Both words are stated beside the press they belong to, so the sentence, the
+      // key line and what the press does cannot come to disagree.
+      does: () => commentDestination().does,
+      line: () => commentDestination().line,
       // A selection made before the anchor pass has run can't be quoted yet, and
       // commenting on the page instead is not what the reader asked for — so the press
       // waits, and the row's own liveness is where that is said rather than a refusal
@@ -10094,11 +10223,11 @@ function commentOnItem(item) {
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, an open thread the reader is
 // standing in gets its own reply box, the item they are standing in gets the box belonging
-// to it, and otherwise the general box, the panel opening to hold it. Never the panel's
-// collapse: c doubled as the toggle once,
-// so with the panel standing open the one key that promised "comment" answered "close",
-// and no shortcut reached the box. Backing out is Escape's, which already closes the panel
-// rung by rung.
+// to it, and otherwise the conversation itself, the panel opening and the list taking the
+// focus — the general box being the panel's own c, one press further in. Never the panel's
+// collapse: c doubled as the toggle once, so with the panel standing open the one key that
+// promised "comment" answered "close", and no shortcut reached the box. Backing out is
+// Escape's, which already closes the panel rung by rung.
 //
 // Standing outranks the page and not the pointer: a reader who has just selected words or
 // raised the 💬 on something has said what they mean more recently than the focus they left

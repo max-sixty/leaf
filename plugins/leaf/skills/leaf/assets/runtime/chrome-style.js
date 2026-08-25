@@ -45,8 +45,14 @@ export function chromeStyle({
     :where(html:not(.lf-copy)) {
       height: 100%;
       overflow: hidden;
+      /* The foot is the same claim the head makes, in the size a ring needs rather than
+         a banner's: a control landed on at the fold had its border box put flush with
+         the window's bottom edge and its ring in the strip past it, so the last row of
+         a page was reached with the ring around it cut off. The panel's own list says
+         the same thing about its own edges. */
       body { height: 100%; overflow-y: auto; scrollbar-gutter: stable;
-             scroll-padding-top: calc(var(--lf-banner-h) + 12px); }
+             scroll-padding-top: calc(var(--lf-banner-h) + 12px);
+             scroll-padding-bottom: var(--here-ring-room); }
       /* The banner stands over the head of the document, so the page's first lines get
          room rather than starting under it, and the key line reserves the same at the
          foot (syncLayout). Both are boxes in the flow rather than padding on body, which
@@ -646,8 +652,14 @@ ${MARK_RULES}
        were boards until the same reading caught them: lf-board is a widget an author
        writes into a page, so a grep for it hit the runtime's own furniture and a grep for
        the furniture hit the widget. They are trays now, and the word is core's alone. */
-    .lf-edge { position: absolute; top: 0; bottom: 0; width: 8px; z-index: 1;
-      cursor: col-resize; touch-action: none; }
+    /* Starting a ring's width below the tray's own top, because the tray's top is the
+       banner's bottom: flush with it, the band this strip wears when the keyboard
+       reaches it was drawn into the two pixels the banner stands over, and the reader
+       tabbing to the edge got a ring with no top. The handle gives up those pixels of
+       reach; the alternative is a ring inside an eight-pixel strip, which is a second
+       accent line beside the one ::before already draws. */
+    .lf-edge { position: absolute; top: var(--here-ring-w); bottom: 0; width: 8px;
+      z-index: 1; cursor: col-resize; touch-action: none; }
     .lf-edge::before { content: ""; position: absolute; top: 0; bottom: 0;
       width: 2px; background: var(--accent); opacity: 0; transition: opacity .12s; }
     /* Which side of the window the region is fixed to, so the edge is its inner one: a
@@ -680,8 +692,22 @@ ${MARK_RULES}
        The frame is declared because the inset is read at both ends of a scroll region:
        the list opened 10px above its first thread and stopped 22px under the last, the
        last thread's own 12px having nowhere to collapse to. See theme.css. */
+    /* scroll-padding is how a scroll region says which of its own edges are not
+       available to land on, and it is read by the browser's scrollIntoView as well as
+       by the runtime's own scrolling — the document declares its banner the same way
+       (scroll-padding-top, above), and this list declared nothing, so every landing
+       was flush with the edge. Two things stand in the way here. A stuck run heading
+       covers the top: its height is the one number CSS cannot work out, since a long
+       heading wraps, so renderThreads measures the tallest and writes it here. And
+       the ring is drawn outside the box it names, so a thread scrolled exactly to
+       either edge had its ring in the strip beyond it — cut at the bottom walking
+       down, cut at the top and under the find row walking up. Gap plus width is the
+       room it needs, and it is the layer's own number (theme.css) rather than one
+       worked out from the controls this list happens to hold. */
     .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain;
-      --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-frame: 1; }
+      --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-frame: 1;
+      scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
+        var(--here-ring-room); }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
     .lf-threads:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
@@ -698,11 +724,17 @@ ${MARK_RULES}
        its margin edge inside the scroller's content, so a margin there — or the
        container's padding — is a strip between the pin and the ink through which the
        list scrolls in full view. The inset is read from where it is spent, so the two
-       numbers cannot drift apart. */
-    .lf-group { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
-      display: block; width: 100%; box-sizing: border-box; margin: 0;
-      padding: 14px 0 7px; border: none; background: var(--card); font: inherit;
-      font-size: var(--t-6); font-weight: 600; letter-spacing: .04em;
+       numbers cannot drift apart.
+
+       Being pinned is its own class, worn by the two boxes that do it and by whatever
+       the list pins next. It was written twice — once here and once on the disclosure's
+       summary — which is two chances to move the slot in one of them, and it is also
+       the question renderThreads has to ask to know how much of the top is covered.
+       One class answers all three: the mechanics, the second wearer, and the sweep. */
+    .lf-pinned { position: sticky; top: calc(-1 * var(--lf-list-inset)); z-index: 2;
+      margin: 0; padding: 14px 0 7px; background: var(--card); }
+    .lf-group { display: block; width: 100%; box-sizing: border-box; border: none;
+      font: inherit; font-size: var(--t-6); font-weight: 600; letter-spacing: .04em;
       text-transform: uppercase; text-align: left; color: var(--muted);
       overflow-wrap: anywhere; }
     button.lf-group { cursor: pointer; }
@@ -741,8 +773,17 @@ ${MARK_RULES}
        had the page marked and the card left plain, and the pair only read for the
        keyboard. Within, because a reply box is inside the card and writing back is
        still standing there — the same reason paintStanding reads the focus through
-       closest. */
-    .lf-thread:focus-within { outline: var(--here-ring); outline-offset: 2px; }
+       closest.
+
+       Inset, which is what theme.css says a control packed into a list draws — and this
+       row was the one breaking that rule. Drawn outside the box, the ring's top run fell
+       inside the opaque padding of the heading above it, so the first card of every run
+       stood with its top edge missing: the reader's own report, and the shape of it is
+       that no amount of scrolling can help, since the two boxes touch in flow. A ring
+       drawn inside the box it names cannot be covered by a neighbour or cut by an edge
+       the box itself is within. */
+    .lf-thread:focus-within { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
@@ -799,11 +840,9 @@ ${MARK_RULES}
     .lf-resolved-by { color: var(--muted); }
     .lf-general { padding: 10px 14px; border-top: 1px solid var(--rule); }
     .lf-details { margin-top: 16px; color: var(--muted); background: none; border: none; padding: 0; }
-    /* The last landmark in the list, pinned like the headings above it: it stands later
-       than every one of them, so opening it hands the pinned slot from the section the
-       reader was in to the disclosure they are now inside. */
-    .lf-details > summary { position: sticky; top: calc(-1 * var(--lf-list-inset));
-      z-index: 2; padding: 14px 0 7px; background: var(--card); }
+    /* The last landmark in the list wears .lf-pinned like the headings above it: it
+       stands later than every one of them, so opening it hands the pinned slot from
+       the section the reader was in to the disclosure they are now inside. */
     .lf-system { color: var(--ok); margin: 8px 0; }
     /* The two floats that point at the page live in the document's coordinate space
        (absolute, body their containing block), because what they point at does: a

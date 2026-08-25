@@ -303,7 +303,10 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
 
         label = drag_across(page, "main > .sitenote p")
         assert "live example" in label["text"]
-        assert "comment on the page" in label["says"], (
+        # The word `c` carries with nothing in hand — it goes to the comments rather
+        # than opening a box on anything, and "comment on the selection" does not
+        # contain it, so the two readings still tell each other apart.
+        assert "comments" in label["says"], (
             "the site's own label was offered as a passage to quote"
         )
         assert not errors, errors[:3]

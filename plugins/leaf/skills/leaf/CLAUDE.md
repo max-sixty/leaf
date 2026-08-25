@@ -48,6 +48,7 @@ Each mutable fact has one writer:
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
+| how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | tray visibility | `trayUp` | `showTray` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -1195,6 +1196,13 @@ on: `w` narrows the comment panel's list and `/` searches it, and both live in
 `PANEL`. The page's alphabet is small and every letter spent there is spent on
 every page, so a letter earns page scope only by acting on the page.
 
+A surface may also hold the next step of a page key, which is the third row in
+`PANEL` and the one exception the rule has: the page's `c` lands the reader on
+the comment list and the panel's `c` puts them in its box. The letter is the
+same because the intent is, one scope in — `g` names a list and then a member of
+it — and the inner row stands down wherever the page's own key has a nearer
+answer, so the two never offer the reader a choice about which one runs.
+
 A scope's rows act on contents the reader is looking at rather than standing in,
 which is why they can be sorted by surface at all. One press is not like that:
 `c` follows the reader, and what it means is whatever they are standing in.
@@ -1209,12 +1217,27 @@ reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
 
 Its destination is the anchor the 💬 carries, then the open thread the reader is
-in, then the item they are standing in, then the page. `commentTarget` names that
-destination and the row's `does` and `line` are both readings of it, so the key
-line and the reference cannot come to spell it differently. The pointer's answers
-outrank the standing: a selection or a raised 💬 is the more recent thing the
-reader said. `standingItem` and `standingConversation` are what "standing"
-means here, and **Standing somewhere** below owns that reading.
+in, then the item they are standing in, and, when none of those is in hand, the
+conversation itself. `commentDestination` decides it once and states the
+sentence, the key line and the press together, so the reference, the line and
+what happens cannot come to spell it differently. The pointer's answers outrank
+the standing: a selection or a raised 💬 is the more recent thing the reader
+said. `standingItem` and `standingConversation` are what "standing" means here,
+and **Standing somewhere** below owns that reading.
+
+The last of the four names the room rather than a box in it, and is the one place
+a surface holds a `c` of its own. It is not a second reading of the page's key
+but the same intent one scope further in, the way `g` names a list and then a
+member of it: the page's `c` opens the panel and stands the reader on its list,
+and the panel's `c` puts them in the general box. Landing straight in that box is
+what it replaced, and that box is the one place in the panel where the panel's own
+letters are all shadowed — the typing scope claims a letter first — so the press
+that promised the comments left `w` and `/` unreachable until the reader pressed
+Escape. The panel's row is not the several-rows-one-key shape either, because it
+stands down wherever the page's key has the nearer answer: a live 💬, or the
+conversation the reader is standing in, whose own box `Enter` and `g c N` already
+reach. A resolved thread offers no box, so the row answers there and the general
+box is the honest destination.
 
 The item's box is the composer, on the item, and not a widget's own conversation
 seat even where it has one. `openOnItem` writes the anchor `renderConversations`
@@ -1283,6 +1306,16 @@ stands before `TYPING` in `SCOPES`, so the find box keeps every text-box key and
 shadows the one it answers for itself: Escape lets the narrowing go, and the box
 on the press after that. One press is one rung there as everywhere else.
 
+A key may repeat across nesting scopes to mean the same intent one scope further
+in. `c` reads that way: from
+the page it goes to the comments and stands the reader on the list, and from
+inside the panel it opens the general box. A landing is chosen for the keys it
+leaves live — the general box shadows every letter the panel's own scope binds,
+so landing there would have made `w` and `/` cost an Escape first. Put the reader
+where the surface's keys answer and let a second press take them into the box.
+Where a box has a key that reaches it, the box says so itself through its
+placeholder `address`, which is what a screen reader hears.
+
 A true mode may own the keyboard. An armed address chord and the open reference
 claim the relevant keys through their scope. A longer-lived menu keeps the
 reference available through `allButTheReference`. Closing an overlay restores
@@ -1335,6 +1368,27 @@ useful continuation point.
 `shownParts` supplies ring targets when a page styles an ask with
 `display: contents`. A normal boxed ask wears one outline on its own box.
 Hoisted controls use the same ring token through the shared pill rule.
+
+The ring is drawn outside the box it names, so wherever the reader can be
+standing, something has to have kept room for it. Two rules cover every case, and
+which one applies is the same question theme.css already answers about the ring's
+gap. A box that stands on its own draws its ring outside itself, and every scroll
+region that box can land in reserves `--here-ring-room` at its edges through
+`scroll-padding` — the document does this for its foot, the thread list for both
+of its own, where the outward rings are its run-heading buttons and the controls
+inside a card. A box whose own edge touches something that paints draws its ring
+inset instead, because nothing outside it is free: a thread touches the heading
+above it in flow, and no scroll position separates them. Where a module decides
+whether a control fits somewhere, the room is part of what has to fit; the
+suggestion row carries it as trailing padding so that the fit is still one
+measured box rather than a length read out of CSS.
+
+`test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered` and
+`test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring` hold this for
+the panel's own walk and for every shipped page's tab order. They ask one
+question: where the control can be seen, so can the ring that names it. A control
+that itself stands under a fixed bar is not a finding — that is a fact about
+where it was put — and neither is a box too tall for the region it is in.
 
 `rung` and `letGo` put focus on `body` when the reader leaves chrome or releases
 an ask. `body` has a tab stop because a short page may not become focusable from
@@ -1533,6 +1587,19 @@ margin edge inside the scroller's content, so the room above a heading is its ow
 padding and the pin is drawn back over `--lf-list-inset`, the property the list
 spends its own inset from. A margin there, or a `top` of zero, leaves a strip the
 list scrolls through in full view.
+
+Being pinned is `.lf-pinned`, worn by the run headings and by the resolved
+disclosure's summary, which takes the slot from the last heading when the reader
+reaches it. One class carries the mechanics, so the slot cannot move in one of
+them; it is also what `renderThreads` sweeps to answer how much of the list's top
+stands covered. That answer is the one number in the list's `scroll-padding` that
+CSS cannot work out, because a long heading wraps — the tallest is written to
+`--lf-head-room`, and a `ResizeObserver` on the list writes it again when the
+reader draws the panel narrower and a heading wraps — a drag posts no event, so a
+reconcile never comes. Nothing after the read takes geometry synchronously, so a
+reconcile still costs one layout. Without it a walk lands threads under the
+heading with the opening words of the comment behind it, which is what
+`test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered` holds.
 
 ### Narrowing the list
 

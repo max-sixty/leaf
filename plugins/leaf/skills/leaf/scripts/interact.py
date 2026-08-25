@@ -136,9 +136,12 @@ live lifetime — the process its pid names, or the job directory a background
 job records — are what make it active. Absent the host identity the environment
 carries, nothing is claimed and the hooks stand down. What the environment
 cannot carry is the session's own lifetime, and `session_lifetime` says where
-each host's lifetime comes from. Unacknowledged events are the one thing `leaf status
-<page> idle` can't close over: idling is how a leaf ends, and one can't end on
-comments nobody read.
+each host's lifetime comes from. `hooks/scripts/loop-guard.py`, which the hosts
+actually run, decides none of that: it runs this command under `uv` and stays
+silent when it cannot get an answer, so every rule above has one reading and a
+leaf bug costs a turn nothing. Unacknowledged events are the one
+thing `leaf status <page> idle` can't close over: idling is how a leaf ends, and
+one can't end on comments nobody read.
 
 A session's leaves cost it one long-running command between them, and that
 command is the watcher. The two jobs end in opposite ways: `leaf wait` has to
@@ -1788,7 +1791,9 @@ def page_claim(page_dir: Path) -> dict | None:
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
     job's claim points at, or the process every other claim's pid names
-    (`session_lifetime`). loop-guard.py reads the same rule in plain Python."""
+    (`session_lifetime`). The only reading of that rule: the hooks reach it
+    through `uv` rather than keeping a copy, so a host that states its lifetime a
+    new way joins here alone."""
     if not claim or claim["released"] is not None:
         return False
     if "job" in claim:

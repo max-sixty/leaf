@@ -10306,53 +10306,31 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
 
 
-def test_loop_guard_agrees_on_claim_home_and_active_ownership(
+def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     tmp_path, monkeypatch, dead_pid
 ):
-    """The plain-Python preflight reads the canonical active-claim rule.
+    """One reading of what makes a claim active, and every hook comes through it.
 
-    Two questions, and only one of them may be asked of the developer's own machine.
-    Where the claims directory is has to be asked with nothing relocating it, since that
-    is the arrangement a real session runs under. What counts as an active claim is asked
-    of a relocated home, because asking it writes claims — and this test wrote them into
-    `~/.local/state/leaf/claims`, one per run, each under this same id and none of them
-    released, `tmp_path` naming a new page every time and nothing ever sweeping the old
-    ones. Seventy-six had collected when one of their pids came round again on a live
-    process, and the rule below read as true for a claim no run of this test had made.
-    A record left in a shared directory outlives the run that made it; a constant id in
-    one is a name every run answers to.
+    The claims this writes have to go to a relocated home. A record left in a shared
+    directory outlives the run that made it, and a constant id in one is a name every
+    run answers to: an earlier version of this test wrote into the developer's own
+    `~/.local/state/leaf/claims`, one unreleased claim per run under this same id and
+    nothing ever sweeping them. Seventy-six had collected when one of their pids came
+    round again on a live process, and the rule below read as true for a claim no run
+    of this test had made. `isolated_session` supplies the home.
     """
-
-    def load(path):
-        spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
-
-    for env in (
-        {},
-        {"XDG_STATE_HOME": str(tmp_path / "st")},
-    ):
-        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
-        for key, value in env.items():
-            monkeypatch.setenv(key, value)
-        guard = load(PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py")
-        assert guard.CLAIMS == interact.state_home() / "claims"
-
-    # The loop ends on the relocated home deliberately: `guard` reads what this test
-    # writes, and the only claims directory it may write into is this one.
     page = tmp_path / "page"
     page.mkdir()
     record_claim(page, id="guarded")
-    assert guard.session_has_active_claim("guarded")
+    assert interact.claim_is_active(interact.page_claim(page))
     record_claim(page, id="guarded", released=interact.now_iso())
-    assert not guard.session_has_active_claim("guarded")
+    assert not interact.claim_is_active(interact.page_claim(page))
     record_claim(page, id="guarded", pid=dead_pid)
-    assert not guard.session_has_active_claim("guarded")
+    assert not interact.claim_is_active(interact.page_claim(page))
 
-    # A background job's claim names the job's record and no process at all, so
-    # the pid the environment states — dead here — is nothing to either reader.
-    # Claimed through the real door, which asks for an initialized page.
+    # A background job's claim names the job's record and no process at all, so the
+    # pid the environment states — dead here — is nothing to this reader. Claimed
+    # through the real door, which asks for an initialized page.
     (page / "comments.jsonl").write_bytes(b"")
     job = tmp_path / "job"
     job.mkdir()
@@ -10362,17 +10340,69 @@ def test_loop_guard_agrees_on_claim_home_and_active_ownership(
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     assert interact.claim_page(page)
     assert "pid" not in interact.page_claim(page)
-    assert guard.session_has_active_claim("guarded")
     assert interact.claim_is_active(interact.page_claim(page))
     # Deleting the job takes its record; the directory can stay behind empty.
     (job / "state.json").unlink()
-    assert not guard.session_has_active_claim("guarded")
     assert not interact.claim_is_active(interact.page_claim(page))
-    # A dead job claim passes the walk on to the session's other records.
+
+    # A dead claim answers for its own page and no more: the session's other
+    # records are still walked, and the live one is still the session's page.
     other = tmp_path / "other"
     other.mkdir()
+    (other / "comments.jsonl").write_bytes(b"")
     record_claim(other, id="guarded")
-    assert guard.session_has_active_claim("guarded")
+    assert interact.owned_pages("guarded") == [other.resolve()]
+
+
+def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
+    """The script a host actually runs decides nothing; it runs interact.py under uv.
+
+    Driven the way a host drives it — a separate `python3`, the payload's own copy of
+    the script, the hook payload on stdin — because the wiring is the subject, and no
+    part of it (uv, the path to interact.py, the command name, the stdin protocol) is
+    visible from inside this process.
+
+    Failing open is the other half, and the case worth arranging is the one where
+    interact.py never starts: silence on both streams and a return code that leaves
+    the turn alone. It is also the case a hook cannot report, so nothing but this
+    test ever sees it.
+    """
+    guard = PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py"
+
+    def run(payload, env=None):
+        return subprocess.run(
+            [sys.executable, str(guard)],
+            input=payload,
+            env=env or os.environ,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+    stop = json.dumps({"hook_event_name": "Stop", "session_id": "s1"})
+    answered = run(stop)
+    assert answered.returncode == 0, answered.stderr
+    assert answered.stdout, "nothing came back: interact.py never answered under uv"
+    blocked = json.loads(answered.stdout)
+    assert blocked["decision"] == "block"
+    assert f"{claimed.resolve()}: no watcher" in blocked["reason"]
+
+    # A session holding nothing is interact.py's answer too, now that the hook keeps
+    # no cheaper reading of the claims to stand itself down by.
+    stranger = run(json.dumps({"hook_event_name": "Stop", "session_id": "s2"}))
+    assert (stranger.returncode, stranger.stdout, stranger.stderr) == (0, "", "")
+
+    # The two shapes of a leaf failure a turn must not notice: interact.py raising,
+    # and no uv there to raise it.
+    crashed = run("not a hook payload")
+    assert (crashed.returncode, crashed.stdout, crashed.stderr) == (0, "", "")
+    unresolvable = run(stop, env=os.environ | {"PATH": str(tmp_path / "no-tools")})
+    assert (unresolvable.returncode, unresolvable.stdout, unresolvable.stderr) == (
+        0,
+        "",
+        "",
+    )
 
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):

@@ -330,6 +330,12 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     this and none of them was ever told."""
     url = serve(example)
     page, errors = open_page(browser, url)
+    # What the log already held. A shipped seed can carry a decision the reader made
+    # before this page was opened, and what an aim may not do is add one of its own —
+    # so the reading below is against this rather than against nothing.
+    standing = [
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     targets = aim_targets(serve.page_dir)
     total = page.locator(targets).count()
     pressed = aimed = 0
@@ -422,8 +428,11 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     # the log to be read rather than still in flight.
     round_trip(page)
     assert [
-        e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
-    ] == []
+        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
+    ] == standing, (
+        f"⌥-clicking through {example.name} left a decision in the log that the aim "
+        "never promised"
+    )
     assert errors == []
     page.close()
 

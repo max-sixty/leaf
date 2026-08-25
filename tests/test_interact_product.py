@@ -793,3 +793,88 @@ def test_note_refuses_a_version_that_fails_check(page_dir):
     assert result.exit_code != 0
     assert "refusing to publish" in result.output
     assert live_versions(page_dir) == []
+
+
+def test_every_seeded_fragment_passes_the_door_it_never_came_through(
+    tmp_path, monkeypatch
+):
+    """A hand-written seed is the one markup in the product no gate has read.
+
+    Markup reaches a page two ways. A version goes through `version check`. An
+    event's `markup` goes through `leaf reply`, which validates it and then freezes
+    it in an append-only log, so that door is the last moment anything about it can
+    be fixed. An example's companion log is neither: it is written into the
+    repository by hand, and from there `scripts/site.py` publishes it to
+    leaf.page, `serve` lays it into every browser sweep, and `scripts/preview.py`
+    hands it to a reader. `version check` reads such a log only for ids colliding
+    with the version's.
+
+    So the seed is put through the real door rather than through a list of checks
+    copied out of it — that door is where a check lands, and a second gate spelling
+    out today's list is the one that goes on not asking whatever the first learns
+    to. `/media/nope.png` in a seeded `lf-shot` is the shape of what it would catch:
+    refused in a version, and until recently accepted in a reply. No seed carries one
+    today, which is what a floor is for."""
+    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    seeded = [
+        p
+        for p in sorted((ROOT / "examples").glob("*.html"))
+        if p.with_suffix(".jsonl").exists()
+    ]
+    assert seeded, "no example ships a log; this gate is reading nothing"
+    read = 0
+    for example in seeded:
+        d = tmp_path / f"door-{example.stem}"
+        initialized = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
+        (d / "versions" / "v1.html").write_text(example.read_text())
+        shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        # Published, because the door is only open on a page a reader could be
+        # holding — which is the state every one of these seeds is written for.
+        published = CliRunner().invoke(
+            interact.cli,
+            [
+                "version",
+                "publish",
+                str(d),
+                "--version",
+                "1",
+                "--text",
+                "the page as it ships",
+            ],
+        )
+        assert published.exit_code == 0, f"{example.name}: {published.output}"
+        opened = CliRunner().invoke(
+            interact.cli, ["comment", str(d), "--text", "what a reader would ask"]
+        )
+        assert opened.exit_code == 0, opened.output
+        root = json.loads(opened.output)["id"]
+        # The writer's own separator, never splitlines(): its wider class reads a
+        # U+2028 inside a message's text as a break.
+        for line in (
+            example.with_suffix(".jsonl").read_text(encoding="utf-8").split("\n")
+        ):
+            if not line.strip() or not (markup := json.loads(line).get("markup")):
+                continue
+            read += 1
+            posted = CliRunner().invoke(
+                interact.cli,
+                [
+                    "reply",
+                    str(d),
+                    "--to",
+                    root,
+                    "--text",
+                    "carrying it",
+                    "--markup",
+                    markup,
+                ],
+            )
+            assert posted.exit_code == 0, (
+                f"{example.name} seeds markup the reply door would refuse:\n"
+                f"{posted.output}"
+            )
+    assert read, (
+        "no seeded event carries markup, so this read nothing — see "
+        "examples/CLAUDE.md on what a log is for"
+    )

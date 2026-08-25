@@ -600,6 +600,9 @@ inside a module. The scaffold names the minimum obligations:
 - Define the custom element once and make `connectedCallback` safe to run after
   reconstruction.
 - Use `once(el, fn)` for generated chrome so reconnecting does not duplicate it.
+- Reserve a control's room from inside `measure`. A widget upgrades wherever the
+  runtime connects it, and a shut panel is `display: none`, where every word
+  measures zero and the floor the press needs is nothing at all.
 - Implement `applyAction(action, detail)` as an absolute statement and return
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
@@ -936,8 +939,16 @@ reading now where there is a box and once more the first time there is one. Its
 observation ends at that reading, which is what keeps a written custom property
 out of the round that triggered it.
 
-`inUi` keeps runtime chrome out of shown parts. An area greater than zero is not
-enough: clipped note text and hoisted controls can have measurable boxes while
+The chrome question takes a bound: `uiInside(el, within)`, of which `inUi` is the
+unbounded case. Unbounded, the answer is about the page — a control is the
+runtime's apparatus wherever it stands, which is what a pointer or a caret needs.
+Bounded at an element, it is about that element's own insides, which is what a
+reading of one widget needs: the panel holding a widget an agent sent is itself
+`.lf-ui`, so asked the unbounded way every child of such a widget answers yes.
+`quotable`, `shownParts` and `settledAway` all take it, and `authored` takes the
+same bound on the generated question — so what a mark may hang on, what a
+settlement has emptied, and what a quote may name cannot come apart. An area greater than zero is not enough for shown parts
+either: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
 
 A control containing a page word is built by `offer` as a selectable

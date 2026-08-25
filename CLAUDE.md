@@ -22,8 +22,11 @@ Make improvements that follow from the code and these rules. Ask the user only
 when the decision depends on purpose or intent that the repository cannot supply.
 
 Validate data once at its boundary: browser events at `POST /api/event`, authored
-markup at `version check`, and replayed action detail in the widget's
-`applyAction`. Downstream code reads validated fields directly.
+markup at `version check`, a message's `markup` at `check_markup`, and replayed
+action detail in the widget's `applyAction`. Downstream code reads validated
+fields directly. The two markup doors read one parser and share what a fragment
+can fail in its own right; `check_markup` says which checks those are and why
+they sit where they do.
 
 ## Repository shape
 

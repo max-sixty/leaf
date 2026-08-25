@@ -962,14 +962,31 @@ def build_threads(events: list, spk: dict) -> dict:
                 answered["resolved"] = e
             continue
         if e["kind"] == "reply":
-            thread = thread_for[e["parent"]]
+            # A reply whose message the log lost opens the thread that message would
+            # have opened, under the id it was known by, which is the id an action
+            # names in `resolves` and the one `thread_roots` resolves it to. A person
+            # answers it by its own surviving id; the lost one names no message and
+            # `leaf reply` says so.
+            # `read_events` skips a torn line and keeps reading, and `thread_roots`
+            # resolves such a reply to the lost id for the same reason: a reader who
+            # can see the reply is owed the rest of the page around it. Raising here
+            # instead cost the whole page — `page state` exited on the KeyError, and
+            # the browser's own walk, which mirrors this one, threw where it builds
+            # the panel — so one torn line took down every reading of a log that had
+            # already been read.
+            thread = thread_for.get(e["parent"])
+            if thread is None:
+                thread = {"root": e, "msgs": [], "resolved": None}
+                threads[e["parent"]] = thread
+                thread_for[e["parent"]] = thread
             thread["msgs"].append(e)
             thread_for[e["id"]] = thread
-        elif e["kind"] == "resolve":
-            thread = thread_for[e["parent"]]
+        # A resolve names a message rather than opening one, so a conversation the log
+        # lost whole — no reply of its own survived either — leaves it nothing to close.
+        elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = e
-        elif e["kind"] == "unresolve":
-            thread_for[e["parent"]]["resolved"] = None
+        elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
+            thread["resolved"] = None
     return threads
 
 
@@ -3860,7 +3877,7 @@ def thread_roots(events: list) -> dict:
     must answer alike: a decision and an ask naming different conversations for one
     message is a disagreement no reader could account for. (`build_threads` walks the
     same relation to a different end — the thread object itself, with its resolution —
-    so it keeps its own.)
+    so it keeps its own walk, and answers the same way where the log is torn.)
 
     A reply whose root the log lost stands as its own thread rather than raising.
     `read_events` skips a line nothing could be done with and keeps reading, and a
@@ -4167,13 +4184,19 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
     escaped, so it cannot claim a widget. Exits with what's wrong."""
     registry = require_registry(page_dir)
     frag = parse_structure(markup)
-    # Beside the vocabulary contract rather than inside it. That contract is what
-    # re-vendoring asks of every fragment already in the log — can this layer still
-    # speak it — and a presentation rule is no part of the answer. Put there, a page
-    # whose log held a <style> from before the rule existed could never be re-vendored
-    # again: the log is append-only, so it would have failed `page init` for good, with
-    # a message about replay that had nothing to do with what was wrong.
-    errs = thread_markup_contract_errors(frag, registry) + fragment_style_errors(frag)
+    # Two gates beside the vocabulary contract rather than inside it. That contract is
+    # what re-vendoring asks of every fragment already in the log — can this layer still
+    # speak it — and neither a presentation rule nor the presence of a file is any part
+    # of the answer. Put there, a page whose log held a <style> from before the rule
+    # existed could never be re-vendored again: the log is append-only, so it would have
+    # failed `page init` for good, with a message about replay that had nothing to do
+    # with what was wrong. Here they are asked of what is arriving, at the one moment
+    # anything can still be done about it.
+    errs = (
+        thread_markup_contract_errors(frag, registry)
+        + fragment_style_errors(frag)
+        + media_errors(frag, page_dir)
+    )
     if errs:
         sys.exit(
             f"{kind} markup doesn't validate:\n" + "\n".join(f"  - {e}" for e in errs)
@@ -7438,6 +7461,28 @@ def fragment_style_errors(parser: _StructParser) -> list:
     return errors + inline_presentation_override_errors(parser)
 
 
+def media_errors(parser: _StructParser, page_dir: Path) -> list:
+    """A /media/ reference the page directory can't answer, which renders as a broken
+    image. The render gate would catch it as a 404, but that runs once a page; this
+    runs at every door markup comes through, and a missing file is as deterministic as
+    a missing id.
+
+    Both doors, because a widget carrying pictures is exactly the shape an agent sends
+    in a reply — here is what it looks like now, and after — and the fragment door was
+    the one that didn't ask. A version can be rewritten; a reply is frozen in an
+    append-only log the moment it is accepted, so an unanswerable reference posted
+    there is two broken images for as long as the page exists, and no later check
+    would ever mention them.
+
+    Asked at each door rather than in the vocabulary contract, for the reason
+    `check_markup` gives where that choice is made."""
+    return [
+        f"{ref} isn't in the page directory; `leaf page media` puts it there"
+        for ref in sorted(parser.media_refs)
+        if not (page_dir / ref.lstrip("/")).is_file()
+    ]
+
+
 def fragment_errors(parser: _StructParser, registry: dict) -> list:
     """Structural + registry validation of a markup fragment (an agent reply
     carrying widgets): the discussion-side analog of `version check`. The declared-word
@@ -7650,15 +7695,7 @@ def cmd_check(
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
 
-    # A /media/ reference the directory can't answer renders as a broken image.
-    # The render gate would catch it as a 404, but that runs once a page; this
-    # runs on every version, and a missing file is as deterministic as a missing
-    # id.
-    for ref in sorted(parser.media_refs):
-        if not (page_dir / ref.lstrip("/")).is_file():
-            errors.append(
-                f"{ref} isn't in the page directory; `leaf page media` puts it there"
-            )
+    errors.extend(media_errors(parser, page_dir))
 
     theme_css = (
         (page_dir / "theme.css").read_text(encoding="utf-8")
@@ -8098,7 +8135,31 @@ def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
                         retired = page.evaluate(RETIRED_SLOTS, holders)
         # One scheme, the palettes carrying no geometry between them, and before the
         # medium moves: a box's inset is what it declared in either.
-        trapped = page.evaluate(TRAPPED_MARGINS) if scheme == "light" else []
+        #
+        # The document's boxes, not the layer's over them. This is the only reading
+        # here that reaches the runtime's own chrome, and it reaches it by accident:
+        # inside `display: none` an element's own display is still `block` and its
+        # padding and margins still resolve, so a shut panel answers with numbers that
+        # look like the page's. They are not the panel's own. A size container query
+        # does not match in there, so a rule switching a slot between two forms is
+        # stuck on one of them, and a percentage margin comes back unresolved for
+        # `px` to read as its bare number. Every box reading beside this one sees zero
+        # and stops, which is the honest answer.
+        #
+        # And the finding would be one the author cannot act on. Everything in here is
+        # somebody else's: the layer's own parts, told to them in the words of a class
+        # no page of theirs has, and a widget an agent sent in a reply, frozen in an
+        # append-only log and admitted at a door of its own. Either way the version
+        # would stay refused with no edit that clears it, which is why the coarse
+        # question — which document is this in — is the right one to ask here. That is the failure examples/CLAUDE.md names as the
+        # reason a gate reading was moved out once already. The layer's half is leaf's
+        # own to hold, and the suite holds it with the panel open, where the styles are
+        # the panel's and the margin is one somebody can see.
+        trapped = (
+            [t for t in page.evaluate(TRAPPED_MARGINS) if not t["chrome"]]
+            if scheme == "light"
+            else []
+        )
         # Last, and in one scheme: paper has no color scheme, and the medium has to be
         # put back before anything else reads a box.
         on_paper = []

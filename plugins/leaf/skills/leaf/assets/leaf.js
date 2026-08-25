@@ -1066,6 +1066,13 @@ export function quietWord(el, word) {
 // past this" in flow — a table cell laid out at `width: 0` takes what its content
 // needs — where out of flow it is simply obeyed, and the widest word then measures as
 // whatever padding the control has.
+//
+// What it cannot stand out of is an ancestor that isn't drawn: display: none upward is
+// nobody's box, and every word measures zero there. A control whose ancestors may be
+// undrawn — anything a widget builds, since a widget upgrades wherever the runtime
+// connects it and a shut panel is display: none — reserves from inside `measure`, which
+// asks again the first time there is a box. A floor of zero is not a missing
+// measurement to look at; it is the control holding no room at all.
 export function reserve(control, labels) {
   const stood = { text: control.textContent, css: control.style.cssText };
   Object.assign(control.style, {
@@ -4363,15 +4370,28 @@ function buildThreads() {
       }
       continue;
     }
+    // A reply whose message the log lost opens the thread that message would have
+    // opened, under the id it was known by — the same answer interact.py's
+    // build_threads gives, because it is the same reading. The log is read line by
+    // line and a torn one is skipped, so a reply can outlive the message above it;
+    // throwing here took the whole panel down over one lost line.
     if (e.kind === "reply") {
-      const thread = threadFor.get(e.parent);
+      let thread = threadFor.get(e.parent);
+      if (!thread) {
+        thread = { root: e, msgs: [], resolved: null };
+        threads.set(e.parent, thread);
+        threadFor.set(e.parent, thread);
+      }
       thread.msgs.push(e);
       threadFor.set(e.id, thread);
     } else if (e.kind === "resolve") {
+      // A resolve names a message rather than opening one, so a conversation the log
+      // lost whole has nothing for it to close.
       const thread = threadFor.get(e.parent);
-      thread.resolved = e;
+      if (thread) thread.resolved = e;
     } else if (e.kind === "unresolve") {
-      threadFor.get(e.parent).resolved = null;
+      const thread = threadFor.get(e.parent);
+      if (thread) thread.resolved = null;
     }
   }
   return [...threads.values()];
@@ -5607,9 +5627,16 @@ function silenced() {
 // than of text: a retired slot (or anything inside one), or a decided element the
 // retirement emptied — a deletion accepted, an insertion refused — whose every child
 // is now a retired slot or the runtime's own chrome, with no text of its own. The
-// same declaration the anchor pass skips text by answers both (`inUi`, so a child
-// that is a declared label counts as words still showing), and so an element anchor
-// and a quote cannot disagree about what left the page.
+// same declaration the anchor pass skips text by answers both (a declared label
+// counts as words still showing), and so an element anchor and a quote cannot
+// disagree about what left the page.
+//
+// The chrome question is bounded at the element, because the answer is about what this
+// element has left rather than about where it is standing. A suggestion an agent sent
+// in a reply stands inside the panel, which is chrome, so asked the unbounded way its
+// surviving half counted as apparatus too: one accepted slot emptied it, the anchor a
+// reader had put on it detached, and the mark went out from under a thread that was
+// still open. The same suggestion on the page kept both.
 function settledAway(el) {
   const retired = retiredSlots();
   if (!retired) return false;
@@ -5619,7 +5646,7 @@ function settledAway(el) {
     nodes.some((n) => n.nodeType === 1 && n.matches(retired)) &&
     nodes.every((n) =>
       n.nodeType === 1
-        ? n.matches(retired) || inUi(n)
+        ? n.matches(retired) || uiInside(n, el)
         : n.nodeType !== 3 || !n.data.trim(),
     )
   );
@@ -5635,12 +5662,23 @@ const DATUM = "[data-lf-projection][data-lf-datum]";
 // control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
 // the answer once, and it is a look — which is how a user ended up reading a heading
 // they could not point at, twice.
-export const inUi = (node) => {
-  const near = (node?.nodeType === 1 ? node : node?.parentElement)?.closest(
-    `.lf-ui, ${SAID}`,
-  );
+//
+// Bounded or not, by the second argument, and that is the whole difference between the
+// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
+// control is the runtime's apparatus wherever it stands, which is what a pointer or a
+// caret needs to know. Bounded at an element, the answer is about that element's own
+// insides, which is what a reading of one widget needs: the panel holding a widget an
+// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
+// such a widget answers yes, and the widget reads as having nothing of its own left.
+// The text readings took the same seam (quotable, authored); it is stated once here so
+// that what a mark may hang on, what a settlement has emptied, and what a quote may
+// name cannot come apart.
+const uiInside = (el, within) => {
+  const near = el && overIn(el, `.lf-ui, ${SAID}`, within);
   return Boolean(near) && !near.matches(SAID);
 };
+export const inUi = (node) =>
+  uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 // A different question the class also used to answer, and not a question about looks at
 // all: which document is this element in? The runtime's layer is one container, so a
 // widget inside a reply — markup frozen in the log, carried by no version — is exactly
@@ -5748,8 +5786,7 @@ const quotable = (root) => {
   const frame = frameOf(root);
   return (n) => {
     const el = elementOver(n);
-    const chrome = overIn(el, `.lf-ui, ${SAID}`, frame);
-    return !(chrome && !chrome.matches(SAID)) && !el.closest(gone);
+    return !uiInside(el, frame) && !el.closest(gone);
   };
 };
 const authored = (root) => {
@@ -6473,16 +6510,19 @@ function captureView() {
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the reader asked for is the other case, and says so.
-const PAGE_SCROLL_END = "onscrollend" in pageScroller;
-function nextPageScrollEnd() {
-  if (!PAGE_SCROLL_END) return null;
+// Which box, in every one of these: the document's scroller for everything the
+// document holds, and the panel's own list for a widget an agent sent in a reply
+// (scrollerFor). They default to the page's because that is what all but one
+// caller means, and a scrollend is the box's own event rather than the window's.
+function nextScrollEnd(box) {
+  if (!("onscrollend" in box)) return null;
   let cancel;
   const completion = new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
       if (settled) return;
       settled = true;
-      pageScroller.removeEventListener("scrollend", ended);
+      box.removeEventListener("scrollend", ended);
       resolve(result);
     };
     const ended = () => finish({});
@@ -6490,26 +6530,20 @@ function nextPageScrollEnd() {
     // leaves every continuation retaining this operation, and a superseding scroll at
     // the same offset may emit no edge that could ever release it.
     cancel = () => finish({ interrupted: true });
-    pageScroller.addEventListener("scrollend", ended, { passive: true });
+    box.addEventListener("scrollend", ended, { passive: true });
   });
   return { completion, cancel };
 }
-const pageScrollGoal = (dy) =>
-  Math.max(
-    0,
-    Math.min(
-      pageScroller.scrollHeight - pageScroller.clientHeight,
-      pageScroller.scrollTop + dy,
-    ),
-  );
-const jumpBy = (dy, behavior = "instant") => {
-  const start = pageScroller.scrollTop;
-  const goal = pageScrollGoal(dy);
+const scrollGoal = (dy, box) =>
+  Math.max(0, Math.min(box.scrollHeight - box.clientHeight, box.scrollTop + dy));
+const jumpBy = (dy, behavior = "instant", box = pageScroller) => {
+  const start = box.scrollTop;
+  const goal = scrollGoal(dy, box);
   // Installed before the operation so Firefox and Safari cannot finish a short glide
   // between the call and its fallback listener. Chromium's operation promise wins when
   // present and removes this listener immediately.
-  const fallback = behavior === "smooth" ? nextPageScrollEnd() : null;
-  const nativeCompletion = pageScroller.scrollTo({ top: goal, behavior });
+  const fallback = behavior === "smooth" ? nextScrollEnd(box) : null;
+  const nativeCompletion = box.scrollTo({ top: goal, behavior });
   let completion = null;
   let cancel = null;
   if (typeof nativeCompletion?.then === "function") {
@@ -6535,13 +6569,13 @@ const jumpBy = (dy, behavior = "instant") => {
 // Drain the preliminary instant scroll before arming the final glide's fallback. Without
 // this boundary, the final listener can consume the earlier operation's scrollend and
 // announce while the target is still short of its destination.
-function settlePreliminaryScroll(move) {
-  const before = pageScroller.scrollTop;
-  const fallback = nextPageScrollEnd();
+function settlePreliminaryScroll(move, box = pageScroller) {
+  const before = box.scrollTop;
+  const fallback = nextScrollEnd(box);
   const nativeCompletion = move();
   // Any change schedules a scrollend, including a one-pixel or subpixel correction.
   // The one-pixel allowance belongs only to judging the final destination below.
-  const moved = pageScroller.scrollTop !== before;
+  const moved = box.scrollTop !== before;
   if (typeof nativeCompletion?.then === "function") {
     fallback?.cancel();
     return { completion: nativeCompletion, cancel: null };
@@ -6863,14 +6897,17 @@ export function shownBox(el) {
 // a span with no width, so the apparatus fell out on its own. The line saying how many
 // comments a block holds is clipped to a pixel and has one — so an ask that had been
 // commented on wore its ring on the runtime's word about the page rather than on the
-// page, and the pixel it hung from moves the first time a comment lands. `inUi` is that
-// question already asked, declared labels and all, and it is the one the anchor pass puts
+// page, and the pixel it hung from moves the first time a comment lands. That question is
+// already asked, declared labels and all, and it is the one the anchor pass puts
 // to a text node — so what a mark hangs on and what a quote may name cannot come apart.
+// Bounded at the element, for the reason given where the question is stated: a widget an
+// agent sent stands inside the panel, and asked about the page instead it would have no
+// child of its own left to fall back to.
 export function shownParts(el) {
   const r = el.getBoundingClientRect();
   if (r.width && r.height) return [el];
   return [...el.children]
-    .filter((child) => !inUi(child))
+    .filter((child) => !uiInside(child, el))
     .flatMap((child) => shownParts(child));
 }
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
@@ -7259,8 +7296,11 @@ function markAt(x, y) {
 
 // Bring an element in the document to the position its caller names. A thread's element
 // anchor takes the middle; an Ask takes the readable start so its context comes before
-// its control. The document scroller owns this travel, while an element in the panel's
-// list belongs to that region. Reveal first, since opening a tab or settled group moves
+// its control. Which box does the travelling is scrollerFor's answer, asked here rather
+// than assumed: the document's scroller was written into this twice, so an element
+// standing in the panel's list was taken into view by the platform and then had this
+// travel spent on the page behind it, moving a reader who had asked for nothing there.
+// Reveal first, since opening a tab or settled group moves
 // everything below it. For a centred destination, "the middle" means the viewport's:
 // scrollIntoView measures against the scroller's own
 // scroll-padding-top — declared so a native fragment jump clears the banner — and every
@@ -7268,25 +7308,34 @@ function markAt(x, y) {
 // no middle to show, and centring one puts its opening words above the top edge, so it
 // takes that same banner clearance instead and the reader starts at the start.
 //
+// The viewport is the scroller's own box rather than the window's, which is the same
+// number for the document — body is the page's scroller and is the window's height — and
+// is the panel's list where that is what scrolls.
+//
 // It glides, because a page the reader is already holding is one the motion keeps their
 // place in — the same reason a restore doesn't (jumpBy). An arrival passes "instant" for
 // exactly that reason: a document that appeared a moment ago holds no place to keep, so
 // the glide would be animating from nowhere.
-function centreBy(where, block = "center") {
+function centreBy(where, block = "center", box = pageScroller) {
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-  const clear = parseFloat(getComputedStyle(pageScroller).scrollPaddingTop) || 0;
+  // The scroller's own box rather than the window's: the same number for the document,
+  // whose scroller is body, and the list's own where the list is what scrolls.
+  const view = shownBox(box);
+  const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
   const place =
     where instanceof Range
-      ? (innerHeight - rect.height) / 2
+      ? (view.height - rect.height) / 2
       : block === "start"
         ? clear
-        : Math.max((innerHeight - rect.height) / 2, clear);
-  return rect.top - place;
+        : Math.max((view.height - rect.height) / 2, clear);
+  return rect.top - view.top - place;
 }
 function scrollToElement(el, behavior = SCROLL, block = "center") {
   reveal(el);
   el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  return jumpBy(centreBy(el, block), behavior);
+  const box = scrollerFor(el);
+  if (!under(el, box)) return { goal: box.scrollTop, completion: null, cancel: null };
+  return jumpBy(centreBy(el, block, box), behavior, box);
 }
 
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
@@ -7331,12 +7380,12 @@ const sameMark = (mark, snapshot) =>
       mark.endOffset === snapshot.endOffset
     : mark === snapshot && mark?.isConnected;
 let arrivalTravel = null;
-function announceThreadArrival(id, anchor, preliminary, centre) {
+function announceThreadArrival(id, anchor, preliminary, centre, box = pageScroller) {
   arrivalTravel?.cancel?.();
   const token = { cancel: null };
   const target = snapshotMark(anchor);
   arrivalTravel = token;
-  const first = settlePreliminaryScroll(preliminary);
+  const first = settlePreliminaryScroll(preliminary, box);
   token.cancel = first.cancel;
   first.completion.then(
     (preliminaryResult) => {
@@ -7364,14 +7413,14 @@ function announceThreadArrival(id, anchor, preliminary, centre) {
         (result) => {
           if (arrivalTravel !== token) return;
           arrivalTravel = null;
-          if (result?.interrupted || Math.abs(pageScroller.scrollTop - travel.goal) > 1)
-            return;
+          if (result?.interrupted || Math.abs(box.scrollTop - travel.goal) > 1) return;
           // A redraw may rebuild the same mark. It belongs to this arrival only while
           // its boundaries and centred page position still match the measured target.
           const current = marksOf(id)[0];
           if (
             !sameMark(current, target) ||
-            Math.abs(pageScrollGoal(centreBy(current)) - travel.goal) > 1
+            Math.abs(scrollGoal(centreBy(current, "center", box), box) - travel.goal) >
+              1
           )
             return;
           if (focusedThreadOf()?.dataset.id === id) paintStanding(true);
@@ -7391,6 +7440,12 @@ function scrollToThread(id) {
   if (!where) return;
   if (!(where instanceof Range)) {
     reveal(where);
+    // A mark stands wherever its element does, and an element anchor may name a widget
+    // an agent sent in a reply — scrolled by the panel's list and by nothing else. The
+    // travel and the arrival it announces are that box's, or none at all where the
+    // element is one of the layer's fixed parts, which are in neither region.
+    const box = scrollerFor(where);
+    if (!under(where, box)) return;
     announceThreadArrival(
       id,
       where,
@@ -7400,7 +7455,8 @@ function scrollToThread(id) {
           inline: "nearest",
           behavior: "instant",
         }),
-      () => jumpBy(centreBy(where), SCROLL),
+      () => jumpBy(centreBy(where, "center", box), SCROLL, box),
+      box,
     );
     return;
   }
@@ -11044,8 +11100,10 @@ function goToAsk(next, asks) {
   standOn(next);
   // A page Ask starts below the banner so its context comes before its control. A
   // thread Ask is in the panel's own list, whose arrival stays centred in that region.
-  if (inChrome(next)) next.scrollIntoView({ behavior: SCROLL, block: "center" });
-  else scrollToElement(next, SCROLL, "start");
+  // One travel for both, because which box it moves is now the travel's own question
+  // (scrollerFor) rather than a second one asked here; what stays is the destination,
+  // which is the banner's clearance in the document and the middle of the list.
+  scrollToElement(next, SCROLL, inChrome(next) ? "center" : "start");
   announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
 }
 function stepAsk(dir) {

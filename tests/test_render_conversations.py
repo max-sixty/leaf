@@ -4,6 +4,7 @@ import re
 
 import pytest
 from conftest import interact
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     FRAME_BY_FRAME,
@@ -1073,4 +1074,633 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     ), (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
+    page.close()
+
+
+# A page long enough to hold a reading position worth losing, and a change to decide
+# in each document, so every reading below has the same widget in both places.
+REPLY_TRAVEL_PAGE = leaf_page(
+    "travel",
+    "<h1 id='tv-h'>Session store</h1>"
+    + "".join(
+        f"<p id='tv-p{n}'>Paragraph {n}. "
+        + "Words enough to wrap the column. " * 8
+        + "</p>"
+        for n in range(40)
+    ),
+)
+
+PAGE_CHANGE = (
+    '<lf-suggestion id="tv-doc-sug">'
+    '<lf-old><p id="tv-doc-old">Sessions live five minutes.</p></lf-old>'
+    "<lf-new><p>Sessions live ninety seconds.</p></lf-new>"
+    "</lf-suggestion>"
+)
+CHANGE_HEAD = "<h1 id='dc-h'>Session store</h1>"
+CHANGE_PAGE = leaf_page("doc-change", CHANGE_HEAD + PAGE_CHANGE)
+# The same page with the change taken out of it, for the arm that carries the change
+# in a message instead: the two must differ in which document holds it and in nothing
+# else.
+BARE_PAGE = leaf_page("doc-change", CHANGE_HEAD)
+REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
+
+BOTH_BOXES = """() => ({
+  page: document.body.scrollTop,
+  panel: document.querySelector('.lf-threads').scrollTop,
+})"""
+
+
+def seed_reply(d, markup, anchor_id, chatter=0, after=0):
+    """A conversation whose reply carries `markup`, with a thread anchored on it.
+
+    `chatter` is what makes the panel a scroller of its own: a travel that lands by
+    accident when the whole list already fits proves nothing about which box moved.
+    `after` is what makes the middle of that list reachable — a widget in the last
+    message can only be brought to the end of the scroll range, which `scrollIntoView`
+    reaches on its own, so a centring assertion over one asserts nothing.
+    """
+    for n in range(chatter):
+        interact.append_event(
+            d,
+            {
+                "kind": "comment",
+                "id": f"tv-pad{n}",
+                "author": "user",
+                "version": 1,
+                "text": f"Aside {n}. " + "Long enough to wrap in the panel. " * 4,
+            },
+        )
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "tv-asked",
+            "author": "user",
+            "version": 1,
+            "text": "Which store?",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "tv-asked",
+            "version": 1,
+            "text": "Depends what you want to keep:",
+            "markup": markup,
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "tv-on-it",
+            "author": "user",
+            "version": 1,
+            "text": "Redis, and say why in the patch.",
+            "anchor": {"section": anchor_id},
+        },
+    )
+    for n in range(after):
+        interact.append_event(
+            d,
+            {
+                "kind": "comment",
+                "id": f"tv-later{n}",
+                "author": "user",
+                "version": 1,
+                "text": f"Later {n}. " + "Long enough to wrap in the panel. " * 4,
+            },
+        )
+
+
+def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
+    browser, serve
+):
+    """Pressing a thread's quote label moves the reader to what it is about — in the
+    box that box is in.
+
+    An element anchor can now name a widget an agent sent, and such a widget is
+    scrolled by the panel's own list and by nothing else. The travel was written with
+    the document's scroller in it twice, once for the banner clearance it reads and
+    once for the jump it makes, so the press spent its whole arithmetic on the page
+    behind the panel: the reader lost their place in the document over a thread about
+    something that was never in it. The panel arrived anyway, which is what made it
+    quiet — the platform's own scrollIntoView moves every ancestor box, so the widget
+    came into view, nudged to the nearest edge rather than centred, while the document
+    slid under it.
+
+    The document is the control: the same press on a thread about a paragraph must
+    still move the page, or this only says that nothing scrolls."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    seed_reply(
+        serve.page_dir,
+        '<lf-options id="tv-ask" choose label="Which store should I write up?">'
+        '<lf-option id="tv-redis">Redis</lf-option>'
+        '<lf-option id="tv-cookie">A signed cookie</lf-option>'
+        "</lf-options>",
+        "tv-ask",
+        chatter=10,
+        after=10,
+    )
+    # A second thread, on the document, whose travel is the one that must still move
+    # the page. Written after the first so the panel holds both.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "tv-on-page",
+            "author": "user",
+            "version": 1,
+            "text": "This one is about the page.",
+            "anchor": {"section": "tv-p30"},
+        },
+    )
+    # Reduced motion, so both travels jump and every reading below is taken straight
+    # after the press. A glide would leave the document's own scroll still running
+    # while the assertion that it never started reads its first frame.
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800},
+        color_scheme="light",
+        reduced_motion="reduce",
+    )
+    page, errors = open_page(browser, url, context=context)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+
+    page.evaluate("() => { document.body.scrollTop = 1200; }")
+    page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
+
+    # Where the travel says it is taking the widget: centred in the list, or as near
+    # as the list can come — a widget in the last message is past the middle of what
+    # the box can show, and the end of the scroll range is the whole of the answer
+    # there. The same arithmetic the travel uses, so this asserts where it went and
+    # not merely that something moved.
+    WHERE = """() => {
+      const box = document.querySelector('.lf-threads');
+      const view = box.getBoundingClientRect();
+      const el = document.getElementById('tv-ask').getBoundingClientRect();
+      const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+      return { at: el.top - view.top,
+               want: Math.max((view.height - el.height) / 2, clear),
+               atEnd: box.scrollTop >= box.scrollHeight - box.clientHeight - 1 };
+    }"""
+    thread = page.locator('.lf-thread[data-id="tv-on-it"] .lf-quote')
+    thread.scroll_into_view_if_needed()
+    before = page.evaluate(BOTH_BOXES)
+    thread.click()
+    # The arrival is announced rather than immediate: the travel settles the platform's
+    # own scroll first and centres from inside that completion, so the destination is
+    # the fact to wait on and a read after the press is a read of the nudge into view.
+    try:
+        page.wait_for_function(
+            f"() => {{ const w = ({WHERE})(); return Math.abs(w.at - w.want) < 2; }}"
+        )
+    except PlaywrightTimeout:
+        seen = page.evaluate(WHERE)
+        raise AssertionError(
+            f"the widget stopped {seen['at']:.0f}px into the list where centring it "
+            f"wanted {seen['want']:.0f}px — the travel never reached the box the "
+            "widget is in"
+        ) from None
+    landed = page.evaluate(WHERE)
+    after = page.evaluate(BOTH_BOXES)
+    assert after["page"] == before["page"], (
+        f"a thread about a widget in the panel moved the document "
+        f"{before['page']}px → {after['page']}px; the reader's place in the page is "
+        "not this thread's to spend"
+    )
+    assert after["panel"] != before["panel"], (
+        "the panel did not move at all, so the page holding still says nothing"
+    )
+    assert not landed["atEnd"], (
+        "the list is at the end of its range, which scrollIntoView reaches on its own "
+        "— the seed must leave messages below the one carrying the widget, or the "
+        "centring below is carried by the clamp"
+    )
+    assert abs(landed["at"] - landed["want"]) < 2, (
+        f"the widget stopped {landed['at']:.0f}px into the list where centring it "
+        f"wanted {landed['want']:.0f}px — brought into view by the platform rather "
+        "than travelled to"
+    )
+
+    # The control: the page's own thread still moves the page.
+    page.locator('.lf-thread[data-id="tv-on-page"] .lf-quote').click()
+    page.wait_for_function(f"() => document.body.scrollTop !== {before['page']}")
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, serve):
+    """A part that stands over both documents is in neither, and nothing travels to it.
+
+    Design mode lets a reader comment on the layer's own parts, and several of them are
+    `position: fixed` — the key line, the banner, the composer. Such a part is on screen
+    already, and it is in no scroller's flow, so its rect answers to the viewport rather
+    than to either region's scroll. `scrollerFor` says which of the two regions an
+    element belongs to, which is the right question for a widget in a message and no
+    question at all for one of these. Spent on it, the arithmetic reads a fixed rect as
+    though it were a place in a scroller and moves that scroller by a number meaning
+    nothing in it: measured, pressing a thread about the key line took the document
+    370px away from where the reader had it, at every starting position.
+
+    The control is a thread about the page, which must still travel."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    d = serve.page_dir
+    for n in range(14):
+        interact.append_event(
+            d,
+            {
+                "kind": "comment",
+                "id": f"fx-pad{n}",
+                "author": "user",
+                "version": 1,
+                "text": f"Aside {n}. " + "Long enough to wrap in the panel. " * 4,
+            },
+        )
+    # The shape design mode writes about the layer: `about` says which, and the anchor
+    # names the part the runtime gave an id.
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "fx-on-layer",
+            "author": "user",
+            "version": 1,
+            "about": "layer",
+            "text": "The key line reads dim against the wash.",
+            "anchor": {"section": "lf-keyline"},
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "fx-on-page",
+            "author": "user",
+            "version": 1,
+            "text": "And this one is about the page.",
+            "anchor": {"section": "tv-p30"},
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800},
+        color_scheme="light",
+        reduced_motion="reduce",
+    )
+    page, errors = open_page(browser, url, context=context)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    # The key line only draws while it has something to say, which is what a held key
+    # gives it. Held down, so the part is on screen for the press below.
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-keyline")).to_be_visible()
+
+    page.evaluate("() => { document.body.scrollTop = 1200; }")
+    # Where the reader is standing when they press: the thread on screen, which is
+    # also what the driver's own scroll-into-view would arrange. Read after it, so the
+    # baseline is the page as the press finds it rather than as the test left it.
+    thread = page.locator('.lf-thread[data-id="fx-on-layer"] .lf-quote')
+    thread.scroll_into_view_if_needed()
+    before = page.evaluate(BOTH_BOXES)
+    seen = """() => {
+      const t = document.querySelector('.lf-thread[data-id="fx-on-layer"]');
+      const view = document.querySelector('.lf-threads').getBoundingClientRect();
+      return t ? t.getBoundingClientRect().top - view.top : null;
+    }"""
+    stood = page.evaluate(seen)
+    thread.click()
+    # The travel is announced on landing, so it is deferred through a promise chain the
+    # press starts. An absence read before that chain runs is an absence of anything at
+    # all; drained, what is left is the press's whole effect.
+    page.evaluate(
+        "async () => { for (let i = 0; i < 3; i++)"
+        "   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))); }"
+    )
+    after = page.evaluate(BOTH_BOXES)
+    page.keyboard.up("Alt")
+
+    assert after == before, (
+        f"a thread about a fixed part of the layer moved something: {before} -> {after}"
+    )
+    assert page.evaluate(seen) == stood, (
+        "the press moved the thread the reader pressed, which is the surface they were "
+        "looking at"
+    )
+
+    # The control: a thread about the page still travels.
+    page.locator('.lf-thread[data-id="fx-on-page"] .lf-quote').click()
+    assert page.evaluate(BOTH_BOXES)["page"] != before["page"], (
+        "a thread about a paragraph no longer moves the document, so the stillness "
+        "above says only that nothing scrolls"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serve):
+    """A decided change keeps whatever of itself is still showing, wherever it stands.
+
+    `settledAway` asks whether a decision emptied an element: every child now a retired
+    slot or the runtime's own apparatus, with no words of its own left. Asked about the
+    page that test is right; asked about a change an agent sent in a reply it was asked
+    the wrong way round, because the panel holding it is itself the runtime's apparatus
+    and so every child of it answered yes. One accepted slot then emptied a change whose
+    other half was on screen: the anchor a reader had put on it stopped resolving, the
+    outline came off, and the thread stood detached beside the words it was about.
+
+    The same change on the page is the control, and the two must agree."""
+    for where, markup, wid in (
+        ("the page", CHANGE_PAGE, "tv-doc-sug"),
+        ("a reply", BARE_PAGE, "tv-msg-sug"),
+    ):
+        url = serve(markup)
+        d = serve.page_dir
+        if wid.startswith("tv-msg"):
+            seed_reply(d, REPLY_CHANGE, wid)
+        else:
+            interact.append_event(
+                d,
+                {
+                    "kind": "comment",
+                    "id": "tv-on-it",
+                    "author": "user",
+                    "version": 1,
+                    "text": "Why ninety?",
+                    "anchor": {"section": wid},
+                },
+            )
+        interact.append_event(
+            d,
+            {
+                "kind": "action",
+                "author": "user",
+                "version": 1,
+                "widget": wid,
+                "action": "accept",
+                "detail": {},
+            },
+        )
+        page, errors = open_page(browser, url)
+        resized(page, 1280, 900)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        settled = page.evaluate(
+            """(wid) => {
+                 const el = document.getElementById(wid);
+                 const quote = document.querySelector('.lf-thread[data-id="tv-on-it"] .lf-quote');
+                 return { state: el?.dataset.lfState,
+                          retired: [...(el?.querySelectorAll('[data-lf-retired]') ?? [])].length,
+                          marked: Boolean(el?.classList.contains('lf-mark-el')),
+                          detached: quote?.classList.contains('detached') };
+               }""",
+            wid,
+        )
+        assert settled["state"] == "accept" and settled["retired"] == 1, (
+            f"{where}: the change did not settle, so nothing here is being read "
+            f"({settled})"
+        )
+        assert not settled["detached"] and settled["marked"], (
+            f"{where}: the accepted change took its own anchor off the page "
+            f"({settled}) — its other half is still showing"
+        )
+        assert errors == []
+        page.close()
+
+
+def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, serve):
+    """An outline in the chrome says which element, and stops there.
+
+    An element anchor wears its outline wherever its element stands, the layer's own
+    parts included — that is what lets a design comment about the banner point at the
+    banner. What the outline may not do there is offer the hand: `markAt` refuses a
+    press inside the chrome on purpose, because what the chrome holds keeps its own
+    presses. The Comments button opens the panel and an option takes a pick; neither
+    of them opens a thread. So the pointer stood over a marked question an agent had
+    asked, promising a click nothing took.
+
+    The page's own mark is the control, and it keeps the hand it has always had."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    seed_reply(
+        serve.page_dir,
+        '<lf-options id="tv-ask" choose label="Which store should I write up?">'
+        '<lf-option id="tv-redis">Redis</lf-option>'
+        "</lf-options>",
+        "tv-ask",
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "tv-on-page",
+            "author": "user",
+            "version": 1,
+            "text": "About the page.",
+            "anchor": {"section": "tv-p3"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+
+    marks = page.evaluate(
+        """() => [...document.querySelectorAll('.lf-mark-el')].map((el) => ({
+             id: el.id, chrome: Boolean(el.closest('.lf-chrome')),
+             cursor: getComputedStyle(el).cursor,
+           }))"""
+    )
+    inside = [m for m in marks if m["chrome"]]
+    outside = [m for m in marks if not m["chrome"]]
+    assert inside and outside, (
+        f"this needs a mark in each document to compare; got {marks}"
+    )
+    assert all(m["cursor"] == "pointer" for m in outside), (
+        f"the page's own mark lost its hand, so the reading below is about nothing: "
+        f"{outside}"
+    )
+    assert all(m["cursor"] != "pointer" for m in inside), (
+        f"a mark in the layer offers the hand and no press is taken there: {inside}"
+    )
+    # And the other half of the sentence, since a cursor is only a promise about a
+    # press: the press itself, on the marked widget's own words, reaching no thread.
+    opened = page.evaluate(
+        "() => document.querySelector('.lf-thread[data-id=\"tv-on-it\"]')?.className"
+    )
+    page.locator("#tv-ask").click(position={"x": 4, "y": 4})
+    assert (
+        page.evaluate(
+            "() => document.querySelector('.lf-thread[data-id=\"tv-on-it\"]')"
+            "?.className"
+        )
+        == opened
+    ), "a press on a mark in the layer reached its thread after all"
+    assert errors == []
+    page.close()
+
+
+def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
+    browser, serve
+):
+    """A change sent in a reply measures itself when it is drawn, and states nothing
+    about the page's margin.
+
+    Two numbers come off a suggestion's row of controls at upgrade: each control's
+    floor, so the line a press is made on holds still when "Accept" becomes
+    "Accepted", and — once, for the whole page — the rail the document leaves at its
+    right edge for those rows to stand in. Both were taken off a row inside a comment
+    panel nobody had opened, where the box is zero: the controls floored at nothing,
+    and the page's rail was stated as bare margin and never restated, by a row that is
+    not in the page's margin at all.
+
+    The page's own change is the control for the first number and the author of the
+    second."""
+    reply_url = serve(REPLY_TRAVEL_PAGE)
+    seed_reply(serve.page_dir, REPLY_CHANGE, "tv-msg-sug")
+    page, errors = open_page(browser, reply_url)
+    resized(page, 1280, 900)
+
+    rail = "() => getComputedStyle(document.documentElement).getPropertyValue('--rail')"
+    assert page.evaluate(rail).strip() == "", (
+        "a row standing in the panel stated the page's rail; the page has no change "
+        "of its own and wants no margin for one"
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    # Again now the row has a box: the guard's whole subject is a row that measures,
+    # and read only while the panel was shut this said nothing about it.
+    assert page.evaluate(rail).strip() == "", (
+        "a row standing in the panel stated the page's rail once it had a box of "
+        "its own to state it from"
+    )
+    floors = (
+        "() => [...document.querySelectorAll('.lf-sug-actions [role=button]')]"
+        ".map((b) => b.style.minWidth)"
+    )
+    in_reply = page.evaluate(floors)
+    assert in_reply and all(f for f in in_reply), (
+        f"a control in a reply holds no room for the word its press writes: {in_reply}"
+    )
+    assert errors == []
+    page.close()
+
+    # The same controls on the page, whose numbers these have to be.
+    page, errors = open_page(browser, serve(CHANGE_PAGE))
+    resized(page, 1280, 900)
+    on_page = page.evaluate(floors)
+    assert in_reply == on_page, (
+        f"the same control measures {in_reply} in a reply and {on_page} on the page"
+    )
+    assert page.evaluate(rail).strip(), (
+        "the page's own row states no rail, so the absence read above says nothing"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A wrapper that generates no box shows as what its contents paint — in either
+    document.
+
+    `shownParts` falls back to an element's children when the element itself has no
+    box, which is what a mark hangs on and what an ask's ring hangs on. It kept the
+    runtime's own apparatus out of that fallback by asking whether each child was
+    under the runtime's chrome, and a widget an agent sent in a reply is: the panel
+    over it answers for every child, so the fallback filtered all of them away and the
+    widget showed as nothing at all. Bounded at the widget, the panel above it is no
+    longer its own apparatus and the parts come back.
+
+    `display: contents` on a widget is a project's line to write — the shipped
+    vocabulary has none today, and `shownParts` exists because any layer can — so a
+    project theme is what puts one here. The page's own copy is the control."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".leaf").mkdir(exist_ok=True)
+    (tmp_path / ".leaf" / "theme.css").write_text(
+        "/* a project styling a wrapper away, which is any layer's to do */\n"
+        "lf-options { display: contents }\n"
+    )
+    url = serve(REPLY_TRAVEL_PAGE)
+    # A group reporting rather than asking: the joined control the layer draws for
+    # `choose` states its own display at a weight a project's bare tag rule does not
+    # reach, and the subject here is a boxless wrapper rather than a cascade fight.
+    seed_reply(
+        serve.page_dir,
+        '<lf-options id="tv-ask">'
+        '<lf-option id="tv-redis" chosen>Redis</lf-option>'
+        "</lf-options>",
+        "tv-ask",
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    parts = page.evaluate(
+        """async () => {
+             const { shownParts } = await import('/leaf.js');
+             const el = document.getElementById('tv-ask');
+             return { boxless: el.getBoundingClientRect().height === 0,
+                      display: getComputedStyle(el).display,
+                      parts: shownParts(el).map((p) => p.id || p.localName) };
+           }"""
+    )
+    assert parts["boxless"], (
+        f"the widget draws as {parts['display']!r}, so it has a box of its own and "
+        "the fallback below was never reached — the project layer's rule lost to one "
+        "the shipped theme states at a weight a bare tag selector cannot reach"
+    )
+    assert parts["parts"], (
+        "a widget an agent sent shows as nothing: no box of its own, and every part "
+        "its contents paint read as the panel's apparatus"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serve):
+    """The browser walks the same relation as `build_threads`, and tore the same way.
+
+    A crash tears one line and `read_events` keeps reading past it, so the events the
+    server hands the browser can hold a reply whose message is gone. The panel is built
+    by walking replies onto their parents, and the walk threw where the parent was
+    missing — taking down not the thread but the whole reconcile, on a page whose log
+    had already been read successfully by the side that wrote it."""
+    url = serve(REPLY_TRAVEL_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "tv-lost",
+            "author": "user",
+            "version": 1,
+            "text": "the question nobody can read any more",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "id": "tv-kept",
+            "author": "claude",
+            "parent": "tv-lost",
+            "version": 1,
+            "text": "the answer that survived it",
+        },
+    )
+    log = d / "comments.jsonl"
+    lines = log.read_text(encoding="utf-8").split("\n")
+    torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
+    lines[torn] = lines[torn][: len(lines[torn]) // 2]
+    log.write_text("\n".join(lines), encoding="utf-8")
+
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 900)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
+    assert errors == []
     page.close()

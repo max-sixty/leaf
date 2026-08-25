@@ -2179,3 +2179,55 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
         )
     )
     assert check(page_dir).exit_code == 0
+
+
+def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
+    """The two markup doors ask the same thing of a reference to a file.
+
+    A widget carrying pictures is exactly the shape an agent sends in a reply — here
+    is how it looks now, and after — and `/media/…` is how markup names one. A version
+    naming a file the directory cannot answer is refused, and the same markup in a
+    reply was accepted and frozen: the log is append-only, so it is two broken images
+    for as long as the page exists, and no check afterwards would ever mention them.
+
+    The version door is the control. It is the same reading, so a difference between
+    them can only be one of the two having stopped asking."""
+    shot = (
+        '<lf-shot id="ps-shot" alt="the panel before and after" '
+        'before="/media/nope.png" after="/media/gone.png"></lf-shot>'
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</main>", shot + "</main>")
+    )
+    refused = check(page_dir)
+    assert refused.exit_code == 1
+    assert "/media/nope.png isn't in the page directory" in refused.output, (
+        f"the version door stopped asking, so the comparison below is empty: "
+        f"{refused.output}"
+    )
+
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    opened = CliRunner().invoke(
+        interact.cli, ["comment", str(page_dir), "--text", "show me?"]
+    )
+    assert opened.exit_code == 0, opened.output
+    posted = CliRunner().invoke(
+        interact.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            json.loads(opened.output)["id"],
+            "--text",
+            "here:",
+            "--markup",
+            shot,
+        ],
+    )
+    assert posted.exit_code == 1, (
+        f"the reply door froze a picture the page has not got into the log:\n"
+        f"{posted.output}"
+    )
+    assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
+    assert not [e for e in interact.read_events(page_dir) if e["kind"] == "reply"]

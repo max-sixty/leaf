@@ -26,6 +26,7 @@ from render_support import (
     LONG_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
+    REPLY_HOST_PAGE,
     RESIZE_LOOP_EVENT,
     ROOM_EVERY_FRAME,
     SCROLLED_CONTAINER,
@@ -43,6 +44,7 @@ from render_support import (
     draw_edge,
     edge_settled,
     geometry,
+    leaf_page,
     motions,
     moved_at,
     open_page,
@@ -1337,4 +1339,214 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         "with the box's own surface flattened, what is behind the comment is the "
         "page's paper — which is above the host, and reached by climbing out of the "
         "root rather than stopping where parentElement runs out"
+    )
+
+
+def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
+    """The trapped-margin reading, asked about the layer instead of the page.
+
+    `TRAPPED_MARGINS` is the one render-gate reading that reaches the runtime's own
+    chrome: it asks computed styles rather than boxes, and a shut panel's descendants
+    carry every style they will carry open, where the box readings beside it see zero
+    and stop. So the gate saw the panel and every other geometry reading did not — an
+    asymmetry with no principle behind it, and a live hazard on the side the gate saw:
+    a margin trapped in leaf's panel would refuse an author's version over markup they
+    did not write, cannot edit, and would hear about in the words of a class no page
+    has. examples/CLAUDE.md names that failure as the reason a gate reading was moved
+    out once already.
+
+    So the gate now takes the document's half and this takes the layer's, off the one
+    reading, with the panel open — where a trapped margin is one somebody can see. The
+    control comes first: a rule that traps one inside the panel has to be found, or a
+    clean result is only a reading that never arrived. A page is served rather than a
+    bare fixture because the panel has to be holding something for its boxes to exist,
+    and a seeded example is the corpus's own conversation."""
+    seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
+    assert seeded, "no example ships a log, so the panel would open on nothing"
+    page, errors = open_page(browser, serve(seeded[0]))
+    resized(page, 1280, 900)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+
+    # The control. A thread's own box draws its inset, and a first block reserving a
+    # margin against a neighbour it hasn't got is exactly what the reading names.
+    # Weighted, because the layer's own rules are scoped to .lf-chrome and @scope
+    # proximity settles a tie an equal selector would otherwise lose here.
+    page.evaluate(
+        """() => {
+             const s = document.createElement('style');
+             s.id = 'trap';
+             s.textContent =
+               '.lf-thread { padding-top: 8px !important }'
+               + '.lf-thread > .lf-quote { margin-block-start: 9px !important }';
+             document.head.append(s);
+           }"""
+    )
+    found = page.evaluate(interact.TRAPPED_MARGINS)
+    planted = [t for t in found if t["chrome"]]
+    assert planted, (
+        "a margin trapped inside the panel went unreported, so this reading is not "
+        "reaching the layer at all and a clean result below would mean nothing"
+    )
+    # And the gate's half of the same reading, which must not have moved: a margin in
+    # leaf's panel is not a finding about the author's page, and reporting it there is
+    # what would refuse their version over markup they cannot edit.
+    assert [t for t in found if not t["chrome"]] == [], (
+        "a margin planted in the layer reached the document's half of this reading, "
+        "which is the half `version check --render` refuses a handover over"
+    )
+    page.evaluate("() => document.getElementById('trap').remove()")
+
+    trapped = [t for t in page.evaluate(interact.TRAPPED_MARGINS) if t["chrome"]]
+    assert trapped == [], "the layer traps a margin in its own chrome: " + "; ".join(
+        f"<{t['tag']} class={t['cls']!r}> draws {t['drawn']:g}px of inset and "
+        f"shows {t['drawn'] + t['margin']:g}px {t['edge']} its <{t['child']}>"
+        for t in trapped
+    )
+    assert errors == []
+    page.close()
+
+
+def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, serve):
+    """`RELATIVE_REPLAYS` applies every standing winner again and asks whether anything
+    moved. It had never been pointed at a decision made in the panel.
+
+    A widget an agent sent in a reply is folded by a projection of its own
+    (`thread_state`) and replayed into a tree the panel built, and the probe reads
+    `standingState`, which returns early when nothing is standing. No page the gate was
+    ever run over held an action at all, so it was reporting clean on an empty list.
+    The population is therefore asserted before the gate is asked anything.
+
+    Both of the group's verbs stand here, and only one of them can be held to much.
+    `choose` declares a record, so replaying it writes a state `shallowSigs` reads and
+    a second application that moved anything is a finding. `answer` declares none: the
+    Done press writes `aria-pressed` on a control the runtime built, which carries no
+    id and is not in that reading. What it is held to here is that a second application
+    does not throw, which is the other half of what the probe reports — its absoluteness
+    is still nobody's check."""
+    url = serve(REPLY_HOST_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-list",
+            "author": "user",
+            "version": 1,
+            "text": "What should I carry into the patch?",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-list",
+            "version": 1,
+            "text": "Tick what belongs and press Done:",
+            "markup": (
+                '<lf-options id="an-set" choose multiple '
+                'label="What should I carry into the patch?">'
+                '<lf-option id="an-chase">Chase them monthly</lf-option>'
+                '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
+                '<lf-option id="an-say">Say what the spinner is</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "an-set",
+            "action": "choose",
+            "detail": {"options": ["an-chase", "an-say"]},
+        },
+    )
+    # The Done press. Recordless, and the last word on the group.
+    interact.append_event(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "an-set",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    # The population first: the probe returns clean for an empty list, which is exactly
+    # how a decision made in the panel went unread for as long as it did.
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 900)
+    standing = page.evaluate(
+        "async () => (await import('/leaf.js')).standingState()"
+        ".map((s) => [s.unit, s.action])"
+    )
+    assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
+        f"the reader's decisions are not among what the runtime hands the gate: "
+        f"{standing} — the replay below would be handed nothing and report clean"
+    )
+    assert errors == []
+    page.close()
+
+    assert interact.render_version(browser, url) == []
+
+
+TRAP_PAIR_PAGE = leaf_page(
+    "trap-pair",
+    """
+<h1 id="tp-h">Session store</h1>
+<section class="tp-inset" id="tp-box">
+  <p id="tp-first">Redis, with a signed-cookie fallback for reads.</p>
+</section>
+""",
+)
+
+
+def test_the_gate_reports_a_trapped_margin_in_the_page_and_not_in_the_layer(
+    browser, serve, tmp_path, monkeypatch
+):
+    """`version check --render` answers for the document it is handed.
+
+    The trapped-margin reading is the only one here that reaches the runtime's own
+    chrome, because it asks computed styles and a shut panel's descendants have every
+    style they will have open. So one project theme could refuse an author's version
+    twice over: once for their own box, which is theirs to fix, and once for leaf's
+    thread list, which is not — markup they did not write, cannot edit, and would be
+    told about in the words of a class no page of theirs has. On an append-only log
+    that is a page that can never publish again.
+
+    One theme states the same trap in both documents here, so the pair differs in
+    nothing but which document it is in. The page's must be reported, or this says
+    only that the gate found nothing — and the author's box is a <section> against
+    the thread list's <div> because findings dedupe per tag and edge, keeping the
+    last: as two divs, the layer's finding displaced the author's and the assertion
+    that the layer's is absent passed on the page's absence instead."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".leaf").mkdir(exist_ok=True)
+    (tmp_path / ".leaf" / "theme.css").write_text(
+        "/* the author's own box, drawing an inset its first block reserves against */\n"
+        ".tp-inset { padding: 8px }\n"
+        ".tp-inset > p { margin-block: 9px }\n"
+        "/* and the same shape in the layer's thread list. Weighted, because the\n"
+        "   layer scopes its own rules to .lf-chrome and @scope proximity settles a\n"
+        "   tie a project's plain selector would otherwise lose. */\n"
+        ".lf-thread { padding: 8px !important }\n"
+        ".lf-thread > * { margin-block: 9px !important }\n"
+    )
+    # A comment, so the thread list has a thread to draw and the layer's half of the
+    # trap has a box to be trapped in.
+    url = serve(TRAP_PAIR_PAGE, anchored=[("tp-first", "signed-cookie fallback")])
+    failures = interact.render_version(browser, url)
+    trapped = [f for f in failures if "of inset and shows" in f]
+    assert any("tp-inset" in f for f in trapped), (
+        "the author's own trapped margin went unreported, so the silence below is "
+        f"the gate finding nothing at all: {failures}"
+    )
+    assert not any("lf-thread" in f for f in trapped), (
+        "the gate refused the author's version over a margin in leaf's own thread "
+        f"list: {[f for f in trapped if 'lf-thread' in f]}"
     )

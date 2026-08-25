@@ -35,6 +35,31 @@ in the suite instead. `arrival_findings`, for example, tests the layer's behavio
 when a reader returns with browser state already present; changing the authored
 page cannot repair that behavior.
 
+The same line runs through the render gate's own readings, and what decides it is
+whether a reading needs a box.
+
+A reading of text or attributes may cross into the comment panel, and several do:
+a widget an agent sent in a reply is a widget, and `UNREACHABLE_WORDS`,
+`SILENT_WORDS` and `UNDECLARED_ATTRS` answer for it. A reading of geometry may not,
+because the gate never opens the panel and a shut one has no boxes at all. Most
+stop there by construction — at `.lf-chrome`, or by starting from `main` — and
+`TINY_BOXES` and `CLIPPED_CONTROLS` stop at `checkVisibility()`.
+
+`TRAPPED_MARGINS` is the exception, and it is a box reading wearing a computed
+style reading's clothes: inside `display: none` an element's own `display` is still
+`block` and its padding and margins still resolve, so it reads the panel and gets
+plausible numbers. They are not the panel's numbers. A size container query does
+not match in there, so a rule that switches a slot between two forms is stuck on
+one of them, and a percentage margin comes back unresolved. It therefore tags each
+finding with which document it is in, and the gate takes the page's half.
+
+What the layer does with a box is the suite's — `TRAPPED_MARGINS` states why at
+the line that splits it. So the suite opens the panel, where such a widget has a
+box at last, and puts the product's own readings to it: `TINY_BOXES` and
+`CLIPPED_CONTROLS` over the open panel, and `TRAPPED_MARGINS`'s layer half. Each
+asserts its population first, and a planted fault is scoped to `.lf-chrome`, so a
+clean result cannot come from a reading that never arrived.
+
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
@@ -131,6 +156,14 @@ Use `select` for selection drags. It floors the starting coordinates to a whole
 pixel because a fractional point can straddle a glyph's caret boundary and leave an
 otherwise valid drag with an empty selection. Preserve the end coordinate: changing
 its precision can move the selected character.
+
+`locator.click()` scrolls its target into view first, so a baseline read before one
+is a reading of the page the test arranged and not of the page the press finds. A
+test that scrolls a region away and then presses something in it measures the
+driver's scroll, not the product's: it reported a panel moving 2455px to 0 for a
+press that moved nothing. Where the subject is what a press does to a scroll
+position, put the element on screen first — `scroll_into_view_if_needed()` says so
+out loud — and read the baseline after that.
 
 Nothing should be injected into the page merely to make ordinary observation easier.
 Traffic comes from Playwright's request, response, and request-failure events. Network

@@ -455,6 +455,20 @@ ${MARK_RULES}
        itself, which is why this can't be written at document level without widening
        the shared vocabulary by a class only the runtime ever wears. */
     @media print { :scope { display: none; } }
+    /* The hand only where the press lands. An element anchor wears its outline
+       wherever its element stands, the layer's own parts included — that is what lets
+       a design comment about the banner point at the banner, and a thread about a
+       question an agent asked in a reply point at the question. What the outline may
+       not do here is offer the hand: markAt refuses a press inside this container on
+       purpose, because what the container holds keeps its own presses — the Comments
+       button opens the panel, an option takes a pick, and neither opens a thread. So
+       the outline goes on saying which element, and stops promising a click nothing
+       takes. Scoped rather than written at document level, where it would widen the
+       shared vocabulary by this container's own class. Design mode's rules outside
+       outrank this at a weight it cannot reach and draw the arrow here too, which is
+       the same answer arrived at twice: the aim never lands in the chrome (isItem), so
+       the hand it promises is not one this mark could offer either. */
+    .lf-mark-el { cursor: auto; }
     /* What the layer inherits from the document, answered at the layer's root, because
        the document below is a page of prose and this is not it.
 

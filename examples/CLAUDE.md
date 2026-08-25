@@ -148,6 +148,26 @@ and asks that each widget the log carries is drawn and, where the registry
 declares the element awaits an answer, that the runtime built something inside
 it to answer with.
 
+And the seed carries the answer as well as the question, because a decision on
+such a widget is folded through a projection of its own (`thread_state`) and
+replayed into a tree the panel built, and a corpus holding only the question
+reads the untouched half of every one of them — the widget's own gap, one turn
+further in. `ship-review.jsonl` has the reader ticking two of the three and not
+yet pressing Done, so the group is both decided and still asking. The same test
+reads it, against the neighbour that separates a replay from a rendering: the
+same page under the same log with the decisions removed. A widget that says the
+same either way was never reached, and a drawn widget with a built control says
+nothing about whose state is on it.
+
+A hand-written seed is markup no gate reads. `version check` asks it only for ids
+colliding with the version's, and `leaf reply` — the door that validates an
+agent's `markup` before freezing it in an append-only log — never sees a file
+written into the repository. So
+`test_every_seeded_fragment_passes_the_door_it_never_came_through` posts each
+seeded fragment through that real door rather than through a list of checks
+copied out of it, since a second gate spelling out today's list is the one that
+goes on not asking whatever the first learns to.
+
 Rendering that shape for the first time reported two faults in the render gate,
 both of them the same mistake: a reading assumed a widget stands in the document.
 `UNREACHABLE_WORDS` took any `.lf-ui` above a widget's words for the widget's own

@@ -1235,7 +1235,12 @@ RETIRED_SLOTS = (
 #
 # Deduped per tag and edge, because one mistake is on every instance of that widget.
 TRAPPED_MARGINS = (
-    """() => {"""
+    """async () => {
+    // Which document each box is in, imported rather than restated, for the same
+    // reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow roots
+    // of its own, and a `closest` written out here stops at the first of them and
+    // calls what it finds the page's.
+    const { inChrome } = await import('/leaf.js');"""
     + OPEN_ROOTS
     + """
     const px = (v) => parseFloat(v) || 0;
@@ -1288,6 +1293,7 @@ TRAPPED_MARGINS = (
                         tag: el.tagName.toLowerCase(), id: el.id || null,
                         cls: el.classList[0] || null, edge, drawn, margin,
                         child: kid.node.tagName.toLowerCase(),
+                        chrome: inChrome(el),
                     });
             }
         }

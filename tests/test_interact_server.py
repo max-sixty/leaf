@@ -1828,3 +1828,63 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     assert (
         interact.page_url("10.20.30.40", 41999, "k") == "http://10.20.30.40:41999/?t=k"
     )
+
+
+def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
+    """The tolerance above has to reach the readings built on it, or it buys nothing.
+
+    `read_events` skips a torn line and keeps reading, so a reply can outlive the
+    message it answers — the one way the log tears from inside the product's own
+    grammar rather than from someone editing the file. Two readings walk that
+    relation: `thread_roots`, which resolves a reply to the conversation it is in,
+    and `build_threads`, which builds the conversation itself. The first was made to
+    degrade and the second went on raising, so a page that had lost one line answered
+    `page state` with a KeyError and handed the session picking it up nothing at all —
+    the reply included, which was still perfectly readable.
+
+    Both now put the surviving reply under the id the lost message was known by, so an
+    action naming that id in `resolves` still finds its thread and the two readings
+    cannot disagree about which conversation a message is in."""
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c-lost",
+            "author": "user",
+            "version": 1,
+            "text": "the question nobody can read any more",
+        },
+    )
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "r-kept",
+            "author": "claude",
+            "parent": "c-lost",
+            "version": 1,
+            "text": "the answer that survived it",
+        },
+    )
+    log = page_dir / "comments.jsonl"
+    lines = log.read_text(encoding="utf-8").split("\n")
+    torn = next(i for i, line in enumerate(lines) if '"id": "c-lost"' in line)
+    lines[torn] = lines[torn][: len(lines[torn]) // 2]  # the tear a crash leaves
+    log.write_text("\n".join(lines), encoding="utf-8")
+
+    events = interact.read_events(page_dir)
+    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
+        "the tear took the reply with it, so nothing below is being read"
+    )
+    assert interact.thread_roots(events)["r-kept"] == "c-lost"
+    threads = interact.build_threads(events, {})
+    assert list(threads) == ["c-lost"], (
+        f"the two readings put the reply in different conversations: {list(threads)}"
+    )
+    assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
+
+    # And the command a session picks the page up with.
+    state = CliRunner().invoke(interact.cli, ["page", "state", str(page_dir)])
+    assert state.exit_code == 0, state.output
+    assert "the answer that survived it" in state.output

@@ -42,6 +42,7 @@ from render_support import (
     WIDE_DIAGRAM_PAGE,
     composer_quote,
     open_page,
+    page_registry,
     panel_settled,
     record_claim,
     resized,
@@ -77,11 +78,21 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     widgets are authored into <main>, and a module that never reached a message
     would have left all eight corpus sweeps green.
 
+    The third is what the reader did to one. A decision on such a widget is folded
+    through a projection of its own and replayed into a tree the panel built, and a
+    seed carrying the question but not the answer reads only the untouched half —
+    which is the same gap as the widget's, one turn further in. It is read against
+    the neighbour that separates a replay from a rendering: the same page, the same
+    log with the decisions removed. A widget that says the same either way was never
+    reached, and every assertion above this one passes just the same.
+
     Looped rather than parametrized so an empty corpus fails here instead of
     collecting no tests and reporting green."""
     seeded = [p for p in EXAMPLES if p.with_suffix(".jsonl").exists()]
     assert seeded, "no example ships a log; this gate is reading nothing"
     drawn = []
+    decided = []
+    read_as = {}  # widget id -> how it reads with the log's decision standing
 
     for example in seeded:
         url = serve(example)
@@ -153,9 +164,11 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # and every reading that measures one does not.
         page.locator(".lf-comments").click()
         registry = interact.load_registry(serve.page_dir)
+        carried_ids = set()
         for carried in [e for e in events if e.get("markup")]:
             for wid, rec in interact.parse_structure(carried["markup"]).by_id.items():
                 drawn.append(wid)
+                carried_ids.add(wid)
                 shown = page.locator(f"#{wid}")
                 expect(shown).to_be_visible()
                 # Where the registry says the element holds a request for the
@@ -164,13 +177,106 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 # this asks the declaration and never the tag.
                 if registry[rec["tag"]].get("x-awaits"):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
+
+        # The panel is open, which is the only state in which a widget a message
+        # carries has a box at all — so this is where the gate's own geometry readings
+        # can be put to one. They cannot be put there by the gate: `version check
+        # --render` is pointed at a version file and never opens the panel, and a fault
+        # in a frozen fragment is not one the version's author could edit away, so a
+        # finding there would red their handover for good. The readings are the
+        # product's own rather than test-side copies, for the reason tests/CLAUDE.md
+        # gives: a variant here would drift from what the gate actually refuses.
+        # The two gate readings that a widget in a message escapes only because the
+        # panel is shut — both stop at `checkVisibility()`, and a message body in a
+        # shut panel has no boxes at all. Every other geometry reading passes over the
+        # panel structurally, by `.lf-chrome` or by starting at `main`, and stays
+        # passed over. The gate cannot make up the difference: it is pointed at a
+        # version file and never opens the panel, and a fault in markup frozen in the
+        # log is not one that version's author could edit away — a finding there would
+        # red their handover with no edit that clears it. Here the panel is open,
+        # which is the one state in which such a widget has a box to be wrong about.
+        #
+        # The product's own readings, not test-side copies, and the population is
+        # asserted first: a widget with no controls in it would make both come back
+        # clean for having been handed nothing.
+        offers = page.evaluate(
+            """(ids) => ids.flatMap((id) => {
+                 const el = document.getElementById(id);
+                 return el ? [...el.querySelectorAll('[data-lf-offer]')] : [];
+               }).length""",
+            sorted(carried_ids),
+        )
+        assert offers, (
+            f"{example.stem}: no widget a message carries built a control, so the two "
+            "readings below were handed nothing of the panel's to look at"
+        )
+        for name, reading, arg in (
+            ("draws a box of no size", interact.TINY_BOXES, page_registry(page)),
+            ("has a control clipped out of its box", interact.CLIPPED_CONTROLS, None),
+        ):
+            found = page.evaluate(reading, arg) if arg else page.evaluate(reading)
+            assert found == [], (
+                f"{example.stem}: with the panel open, something {name}: {found}"
+            )
+
+        # And the third thing a log carries: what the reader did to one of those
+        # widgets. A decision on a widget a message carries is folded from thread
+        # markup rather than from the version, through a projection of its own
+        # (`thread_state`), and replayed into a tree the panel built — so a corpus
+        # that seeds the question and not the answer reads the untouched half of
+        # every such widget and leaves the whole standing-decision route to
+        # unit-style fixtures. The seed is what puts it under the sweeps.
+        decided_here = [
+            e["widget"]
+            for e in events
+            if e["kind"] == "action" and e["widget"] in carried_ids
+        ]
+        # Named among what the runtime hands the render gate, which is where a
+        # standing winner has to appear for the gate to reapply it at all. Read once:
+        # the fold is the whole log's, not one widget's.
+        standing = page.evaluate(
+            "async () => (await import('/leaf.js')).standingState().map((s) => s.unit)"
+        )
+        for wid in decided_here:
+            decided.append(wid)
+            assert wid in standing, (
+                f"{example.stem}: the log decides #{wid} and the runtime's standing "
+                f"state names only {standing} — the panel's fold reached the gate for "
+                "nothing the reader did"
+            )
+            read_as[wid] = page.locator(f"#{wid}").inner_text()
         assert errors == []
         page.close()
+
+        # The single-factor neighbour: the same page under the same log with the
+        # decisions taken out. A widget that reads the same either way is one the
+        # replay never reached, and every assertion above it would still pass —
+        # a drawn widget and a built control say nothing about whose state is on it.
+        if decided_here:
+            plain = serve(example.read_text())
+            for event in [e for e in events if e["kind"] != "action"]:
+                interact.append_event(serve.page_dir, event)
+            undecided, errors = open_page(browser, plain)
+            undecided.locator(".lf-comments").click()
+            for wid in decided_here:
+                shown = undecided.locator(f"#{wid}")
+                expect(shown).to_be_visible()
+                assert shown.inner_text() != read_as[wid], (
+                    f"{example.stem}: #{wid} reads the same with the log's decision "
+                    f"and without it ({read_as[wid]!r}) — the seed proves nothing"
+                )
+            assert errors == []
+            undecided.close()
 
     assert drawn, (
         "no shipped log carries a widget in a message. That is the other place "
         "markup renders, no authored page can stand in for it, and with none in "
         "the corpus this is the whole of what reads one."
+    )
+    assert decided, (
+        "no shipped log carries a decision on a widget a message carries. The "
+        "question is seeded and the answer is not, so every sweep reads that "
+        "widget untouched and nothing here exercises the panel's own fold."
     )
 
 

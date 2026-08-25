@@ -3,11 +3,11 @@
 import json
 from datetime import datetime, timedelta
 
-from click.testing import CliRunner
 from conftest import interact
 from render_harness import (
     EXAMPLES,
     TOKEN,
+    author_test_widget,
     leaf_page,
 )
 
@@ -771,6 +771,9 @@ REPORT_PAGE = leaf_page(
 </lf-tasks>
 """,
 )
+COMMAND_HUB_PAGE = next(
+    example for example in EXAMPLES if example.stem == "command-hub"
+).read_text()
 # Two workers, one claiming work and one idle, because silence is only news against a
 # claim: the elapsed line is about what a row said it was doing, not about the clock.
 ROSTER_PAGE = leaf_page(
@@ -999,10 +1002,7 @@ customElements.define(
 def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     """Vendor <lf-drift> as a project widget, and hand back the page it renders."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-drift", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-drift", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-drift"]["properties"]["offset"] = {
@@ -1079,25 +1079,19 @@ TWO_HOLDER_PAGE = leaf_page(
 
 
 def trial_family(tmp_path):
-    """A third-party settlement family in the project layer, built the way a project
-    builds one: `leaf customize widget` scaffolds each tag, and the registry edit
-    relates them — x-state verbs on the holders, x-parent/x-retired-when on the
-    slots. The holders upgrade, because a tag declaring x-state needs a module to
-    define its element; the scaffold module is all they get, so anything a test sees
-    settle is the layer's doing, not a module's. Only lf-proposed names two holders,
-    for the selector case the two-holder test is about."""
-    runner = CliRunner()
+    """A third-party settlement family in one project package.
+
+    Registry declarations relate its holders and slots. The holder modules only define
+    their elements, so anything a test sees settle is the layer's doing. Only
+    lf-proposed names two holders, for the selector case that test exercises.
+    """
     for tag, upgrade in (
         ("lf-trial", True),
         ("lf-pilot", True),
         ("lf-current", False),
         ("lf-proposed", False),
     ):
-        made = runner.invoke(
-            interact.cli,
-            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
-        )
-        assert made.exit_code == 0, made.output
+        author_test_widget(tmp_path, tag, upgrade=upgrade)
     source = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(source.read_text())
     verb = {
@@ -1129,7 +1123,7 @@ def trial_family(tmp_path):
         entries[tag].pop("x-example", None)
         entries[tag].pop("required", None)
     source.write_text(json.dumps(entries))
-    # The scaffold styles every tag as a card; a slot is a slot, the way the shipped
+    # The fixture styles every tag as a card; a slot is a slot, the way the shipped
     # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
     # margins that stand trapped under the holder's frame once a settled sibling is
     # hidden — a real TRAPPED_MARGINS finding about the fixture, not about the gate.

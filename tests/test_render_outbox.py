@@ -5,7 +5,6 @@ import math
 import re
 
 import pytest
-from click.testing import CliRunner
 from conftest import interact
 from playwright.sync_api import expect
 from render_support import (
@@ -23,6 +22,7 @@ from render_support import (
     _traffic,
     _until,
     actions,
+    author_test_widget,
     composer_quote,
     leaf_page,
     mark_shows_beside_composer,
@@ -833,10 +833,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     project's outer board must not capture cards owned by a nested shipped board merely
     because both record positions within lf-column."""
     monkeypatch.chdir(tmp_path)
-    made = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-outer-board", "--upgrade"]
-    )
-    assert made.exit_code == 0, made.output
+    author_test_widget(tmp_path, "lf-outer-board", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     outer = entries["lf-outer-board"]
@@ -869,8 +866,8 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
             },
         }
     }
-    bundled = json.loads((interact.BUNDLED / "registry.json").read_text())
-    entries["lf-column"] = bundled["lf-column"]
+    standard = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())
+    entries["lf-column"] = standard["lf-column"]
     entries["lf-column"]["x-parent"].append("lf-outer-board")
     registry_path.write_text(json.dumps(entries))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(

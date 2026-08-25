@@ -2091,7 +2091,9 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     """A customization may deliberately give a container member a content seat.
     The runtime's generated line is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
-    option = json.loads((interact.BUNDLED / "registry.json").read_text())["lf-option"]
+    option = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())[
+        "lf-option"
+    ]
     option["x-work"] = {"seat": "content"}
     layer = tmp_path / ".leaf"
     layer.mkdir()

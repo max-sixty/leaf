@@ -30,6 +30,8 @@ A page directory holds:
                          each x- key means), and the page's vocabulary stamp ($events,
                          x-state): the one statement of what this page's vendored
                          runtime speaks
+    authoring.md         package-owned guidance for using this page's vocabulary,
+                         concatenated in package order and printed by `page catalog`
     icon.svg             the mark the tab wears, whose lf-tone element the runtime
                          paints in whatever colour the banner's dot is wearing — so a
                          reader with six leaves open sees which one wants them
@@ -164,8 +166,8 @@ successor arriving before the session server's final recheck keeps that process;
 one arriving afterward finds the old process and lease already gone and revives
 the still-enabled service. Neither path changes the page's authored work status.
 A serve from a bare shell — a terminal, a launchd job — claims nothing, and that
-is the standing serve: a page kept up across sessions, for a command hub or a
-dashboard someone leaves open for weeks. `server start --standing` makes the
+is the standing serve: a long-lived dashboard someone leaves open for weeks.
+`server start --standing` makes the
 same statement from inside a host: the launch declines the claim, for a page
 meant to outlive the session that starts it. No daemon is involved, and a server
 that dies under a `leaf wait` watching an enabled page is revived with the
@@ -176,14 +178,11 @@ as it would any page. Its claim comes and goes without changing the standing
 service or the page's status.
 
 `page init` vendors the runtime, theme, registry, widgets, and vendor assets into the
-page directory, overlaying by precedence: leaf's integrated layer (the runtime,
-the theme's own rules, the suggestion family and the $ keys), then its bundled
-widgets (the content families, an overlay like any other so they reach a page
-through the same door a project's widgets do), then the user layer
-(~/.config/leaf/), then the project layer
-(./.leaf/). Theme stylesheets concatenate in that order, so a layer
+page directory. Leaf's kernel comes first, followed by the bundled default package,
+any explicitly selected packages, the user's package (~/.config/leaf/), and the
+project's package (./.leaf/). Theme stylesheets concatenate in that order, so a package
 can override one token or rule without copying the defaults. Registry entries
-merge by top-level name, with a later layer replacing one complete entry rather
+merge by top-level name, with a later package replacing one complete entry rather
 than deep-merging its schema; runtime, widget, and vendor files replace by path.
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
@@ -230,7 +229,14 @@ vocabulary for rides in the custom keywords below:
     x-conversation  when selects the page instances whose exact-section threads render
                 textually inside the widget as well as in the comments panel. The
                 module places the conversationBox; both views share one reply draft,
-                while interactive reply markup stays in the panel.
+                while interactive reply markup stays in the panel. An optional hold
+                label adds the stronger send route: its unresolved comment thread is
+                the hold, so resolving releases it and undoing resolution restores it
+                without a second state event to reconcile.
+    x-work      the local seat for a typed widget work claim: "content" admits a
+                generated line in block prose, while "conversation" places it at
+                the start of the matching x-conversation. An optional when narrows
+                the instances that have that seat. x-content alone grants nothing.
     x-says      attributes whose values are words the reader sees, mapped to the
                 edge they render at ("before" = first child, "after" = last).
                 The runtime renders them as real text there, because a user can
@@ -342,7 +348,9 @@ vocabulary for rides in the custom keywords below:
                 close it; `rollup` derives nested requests from ordinary
                 interventions and child roll-ups; `all` names the answer one
                 blanket press takes. The banner, navigation, help, and
-                conditional actions all read this projection (see $awaits).
+                conditional actions all read this projection. Recorded
+                attribute and scalar values read from the replayed page; other
+                answers read from their surviving fold entry (see $awaits).
     x-example   one authored example, printed by `page catalog`
 
 Event kinds: comment (optional anchor {section, quote, and the neighbouring
@@ -424,7 +432,7 @@ transcript both name the agent that did it.
 Commands:
     status, wait, ack, comment, reply, resolve, report, events, transcript
     page       init catalog media state
-    customize  theme widget
+    package    init check
     version    check publish export
     server     run stop
 
@@ -499,7 +507,6 @@ from typing import NamedTuple
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import click
-from jsonschema import Draft202012Validator
 from leaf_interact.document import (
     COLLAPSE_CHARS,  # noqa: F401 - public facade re-export
     COLUMN_FALLBACK,  # noqa: F401 - public facade re-export
@@ -588,6 +595,7 @@ from leaf_interact.projection import (
 )
 from leaf_interact.registry import (
     RegistryError,
+    json_validator,
     layer_generation,
     load_registry,
     merge_layer_entries,
@@ -621,23 +629,25 @@ from leaf_interact.schema import (
     _DIR_FILES,
     ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
-    ASSETS,
+    ASSETS,  # noqa: F401 - public facade re-export
     BINARY_TYPES,
-    BUNDLED,
     CONTENT_TYPES,
+    DEFAULT_PACKAGE,
     EXTENSION_SCHEMA,  # noqa: F401 - public facade re-export
+    KERNEL,
     KEY_COOKIE,
     LAYER_PLACEHOLDER,
     MEDIA_DIR,
     MEDIA_TYPES,
     NO_KEY,
     ORPHAN_GRACE_SECS,  # noqa: F401 - public facade re-export
+    PACKAGE_FILES,
+    PACKAGE_GUIDANCE,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SERVED_PATH,
     VENDORED_DIRS,
     VENDORED_FILES,
-    WIDGET_NAME,
 )
 from leaf_interact.service import (
     PageTransaction,
@@ -1210,6 +1220,21 @@ class Handler(BaseHTTPRequestHandler):
                         registry,
                     ):
                         return self.event_rejection(event, error)
+                if kind == "comment" and event.get("holds"):
+                    try:
+                        registry = load_registry(self.page_dir)
+                    except RegistryError as error:
+                        return self.event_rejection(event, str(error))
+                    if registry is None:
+                        return self.event_rejection(
+                            event, "the page has no registry.json"
+                        )
+                    if error := held_comment_error(
+                        event,
+                        parse_version(self.page_dir, event["version"]).by_id,
+                        registry,
+                    ):
+                        return self.event_rejection(event, error)
                 if "parent" in event and event["parent"] not in {
                     e["id"] for e in events if e["kind"] in {"comment", "reply"}
                 }:
@@ -1289,37 +1314,63 @@ def handler_for(
     )
 
 
-def layer_dirs() -> list:
-    """Widget-layer sources, lowest precedence first: leaf's integrated layer
-    (the runtime and the machine's own vocabulary), its bundled widgets (the
-    content families, shipped as an overlay so they reach a page through the door
-    any layer's widgets use), the user layer, the project layer (resolved against
-    the working directory). Each mirrors the assets layout:
-    theme.css/registry.json/leaf.js at the top, private runtime modules in
-    runtime/, widget modules in widgets/, and third-party files in vendor/. Theme files form one cascade, registry files
-    are additive by top-level entry, and every other file replaces by path."""
-    return [ASSETS, BUNDLED, config_home(), Path.cwd() / ".leaf"]
+def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
+    """Resolve recorded package paths without changing their order.
 
-
-def checked_layers(sources: list) -> list:
-    """Existing, structurally complete layer roots.
-
-    An overlay path of the wrong kind is authored input, not an absent
-    customization. Refuse it here once so every merger can assume the layer
-    shape the public guide describes.
+    Relative paths are project-relative, like the implicit `.leaf/` package. A `~`
+    path stays portable across the user's machines. Absolute paths are not recorded
+    because `$layer.packages` is part of the page's public vendored registry.
     """
-    layers = []
-    for layer in sources:
-        if not (layer.exists() or layer.is_symlink()):
+    packages = []
+    for value in selected:
+        package_path = Path(value)
+        if package_path.is_absolute():
+            sys.exit(
+                f"package {value!r} is absolute; use a project-relative or ~ path "
+                "so the vendored registry does not publish a machine path"
+            )
+        root = package_path.expanduser()
+        if not root.is_absolute():
+            root = Path.cwd() / root
+        if not (root.exists() or root.is_symlink()):
+            sys.exit(f"package {value!r} is not a directory")
+        packages.append(root)
+    return packages
+
+
+def package_roots(selected: tuple[str, ...] = ()) -> list[Path]:
+    """Packages in composition order, from the bundled default to the project."""
+    return [
+        DEFAULT_PACKAGE,
+        *resolve_packages(selected),
+        config_home(),
+        Path.cwd() / ".leaf",
+    ]
+
+
+def layer_inputs(selected: tuple[str, ...] = ()) -> list[Path]:
+    """The kernel followed by every package, in layer precedence order."""
+    return [KERNEL, *package_roots(selected)]
+
+
+def checked_inputs(inputs: list[Path]) -> list[Path]:
+    """Existing, structurally valid kernel and package roots.
+
+    A path of the wrong kind is authored input, not an absent package.
+    Refuse it here once so every merger can assume the public directory contract.
+    """
+    roots = []
+    for root in inputs:
+        if not (root.exists() or root.is_symlink()):
             continue
-        if not layer.is_dir():
-            sys.exit(f"{layer} must be a directory")
-        for name in VENDORED_FILES:
-            path = layer / name
+        if not root.is_dir():
+            sys.exit(f"{root} must be a directory")
+        for name in PACKAGE_FILES:
+            path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 sys.exit(f"{path} must be a file")
         for sub in VENDORED_DIRS:
-            directory = layer / sub
+            directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
                 continue
             if not directory.is_dir():
@@ -1327,22 +1378,22 @@ def checked_layers(sources: list) -> list:
             for path in directory.iterdir():
                 if not path.is_file():
                     sys.exit(f"{path} must be a file")
-        layers.append(layer)
-    return layers
+        roots.append(root)
+    return roots
 
 
-def layer_source_paths(layers: list) -> list:
-    """Every path a layer reads, including the targets of nested symlinks."""
+def input_paths(inputs: list[Path]) -> list[Path]:
+    """Every path a layer input reads, including nested symlink targets."""
     paths = []
-    for layer in layers:
-        paths.append(layer.resolve())
+    for root in inputs:
+        paths.append(root.resolve())
         paths.extend(
             path.resolve()
-            for name in VENDORED_FILES
-            if ((path := layer / name).exists() or path.is_symlink())
+            for name in PACKAGE_FILES
+            if ((path := root / name).exists() or path.is_symlink())
         )
         for sub in VENDORED_DIRS:
-            directory = layer / sub
+            directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
                 continue
             paths.append(directory.resolve())
@@ -1351,14 +1402,14 @@ def layer_source_paths(layers: list) -> list:
     return paths
 
 
-def overlapping_layer_sources(layers: list):
+def overlapping_inputs(inputs: list[Path]):
     """The first resolved path shared by two precedence scopes."""
-    sources = [(layer, located(layer_source_paths([layer]))) for layer in layers]
+    located_inputs = [(root, located(input_paths([root]))) for root in inputs]
     return next(
         (
-            (left_layer, left, right_layer, right)
-            for index, (left_layer, left_paths) in enumerate(sources)
-            for right_layer, right_paths in sources[index + 1 :]
+            (left_root, left, right_root, right)
+            for index, (left_root, left_paths) in enumerate(located_inputs)
+            for right_root, right_paths in located_inputs[index + 1 :]
             for left, left_at in left_paths
             for right, right_at in right_paths
             if locations_overlap(left_at, right_at)
@@ -1367,28 +1418,28 @@ def overlapping_layer_sources(layers: list):
     )
 
 
-def layered_dir_files(layers: list, sub: str) -> dict:
-    """The winning source for every file in one overlaid directory."""
-    sources = {}
-    for layer in layers:
-        source_dir = layer / sub
+def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
+    """The winning input for every file in one composed directory."""
+    winners = {}
+    for root in inputs:
+        source_dir = root / sub
         if not source_dir.is_dir():
             continue
-        for source in sorted(source_dir.iterdir()):
-            if source.is_file():
-                sources[source.name] = source
-    return sources
+        for path in sorted(source_dir.iterdir()):
+            if path.is_file():
+                winners[path.name] = path
+    return winners
 
 
-def layered_theme(layers: list) -> str:
-    """One stylesheet whose source order is the layer precedence."""
-    sources = [
-        layer / "theme.css" for layer in layers if (layer / "theme.css").is_file()
+def composed_theme(inputs: list[Path]) -> str:
+    """One stylesheet whose input order is the layer precedence."""
+    stylesheets = [
+        root / "theme.css" for root in inputs if (root / "theme.css").is_file()
     ]
-    if not sources:
+    if not stylesheets:
         sys.exit("the incoming layer has no theme.css")
     parts = []
-    for source in sources:
+    for source in stylesheets:
         try:
             css = source.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -1399,90 +1450,44 @@ def layered_theme(layers: list) -> str:
     return "".join(parts)
 
 
-def cmd_init(page_dir: Path) -> None:
-    # Before the directory exists there is no comments log for PageTransaction
-    # to lock. This one external lease covers that missing first instant through
-    # the complete vendoring, so two public inits cannot both observe freshness
-    # and the earlier one cannot later erase the page the other created.
-    path = init_lock_path(page_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with flocked(path), flocked(transition_lock(page_dir)):
-        _init_page(page_dir)
+def composed_authoring(inputs: list[Path]) -> str:
+    """Package-owned authoring guidance, in layer precedence order."""
+    parts = []
+    for root in inputs:
+        path = root / PACKAGE_GUIDANCE
+        if not path.is_file():
+            continue
+        try:
+            guidance = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            sys.exit(f"{path} must be UTF-8")
+        if guidance.strip():
+            parts.append(guidance.rstrip() + "\n")
+    return "\n".join(parts)
 
 
-def _init_page(page_dir: Path) -> None:
-    service = read_json(page_dir / "service.json")
-    server_live = lock_is_held(page_dir / "server.lock")
-    if server_live or (service and service["enabled"]):
+def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
+    """Structurally valid, non-overlapping inputs in composition order."""
+    roots = checked_inputs(inputs)
+    if overlap := overlapping_inputs(roots):
+        left_root, left, right_root, right = overlap
         sys.exit(
-            f"cannot re-vendor {page_dir} while its service is enabled. "
-            f"Run `leaf server stop {page_dir}` first."
+            f"layer inputs {left_root} and {right_root} overlap at {left} and "
+            f"{right}; package scopes must be separate"
         )
-    # Successful init creates the append-only log's stable inode. A directory
-    # the caller prepared is still a fresh page until that marker exists: it
-    # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
-    # validation leaves it untouched.
-    fresh = not (page_dir / "comments.jsonl").is_file()
-    sources = layer_dirs()
-    page_target = page_dir.resolve()
-    # Refuse a customization source before PageTransaction opens the page log:
-    # this directory is not a page, and a rejected init must not put page state
-    # inside the layer it was trying to protect.
-    if source := next(
-        (layer for layer in sources if path_is_within(page_target, layer)),
-        None,
-    ):
-        sys.exit(
-            f"{page_dir} is inside the widget-layer customization source "
-            f"{source}, not a page directory"
-        )
-    if fresh:
-        _vendor_page(page_dir, fresh=True, sources=sources, page_target=page_target)
-        return
-    # The init lease serializes this operation with other inits; an existing
-    # page also has its ordinary transaction, which gives the vocabulary check
-    # and contract commit one order against every browser append. No path takes
-    # the page transaction and then the init lease, so this order cannot invert.
-    with PageTransaction(page_dir):
-        _vendor_page(page_dir, fresh=False, sources=sources, page_target=page_target)
+    return roots
 
 
-def _vendor_page(
-    page_dir: Path, *, fresh: bool, sources: list, page_target: Path
-) -> None:
-    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
-    # where drift has to be caught: a tag or verb the new layer omits, or a
-    # detail schema that no longer accepts an old payload, makes a recorded
-    # action foreign on the first reload — the lost-decision bug reintroduced
-    # through vocabulary drift instead of version-scoping.
-    layers = checked_layers(sources)
-    if overlap := overlapping_layer_sources(layers):
-        left_layer, left, right_layer, right = overlap
-        sys.exit(
-            f"widget-layer sources {left_layer} and {right_layer} overlap "
-            f"at {left} and {right}; layer scopes must be separate"
-        )
-    destinations = [
-        *(page_target / name for name in VENDORED_FILES),
-        *(page_target / sub for sub in ("versions", *VENDORED_DIRS)),
-    ]
-    located_destinations = located(destinations)
-    if overlap := next(
-        (
-            (source, destination)
-            for source, source_at in located(layer_source_paths(layers))
-            for destination, destination_at in located_destinations
-            if locations_overlap(source_at, destination_at)
-        ),
-        None,
-    ):
-        source, destination = overlap
-        sys.exit(
-            f"widget-layer source {source} overlaps page destination "
-            f"{destination}; source and vendored page paths must be separate"
-        )
-    incoming = incoming_registry(layers)
-    directory_sources = {sub: layered_dir_files(layers, sub) for sub in VENDORED_DIRS}
+class LayerComposition(NamedTuple):
+    registry: dict
+    top_files: dict[str, bytes]
+    directory_files: dict[str, dict[str, bytes]]
+
+
+def compose_layer(roots: list[Path]) -> LayerComposition:
+    """Read and validate the complete layer produced by checked inputs."""
+    incoming = incoming_registry(roots)
+    directory_sources = {sub: composed_dir_files(roots, sub) for sub in VENDORED_DIRS}
     missing_modules = sorted(
         tag
         for tag, entry in incoming.items()
@@ -1496,6 +1501,146 @@ def _vendor_page(
             "are missing:\n"
             + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
         )
+
+    top_files = {
+        "theme.css": composed_theme(roots).encode(),
+        PACKAGE_GUIDANCE: composed_authoring(roots).encode(),
+    }
+    for name in VENDORED_FILES:
+        if name == "registry.json" or name in top_files:
+            continue
+        source = next(
+            (source / name for source in reversed(roots) if (source / name).is_file()),
+            None,
+        )
+        if source is None:
+            sys.exit(f"the incoming layer has no {name}")
+        top_files[name] = source.read_bytes()
+    if top_files["leaf.js"].count(LAYER_PLACEHOLDER) != 1:
+        sys.exit(
+            "the incoming leaf.js must contain exactly one layer-generation placeholder"
+        )
+    directory_files = {
+        sub: {
+            name: source.read_bytes() for name, source in directory_sources[sub].items()
+        }
+        for sub in VENDORED_DIRS
+    }
+    return LayerComposition(incoming, top_files, directory_files)
+
+
+def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
+    # Before the directory exists there is no comments log for PageTransaction
+    # to lock. This one external lease covers that missing first instant through
+    # the complete vendoring, so two public inits cannot both observe freshness
+    # and the earlier one cannot later erase the page the other created.
+    path = init_lock_path(page_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(path), flocked(transition_lock(page_dir)):
+        _init_page(page_dir, selected)
+
+
+def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
+    service = read_json(page_dir / "service.json")
+    server_live = lock_is_held(page_dir / "server.lock")
+    if server_live or (service and service["enabled"]):
+        sys.exit(
+            f"cannot re-vendor {page_dir} while its service is enabled. "
+            f"Run `leaf server stop {page_dir}` first."
+        )
+    # Successful init creates the append-only log's stable inode. A directory
+    # the caller prepared is still a fresh page until that marker exists: it
+    # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
+    # validation leaves it untouched.
+    fresh = not (page_dir / "comments.jsonl").is_file()
+    if selected is None and fresh:
+        selected = ()
+    elif selected is None:
+        recorded = (
+            (read_json(page_dir / "registry.json") or {})
+            .get("$layer", {})
+            .get("packages", [])
+        )
+        if (
+            not isinstance(recorded, list)
+            or not all(
+                isinstance(selection, str) and selection for selection in recorded
+            )
+            or len(set(recorded)) != len(recorded)
+        ):
+            sys.exit(
+                f"{page_dir / 'registry.json'}: $layer.packages must be a unique "
+                "list of non-empty package paths"
+            )
+        selected = tuple(recorded)
+    inputs = layer_inputs(selected)
+    page_target = page_dir.resolve()
+    # Refuse a package before PageTransaction opens the page log:
+    # this directory is not a page, and a rejected init must not put page state
+    # inside an input it was trying to protect.
+    if package := next(
+        (root for root in inputs if path_is_within(page_target, root)),
+        None,
+    ):
+        sys.exit(f"{page_dir} is inside package {package}, not a page directory")
+    if fresh:
+        _vendor_page(
+            page_dir,
+            fresh=True,
+            inputs=inputs,
+            page_target=page_target,
+            selected=selected,
+        )
+        return
+    # The init lease serializes this operation with other inits; an existing
+    # page also has its ordinary transaction, which gives the vocabulary check
+    # and contract commit one order against every browser append. No path takes
+    # the page transaction and then the init lease, so this order cannot invert.
+    with PageTransaction(page_dir):
+        _vendor_page(
+            page_dir,
+            fresh=False,
+            inputs=inputs,
+            page_target=page_target,
+            selected=selected,
+        )
+
+
+def _vendor_page(
+    page_dir: Path,
+    *,
+    fresh: bool,
+    inputs: list[Path],
+    page_target: Path,
+    selected: tuple[str, ...],
+) -> None:
+    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
+    # where drift has to be caught: a tag or verb the new layer omits, or a
+    # detail schema that no longer accepts an old payload, makes a recorded
+    # action foreign on the first reload — the lost-decision bug reintroduced
+    # through vocabulary drift instead of version-scoping.
+    roots = checked_layer_inputs(inputs)
+    destinations = [
+        *(page_target / name for name in PACKAGE_FILES),
+        *(page_target / sub for sub in ("versions", *VENDORED_DIRS)),
+    ]
+    located_destinations = located(destinations)
+    if overlap := next(
+        (
+            (package, destination)
+            for package, package_at in located(input_paths(roots))
+            for destination, destination_at in located_destinations
+            if locations_overlap(package_at, destination_at)
+        ),
+        None,
+    ):
+        package, destination = overlap
+        sys.exit(
+            f"package {package} overlaps page destination "
+            f"{destination}; package and page paths must be separate"
+        )
+    composition = compose_layer(roots)
+    incoming = composition.registry
     events = read_events(page_dir)
     gaps = vocabulary_gaps(page_dir, events, incoming)
     if gaps:
@@ -1528,40 +1673,21 @@ def _vendor_page(
             )
 
     # Resolve and read the complete incoming layer before the first page write.
-    # A bad late source must not leave the registry newer than the theme or its
+    # A bad late package must not leave the registry newer than the theme or its
     # modules.
-    top_files = {"theme.css": layered_theme(layers).encode()}
-    for name in VENDORED_FILES:
-        if name == "registry.json" or name in top_files:
-            continue
-        source = next(
-            (layer / name for layer in reversed(layers) if (layer / name).is_file()),
-            None,
-        )
-        if source is None:
-            sys.exit(f"the incoming layer has no {name}")
-        top_files[name] = source.read_bytes()
+    top_files = composition.top_files
     # `page init` is the contract transition, even when its input bytes happen to
     # match the last run. The browser carries this epoch on every write so an open
     # tab cannot post through a runtime whose server contract was re-vendored under it.
     generation = secrets.token_hex(16)
-    incoming["$layer"] = {"generation": generation}
+    incoming["$layer"] = {"generation": generation, "packages": list(selected)}
     runtime = top_files["leaf.js"]
-    if runtime.count(LAYER_PLACEHOLDER) != 1:
-        sys.exit(
-            "the incoming leaf.js must contain exactly one layer-generation placeholder"
-        )
     top_files["leaf.js"] = runtime.replace(
         LAYER_PLACEHOLDER, json.dumps(generation).encode()
     )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
-    directory_files = {
-        sub: {
-            name: source.read_bytes() for name, source in directory_sources[sub].items()
-        }
-        for sub in VENDORED_DIRS
-    }
+    directory_files = composition.directory_files
 
     # Resolve every destination conflict before touching the page. A directory
     # where one vendored file belongs must not leave the top-level layer newer
@@ -1638,49 +1764,34 @@ def _vendor_page(
     print(f"initialized {page_dir}")
 
 
-CUSTOM_THEME = """\
-/* Appended after Leaf's defaults by `page init`.
- * Override tokens for broad changes and selectors for specific elements. */
-:root {
-  /* --accent: #7c3aed; */
-}
-"""
-
-
-def customization_dir(user: bool) -> Path:
-    return config_home() if user else Path.cwd() / ".leaf"
-
-
-def custom_theme_content(layer: Path) -> tuple:
-    path = layer / "theme.css"
-    if path.exists() or path.is_symlink():
-        if not path.is_file():
-            sys.exit(f"{path} must be a file")
-        try:
-            return path, path.read_text(encoding="utf-8"), True
-        except UnicodeDecodeError:
-            sys.exit(f"{path} must be UTF-8")
-    return path, CUSTOM_THEME, False
-
-
-def customization_protected_paths(layer: Path) -> list:
-    """Resolved paths owned by every layer other than the selected write scope."""
+def protected_package_paths(package: Path) -> list:
+    """Resolved paths owned by the kernel and every other package."""
     paths = []
-    for source in layer_dirs():
-        if source == layer:
+    implicit = {config_home(), Path.cwd() / ".leaf"}
+    independent = package not in implicit
+    for other in layer_inputs():
+        if other == package:
             continue
-        paths.append(source.resolve())
-        if source.is_dir():
-            paths.extend(layer_source_paths([source]))
+        # A standalone package repository naturally contains the project's future
+        # `.leaf/` package. There is no second package until that directory exists; if
+        # it later does, page init's ordinary overlap gate refuses composing both.
+        # Keep protecting existing implicit packages and
+        # every future peer scope, but do not make an absent child reserve its parent.
+        if (
+            independent
+            and other in implicit
+            and not (other.exists() or other.is_symlink())
+            and path_is_within(other, package)
+        ):
+            continue
+        paths.append(other.resolve())
+        if other.is_dir():
+            paths.extend(input_paths([other]))
     return paths
 
 
-def refuse_customization_overlap(targets: list, protected: list) -> None:
-    """Refuse a customization this scaffold would write over another layer's own source.
-
-    Three callers ask, each about a different set of targets — the layer directory
-    itself, the theme file, every file a widget scaffold stages — and the refusal is one,
-    so it is stated here with the question rather than three times beside it."""
+def refuse_package_overlap(targets: list, protected: list) -> None:
+    """Refuse package paths that would write over another package."""
     located_protected = located(protected)
     overlap = next(
         (
@@ -1694,8 +1805,8 @@ def refuse_customization_overlap(targets: list, protected: list) -> None:
     if overlap:
         target, source = overlap
         sys.exit(
-            f"customization target {target} overlaps another layer source "
-            f"{source}; customization scopes must be separate"
+            f"package target {target} overlaps another package {source}; "
+            "package scopes must be separate"
         )
 
 
@@ -1724,7 +1835,7 @@ def initialized_page_owning(path: Path):
     return None
 
 
-def customization_page_overlap(paths: list):
+def package_page_overlap(paths: list):
     for path in paths:
         resolved = path.resolve()
         if page := initialized_page_owning(resolved):
@@ -1732,194 +1843,73 @@ def customization_page_overlap(paths: list):
     return None
 
 
-def validate_customization_dir(layer: Path) -> list:
-    if (layer.exists() or layer.is_symlink()) and not layer.is_dir():
-        sys.exit(f"{layer} must be a directory")
-    if layer.is_dir():
-        checked_layers([layer])
-    protected = customization_protected_paths(layer)
-    selected = layer_source_paths([layer]) if layer.is_dir() else [layer]
-    if overlap := customization_page_overlap(selected):
+def validate_package_dir(package: Path) -> list:
+    if (package.exists() or package.is_symlink()) and not package.is_dir():
+        sys.exit(f"{package} must be a directory")
+    if package.is_dir():
+        checked_inputs([package])
+    protected = protected_package_paths(package)
+    paths = input_paths([package]) if package.is_dir() else [package]
+    if overlap := package_page_overlap(paths):
         target, page = overlap
         sys.exit(
-            f"customization path {target} is owned by initialized page {page}; "
-            "customization sources must stay separate from page-owned paths, "
+            f"package path {target} is owned by initialized page {page}; "
+            "packages must stay separate from page-owned paths, "
             "then run `page init` to re-vendor the page"
         )
-    refuse_customization_overlap(selected, protected)
+    refuse_package_overlap(paths, protected)
     return protected
 
 
-def cmd_customize_theme(user: bool) -> Path:
-    layer = customization_dir(user)
-    protected = validate_customization_dir(layer)
-    path, css, exists = custom_theme_content(layer)
-    refuse_customization_overlap([path], protected)
-    if exists:
-        print(f"using {path}")
-        return path
-    layer.mkdir(parents=True, exist_ok=True)
-    replace_files([(path, css.encode(), True)])
-    print(f"created {path}")
-    return path
+def package_layer_inputs(package: Path) -> list[Path]:
+    """The composition context in which this package normally appears."""
+    inputs = layer_inputs()
+    for index, root in enumerate(inputs):
+        if paths_same(package, root):
+            return inputs[: index + 1]
+    return [KERNEL, DEFAULT_PACKAGE, package]
 
 
-def custom_widget_entry(tag: str, upgrade: bool) -> dict:
-    stem = tag.removeprefix("lf-")
-    entry = {
-        "description": f"A custom <{tag}> block.",
-        "type": "object",
-        "properties": {
-            "id": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]*$",
-            }
-        },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "prose",
-        "x-upgrade": upgrade,
-        "x-example": (
-            f'<{tag} id="{stem}-example"><strong>Example</strong> '
-            f"Replace this content.</{tag}>"
-        ),
+def check_package(package: Path, *, require_exists: bool) -> tuple[Path, list]:
+    """Validate one package through the same composition gate as a page."""
+    package = package.expanduser().resolve()
+    if require_exists and not package.is_dir():
+        sys.exit(f"{package} is not a package directory")
+    protected = validate_package_dir(package)
+    roots = checked_layer_inputs(package_layer_inputs(package))
+    compose_layer(roots)
+    return package, protected
+
+
+def cmd_package_init(package: Path) -> Path:
+    package, protected = check_package(package, require_exists=False)
+    refuse_package_overlap(
+        [package, *(package / name for name in (*PACKAGE_FILES, *VENDORED_DIRS))],
+        protected,
+    )
+
+    files = {
+        "registry.json": b"{}\n",
+        "theme.css": b"",
+        PACKAGE_GUIDANCE: b"",
     }
-    if upgrade:
-        entry["x-verbatim"] = True
-    return entry
-
-
-def custom_widget_css(tag: str) -> str:
-    return f"""\
-/* <{tag}> */
-{tag} {{
-  display: block;
-  margin: var(--sp-3) 0;
-  padding: var(--sp-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--r);
-  background: var(--card);
-  /* This box frames what it holds, so the room its outermost blocks reserve against
-     neighbours they haven't got stops here rather than being painted as padding. Say
-     it wherever a box draws an inset; theme.css states the trim once for every layer,
-     and `version check --render` reports a box that shows more than it declared. */
-  --lf-frame: 1;
-}}
-"""
-
-
-def custom_widget_module(tag: str) -> str:
-    return f"""\
-// A widget module takes the helper surface /leaf.js exports, and no more.
-// The contracts a module must honor (each is a norm in the shipped layer's
-// skills/leaf/CLAUDE.md, learned by getting it wrong):
-// - applyAction states an absolute placement, never a relative mutation —
-//   replay applies it on every later version, and the sender's own action
-//   must be a no-op. `version check --render` re-applies the standing state and
-//   reports a widget that moves under it.
-// - A slot that declares x-retired-when leaves the page when its holder settles,
-//   and the layer renders the whole settlement: replay paints data-lf-state on the
-//   holder and data-lf-retired on the retired slots, and one theme rule hides
-//   them. This module owes only its own choreography — a fold, a control saying
-//   what was decided (renderRetired paints the same state sooner on the sender's
-//   own gesture). `version check --render` reads the result, and reports a settled
-//   slot that shows words anyway, or a mark the log never decided.
-// - An x-state verb's `requires` is its one current-eligibility rule. Use
-//   actionAvailable(el, verb, detail) to paint and guard the exact gesture;
-//   sendAction and the server repeat that declaration at their own doors.
-// - Read your own slot with says(el), never textContent: the runtime's hidden
-//   comment line lands inside widgets legitimately.
-// - Anything you inject is chrome only if marked: offer() for a control,
-//   relabel() for a label that is the page speaking. Unmarked injected words
-//   read as the page's and break the file-side anchor reading.
-// - Records supplied at runtime go through projectData(): its stable string keys
-//   make the rendering readable but not authored, and keep comments on the same
-//   logical datum through refreshes. Never write its data-lf-* markers by hand.
-// - The registry entry declares x-verbatim because this stub leaves the body
-//   in place. Drop it the moment the module renders anything in the body's
-//   stead, or quotes anchor on words the screen no longer shows.
-// - Keys go through keys(el, title, rows) at upgrade, never at module load: one
-//   declaration is the dispatch, the key line and the "?" reference, so a row
-//   cannot say one key and answer another. Rows carry their own liveness (when),
-//   so a control whose keys change with its state declares every state once and
-//   calls paintKeys(); a row that presses must say a word for the line.
-// - Before wiring any input that would carry an edit back, consult quoted():
-//   an exhibited copy of this widget takes no input.
-import {{ once }} from "/leaf.js";
-
-customElements.define(
-  "{tag}",
-  class extends HTMLElement {{
-    connectedCallback() {{
-      if (!once(this)) return;
-    }}
-  }},
-);
-"""
-
-
-def cmd_customize_widget(tag: str, user: bool, upgrade: bool) -> None:
-    if re.fullmatch(WIDGET_NAME, tag) is None:
-        sys.exit("widget tag must start with `lf-` and use lowercase kebab-case")
-
-    layer = customization_dir(user)
-    protected = validate_customization_dir(layer)
-    registry_path = layer / "registry.json"
-    # Every layer up to and including the write scope: a collision is checked
-    # against what this scope's merge can see, and a project tag may shadow
-    # nothing while a user tag may not collide with the shipped layers.
-    all_layers = layer_dirs()
-    registry_layers = all_layers[: all_layers.index(layer) + 1]
-    checked_layers(registry_layers[:-1])
-    for source_layer in registry_layers:
-        source_path = source_layer / "registry.json"
-        source_entries = read_registry_entries(source_path) or {}
-        if tag in source_entries:
-            sys.exit(f"<{tag}> already exists in {source_path}")
-
-    widgets_dir = layer / "widgets"
-    if (widgets_dir.exists() or widgets_dir.is_symlink()) and not widgets_dir.is_dir():
-        sys.exit(f"{widgets_dir} must be a directory")
-    module_path = layer / "widgets" / f"{tag}.js"
-    if module_path.exists() or module_path.is_symlink():
-        sys.exit(f"{module_path} already exists")
-
-    entries = read_registry_entries(registry_path) or {}
-    entries[tag] = custom_widget_entry(tag, upgrade)
-    merged = {}
-    for source_layer in registry_layers:
-        source_entries = (
-            entries
-            if source_layer.resolve() == layer.resolve()
-            else read_registry_entries(source_layer / "registry.json") or {}
-        )
-        merge_layer_entries(merged, source_entries)
-    source = f"custom widget <{tag}>"
-    validate_registry_examples(validate_registry(merged, source), source)
-
-    theme_path, css, _ = custom_theme_content(layer)
-    if css and not css.endswith("\n"):
-        css += "\n"
-    css += "\n" + custom_widget_css(tag)
-    if errors := css_syntax_errors(css, str(theme_path)):
-        sys.exit(errors[0])
-
-    layer.mkdir(parents=True, exist_ok=True)
-    writes = [(theme_path, css.encode(), True)]
-    created = [registry_path, theme_path]
-    if upgrade:
-        writes.append((module_path, custom_widget_module(tag).encode(), False))
-        created.append(module_path)
-    # The registry is the declaration that makes the other files live, so it
-    # commits last after every target has been staged.
-    writes.append((registry_path, json_bytes(entries, indent=2), True))
-    refuse_customization_overlap([path for path, _, _ in writes], protected)
-    if upgrade:
-        widgets_dir.mkdir(parents=True, exist_ok=True)
+    writes = [
+        (package / name, contents, False)
+        for name, contents in files.items()
+        if not ((package / name).exists() or (package / name).is_symlink())
+    ]
+    package.mkdir(parents=True, exist_ok=True)
+    for name in VENDORED_DIRS:
+        (package / name).mkdir(exist_ok=True)
     replace_files(writes)
-    print("custom widget scaffold:")
-    for path in created:
-        print(f"  {path}")
+    print(f"initialized {package}")
+    return package
+
+
+def cmd_package_check(package: Path) -> Path:
+    package, _ = check_package(package, require_exists=True)
+    print(f"checked {package}")
+    return package
 
 
 def cmd_media(page_dir: Path, files: list) -> list:
@@ -2644,7 +2634,7 @@ def read_text_arg(text) -> str:
 def detail_error(schema: dict, detail: dict):
     """The first schema complaint about an event's detail payload, or None —
     ordered so which one speaks doesn't depend on validator iteration order."""
-    error = min(Draft202012Validator(schema).iter_errors(detail), key=str, default=None)
+    error = min(json_validator(schema).iter_errors(detail), key=str, default=None)
     return error.message if error else None
 
 
@@ -2714,6 +2704,29 @@ def declared_action_error(
     return None
 
 
+def held_comment_error(event: dict, page_by_id: dict, registry: dict):
+    """Why one comment cannot hold the exact command goal it names."""
+    target = event.get("holds")
+    if not target:
+        return None
+    rec = page_by_id.get(target)
+    conversation = (
+        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
+    )
+    if (
+        rec is None
+        or not conversation
+        or not conversation.get("hold")
+        or not asking(rec["attrs"], conversation.get("when"))
+        or event.get("anchor") != {"section": target}
+    ):
+        return (
+            "comment holds must name its exact-section anchor on a matching "
+            "x-conversation hold target"
+        )
+    return None
+
+
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
     """Why a fresh action violates its declaration or current applicability.
 
@@ -2765,11 +2778,6 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         settled = {root for root, value in threads.items() if value["resolved"]}
         _, awaiting_values = thread_ask_projection(events, registry, settled)
 
-    if requirement.get("change") == "increase":
-        current_value = replayed_attrs(current, projection)[spec["record"]["attr"]]
-        proposed = event["detail"][spec["record"]["value"]]
-        if int(proposed) <= int(current_value):
-            return None
     holders = projected_action_holders(projection, byid, registry)
     target = (
         current
@@ -3058,13 +3066,21 @@ def cmd_publish(
     # the decorator and this page transaction. A report therefore lands either
     # before the note and may be answered by it, or after it on the new version.
     with PageTransaction(page_dir) as page:
-        if cmd_check(page_dir, version, transition_held=True) != 0:
+        events = page.events
+        if (
+            cmd_check(
+                page_dir,
+                version,
+                transition_held=True,
+                events_override=events,
+            )
+            != 0
+        ):
             sys.exit(
                 f"refusing to publish {name}: leaf version check failed (issues above)"
             )
         html = path.read_text(encoding="utf-8")
         registry = load_registry(page_dir)
-        events = page.events
         projection, parser, spk = page_projection(html, events, registry, version)
         retracts = sorted(parser.restated)
         byid = parser.by_id
@@ -3274,12 +3290,10 @@ CATALOG_PREAMBLE = """\
 """
 
 
-# The layer-wide facts printed after the widget entries, each with the sentence saying
-# what an author reads it for. Curated facts keep their useful names and order; a
-# layer-defined fact follows them under its own key, so extending the vocabulary does
-# not require teaching the catalog another name. $events is absent because it is the
-# vocabulary stamp — what this page's runtime speaks, for `page init` to hold a
-# re-vendor against — and nothing an author writes markup from.
+# Familiar layer-wide facts get a sentence saying what an author reads them for.
+# Package-defined `$` facts print afterward under their own names, so extending the
+# vocabulary needs no catalog branch. `$events` and `$layer` stay absent: they are the
+# runtime contract and vendoring record, not declarations an author writes markup from.
 CATALOG_FACTS = (
     ("$keys", "The x- keys an entry may declare, and what each one means."),
     (
@@ -3299,6 +3313,7 @@ CATALOG_FACTS = (
         "Theme idioms — shapes the theme styles directly; no registry entry, no JS.",
     ),
 )
+CATALOG_INTERNAL_FACTS = {"$events", "$layer"}
 
 
 def cmd_catalog(page_dir: Path) -> None:
@@ -3311,15 +3326,20 @@ def cmd_catalog(page_dir: Path) -> None:
             ensure_ascii=False,
         )
     )
+    printed = set()
     for key, heading in CATALOG_FACTS:
         if fact := reg.get(key):
             print(f"\n# {heading}\n")
             print(json.dumps(fact, indent=2, ensure_ascii=False))
-    known = {key for key, _ in CATALOG_FACTS} | {"$events"}
-    for key, fact in reg.items():
-        if key.startswith("$") and key not in known and fact:
+            printed.add(key)
+    for key in sorted(set(reg) - printed - CATALOG_INTERNAL_FACTS):
+        if key.startswith("$"):
             print(f"\n# {key}, declared by this layer.\n")
-            print(json.dumps(fact, indent=2, ensure_ascii=False))
+            print(json.dumps(reg[key], indent=2, ensure_ascii=False))
+    guidance = page_dir / PACKAGE_GUIDANCE
+    if guidance.is_file() and (text := guidance.read_text(encoding="utf-8").strip()):
+        print("\n# Package authoring guidance\n")
+        print(text)
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -3328,7 +3348,8 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     `version` is the version the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
     frozen in the log, so no version bounds one of these and none can ever record
-    it, which is why `lag` says nothing about them."""
+    it, which is why `lag` says nothing about them.
+    """
     widget, unit, facet = coordinate
     return {
         "widget": widget,
@@ -3707,15 +3728,15 @@ def validate_registry_examples(registry: dict, source) -> dict:
     return registry
 
 
-def incoming_registry(layers: list) -> dict:
+def incoming_registry(packages: list) -> dict:
     """The merged registry `page init` will vendor.
 
-    Layers are additive at the top level; merge_layer_entries holds the grain.
+    Packages are additive at the top level; merge_layer_entries holds the grain.
     """
     merged = {}
     paths = []
-    for layer in layers:
-        path = layer / "registry.json"
+    for package in packages:
+        path = package / "registry.json"
         if not path.is_file():
             continue
         paths.append(path)
@@ -3741,9 +3762,9 @@ def incoming_registry(layers: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    events its $events record schemas reject, or actions and reports whose
-    sending tag, verb, or detail the incoming x-state or x-report contract
-    rejects. Empty for a fresh page.
+    events its $events record schemas reject; held comments whose conversation
+    contract changed; or actions and reports whose sending tag, verb, or detail
+    the incoming x-state or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
@@ -3764,6 +3785,12 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"kind `{kind}`"
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
+        elif (
+            kind == "comment"
+            and e.get("holds")
+            and (error := held_comment_error(e, page_by_id(e["version"]), incoming))
+        ):
+            key = f"comment contract: {error}"
         elif kind == "action" and (
             error := declared_action_error(
                 e, page_by_id(e["version"]), thread.by_id, incoming
@@ -3826,7 +3853,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
-        for err in sorted(Draft202012Validator(entry).iter_errors(instance), key=str):
+        for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(f"{where}: {err.message}")
 
         want_parents = entry.get("x-parent", [])
@@ -3913,6 +3940,26 @@ def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
         for attr in registry.get(rec["tag"], {}).get("x-refers", [])
         if (target := rec["attrs"].get(attr)) and target not in ids
     ]
+
+
+def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
+    """Conditional asks and conversation seats need an id when they are live.
+
+    Requiring every instance globally would outlaw inert option groups; checking the
+    declared predicate here gives the runtime exactly the addressability it consumes.
+    """
+    errors = []
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"], {})
+        for role in ("x-awaits", "x-conversation"):
+            declaration = entry.get(role)
+            if (
+                declaration is not None
+                and asking(rec["attrs"], declaration.get("when"))
+                and not rec["attrs"].get("id")
+            ):
+                errors.append(f"{at(rec)}: a matching {role} instance requires an id")
+    return errors
 
 
 def language_class_errors(blocks: list, registry: dict) -> list:
@@ -4435,6 +4482,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
+        + addressable_instance_errors(parser.lf_elements, registry)
         + ask_region_errors(parser.lf_elements, registry)
         + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
@@ -4447,10 +4495,17 @@ def cmd_check(
     version,
     render: bool = False,
     transition_held: bool = False,
+    events_override: list | None = None,
 ) -> int:
     if not transition_held:
         with flocked(transition_lock(page_dir)):
-            return cmd_check(page_dir, version, render, transition_held=True)
+            return cmd_check(
+                page_dir,
+                version,
+                render,
+                transition_held=True,
+                events_override=events_override,
+            )
     versions = list_versions(page_dir)
     if not versions:
         sys.exit(
@@ -4531,10 +4586,11 @@ def cmd_check(
 
     errors.extend(id_errors(parser))
 
-    events = read_events(page_dir)
+    events = read_events(page_dir) if events_override is None else events_override
     registry = load_registry(page_dir)
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
+        errors.extend(addressable_instance_errors(parser.lf_elements, registry))
         errors.extend(ask_region_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
         errors.extend(language_class_errors(parser.language_blocks, registry))
@@ -5487,39 +5543,62 @@ def page() -> None:
 
 @page.command(short_help="Create or re-vendor a page directory.")
 @click.argument("dir", metavar="PAGE")
-def init(dir: str) -> None:
+@click.option(
+    "--package",
+    "selected",
+    multiple=True,
+    metavar="PACKAGE",
+    help="include a project-relative or ~ package path; repeat for more",
+)
+@click.option(
+    "--no-packages",
+    is_flag=True,
+    help="remove all explicit packages from an existing page",
+)
+def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     """Create or re-vendor a page directory.
 
     Creates PAGE/versions/ for authored vN.html files and vendors the widget
-    layer. Re-running replaces that layer, unless the page log uses vocabulary
-    the incoming layer cannot read.
+    layer. Re-running preserves the page's explicit packages unless --package or
+    --no-packages replaces them, and refuses vocabulary the page log can no longer
+    read. A package may contain any subset of the package layout, including zero,
+    one, or many widgets.
     """
-    cmd_init(resolve_dir(dir, must_exist=False))
+    if selected and no_packages:
+        raise click.UsageError("--package and --no-packages cannot be used together")
+    if any(not selection for selection in selected):
+        raise click.UsageError("--package paths cannot be empty")
+    if len(set(selected)) != len(selected):
+        raise click.UsageError("each --package path may appear only once")
+    selections = () if no_packages else selected or None
+    cmd_init(resolve_dir(dir, must_exist=False), selections)
 
 
-@cli.group(short_help="Create theme and widget customizations.")
-def customize() -> None:
-    """Create theme and widget customizations."""
+@cli.group(short_help="Create and check packages.")
+def package() -> None:
+    """Create and check packages."""
 
 
-@customize.command("theme", short_help="Create the theme override file.")
-@click.option(
-    "--user", is_flag=True, help="Use the user layer instead of this project."
+@package.command("init", short_help="Create a package directory.")
+@click.argument(
+    "package_path",
+    type=click.Path(path_type=Path, file_okay=False),
+    metavar="PACKAGE",
 )
-def customize_theme(user: bool) -> None:
-    """Create the CSS override file without replacing one that exists."""
-    cmd_customize_theme(user)
+def package_init(package_path: Path) -> None:
+    """Create the canonical package layout without replacing existing files."""
+    cmd_package_init(package_path)
 
 
-@customize.command("widget", short_help="Add a widget scaffold.")
-@click.argument("tag")
-@click.option(
-    "--user", is_flag=True, help="Use the user layer instead of this project."
+@package.command("check", short_help="Check a package as one unit.")
+@click.argument(
+    "package_path",
+    type=click.Path(path_type=Path, file_okay=False),
+    metavar="PACKAGE",
 )
-@click.option("--upgrade", is_flag=True, help="Also create an ES-module upgrade.")
-def customize_widget(tag: str, user: bool, upgrade: bool) -> None:
-    """Add a registry entry and CSS scaffold for a lf-* widget."""
-    cmd_customize_widget(tag, user, upgrade)
+def package_check(package_path: Path) -> None:
+    """Check the package as one composed unit."""
+    cmd_package_check(package_path)
 
 
 @page.command(short_help="Add images and print their page paths.")

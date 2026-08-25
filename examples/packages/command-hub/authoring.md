@@ -1,8 +1,26 @@
-# Worker orchestration
+# Command Hub package
 
-Read this only when other sessions report into an orchestrator-owned page, or
-when a worker receives a Leaf assignment. Leaf reports page state; it does not
-create workers, branches, or worktrees.
+This package supplies the Command Hub's goal, worker, worktree, and record
+widgets. Select it by path:
+
+```bash
+leaf page init --package examples/packages/command-hub <page>
+```
+
+A command hub has one authored goal tree. Put the outcome in `lf-command`, then
+place each disposable worker once at the narrowest level matching its durable
+remit: directly under the command for project-wide coordination, under an
+intermediate goal for an area, or under a leaf for a specialist. The optional
+`on` attribute is only its current focus. Keep its worktree and diff with the
+worker as evidence. The package derives the header, stopped-work reading,
+live-worker view, and action record from the tree and log. Put each decision or
+input beside the goal it blocks. A project-specific goal or worker widget can
+join the projection through `$command.widgets`. Do not author a role enum,
+second roster, asks list, or progress count.
+
+Leaf reports page state; it does not create workers, branches, or worktrees. The
+rest of this guide applies when other sessions report into an orchestrator-owned
+page or a worker receives a Leaf assignment.
 
 ## Orchestrator assignment
 
@@ -25,10 +43,17 @@ When a worker becomes unreachable, a host-selected successor starts with
 nonterminal rows as `idle` without `on`, then assigns the remaining work to a
 fresh task and retains that new handle locally.
 
-A page normally carries an `lf-roster` beside its work. Each worker owns its row;
-the row's `state` and `doing` say who holds the work and what they are doing.
-Elapsed time is calculated from reports, so never author “just now,” “12 min
-ago,” or a wall-clock report time in markup.
+A regular multi-worker page normally carries an `lf-roster` beside its work. Each
+worker owns its row; the row's `state` and `doing` say who holds the work and what
+they are doing. A command surface is different: place each worker once at the
+narrowest node matching its durable remit. A direct command child coordinates
+project-wide; a goal child owns that subtree at any depth. `on` may name a current
+focus inside the remit, or be absent when no one leaf is in front of the worker.
+Derive live workers, asks, and progress from that one tree. Do not also author a
+roster or a second summary of the same work. Project-specific worker and goal
+widgets can join the orchestration projection through `$command.widgets`; Leaf's
+kernel stays unaware of their names. Elapsed time is calculated from reports, so never
+author “just now,” “12 min ago,” or a wall-clock report time in markup.
 
 ## Worker reports
 

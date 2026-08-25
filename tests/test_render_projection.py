@@ -4,6 +4,7 @@ import json
 import re
 import threading
 import time
+from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
@@ -14,6 +15,8 @@ from render_support import (
     ASKS_PAGE,
     BOTH_STAMPS,
     BOXLESS_SECTION_PAGE,
+    COMMAND_HUB_PACKAGE,
+    COMMAND_HUB_PAGE,
     IMPORTER_CARD,
     KEPT_SECTION_PAGE,
     LIVE_V1,
@@ -44,6 +47,7 @@ from render_support import (
     WRAP_TOP,
     _until,
     actions,
+    author_test_widget,
     backdate_note,
     compare_with,
     composer_quote,
@@ -506,9 +510,9 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     }
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
-    quote = lambda section: page.locator(
-        f'.lf-thread[data-id="{thread[section]}"] .lf-quote'
-    )
+
+    def quote(section):
+        return page.locator(f'.lf-thread[data-id="{thread[section]}"] .lf-quote')
 
     # Centred: the destination the travel computed, which a glide toward it passes
     # through no earlier position that could be mistaken for.
@@ -1234,7 +1238,13 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()
         .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    registry = interact.incoming_registry(
+        [
+            interact.ASSETS,
+            interact.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
     declared = {
         (tag, verb)
         for tag, entry in registry.items()
@@ -1264,10 +1274,7 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
     on the same unit and facet; both log records are ready once that one coordinate is
     committed."""
     monkeypatch.chdir(tmp_path)
-    made = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-tally", "--upgrade"]
-    )
-    assert made.exit_code == 0, made.output
+    author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-tally"]["properties"]["count"] = {
@@ -1358,17 +1365,12 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     placement of part `piece` and that element's own `placement` facet therefore
     coexist even though unit and facet text are identical; both owners reconcile."""
     monkeypatch.chdir(tmp_path)
-    runner = CliRunner()
     for tag, upgrade in (
         ("lf-owner", True),
         ("lf-zone", False),
         ("lf-piece", True),
     ):
-        made = runner.invoke(
-            interact.cli,
-            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
-        )
-        assert made.exit_code == 0, made.output
+        author_test_widget(tmp_path, tag, upgrade=upgrade)
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
@@ -1493,7 +1495,7 @@ customElements.define("lf-piece", class extends HTMLElement {
 def test_the_render_gate_catches_a_relative_apply_action(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-back for the contract the widget scaffold's own comment names first, and for
+    """Bug-back for the module contract's first state rule, and for
     both readings the gate takes of it. One project widget steps its count from the
     count it reads and appends its caption to the caption it reads: right once, and
     wrong every time after, because the page has already replayed the actions and the
@@ -1505,10 +1507,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
     is text, which that signature excludes on purpose, so only the facet's declared
     record form reaches it — a limb of the gate that would otherwise never have fired."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-tally", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entries["lf-tally"]["properties"]["count"] = {
@@ -1949,12 +1948,12 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
-    obligation: the trial's module is the bare scaffold — it defines the element and
+    obligation: the trial's module only defines the element and
     supplies no applyAction at all — and once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
     page's reading has dropped. The mark and the hide used to be each holder
-    module's own duty, stated in the scaffold comment and the key table and enforced
+    module's own duty, stated in the module contract and the key table and enforced
     nowhere, and the first family that forgot would have split the page's reading
     from the file's in silence. The second half drives it all back out: the fold
     keeps the last surviving action per facet and unit, so a widget-unit verb on
@@ -2871,5 +2870,756 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     expect(page.locator(".lf-asks")).to_be_hidden()
     expect(page.locator(".lf-details #tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+
+def test_agent_places_its_live_line_before_command_evidence(browser, serve):
+    command = leaf_page(
+        "worker evidence",
+        """
+<lf-roster id="team">
+  <lf-agent id="worker" state="working"><strong>worker</strong> Owns the remit.
+    <lf-worktree id="proof" branch="custom/head" base="abc1234" head="def5678"
+      ahead="1" behind="0" additions="4" deletions="1" commits="1" tests="passing">
+      <pre>Custom evidence.</pre>
+    </lf-worktree>
+  </lf-agent>
+</lf-roster>
+""",
+    )
+    page, errors = open_page(browser, serve(command))
+
+    assert page.locator("#worker").evaluate(
+        """worker => [...worker.children].map(child => child.classList.contains('lf-agent-line')
+          ? 'line' : child.id).filter(Boolean)"""
+    ) == ["line", "proof"]
+    assert errors == []
+    page.close()
+
+
+def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, serve):
+    """A normal note does not consume the goal's stronger pause door. The reader
+    can start a later held thread, whose root remains the one atomic hold fact."""
+    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    d = serve.page_dir
+    goal = page.locator("#goal-parser")
+    conversation = goal.locator(":scope > .lf-conversation")
+    first = conversation.locator(":scope > .lf-say")
+    first.get_by_role("textbox").fill("Keep parsing; this is only a note.")
+    first.get_by_role("button", name="Send", exact=True).click()
+    round_trip(page)
+
+    expect(first).to_be_visible()
+    first.get_by_role("textbox").fill("Finish the hunk, then park.")
+    first.get_by_role("button", name="Send & pause", exact=True).click()
+    round_trip(page)
+
+    expect(goal).to_have_attribute("data-lf-held")
+    roots = [event for event in interact.read_events(d) if event["kind"] == "comment"]
+    assert [(event["text"], event.get("holds")) for event in roots] == [
+        ("Keep parsing; this is only a note.", None),
+        ("Finish the hunk, then park.", "goal-parser"),
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_command_goal_conversation_follows_its_declaration_not_talk(browser, serve):
+    command = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <link rel="stylesheet" href="/theme.css"><script type="module" src="/leaf.js"></script>
+    </head><body><main><lf-command id="hub">
+      <lf-task id="goal" status="active" consult><strong>Custom goal</strong></lf-task>
+    </lf-command></main></body></html>"""
+    url = serve(command)
+    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry["lf-task"]["properties"]["consult"] = {"type": "boolean"}
+    registry["lf-task"]["x-conversation"] = {
+        "when": {"consult": [True]},
+        "hold": "pause",
+    }
+    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    page, errors = open_page(browser, url)
+    conversation = page.locator("#goal > .lf-conversation")
+    expect(
+        conversation.get_by_role("textbox", name="Say something here")
+    ).to_be_visible()
+    expect(conversation.get_by_role("button", name="pause", exact=True)).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
+    """An input action discharges the request live; the honoring version removes its
+    authored `needed` condition, so clearing record debt cannot turn the input back into
+    an ask."""
+    url = serve(COMMAND_HUB_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    draft = page.locator("#ledger-cargo")
+    draft.get_by_role("button", name="Edit ledger-cargo").click()
+    provided = "ledger_id,amount\n7,42"
+    draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
+    draft.get_by_role("button", name="Save").click()
+    round_trip(page)
+    expect(page.get_by_role("button", name="Asks (4)")).to_be_visible()
+
+    honoring = re.sub(
+        r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
+        f'<lf-draft id="ledger-cargo"><pre>\n{provided}\n</pre></lf-draft>',
+        COMMAND_HUB_PAGE,
+        flags=re.DOTALL,
+    )
+    (d / "versions" / "v2.html").write_text(honoring)
+    published = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "2", "--text", "input absorbed"],
+    )
+    assert published.exit_code == 0, published.output
+    page.wait_for_url("**/versions/v2.html")
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.get_by_role("button", name="Asks (4)")).to_be_visible()
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-pending")
+    expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
+        "privileged input"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_an_absorbed_intervention_does_not_stop_again(browser, serve):
+    """Pending paint is record debt, not whether an intervention is answered. Once a
+    version carries the standing choice, the goal stays dispositioned even though its
+    provisional mark correctly leaves."""
+    url = serve(COMMAND_HUB_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    page.locator("#dedupe-snooze").get_by_role(
+        "button", name=re.compile("choose one: Park it for tomorrow")
+    ).click()
+    round_trip(page)
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
+
+    (d / "versions" / "v2.html").write_text(
+        COMMAND_HUB_PAGE.replace(
+            '<lf-option id="dedupe-snooze" for="parser-dedupe">',
+            '<lf-option id="dedupe-snooze" for="parser-dedupe" chosen>',
+        )
+    )
+    published = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "2", "--text", "recorded snooze"],
+    )
+    assert published.exit_code == 0, published.output
+    expect(page).to_have_url(re.compile(r"/versions/v2\.html$"))
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
+    expect(page.locator("#hub-plan > .lf-stopped-view")).not_to_contain_text(
+        "Deduplicate the corpus snapshot"
+    )
+    expect(page.locator("#dedupe-snooze")).not_to_have_attribute("data-lf-pending")
+    expect(page.locator("#parser-dedupe > .lf-task-meta")).not_to_contain_text(
+        "decision"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):
+    """G's primary contract: one plan supplies progress, stopped work, live
+    workers, and worktree evidence. A worker report moves that reading rather than
+    updating a second dashboard copy."""
+    url = serve(COMMAND_HUB_PAGE)
+    d = serve.page_dir
+    stale_report(d, "w-2", "stalled without a new commit", 3)
+    page, errors = open_page(browser, url)
+    head = page.locator("#hub-plan > .lf-command-head")
+    expect(head).to_contain_text("7/18 leaves")
+    expect(head).to_contain_text("4 running")
+    expect(head).to_contain_text("5 workers")
+    expect(head).to_contain_text("1 quiet")
+    expect(head).to_contain_text("5 stopped")
+    expect(page.get_by_role("button", name="Asks (5)")).to_be_visible()
+    expect(page.locator("#hub-plan > .lf-fleet-view")).to_contain_text(
+        "Fleet · 5 live workers"
+    )
+    expect(page.locator("#hub-plan > .lf-fleet-view li")).to_have_count(5)
+    expect(page.locator("#hub-plan > .lf-fleet-view")).not_to_contain_text("w-5")
+    expect(page.locator("#hub-plan > .lf-command-head a")).to_have_count(4)
+    expect(
+        page.locator(
+            "#hub-plan > .lf-command-head a:not([data-lf-offer][data-lf-said])"
+        )
+    ).to_have_count(0)
+    expect(
+        page.locator(
+            "#hub-plan > :is(.lf-stopped-view, .lf-fleet-view) > "
+            "summary:not([data-lf-offer][data-lf-said])"
+        )
+    ).to_have_count(0)
+
+    coordinator = page.locator("#atlas-lead")
+    expect(coordinator).to_be_visible()
+    head.get_by_role("link", name="4 running").click()
+    expect(coordinator).to_be_visible()
+    workers = page.locator("#goal-parser > lf-agent")
+    expect(workers.first).to_be_hidden()
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    expect(workers).to_have_count(1)
+    expect(page.locator("#w-5")).to_have_attribute("state", "reaped")
+    expect(workers.first).to_be_visible()
+    worktree = page.locator("#tree-w-1")
+    expect(worktree.locator("#diff-w-1")).to_be_hidden()
+    worktree_head = worktree.locator(":scope > .lf-worktree-head")
+    worktree_head.click()
+    expect(worktree.locator("#diff-w-1")).to_be_visible()
+    worktree_head.focus()
+    page.keyboard.press("Enter")
+    expect(worktree.locator("#diff-w-1")).to_be_hidden()
+    expect(worktree_head).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(worktree.locator("#diff-w-1")).to_be_visible()
+    expect(worktree_head).to_be_focused()
+
+    sent = CliRunner().invoke(
+        interact.cli, ["report", str(d), "api-errors", "status", "status=done"]
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    expect(head).to_contain_text("8/18 leaves")
+    expect(page.locator("#goal-api > .lf-task-meta")).to_contain_text("1/3")
+
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    expect(workers.first).to_be_hidden()
+    page.emulate_media(media="print")
+    expect(workers.first).to_be_visible()
+    expect(worktree.locator("#diff-w-1")).to_be_visible()
+    expect(worktree_head).to_contain_text("atlas/xml-declarations")
+    page.emulate_media(media="screen")
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_disposition_refolds_stopped_work(browser, serve):
+    """The stopped reading is derived, not a second list to maintain. Recording a stall
+    disposition removes that goal from the oldest-first reading; undo restores the
+    same goal, order, and blast-radius evidence from the standing log."""
+    url = serve(COMMAND_HUB_PAGE)
+    page, errors = open_page(browser, url)
+    stopped = page.locator("#hub-plan > .lf-stopped-view")
+    stopped.locator("summary").click()
+    page.evaluate("""() => {
+      for (const goal of document.querySelectorAll('[stopped-at]'))
+        goal.setAttribute('stopped-at', '2030-01-01T00:00:00Z');
+      document.getElementById('schema-choice')
+        .setAttribute('stopped-at', '2026-08-21T08:00:00+02:00');
+      document.getElementById('api-shape')
+        .setAttribute('stopped-at', '2026-08-21T07:00:00-07:00');
+    }""")
+    expect(stopped.locator("li").first).to_contain_text("Choose the additive schema")
+    expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
+
+    page.locator("#dedupe-snooze").get_by_role(
+        "button", name=re.compile("choose one: Park it for tomorrow")
+    ).click()
+    round_trip(page)
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
+    expect(stopped).not_to_contain_text("Deduplicate the corpus snapshot")
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "Selected: Park it for tomorrow"
+    )
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("5 stopped")
+    expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_goal_metadata_wraps_on_a_phone(browser, serve):
+    long_when = "handoff-" + "unbroken" * 40
+    markup = COMMAND_HUB_PAGE.replace('when="week 3"', f'when="{long_when}"', 1)
+    page, errors = open_page(browser, serve(markup))
+    resized(page, 390, 900)
+
+    expect(page.locator("#goal-parser > .lf-task-meta")).to_contain_text(long_when)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve):
+    """The replica cargo is visible in the real editor before Save. Trimming it
+    changes the one payload that enters the log, leaves a receipt naming the input,
+    and releases that input row without claiming the dependent work completed."""
+    url = serve(COMMAND_HUB_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    draft = page.locator("#ledger-cargo")
+    draft.get_by_role("button", name="Edit ledger-cargo").click()
+    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    editor.fill(
+        "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42"
+    )
+    assert not [
+        event
+        for event in interact.read_events(d)
+        if event.get("widget") == "ledger-cargo"
+    ]
+    editor.fill(
+        "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
+    )
+    draft.get_by_role("button", name="Save").click()
+    round_trip(page)
+
+    edit = next(
+        event
+        for event in reversed(interact.read_events(d))
+        if event.get("widget") == "ledger-cargo"
+    )
+    assert "Alice" not in edit["detail"]["text"]
+    assert "a@example.test" not in edit["detail"]["text"]
+    assert edit["detail"]["text"].count("[redacted]") == 2
+    expect(page.locator("#atlas-record")).to_contain_text("ledger-cargo")
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
+    expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_keeps_a_real_goal_ask_outside_a_quoted_decision(browser, serve):
+    """An exhibited choice is inert evidence. It cannot answer the blocked goal
+    containing it, nor suppress that goal merely because it declares x-awaits."""
+    command = """<lf-command id="hub-plan" label="Quoted ask">
+      <lf-task id="goal" status="blocked" stopped-at="2026-08-21T08:00:00Z">
+        <strong>Blocked goal</strong>
+        <lf-specimen id="sample"><lf-options id="example" choose>
+          <lf-option id="example-a"><strong>Example only</strong></lf-option>
+        </lf-options></lf-specimen>
+      </lf-task>
+    </lf-command>"""
+    html = re.sub(
+        r"<lf-command\b.*?</lf-command>",
+        command,
+        COMMAND_HUB_PAGE,
+        count=1,
+        flags=re.DOTALL,
+    )
+    page, errors = open_page(browser, serve(html))
+    expect(page.get_by_role("button", name="Asks (1)")).to_be_visible()
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
+    expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
+    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    d = serve.page_dir
+    fleet = page.locator("#hub-plan > .lf-fleet-view")
+    fleet.locator(":scope > summary").click()
+    worker = fleet.get_by_role("link", name="w-1", exact=True)
+    worker.focus()
+    sent = CliRunner().invoke(
+        interact.cli,
+        [
+            "report",
+            str(d),
+            "w-2",
+            "state",
+            "state=waiting",
+            "doing=parked for review",
+        ],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    expect(worker).to_be_focused()
+
+    summary = fleet.locator(":scope > summary")
+    summary.focus()
+    sent = CliRunner().invoke(
+        interact.cli,
+        [
+            "report",
+            str(d),
+            "w-2",
+            "state",
+            "state=blocked",
+            "doing=waiting on evidence",
+        ],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    expect(summary).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_repaints_anchors_after_generated_projections_change(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    d = serve.page_dir
+    # The worktree head is a generated passage. Its disclosure arrow and the Command
+    # projection can change without invalidating the branch fact the comment named.
+    expect(page.locator("#goal-parser > .lf-task-meta .lf-task-crew")).to_be_visible()
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    head = page.locator("#tree-w-1 > .lf-worktree-head")
+    head.evaluate(
+        """(el) => {
+          const quote = 'atlas/xml-declarations';
+          const at = el.firstChild.data.indexOf(quote);
+          const range = document.createRange();
+          range.setStart(el.firstChild, at); range.setEnd(el.firstChild, at + quote.length);
+          const selection = getSelection(); selection.removeAllRanges();
+          selection.addRange(range);
+          document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+        }"""
+    )
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Keep this branch evidence visible.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+    sent = CliRunner().invoke(
+        interact.cli,
+        ["report", str(d), "goal-parser", "status", "status=review"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    head.click()
+    page.wait_for_function(
+        """() => [...(CSS.highlights.get('lf-mark') ?? [])]
+          .some(range => range.toString().includes('atlas/xml-declarations'))"""
+    )
+    assert "atlas/xml-declarations" in painted(page, "lf-mark")
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
+    url = serve(COMMAND_HUB_PAGE)
+    threads = {
+        target: interact.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": f"About {target}.",
+                "anchor": {"section": target},
+            },
+        )["id"]
+        for target in ("w-1", "diff-w-1")
+    }
+    page, errors = open_page(browser, url)
+    # Initial anchor painting already reveals its evidence. Close both disclosures
+    # again so the quote gesture, rather than page startup, is the single changed
+    # factor in this journey.
+    page.evaluate(
+        """() => {
+          document.querySelector('#goal-parser').removeAttribute('data-lf-open');
+          document.querySelector('#tree-w-1').removeAttribute('data-lf-open');
+        }"""
+    )
+    expect(page.locator("#w-1")).to_be_hidden()
+    page.locator(".lf-comments").click()
+    page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-quote').click()
+    expect(page.locator("#w-1")).to_be_visible()
+    expect(page.locator("#diff-w-1")).to_be_hidden()
+    page.locator(f'.lf-thread[data-id="{threads["diff-w-1"]}"] .lf-quote').click()
+    expect(page.locator("#diff-w-1")).to_be_visible()
+    expect(page.locator("#tree-w-1 > .lf-worktree-head")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
+    """The stronger send has no companion pause action. Its unresolved thread is
+    the hold, so a reply preserves it, resolution releases it, and undoing that
+    resolution restores it with the same evidence and comment id."""
+    url = serve(COMMAND_HUB_PAGE)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    goal = page.locator("#goal-parser")
+    conversation = goal.locator(":scope > .lf-conversation")
+    conversation.get_by_role("textbox").fill("Finish the current hunk, then park here.")
+    conversation.get_by_role("button", name="Send & pause", exact=True).click()
+    round_trip(page)
+    expect(goal).to_have_attribute("data-lf-held")
+    expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("6 stopped")
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "sent and paused · Replace the XML parser (goal-parser)"
+    )
+    root = next(
+        event
+        for event in interact.read_events(d)
+        if event.get("holds") == "goal-parser"
+    )
+
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Relay",
+            "parent": root["id"],
+            "version": 1,
+            "text": "The hunk is complete; the worker is parked.",
+        },
+    )
+    told(page)
+    expect(goal).to_have_attribute("data-lf-held", root["id"])
+
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.locator(f'.lf-thread[data-id="{root["id"]}"]').get_by_role(
+        "button", name="Resolve", exact=True
+    ).click()
+    round_trip(page)
+    expect(goal).not_to_have_attribute("data-lf-held")
+    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("5 stopped")
+
+    page.keyboard.press("z")
+    round_trip(page)
+    expect(goal).to_have_attribute("data-lf-held", root["id"])
+    assert [
+        event["kind"]
+        for event in interact.read_events(d)
+        if event["kind"] in {"comment", "resolve", "undo"}
+    ] == ["comment", "resolve", "undo"]
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, serve):
+    """Two stopped reports are not proof of one continuous stop. An honoring
+    publication can absorb the first, and a later version can author active work;
+    a fresh stopped report dates the new interruption from itself."""
+    url = serve(COMMAND_HUB_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "worker",
+            "version": 1,
+            "widget": "parser-dedupe",
+            "action": "status",
+            "detail": {"status": "stalled"},
+            "ts": (datetime.now().astimezone() - timedelta(hours=3)).isoformat(),
+        },
+    )
+    (d / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
+    v2 = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "2", "--text", "absorbed stop"],
+    )
+    assert v2.exit_code == 0, v2.output
+    active = re.sub(
+        r'(<lf-task\s+id="parser-dedupe"\s+)status="stalled"',
+        r'\1status="active"',
+        COMMAND_HUB_PAGE,
+    )
+    assert active != COMMAND_HUB_PAGE
+    (d / "versions" / "v3.html").write_text(active)
+    v3 = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "3", "--text", "work resumed"],
+    )
+    assert v3.exit_code == 0, v3.output
+    interact.append_event(
+        d,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "worker",
+            "version": 3,
+            "widget": "parser-dedupe",
+            "action": "status",
+            "detail": {"status": "stalled"},
+            "ts": datetime.now().astimezone().isoformat(),
+        },
+    )
+
+    latest = url.replace("/versions/v1.html", "/")
+    page, errors = open_page(browser, latest)
+    expect(page.locator(".lf-version")).to_contain_text("v3")
+    assert "/versions/" not in page.url
+    row = page.locator(
+        "#hub-plan > .lf-stopped-view li", has_text="Deduplicate the corpus snapshot"
+    )
+    expect(row).to_contain_text("0m")
+    expect(row).not_to_contain_text("3h")
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_stops_listening_after_live_version_replacement(browser, serve):
+    """A command removed with the old main cannot emit another projection."""
+    url = serve(COMMAND_HUB_PAGE)
+    page, errors = open_page(browser, live_url(url))
+    page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
+    (serve.page_dir / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "same plan"},
+    )
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    page.evaluate(
+        """() => {
+          window.__retiredUpdates = 0;
+          document.addEventListener("lf-command-update", event => {
+            if (event.detail.plan === window.__retiredCommand)
+              window.__retiredUpdates += 1;
+          });
+        }"""
+    )
+
+    retired_updates = page.evaluate(
+        """async () => {
+          window.__retiredCommand.querySelector('#api-errors')
+            .setAttribute('status', 'done');
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          return window.__retiredUpdates;
+        }"""
+    )
+
+    assert retired_updates == 0
+    assert errors == []
+    page.close()
+
+
+def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
+    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    d = serve.page_dir
+    root = interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Finish the hunk, then park.",
+            "anchor": {"section": "goal-parser"},
+            "holds": "goal-parser",
+        },
+    )
+    reply = interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root["id"],
+            "version": 1,
+            "text": "The hunk is ready.",
+        },
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "resolve",
+            "author": "user",
+            "parent": reply["id"],
+            "version": 1,
+        },
+    )
+
+    told(page)
+
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "Released · Replace the XML parser (goal-parser)"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
+    command = leaf_page(
+        "nested command boundaries",
+        """
+<lf-command id="outer" label="Outer plan">
+  <lf-task id="outer-goal" status="active"><strong>Outer goal</strong>
+    <lf-agent id="outer-worker" state="idle"><strong>outer-worker</strong></lf-agent>
+    <lf-command id="inner" label="Inner plan">
+      <lf-agent id="inner-worker" state="working"><strong>inner-worker</strong></lf-agent>
+      <lf-task id="inner-goal" status="done"><strong>Inner goal</strong></lf-task>
+    </lf-command>
+  </lf-task>
+</lf-command>
+""",
+    )
+
+    page, errors = open_page(browser, serve(command))
+
+    expect(page.locator("#outer > .lf-command-head")).to_contain_text("0/1 leaves")
+    expect(page.locator("#outer > .lf-command-head")).to_contain_text("1 workers")
+    expect(page.locator("#inner > .lf-command-head")).to_contain_text("1/1 leaves")
+    expect(page.locator("#inner > .lf-command-head")).to_contain_text("1 running")
+    expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
+    page.locator("#inner > .lf-command-head").click(position={"x": 5, "y": 5})
+    page.locator("#inner > .lf-fleet-view summary").click()
+    page.get_by_role("link", name="inner-worker", exact=True).click()
+    expect(page.locator("#outer-goal")).not_to_have_attribute("data-lf-open", "")
+    assert errors == []
+    page.close()
+
+
+def test_project_widget_can_join_the_orchestration_projection(browser, serve):
+    """A project adds its own goal tag through the orchestration role map, with no
+    Command-specific declaration or change to Leaf's kernel."""
+    command = leaf_page(
+        "project command goal",
+        """
+<lf-command id="hub" label="Project plan" phase="planning">
+  <lf-area id="custom-goal" phase="blocked">
+    <strong>Custom project goal</strong> Waiting for a project decision.
+  </lf-area>
+</lf-command>
+""",
+    )
+    url = serve(command)
+    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    registry["lf-area"] = {
+        "description": "A project-specific Command goal.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "phase": {"enum": ["active", "blocked", "done"]},
+        },
+        "required": ["id", "phase"],
+        "additionalProperties": False,
+        "x-parent": ["lf-command", "lf-area"],
+        "x-content": "prose",
+        "x-awaits": {"when": {"phase": ["blocked"]}},
+        "x-upgrade": False,
+    }
+    registry["$command"]["widgets"]["lf-area"] = {
+        "role": "goal",
+        "state": "phase",
+        "done": ["done"],
+        "stopped": ["blocked"],
+    }
+    (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+
+    page, errors = open_page(browser, url)
+
+    expect(page.locator("#hub > .lf-command-head")).to_contain_text("0/1 leaves")
+    expect(page.locator("#hub > .lf-command-head")).to_contain_text("1 stopped")
+    expect(page.locator("#hub > .lf-stopped-view")).to_contain_text(
+        "Custom project goal"
+    )
+    expect(page.get_by_role("button", name="Asks (1)")).to_be_visible()
     assert errors == []
     page.close()

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    COMMAND_HUB_PACKAGE,
     OPTIONS,
     PAGE,
     PHRASING_CONTENT,
@@ -219,7 +220,7 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     suggestion slots' blockization and lf-compare's stacked-variant trigger
     (lf-options stacks on the title alone, so it asks no block question) — by the
     platform's closed set inverted: any child that is not phrasing content is block.
-    The enumeration this replaced named every bundled widget, which is the closed
+    The enumeration this replaced named every shipped widget, which is the closed
     list the norms forbid: the first project-layer widget staged in a slot rendered
     inline and the fold dropped it in the frame of the press.
 
@@ -230,7 +231,7 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     names. The widget half is the inversion's one wrong answer — an inline widget is
     a custom element like any other — and it is a marker rather than tag names,
     because which widgets those are is the registry's to say (x-inline) and a
-    stylesheet cannot read it. Four names stood here, one of them a bundled chip's
+    stylesheet cannot read it. Four names stood here, one of them a standard chip's
     inside the integrated theme, and no layer could join them; the runtime paints the
     declaration instead and an inline widget joins by declaring it.
 
@@ -245,13 +246,13 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     above the type names beside it, over the marks the layer paints on top of the
     result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
     it had just retired."""
-    theme = interact.layered_theme([interact.ASSETS, interact.BUNDLED])
+    theme = interact.composed_theme([interact.ASSETS, interact.DEFAULT_PACKAGE])
     lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
     lists = [found for found in lists if found.startswith("a, abbr")]
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    registry = interact.incoming_registry([interact.ASSETS, interact.DEFAULT_PACKAGE])
     assert [
         tag
         for tag, entry in registry.items()
@@ -321,7 +322,7 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
     theme = re.sub(
         r"/\*.*?\*/",
         "",
-        interact.layered_theme([interact.ASSETS, interact.BUNDLED]),
+        interact.composed_theme([interact.ASSETS, interact.DEFAULT_PACKAGE]),
         flags=re.DOTALL,
     )
     excluded = {
@@ -341,7 +342,7 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
     )
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    registry = interact.incoming_registry([interact.ASSETS, interact.DEFAULT_PACKAGE])
     assert [
         tag
         for tag, entry in registry.items()
@@ -357,7 +358,13 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
     holds, which a one-version corpus cannot earn."""
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    registry = interact.incoming_registry(
+        [
+            interact.ASSETS,
+            interact.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
     used = {}
     for path in (Path(__file__).parent.parent / "examples").glob("*.html"):
         for rec in interact.parse_structure(path.read_text()).lf_elements:
@@ -2066,3 +2073,65 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert "unpointable" not in result.output
+
+
+def test_a_quoted_ask_does_not_hide_the_goal_that_contains_it(page_dir):
+    markup = (
+        '<lf-command id="hub">'
+        '<lf-task id="goal" status="blocked"><strong>Blocked goal</strong>'
+        '<lf-specimen id="sample"><lf-options id="example" choose>'
+        '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
+        "</lf-options></lf-specimen></lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</section>", markup + "</section>")
+    )
+    publish(page_dir)
+    assert state_json(page_dir)["asks"] == [
+        {"id": "goal", "tag": "lf-task", "thread": None}
+    ]
+
+
+def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
+    """A draft uses the ordinary x-awaits fold: its edit discharges the ask,
+    and an honoring version can clear the authored condition without reviving it."""
+
+    def command(status, needed, body):
+        flag = " needed" if needed else ""
+        return (
+            '<lf-command id="hub">'
+            f'<lf-task id="goal" status="{status}"><strong>Import</strong>'
+            f'<lf-draft id="cargo"{flag}><pre>\n{body}\n</pre></lf-draft>'
+            "</lf-task></lf-command>"
+        )
+
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        PAGE.replace("</section>", command("active", True, "paste") + "</section>")
+    )
+    publish(page_dir)
+    assert state_json(page_dir)["asks"] == [
+        {"id": "cargo", "tag": "lf-draft", "thread": None}
+    ]
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "cargo",
+            "action": "edit",
+            "detail": {"text": "ledger_id,amount\n7,42"},
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace(
+            "</section>",
+            command("active", False, "ledger_id,amount\n7,42") + "</section>",
+        )
+    )
+    publish(page_dir, 2)
+    assert state_json(page_dir)["asks"] == []

@@ -1209,8 +1209,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     # The docstring the second hunk rewrites: every line of it is string, on both sides.
     # Colouring line by line instead, `and` inside the prose came back a keyword.
-    doc = [l for l in py if "Called on logout" in l["text"]]
-    assert len(doc) == 2, [l["text"] for l in py]
+    doc = [line for line in py if "Called on logout" in line["text"]]
+    assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
         # How many spans carry it is the word marks' business — a mark re-cuts the tokens
         # it covers, and this pair's closing `\"\"\"` moved to a line of its own — so what
@@ -1222,7 +1222,11 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # yaml, the grammar that would have eaten the prefix: with the column left on, the
     # `-` came back a bullet in keyword ink and the `+` a string. No span opens a line
     # here, and the key is still an attr — so the prefix came off before the lexer looked.
-    yml = [l for l in by_path["gateway/config.yaml"] if l["kind"] in ("add", "del")]
+    yml = [
+        line
+        for line in by_path["gateway/config.yaml"]
+        if line["kind"] in ("add", "del")
+    ]
     assert len(yml) == 2
     for line in yml:
         assert not line["signInSpan"], line
@@ -1231,19 +1235,19 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is git remarking on the line above, not a line of
     # the file. Shown, because the diff says it, but its own kind — read as context it
     # would go into both reconstructed sides as source the file never held.
-    note = [l for l in py if l["kind"] == "note"]
-    assert [l["text"] for l in note] == ["\\ No newline at end of file\n"], py
+    note = [line for line in py if line["kind"] == "note"]
+    assert [line["text"] for line in note] == ["\\ No newline at end of file\n"], py
     assert note[0]["roles"] == [], note
 
     # No extension the table names: plain, the way a lf-code with no `language` is.
-    assert all(l["roles"] == [] for l in by_path["deploy/Dockerfile"]), by_path[
+    assert all(line["roles"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
 
     # Every displayed source line still reads exactly as authored, sign column and all.
     # File headers are metadata already represented by the summary, so the widget drops
     # them instead of leaving hidden text in the DOM for anchoring to find.
-    assert [l["text"] for l in by_path["gateway/config.yaml"]] == [
+    assert [line["text"] for line in by_path["gateway/config.yaml"]] == [
         "@@ -4,6 +4,6 @@ ratelimit:\n",
         "-  burst: 20\n",
         "+  burst: 40\n",

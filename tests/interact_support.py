@@ -30,6 +30,7 @@ from conftest import interact
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
+COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 
 PROBE_BOOTSTRAP = """\
 import contextlib
@@ -101,10 +102,13 @@ graph LR
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch):
-    """An initialized page directory with a valid v1 written."""
+    """A page with the default and Command Hub package vocabularies and a valid v1."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    package = link_command_hub_package(tmp_path)
     d = tmp_path / "page"
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+    result = CliRunner().invoke(
+        interact.cli, ["page", "init", "--package", package, str(d)]
+    )
     assert result.exit_code == 0, result.output
     (d / "versions" / "v1.html").write_text(PAGE)
     return d
@@ -368,7 +372,10 @@ def _report(page_dir, *args):
 
 def _board(todo, done):
     """A two-column board, each column given its cards as (id, attrs, title)."""
-    card = lambda c: f'<lf-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
+
+    def card(c):
+        return f'<lf-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
+
     return (
         '<lf-board id="b1">'
         f'<lf-column id="c-todo" label="Todo">{"".join(map(card, todo))}</lf-column>'
@@ -430,7 +437,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
     original_append_event = interact.append_event
-    original_layered_theme = interact.layered_theme
+    original_composed_theme = interact.composed_theme
 
     def held_append_event(directory, event):
         if event.get("kind") == kind:
@@ -438,10 +445,10 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
             assert resume.wait(timeout=10), "re-vendor never observed the writer"
         return original_append_event(directory, event)
 
-    def held_layered_theme(layers):
+    def held_composed_theme(sources):
         checked_without_writer.set()
         assert finish_vendoring.wait(timeout=10), "the writer never resumed"
-        return original_layered_theme(layers)
+        return original_composed_theme(sources)
 
     def init_result():
         try:
@@ -451,14 +458,14 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         return None
 
     monkeypatch.setattr(interact, "append_event", held_append_event)
-    monkeypatch.setattr(interact, "layered_theme", held_layered_theme)
+    monkeypatch.setattr(interact, "composed_theme", held_composed_theme)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"
         vendoring = executor.submit(init_result)
         passed_check = checked_without_writer.wait(timeout=2)
         # Release either acquisition order without relying on a scheduler: a
-        # broken re-vendor may already own the page lease at layered_theme.
+        # broken re-vendor may already own the page lease at composed_theme.
         finish_vendoring.set()
         resume.set()
         written = writing.result(timeout=10)
@@ -582,18 +589,16 @@ def trial_page(tmp_path, monkeypatch):
     a project gets rather than what a fixture arranged."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    scaffolded = (
+    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    widgets = (
         ("lf-trial", True),
         ("lf-pilot", True),
         ("lf-current", False),
         ("lf-proposed", False),
     )
-    for tag, upgrade in scaffolded:
-        made = runner.invoke(
-            interact.cli,
-            ["customize", "widget", tag, *(["--upgrade"] if upgrade else [])],
-        )
-        assert made.exit_code == 0, made.output
+    for tag, upgrade in widgets:
+        add_test_widget(tmp_path / ".leaf", tag, upgrade)
 
     source = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(source.read_text())
@@ -1068,3 +1073,46 @@ def suggested(page_dir):
     """A published v1 carrying the sug-refill suggestion, both slots pending."""
     (page_dir / "versions" / "v1.html").write_text(SUGGESTED)
     return published(page_dir)
+
+
+def add_test_widget(package: Path, tag: str, upgrade: bool = False) -> dict:
+    """Author one widget in an initialized package fixture."""
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    entry = widget_entry(tag, upgrade)
+    registry[tag] = entry
+    registry_path.write_text(json.dumps(registry))
+    with (package / "theme.css").open("a") as theme:
+        theme.write(f"\n{tag} {{ display: block; }}\n")
+    if upgrade:
+        (package / "widgets" / f"{tag}.js").write_text(
+            f'customElements.define("{tag}", class extends HTMLElement {{}});\n'
+        )
+    return entry
+
+
+def link_command_hub_package(root: Path) -> str:
+    """Expose the repository package at its recorded project-relative path."""
+    relative = Path("examples/packages/command-hub")
+    package = root / relative
+    package.parent.mkdir(parents=True, exist_ok=True)
+    if not package.exists():
+        package.symlink_to(COMMAND_HUB_PACKAGE, target_is_directory=True)
+    return str(relative)
+
+
+def widget_entry(tag: str, upgrade: bool = False) -> dict:
+    """A minimal package widget declaration for composition fixtures."""
+    entry = {
+        "description": f"A <{tag}> test block.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": upgrade,
+        "x-example": f'<{tag} id="example">Example</{tag}>',
+    }
+    if upgrade:
+        entry["x-verbatim"] = True
+    return entry

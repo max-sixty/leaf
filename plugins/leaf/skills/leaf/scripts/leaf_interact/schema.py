@@ -95,7 +95,6 @@ ACTION_REQUIREMENT = {
     "properties": {
         "target": {"enum": ["self", "parent"]},
         "awaiting": {"type": "boolean"},
-        "change": {"const": "increase"},
     },
     "required": ["target", "awaiting"],
     "additionalProperties": False,
@@ -206,7 +205,10 @@ EXTENSION_SCHEMA = {
         "x-awaits": AWAITS_SCHEMA,
         "x-conversation": {
             "type": "object",
-            "properties": {"when": ASK_CONDITION},
+            "properties": {
+                "when": ASK_CONDITION,
+                "hold": {"type": "string", "minLength": 1},
+            },
             "required": ["when"],
             "additionalProperties": False,
         },
@@ -263,9 +265,14 @@ EXTENSION_SCHEMA = {
 # each than that it exists.
 ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-tone")
 
-ASSETS = Path(__file__).resolve().parent.parent.parent / "assets"
-BUNDLED = Path(__file__).resolve().parent.parent.parent / "bundled"
+SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
+PLUGIN_ROOT = SKILL_ROOT.parent.parent
+KERNEL = SKILL_ROOT / "assets"
+ASSETS = KERNEL
+DEFAULT_PACKAGE = SKILL_ROOT / "packages" / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
+PACKAGE_GUIDANCE = "authoring.md"
+PACKAGE_FILES = (*VENDORED_FILES, PACKAGE_GUIDANCE)
 VENDORED_DIRS = ("runtime", "widgets", "vendor")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
@@ -294,7 +301,7 @@ PAGE_STATE_FILES = (
     "service.json",
     "server.lock",
 )
-PAGE_OWNED_FILES = (*VENDORED_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_FILES = (*PACKAGE_FILES, *PAGE_STATE_FILES)
 PAGE_OWNED_DIRS = ("versions", *VENDORED_DIRS, MEDIA_DIR)
 # What the server exposes from a page directory: exactly what init vendors, plus
 # the media and the versions — built from the vendoring constants, so growing

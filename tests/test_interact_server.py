@@ -6,6 +6,7 @@ import http.cookiejar
 import json
 import socket
 import threading
+import time
 import urllib.parse
 import urllib.request
 from http.server import HTTPServer
@@ -957,7 +958,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                     "order": "index",
                 },
             },
-            "set": {
+            "increase": {
                 "detail": detail,
                 "facet": "capacity",
                 "unit": "widget",
@@ -965,8 +966,13 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                 "requires": {
                     "target": "parent",
                     "awaiting": False,
-                    "change": "increase",
                 },
+            },
+            "decrease": {
+                "detail": detail,
+                "facet": "capacity",
+                "unit": "widget",
+                "record": record,
             },
         },
     }
@@ -993,7 +999,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "kind": "action",
         "version": 1,
         "widget": "quota",
-        "action": "set",
+        "action": "increase",
         "detail": {"slots": "2"},
     }
     interact.append_event(
@@ -1040,7 +1046,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     assert status == 400
     assert "still awaiting the reader" in json.loads(body)["error"]
 
-    decrease = {**event, "detail": {"slots": "0"}}
+    decrease = {**event, "action": "decrease", "detail": {"slots": "0"}}
     assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
 
     # Placement is projected too. After the absolute move, admission reads the
@@ -1062,7 +1068,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         logged["action"]
         for logged in interact.read_events(page_dir)
         if logged["kind"] == "action"
-    ] == ["set", "set", "choose", "set", "move", "set"]
+    ] == ["increase", "increase", "choose", "decrease", "move", "increase"]
 
 
 def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
@@ -1831,6 +1837,123 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     assert (
         interact.page_url("10.20.30.40", 41999, "k") == "http://10.20.30.40:41999/?t=k"
     )
+
+
+def test_a_conversation_predicate_cannot_follow_replayed_value_state(page_dir):
+    """Conversation seats are installed from authored predicates once. Refuse a
+    declaration that would make replay and the POST hold gate disagree about one."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-conversation"]["when"] = {"status": ["blocked"]}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert (
+        "x-conversation predicate attributes are authored and static" in result.output
+    )
+
+
+def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
+    """The stronger send is one comment, not a comment followed by a pause action.
+    Its target is therefore checked at the comment door against the same declaration
+    that rendered the control, or a forged field could pause any id on the page."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-task>"
+            '<lf-task id="plain-goal" status="active"><strong>Plain</strong>'
+            "</lf-task></lf-tasks></section>",
+        )
+    )
+    publish(page_dir)
+    event = {
+        "kind": "comment",
+        "version": 1,
+        "text": "Finish the current pass, then pause here.",
+        "anchor": {"section": "goal"},
+        "holds": "goal",
+        "attempt": "hold_comment_good_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 200, body
+    assert interact.read_events(page_dir)[-1]["holds"] == "goal"
+
+    ambiguous = {
+        **event,
+        "anchor": {"section": "goal", "quote": "Goal"},
+        "attempt": "hold_comment_bad_quote",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(ambiguous).encode())
+    assert status == 400
+    assert "exact-section anchor" in json.loads(body)["error"]
+
+    for target in ("plain-goal", "plan"):
+        bad = {
+            **event,
+            "holds": target,
+            "attempt": f"hold_comment_bad_{target.replace('-', '_')}",
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400
+        assert "matching x-conversation hold target" in json.loads(body)["error"]
+
+
+def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
+    """A browser action arriving during the check waits behind the publication
+    note. Otherwise the successor can go live without ever being checked against
+    the decision that replays onto it."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "versions" / "v2.html").write_text(html)
+    entered = threading.Event()
+    release = threading.Event()
+    original = interact.cmd_check
+
+    def paused_check(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(interact, "cmd_check", paused_check)
+    failures = []
+
+    def run_publish():
+        try:
+            interact.cmd_publish(page_dir, 2, "next")
+        except (AssertionError, SystemExit) as error:  # surface thread failures here
+            failures.append(error)
+
+    action = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"options": ["flag-first"]},
+    }
+    publisher = threading.Thread(target=run_publish)
+    publisher.start()
+    assert entered.wait(5)
+    writer = threading.Thread(target=lambda: interact.append_event(page_dir, action))
+    writer.start()
+    time.sleep(0.05)
+    assert writer.is_alive(), "the browser writer crossed the checked snapshot"
+    release.set()
+    publisher.join(5)
+    writer.join(5)
+
+    assert not failures
+    assert not publisher.is_alive() and not writer.is_alive()
+    ordered = [
+        (event["kind"], event.get("version"))
+        for event in interact.read_events(page_dir)
+        if event["kind"] in {"note", "action"}
+    ]
+    assert ordered == [("note", 1), ("note", 2), ("action", 1)]
 
 
 def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):

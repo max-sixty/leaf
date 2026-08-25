@@ -23,7 +23,10 @@
     <meta property="og:image" content="https://leaf.page/session-light.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="../plugins/leaf/skills/leaf/assets/theme.css" />
-    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/bundled/theme.css" />
+    <link
+      rel="stylesheet"
+      href="../plugins/leaf/skills/leaf/packages/default/theme.css"
+    />
     <link rel="stylesheet" href="site.css" />
   </head>
   <body>
@@ -32,7 +35,7 @@
         <a class="brand" href="index.html">leaf</a>
         <a href="examples.html">Examples</a>
         <a href="how-it-works.html" aria-current="page">How it works</a>
-        <a href="customizing.html">Customize</a>
+        <a href="packages.html">Packages</a>
         <a href="https://github.com/max-sixty/leaf">GitHub</a>
       </nav>
 
@@ -320,7 +323,7 @@ $ leaf ack ./review 3</code></pre>
         <p id="scaffold">
           A version is one complete HTML document, and the required scaffold is two
           lines: the theme stylesheet and the runtime module. Everything between them is
-          the agent's, drawn from the four sources below in ascending order of
+          the agent's, drawn from the four building blocks below in ascending order of
           specialization; each earns its place only where the one before it has no way
           to carry what the page needs.
         </p>
@@ -484,27 +487,27 @@ $ leaf ack ./review 3</code></pre>
         <h2>Each page owns its layer</h2>
         <p>
           <code>page init</code> vendors the whole layer (runtime, theme, registry,
-          widget modules) into the page's directory, overlaying four sources in order:
-          leaf's <strong>integrated</strong> layer, its
-          <strong>bundled</strong> widgets, your <code>~/.config/leaf/</code>, and the
-          project's <code>.leaf/</code>. Theme files concatenate in that order; registry
+          widget modules) into the page's directory. The kernel and bundled default
+          package come first, followed by explicit package paths in command order, your
+          <code>~/.config/leaf/</code> package, and the project's
+          <code>.leaf/</code> package. Theme files concatenate in that order; registry
           entries add or replace by entry; modules and vendored files replace by
           filename. Because pages are self-contained, a version you approved can't
           change under you when the defaults do.
         </p>
         <p id="what-is-customizable">
-          The first two ride that same mechanism, and the line between them marks what
-          you can change. The integrated layer is the machine: the runtime, the theme's
-          tokens and idioms, and the few registry facts the loop itself is written in
-          terms of — a suggestion's accept and reject among them, so that one widget is
-          not yours to swap. The bundled layer is everything a page merely
-          <em>contains</em>, the boards and diagrams and drafts and diffs, shipped as an
-          overlay rather than built in, so leaf's own widgets reach a page through the
-          door a generated widget uses. You or the agent can restyle or replace any of
-          them, and add new ones beside them; no layer can remove one, since an overlay
+          The kernel is the machine: the runtime and chrome, shared tokens and idioms,
+          and the registry contracts the collaboration loop itself reads. The bundled
+          default package carries broadly useful fallback shapes, such as boards,
+          diagrams, drafts, and diffs. An explicit package may contain one widget, while
+          another contains only theme rules. Package size and provenance do not change
+          the format. Packages are composed rather than added as runtime branches, so a
+          default widget reaches the page through the same door as a project widget. You
+          or the agent can restyle or replace an entry or file and add new ones beside
+          it; the checked result must still satisfy the kernel's generic event and
+          runtime contracts. No package can remove an earlier entry, since composition
           adds and replaces but never subtracts. The
-          <a href="customizing.html">customization guide</a> shows how to scaffold each
-          shape.
+          <a href="packages.html">package guide</a> shows how to author each shape.
         </p>
       </section>
 
@@ -548,7 +551,7 @@ $ leaf ack ./review 3</code></pre>
         <p id="links">
           <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
           <a href="how-it-works.html">How it works</a> ·
-          <a href="customizing.html">Customize</a> ·
+          <a href="packages.html">Packages</a> ·
           <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
           <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
         </p>

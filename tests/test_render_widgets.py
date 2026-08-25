@@ -1082,8 +1082,8 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
 
     The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
     suggestions, and silently nothing for every other thing a page waits on. What
-    makes an instance an ask is now the entry's own attribute condition, and what
-    makes it answered is the state x-state already declares — so this page's four are
+    makes an instance an ask is now the entry's own attribute condition, and the entry
+    explicitly names which state verbs answer it — so this page's four are
     a question with no pick, a change nobody has decided, and the two tasks whose
     status says they are waiting.
 

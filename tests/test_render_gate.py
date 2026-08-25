@@ -5,7 +5,6 @@ import json
 import time
 
 import pytest
-from click.testing import CliRunner
 from conftest import interact
 from playwright.sync_api import expect
 from render_support import (
@@ -16,6 +15,7 @@ from render_support import (
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
     COLORED_CODE_PAGE,
+    COMMAND_HUB_PACKAGE,
     CUSTOM_WIDGET_PAGE,
     EDGE_IDS,
     EDGES,
@@ -41,6 +41,7 @@ from render_support import (
     _traffic,
     _until,
     arrival_findings,
+    author_test_widget,
     draw_edge,
     edge_settled,
     geometry,
@@ -412,35 +413,11 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page.close()
 
 
-def test_a_scaffolded_project_widget_loads_through_the_real_layer(
-    browser, serve, tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
-
-    url = serve(CUSTOM_WIDGET_PAGE)
-    page, errors = open_page(browser, url)
-    widget = page.locator("#custom-note")
-    expect(widget).to_have_attribute("data-lf-done", "1")
-    assert widget.evaluate(
-        "(el) => ({display: getComputedStyle(el).display, "
-        "border: getComputedStyle(el).borderTopWidth})"
-    ) == {"display": "block", "border": "1px"}
-    assert errors == []
-    page.close()
-
-
 def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     browser, serve, tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text("// Valid JavaScript, but no custom-element definition.\n")
 
@@ -485,10 +462,7 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     shadow root its entry doesn't declare (the passage walk crosses only the
     declared ones, so an undeclared root's words anchor astray)."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once } from "/leaf.js";\n'
@@ -530,13 +504,10 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     the next poll for the painted half, and a bug-back that has to win a race is a
     bug-back that reports the machine."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    # The scaffold's x-verbatim claim is about a body this module no longer shows, and
+    # The fixture's x-verbatim claim is about a body this module no longer shows, and
     # the gate says so on its own; declaring the root keeps this test's finding the
     # only one about the tree.
     entries["lf-callout"].pop("x-verbatim")
@@ -579,10 +550,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     reading enters a declared root in the host's stead, and a span rendered nowhere has
     no rects."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
     entry = entries["lf-callout"]
@@ -643,7 +611,13 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     Every key is put to the engine, so a key that is not a selector fails here too.
     `pre > code.language-*` was one for as long as nothing asked — readable, matching
     nothing, and the only member of the catalog with no way to be checked."""
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    registry = interact.incoming_registry(
+        [
+            interact.ASSETS,
+            interact.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
     idioms = [key for key in registry["$idioms"] if key != "description"]
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
@@ -1340,6 +1314,68 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         "page's paper — which is above the host, and reached by climbing out of the "
         "root rather than stopping where parentElement runs out"
     )
+
+
+def test_a_traffic_wait_accounts_for_the_response_it_consumes():
+    """The waiter may resume before Traffic's ordinary response listener under load."""
+
+    class LateTraffic:
+        done = False
+
+        def settle(self):
+            pass
+
+        def settle_response(self, response):
+            assert response == "answer"
+            self.done = True
+
+        def __str__(self):
+            return f"done={self.done}"
+
+    class EarlyPage:
+        lf_traffic = LateTraffic()
+
+        def wait_for_event(self, event, **_kwargs):
+            assert event == "response"
+            return "answer"
+
+    _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the response")
+
+
+def test_an_authored_project_widget_loads_through_the_real_layer(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    widgets = tmp_path / ".leaf" / "widgets"
+    (widgets / "callout-label.js").write_text(
+        'export const label = "project-owned helper";\n'
+    )
+    module = widgets / "lf-callout.js"
+    module.write_text(
+        module.read_text()
+        .replace(
+            'import { once } from "/leaf.js";',
+            'import { once } from "/leaf.js";\n'
+            'import { label } from "./callout-label.js";',
+        )
+        .replace(
+            "if (!once(this)) return;",
+            "if (!once(this)) return;\n      this.dataset.helper = label;",
+        )
+    )
+
+    url = serve(CUSTOM_WIDGET_PAGE)
+    page, errors = open_page(browser, url)
+    widget = page.locator("#custom-note")
+    expect(widget).to_have_attribute("data-lf-done", "1")
+    expect(widget).to_have_attribute("data-helper", "project-owned helper")
+    assert widget.evaluate(
+        "(el) => ({display: getComputedStyle(el).display, "
+        "border: getComputedStyle(el).borderTopWidth})"
+    ) == {"display": "block", "border": "1px"}
+    assert errors == []
+    page.close()
 
 
 def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):

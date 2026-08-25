@@ -3,10 +3,11 @@
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
 
 from leaf_interact.files import file_stamp, read_json
@@ -16,6 +17,31 @@ from leaf_interact.schema import (
     EXTENSION_SCHEMA,
     WIDGET_NAME,
 )
+
+FORMAT_CHECKER = FormatChecker()
+RFC3339_DATE_TIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$"
+)
+
+
+@FORMAT_CHECKER.checks("date-time")
+def is_aware_datetime(value) -> bool:
+    """Leaf's self-contained date-time format: one absolute, aware instant."""
+    if not isinstance(value, str):
+        return True  # the declared JSON Schema owns the type complaint
+    if not RFC3339_DATE_TIME.fullmatch(value):
+        return False
+    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    return parsed.utcoffset() is not None
+
+
+def json_validator(schema: dict) -> Draft202012Validator:
+    """One schema reader for every authored/event ingress, including formats."""
+    return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
 
 
 class RegistryError(click.ClickException):
@@ -219,7 +245,7 @@ def validate_registry(registry: dict, source) -> dict:
             key: value for key, value in entry.items() if key.startswith("x-")
         }
         errors = sorted(
-            Draft202012Validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
+            json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
         )
         if errors:
             raise RegistryError(
@@ -282,6 +308,15 @@ def validate_registry(registry: dict, source) -> dict:
             )
         properties = entry.get("properties", {})
         said = set(entry.get("x-says", {}))
+        for role in ("x-awaits", "x-conversation"):
+            if entry.get(role) is not None and (
+                not isinstance(properties.get("id"), dict)
+                or properties["id"].get("type") != "string"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> {role} instances are addressable, so the "
+                    "entry must declare a string `id` attribute"
+                )
         for key in ATTRIBUTE_KEYS:
             declared = entry.get(key) or ()
             named = {declared} if isinstance(declared, str) else set(declared)
@@ -363,13 +398,25 @@ def validate_registry(registry: dict, source) -> dict:
                             f"{value!r}, which its own enum does not admit"
                         )
                     if errors := sorted(
-                        Draft202012Validator(schema).iter_errors(value), key=str
+                        json_validator(schema).iter_errors(value), key=str
                     ):
                         raise RegistryError(
                             f"{path}: <{tag}> {declaration} tests `{attr}` at "
                             f"{value!r}, which its own schema does not admit: "
                             f"{errors[0].message}"
                         )
+        conversation = entry.get("x-conversation", {})
+        mutable_values = {
+            spec["record"]["attr"]
+            for channel in ("x-state", "x-report")
+            for spec in entry.get(channel, {}).values()
+            if (spec.get("record") or {}).get("kind") == "value"
+        }
+        if dynamic := sorted(set(conversation.get("when", {})) & mutable_values):
+            raise RegistryError(
+                f"{path}: <{tag}> x-conversation predicate attributes are authored "
+                f"and static, but {dynamic} are written by value records"
+            )
         work = entry.get("x-work")
         if work and work["seat"] == "content":
             if entry.get("x-inline"):
@@ -535,20 +582,6 @@ def validate_registry(registry: dict, source) -> dict:
                     f"{requirement['target']} awaiting state, but {idless} do not "
                     "require an id"
                 )
-            record = spec.get("record")
-            if requirement.get("change") and (
-                spec["unit"] != "widget"
-                or not record
-                or record["kind"] != "value"
-                or spec["detail"]["properties"][record["value"]]
-                != {"type": "string", "pattern": "^[0-9]+$"}
-            ):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` conditions an "
-                    "increase, which requires a widget-unit unsigned-integer "
-                    "value record"
-                )
-
         # A facet is semantic, but its record writes a physical slot. Body and
         # position have one per unit; value and attribute-set are keyed by attr.
         physical_slots: dict[tuple[str, str, str | None], tuple[str, str, str]] = {}

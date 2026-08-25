@@ -3,8 +3,8 @@
 This file defines the contract for `assets/leaf.js`, its private modules under
 `assets/runtime/`, the widget modules, and `assets/theme.css`. It describes the
 current runtime. Page-authoring commands and
-markup rules live in `references/page-authoring.md`; layer overlays and widget
-scaffolding live in `references/customizing.md`. The repository-level `AGENTS.md`
+markup rules live in `references/page-authoring.md`; package authoring lives in
+`references/packages.md`. The repository-level `AGENTS.md`
 owns the rules that cross the JavaScript and Python runtimes:
 
 - the document is the initial state and the event log outranks it;
@@ -277,14 +277,14 @@ a widget tag or verb to determine state identity.
 
 An `x-state` verb may also declare `requires`, a prerequisite over the standing
 request projection `x-awaits` already defines. Its target is the sender or its
-declared parent, and it may apply only when an absolute unsigned value would
-increase. `actionAvailable` paints and guards the exact gesture, `sendAction`
-checks at the common browser door, and POST evaluates the same declaration from
-the authoritative log under the append lock. No eligibility cache sits beside
-the ordinary ask and state projections. `x-awaits.answers` says which actions
-actually close the request; orthogonal actions do not. `x-awaits.rollup` derives
-a nested request from direct interventions and child roll-ups, using the same
-reducer in the browser and file projection.
+declared parent, and `awaiting` states whether that request must be open or closed.
+`actionAvailable` paints and guards the action, `sendAction` checks at the common
+browser door, and POST evaluates the same declaration from the authoritative log
+under the append lock. No eligibility cache sits beside the ordinary ask and state
+projections. `x-awaits.answers` says which actions actually close the request;
+orthogonal actions do not. `x-awaits.rollup` derives a nested request from direct
+interventions and child roll-ups, using the same reducer in the browser and file
+projection.
 
 `stateProjection(upto)` is the pure derived view. It classifies every action and
 report, applies version and retraction windows, drops withdrawn actions and
@@ -599,7 +599,7 @@ a leak.
 
 A behavior module imports only the public helper surface from `leaf.js`. Do not
 reach into runtime globals, query private chrome, or duplicate a runtime helper
-inside a module. The scaffold names the minimum obligations:
+inside a module. Every module has these minimum obligations:
 
 - Define the custom element once and make `connectedCallback` safe to run after
   reconstruction.
@@ -611,7 +611,7 @@ inside a module. The scaffold names the minimum obligations:
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
   browser schema.
-- For a verb with `requires`, use `actionAvailable(el, verb, detail)` for both its
+- For a verb with `requires`, use `actionAvailable(el, verb)` for both its
   visible control state and its gesture guard. `sendAction` and POST repeat that
   declared check at their respective doors.
 - Read authored or user-facing words with `says`, never raw `textContent`.
@@ -1414,8 +1414,9 @@ that every state change is an answer. A `rollup` instance evaluates its own `whe
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the
-visible/navigation surface. `actionAvailable` still queries the source or an
-ancestor's exact projected value.
+visible/navigation surface. `actionAvailable` still queries whether the source or an
+ancestor's request is open. A module reading `openAsks()` calls `askSource()` when it
+needs the actionable widget rather than the reader-facing region.
 
 ### Address chord
 

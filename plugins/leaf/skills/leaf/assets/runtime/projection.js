@@ -320,15 +320,9 @@ export function createProjection(runtime, dependencies) {
     return null;
   }
 
-  function requirementMatches(widget, spec, detail) {
+  function requirementMatches(widget, spec) {
     if (!pagePresented()) return false;
     const requirement = spec.requires;
-    if (requirement.change === "increase") {
-      const current = projectedFacet(widget, spec);
-      const proposed = detail?.[spec.record.value];
-      if (!/^\d+$/.test(current ?? "") || !/^\d+$/.test(proposed ?? "")) return false;
-      if (BigInt(proposed) <= BigInt(current)) return true;
-    }
     const context = askContext();
     const target = requirementTarget(widget, requirement.target, context);
     if (!target) return false;
@@ -351,10 +345,9 @@ export function createProjection(runtime, dependencies) {
   // container and then replay the other units from the wrong order.
   const authoredStatements = new Map(); // widget id -> coordinate -> absolute statement
 
-  // And the markup itself, for the widgets whose state cannot be stated at all: one whose
-  // durable verb has no record — a settlement, where "undecided" is a value no
-  // verb carries. Kept only for those, because a clone is the whole subtree and every
-  // other widget can be told its state in a sentence.
+  // And the markup itself, for state no action detail can state: a recordless
+  // settlement, or an optional authored scalar absent before its first action. Keep a
+  // clone only where one declared action needs that route.
   //
   // Taken beside the passage fences and for the same reason, which is that both are
   // readings of what the *version* wrote: the moment after the registry lands and before
@@ -374,14 +367,20 @@ export function createProjection(runtime, dependencies) {
       if (!authoredParents.has(element))
         authoredParents.set(element, element.parentElement);
 
-    const settlements = new Set(
-      stateSpecs()
-        .filter(({ spec }) => !spec.record)
-        .map(({ tag }) => tag),
-    );
-    for (const tag of settlements) {
+    const specs = new Map();
+    for (const declared of stateSpecs().filter(({ channel }) => channel === "x-state"))
+      specs.set(declared.tag, [...(specs.get(declared.tag) ?? []), declared]);
+    for (const [tag, declared] of specs) {
       for (const widget of root.querySelectorAll(tag))
-        if (widget.id && !authoredMarkup.has(widget.id))
+        if (
+          widget.id &&
+          !authoredMarkup.has(widget.id) &&
+          declared.some(
+            ({ spec }) =>
+              !spec.record ||
+              (spec.record.kind === "value" && !widget.hasAttribute(spec.record.attr)),
+          )
+        )
           authoredMarkup.set(widget.id, widget.cloneNode(true));
     }
   }
@@ -679,7 +678,8 @@ export function createProjection(runtime, dependencies) {
     const coordinate = stateCoordinate(e.widget, unit, spec);
     return (
       stateProjection(runtime.currentVersion, e.id).desired.has(coordinate) ||
-      authoredDetails.has(coordinate)
+      authoredDetails.has(coordinate) ||
+      authoredMarkup.has(e.widget)
     );
   }
 
@@ -906,8 +906,8 @@ export function createProjection(runtime, dependencies) {
     if (outbox.some((entry) => entry.rejected && entry.projection))
       runtime.projectingState = true;
     try {
-      // A recordless baseline replaces a subtree. Restarting from the pure projection is
-      // what discovers every surviving nested coordinate on the new node identities.
+      // A baseline no action detail can state replaces a subtree: a recordless verb, or
+      // an optional authored scalar absent before its first action.
       for (;;) {
         projection = stateProjection(runtime.currentVersion);
         for (const entry of projection.classified.values())
@@ -957,13 +957,17 @@ export function createProjection(runtime, dependencies) {
             ({ desired, commit }) =>
               !desired && commit?.entry && commit.widget === widget,
           );
-          const recordless = removals.find(({ commit }) => !commit.entry.spec.record);
-          if (recordless) {
+          const markupOnly = removals.find(
+            ({ coordinate, commit }) =>
+              !commit.entry.spec.record ||
+              (!authoredDetails.has(coordinate) && authoredMarkup.has(widgetId)),
+          );
+          if (markupOnly) {
             widget = rebuild(widget);
-            committedProjection.set(recordless.coordinate, {
+            committedProjection.set(markupOnly.coordinate, {
               widgetId,
               widget,
-              unit: elementById(recordless.sample.unit),
+              unit: elementById(markupOnly.sample.unit),
               entry: null,
             });
             painted = true;
@@ -1028,7 +1032,9 @@ export function createProjection(runtime, dependencies) {
               const before = inChrome(widget) ? null : shallowSigs(document.body);
               const priorMotion = new Set(document.getAnimations());
               try {
-                if (widget.applyAction(entry.e.action, entry.e.detail) === false) {
+                if (
+                  widget.applyAction(entry.e.action, entry.e.detail, entry.e) === false
+                ) {
                   deferred = true;
                   break;
                 }

@@ -389,8 +389,8 @@ MISPLACED_BOXES = (
         return false;
     };
     // The bound a descendant of a wide widget is held to. The column is the wrong one —
-    // the room is exactly what the declaration granted, and a roster of prose rows had
-    // all five reported as standing out in the margin — but "answered for" is wrong too,
+    // the room is exactly what the declaration granted, and several prose rows had all
+    // been reported as standing out in the margin — but "answered for" is wrong too,
     // and wrong in the direction that costs: a child that paints past its own widget's
     // box does not grow that box, so exempting the subtree makes the widget's rect prove
     // something about itself alone. This read as answered while both wide widgets also

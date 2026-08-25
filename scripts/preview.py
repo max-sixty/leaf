@@ -39,10 +39,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
 PAGE = ROOT / ".tmp" / "preview"  # gitignored, and stable so the port persists
+PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text(encoding="utf-8"))
 
 
 def leaf(*args, check=True):
-    return subprocess.run([str(LEAF), *args], check=check)
+    return subprocess.run([str(LEAF), *args], cwd=ROOT, check=check)
 
 
 def seed_log(source: Path, page: Path) -> None:
@@ -87,7 +88,8 @@ def main() -> None:
     if PAGE.exists():  # a previous preview may still hold the port
         leaf("server", "stop", str(PAGE), check=False)
         shutil.rmtree(PAGE)
-    leaf("page", "init", str(PAGE))
+    selection_args = [arg for package in PACKAGES for arg in ("--package", package)]
+    leaf("page", "init", *selection_args, str(PAGE))
     (PAGE / "versions" / "v1.html").write_text(
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )

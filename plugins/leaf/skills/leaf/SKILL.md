@@ -77,11 +77,9 @@ another.
   before the first handoff.
 - `references/conversation-loop.md`: before waiting, processing a delivered
   batch, opening or replying to a thread, or ending a page.
-- `references/worker-orchestration.md`: when other sessions report into an
-  orchestrator-owned page or a worker receives a Leaf assignment.
 - `references/serving-pages.md`: for `--export`, an unreachable URL, `--host`, a
   standing page, re-vendoring a served page, or resuming another session's page.
-- `references/customizing.md`: for a layer-design request or an event with
+- `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

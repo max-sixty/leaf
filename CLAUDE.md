@@ -10,8 +10,8 @@ Leaf exists to give the agent and user a high-fidelity shared surface. A page ca
 use prose, diagrams, movable boards, comparisons, and other structures suited to
 the subject. Comments stay attached to the words or element that prompted them.
 The page can also change while work proceeds, so it is the work surface rather
-than a report written after the fact. Theme, registry, and widget overlays let a
-project add a shape the shipped vocabulary lacks.
+than a report written after the fact. Packages let a project add themes, widgets,
+modules, and other contributions without changing Leaf's kernel.
 
 The project has no users, deployment, database, or persisted state that constrains
 new code. Delete and regenerate stale state. Rename or reshape interfaces whenever
@@ -46,15 +46,16 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
 - `assets/leaf.js` is the public page runtime and comment layer. Its private
   context, state projector, and chrome stylesheet live under `assets/runtime/`
   and are composed by that stable module. There is no build step.
-- `assets/registry.json` is the integrated widget vocabulary and the layer-wide
-  `$` declarations read by the runtime, linter, renderer, catalog, and docs.
-- `assets/theme.css` owns tokens, element styles, class idioms, integrated widget
-  rules, and the shared look of runtime chrome.
+- `assets/registry.json` is the kernel vocabulary and the layer-wide `$`
+  declarations read by the runtime, linter, renderer, catalog, and docs.
+- `assets/theme.css` owns tokens, elements, class idioms, and the shared look of
+  runtime chrome.
 - `assets/icon.svg` is the page and site mark. The runtime paints its `lf-tone`
   element with page status.
-- `bundled/` is an overlay layer containing shipped content widgets, their
-  registry entries, modules, theme rules, and vendored libraries. It enters a
-  page through the same merge as user and project customizations.
+- `packages/default/` supplies the bundled content vocabulary. It enters the
+  composer through the same package contract as an explicit package, `.leaf/`,
+  or `~/.config/leaf/`. A package may carry a theme, zero or more widgets,
+  helper modules, vendor files, authoring guidance, or top-level layer files.
 
 The seventh product part is repo-root `examples/`: complete pages that form the
 render corpus. `examples/gallery.html` is generated from them.
@@ -81,8 +82,10 @@ the page while the session still stands.
 page therefore keeps the assets it was reviewed with. `interact.py`'s module
 docstring defines every file in a page directory.
 
-Layers merge from shipped integrated assets, through bundled widgets, then the
-user's `~/.config/leaf/` and the project's `.leaf/`. Theme files concatenate.
+The kernel and packages merge in this order: `assets/`, the bundled default
+package, explicit package paths in command order, `~/.config/leaf/`, then
+`.leaf/`. The vendored registry records explicit paths under `$layer.packages`
+so a plain re-init resolves the same packages. Theme files concatenate.
 Runtime, icon, widget, and vendor files replace by path. Registry tag entries
 replace whole, while members of shared `$` entries compose. Each initialization
 validates the merged vocabulary and writes the same fresh layer epoch into the
@@ -355,11 +358,11 @@ record fields such as `chosen` or `status`. Transient tab state belongs on the
 control that carries it or under `data-`; mirroring it onto the authored element
 creates a second state representation that `shallowSigs` will treat as authored.
 
-The same open-list rule binds documentation and scaffolding. `page catalog`
-reads the merged registry and theme idioms. `leaf customize widget` scaffolds a
-complete entry, a framed theme rule, and optionally an upgrade module that uses
-the exported helper surface. Adding a twelfth widget must not require updating a
-handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
+The same open-list rule binds documentation and package validation. `page catalog`
+reads the merged registry and theme idioms. `leaf package check PACKAGE` validates
+the package through the same composition gate as `page init`. Adding a twelfth widget
+must not require updating a handwritten catalog, renderer branch, CSS tag list, or
+prose enumeration.
 
 ## Working on the repository
 

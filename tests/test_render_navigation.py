@@ -21,6 +21,7 @@ from render_support import (
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
+    ROOT,
     TARGETS_PAGE,
     WHERE_I_STAND_PAGE,
     _publish,
@@ -1317,7 +1318,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
     sources = [
         layer / "assets/leaf.js",
-        *sorted((layer / "bundled/widgets").glob("*.js")),
+        *sorted((layer / "packages/default/widgets").glob("*.js")),
+        *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
     listeners = [
         f"{src.name}:{n}"
@@ -1903,7 +1905,9 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     opening the next address would be a character in the last one's draft."""
     page, errors = open_page(browser, serve(WHERE_I_STAND_PAGE))
     line = page.locator(".lf-keyline")
-    drop = lambda: page.evaluate("() => document.activeElement?.blur()")
+
+    def drop():
+        page.evaluate("() => document.activeElement?.blur()")
 
     # Standing nowhere in the page: the press means the page, as it always did.
     expect(line).to_contain_text("comment on the page")

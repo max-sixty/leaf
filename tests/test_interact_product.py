@@ -9,6 +9,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 from interact_support import (
+    COMMAND_HUB_PACKAGE,
     PAGE,
     ROOT,
     _report,
@@ -18,6 +19,7 @@ from interact_support import (
     fetch,
     fragment_errors,
     interact,
+    link_command_hub_package,
     live_versions,
     page_state,
     publish,
@@ -225,11 +227,17 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundle_carries(page_dir
 def test_examples_pass_check(tmp_path, monkeypatch):
     """Every gallery page in examples/ lints clean against the shipped layer."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    examples = sorted((Path(__file__).parent.parent / "examples").glob("*.html"))
+    root = Path(__file__).parent.parent / "examples"
+    packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
+    link_command_hub_package(tmp_path)
+    examples = sorted(root.glob("*.html"))
     assert examples
+    selection_args = [arg for package in packages for arg in ("--package", package)]
     for example in examples:
         d = tmp_path / example.stem
-        initialized = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        initialized = CliRunner().invoke(
+            interact.cli, ["page", "init", *selection_args, str(d)]
+        )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
@@ -243,12 +251,19 @@ def test_examples_pass_check(tmp_path, monkeypatch):
 
 
 def test_every_widget_in_the_vocabulary_stands_in_an_example():
-    """Eight browser sweeps read a widget inside a whole page, and their corpus is
-    examples/, so a widget no example holds is one none of the eight has ever seen —
-    a gap that reads as coverage, since the widget's own tests are green. lf-shot and
-    lf-specimen were outside them from the day each was written. examples/CLAUDE.md
-    carries the rest, including the shapes this floor doesn't reach."""
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    """Eight sweeps in test_render.py read a widget inside a whole page, and their
+    corpus is examples/, so a widget no example holds is one none of the eight has ever
+    seen — a gap that reads as coverage, since the widget's own tests are green.
+    lf-shot and lf-specimen were outside them from the day each was written.
+    examples/CLAUDE.md carries the rest, including the shapes this floor doesn't
+    reach."""
+    registry = interact.incoming_registry(
+        [
+            interact.ASSETS,
+            interact.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
     # The gallery is generated from the others, so it can only repeat their coverage.
     authored = " ".join(
         p.read_text()
@@ -275,7 +290,7 @@ def test_gallery_is_generated_from_the_examples():
 
 
 def test_the_key_table_is_generated_from_the_registry():
-    """docs/customizing.html's table of x- keys is written from the registry's $keys —
+    """docs/packages.html's table of x- keys is written from the registry's $keys —
     one home for what a key means, read by the catalog and the site alike — so a
     commit that lets the two drift fails here. Compared with the whitespace between
     tags dropped, because prettier re-flows the page and a formatter's line breaks are
@@ -286,7 +301,10 @@ def test_the_key_table_is_generated_from_the_registry():
     keydocs = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(keydocs)
     committed = keydocs.DOCS_PAGE.read_text()
-    said = lambda html: re.sub(r"\s+", " ", re.sub(r"\s*(<[^>]*>)\s*", r"\1", html))
+
+    def said(html):
+        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", html))
+
     assert said(keydocs.build(committed)) == said(committed), (
         "the registry's $keys changed — rerun scripts/keydocs.py"
     )
@@ -388,19 +406,22 @@ def test_reply_validates_widget_markup(page_dir):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    reply = lambda markup: CliRunner().invoke(
-        interact.cli,
-        [
-            "reply",
-            str(page_dir),
-            "--to",
-            "c1",
-            "--text",
-            "See:",
-            "--markup",
-            markup,
-        ],
-    )
+
+    def reply(markup):
+        return CliRunner().invoke(
+            interact.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c1",
+                "--text",
+                "See:",
+                "--markup",
+                markup,
+            ],
+        )
+
     bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
@@ -429,19 +450,22 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    reply = lambda markup: CliRunner().invoke(
-        interact.cli,
-        [
-            "reply",
-            str(page_dir),
-            "--to",
-            "c1",
-            "--text",
-            "Pick:",
-            "--markup",
-            markup,
-        ],
-    )
+
+    def reply(markup):
+        return CliRunner().invoke(
+            interact.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c1",
+                "--text",
+                "Pick:",
+                "--markup",
+                markup,
+            ],
+        )
+
     # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
     clash = reply(
         '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
@@ -795,6 +819,16 @@ def test_note_refuses_a_version_that_fails_check(page_dir):
     assert live_versions(page_dir) == []
 
 
+def test_example_layer_names_repository_packages():
+    examples = ROOT / "examples"
+    packages = json.loads((examples / "layer.json").read_text(encoding="utf-8"))
+
+    assert packages
+    assert all(not Path(name).is_absolute() for name in packages)
+    assert all((ROOT / name).is_dir() for name in packages)
+    assert interact.checked_inputs([ROOT / name for name in packages])
+
+
 def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     tmp_path, monkeypatch
 ):
@@ -822,10 +856,15 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         if p.with_suffix(".jsonl").exists()
     ]
     assert seeded, "no example ships a log; this gate is reading nothing"
+    packages = json.loads((ROOT / "examples" / "layer.json").read_text())
+    link_command_hub_package(tmp_path)
+    selection_args = [arg for package in packages for arg in ("--package", package)]
     read = 0
     for example in seeded:
         d = tmp_path / f"door-{example.stem}"
-        initialized = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        initialized = CliRunner().invoke(
+            interact.cli, ["page", "init", *selection_args, str(d)]
+        )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)

@@ -161,7 +161,7 @@
   /* The "you are here" ring: where the reader is standing, wherever they are
      standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
      focused as one thing draws its own in the same band (a joined choose group,
-     bundled/theme.css), and so do the runtime's own controls, which is where a
+     packages/default/theme.css), and so do the runtime's own controls, which is where a
      reader backing out of the panel lands. One band for one fact — stated apart,
      the same ring was free to become three, and a reader would have had to learn
      that a blue rectangle on the banner and a blue rectangle down the page meant
@@ -581,7 +581,7 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
    * (`--lf-frame`), and the room is the second thing the layer reads out of that one
    * declaration: whoever draws a box gets both by saying one thing, in the layer that
    * draws it, and a project's card is covered the day it says it. Two lists of tags said
-   * it before, one here and one in bundled/theme.css, and a list beside a declaration is
+   * it before, one here and one in packages/default/theme.css, and a list beside a declaration is
    * a copy of it — every tag in them declared the frame, five boxes that declared were in
    * neither, and `figure`, which draws no box at all, was withholding the room.
    *
@@ -628,7 +628,7 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
  * 7.83px a character and the 690px inside this padding fits 88 of them, clear of the 80
  * most source is written to; --t-5 fits 81, and the 84% of an inline <code> exactly 80.
  *
- * The number is a contract across layers, like .tag's below. bundled/theme.css restates
+ * The number is a contract across layers, like .tag's below. packages/default/theme.css restates
  * it twice — the upgraded widgets' pre-upgrade presentation, and a rendered lf-tree —
  * while lf-code's rendered form builds a plain <pre> that takes this rule. So this
  * number moving alone is lf-code changing size the moment its module runs, and a
@@ -718,8 +718,9 @@ dd { margin: 0 0 8px 0; }
  * the serif is left to carry what there is to read. Listing them in one rule is the
  * point: what counts as apparatus is a judgement, and a judgement made in twenty
  * places is twenty chances to answer it differently. This rule is the layer's own
- * words — the idioms and the fail-soft box; a widget layer (bundled/theme.css, or
- * any overlay's) states the same rule for the words its widgets wear.
+ * words — the idioms and the fail-soft box; a package theme
+ * (packages/default/theme.css, or any selected package's) states the same rule for the
+ * words its widgets wear.
  *
  * This is a look, not a permission — the anchoring norm's distinction exactly. A
  * chip a widget says (data-lf-said) is still the page's words and still something
@@ -753,8 +754,8 @@ dd { margin: 0 0 8px 0; }
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The pill a small label rides in. These numbers are a contract across layers: the
- * bundled widgets' chips (lf-chip, a milestone's attribute row) restate them in
- * bundled/theme.css so a band of chips and an inline .tag stand the same height —
+ * default-package widgets' chips (lf-chip, a milestone's attribute row) restate them in
+ * packages/default/theme.css so a band of chips and an inline .tag stand the same height —
  * they drifted four pixels apart once, when the inline label padded itself and
  * nobody had decided that. A wearer keeps only where it sits, and a tint of its
  * own where the tint is the point. */
@@ -1038,7 +1039,7 @@ lf-new { background: var(--add-tint); }
 ::highlight(lf-sug-ins) { background-color: color-mix(in srgb, var(--ok) 26%, transparent); }
 /* Which form a slot takes is asked of the platform's own closed set, inverted: any
  * child that is not phrasing content makes the slot a block. Enumerating the block
- * side named every bundled widget in the integrated layer — the closed list the norms
+ * side named every shipped widget in the integrated layer — the closed list the norms
  * forbid, silently inline for the first project-layer widget staged in a slot, whose
  * fold then dropped it in the frame of the press. Phrasing is the list that cannot
  * grow: a custom element is never in it, so a block widget from any layer is covered
@@ -1046,7 +1047,7 @@ lf-new { background: var(--add-tint); }
  * one wrong answer: an inline widget is a custom element too. Which widgets those are is
  * the registry's to say (x-inline) and a stylesheet cannot read it, so the runtime paints
  * the declaration where a selector can reach it (data-lf-inline, leaf.js markDeclared).
- * Four widget names stood here instead, one of them a bundled chip's — a bundled tag in
+ * Four widget names stood here instead, one of them a standard chip's — a shipped tag in
  * the integrated theme, and the layer that most needed the answer, a project's own, was
  * the one layer it could never be given for. What the tag list bought that the marker
  * does not is the page that never runs the runtime: unpainted, an inline widget in a

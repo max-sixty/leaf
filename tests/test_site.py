@@ -32,7 +32,8 @@ from render_support import BOTH_STAMPS, navigate, open_page, select
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
-BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
+DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
+COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -96,28 +97,32 @@ def opened(page, errors, url):
 def test_the_pages_link_the_theme_the_site_serves(site):
     """One stylesheet on the site, and it is the one a page directory vendors: a docs
     page names both halves in a checkout because there is no merged file there to name,
-    and linking both here would restate the bundled half over the top of itself."""
+    and linking both here would restate the default package over the top of itself."""
     for page in pages_under(DOCS):
         published = (site / page.name).read_text()
         assert published.count('href="theme.css"') == 1, page.name
-        assert "bundled/theme.css" not in published, (
-            f"{page.name} still links the bundled theme beside the merged one"
+        assert "packages/default/theme.css" not in published, (
+            f"{page.name} still links the default theme beside the merged one"
         )
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
     served = (site / "theme.css").read_text()
-    for source in (ASSETS / "theme.css", BUNDLED / "theme.css"):
+    for source in (
+        ASSETS / "theme.css",
+        DEFAULT_PACKAGE / "theme.css",
+        COMMAND_HUB_PACKAGE / "theme.css",
+    ):
         assert source.read_text().rstrip() in served, (
             f"the theme the site serves is missing {source.parent.name}'s half"
         )
 
 
 def test_only_the_stylesheet_link_becomes_the_served_copy(site):
-    """customizing.html links the theme twice — once as the page's stylesheet, once as
+    """packages.html links the theme twice — once as the page's stylesheet, once as
     source to read — and the two have to land in different places. Rewriting on the path
     alone sends a reader after the token block to the CSS the site serves, which is a
     resolving link the dead-link check has nothing to say about and the wrong file."""
-    published = (site / "customizing.html").read_text()
+    published = (site / "packages.html").read_text()
     source = f"{site_build.REPO}/blob/main/plugins/leaf/skills/leaf/assets/theme.css"
     assert f'href="{source}"' in published
     assert published.count('href="theme.css"') == 1

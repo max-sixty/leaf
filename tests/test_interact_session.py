@@ -298,7 +298,9 @@ def test_revendoring_cannot_remove_an_active_widget_work_seat(page_dir):
     assert claimed.exit_code == 0, claimed.output
     before = (page_dir / "registry.json").read_bytes()
 
-    card = json.loads((interact.BUNDLED / "registry.json").read_text())["lf-card"]
+    card = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())[
+        "lf-card"
+    ]
     card.pop("x-work")
     layer = Path.cwd() / ".leaf"
     layer.mkdir()
@@ -1151,14 +1153,14 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_layered_theme = interact.layered_theme
+    original_composed_theme = interact.composed_theme
 
-    def held_layered_theme(layers):
+    def held_composed_theme(sources):
         reached_layer.set()
         assert resume.wait(timeout=10), "the concurrent init never released its peer"
-        return original_layered_theme(layers)
+        return original_composed_theme(sources)
 
-    monkeypatch.setattr(interact, "layered_theme", held_layered_theme)
+    monkeypatch.setattr(interact, "composed_theme", held_composed_theme)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(interact.cmd_init, page)
     try:

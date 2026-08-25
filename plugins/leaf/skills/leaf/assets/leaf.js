@@ -1115,10 +1115,10 @@ export const pageScroller = document.body;
 // protocol of its own to agree with the send queue and the polling loop.
 const outbox = [];
 let outboxOrder = 0;
-const actionMatches = (el, action, detail) => {
+const actionMatches = (el, action) => {
   const spec = registry[el.localName]?.["x-state"]?.[action];
   if (!spec) return false;
-  if (spec.requires && !requirementMatches(el, spec, detail)) return false;
+  if (spec.requires && !requirementMatches(el, spec)) return false;
   return true;
 };
 
@@ -1126,8 +1126,7 @@ const actionMatches = (el, action, detail) => {
 // Modules use it to paint controls and guard gestures; sendAction asks it again at the
 // common browser door. POST interprets the same x-state declaration under the append
 // lock, because this tab's projection may be stale rather than authoritative.
-export const actionAvailable = (el, action, detail) =>
-  !quoted(el) && actionMatches(el, action, detail);
+export const actionAvailable = (el, action) => !quoted(el) && actionMatches(el, action);
 
 export async function sendAction(el, action, detail, { attempt } = {}) {
   // The exhibit rule enforced at the layer's own door, not left to each module
@@ -1141,7 +1140,7 @@ export async function sendAction(el, action, detail, { attempt } = {}) {
     );
     return null;
   }
-  if (!actionMatches(el, action, detail)) return null;
+  if (!actionMatches(el, action)) return null;
   return post({
     kind: "action",
     version: runtime.currentVersion,
@@ -1198,33 +1197,41 @@ export function conversationBox(el, hint) {
   const row = offer("div", "lf-say");
   const ta = offer("textarea");
   const send = offer("button", "lf-btn primary", "Send");
+  const hold = declaration.hold ? offer("button", "lf-btn", declaration.hold) : null;
   const ctx = "say:" + el.id;
   ta.value = loadDraft(ctx) ?? "";
   ta.setAttribute("aria-label", hint);
-  row.append(ta, send);
+  row.append(ta, send, ...(hold ? [hold] : []));
+  const sendComment = (text, raw, holds = false) =>
+    sendDraft(
+      ctx,
+      () => ta.value === raw,
+      (attempt) =>
+        post({
+          kind: "comment",
+          version: runtime.currentVersion,
+          anchor: { section: el.id },
+          text,
+          attempt,
+          ...(holds && { holds: el.id }),
+        }),
+    );
   const sync = wireInput(ta, {
     hint,
     sends: "send",
     sendBtn: send,
+    altBtn: hold,
     save: (v) => saveDraft(ctx, v),
     send: async (text, raw) => {
-      if (
-        !(await sendDraft(
-          ctx,
-          () => ta.value === raw,
-          (attempt) =>
-            post({
-              kind: "comment",
-              version: runtime.currentVersion,
-              anchor: { section: el.id },
-              text,
-              attempt,
-            }),
-        ))
-      )
-        return;
+      if (!(await sendComment(text, raw))) return;
       showToast(`Sent to ${runtime.agent}`);
     },
+    altSend: hold
+      ? async (text, raw) => {
+          if (!(await sendComment(text, raw, true))) return;
+          showToast(`Sent to ${runtime.agent} — goal paused`);
+        }
+      : null,
   });
   sync();
   // Keep the first-message box reachable even while an existing exact-section
@@ -1650,16 +1657,13 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // widget open what it owns (the lf-reveal event; lf-tabs listens) gives the
 // target geometry before the scroll. Called before every scroll-to-content.
 function reveal(el) {
-  for (let a = el; a; a = a.parentElement) {
+  const chain = [];
+  for (let a = el; a; a = a.parentElement) chain.push(a);
+  // Reveal outside-in so an inner widget has geometry when it handles the signal.
+  for (const a of chain.reverse()) {
     if (a.tagName === "DETAILS" && !a.open) a.open = true;
-    if (a.hidden) a.dispatchEvent(new CustomEvent("lf-reveal"));
+    a.dispatchEvent(new CustomEvent("lf-reveal", { detail: { target: el } }));
   }
-  // The containers are open; now tell the target itself. A widget whose chrome waits
-  // on its container's geometry (a suggestion's hoisted row hides while its anchor
-  // has none) settles synchronously on this, ahead of what the caller does next —
-  // stepAsk focuses that chrome in this same task, and an async settle left the
-  // focus on the previous ask's control while the announce said otherwise.
-  el.dispatchEvent(new CustomEvent("lf-reveal"));
 }
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their
@@ -1682,6 +1686,24 @@ const opaquePassageParts = new WeakSet();
 // registry that means widgets goes through here.
 const widgetEntries = () =>
   Object.entries(registry).filter(([tag]) => tag.startsWith("lf-"));
+// Shared `$` entries belong to the layer rather than to one widget. Return a copy so
+// a package module can read its cross-widget vocabulary without a registry write path.
+export function layerFact(name) {
+  if (!name?.startsWith("$"))
+    throw new Error(`leaf: layerFact expects a $ entry, got ${String(name)}`);
+  const value = registry[name];
+  return value === undefined ? undefined : structuredClone(value);
+}
+export const declarationFor = (el, key) => registry[el?.localName]?.[key];
+export const elementsDeclaring = (root, key, { direct = false } = {}) => {
+  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
+  return candidates.filter((el) => declarationFor(el, key) !== undefined);
+};
+export function closestDeclaring(el, key) {
+  for (let at = el; at; at = at.parentElement)
+    if (declarationFor(at, key) !== undefined) return at;
+  return null;
+}
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is an x- key
 // they carry, so the twelfth widget is covered by its entry alone — the alternative
@@ -3399,6 +3421,9 @@ export const watchUpdates = (target, callback) =>
     callback(updatesFromProjection(target, projection));
   });
 
+export const watchHistory = (owner, callback) =>
+  watch(owner, () => callback(runtime.events.map((event) => structuredClone(event))));
+
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
 // server death — and the tab itself. That last one is where this store came from: each
@@ -4159,7 +4184,17 @@ const SEND_KEYS = spell(SEND);
 // things, and the row is where the surfaces read that from.
 function wireInput(
   ta,
-  { hint, address, save, send, sendBtn, sends, busy = () => false },
+  {
+    hint,
+    address,
+    save,
+    send,
+    sendBtn,
+    sends,
+    altBtn = null,
+    altSend = null,
+    busy = () => false,
+  },
 ) {
   // The hint goes in the placeholder, where it's visible exactly while the box is
   // empty and can't be found any other way; the button's tooltip spells the send key
@@ -4177,6 +4212,7 @@ function wireInput(
   ta.addEventListener("focus", paint);
   ta.addEventListener("blur", paint);
   sendBtn.title = `Send (${SEND_KEYS})`;
+  if (altBtn) altBtn.title = altBtn.textContent;
   let sending = false;
   // aria-disabled rather than the property, because a widget's send button is a span
   // wearing role="button" (see offer) and a span has no `disabled` to set — it would
@@ -4185,13 +4221,12 @@ function wireInput(
   // saying it can't send yet is better than one the reader can't reach to find out.
   const sync = () => {
     paint();
-    sendBtn.setAttribute(
-      "aria-disabled",
-      String(sending || busy() || !ta.value.trim()),
-    );
+    const disabled = String(sending || busy() || !ta.value.trim());
+    sendBtn.setAttribute("aria-disabled", disabled);
+    altBtn?.setAttribute("aria-disabled", disabled);
   };
   paint();
-  const submit = async () => {
+  const submit = async (sender) => {
     if (sending || busy()) return;
     // A send key on an empty box answered with silence reads as a send that
     // happened — the blind drive believed exactly that. Say the nothing out loud
@@ -4202,7 +4237,7 @@ function wireInput(
     sending = true;
     sync();
     try {
-      await send(text, raw);
+      await sender(text, raw);
     } finally {
       sending = false;
       sync();
@@ -4222,9 +4257,15 @@ function wireInput(
   // what the line is for — a composer in suggestion mode and a thread's reply are one
   // binding doing two things.
   keys(ta, "In a text box", [
-    { keys: [SEND], does: "Send what you have typed", line: sends, run: submit },
+    {
+      keys: [SEND],
+      does: "Send what you have typed",
+      line: sends,
+      run: () => submit(send),
+    },
   ]);
-  sendBtn.addEventListener("click", submit);
+  sendBtn.addEventListener("click", () => submit(send));
+  altBtn?.addEventListener("click", () => submit(altSend));
   return sync;
 }
 
@@ -4880,12 +4921,13 @@ function renderConversations(threads) {
     });
     // Before the first comment, conversationBox's first-message composer is already
     // the complete view. An externally arriving root may find unsent first-message
-    // words here, so the root does not get to take their only box: presence in the
-    // draft store (including "") keeps it after the existing threads until a successful
-    // send settles it. A box with no draft gives way to the conversation immediately.
+    // words here, so the root does not get to take their only box. A hold-capable seat
+    // stays reachable after every root so an ordinary conversation cannot remove the
+    // stronger send route.
     if (!owned.length) continue;
     const first = host.lfFirstMessage;
-    const pending = loadDraft("say:" + owner.id) !== null ? first : null;
+    const hold = registry[owner.localName]?.["x-conversation"]?.hold;
+    const pending = hold || loadDraft("say:" + owner.id) !== null ? first : null;
     const work = host.querySelector(":scope > .lf-work-line");
     setChildren(host, [
       ...(work ? [work] : []),
@@ -5325,6 +5367,18 @@ function renderThreads(threads) {
   refreshHover();
 }
 
+// An unresolved hold thread is the pause. Derive the mark from the thread fold so
+// resolution removes it and undo restores it without a second state store.
+function renderHolds(threads) {
+  for (const node of document.querySelectorAll("[data-lf-held]"))
+    node.removeAttribute("data-lf-held");
+  for (const thread of threads) {
+    if (thread.resolved || !thread.root.holds) continue;
+    const target = elementById(thread.root.holds);
+    if (target && !inChrome(target)) target.dataset.lfHeld = thread.root.id;
+  }
+}
+
 // The two surfaces that say what the narrowing is doing, written together because they
 // are one fact told twice: how much of the conversation is in front of the reader, and
 // how much of it is still theirs to answer. One writer, so the phase before the log has
@@ -5432,6 +5486,7 @@ function renderPanel() {
     return;
   }
   const threads = buildThreads();
+  renderHolds(threads);
   threadList = threads;
   // The marks first, because the list is ordered by where they landed: one resolution of
   // every anchor, read by the page for its paint and by the panel for its order. Resolving
@@ -6614,7 +6669,7 @@ const HTML_WORDS = {
   h5: "heading",
   h6: "heading",
 };
-function itemWord(item) {
+export function itemWord(item) {
   if (!item) return "";
   const tag = item.tagName.toLowerCase();
   // A widget whose kind is not its tag says which it is. Three shapes of change are all
@@ -7140,6 +7195,17 @@ function paintAnchors(threads = buildThreads()) {
   }
 }
 
+// Re-resolve marks after a package replaces derived passage nodes during replay.
+let projectionAnchorPaintQueued = false;
+document.addEventListener("lf-projection", () => {
+  if (projectionAnchorPaintQueued) return;
+  projectionAnchorPaintQueued = true;
+  queueMicrotask(() => {
+    projectionAnchorPaintQueued = false;
+    paintAnchors();
+  });
+});
+
 // A reference a message makes into the page: its own Markdown link, or one a widget
 // in its frozen markup writes (a lf-option's `for`). One selector, so what the paint
 // above dresses and what the press below refuses are the same set.
@@ -7242,10 +7308,12 @@ function scrollToElement(el, behavior = SCROLL, block = "center") {
 // of the region that holds it. No transient effect waits on that motion or survives it
 // as separate state.
 function scrollToThread(id) {
-  const where = marksOf(id)[0];
+  const where = marksOf(id)[0] ?? placed.get(id);
   if (!where) return;
   if (!(where instanceof Range)) {
-    scrollToElement(where);
+    reveal(where);
+    if (!marksOf(id).length) paintAnchors();
+    scrollToElement(marksOf(id)[0] ?? where);
     return;
   }
   const holder = where.startContainer.parentElement;
@@ -10312,7 +10380,7 @@ function askSurface(el) {
   const tags = askSurfaceTags();
   return (tags.length && closestAcross(el, tags.join(","))) || el;
 }
-function askSource(el) {
+export function askSource(el) {
   if (askEntry(el)) return el;
   const tags = askTags();
   if (!tags.length || !registry[el.localName]?.["x-ask"]) return el;
@@ -10333,8 +10401,8 @@ function answeredAsk(el, projection) {
   // cleared pick must ask again.
   return verbs.some((verb) => {
     const spec = entry["x-state"][verb];
-    return spec.record?.kind === "attribute"
-      ? projectedFacet(el, spec, projection.actions) !== ""
+    return ["attribute", "value"].includes(spec.record?.kind)
+      ? ![null, ""].includes(projectedFacet(el, spec, projection.actions))
       : projection.actions.get(stateCoordinate(el.id, el.id, spec))?.e.action === verb;
   });
 }
@@ -10444,7 +10512,7 @@ function isAwaiting(el, context) {
 // decision is a mention). A widget in a thread asks like one on the page: a question
 // is a request to the reader wherever it stands, and the panel's count is a different
 // fact — threads open, not answers owed.
-function openAsks() {
+export function openAsks() {
   // Before the first replay, the DOM carries authored initial state while the log may
   // already answer it. This list drives both pixels and actions, so an empty list is the
   // only honest answer until the presentation boundary says replay is complete.
@@ -10507,7 +10575,7 @@ function buildBulkAnswers() {
       try {
         for (const ask of openAsks()) {
           const source = askSource(ask);
-          if (askEntry(source).all === verb) await source[verb]?.();
+          if (askEntry(source)?.all === verb) await source[verb]?.();
         }
       } finally {
         btn.disabled = false;
@@ -10531,7 +10599,7 @@ function blanketAnswers(asks) {
   return [...bulkButtons].map(([verb, { btn, label }]) => ({
     btn,
     label,
-    n: asks.filter((ask) => askEntry(askSource(ask)).all === verb).length,
+    n: asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length,
   }));
 }
 // The ones with something to answer right now. Declared rather than assigned, like
@@ -12132,7 +12200,7 @@ async function presentPage() {
   // an empty persisted tray between those facts.
   restoreTray();
   showNews(othersBtn, leavesOffered());
-  syncAsks();
+  document.dispatchEvent(new Event("lf-actions"));
   paintApproval();
   promoteDeferredModals();
 }

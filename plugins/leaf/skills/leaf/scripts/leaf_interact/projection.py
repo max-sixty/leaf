@@ -521,6 +521,32 @@ def replayed_attrs(rec: dict, projection: StateProjection) -> dict:
     return attrs
 
 
+def answered_verb(
+    rec: dict,
+    projection: StateProjection,
+    verb: str,
+    entry: dict,
+    byid: dict,
+    spk: dict,
+    registry: dict,
+) -> bool:
+    """Whether one verb's own durable facet answers this widget."""
+    unit = rec["attrs"].get("id")
+    spec = (entry.get("x-state") or {}).get(verb)
+    if not spec or not unit:
+        return False
+    held = projection.actions.get(state_coordinate(unit, unit, spec))
+    record = spec.get("record")
+    if record and record["kind"] in ("attribute", "value"):
+        facet = (
+            folded_facet(*held)
+            if held
+            else markup_facet(unit, spec, byid, spk, registry)
+        )
+        return facet not in (None, "", [])
+    return bool(held and held[0]["action"] == verb)
+
+
 def answered_ask(
     rec: dict,
     entry: dict,
@@ -529,28 +555,11 @@ def answered_ask(
     spk: dict,
     registry: dict,
 ) -> bool:
-    """Whether one of x-awaits' explicit answer verbs stands on this ask.
-
-    An attribute record reads through authored markup as well as the fold, so an
-    honoring version remains answered. Other records need their verb's standing
-    action. Actions absent from `answers` are orthogonal state — notably a deadline
-    snooze — and cannot close the request by accident.
-    """
-    unit = rec["attrs"].get("id")
-    for verb in entry["x-awaits"].get("answers", []):
-        spec = entry["x-state"][verb]
-        held = projection.actions.get(state_coordinate(unit, unit, spec))
-        record = spec.get("record")
-        if record and record["kind"] == "attribute":
-            if held and (held[1].get("record") or {}).get("kind") == "attribute":
-                facet = folded_facet(*held)
-            else:
-                facet = markup_facet(unit, spec, byid, spk, registry) if unit else []
-            if facet:
-                return True
-        elif held and held[0]["action"] == verb:
-            return True
-    return False
+    """Whether one of this request's explicit answer verbs stands."""
+    return any(
+        answered_verb(rec, projection, verb, entry, byid, spk, registry)
+        for verb in (entry.get("x-awaits") or {}).get("answers", [])
+    )
 
 
 def quoted_in(rec: dict, registry: dict) -> bool:

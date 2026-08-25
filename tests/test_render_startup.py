@@ -1329,7 +1329,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     two classList read-backs, the exact shape the first norm forbids.
 
     A section is its title, so two drafts on a page are one heading and a project
-    widget declaring under a heading a bundled one already uses joins it. That is
+    widget declaring under a heading a standard one already uses joins it. That is
     the scope talking rather than the declaration: "On a draft" names where the
     reader would be standing, and there is one such place however many modules
     have something to say about it. Sections used to key on their exact rows, so

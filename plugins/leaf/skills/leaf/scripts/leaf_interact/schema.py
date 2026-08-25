@@ -102,11 +102,18 @@ ACTION_REQUIREMENT = {
 }
 
 
-def _verbs_schema(records: list, required: list, *, conditional: bool = False) -> dict:
+def _verbs_schema(
+    records: list,
+    required: list,
+    *,
+    conditional: bool = False,
+    updates: bool = False,
+) -> dict:
     """The shape x-state and x-report share: verbs to
     {detail, facet, unit, record}, differing only in which record forms a
     channel admits, whether one is required at all, and whether the reader's
-    channel may declare current applicability."""
+    channel may declare current applicability or the agent's may declare update
+    prose."""
     properties = {
         "detail": {"type": "object"},
         "facet": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -115,6 +122,14 @@ def _verbs_schema(records: list, required: list, *, conditional: bool = False) -
     }
     if conditional:
         properties["requires"] = ACTION_REQUIREMENT
+    if updates:
+        # A report may carry one short prose update beside the structured state it
+        # records. Naming the detail field is what lets the common update feed expose
+        # those words without guessing from a widget, verb, or field name.
+        properties["update"] = {
+            "type": "string",
+            "pattern": f"^{HTML_NAME}$",
+        }
     return {
         "type": "object",
         "minProperties": 1,
@@ -140,6 +155,7 @@ STATE_SCHEMA = _verbs_schema(
 REPORT_SCHEMA = _verbs_schema(
     [_RECORD_ATTRIBUTE, _RECORD_POSITION, _RECORD_VALUE],
     ["detail", "facet", "unit", "record"],
+    updates=True,
 )
 AWAITS_SCHEMA = {
     "type": "object",

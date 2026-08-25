@@ -38,10 +38,11 @@ from interact_support import (
     serving,
     spawn_probe,
     start_through_the_launcher,
+    state_json,
 )
 
 
-def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys):
+def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
     """`leaf status --on` writes one claim at two seats: the page's line, which the
     banner reads, and a line on the thread the work is about, which the reader sees
     under their own words. One command writes both because they are one sentence — a
@@ -57,6 +58,7 @@ def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys):
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
+    comment_seq = interact.read_events(page_dir)[-1]["seq"]
     # A line names a thread, says what is being done, and says it about work in hand:
     # the two other states have nothing to put on a thread, and a line with no words
     # says nothing the thread does not already show.
@@ -71,21 +73,39 @@ def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys):
     assert "needs a detail" in _status(page_dir, "working", "--on", "c1").output
     assert "work" not in interact.read_json(page_dir / "status.json")
 
+    monkeypatch.setenv("LEAF_AGENT", "Trace reader")
     assert (
         _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
     )
     status = interact.read_json(page_dir / "status.json")
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
-    assert status["work"] == [
+    work = status["work"][0]
+    assert work["subject"] == {"kind": "thread", "id": "c1"}
+    assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
+    assert work["after"] == comment_seq
+    assert work["agent"] == "Trace reader" and work["id"] and work["session"]
+    # The store stays private. At the state boundary it becomes the same typed update
+    # envelope a widget report uses, including the posting delegate's own voice rather
+    # than the page owner's.
+    live = page_state(page_dir)
+    assert "work" not in live["status"]
+    assert live["claims"] == [
         {
-            "subject": {"kind": "thread", "id": "c1"},
-            "detail": "reading the traces",
+            "id": work["id"],
+            "target": {"kind": "thread", "id": "c1"},
+            "source": "claim",
+            "action": "working",
+            "detail": {"text": "reading the traces"},
+            "text": "reading the traces",
             "ts": status["ts"],
-            "after": 1,
+            "log_floor": comment_seq,
+            "agent": "Trace reader",
+            "session": work["session"],
         }
     ]
-    # And it reaches the page the way the claim beside it does, on the one poll answer.
-    assert page_state(page_dir)["status"]["work"][0]["detail"] == "reading the traces"
+    folded = state_json(page_dir)
+    claim = next(update for update in folded["updates"] if update["source"] == "claim")
+    assert claim == {**live["claims"][0], "disposition": "effective"}
 
     # A later claim about the page as a whole answers nothing on the thread.
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
@@ -130,16 +150,14 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     )
     assert claimed.exit_code == 0, claimed.output
     status = interact.read_json(page_dir / "status.json")
-    assert status["work"] == [
-        {
-            "subject": {"kind": "widget", "id": "rollout-card"},
-            "detail": "checking the rollout",
-            "ts": status["ts"],
-            "after": 1,
-        }
-    ]
-    assert "version" not in status["work"][0]
-    assert page_state(page_dir)["status"]["work"][0]["version"] == 1
+    work = status["work"][0]
+    assert work["subject"] == {"kind": "widget", "id": "rollout-card"}
+    assert work["detail"] == "checking the rollout" and work["ts"] == status["ts"]
+    assert work["after"] == 1 and work["id"]
+    assert "version" not in work
+    live = page_state(page_dir)
+    assert "work" not in live["status"]
+    assert live["claims"][0]["version"] == 1
 
     # A drawing has no prose or declared conversation in which a local line can
     # stand. The declaration, not a widget-name branch, decides that at the door.
@@ -155,7 +173,13 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         ["version", "publish", str(page_dir), "--version", "2", "--text", "Elsewhere"],
     )
     assert unrelated.exit_code == 0, unrelated.output
-    assert page_state(page_dir)["status"]["work"][0]["subject"]["id"] == "rollout-card"
+    claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert claim["target"] == {"kind": "widget", "id": "rollout-card"}
+    assert claim["disposition"] == "effective"
 
     # Settlement is explicit and durable on the version note.
     (page_dir / "versions" / "v3.html").write_text(work_page)
@@ -176,16 +200,26 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert settled.exit_code == 0, settled.output
     note = interact.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "work", "id": "rollout-card"}]
-    assert page_state(page_dir)["status"].get("work", []) == []
+    claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert claim["disposition"] == "settled"
 
     # A later claim on the same subject starts after that answer and therefore stands.
     renewed = _status(
         page_dir, "working", "checking the fallback", "--on", "rollout-card"
     )
     assert renewed.exit_code == 0, renewed.output
-    assert (
-        page_state(page_dir)["status"]["work"][0]["detail"] == "checking the fallback"
+    renewed_claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
     )
+    assert renewed_claim["text"] == "checking the fallback"
+    assert renewed_claim["id"] != claim["id"]
+    assert renewed_claim["disposition"] == "effective"
 
     # Replacing the prose widget with a data widget would keep the anchor id but remove
     # the local chrome seat. Publication refuses that silent loss until this version
@@ -295,6 +329,77 @@ def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
     claimed = _status(page_dir, "working", "checking the estimate", "--on", target)
     assert claimed.exit_code == 1
     assert "has no local work seat" in claimed.output
+
+
+def test_a_thread_claim_is_settled_by_log_order_not_a_second_precision_clock(page_dir):
+    """A reply can land in the same timestamp second as the status command. The
+    claim records the log floor it followed, so that later event settles it without
+    asking two equal wall-clock strings which happened first."""
+    comment = interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert (
+        _status(page_dir, "working", "checking", "--on", comment["id"]).exit_code == 0
+    )
+    status = interact.read_json(page_dir / "status.json")
+    work = status["work"][0]
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": comment["id"],
+            "text": "Because the retry won.",
+            "ts": work["ts"],
+        },
+    )
+
+    claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert claim["disposition"] == "settled"
+
+    assert (
+        _status(page_dir, "working", "checking again", "--on", comment["id"]).exit_code
+        == 0
+    )
+    renewed = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert renewed["id"] != claim["id"]
+    assert renewed["disposition"] == "effective"
+
+
+def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
+    """Resolution hides thread work while reopening restores an unanswered claim."""
+    comment = interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert (
+        _status(page_dir, "working", "checking", "--on", comment["id"]).exit_code == 0
+    )
+    interact.append_event(
+        page_dir,
+        {"kind": "resolve", "author": "claude", "parent": comment["id"]},
+    )
+    interact.append_event(
+        page_dir,
+        {"kind": "unresolve", "author": "user", "parent": comment["id"]},
+    )
+
+    claim = next(
+        update
+        for update in state_json(page_dir)["updates"]
+        if update["source"] == "claim"
+    )
+    assert claim["disposition"] == "effective"
 
 
 def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsys):

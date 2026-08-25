@@ -365,14 +365,18 @@ lf-chip {
                 each with a detail schema (the payload half of the log's
                 forever-contract, exactly as x-state's), a semantic facet, a fold unit,
                 and a required record form drawn from $state's vocabulary minus
-                <code>body</code>. The owning widget instance, unit, and facet together
-                name one independently standing fact; verbs on the same tag and facet
-                share their unit and record form, and an action outranks a report at
-                that coordinate. A report moves declared state only, never the page's
-                words, which is what keeps the passage reading untouched by it. The
-                runtime paints a standing report live (data-lf-reported); it is
-                provisional news, standing only until a version answers it. How a
-                version answers a standing report is $report's.
+                <code>body</code>. An optional <code>update</code> names the required
+                non-empty string detail field that is the report's short human-readable
+                news; naming it lets the canonical update feed expose those words
+                without guessing from a widget, verb, or field name. The owning widget
+                instance, unit, and facet together name one independently standing fact;
+                verbs on the same tag and facet share their unit and record form, and an
+                action outranks a report at that coordinate. A report moves declared
+                state only, never the page's words, which is what keeps the passage
+                reading untouched by it. The runtime paints a standing report live
+                (data-lf-reported); it is provisional news, standing only until a
+                version answers it. How a version answers a standing report is
+                $report's.
               </td>
             </tr>
             <tr>
@@ -594,14 +598,20 @@ customElements.define(
           <code>watchActions(this, "verb", render)</code> reruns a renderer after
           replay; use them when a widget needs to explain how its folded state was
           reached rather than copying or retaining the event log itself.
-          <code>reportSequence</code> and <code>watchReports</code> are their twins on
-          the agent channel, returning the standing reports a version has not yet
-          answered — reach for them when a row has to say <em>when</em> the log last
-          heard something, which no version can write down and stay true to.
-          <code>ago(ts)</code> is the page's one wording for elapsed time and
-          <code>quietSince(ts)</code> its one judgment about a claim gone unrefreshed;
-          use both rather than spelling either again, or one page ends up with two
-          clocks on it. The shipped
+          <code>updateSequence(this)</code> and
+          <code>watchUpdates(this, render)</code> read the shared update feed about an
+          item. A report and a thread work claim have the same typed envelope but keep
+          their own source and settlement rule. Their closed <code>disposition</code> is
+          <code>effective</code> when the update contributes to current state on its
+          semantic coordinate, <code>standing</code> while it still needs settlement but
+          is presently outranked, and <code>settled</code> once its authority answers
+          it. Settled report history remains available, so a row can still say
+          <em>when</em> the log last heard something after a version answered it. Pass
+          an explicit <code>{kind, id}</code> target for a thread; bare ids are rejected
+          because they are not canonical identities. <code>ago(ts)</code> is the page's
+          one wording for elapsed time and <code>quietSince(ts)</code> its one judgment
+          about a claim gone unrefreshed; use both rather than spelling either again, or
+          one page ends up with two clocks on it. The shipped
           <a href="../plugins/leaf/skills/leaf/bundled/widgets/lf-options.js"
             >options module</a
           >

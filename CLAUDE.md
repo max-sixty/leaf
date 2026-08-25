@@ -130,16 +130,27 @@ event order. Reports remain live until a version note absorbs or overrules them.
 Actions remain live until undo or a later retraction floor ends them. Both Python
 and JavaScript derive those answers from the same registry declarations.
 
-Work claims are transient rather than event history, but they follow the same
-one-coordinate rule. `status.json` stores a typed subject (`thread` or `widget`)
-and the log sequence after which the claim began. Presence derives a widget
-claim's origin version from that sequence and projects the record against the log
-before any consumer receives it. A later agent reply permanently answers thread
-work; a resolution hides it and an unresolve reveals it again. Widget work survives
+News about an item has one canonical projection even though its sources keep the
+stores their lifetimes require. Logged widget reports and replace-in-place work
+claims share a typed envelope and deterministic order. A target is always
+`{kind, id}` because a widget id and a thread id are different identities even if
+their spelling matches. `source` keeps authority visible. The closed `disposition`
+is `effective` when an entry contributes to current state on its semantic
+coordinate, `standing` when it still awaits settlement but is presently
+outranked, and `settled` once its authority answers it. Do not infer disposition
+from presence in the feed. A report is settled by a version note. A thread work
+claim is effective while the thread is open and no later agent reply has answered
+it; resolving hides it and reopening reveals it again. Widget work survives
 unrelated versions and ends only when a later version note carries a `work`
-settlement for the widget. A version may not silently remove an active claim's
-local seat, and neither may a layer re-vendor: settle the work in a later version
-first. Pinned pages do not show widget work claimed on a later version.
+settlement for the widget. A new claim on either subject starts after a later log
+sequence. Registry
+`x-report.update` names the required non-empty string detail field exposed as an
+update's human-readable text; consumers do not guess it from widget vocabulary.
+
+Presence derives a widget claim's origin version from its sequence boundary
+before any consumer receives it. A version may not silently remove an active
+claim's local seat, and neither may a layer re-vendor: settle the work in a later
+version first. Pinned pages do not show widget work claimed on a later version.
 
 A widget's local seat also stays declaration-driven. `x-work` explicitly admits
 the transient line either as a generated child of block prose (`content`) or at

@@ -1,5 +1,5 @@
 /* lf-agent: upgraded because a roster row has two facts a version cannot write.
- * `doing` is the standing report's live clause, and the line saying how old what the
+ * `doing` is the effective report's live clause, and the line saying how old what the
  * row says is computed at runtime from the worker's last report, or from the version's
  * publish time when no report exists. The version carries the durable
  * state; answering its report therefore removes the clause rather than restoring an
@@ -24,12 +24,12 @@
  * makes, and the alternative — marking it chrome — would put a word on screen that
  * the reader can read and not point at.
  *
- * Rebuilding is idempotent: applyAction states the absolute attribute and hands the
- * report's absolute activity clause to the renderer, so a reload, a second tab, and a
- * re-applied report all converge. watchReports re-renders on every poll whether or not
- * the log grew, which is what keeps the elapsed line true without a timer of this
- * module's own. */
-import { ago, measure, offer, once, quietSince, saidAt, watchReports } from "/leaf.js";
+ * Rebuilding is idempotent: applyAction states the absolute attribute, and the common
+ * update projection hands the declared activity clause to this row, so a reload, a
+ * second tab, and a re-applied report all converge. watchUpdates re-renders on every
+ * poll whether or not the log grew, which is what keeps the elapsed line true without
+ * a timer of this module's own. */
+import { ago, measure, offer, once, quietSince, saidAt, watchUpdates } from "/leaf.js";
 
 const LINE = "lf-agent-line";
 
@@ -45,8 +45,8 @@ const word = (cls, text) =>
  * adding a word rather than by rewording the elapsed line, so `ago` is rendered whole
  * wherever it appears instead of being taken apart to fit a second sentence.
  *
- * Every report and not the standing ones, which is `reportSequence`'s own subject and
- * the reason it does not filter: this line is about the log rather than about the fold,
+ * Every report and not only the standing ones. The canonical feed retains settled
+ * history explicitly: this line is about the log rather than about the fold,
  * and a version that absorbs a report answers what the row *says* without hearing a
  * word more from the worker who said it.
  *
@@ -56,9 +56,12 @@ const word = (cls, text) =>
  * five rows claiming work, published at six in the evening, read at eight the next
  * morning with every worker dead — no elapsed line, no call-out, a dead fleet drawn
  * exactly like a fresh one. */
-function heard(el, reports) {
+function heard(el, updates) {
   const row = el.querySelector(`:scope > .${LINE}`);
   if (!row) return;
+  const reports = updates.filter((update) => update.source === "report");
+  const effective = reports.findLast((update) => update.disposition === "effective");
+  sayDoing(row, effective?.text ?? null);
   // What this worker last said, or — where it has never said anything — when the row
   // claiming it exists was put in front of the reader, which is the longest we can
   // honestly say we have heard nothing. `saidAt` for that: the version's publish for a
@@ -71,7 +74,15 @@ function heard(el, reports) {
   // Taking the newer would let a version published this minute certify a worker three
   // hours dead, which is the failure this line exists to catch wearing the fix for its
   // twin.
-  const ts = reports.at(-1)?.ts ?? saidAt(el);
+  // The feed itself is chronological across sources. A report's durable log sequence
+  // is the authority for which report this worker made last, including a repaired or
+  // imported log whose timestamp is older than the entry before it. Do not smuggle a
+  // second ordering rule in through array position.
+  const newest = reports.reduce(
+    (found, report) => (found === null || report.seq > found.seq ? report : found),
+    null,
+  );
+  const ts = newest?.ts ?? saidAt(el);
   const stale = ts && el.getAttribute("state") === "working" && quietSince(ts);
   // In place, and only where the words actually differ. This runs on every poll for
   // every row on the page, and the row is a thing the reader is invited to select and
@@ -83,6 +94,23 @@ function heard(el, reports) {
   // the minute turns.
   say(row, "lf-cold", stale ? "quiet" : null, "lf-heard");
   say(row, "lf-heard", ts ? `last heard ${ago(ts)}` : null);
+}
+
+/* The report field x-report declared as its human-readable update, first in the tail.
+ * Replay states semantic attributes; the update feed says which source is effective and
+ * when it was heard. A version answering the report therefore removes this clause
+ * without pretending the report vanished from history. */
+function sayDoing(row, text) {
+  let cell = row.querySelector(":scope > .lf-doing");
+  if (text === null) {
+    cell?.remove();
+    return;
+  }
+  if (!cell) {
+    cell = word("lf-doing", text);
+    row.prepend(cell);
+  }
+  if (cell.textContent !== text) cell.textContent = text;
 }
 
 /* One cell of the row's tail: written where the words changed, created before `before`
@@ -143,16 +171,14 @@ function gutter(el) {
   if (wide) roster.style.setProperty("--lf-state-room", `${Math.ceil(wide)}px`);
 }
 
-/* The durable row fields, plus a standing report's transient activity. Run at the
- * upgrade and again whenever a report moves this row — never on a poll that brought
- * nothing for it. */
-function render(el, doing = null) {
+/* The durable row fields. Run at upgrade and whenever replay moves this row; the
+ * canonical update watcher paints transient activity afterward. */
+function render(el) {
   stateWord(el);
   el.querySelector(`:scope > .${LINE}[data-lf-gen]`)?.remove();
   const row = document.createElement("div");
   row.className = LINE;
   row.dataset.lfGen = "1"; // generated, not authored — the version diff skips it
-  if (doing) row.append(word("lf-doing", doing));
   const branch = el.getAttribute("branch");
   if (branch) row.append(word("lf-branch", branch));
   const on = el.getAttribute("on");
@@ -184,12 +210,12 @@ customElements.define(
       // the elapsed line stays true with no timer of this module's own — and touches
       // one text node when it does, rather than rebuilding a row the reader may have
       // their pointer in.
-      watchReports(this, null, (reports) => heard(this, reports));
+      watchUpdates(this, (updates) => heard(this, updates));
     }
 
     applyAction(action, detail) {
-      // Absolute: the recorded state and transient clause are the whole report, so
-      // re-applying one is a no-op and a second tab converges on the same row. One verb
+      // Absolute: the recorded state is the report's durable part, so re-applying one
+      // is a no-op and a second tab converges on the same row. One verb
       // carries both because the fold holds one entry per unit — a second verb on this
       // widget would take the same key and drop the first from every view derived from
       // it. Structure is rebuilt here because this is where it changed; the elapsed
@@ -197,7 +223,7 @@ customElements.define(
       // after it applies.
       if (action !== "state") return;
       this.setAttribute("state", detail.state);
-      render(this, detail.doing);
+      render(this);
     }
   },
 );

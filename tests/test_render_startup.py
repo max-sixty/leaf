@@ -1611,9 +1611,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     it — a sentence somebody rewrites every few minutes is a claim, and it is painted
     as provisional news rather than as a message, because the answer is still owed.
 
-    Nothing deletes the line directly. Answering is what ends the work, so the agent's own next
-    word in the thread settles it, and a second act saying so would be a second writer
-    for one fact."""
+    Nothing deletes the line directly. The agent's next reply answers the claim;
+    resolution hides it while the conversation is closed, and reopening reveals it
+    again."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
     d = serve.page_dir
     comments = [e for e in interact.read_events(d) if e["kind"] == "comment"]
@@ -1691,10 +1691,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(work_line).to_have_count(0)
 
-    # And a local line goes with the claim it is part of. The banner drops a claim nothing
-    # is behind rather than repeating it, and a line that outlived that judgment would
-    # sit under a line saying no session holds the page, the two halves of one claim
-    # arguing about it.
+    # Reopening restores a claim that no reply answered. The local line still goes
+    # with the page claim it is part of: once nothing holds the page, it cannot keep
+    # claiming work under a banner that says the opposite.
     interact.append_event(d, {"kind": "unresolve", "author": "user", "parent": held})
     told(page)
     expect(work_line).to_have_count(1)
@@ -1730,7 +1729,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-work-line")
 
-    def claim(claim_ts):
+    def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
         interact.write_json(
             d / "status.json",
@@ -1740,12 +1739,15 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
                 "ts": interact.now_iso(),
                 "work": [
                     {
+                        "id": "trace-check",
                         "subject": {"kind": "thread", "id": held},
                         "detail": "reading the reconnect traces",
                         "ts": claim_ts,
                         "after": next(
                             e["seq"] for e in interact.read_events(d) if e["id"] == held
                         ),
+                        "agent": "Claude",
+                        "session": session,
                     }
                 ],
             },
@@ -1788,6 +1790,24 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_contain_text("quiet")
+    expect(work_line.locator("time")).to_have_text("6m ago")
+
+    # Turn closure belongs to one exact session. An orchestrator ending its turn is
+    # no evidence that a delegate abandoned a different update.
+    record_claim(
+        d,
+        id="orchestrator",
+        turn_closed=(datetime.now().astimezone() - timedelta(minutes=5)).isoformat(
+            timespec="seconds"
+        ),
+    )
+    claim(
+        (datetime.now().astimezone() - timedelta(minutes=6)).isoformat(
+            timespec="seconds"
+        ),
+        session="delegate",
+    )
+    expect(work_line).not_to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_text("6m ago")
 
     # And it goes when the claim is kept again, so the word tracks the claim rather

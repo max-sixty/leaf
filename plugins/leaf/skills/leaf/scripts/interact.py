@@ -56,9 +56,11 @@ A page directory holds:
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
-                         "on" maps a comment thread id to the {"detail", "ts"} of
-                         the work in flight on it, which the panel shows under
-                         the reader's own words (`leaf status … --on`);
+                         "work" holds typed, sequence-bounded claims on comment
+                         threads or page widgets. At the state boundary these
+                         private records become canonical claim updates, which
+                         their local seats show beside the page-wide line
+                         (`leaf status … --on`);
                          when `leaf wait` prints for a non-working page, it
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
@@ -865,11 +867,9 @@ def undo_error(event: dict, events: list) -> str | None:
 def build_threads(events: list, spk: dict) -> dict:
     """Fold the chronological log into comment threads by root id.
 
-    `resolved` is the event that settled the thread, or None. Either side can
-    close one, so a bool beside a second field naming who would be two readings
-    of one fact; the settling event answers both questions and carries its own
-    `author`.
-
+    `resolved` is the event that currently closes the thread, or None. Either side
+    can close one, so a bool beside a second field naming who would be two readings
+    of one fact; the event answers both questions and carries its own `author`.
     A thread is settled by the widget's standing answer: the last action that
     widget sent and the log still lets stand, and then only while that answer
     names the thread. Three things unseat one, and every one of them is the log's
@@ -899,9 +899,9 @@ def build_threads(events: list, spk: dict) -> dict:
     which read different pages — the browser's pinned version against this side's
     last published file.
 
-    A `resolve` is a person saying the conversation is done, and the log does not
-    fold that away. Nothing here has to take one back: a superseded answer never
-    stood, so it has nothing to clear, and whatever was said after it still stands.
+    A `resolve` is a person saying the conversation is done. An `unresolve` clears
+    that closure. A superseded answer also stops closing the thread; undo and
+    retraction remove it from the reading entirely.
 
     What `resolves` cannot say is the difference between an answer that leaves the
     thread open and an action that is not an answer at all — a reject means the
@@ -921,6 +921,7 @@ def build_threads(events: list, spk: dict) -> dict:
     # widget id -> its last action the log still lets stand: not one the reader
     # took back, and not one a version retracted under it.
     answers = {}
+    settling_actions = set()
     for e in events:
         if (
             e["kind"] == "action"
@@ -928,6 +929,8 @@ def build_threads(events: list, spk: dict) -> dict:
             and not action_retracted(e, floors, spk)
         ):
             answers[e["widget"]] = e
+            if e["detail"].get("resolves"):
+                settling_actions.add(e["id"])
     threads = {}
     thread_for = {}
     for e in events:
@@ -940,18 +943,22 @@ def build_threads(events: list, spk: dict) -> dict:
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
-        # A standing answer settles the thread it names, and the detail carrying
+        # A surviving answer closes the thread it names. The detail carrying
         # `resolves` is the whole of that condition — a second widget that answers
         # a thread joins by declaring the field, not by being read here by name.
         # The sender snapshots the mapping into the action because the honoring
         # version retires the element that held it, so nothing later can look it up.
         #
-        # Settled here, at the answer's own place in the log, rather than after the
-        # walk: a resolve pressed between two decisions is the last word on the
-        # thread, and applying settlements afterwards would paint over it.
+        # Folded here, at the answer's own place in the log, rather than after the
+        # walk: a resolve pressed between two decisions is the last current word on
+        # the thread.
         if e["kind"] == "action":
             answered = threads.get(e["detail"].get("resolves"))
-            if answered and answers.get(e["widget"]) is e:
+            if (
+                answered
+                and e["id"] in settling_actions
+                and answers.get(e["widget"]) is e
+            ):
                 answered["resolved"] = e
             continue
         if e["kind"] == "reply":
@@ -1626,14 +1633,21 @@ class PageTransaction:
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if handoff:
             status["handoff"] = True
-        claims = (
-            []
-            if state == "idle"
-            else standing_work_claims(self.status, self.events, include_resolved=True)
-        )
+        claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
+            identity = message_identity()
             claims = [held for held in claims if held["subject"] != work["subject"]]
-            claims.append({**work, "detail": detail, "ts": status["ts"]})
+            claims.append(
+                {
+                    "id": secrets.token_hex(4),
+                    **work,
+                    "detail": detail,
+                    "ts": status["ts"],
+                    "agent": identity.get("agent")
+                    or (self.claim or {}).get("agent", "Claude"),
+                    "session": identity.get("session") or (self.claim or {}).get("id"),
+                }
+            )
         if claims:
             status["work"] = claims
         write_json(self.page_dir / "status.json", status)
@@ -1744,13 +1758,14 @@ def other_leaves(page_dir: Path) -> list:
             if not published:
                 continue
             parser = parse_version(candidate, published[-1])
+            present = presence(candidate, events)
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
         others.append(
             {
                 "title": parser.title.strip() or candidate.name,
                 "url": info["url"],
-                **presence(candidate, events),
+                **present,
             }
         )
     return sorted(others, key=lambda entry: entry["title"].lower())
@@ -1809,6 +1824,35 @@ def wait_is_live(page_dir: Path, session: dict | None) -> bool:
     return bool(lease_path and lock_is_held(lease_path))
 
 
+def claim_update_sources(status: dict, events: list) -> list[dict]:
+    """The status store's work claims at their public boundary.
+
+    `status.json` remains the small replace-in-place store its transient claims
+    need. The browser and `page state` receive typed source envelopes instead, so
+    every downstream consumer reads the same target and lifecycle vocabulary.
+    """
+    sources = []
+    for claim in status.get("work", []):
+        target = claim["subject"]
+        source = {
+            "id": claim.get("id")
+            or f"claim:{target['kind']}:{target['id']}:{claim['after']}",
+            "target": target,
+            "source": "claim",
+            "action": "working",
+            "detail": {"text": claim["detail"]},
+            "text": claim["detail"],
+            "ts": claim["ts"],
+            "log_floor": claim["after"],
+            "agent": claim.get("agent"),
+            "session": claim.get("session"),
+        }
+        if target["kind"] == "widget":
+            source["version"] = work_claim_version(claim, events)
+        sources.append(source)
+    return sources
+
+
 def presence(page_dir: Path, events: list) -> dict:
     """What a seat showing this page says about it: the agent's claim, everything
     the directory holds that can answer for it, and where that agent is working.
@@ -1819,28 +1863,12 @@ def presence(page_dir: Path, events: list) -> dict:
     itself."""
     # A file that isn't there stands in as its whole record, so every read below
     # indexes rather than asking twice whether the field arrived.
-    status = read_json(page_dir / "status.json") or {
+    stored_status = read_json(page_dir / "status.json") or {
         "state": "idle",
         "detail": "",
         "ts": None,
     }
-    # status.json is the writer's latest transient claim. The event log is the
-    # authority for what has answered it, so no consumer receives work a reply,
-    # resolution, or typed version settlement has already ended. Keep the raw
-    # file intact: an unresolve makes a hidden thread claim visible again.
-    status = dict(status)
-    work = standing_work_claims(status, events)
-    if work:
-        status["work"] = [
-            (
-                {**claim, "version": work_claim_version(claim, events)}
-                if claim["subject"]["kind"] == "widget"
-                else claim
-            )
-            for claim in work
-        ]
-    else:
-        status.pop("work", None)
+    status = {key: value for key, value in stored_status.items() if key != "work"}
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
@@ -1849,6 +1877,7 @@ def presence(page_dir: Path, events: list) -> dict:
     cursor = read_cursor(page_dir)
     return {
         "status": status,
+        "claims": claim_update_sources(stored_status, events),
         "listening": wait_is_live(page_dir, active),
         "cursor": cursor,
         # The reader's number, not the watcher's: their own messages the agent
@@ -1863,6 +1892,10 @@ def presence(page_dir: Path, events: list) -> dict:
         "host": claim.get("host") if claim else None,
         # None when nothing claimed the page — interact.py run outside an agent host.
         "session_alive": active is not None if claim else None,
+        # Which session the turn-closed evidence belongs to. Thread updates carry
+        # their posting session too, so a delegate is not declared abandoned merely
+        # because the orchestrator's turn ended under it.
+        "claim_session": claim.get("id") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no turn and no delegate
         # renewed across the boundary — the same judgment the runtime's grace
@@ -1930,17 +1963,29 @@ class Handler(BaseHTTPRequestHandler):
             if version <= self.preview_upto
         ]
 
-    def page_state(self) -> dict:
-        """The current log reading used by GET and accepted POST responses."""
-        events = read_events(self.page_dir)
+    def _page_state(self, events: list) -> dict:
+        """The page's own state from a caller's transaction-consistent log."""
         state = full_state(
             self.page_dir,
             events,
             self.versions_live(events),
             layer=self.layer,
         )
+        return state
+
+    def page_state(self) -> dict:
+        """The current reading used by GET and accepted POST responses.
+
+        A claim's ``log_floor`` is meaningful only beside the same log snapshot it
+        followed. Every response therefore keeps the page transaction through both
+        files.
+        """
+        with PageTransaction(self.page_dir) as page:
+            state = self._page_state(page.events)
         # Every URL in `others` carries the machine key (`host_key`), so the list
         # reaches neighbouring pages without creating another authorization path.
+        # Scan neighbours after releasing this page's lease: they are independent
+        # snapshots, and one slow neighbour must not block this page's writers.
         state["others"] = other_leaves(self.page_dir)
         return state
 
@@ -2235,6 +2280,7 @@ class Handler(BaseHTTPRequestHandler):
         # Every decision whose validity depends on the log stays under the append
         # lock through the write. In particular, two tabs cannot both validate an
         # undo against the same standing target and append after either lock is gone.
+        accepted = False
         with PageTransaction(self.page_dir) as page:
             # Acceptance outranks mutable state validation. A retry for an accepted
             # attempt asks for its state; it does not repeat the gesture.
@@ -2245,50 +2291,53 @@ class Handler(BaseHTTPRequestHandler):
                 except AttemptConflict as error:
                     return self.event_rejection(event, str(error), 409)
                 if existing:
-                    return self.accepted_state()
-            events = page.events
-            if "version" in event:
-                live_versions = self.versions_live(events)
-                if event["version"] not in live_versions:
-                    return self.event_rejection(
-                        event, f"{kind} version must be one of {live_versions}"
-                    )
-            if kind == "done":
-                mode = version_review_mode(self.page_dir, event["version"])
-                if mode != "sign-off":
-                    return self.event_rejection(
+                    accepted = True
+            if not accepted:
+                events = page.events
+                if "version" in event:
+                    live_versions = self.versions_live(events)
+                    if event["version"] not in live_versions:
+                        return self.event_rejection(
+                            event, f"{kind} version must be one of {live_versions}"
+                        )
+                if kind == "done":
+                    mode = version_review_mode(self.page_dir, event["version"])
+                    if mode != "sign-off":
+                        return self.event_rejection(
+                            event,
+                            f"version {event['version']} does not declare "
+                            '<meta name="lf-review" content="sign-off">, so it has no '
+                            "approval to record",
+                        )
+                if kind == "action":
+                    # This is not the static admission read in `_post`: re-vendoring and
+                    # this transaction have now chosen an order, so only this registry
+                    # can authorize an action that will be appended under the same lease.
+                    try:
+                        registry = load_registry(self.page_dir)
+                    except RegistryError as error:
+                        return self.event_rejection(event, str(error))
+                    if registry is None:
+                        return self.event_rejection(
+                            event, "the page has no registry.json"
+                        )
+                    if error := action_contract_error(
+                        self.page_dir,
                         event,
-                        f"version {event['version']} does not declare "
-                        '<meta name="lf-review" content="sign-off">, so it has no '
-                        "approval to record",
+                        events,
+                        registry,
+                    ):
+                        return self.event_rejection(event, error)
+                if "parent" in event and event["parent"] not in {
+                    e["id"] for e in events if e["kind"] in {"comment", "reply"}
+                }:
+                    return self.event_rejection(
+                        event, f"unknown parent {event['parent']!r}"
                     )
-            if kind == "action":
-                # This is not the static admission read in `_post`: re-vendoring and
-                # this transaction have now chosen an order, so only this registry
-                # can authorize an action that will be appended under the same lease.
-                try:
-                    registry = load_registry(self.page_dir)
-                except RegistryError as error:
-                    return self.event_rejection(event, str(error))
-                if registry is None:
-                    return self.event_rejection(event, "the page has no registry.json")
-                if error := action_contract_error(
-                    self.page_dir,
-                    event,
-                    events,
-                    registry,
-                ):
+                if kind == "undo" and (error := undo_error(event, events)):
                     return self.event_rejection(event, error)
-            if "parent" in event and event["parent"] not in {
-                e["id"] for e in events if e["kind"] in {"comment", "reply"}
-            }:
-                return self.event_rejection(
-                    event, f"unknown parent {event['parent']!r}"
-                )
-            if kind == "undo" and (error := undo_error(event, events)):
-                return self.event_rejection(event, error)
-            event["author"] = "page" if kind == "error" else "user"
-            append_event(page, event)
+                event["author"] = "page" if kind == "error" else "user"
+                append_event(page, event)
         return self.accepted_state()
 
     def _post(self):
@@ -4579,7 +4628,102 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     }
 
 
+def canonical_updates(
+    projection,
+    claims: list,
+    threads: dict,
+    events: list,
+) -> list[dict]:
+    """Normalize projected reports and ephemeral claims into one update feed."""
+    report_standing = set()
+    report_effective = set()
+    if projection is not None:
+        report_standing = {
+            event["id"]
+            for entries in projection.reports.values()
+            for event, _spec in entries
+        }
+        report_effective = {
+            event["id"]
+            for event, _spec in projection.desired.values()
+            if event["kind"] == "report"
+        }
+
+    updates = []
+    if projection is not None:
+        for _coordinate, (event, spec) in projection.classified.values():
+            if event["kind"] != "report":
+                continue
+            update_field = spec.get("update")
+            updates.append(
+                {
+                    "id": event["id"],
+                    "target": {"kind": "widget", "id": event["widget"]},
+                    "source": "report",
+                    "action": event["action"],
+                    "detail": event["detail"],
+                    "text": event["detail"][update_field] if update_field else None,
+                    "ts": event["ts"],
+                    "version": event["version"],
+                    "seq": event["seq"],
+                    "agent": event.get("agent"),
+                    "session": event.get("session"),
+                    "disposition": (
+                        "effective"
+                        if event["id"] in report_effective
+                        else "standing"
+                        if event["id"] in report_standing
+                        else "settled"
+                    ),
+                }
+            )
+
+    for claim in claims:
+        target = claim["target"]
+        if target["kind"] == "thread":
+            thread = threads.get(target["id"])
+            effective = bool(
+                thread
+                and not thread["resolved"]
+                and not any(
+                    message["kind"] == "reply"
+                    and message["author"] == "claude"
+                    and message["seq"] > claim["log_floor"]
+                    for message in thread["msgs"]
+                )
+            )
+        else:
+            effective = not any(
+                event["kind"] == "note"
+                and event["seq"] > claim["log_floor"]
+                and target["id"] in note_settlements(event, "work")
+                for event in events
+            )
+        updates.append(
+            {**claim, "disposition": "effective" if effective else "settled"}
+        )
+
+    return sorted(
+        updates,
+        key=lambda update: (
+            update["seq"] if update["source"] == "report" else update["log_floor"],
+            0 if update["source"] == "report" else 1,
+            datetime.fromisoformat(update["ts"]),
+            update["source"],
+            update["target"]["kind"],
+            update["target"]["id"],
+            update["id"],
+        ),
+    )
+
+
 def cmd_page_state(page_dir: Path) -> None:
+    """Print the agent-side state from one transaction-consistent snapshot."""
+    with PageTransaction(page_dir) as page:
+        _write_page_state(page_dir, page.events)
+
+
+def _write_page_state(page_dir: Path, events: list) -> None:
     """Where the page stands, as one JSON object — the agent-side twin of the
     browser's /api/state, folded rather than raw. /api/state ships the log and
     lets the runtime replay it; a session picking a page up owes the same
@@ -4596,11 +4740,11 @@ def cmd_page_state(page_dir: Path) -> None:
     Every markup-derived reading is of the latest *published* version, because
     that is the page the user sees and acts on; a written draft shows up in
     `versions.written` and nowhere else."""
-    events = read_events(page_dir)
     registry = require_registry(page_dir)
     published = published_versions(page_dir, events)
     written = list_versions(page_dir)
     pres = presence(page_dir, events)
+    claims = pres.pop("claims")
     # The published page's readings, up front and through the one construction
     # (page_projection) every consumer of declared state reads, so the threads
     # settle against the same page the projection was built over rather than no page.
@@ -4620,7 +4764,7 @@ def cmd_page_state(page_dir: Path) -> None:
         "server": running_server(page_dir),
         "elements": [],
         "state": [],
-        "reports": [],
+        "updates": [],
         "asks": [],
         "threads": [
             {
@@ -4653,21 +4797,6 @@ def cmd_page_state(page_dir: Path) -> None:
             standing_entry(coordinate, e)
             for coordinate, (e, _) in projection.actions.items()
         ]
-        state["reports"] = [
-            {
-                "widget": widget,
-                "unit": unit,
-                "facet": facet,
-                "action": e["action"],
-                "detail": e["detail"],
-                "version": e["version"],
-                "seq": e["seq"],
-                "agent": e.get("agent"),
-                "standing": len(standing),
-            }
-            for (widget, unit, facet), standing in sorted(projection.reports.items())
-            for e, _ in [standing[-1]]
-        ]
         # An ask standing in a slot the log has retired — a group inside the lf-new
         # of a rejected suggestion — left the page with the slot, so it is nobody's
         # to answer; the passage reading already knows which ids a decision dropped.
@@ -4687,6 +4816,12 @@ def cmd_page_state(page_dir: Path) -> None:
         state["title"] = parse_version(page_dir, written[-1]).title.strip()
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
+    )
+    state["updates"] = canonical_updates(
+        projection,
+        claims,
+        threads,
+        events,
     )
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the reader
@@ -5166,6 +5301,30 @@ def validate_registry(registry: dict, source) -> dict:
                     "must state additionalProperties: false — a verb carries "
                     "only the detail keys it declares"
                 )
+            if update := spec.get("update"):
+                detail = spec["detail"]
+                field = detail.get("properties", {}).get(update)
+                if field is None:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` update field "
+                        f"`{update}` is not declared by its detail schema"
+                    )
+                if update not in detail.get("required", []):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` update field "
+                        f"`{update}` must be required — every report in the feed "
+                        "needs words"
+                    )
+                if not declares_string(field):
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` update field "
+                        f"`{update}` must be a string"
+                    )
+                if field.get("minLength", 0) < 1:
+                    raise RegistryError(
+                        f"{path}: <{tag}> {channel} verb `{verb}` update field "
+                        f"`{update}` must set minLength to at least 1"
+                    )
 
     slots = retirement_slots(registry)
     for tag, entry in widgets.items():
@@ -6400,6 +6559,7 @@ class StateProjection(NamedTuple):
     reports: dict
     desired: dict
     report_settlements: dict
+    classified: dict
 
 
 def state_coordinate(widget: str, unit: str, spec: dict) -> tuple[str, str, str]:
@@ -6424,10 +6584,9 @@ def state_projection(
 
     Both channels share one classification pass over the window. They end by
     different facts: undo or a retraction floor ends an action, while a note
-    settling a report ends that report. `report_settlements` retains the version
-    for gate diagnostics after a settled report leaves the live maps.
-    A report or action whose widget the markup lacks resolves no declaration
-    and stands nowhere."""
+    settling a report ends that report. `report_settlements` retains the answer
+    version for gate diagnostics; `classified` retains valid entries for other
+    derived readings. An event whose widget the markup lacks stands nowhere."""
     if floors is None:
         floors = retractions(events, upto)
     withdrawn = taken_back(events)
@@ -6435,6 +6594,7 @@ def state_projection(
     actions = {}
     reports = {}
     settlement_versions = {}
+    classified = {}
     for event in events:
         if event["kind"] == "action":
             channel = "x-state"
@@ -6459,6 +6619,7 @@ def state_projection(
             continue
         coordinate = state_coordinate(event["widget"], unit, spec)
         entry = (event, spec)
+        classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
             if event["id"] in withdrawn or action_retracted(event, floors, spk):
                 continue
@@ -6477,6 +6638,7 @@ def state_projection(
         reports,
         desired,
         settlement_versions,
+        classified,
     )
 
 

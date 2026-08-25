@@ -485,6 +485,48 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
+def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
+    server, page_dir, monkeypatch
+):
+    """A retry needs the accepted log snapshot, not a lease over other pages.
+
+    Neighbour discovery is independent I/O. The normal state path releases this
+    page before doing it, and an accepted retry must take the same route so a slow
+    neighbour cannot hold this page's writers behind it.
+    """
+    publish(page_dir)
+    sent = {
+        "kind": "comment",
+        "version": 1,
+        "text": "The retry has already landed.",
+        "attempt": "attempt-neighbours-1",
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(sent).encode())[0] == 200
+
+    own_state_read = threading.Event()
+    scanned = threading.Event()
+    original = interact.Handler._page_state
+
+    def own_state(handler, events):
+        assert interact.lock_is_held(page_dir / "comments.jsonl")
+        own_state_read.set()
+        return original(handler, events)
+
+    def neighbours(directory):
+        assert directory == page_dir
+        assert not interact.lock_is_held(page_dir / "comments.jsonl")
+        scanned.set()
+        return []
+
+    monkeypatch.setattr(interact.Handler, "_page_state", own_state)
+    monkeypatch.setattr(interact, "other_leaves", neighbours)
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+
+    assert status == 200, body
+    assert own_state_read.is_set()
+    assert scanned.is_set()
+
+
 def test_concurrent_retries_share_one_attempt_execution_then_release_it(
     server, page_dir, monkeypatch
 ):
@@ -528,9 +570,20 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
         "attempt": "attempt-flight-001",
     }
     results = []
+    layer = interact.layer_generation(page_dir)
 
     def post():
-        results.append(fetch(f"{server}/api/event", data=json.dumps(sent).encode()))
+        # A real retry already carries the layer of the attempt it is retrying. The
+        # generic helper otherwise polls first to discover one; state reads now take
+        # the page lease for an atomic log/status snapshot, which would serialize this
+        # test before either request reached the attempt coordinator.
+        results.append(
+            fetch(
+                f"{server}/api/event",
+                data=json.dumps(sent).encode(),
+                layer=layer,
+            )
+        )
 
     first = threading.Thread(target=post)
     second = threading.Thread(target=post)
@@ -1625,6 +1678,19 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # stays its own — skipped, rather than 500ing every other page's poll.
     neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "comments.jsonl").write_text('{"kind": "note", "author"')
+    # Presence belongs to the same isolation boundary as the log and version. A
+    # malformed private claim on another page must not make this page's poll fail.
+    malformed = pages / "malformed-status"
+    neighbour_page(malformed, title="Malformed status")
+    interact.write_json(
+        malformed / "status.json",
+        {
+            "state": "working",
+            "detail": "unknown",
+            "ts": interact.now_iso(),
+            "work": [{}],
+        },
+    )
     # A page served from a session's scratch directory, plus the asking page
     # itself: the claim index finds the first, and the second stays out of its own
     # list. Untitled, so the title falls back to the directory's name.
@@ -1637,12 +1703,14 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # presence field arrives, as its absent-file default.
     unclaimed = {
         "status": {"state": "idle", "detail": "", "ts": None},
+        "claims": [],
         "listening": False,
         "cursor": 0,
         "pending": 0,
         "agent": "Claude",
         "host": None,
         "session_alive": None,
+        "claim_session": None,
         "turn_closed": None,
         "viewed": None,
         "session_cwd": None,
@@ -1655,6 +1723,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "agent": "Claude",
             "host": "claude-code",
             "session_alive": False,
+            "claim_session": "s1",
             "session_cwd": str(Path.cwd()),
         },
         {
@@ -1669,9 +1738,77 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
             "agent": "Codex",
             "host": "claude-code",
             "session_alive": True,
+            "claim_session": "s9",
             "session_cwd": "/work/api",
         },
     ]
+
+
+def test_state_reads_claims_and_their_log_floor_in_one_transaction(
+    page_dir, server, monkeypatch
+):
+    """A poll cannot combine an old event window with a claim written after it.
+
+    Status writes hold the log lease because a claim records the exact log floor it
+    followed. The state reader takes the same lease across both reads, so every claim
+    in a response names a floor that response's events actually contain."""
+    interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    original = interact.full_state
+
+    def held_state(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(interact, "full_state", held_state)
+    response = []
+
+    def read_state():
+        response.append(json.loads(fetch(f"{server}/api/state")[1]))
+
+    reader = threading.Thread(target=read_state)
+    reader.start()
+    assert entered.wait(5)
+
+    def resolve_then_claim():
+        writer_entered.set()
+        with interact.PageTransaction(page_dir) as page:
+            page.append_event({"kind": "resolve", "author": "claude", "parent": "c1"})
+            page.set_status(
+                "working",
+                "checking",
+                work={
+                    "subject": {"kind": "thread", "id": "c1"},
+                    "after": page.events[-1]["seq"],
+                },
+            )
+
+    writer_entered = threading.Event()
+    writer = threading.Thread(target=resolve_then_claim)
+    writer.start()
+    assert writer_entered.wait(5)
+    assert interact.lock_is_held(page_dir / "comments.jsonl")
+    release.set()
+    reader.join(5)
+    writer.join(5)
+    assert not reader.is_alive() and not writer.is_alive()
+
+    events = response[0]["events"]
+    assert [(event["kind"], event["seq"]) for event in events] == [("comment", 1)]
+    assert response[0]["claims"] == []
+
+    after = json.loads(fetch(f"{server}/api/state")[1])
+    assert [(event["kind"], event["seq"]) for event in after["events"]] == [
+        ("comment", 1),
+        ("resolve", 2),
+    ]
+    assert len(after["claims"]) == 1
+    assert after["claims"][0]["log_floor"] == 2
 
 
 def test_others_ships_on_a_network_facing_bind_too(wildcard_server):

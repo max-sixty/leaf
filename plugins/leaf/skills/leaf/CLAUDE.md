@@ -447,25 +447,46 @@ It includes only events for which `projectionCommitted` is true. A module must
 not narrate an action whose `applyAction` is deferred while the body still shows
 another value.
 
-`reportSequence(widget, verb)` returns report events in log order without
-dropping reports a version has answered. A module showing freshness asks when
-the log last heard from a worker, which remains useful after publishing absorbs
-that report into authored state. The semantic projection still excludes answered
-reports from current desired state.
+`updateSequence(target)` is the one reading of news about an item. Its target is
+either a widget element or an explicit `{kind, id}` pair; a bare id is not an
+identity and is rejected because a thread and a widget may spell theirs alike.
+With no target it returns the whole ordered feed. Reports from the append-only
+log and ephemeral thread work claims from status storage share a common envelope:
+`id`, typed `target`, `source`, `action`, structured `detail`, declared
+human-readable `text`, `ts`, attribution, and `disposition`. Report envelopes
+also retain their version and sequence; a claim carries `log_floor`, the log
+sequence it followed.
 
-`sequence` is the shared traversal for both channels. It applies widget,
-optional verb, kind, version window, and liveness in one place, then returns
-structured clones so modules cannot mutate the private event list.
-`watchActions` and `watchReports` subscribe those readings to `lf-actions` and
-invoke the callback immediately. The same rendering function therefore handles
-a module connected before the first state and one constructed by a later thread
-reconcile.
+The source discriminator is semantic, not an implementation leak. A report
+stands until a version note absorbs or overrules it; a claim stands until the
+thread receives an agent reply after that sequence or is resolved. The closed
+disposition is `effective` when an update contributes to current state on its
+semantic coordinate, `standing` when it still needs source-specific settlement
+but is presently outranked, and `settled` when that authority answers it. An
+older unabsorbed report can therefore be standing, and a reader action can mask
+a report that a version still owes an answer. Settled entries remain in the feed
+when their source retains history. A module showing freshness therefore still
+sees when the log last heard from a worker after publishing absorbs the worker's
+report.
+
+An x-report verb may name one required non-empty string detail field with
+`update`. That is the envelope's `text`; consumers never infer prose from a
+field, verb, or widget name. Claims use their required detail as `detail.text`
+and `text`. The state boundary performs this normalization once, before
+downstream code sees private status storage.
+
+`sequence` is the action traversal. It applies widget, optional verb, version
+window, and liveness in one place, then returns structured clones so modules
+cannot mutate the private event list. `watchActions` and `watchUpdates` subscribe
+the two public readings to `lf-actions` and invoke the callback immediately. The
+same rendering function therefore handles a module connected before the first
+state and one constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a poll whose
 event list did not grow. This lets a module refresh elapsed time and retry a
 render deferred by live input without owning a timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
-function from `watchActions` or `watchReports` when their element disconnects.
+function from `watchActions` or `watchUpdates` when their element disconnects.
 
 `publishedAt` is the timestamp of the note that published `currentVersion`. It is the
 freshness floor for authored state when no report exists. A page that reports no

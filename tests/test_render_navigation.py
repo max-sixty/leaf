@@ -855,6 +855,9 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     }""")
     page.keyboard.press("j")
     wait_standing(page, "bold text")
+    # `j` opens the panel and slides the page column aside. Wait until every range
+    # box has stopped moving before sampling the arrival point.
+    panel_settled(page)
     page.wait_for_function("() => window.__lfArrivalStarted")
     # The lift hangs on the block the standing passage sits in, not on the document: an
     # inherited custom property invalidates the subtree of whatever animates it, so on

@@ -135,9 +135,10 @@
     "x-upgrade": true,
     "x-report": {
       "state": {
-        "detail": {"type": "object", "properties": {"state": {"enum": ["working", "waiting", "blocked", "idle", "done"]}, "doing": {"type": "string"}}, "required": ["state", "doing"], "additionalProperties": false},
+        "detail": {"type": "object", "properties": {"state": {"enum": ["working", "waiting", "blocked", "idle", "done"]}, "doing": {"type": "string", "minLength": 1}}, "required": ["state", "doing"], "additionalProperties": false},
         "facet": "activity",
         "unit": "widget",
+        "update": "doing",
         "record": {"kind": "value", "attr": "state", "value": "state"}
       }
     }

@@ -952,9 +952,9 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'block'"
     )
 
-    # The selection that opened the composer can scroll this earlier passage above the
-    # viewport. Put the target under a real pointer before asking whether its mousedown
-    # can dismiss the composer without swallowing the click that follows.
+    # The click that selected #q also scrolled it into view. Bring the other passage
+    # back before deriving a viewport coordinate from its range; a negative-y
+    # Mouse.click is no user gesture and can only prove that nothing was hit.
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     panel_settled(page)

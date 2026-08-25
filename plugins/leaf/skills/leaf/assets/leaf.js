@@ -3203,19 +3203,22 @@ let lastVersionsKey = "";
 let latestVersion = null;
 let versions = [];
 let agentMsgCount = -1;
-// The agent's typed, dated claims that it is working on local subjects (`leaf status
-// … --on`). Each is the banner's own claim read at another seat: the page's line says
-// what the agent is doing, and the thread or page widget it is about says so locally.
-// They live in status.json rather than the log because they are sentences somebody
-// renews every few minutes, while the log is what happened. Subject kind and sequence
-// boundary arrive intact; the server has already projected away every claim a reply,
-// resolution, or typed version settlement ended.
-let agentWork = [];
+// Replace-in-place work claims, already normalized by the server out of status.json's
+// private store. Reports join them in updateSequence below. Keeping only source records
+// here means target and lifecycle are derived in one projection for every consumer.
+let claimUpdateSources = [];
+// Whether the page currently believes anything is behind its work claim. An update
+// remains in the feed after settlement, but no local seat presents it under a banner
+// saying nobody holds the page.
+let claimsHeld = false;
 // When the claiming session's last turn ended, as this tab last heard it. Held beside
 // the claims because it is the other half of reading one: a claim is renewed by the same
 // command that renews the page's claim, so a turn ending under both is one fact, and
 // the local seat has to reach it without asking the banner.
 let agentTurnClosed = null;
+// The exact session the turn-closed evidence belongs to. A delegate's update must not
+// be called abandoned merely because the orchestrator's turn ended under it.
+let claimingSession = null;
 // The threads the panel last reconciled. A work line repaints on the poll's clock and
 // not only on the log's, because its age is half of what it says and a claim nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
@@ -3225,22 +3228,15 @@ let threadList = [];
 let panelOpen = false;
 let pendingAnchor = null;
 
-// The fold answers where state stands; this answers how it got there. Widgets receive
-// their own absolute events in log order, bounded by the version being viewed. A reply
-// widget lives in the chrome rather than in a version, so its frozen log markup sees the
-// whole sequence. Returning fresh event copies keeps the private event store private.
-//
-// One walk, two channels. A widget with an agent channel (x-report) asks the same
-// question of the log a widget with a reviewer channel (x-state) does, and the only
-// difference is which kind it reads and what ends an entry: an action is settled once
-// replay has applied it, a report once no note has answered it. Written twice, the two
-// would be a near-copy that has to change together — and the report half is the one
-// carrying a timestamp anybody renders, so it is the half that would drift.
-function sequence(widget, verb, kind, live) {
+// The fold answers where reader state stands; this answers how it got there. A widget
+// receives its own absolute actions in log order, bounded by the version being viewed.
+// A reply widget lives in frozen chrome and therefore sees the whole sequence. Returning
+// fresh copies keeps the private event store private.
+function sequence(widget, verb, live) {
   return events
     .filter(
       (event) =>
-        event.kind === kind &&
+        event.kind === "action" &&
         event.widget === widget.id &&
         (!verb || event.action === verb) &&
         (inChrome(widget) || event.version <= currentVersion) &&
@@ -3251,29 +3247,134 @@ function sequence(widget, verb, kind, live) {
 
 export const actionSequence = (widget, action) => {
   const projection = stateProjection(currentVersion);
-  return sequence(widget, action, "action", (e) => projectionCommitted(projection, e));
+  return sequence(widget, action, (e) => projectionCommitted(projection, e));
 };
 
-// Every report a worker has made about this widget, newest last. `ts` is what a module
-// usually wants here: when the log heard from that worker, which is the one statement
-// about freshness no author can write down, because a version states it once and the
-// page then stands for hours saying so.
-//
-// Unfiltered, where the action half takes only what replay has settled, and the two
-// asymmetries are the same rule read in each channel. An action's liveness is replay's,
-// because a widget that deferred one under live input has a body that does not hold it
-// yet and must not narrate it. A report's liveness is the projection's — answered by a
-// version — while a consumer asking when the log
-// last heard from this worker is asking about the log and not about the fold.
-//
-// Filtering the answered ones out here was the same words meaning two things, and it
-// broke on the system's own happy path. Publishing absorbs reports by id, so an
-// orchestrator that adjudicates diligently blanked every row's elapsed line at every
-// publish — and disarmed the call-out with it. The reader needs it most in exactly the
-// case that then became unreachable: a worker that claimed work, had that claim written
-// into a version, and died silently after.
-export const reportSequence = (widget, verb) =>
-  sequence(widget, verb, "report", () => true);
+// ---------- canonical updates ----------
+// Thread and widget ids may have the same spelling, so every target names its kind.
+function updateTarget(target) {
+  if (target === null) return null;
+  if (target instanceof Element) {
+    if (target.id) return { kind: "widget", id: target.id };
+  } else if (
+    ["widget", "thread"].includes(target?.kind) &&
+    typeof target.id === "string" &&
+    target.id
+  ) {
+    return { kind: target.kind, id: target.id };
+  }
+  throw new TypeError(
+    "update target must be a widget element or {kind: 'widget' | 'thread', id}",
+  );
+}
+const updateTargetKey = (target) =>
+  target ? JSON.stringify([target.kind, target.id]) : null;
+const compareText = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
+// A claim follows its log floor and precedes the next event.
+const updatePosition = (update) =>
+  update.source === "report" ? [update.seq, 0] : [update.log_floor, 1];
+
+// Normalize both sources after stateProjection has classified the durable channel.
+function updatesFromProjection(target, projection) {
+  const key = updateTargetKey(updateTarget(target));
+  const reportStanding = new Set(
+    [...projection.reports.values()].flat().map((entry) => entry.e.id),
+  );
+  const reportEffective = new Set(
+    [...projection.desired.values()]
+      .filter((entry) => entry.e.kind === "report")
+      .map((entry) => entry.e.id),
+  );
+  const updates = [];
+  for (const entry of projection.classified.values()) {
+    const event = entry.e;
+    if (event.kind !== "report" || entry.terminal) continue;
+    const entryTarget = { kind: "widget", id: event.widget };
+    if (key !== null && updateTargetKey(entryTarget) !== key) continue;
+    const field = entry.spec.update;
+    updates.push({
+      id: event.id,
+      target: entryTarget,
+      source: "report",
+      action: event.action,
+      detail: event.detail,
+      text: field ? event.detail[field] : null,
+      ts: event.ts,
+      version: event.version,
+      seq: event.seq,
+      agent: event.agent ?? null,
+      session: event.session ?? null,
+      disposition: reportEffective.has(event.id)
+        ? "effective"
+        : reportStanding.has(event.id)
+          ? "standing"
+          : "settled",
+    });
+  }
+  const threads = new Map(threadList.map((thread) => [thread.root.id, thread]));
+  for (const source of claimUpdateSources) {
+    if (key !== null && updateTargetKey(source.target) !== key) continue;
+    let effective = false;
+    if (source.target.kind === "thread") {
+      const thread = threads.get(source.target.id);
+      effective = Boolean(
+        thread &&
+        !thread.resolved &&
+        !thread.msgs.some(
+          (message) =>
+            message.kind === "reply" &&
+            message.author === "claude" &&
+            message.seq > source.log_floor,
+        ),
+      );
+    } else if (source.target.kind === "widget") {
+      effective = !events.some(
+        (event) =>
+          event.kind === "note" &&
+          event.seq > source.log_floor &&
+          (event.settles ?? []).some(
+            (settlement) =>
+              settlement.kind === "work" && settlement.id === source.target.id,
+          ),
+      );
+    }
+    updates.push({
+      ...source,
+      disposition: effective ? "effective" : "settled",
+    });
+  }
+  return updates
+    .sort((left, right) => {
+      const leftPosition = updatePosition(left);
+      const rightPosition = updatePosition(right);
+      return (
+        leftPosition[0] - rightPosition[0] ||
+        leftPosition[1] - rightPosition[1] ||
+        Date.parse(left.ts) - Date.parse(right.ts) ||
+        compareText(left.source, right.source) ||
+        compareText(updateTargetKey(left.target), updateTargetKey(right.target)) ||
+        compareText(left.id, right.id)
+      );
+    })
+    .map((update) => structuredClone(update));
+}
+
+export const updateSequence = (target = null) =>
+  updatesFromProjection(target, stateProjection(currentVersion));
+
+// Do not narrate a report while its coordinate still paints the prior winner.
+function reportUpdatesCommitted(projection, target) {
+  const key = updateTargetKey(updateTarget(target));
+  const coordinates = new Map();
+  for (const entry of projection.classified.values()) {
+    if (entry.terminal || entry.e.kind !== "report") continue;
+    const entryKey = updateTargetKey({ kind: "widget", id: entry.e.widget });
+    if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
+  }
+  return [...coordinates.values()].every((entry) =>
+    coordinateProjectionCommitted(projection, entry),
+  );
+}
 
 // When the version being read was published — the floor under any statement about how
 // fresh what the page says is. A row nobody has reported on is not a row of unknown age:
@@ -3302,19 +3403,14 @@ export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
     ?.dateTime || publishedAt();
 
-// Subscribe after replay has had the last word for a poll. The sequences expose only
-// what replay has settled, so a widget that deferred under live input never narrates
-// a state its body does not hold. The callback also runs immediately, so a module owns
-// its complete rendering in one function whether the first state arrived before or
-// after it connected — and again on every poll, whether or not the log grew, which is
-// what lets a rendering of elapsed time stay true without a timer of its own.
-const watch = (owner, read, callback) => {
+// Run immediately and after every reconciliation, including polls with no new events.
+const watch = (owner, callback) => {
   const update = () => {
     if (!owner.isConnected) {
       document.removeEventListener("lf-actions", update);
       return;
     }
-    callback(read());
+    callback();
   };
   document.addEventListener("lf-actions", update);
   update();
@@ -3322,10 +3418,14 @@ const watch = (owner, read, callback) => {
 };
 
 export const watchActions = (widget, action, callback) =>
-  watch(widget, () => actionSequence(widget, action), callback);
+  watch(widget, () => callback(actionSequence(widget, action)));
 
-export const watchReports = (widget, verb, callback) =>
-  watch(widget, () => reportSequence(widget, verb), callback);
+export const watchUpdates = (target, callback) =>
+  watch(target instanceof Element ? target : document.body, () => {
+    const projection = stateProjection(currentVersion);
+    if (!reportUpdatesCommitted(projection, target)) return;
+    callback(updatesFromProjection(target, projection));
+  });
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -4206,31 +4306,34 @@ function buildThreads() {
   // thread it settled most needs to stay settled. x-state holds a verb declaring
   // `resolves` to a widget-absolute unit so the two keys are the same one.
   const answers = new Map();
+  const settlingActions = new Set();
   for (const e of events)
     if (
       e.kind === "action" &&
       !withdrawn.has(e.id) &&
       !retractedIds(e, floors, elementById(e.widget)).length
-    )
+    ) {
       answers.set(e.widget, e);
+      if (e.detail.resolves) settlingActions.add(e.id);
+    }
   for (const e of events) {
     // A gesture the reader took back settles nothing, whichever way it settled: the
     // log holds it and no reading of the log stands on it. The same sentence
     // interact.py's build_threads reads, because it is the same reading.
     if (withdrawn.has(e.id)) continue;
     if (e.kind === "comment") {
-      // `resolved` is the event that settled the thread, or null. Either side can
-      // close one, so a flag beside a second field naming who would be two readings
-      // of one fact; the settling event answers both and carries its own author.
+      // `resolved` is the event that currently closes the thread, or null. Either
+      // side can close one, so a flag beside a second field naming who would be two
+      // readings of one fact; the event answers both and carries its own author.
       const thread = { root: e, msgs: [e], resolved: null };
       threads.set(e.id, thread);
       threadFor.set(e.id, thread);
       continue;
     }
-    // A widget's standing answer settles the thread it names. The answer snapshots
-    // the thread it was made in, because the honoring version retires the wrapper
-    // that held the mapping and one atomic event can't half-arrive the way a second
-    // POST could — so the log is the only place that pairing survives.
+    // The widget's standing answer closes the thread it names. The answer snapshots the thread
+    // it was made in, because the honoring version retires the wrapper that held the
+    // mapping and one atomic event cannot half-arrive the way a second POST could.
+    // The log is the only place that pairing survives.
     //
     // Read off the detail rather than the verb, because the naming is the
     // mechanism's and the verb is a member's: `accept` stood here once, which was
@@ -4250,12 +4353,14 @@ function buildThreads() {
     // rejected: the log held one thing, the panel showed another, and nothing on
     // either side said so.
     //
-    // Settled at the answer's own place in the walk rather than after it: a resolve
-    // pressed between two decisions is the last word on the thread, and a
-    // superseded answer has nothing to clear because it never stood.
+    // Folded at the answer's own place in the walk rather than after it: a resolve
+    // pressed between two decisions remains the last current word on the thread,
+    // while every surviving settlement keeps its causal position.
     if (e.kind === "action") {
       const answered = threads.get(e.detail.resolves);
-      if (answered && answers.get(e.widget) === e) answered.resolved = e;
+      if (answered && settlingActions.has(e.id)) {
+        if (answers.get(e.widget) === e) answered.resolved = e;
+      }
       continue;
     }
     if (e.kind === "reply") {
@@ -4263,7 +4368,8 @@ function buildThreads() {
       thread.msgs.push(e);
       threadFor.set(e.id, thread);
     } else if (e.kind === "resolve") {
-      threadFor.get(e.parent).resolved = e;
+      const thread = threadFor.get(e.parent);
+      thread.resolved = e;
     } else if (e.kind === "unresolve") {
       threadFor.get(e.parent).resolved = null;
     }
@@ -5011,9 +5117,9 @@ function foldOut(t) {
 // thread's complete or inline seat, a widget's declared conversation, or a prose
 // widget itself — while the sentence, silence word, and clock are identical. Lines are
 // kept across polls so an unchanged claim is not announced again every two seconds.
-function paintWorkLine(host, claim, before, wanted) {
+function paintWorkLine(host, update, before, wanted) {
   if (!host) return;
-  const { kind, id } = claim.subject;
+  const { kind, id } = update.target;
   let line = [...host.children].find(
     (child) =>
       child.matches(".lf-work-line") &&
@@ -5035,7 +5141,7 @@ function paintWorkLine(host, claim, before, wanted) {
   const when = line.lastElementChild;
   // Written only on change, like the message clocks beside it: an unchanged poll must
   // not hand the reader's screen reader the same sentence every two seconds.
-  const said = `${agentName()} is on this — ${claim.detail}`;
+  const said = `${update.agent || agentName()} is on this — ${update.text}`;
   if (what.textContent !== said) what.textContent = said;
   // A claim of work nobody has renewed, said in a word. The banner cannot answer for
   // this seat: every `leaf status … --on` write refreshes the page's own line, so one
@@ -5049,10 +5155,12 @@ function paintWorkLine(host, claim, before, wanted) {
   // than reworded to absorb it. The cell is added and removed rather than hidden,
   // because a hidden one still reads out in the thread's text.
   let cold = line.querySelector(":scope > .lf-work-quiet");
-  if (quietSince(claim.ts) || droppedAt(claim.ts, agentTurnClosed)) {
+  const turnClosed =
+    update.session && update.session === claimingSession ? agentTurnClosed : null;
+  if (quietSince(update.ts) || droppedAt(update.ts, turnClosed)) {
     if (!cold) line.insertBefore(el("span", "lf-work-quiet", "quiet"), when);
   } else cold?.remove();
-  const age = ago(claim.ts);
+  const age = ago(update.ts);
   if (when.textContent !== age) when.textContent = age;
 }
 
@@ -5078,29 +5186,34 @@ function widgetWorkSeat(owner) {
 // created on a later version cannot leak backward into a pinned historical page.
 function paintWorkLines() {
   const wanted = new Set();
-  for (const claim of agentWork) {
-    const { kind, id } = claim.subject;
+  const claims = claimsHeld
+    ? updateSequence().filter(
+        (update) => update.source === "claim" && update.disposition === "effective",
+      )
+    : [];
+  for (const update of claims) {
+    const { kind, id } = update.target;
     if (kind === "thread") {
       const thread = threadList.find((candidate) => candidate.root.id === id);
       if (!thread || thread.resolved) continue;
       const complete = threadsBox.querySelector(`.lf-thread[data-id="${id}"]`);
       paintWorkLine(
         complete,
-        claim,
+        update,
         complete?.querySelector(":scope > .lf-compose"),
         wanted,
       );
       for (const inline of document.querySelectorAll(
         `.lf-conversation-thread[data-thread="${id}"]`,
       ))
-        paintWorkLine(inline, claim, inline.querySelector(":scope > .lf-say"), wanted);
+        paintWorkLine(inline, update, inline.querySelector(":scope > .lf-say"), wanted);
       continue;
     }
-    if (kind !== "widget" || claim.version > currentVersion) continue;
+    if (kind !== "widget" || update.version > currentVersion) continue;
     const owner = elementById(id);
     if (!owner || inChrome(owner)) continue;
     const seat = widgetWorkSeat(owner);
-    if (seat) paintWorkLine(seat.host, claim, seat.before, wanted);
+    if (seat) paintWorkLine(seat.host, update, seat.before, wanted);
   }
   for (const line of pageQueryAll(".lf-work-line"))
     if (!wanted.has(line)) line.remove();
@@ -12523,10 +12636,7 @@ function rebuild(el) {
 
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
-function projectionCommitted(projection, e) {
-  const entry = projection.classified.get(e.id);
-  if (!entry) return false;
-  if (entry.terminal) return true;
+function coordinateProjectionCommitted(projection, entry) {
   const desired = projection.desired.get(entry.coordinate);
   const commit = committedProjection.get(entry.coordinate);
   return (
@@ -12534,6 +12644,13 @@ function projectionCommitted(projection, e) {
     commit.unit === elementById(entry.unit) &&
     committedEvent(commit) === (desired?.e.id ?? null)
   );
+}
+
+function projectionCommitted(projection, e) {
+  const entry = projection.classified.get(e.id);
+  if (!entry) return false;
+  if (entry.terminal) return true;
+  return coordinateProjectionCommitted(projection, entry);
 }
 
 function localCoordinateCommitted(projection, entry) {
@@ -12966,6 +13083,10 @@ async function receiveState(state) {
   const priorEvents = events;
   const priorStatePhase = statePhase;
   const priorLastEventSeq = lastEventSeq;
+  const priorClaimUpdateSources = claimUpdateSources;
+  const priorClaimsHeld = claimsHeld;
+  const priorAgentTurnClosed = agentTurnClosed;
+  const priorClaimingSession = claimingSession;
   const apply = async () => {
     events = nextEvents;
     let activation = null;
@@ -12976,8 +13097,10 @@ async function receiveState(state) {
     }
     settleAcceptedDrafts();
     agent = state.agent || "Claude";
-    agentWork = presented(state).held ? state.status.work || [] : [];
+    claimUpdateSources = state.claims || [];
+    claimsHeld = presented(state).held;
     agentTurnClosed = state.turn_closed || null;
+    claimingSession = state.claim_session || null;
     renderStatus(state);
     renderVersions(state);
     renderOthers(state);
@@ -13058,6 +13181,10 @@ async function receiveState(state) {
     events = priorEvents;
     statePhase = priorStatePhase;
     lastEventSeq = priorLastEventSeq;
+    claimUpdateSources = priorClaimUpdateSources;
+    claimsHeld = priorClaimsHeld;
+    agentTurnClosed = priorAgentTurnClosed;
+    claimingSession = priorClaimingSession;
     if (willActivate) location.reload();
     throw error;
   }

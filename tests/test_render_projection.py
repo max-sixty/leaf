@@ -720,6 +720,186 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     page.close()
 
 
+def test_claims_and_reports_share_one_canonical_update_feed(
+    browser, serve, monkeypatch
+):
+    """Claims and reports keep distinct lifecycles behind one typed reading."""
+    page, errors = open_page(browser, serve(ROSTER_PAGE))
+    d = serve.page_dir
+    # Event ids and authored element ids belong to different identity spaces. Give
+    # the thread and widget the same spelling so only the typed target can separate
+    # their updates; a bare id or target lookup by store would merge them.
+    thread = interact.append_event(
+        d,
+        {
+            "id": "ag-wren",
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "anchor": {"section": "ag-wren"},
+            "text": "Can you check this worker's mount price?",
+        },
+    )
+    told(page)
+
+    report = CliRunner().invoke(
+        interact.cli,
+        [
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=working",
+            "doing=checking the mount prices",
+        ],
+    )
+    assert report.exit_code == 0, report.output
+    report_event = interact.read_events(d)[-1]
+    claim_floor = report_event["seq"]
+    # Force the same timestamp: causality, rather than wall-clock tie-breaking, must
+    # order the two source records.
+    with monkeypatch.context() as patch:
+        patch.setattr(interact, "now_iso", lambda: report_event["ts"])
+        with interact.PageTransaction(d) as transaction:
+            transaction.set_status(
+                "working",
+                "checking the reader's question",
+                work={
+                    "subject": {"kind": "thread", "id": thread["id"]},
+                    "after": claim_floor,
+                },
+            )
+    told(page)
+
+    updates = page.evaluate("async () => (await import('/leaf.js')).updateSequence()")
+    by_source = {update["source"]: update for update in updates}
+    assert set(by_source) == {"claim", "report"}
+    assert [update["source"] for update in updates] == ["report", "claim"]
+    assert by_source["claim"]["ts"] == by_source["report"]["ts"]
+    assert by_source["claim"] == {
+        "id": by_source["claim"]["id"],
+        "target": {"kind": "thread", "id": thread["id"]},
+        "source": "claim",
+        "action": "working",
+        "detail": {"text": "checking the reader's question"},
+        "text": "checking the reader's question",
+        "ts": by_source["claim"]["ts"],
+        "log_floor": claim_floor,
+        "agent": "Claude",
+        "session": by_source["claim"]["session"],
+        "disposition": "effective",
+    }
+    assert by_source["report"] == {
+        "id": by_source["report"]["id"],
+        "target": {"kind": "widget", "id": "ag-wren"},
+        "source": "report",
+        "action": "state",
+        "detail": {"state": "working", "doing": "checking the mount prices"},
+        "text": "checking the mount prices",
+        "ts": by_source["report"]["ts"],
+        "version": 1,
+        "seq": by_source["report"]["seq"],
+        "agent": "Claude",
+        "session": by_source["report"]["session"],
+        "disposition": "effective",
+    }
+    assert by_source["claim"]["session"]
+    assert by_source["report"]["session"] == by_source["claim"]["session"]
+    targeted = page.evaluate(
+        """async () => {
+            const feed = await import('/leaf.js');
+            return {
+                widget: feed.updateSequence(document.querySelector('#ag-wren')),
+                thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
+                bare: (() => {
+                    try { feed.updateSequence('ag-wren'); }
+                    catch (error) { return `${error.name}: ${error.message}`; }
+                })(),
+            };
+        }"""
+    )
+    assert [update["source"] for update in targeted["widget"]] == ["report"]
+    assert [update["source"] for update in targeted["thread"]] == ["claim"]
+    assert targeted["bare"].startswith("TypeError: update target must be")
+    expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
+
+    # Each source ends at its own authority: a reply settles thread work, while a
+    # version note settles the report.
+    interact.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "parent": thread["id"],
+            "version": 1,
+            "text": "The mount price is in the attached quote.",
+        },
+    )
+    (d / "versions" / "v2.html").write_text(ROSTER_PAGE)
+    published = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "2", "--text", "recorded"],
+    )
+    assert published.exit_code == 0, published.output
+    page.wait_for_url("**/versions/v2.html")
+    page.wait_for_function(BOTH_STAMPS)
+
+    updates = page.evaluate("async () => (await import('/leaf.js')).updateSequence()")
+    by_source = {update["source"]: update for update in updates}
+    assert by_source["claim"]["disposition"] == "settled"
+    assert by_source["report"]["disposition"] == "settled"
+    expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serve):
+    """A report's prose and durable fields describe the same committed reading."""
+    page, errors = open_page(browser, serve(ROSTER_PAGE))
+    d = serve.page_dir
+    row = page.locator("#ag-wren")
+
+    first = CliRunner().invoke(
+        interact.cli,
+        [
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=working",
+            "doing=checking the first mount",
+        ],
+    )
+    assert first.exit_code == 0, first.output
+    told(page)
+    expect(row).to_have_attribute("state", "working")
+    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+
+    page.evaluate("document.body.classList.add('lf-dragging')")
+    second = CliRunner().invoke(
+        interact.cli,
+        [
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=idle",
+            "doing=checking the second mount",
+        ],
+    )
+    assert second.exit_code == 0, second.output
+    told(page)
+    expect(row).to_have_attribute("state", "working")
+    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+
+    page.evaluate("document.body.classList.remove('lf-dragging')")
+    expect(row).to_have_attribute("state", "idle")
+    expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
+    assert errors == []
+    page.close()
+
+
 def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
     """The direction a freshness line must never fail in. A row nobody has reported on
     is not of unknown age: its words were asserted when the version landed, and are

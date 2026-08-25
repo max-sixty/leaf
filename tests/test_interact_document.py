@@ -1801,7 +1801,9 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
 
     state = state_json(page_dir)
     assert state["state"][0]["detail"] == {"options": ["o-shim"]}
-    assert state["reports"][0]["detail"] == {"options": ["o-stage"]}
+    report = next(update for update in state["updates"] if update["source"] == "report")
+    assert report["detail"] == {"options": ["o-stage"]}
+    assert report["disposition"] == "standing"
     assert state["lag"] == [
         {
             "widget": "g1",
@@ -1877,7 +1879,8 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     """A standing report closes the ask its status change resolves, stands in
-    `reports` with the record lag beside it, and leaves when a note absorbs it."""
+    the canonical update feed with the record lag beside it, and remains there as
+    settled history when a note absorbs it."""
     tasks = (
         '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
@@ -1903,17 +1906,20 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     )
     state = state_json(page_dir)
     assert state["asks"] == []
-    assert state["reports"] == [
+    assert state["updates"] == [
         {
-            "widget": "t-parser",
-            "unit": "t-parser",
-            "facet": "status",
+            "id": rep["id"],
+            "target": {"kind": "widget", "id": "t-parser"},
+            "source": "report",
             "action": "status",
             "detail": {"status": "done"},
+            "text": None,
+            "ts": rep["ts"],
             "version": 1,
             "seq": 2,
             "agent": "worker",
-            "standing": 1,
+            "session": None,
+            "disposition": "effective",
         }
     ]
     assert state["lag"] == [
@@ -1944,7 +1950,73 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["reports"] == [] and state["lag"] == [] and state["asks"] == []
+    assert state["updates"] == [
+        {
+            "id": rep["id"],
+            "target": {"kind": "widget", "id": "t-parser"},
+            "source": "report",
+            "action": "status",
+            "detail": {"status": "done"},
+            "text": None,
+            "ts": rep["ts"],
+            "version": 1,
+            "seq": 2,
+            "agent": "worker",
+            "session": None,
+            "disposition": "settled",
+        }
+    ]
+    assert state["lag"] == [] and state["asks"] == []
+
+
+def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
+    """A claim sits after the log floor it observed and before the next event.
+    Equal second-precision timestamps cannot reverse that known causal order."""
+    task = (
+        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
+        "<strong>Parser</strong></lf-task></lf-tasks>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + task)
+    )
+    publish(page_dir)
+    tied = "2026-08-24T12:00:00-07:00"
+    monkeypatch.setattr(interact, "now_iso", lambda: tied)
+    first = interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "version": 1,
+            "widget": "t-parser",
+            "action": "status",
+            "detail": {"status": "done"},
+        },
+    )
+    thread = interact.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
+    claim_id = interact.read_json(page_dir / "status.json")["work"][0]["id"]
+    second = interact.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "version": 1,
+            "widget": "t-parser",
+            "action": "status",
+            "detail": {"status": "done"},
+        },
+    )
+
+    updates = state_json(page_dir)["updates"]
+    assert [(update["source"], update["id"]) for update in updates] == [
+        ("report", first["id"]),
+        ("claim", claim_id),
+        ("report", second["id"]),
+    ]
 
 
 def test_page_state_before_first_publish(page_dir):

@@ -1108,6 +1108,45 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
 
 
 @pytest.mark.parametrize(
+    ("change", "wanted"),
+    [
+        (
+            lambda spec: spec.update({"update": "missing"}),
+            "update field `missing` is not declared by its detail schema",
+        ),
+        (
+            lambda spec: spec["detail"]["required"].remove("doing"),
+            "update field `doing` must be required",
+        ),
+        (
+            lambda spec: spec["detail"]["properties"].update(
+                {"doing": {"type": ["string", "null"]}}
+            ),
+            "update field `doing` must be a string",
+        ),
+        (
+            lambda spec: spec["detail"]["properties"]["doing"].pop("minLength"),
+            "update field `doing` must set minLength to at least 1",
+        ),
+    ],
+)
+def test_report_update_words_are_declared_once(page_dir, change, wanted):
+    """The canonical feed may render one report detail as prose, so the registry
+    names that field explicitly and guarantees every report carries real words. A
+    consumer never guesses from a field name or string-shaped value."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    spec = registry["lf-agent"]["x-report"]["state"]
+    assert spec["update"] == "doing"
+    change(spec)
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert wanted in result.output
+
+
+@pytest.mark.parametrize(
     ("tag", "channel", "verb", "field"),
     [
         ("lf-suggestion", "x-state", "accept", "facet"),

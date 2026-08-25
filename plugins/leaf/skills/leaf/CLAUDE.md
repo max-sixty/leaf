@@ -21,9 +21,12 @@ record the sequence of implementations that led to the current one.
 
 `leaf.js` is the one public ES module, with two code layers and private support
 modules behind it. `runtime/context.js` owns the mutable facts shared across
-those layers, and `runtime/projection.js` owns declaration-driven state folding
-and reconciliation. The facade supplies browser and conversation dependencies
-to the projector; private modules do not become a second public helper surface.
+those layers; `runtime/passages.js` owns the DOM reading and quote resolver;
+`runtime/anchors.js` owns anchor geometry, paint, and navigation;
+`runtime/conversation.js` owns thread folding and panel reconciliation; and
+`runtime/projection.js` owns declaration-driven state folding and
+reconciliation. The facade composes their cyclic browser dependencies; private
+modules do not become a second public helper surface.
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
 words, and reconciles recorded state. The comment layer polls `GET /api/state`,
@@ -1757,7 +1760,8 @@ and finite motion boundary, reads screen and print, and reapplies standing state
 A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
-The JavaScript readings embedded in `interact.py` each answer one failure class:
+The JavaScript readings owned by `leaf_interact/render_checks.py` and composed
+by `leaf_interact/rendering.py` each answer one failure class:
 
 | Reading | Contract |
 | --- | --- |

@@ -281,14 +281,14 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
 
 
 def test_the_collapse_class_is_one_set_on_both_sides():
-    """COLLAPSE_CHARS (the file side) and leaf.js's COLLAPSE regex (the browser
-    side) are two spellings of one set, and everything quote-shaped rests on their
-    agreement: a character one side collapses and the other keeps is a quote
-    captured in the browser that the file's reading can never confirm. The next
-    edit to either spelling meets this test, not a detached comment."""
-    js = (interact.ASSETS / "leaf.js").read_text()
+    """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
+    (the browser side) are two spellings of one set, and everything quote-shaped
+    rests on their agreement: a character one side collapses and the other keeps
+    is a quote captured in the browser that the file's reading can never confirm.
+    The next edit to either spelling meets this test, not a detached comment."""
+    js = (interact.ASSETS / "runtime" / "passages.js").read_text()
     found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
-    assert found, "leaf.js lost its COLLAPSE regex"
+    assert found, "the browser passage reader lost its COLLAPSE regex"
     js_class = re.compile(f"[{found.group(1)}]")
     js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
     assert js_set == interact.COLLAPSE_CHARS

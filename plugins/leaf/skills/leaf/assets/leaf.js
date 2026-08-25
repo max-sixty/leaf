@@ -18,7 +18,7 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * interact.py); it is never inferred from the markup's silence. Widgets opt in via an
+ * leaf_interact/validation.py); it is never inferred from the markup's silence. Widgets opt in via an
  * applyAction(action, detail) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
@@ -146,6 +146,9 @@
 import { chromeStyle } from "./runtime/chrome-style.js";
 import { runtime } from "./runtime/context.js";
 import { createProjection } from "./runtime/projection.js";
+import { createAnchors } from "./runtime/anchors.js";
+import { createConversation } from "./runtime/conversation.js";
+import { createPassages } from "./runtime/passages.js";
 
 // ---------- widget layer ----------
 
@@ -3218,7 +3221,6 @@ let claimingSession = null;
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
 // makes that cheap: buildThreads walks the log and the page, and a second walk every two
 // seconds would answer nothing the last one didn't.
-let threadList = [];
 let panelOpen = false;
 let pendingAnchor = null;
 
@@ -3305,7 +3307,9 @@ function updatesFromProjection(target, projection) {
           : "settled",
     });
   }
-  const threads = new Map(threadList.map((thread) => [thread.root.id, thread]));
+  const threads = new Map(
+    conversationRuntime.threadList.map((thread) => [thread.root.id, thread]),
+  );
   for (const source of claimUpdateSources) {
     if (key !== null && updateTargetKey(source.target) !== key) continue;
     let effective = false;
@@ -4298,3223 +4302,6 @@ export const ago = (ts) => {
   return `${Math.round(secs / 86400)}d ago`;
 };
 
-// ---------- threads ----------
-function buildThreads() {
-  const threads = new Map();
-  const threadFor = new Map();
-  // The whole log, not this version's window: a conversation is not version-scoped, so
-  // the panel shows the same threads whichever version is pinned and a retraction
-  // settles a thread's state from wherever it was declared. interact.py's callers pass
-  // upto=None for the same reason. Replay windows to currentVersion instead, and on any version
-  // but the newest the two are meant to disagree — the rule binds both sites, so it is
-  // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
-  // never the conversation".
-  const floors = retractionFloors(Infinity);
-  const withdrawn = takenBack();
-  // widget id -> its last action the log still lets stand: not one the reader took
-  // back, not one a version retracted under it. The widget is what an ask is
-  // (x-awaits), so what answers one is that widget's own last word; and it is the
-  // only key the log carries by itself, which is why the page projection cannot be
-  // borrowed for this: it drops an action whose widget the page no longer holds, and the
-  // version that honors a decision retires the widget that made it, precisely when the
-  // thread it settled most needs to stay settled. x-state holds a verb declaring
-  // `resolves` to a widget-absolute unit so the two keys are the same one.
-  const answers = new Map();
-  const settlingActions = new Set();
-  for (const e of runtime.events)
-    if (
-      e.kind === "action" &&
-      !withdrawn.has(e.id) &&
-      !retractedIds(e, floors, elementById(e.widget)).length
-    ) {
-      answers.set(e.widget, e);
-      if (e.detail.resolves) settlingActions.add(e.id);
-    }
-  for (const e of runtime.events) {
-    // A gesture the reader took back settles nothing, whichever way it settled: the
-    // log holds it and no reading of the log stands on it. The same sentence
-    // interact.py's build_threads reads, because it is the same reading.
-    if (withdrawn.has(e.id)) continue;
-    if (e.kind === "comment") {
-      // `resolved` is the event that currently closes the thread, or null. Either
-      // side can close one, so a flag beside a second field naming who would be two
-      // readings of one fact; the event answers both and carries its own author.
-      const thread = { root: e, msgs: [e], resolved: null };
-      threads.set(e.id, thread);
-      threadFor.set(e.id, thread);
-      continue;
-    }
-    // The widget's standing answer closes the thread it names. The answer snapshots the thread
-    // it was made in, because the honoring version retires the wrapper that held the
-    // mapping and one atomic event cannot half-arrive the way a second POST could.
-    // The log is the only place that pairing survives.
-    //
-    // Read off the detail rather than the verb, because the naming is the
-    // mechanism's and the verb is a member's: `accept` stood here once, which was
-    // exactly right for the one widget that says that word and silently nothing
-    // for the next widget whose answer closes the question it was asked in. That
-    // is the failure the widget list's norm names — it arrives as a feature
-    // nobody wired up rather than as an error. A verb carries only the detail
-    // keys its entry declares (additionalProperties: false), so a `resolves` is
-    // one on purpose, and an answer that settles no thread carries none.
-    //
-    // Standing is every way the log currently holds an answer: not retracted by a
-    // version that rewrote what the decision rested on (`restated`), not taken back
-    // by the reader (the skip above), and not superseded by a later action on the
-    // same widget. Without that last one, a
-    // reject after an accept left the reader's question filed away as answered by
-    // the fix they had just turned down, while the fold reported the suggestion
-    // rejected: the log held one thing, the panel showed another, and nothing on
-    // either side said so.
-    //
-    // Folded at the answer's own place in the walk rather than after it: a resolve
-    // pressed between two decisions remains the last current word on the thread,
-    // while every surviving settlement keeps its causal position.
-    if (e.kind === "action") {
-      const answered = threads.get(e.detail.resolves);
-      if (answered && settlingActions.has(e.id)) {
-        if (answers.get(e.widget) === e) answered.resolved = e;
-      }
-      continue;
-    }
-    // A reply whose message the log lost opens the thread that message would have
-    // opened, under the id it was known by — the same answer interact.py's
-    // build_threads gives, because it is the same reading. The log is read line by
-    // line and a torn one is skipped, so a reply can outlive the message above it;
-    // throwing here took the whole panel down over one lost line.
-    if (e.kind === "reply") {
-      let thread = threadFor.get(e.parent);
-      if (!thread) {
-        thread = { root: e, msgs: [], resolved: null };
-        threads.set(e.parent, thread);
-        threadFor.set(e.parent, thread);
-      }
-      thread.msgs.push(e);
-      threadFor.set(e.id, thread);
-    } else if (e.kind === "resolve") {
-      // A resolve names a message rather than opening one, so a conversation the log
-      // lost whole has nothing for it to close.
-      const thread = threadFor.get(e.parent);
-      if (thread) thread.resolved = e;
-    } else if (e.kind === "unresolve") {
-      const thread = threadFor.get(e.parent);
-      if (thread) thread.resolved = null;
-    }
-  }
-  return [...threads.values()];
-}
-
-const escapeHtml = (s) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-// Lazily, like the tokenizer: a page is usually handed over before anyone has said
-// anything, and one with no messages never pays the parse. poll() awaits this before
-// the panel builds a body, which is what keeps msgNode synchronous.
-//
-// Raw HTML — block and inline both route through the one `html` renderer — escapes to
-// the characters it was written in: prose says `Vec<T>`, and a message injects widgets
-// only through its gate-validated `markup` field, never through text. breaks: a single
-// newline is a line break, because a message is typed prose and nobody types two
-// spaces to mean the line they just ended.
-// Plain escaped text until the renderer arrives, so a failed vendor import
-// degrades a body's Markdown to its own words instead of refusing the poll
-// that carries it.
-let renderMarkdown = (text) => escapeHtml(text);
-let markedReady;
-const loadMarked = () =>
-  (markedReady ??= import("/vendor/marked.esm.js")
-    .then((m) => {
-      const md = new m.Marked({
-        breaks: true,
-        renderer: { html: (t) => escapeHtml(t.text) },
-      });
-      renderMarkdown = (text) => md.parse(text);
-    })
-    .catch((error) => {
-      // Retry on a later poll rather than caching the rejection for the life
-      // of the load — one transient failure otherwise left every body plain.
-      markedReady = undefined;
-      reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`);
-    }));
-
-// Bodies are cached per event id and re-adopted when a thread node is rebuilt — which
-// the reconcile leaves one occasion for, a thread resolving. The log is append-only,
-// so a message's text never changes, and re-adopting the node keeps a widget in a reply
-// (a rendered diagram) from re-upgrading across that rebuild.
-const msgBodies = new Map();
-function buildMsgBody(m) {
-  const body = el("div", "lf-msg-body");
-  if (m.suggestion) {
-    // Verbatim: a suggestion's characters are bound for the page as typed, and a
-    // rendering would show an italic where the next version carries the asterisks.
-    body.classList.add("lf-suggest-body");
-    body.textContent = m.text;
-  } else {
-    body.innerHTML = renderMarkdown(m.text);
-    // The widget markup beside the text, injected as the CLI gate validated it. A
-    // template is deliberately inert: an already-defined custom element's constructor
-    // runs even in a detached ordinary div, which would make generated state look like
-    // the thread event's authored baseline. Capture the literal event markup first,
-    // then move those same nodes into the body; they upgrade when the body is connected.
-    // The passes below don't come along with that upgrade — the said and quiet passes
-    // write a widget's declared words, spoken and silent, and a fenced block is a
-    // <pre><code class="language-…"> like any the page holds.
-    //
-    // The declared marks come along by the half that holds here (MARKED_ANYWHERE):
-    // whether a widget is set among the words is true of it in a reply as much as on
-    // the page, and a chip-led comparison quoted into one stacks without it. The width
-    // model is the half that stays behind, and the reason is what it hands out: the room
-    // the *document* has, which is not the room in here. A diagram in a reply is a widget
-    // the vocabulary calls wide, and marked as one it would lay itself out to the page's
-    // measure inside the panel. The room a message has is the message's, and it already
-    // has it.
-    if (m.markup) {
-      const authored = document.createElement("template");
-      authored.innerHTML = m.markup;
-      rememberAuthoredMarkup(authored.content);
-      captureAuthoredFacets(authored.content);
-      body.append(authored.content);
-    }
-    markDeclared(body, MARKED_ANYWHERE);
-    renderSaid(body);
-    renderQuiet(body);
-    // Not settle()d: that queue holds the page's geometry still for the first anchor
-    // pass, and a message colors in the panel, where no anchor is captured and nothing
-    // waits. Each block already fails soft to its own plain source.
-    highlightBlocks(body);
-  }
-  return body;
-}
-
-function msgNode(m) {
-  const div = el("div", `lf-msg ${m.author}`);
-  div.dataset.mid = m.id; // the reconcile's key, and revealThread's address for it
-  const head = el("div", "lf-msg-head");
-  // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
-  // the element has for it — which is also what `saidAt` reads back when a widget the
-  // message carries needs to know when it was said.
-  const when = el("time", "", ago(m.ts));
-  when.dateTime = m.ts;
-  head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
-  let body = msgBodies.get(m.id);
-  if (!body) {
-    body = buildMsgBody(m);
-    msgBodies.set(m.id, body); // the id is server-minted, on every event
-  }
-  div.append(head);
-  if (m.suggestion) div.append(el("div", "lf-suggest-label", "suggested replacement"));
-  div.append(body);
-  return div;
-}
-
-// How an anchor reads where it has to be printed rather than pointed at — every thread in
-// the panel, and the open composer when the page has no passage left to mark. A quote-less
-// anchor points at an element (a diagram or image commented on by click rather than by
-// selection) and names its section instead of quoting it. One function, so the two places
-// can't come to say it differently.
-//
-// An id is the page's name for an item and not the user's. `card-migration` says
-// nothing they wrote, and pointing at an item is an ordinary gesture rather than the
-// diagram's special case, so anchors reading this way are ordinary in the panel too.
-// An element anchor is labelled with the item's own opening words, and falls
-// back to the id where this version has no such element. The kind goes before the words
-// because the two together are a name, where the words alone read as a quote the thread
-// does not hold.
-//
-// A design comment (`about: "layer"`) reads "layer ·" first, because what follows names
-// the thing whose look or behaviour is in question rather than the words on it: the
-// control the press landed on where it landed on one (`part`), then the item — a
-// widget by its tag and id, a runtime part by its name — since a design comment's
-// subject is the element itself and its opening words would read as a quote.
-function anchorLabel(anchor, about) {
-  if (about === "layer") {
-    const item = anchor?.section ? elementById(anchor.section) : null;
-    const name = item ? designName(item) : anchor?.section || "the page";
-    const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-    return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
-  }
-  if (anchor?.quote) return `“${anchor.quote}”`;
-  if (!anchor?.section) return "";
-  const item = elementById(anchor.section);
-  const says = itemSays(item);
-  return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
-}
-
-// The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
-// children rather than a record kept beside them: a thread the log settles is renamed out
-// of them in that frame (foldOut), which takes it out of the walk, out of the addresses and
-// out of r's press in one stroke. A map of id → address stood here once, written by
-// renderThreads and read back by the chip and the placeholder — one list held twice, and
-// the copy free to be a reconcile behind the panel it described.
-const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
-
-// ---------- where the panel puts a thread ----------
-// The list reads in the page's order, not the log's. A page is a document with a
-// beginning and an end, and the reader walks the conversation the way they walk the
-// prose it is about: the thread on the lede is the first one, the thread on the punch
-// list is the last, and j/k, the g c digits, the marks out on the page and the panel's
-// own scroll all say the same order. Log order answered a different question — when a
-// thread was opened — which is a question about one thread rather than about a list, and
-// the message clocks already answer it.
-//
-// Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
-// same resolution the marks are drawn from, so the list and the page cannot disagree about
-// which of two threads comes first.
-//
-// A passage this version has rewritten falls back to the element the anchor names, which
-// is the whole point of an anchor carrying one: an id survives a rewrite that takes the
-// quote down with it, so a thread whose words are gone still belongs where it was about.
-// It reads as detached in the list and sits under its own heading, which are two true
-// things rather than one true and one lost.
-//
-// What is left resolves nowhere at all: a general comment, which names nowhere, and an
-// anchor whose element this version no longer holds either. Both go under the list rather
-// than at some point in the middle of it.
-// Where a thread stands, said in the document's own tree. A passage a widget renders into
-// a declared shadow root is placed inside that root, and `compareDocumentPosition` answers
-// across trees with "disconnected, in an implementation-specific order" — an order no
-// reader has ever seen, and one `contains` cannot correct. The host is the element the
-// page holds, and where the page holds it is where those words are. A place in no tree at
-// all — an element a version activation has replaced — is no place, which is the same
-// answer an anchor that resolves nowhere gets.
-const inPage = (el) => {
-  let at = el;
-  while (at && at.getRootNode() !== document) at = at.getRootNode().host ?? null;
-  return at;
-};
-
-const threadPlace = (t) =>
-  inPage(placed.get(t.root.id) ?? (t.root.anchor ? sectionOf(t.root.anchor) : null));
-
-// Which of two elements the reader reaches first. `compareDocumentPosition` answers for
-// a containing element too — a section reaches the reader before the paragraph inside it
-// — which is what makes it the whole reading rather than a comparison of two indexes
-// into a list this file would have to keep.
-const pageOrder = (a, b) =>
-  a === b
-    ? 0
-    : a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
-      ? -1
-      : 1;
-
-// The log's order is the tiebreak, so two threads on one paragraph read in the order they
-// were opened, and a page that gave nothing an id keeps exactly the list it had.
-function inPageOrder(threads) {
-  const seat = new Map(threads.map((t, i) => [t, i]));
-  const place = new Map(threads.map((t) => [t, threadPlace(t)]));
-  return [...threads].sort((a, b) => {
-    const pa = place.get(a);
-    const pb = place.get(b);
-    if (!pa || !pb) return (pa ? 0 : 1) - (pb ? 0 : 1) || seat.get(a) - seat.get(b);
-    return pageOrder(pa, pb) || seat.get(a) - seat.get(b);
-  });
-}
-
-// The page's own outline, in document order. Read off the headings the author wrote
-// rather than off <section> nesting, because both shapes are in the corpus and a heading
-// is the thing a reader navigates by in either — a page written as one flow of h2s has an
-// outline just as much as one written as nested sections. The runtime's own chrome
-// contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
-// of the page's outline.
-const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
-
-// Which part of the page an element is in: the heading that names everything from itself
-// to the next one. A place that contains a heading takes that heading rather than the one
-// before it — an anchor on a whole <section> is about that section, not about the end of
-// the one above.
-function headingFor(place, outline) {
-  let above = null;
-  for (const heading of outline) {
-    if (heading === place || place.contains(heading)) return heading;
-    if (heading.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING)
-      above = heading;
-    else break;
-  }
-  return above;
-}
-
-// The run of threads a heading stands over, named. The key is what the panel reconciles
-// the heading node by, so it is positional (the outline's own index) rather than an id the
-// author may not have written. The named keys below it are the places a page has no seat
-// for; none of them ever carries a target, so a group's node keeps its kind — a button
-// where there is somewhere to go, a plain line where there is not — across every
-// reconcile.
-function groupFor(t, outline) {
-  const place = threadPlace(t);
-  if (!place)
-    return t.root.anchor
-      ? { key: "gone", label: "No longer in this version" }
-      : { key: "page", label: "About the page as a whole" };
-  if (inChrome(place))
-    return layerPart(place)
-      ? { key: "layer", label: "The page's own layer" }
-      : { key: "sent", label: "Sent in the conversation" };
-  const heading = headingFor(place, outline);
-  // A page its author wrote no headings into has no runs to name, and a run with no name
-  // gets no line: "Above the first heading" over the whole list would be a landmark
-  // naming a landmark the page hasn't got. The list is still the page's order.
-  if (!heading)
-    return { key: "top", label: outline.length ? "Above the first heading" : "" };
-  return {
-    key: "h" + outline.indexOf(heading),
-    label: itemSays(heading) || itemWord(heading),
-    target: heading,
-  };
-}
-
-// ---------- narrowing the list ----------
-// Two narrowings, and they compose: the words a reader is looking for, and whether the
-// thread is one the agent has left with them. Neither is stored — see the find row's own
-// comment for why a remembered narrowing is the trap rather than the convenience.
-let finding = "";
-let needsYou = false;
-const narrowed = () => Boolean(finding) || needsYou;
-
-// A thread the agent spoke in last is a thread waiting on the reader; one the reader spoke
-// in last is waiting on the agent. A resolved thread waits on nobody.
-const awaitsReader = (t) => !t.resolved && t.msgs.at(-1).author === "claude";
-
-// What a search reads: everything the panel shows of a thread, plus the part of the page
-// it is on — so "merge rule" finds the threads under that heading as well as the ones
-// that say the words. The label is the panel's own rendering of the anchor, which is what
-// the reader can see and therefore what they would search for.
-const threadWords = (t, group) =>
-  [anchorLabel(t.root.anchor, t.root.about), group.label, ...t.msgs.map((m) => m.text)]
-    .join("\n")
-    .toLowerCase();
-
-const inFilter = (t, group) =>
-  (!needsYou || awaitsReader(t)) &&
-  (!finding || threadWords(t, group).includes(finding));
-
-// The reconcile's one mover, shared by the list and the resolved disclosure: make
-// `parent`'s children `nodes`, in that order, touching nothing already in its place.
-// Not touching it matters beyond economy: reinserting a node restarts its CSS
-// animations, drops any focus and caret inside it, and swaps it out from under a
-// pressed pointer, which swallows the click. Stale nodes go first for the same
-// reason — with one removed mid-list, everything after it is exactly one place
-// forward, so the walk keeps those where they stand instead of reinserting each.
-function setChildren(parent, nodes) {
-  const keep = new Set(nodes);
-  for (const child of [...parent.children]) if (!keep.has(child)) child.remove();
-  let cursor = parent.firstChild;
-  for (const node of nodes) {
-    if (node === cursor) cursor = cursor.nextSibling;
-    else parent.insertBefore(node, cursor);
-  }
-}
-
-const emptyNote = el(
-  "div",
-  "lf-empty",
-  "No comments yet. Select any text on the page to comment on it, or use the box below.",
-);
-const waitingNote = el("div", "lf-empty", "Loading current comments…");
-// The page has comments and the reader's narrowing is standing between them and it. It
-// names the narrowing rather than saying nothing was found, because the reader may have
-// arrived here from a key or from a second tab and what is on screen has to say why.
-const noMatch = el("div", "lf-empty");
-function noMatchNote() {
-  const said = finding
-    ? needsYou
-      ? `Nothing waiting on you says “${finding}”.`
-      : `No comment says “${finding}”.`
-    : "Nothing is waiting on you.";
-  if (noMatch.textContent !== said) noMatch.textContent = said;
-  return noMatch;
-}
-
-// The heading over a run of threads, kept across reconciles so a scroll position, a focus
-// ring and the sticky pin survive a poll. A button where the page still holds the heading
-// it names — pressing it takes the reader there, which is the same move a thread's quote
-// makes — and a plain line for the three runs that name no place (groupFor). A key never
-// changes kind, so the node a key holds never has to.
-const groupNodes = new Map();
-function groupNode(key, group) {
-  let node = groupNodes.get(key);
-  if (!node) {
-    node = group.target
-      ? el("button", "lf-group lf-pinned")
-      : el("div", "lf-group lf-pinned");
-    if (group.target) {
-      node.type = "button";
-      node.title = "Jump to this part of the page";
-    }
-    node.dataset.group = key;
-    groupNodes.set(key, node);
-  }
-  if (node.textContent !== group.label) node.textContent = group.label;
-  // The press is rewired on every reconcile and the word is not: a version activation
-  // replaces the heading the group names with a new element, and the same sentence.
-  if (group.target) node.onclick = () => scrollToElement(group.target);
-  return node;
-}
-
-// A terminal event's row, keyed like everything else in the list so its clock can
-// refresh in place.
-function systemNode(e, text) {
-  let div = threadsBox.querySelector(`:scope > .lf-system[data-id="${e.id}"]`);
-  if (!div) {
-    div = el("div", "lf-system");
-    div.dataset.id = e.id;
-  }
-  if (div.textContent !== text) div.textContent = text;
-  return div;
-}
-
-// The resolved disclosure, one <details> for the page's life: the user's
-// open/closed toggle is the browser's state, and it survives arrivals only if the
-// element does — the rebuild this replaced snapped it shut on every one.
-let resolvedBox = null;
-
-// A thread has one send in flight even though its reply draft has two views. wireInput's
-// private hold is still the right scope for every other composer, which has one control;
-// a reply adds this thread-scoped hold and announces it on the document bus so both Send
-// controls render the same fact. The promise is the post itself, because a queue would
-// serialize the duplicate rather than refuse it.
-const REPLY_FLIGHT_NEWS = "lf-reply-flight";
-const replyFlights = new Map(); // thread id -> post in flight
-const replyBusy = (id) => replyFlights.has(id);
-const tellReplyFlight = (id) =>
-  document.dispatchEvent(new CustomEvent(REPLY_FLIGHT_NEWS, { detail: { id } }));
-
-function mirrorReplyFlight(ta, sync, id) {
-  const update = (ev) => {
-    if (ev.detail.id !== id) return;
-    if (!ta.isConnected) return document.removeEventListener(REPLY_FLIGHT_NEWS, update);
-    sync();
-  };
-  document.addEventListener(REPLY_FLIGHT_NEWS, update);
-}
-
-async function sendReply(t, text, raw, owns) {
-  const id = t.root.id;
-  if (replyBusy(id)) return null;
-  const draftCtx = "reply:" + id;
-  const flight = sendDraft(draftCtx, owns, (attempt) =>
-    post({
-      kind: "reply",
-      parent: id,
-      version: runtime.currentVersion,
-      text,
-      attempt,
-    }),
-  );
-  replyFlights.set(id, flight);
-  tellReplyFlight(id);
-  try {
-    return await flight;
-  } finally {
-    replyFlights.delete(id);
-    tellReplyFlight(id);
-  }
-}
-
-// One reply draft and one send path, however many views the thread has. The panel adds
-// an address and reveals the sent message; an inline conversation supplies neither.
-// Everything else — persistence, mirroring, the wire event and the focus landing — is
-// the thread's and is therefore stated once.
-function wireReply(t, input, send, { address, landed } = {}) {
-  const draftCtx = "reply:" + t.root.id;
-  input.value = loadDraft(draftCtx) ?? "";
-  const sync = wireInput(input, {
-    hint: "Reply",
-    sends: "send",
-    address,
-    sendBtn: send,
-    busy: () => replyBusy(t.root.id),
-    // localStorage notifies other tabs but skips this document. A conversation's
-    // inline and panel boxes are two views here, so reply drafts take the same bus
-    // directly. Other draft kinds still have one view per document.
-    save: (v) => {
-      saveDraft(draftCtx, v);
-      tellDraft(draftCtx, v);
-    },
-    send: async (text, raw) => {
-      const sent = await sendReply(t, text, raw, () => input.value === raw);
-      if (!sent) return;
-      landed?.(sent);
-      landTyping(input);
-    },
-  });
-  sync();
-  mirrorDraft(input, sync, draftCtx);
-  mirrorReplyFlight(input, sync, t.root.id);
-  return sync;
-}
-
-function conversationMessageNode(thread, message) {
-  let node = thread.querySelector(
-    `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
-  );
-  if (node) {
-    const time = node.querySelector("time");
-    const when = ago(message.ts);
-    if (time.textContent !== when) time.textContent = when;
-    return node;
-  }
-  node = offer("div", `lf-conversation-msg ${message.author}`);
-  node.dataset.event = message.id;
-  const head = el("div", "lf-conversation-head");
-  head.append(
-    el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
-    el("time", "", ago(message.ts)),
-  );
-  const body = el("div", "lf-conversation-body");
-  if (message.suggestion) body.textContent = message.text;
-  else body.innerHTML = renderMarkdown(message.text);
-  node.append(head, body);
-  if (message.markup) {
-    const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
-    open.onclick = () => showThread(message.id);
-    node.append(open);
-  }
-  return node;
-}
-
-function conversationThreadNode(host, t) {
-  let thread = host.querySelector(
-    `:scope > .lf-conversation-thread[data-thread="${t.root.id}"]`,
-  );
-  if (!thread) {
-    thread = offer("div", "lf-conversation-thread");
-    thread.dataset.thread = t.root.id;
-    thread.tabIndex = -1;
-  }
-  const messages = t.msgs.map((message) => conversationMessageNode(thread, message));
-  let tail;
-  if (t.resolved) {
-    const compose = thread.querySelector(":scope > .lf-say");
-    if (compose?.contains(focused())) thread.focus({ preventScroll: true });
-    tail = thread.querySelector(":scope > .lf-conversation-resolved");
-    const settledBy =
-      t.resolved.author === "claude"
-        ? `✓ Resolved by ${t.resolved.agent || "Agent"}`
-        : "✓ Resolved";
-    if (!tail) tail = offer("div", "lf-conversation-resolved");
-    if (tail.textContent !== settledBy) tail.textContent = settledBy;
-  } else {
-    tail = thread.querySelector(":scope > .lf-say");
-    if (!tail) {
-      tail = offer("div", "lf-say");
-      const input = offer("textarea");
-      const send = offer("button", "lf-btn primary", "Send");
-      tail.append(input, send);
-      wireReply(t, input, send);
-    }
-  }
-  const work = thread.querySelector(":scope > .lf-work-line");
-  setChildren(thread, [...messages, ...(work ? [work] : []), tail]);
-  return thread;
-}
-
-function renderConversations(threads) {
-  for (const host of document.querySelectorAll(
-    ".lf-conversation[data-lf-conversation]",
-  )) {
-    const owner = elementById(host.dataset.lfConversation);
-    const owned = threads.filter((thread) => {
-      const anchor = thread.root.anchor;
-      return (
-        !thread.root.about &&
-        anchor?.section === owner.id &&
-        Object.keys(anchor).length === 1
-      );
-    });
-    // Before the first comment, conversationBox's first-message composer is already
-    // the complete view. An externally arriving root may find unsent first-message
-    // words here, so the root does not get to take their only box. A hold-capable seat
-    // stays reachable after every root so an ordinary conversation cannot remove the
-    // stronger send route.
-    if (!owned.length) continue;
-    const first = host.lfFirstMessage;
-    const hold = registry[owner.localName]?.["x-conversation"]?.hold;
-    const pending = hold || loadDraft("say:" + owner.id) !== null ? first : null;
-    const work = host.querySelector(":scope > .lf-work-line");
-    setChildren(host, [
-      ...(work ? [work] : []),
-      ...owned.map((thread) => conversationThreadNode(host, thread)),
-      ...(pending ? [pending] : []),
-    ]);
-  }
-}
-
-// The one number in the list's scroll-padding that CSS cannot work out: a run heading
-// sticks over the top of this box, and a long one wraps, so how much of the top is
-// covered is a measurement rather than a constant. The tallest, not the stuck one — the
-// browser is given one number to scroll by and cannot be told which heading will be under
-// the landing, and reserving more than a shorter heading needs only lands the thread a few
-// pixels lower.
-//
-// It follows the box rather than the log. Wrapping is a function of the list's width, and
-// the reader sets that themselves by dragging the panel's edge — a drag posts no event, so
-// a reconcile never came, and a heading that had grown from one line to two went on being
-// reserved for at one. Threads then landed under it, which is the whole defect this
-// number exists to prevent. Writing a custom property does not resize the observed box,
-// so the observer cannot feed itself.
-function paintHeadRoom() {
-  // Not while the panel is shut, which is most of a page's life. Every heading measures
-  // zero in `display: none`, so the answer is never the room a heading takes — it is the
-  // absence of a panel, written at the cost of a forced layout on every reconcile for a
-  // number no reader can be standing in. That cost is not theoretical: under a loaded
-  // machine it delayed an event's acknowledgement past the window an undo is offered in,
-  // and `test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll` lost
-  // its press to a gesture that had not settled yet. The observer fires when the panel
-  // opens — a box arriving is a resize — so the measurement lands the moment it means
-  // something, which is also the only moment it can be right.
-  if (!panelOpen) return;
-  const heads = [...threadsBox.querySelectorAll(".lf-pinned")];
-  threadsBox.style.setProperty(
-    "--lf-head-room",
-    `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
-  );
-}
-new ResizeObserver(paintHeadRoom).observe(threadsBox);
-
-// A thread's node is found where it already stands — the open list or the resolved
-// disclosure — and kept: the log is append-only, so a kept node only ever gains
-// messages and refreshes its clocks. A settlement transition reshapes a node: resolving
-// removes the reply box and reopening restores it, so either one rebuilds the node;
-// msgBodies carries the rendered bodies across. `grow` animates what this call creates,
-// for arrivals into a list the user is already looking at.
-function threadNode(t, grow) {
-  const existing = threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`);
-  const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
-  if (existing && existingResolved === Boolean(t.resolved)) {
-    const compose = existing.querySelector(":scope > .lf-compose");
-    const tail =
-      existing.querySelector(":scope > .lf-work-line") ??
-      compose ??
-      existing.querySelector(":scope > .lf-thread-actions");
-    for (const m of t.msgs) {
-      let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
-      if (!msg) {
-        msg = msgNode(m);
-        if (grow) msg.classList.add("grow");
-        existing.insertBefore(msg, tail);
-      }
-      // The head's clock, not any <time> a reply's own markup might carry.
-      const time = msg.querySelector(":scope > .lf-msg-head time");
-      const when = ago(m.ts);
-      if (time.textContent !== when) time.textContent = when;
-    }
-    return existing;
-  }
-
-  const div = el("div", "lf-thread");
-  div.tabIndex = -1; // j/k focus target; the thread scope's Enter drops into its reply box
-  div.dataset.id = t.root.id;
-  if (grow) div.classList.add("grow");
-  const label = anchorLabel(t.root.anchor, t.root.about);
-  if (label) {
-    const quote = el("blockquote", "lf-quote", label);
-    quote.onclick = () => scrollToThread(t.root.id);
-    div.append(quote);
-  }
-  t.msgs.forEach((m) => div.append(msgNode(m)));
-  if (!t.resolved) {
-    const row = el("div", "lf-compose");
-    const input = document.createElement("textarea");
-    const send = el("button", "lf-btn primary lf-thread-send", "Send");
-    row.append(input);
-    div.lfSync = wireReply(t, input, send, {
-      // The box's address, spoken by its own placeholder at all times ("Reply · g c 2")
-      // — which is what a screen reader hears, the chip the chord paints being the eye's
-      // copy of the same fact. Read off the list rather than off a number written here,
-      // because the address is positional: resolving an early thread renumbers every one
-      // after it without touching their nodes, and renderThreads repaints them all.
-      address: () => {
-        const num = addressed(COMMENTS).indexOf(div) + 1;
-        return num ? addressLabel(COMMENTS, num) : "";
-      },
-      landed: (sent) => revealThread(sent.id),
-    });
-    const actions = el("div", "lf-thread-actions");
-    const resolve = el("button", "lf-btn lf-resolve", "Resolve");
-    // Resolving takes this node out of the open list and focus with it — the blind
-    // drive fell to body here. Land where j would have gone: the thread that now
-    // holds this one's place, else the previous, else the list. Which is read after
-    // the trip, off the list the fold has already left (foldOut renames the node the
-    // frame the log settles it), so the landing is a thread rather than the room the
-    // pressed one is still giving back.
-    // Disabled for the flight (the bulk-answer buttons' shape): the r key repeats while
-    // held, and every repeat before the poll replaces this node would post the
-    // same resolve again. Re-enabled for the one path that keeps the node — a
-    // send that failed, where the press must stay pressable; where it went through,
-    // the fold has made the whole node inert and there is nothing to re-enable into.
-    resolve.onclick = async () => {
-      const at = openThreads().indexOf(div);
-      resolve.disabled = true;
-      try {
-        await post({ kind: "resolve", parent: t.root.id });
-      } finally {
-        resolve.disabled = false;
-      }
-      const kept = openThreads();
-      (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
-    };
-    actions.append(send, resolve);
-    div.append(row, actions);
-  } else {
-    const actions = el("div", "lf-thread-actions");
-    const status = el("span");
-    if (t.resolved.author === "claude") {
-      // Said only where the reader was not the one who closed it. Their own resolve
-      // needs no telling: they pressed it, and the disclosure they find it under is
-      // already headed "Resolved". A thread closed from the other side settles with
-      // nothing in this tab to watch it happen, so the page is the only thing that can
-      // say who did.
-      const by = t.resolved.agent || "Agent";
-      status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
-    }
-    const reopen = el("button", "lf-reopen lf-thread-action", "Reopen");
-    reopen.onclick = async () => {
-      reopen.disabled = true;
-      try {
-        await post({ kind: "unresolve", parent: t.root.id });
-      } finally {
-        reopen.disabled = false;
-      }
-      threadsBox
-        .querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`)
-        ?.focus({ preventScroll: true });
-      showThread(t.root.id);
-    };
-    actions.append(status, reopen);
-    div.append(actions);
-  }
-  return div;
-}
-
-// A thread the log has resolved and the open list is still holding. Its place is not
-// given up in the frame the log settles it: the node stays where it stood, says what
-// was done to it on the control that was pressed, and folds, so the threads under it
-// rise where the eye can follow instead of arriving somewhere else. The disclosure
-// gets the thread when the fold is over, which is what keeps one node per thread the
-// whole way through.
-//
-// Driven from the reconcile rather than from the press, because the log is what
-// resolves a thread and a resolve with no gesture behind it — a second tab's, or the
-// agent's — takes the same room out of the same list. That is the case that needs the
-// motion more: nothing in this tab moved, so the fold is the only thing saying so.
-//
-// Everything that walks the list asks for .lf-thread, so the one rename takes the
-// node out of j/k, out of the g addresses, out of r's press and out of what the panel
-// repaints, in a stroke: what stands there is room, not a thread. `inert` says the
-// same to the pointer and the tab order, so the fold can't be pressed a second time
-// or typed into on its way out.
-//
-// Null where there is nothing to fold: a thread this page never drew open, or a
-// reader who asked for less motion, for whom the room goes in the frame it always did.
-const folding = new Map(); // thread id -> the node folding out of the open list
-function foldOut(t) {
-  const going = folding.get(t.root.id);
-  // For as long as it stands in the list, which is the whole of what the record
-  // claims. A reader who reopens a thread mid-fold has that render drop the folding
-  // node from the list, and the entry left behind names a node in nothing: handed
-  // back when they settle the thread again, it would stand a spent animation where
-  // the thread is, saying what the thread said before it reopened, and the thread
-  // would leave with no fold at all. The node's own connectedness is that fact, read
-  // here rather than written from wherever a node leaves the list, which is the
-  // difference between one writer and every caller of setChildren remembering.
-  // Dropped rather than passed over, because the two returns below leave without
-  // setting one, and an entry over a thread nothing is folding hides that thread
-  // from the disclosure that should be holding it by then.
-  if (going?.isConnected) return going;
-  folding.delete(t.root.id);
-  const node = threadsBox.querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`);
-  if (!node) return null;
-  // Measured before anything about the node changes, and stated as a border box —
-  // the measurement to hand is the rendered one, and .lf-going sizes to match. The
-  // border and padding go with the height because border-box floors the box at
-  // their sum: left standing, they would hold 22px open under a height of zero.
-  const style = getComputedStyle(node);
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1,
-  };
-  const to = Object.fromEntries(Object.keys(from).map((k) => [k, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], FOLD_MS);
-  if (!played) return null;
-  // The control the press was made on states the outcome where it stood. It needs no
-  // reservation for the longer word: Send and Resolve hold the two edges, so the
-  // longer outcome takes room from the gap and moves neither edge. Send stays in the
-  // row with visibility hidden, keeping the same room without reading as live.
-  node.querySelector(":scope > .lf-thread-actions > .lf-resolve").textContent =
-    "✓ Resolved";
-  node.className = "lf-going";
-  node.inert = true;
-  // A key on screen is a key that works, and this box's placeholder was still
-  // offering the address the thread under it has just taken: the repaint every other
-  // reply box gets is the trailing loop's, which asks for .lf-thread and so no longer
-  // finds this one. Painted here, from the same map, at the one moment the answer
-  // changes — the address is gone the frame the log settles the thread, and what the
-  // box says on its way out is "Reply" and no promise.
-  node.lfSync();
-  folding.set(t.root.id, node);
-  // Straight off the promise, and nothing between: motion() holds the last keyframe
-  // while this direct reaction makes that frame true by removing the node, then its
-  // shared reaction releases the effect. Deferring this cleanup past that contract
-  // would put the whole thread back before it goes. What holds the line is
-  // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
-  // see it.
-  played.finished.then(() => {
-    // This node's own entry, never whatever the thread's key holds now: a fold the
-    // line above superseded is still running, and the older one finishing must not
-    // take the live one's record with it.
-    if (folding.get(t.root.id) === node) folding.delete(t.root.id);
-    node.remove();
-    renderPanel();
-  });
-  return node;
-}
-
-// One writer for every local work line. Which box it stands in is the subject's — a
-// thread's complete or inline seat, a widget's declared conversation, or a prose
-// widget itself — while the sentence, silence word, and clock are identical. Lines are
-// kept across polls so an unchanged claim is not announced again every two seconds.
-function paintWorkLine(host, update, before, wanted) {
-  if (!host) return;
-  const { kind, id } = update.target;
-  let line = [...host.children].find(
-    (child) =>
-      child.matches(".lf-work-line") &&
-      child.dataset.subjectKind === kind &&
-      child.dataset.subjectId === id,
-  );
-  if (!line) {
-    line = el("div", "lf-work-line lf-ui");
-    line.dataset.lfGen = "1";
-    line.dataset.subjectKind = kind;
-    line.dataset.subjectId = id;
-    line.append(el("span"), el("time"));
-  }
-  const next = before ?? null;
-  if (line.parentElement !== host || line.nextSibling !== next)
-    host.insertBefore(line, next);
-  wanted.add(line);
-  const what = line.firstElementChild;
-  const when = line.lastElementChild;
-  // Written only on change, like the message clocks beside it: an unchanged poll must
-  // not hand the reader's screen reader the same sentence every two seconds.
-  const said = `${update.agent || agentName()} is on this — ${update.text}`;
-  if (what.textContent !== said) what.textContent = said;
-  // A claim of work nobody has renewed, said in a word. The banner cannot answer for
-  // this seat: every `leaf status … --on` write refreshes the page's own line, so one
-  // delegate still reporting keeps the banner green while another's claim ages here —
-  // the fleet's dead-row failure one level down, and the reason the roster says this
-  // in words rather than leaving it to a tint. Both of the banner's own questions,
-  // asked here by the same two predicates: gone unrenewed too long, or left behind by
-  // a turn that ended. A local line is written by the command that writes the claim, so a
-  // seat answering either question differently would have the page arguing with
-  // itself about one silence. `ago` is still rendered whole beside the word rather
-  // than reworded to absorb it. The cell is added and removed rather than hidden,
-  // because a hidden one still reads out in the thread's text.
-  let cold = line.querySelector(":scope > .lf-work-quiet");
-  const turnClosed =
-    update.session && update.session === claimingSession ? agentTurnClosed : null;
-  if (quietSince(update.ts) || droppedAt(update.ts, turnClosed)) {
-    if (!cold) line.insertBefore(el("span", "lf-work-quiet", "quiet"), when);
-  } else cold?.remove();
-  const age = ago(update.ts);
-  if (when.textContent !== age) when.textContent = age;
-}
-
-function widgetWorkSeat(owner) {
-  const work = registry[owner.localName]?.["x-work"];
-  if (!work || !matchesWhen(owner, work.when)) return null;
-  if (work.seat === "content") return { host: owner, before: null };
-  const conversation = registry[owner.localName]["x-conversation"];
-  if (!matchesWhen(owner, conversation.when)) return null;
-  const host = [...owner.children].find(
-    (child) =>
-      child.matches(".lf-conversation[data-lf-conversation]") &&
-      child.dataset.lfConversation === owner.id,
-  );
-  if (!host) return null;
-  const before = [...host.children].find((child) => !child.matches(".lf-work-line"));
-  return { host, before: before ?? null };
-}
-
-// Every local seat for every typed subject. The merged x-work declaration decided at
-// the CLI boundary whether a widget could safely carry one and tells this reading which
-// of the two general seats to use. Core still knows no content-widget tag name. A claim
-// created on a later version cannot leak backward into a pinned historical page.
-function paintWorkLines() {
-  const wanted = new Set();
-  const claims = claimsHeld
-    ? updateSequence().filter(
-        (update) => update.source === "claim" && update.disposition === "effective",
-      )
-    : [];
-  for (const update of claims) {
-    const { kind, id } = update.target;
-    if (kind === "thread") {
-      const thread = threadList.find((candidate) => candidate.root.id === id);
-      if (!thread || thread.resolved) continue;
-      const complete = threadsBox.querySelector(`.lf-thread[data-id="${id}"]`);
-      paintWorkLine(
-        complete,
-        update,
-        complete?.querySelector(":scope > .lf-compose"),
-        wanted,
-      );
-      for (const inline of document.querySelectorAll(
-        `.lf-conversation-thread[data-thread="${id}"]`,
-      ))
-        paintWorkLine(inline, update, inline.querySelector(":scope > .lf-say"), wanted);
-      continue;
-    }
-    if (kind !== "widget" || update.version > runtime.currentVersion) continue;
-    const owner = elementById(id);
-    if (!owner || inChrome(owner)) continue;
-    const seat = widgetWorkSeat(owner);
-    if (seat) paintWorkLine(seat.host, update, seat.before, wanted);
-  }
-  for (const line of pageQueryAll(".lf-work-line"))
-    if (!wanted.has(line)) line.remove();
-}
-
-// The DOM is the one record of what's rendered, reconciled against the log: nodes the
-// list already holds are kept, and only what the log changed is added, moved, or
-// dropped. The rebuild this replaced destroyed every node on every render and then
-// hand-restored the reader's place — scroll offset, focused thread, caret — and what
-// no restore could give back was identity: nothing could animate, one send route kept
-// focus and the other dropped it, and a user's own comment landed below the fold
-// of a list put back exactly where it was. Nodes surviving is what deleted all of it.
-function renderThreads(threads) {
-  const open = threads.filter((t) => !t.resolved);
-  // The page's outline, read once for the whole reconcile: every thread asks it where it
-  // stands and which run it belongs to.
-  const outline = pageOutline();
-  const group = new Map(threads.map((t) => [t, groupFor(t, outline)]));
-  // Where the reader's own narrowing applies, and the only place it does: the page's
-  // marks, the inline conversation seats and the banner's count are readings of the log
-  // and go on saying what the log says. What the panel shows is the panel's business.
-  const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
-  const resolved = shown.filter((t) => t.resolved);
-  // Newcomers settle in (`grow`) only when the user already has the list in front
-  // of them: the first populated render is the page loading, not news arriving, and a
-  // node animated while the panel is closed would replay the moment it opens.
-  // (Reduced motion isn't asked here: grow is a CSS animation, and those are the
-  // theme's one global guard's to stop.)
-  const grow = panelOpen && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
-
-  const wanted = [];
-  if (!threads.length) wanted.push(emptyNote);
-  else if (!shown.length) wanted.push(noMatchNote());
-  // Walked in the page's order rather than the log's (inPageOrder), because that is the
-  // order every other reading of these threads is in: the marks down the page, the walk
-  // j/k makes, the digits g c spells. A thread on its way out still stands between its
-  // neighbours while it folds (foldOut), which is why the walk is over the whole list
-  // with the resolved ones taken at their own place. The first nine open threads are
-  // addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k still
-  // reach everything. A folding thread takes no address and is walked by nothing: the log
-  // has already settled it, and only its room is still here.
-  //
-  // A heading goes in wherever the run changes, so the reader scrolling a list four
-  // thousand pixels long is told which part of the page they are reading about — and,
-  // the headings being sticky, is still told halfway down a long run.
-  let standing = null;
-  for (const t of shown) {
-    // A resolved thread is either still giving its room back in place, or gone from this
-    // list entirely and rebuilt under the disclosure below.
-    const node = t.resolved ? foldOut(t) : threadNode(t, grow);
-    if (!node) continue;
-    const here = group.get(t);
-    if (here.key !== standing) {
-      standing = here.key;
-      if (here.label) wanted.push(groupNode(here.key, here));
-    }
-    wanted.push(node);
-  }
-  for (const e of runtime.events) {
-    if (e.kind === "done") wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
-  }
-  if (resolved.length) {
-    if (!resolvedBox) {
-      resolvedBox = el("details", "lf-details");
-      resolvedBox.append(el("summary", "lf-pinned"));
-    }
-    const summary = resolvedBox.firstChild;
-    // Counted off what the panel is showing, listed off the page: a thread still folding
-    // out of the open list is resolved and says so in the count from the first frame, and
-    // is rebuilt in here when its fold is done rather than standing in two places at
-    // once. Under a narrowing the count is of the resolved threads that match it, for the
-    // same reason the head says "Showing 3 of 24" — a disclosure promising five where the
-    // list holds one is the trap the head exists to close.
-    const said = `Resolved (${resolved.length})`;
-    if (summary.textContent !== said) summary.textContent = said;
-    setChildren(resolvedBox, [
-      summary,
-      ...resolved
-        .filter((t) => !folding.has(t.root.id))
-        .map((t) => threadNode(t, false)),
-    ]);
-    wanted.push(resolvedBox);
-  }
-  // A narrowing can take the thread the reader is standing in out of the list —
-  // answering the last one waiting on the reader is exactly that — and a removed node drops
-  // focus to body, which hands the next Space to the page behind the panel. Land them on
-  // the list, where Escape lands them and j/k can walk on from.
-  const standingIn = threadsBox.contains(focused());
-  setChildren(threadsBox, wanted);
-  if (standingIn && !threadsBox.contains(focused()))
-    threadsBox.focus({ preventScroll: true });
-  paintHeadRoom();
-  // A thread's widget markup is authored too, but it arrives after the page's startup
-  // capture. Take its baseline on the first frame it is connected, before a reader can
-  // act on it; later reconciles keep the first capture rather than mistaking a live
-  // choice for authored state. Thread markup is frozen in its event, so unlike page
-  // markup it has no version window to move under.
-  captureAuthoredFacets(threadsBox);
-  // A comment carries whatever widget markup the gate allows, so the panel holds the
-  // same scroll boxes the page does, in a column half the width — and reachScrollers
-  // wants two things that are only true here, after this line. A message body is built
-  // detached, where `getComputedStyle` answers "" for every property, so a sweep at the
-  // point the body is filled tagged nothing at all and had done since it was written,
-  // reading like coverage the whole time. And a widget in that body upgrades on being
-  // connected, not on being written, so the queue it registers its render with
-  // (`settling`) has the promise only once this reconcile has appended it — which is
-  // why the wait is here rather than a snapshot taken earlier. The queue is read, never
-  // joined: nothing about the page's own first anchor pass waits on a message.
-  Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
-
-  // Each reply box speaks its own address, repainted after ordering because resolving an
-  // early thread renumbers everything after it — and read off the list this reconcile has
-  // just written, which is why the loop is here and not where the boxes were built.
-  for (const div of openThreads()) div.lfSync();
-  toggleBtn.textContent = `Comments (${open.length})`;
-  paintNarrowing(open, shown);
-  // The anchor pass wrote its record before this list existed, and this reconcile may have
-  // built the nodes that wear it. Both passes therefore repaint it: the one that changes
-  // the record, and the one that changes what the record is painted on.
-  paintThreadQuotes();
-  paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
-  // Narrowing and reconciliation can move another card under a pointer that did not
-  // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
-  refreshHover();
-}
-
-// An unresolved hold thread is the pause. Derive the mark from the thread fold so
-// resolution removes it and undo restores it without a second state store.
-function renderHolds(threads) {
-  for (const node of document.querySelectorAll("[data-lf-held]"))
-    node.removeAttribute("data-lf-held");
-  for (const thread of threads) {
-    if (thread.resolved || !thread.root.holds) continue;
-    const target = elementById(thread.root.holds);
-    if (target && !inChrome(target)) target.dataset.lfHeld = thread.root.id;
-  }
-}
-
-// The two surfaces that say what the narrowing is doing, written together because they
-// are one fact told twice: how much of the conversation is in front of the reader, and
-// how much of it is still theirs to answer. One writer, so the phase before the log has
-// been read and the phase after it cannot come to spell the same state differently.
-//
-// The banner counts what the page has; the head says how much of that is on screen. They
-// differ only while a narrowing stands, which is exactly when the reader needs telling
-// that the list is not the whole of it — and there is nothing to tell where the page has
-// no open threads to narrow.
-function paintNarrowing(open, shown) {
-  const showing = shown.filter((t) => !t.resolved).length;
-  panelTitle.textContent =
-    narrowed() && open.length ? `Showing ${showing} of ${open.length}` : "Comments";
-  const waiting = open.filter(awaitsReader).length;
-  needsBtn.textContent = waiting ? `Waiting on you (${waiting})` : "Waiting on you";
-  // Pressable while it stands pressed, so the reader can always let it go; dead only when
-  // there is nothing for it to show and it is not the thing hiding the list.
-  needsBtn.disabled = !needsYou && !waiting;
-}
-
-// Re-render the list alone, for the one change that is the panel's own rather than the
-// log's: the reader narrowing it. Nothing about the page moved, so the anchor pass is not
-// asked again — the list is rebuilt from the record it already wrote.
-function renarrow() {
-  if (runtime.statePhase !== "ready") return;
-  renderThreads(threadList);
-  paintWorkLines();
-  // A new set of results starts at its own beginning. Keeping the old offset lands the
-  // reader in the middle of a shorter list, or past the end of it, over a change they
-  // made a keystroke at a time.
-  threadsBox.scrollTop = 0;
-}
-findInput.addEventListener("input", () => {
-  finding = findInput.value.trim().toLowerCase();
-  renarrow();
-});
-needsBtn.onclick = () => {
-  needsYou = !needsYou;
-  needsBtn.setAttribute("aria-pressed", String(needsYou));
-  needsBtn.classList.toggle("on", needsYou);
-  renarrow();
-};
-// Everything the reader narrowed, let go at once — what Escape in the find box does, and
-// what a thread arriving from outside the narrowing needs before it can be revealed.
-function widen() {
-  if (!narrowed()) return false;
-  finding = "";
-  needsYou = false;
-  findInput.value = "";
-  needsBtn.setAttribute("aria-pressed", "false");
-  needsBtn.classList.remove("on");
-  renarrow();
-  return true;
-}
-
-// The panel's side of what the anchor pass drew, read off that pass's own record so the
-// two views can't disagree: a passage rewritten in a later version has no home to jump to,
-// and a dead-looking link is worse than one that says so. Called by the pass that writes
-// the record, and again by a narrowing that rebuilt the nodes the record was painted on.
-function paintThreadQuotes() {
-  const threads = new Map(threadList.map((t) => [t.root.id, t]));
-  for (const div of openThreads()) {
-    const quote = div.querySelector(".lf-quote");
-    if (!quote) continue;
-    // The words too, for the same reason the class below is repainted here rather than
-    // written where the node was built. An element anchor is labelled with its item's
-    // own opening words, and the item may be a widget an agent sent — built by this
-    // same reconcile and not yet in the document when the node wearing the label was
-    // made, so the reading came back empty and the label fell to the bare id. The
-    // reconcile keeps a node it has already built, so nothing else ever asked again:
-    // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
-    // for the life of the tab.
-    const thread = threads.get(div.dataset.id);
-    const said = thread && anchorLabel(thread.root.anchor, thread.root.about);
-    if (said && quote.textContent !== said) quote.textContent = said;
-    const found = marked.has(div.dataset.id);
-    quote.classList.toggle("detached", !found);
-    quote.title = found
-      ? "Jump to this passage"
-      : "This passage can't be identified in the version you're viewing";
-  }
-}
-
-// A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
-// animations — so the class comes off the moment its animation has run. A node grown
-// while its list was off-screen never ran one; the panelOpen gate above is what keeps
-// that replay from greeting the panel's next open.
-threadsBox.addEventListener("animationend", (ev) => ev.target.classList.remove("grow"));
-
-// The panel and the page marks are two views of the same threads, and the paint pass
-// reports back to the list renderThreads just reconciled — always render them as a pair.
-function renderPanel() {
-  if (runtime.statePhase !== "ready") {
-    waitingNote.textContent =
-      runtime.statePhase === "offline"
-        ? "Current comments are unavailable while the server is offline."
-        : "Loading current comments…";
-    setChildren(threadsBox, [waitingNote]);
-    toggleBtn.textContent = "Comments";
-    // Nothing read yet, so nothing to count and nothing to narrow. The same writer, so
-    // the button says exactly what it will say the moment the log arrives empty.
-    paintNarrowing([], []);
-    threadList = [];
-    paintHere();
-    return;
-  }
-  const threads = buildThreads();
-  renderHolds(threads);
-  threadList = threads;
-  // The marks first, because the list is ordered by where they landed: one resolution of
-  // every anchor, read by the page for its paint and by the panel for its order. Resolving
-  // a second time for the order would be a second answer to where a thread is, free to
-  // disagree with the first over a page that changed between them — and it would walk the
-  // document's whole text again to say it.
-  paintAnchors(threads);
-  renderThreads(threads);
-  renderConversations(threads);
-  paintWorkLines();
-}
-
-// One answer to "show me that thread", whoever asks: a click on a mark out on the page
-// and a send that just landed both come here, with a thread's id or a message's. The
-// panel scrolls its own list — moving the page to a thread's passage is scrollToThread,
-// a different question — and flashes the thread. The flash takes over from a running
-// grow explicitly: both classes bind the element's one animation declaration, and the
-// send's confirmation is the one the gesture asked for.
-const listNode = (id) =>
-  threadsBox.querySelector(`.lf-thread[data-id="${id}"], .lf-msg[data-mid="${id}"]`);
-
-function revealThread(id) {
-  setPanel(true);
-  const node = listNode(id);
-  if (!node) return;
-  const thread = node.closest(".lf-thread");
-  node.scrollIntoView({
-    behavior: SCROLL,
-    block: node === thread ? "center" : "nearest",
-  });
-  thread.classList.remove("grow");
-  thread.classList.add("flash");
-  setTimeout(() => thread.classList.remove("flash"), 1300);
-}
-
-// The same ask, insisted on. Two callers mean the thread has to be on screen and cannot
-// see the narrowing they would be asking past: a press out on the page or in a message,
-// which knows nothing of the panel at all, and a comment the reader has just written,
-// which cannot be allowed to vanish into a narrowing it does not match. So the narrowing
-// goes rather than the thread.
-//
-// Every other reveal is a confirmation of something the reader was already watching — a
-// reply landing in a thread in front of them — and takes the list as it stands. A
-// narrowing that let go for having been used would be worse than one that hid something:
-// answering a thread is exactly how the reader empties the waiting-on-you list.
-function showThread(id) {
-  setPanel(true);
-  if (!listNode(id)) widen();
-  // Showing a thread is an arrival in the panel, not a glimpse from the page. Focus is
-  // the standing fact shared by the card and its mark, so the route that begins on a
-  // painted passage has to end on the same focus target as j/k and the address chord.
-  // preventScroll leaves the panel's deliberate reveal below as the one writer of its
-  // position.
-  listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });
-  revealThread(id);
-}
-
-// ---------- passages ----------
-// A passage is a list of {node, start, end} segments, and everything that reads the page's
-// text speaks in them: the search for a quote, the capture of one, the landmark a version
-// change rides on, the version diff's block keys. One shape means one answer to what the
-// page says. The bugs this layer kept having were all a second answer disagreeing with the
-// first — what a selection rendered as versus what the document holds — and a second
-// answer is what there is now no room for.
-//
-// Two skip lists, because two jobs genuinely differ, and the difference is the whole
-// reason .lf-ui and data-lf-gen are two markers rather than one. Anchoring skips the
-// runtime's own words, inline scripts, and the stylesheet a rendered diagram carries
-// inside its <svg>: a quote holding text the search skips is a quote nothing can find
-// again. The version diff additionally skips content an upgrade generated, because the
-// base document parses unupgraded and would never match it. So generated text the page
-// authored — a widget's label, an attribute renderSaid rendered — is diff-invisible and
-// quotable, which is the pair a user expects: they can point at it, and it doesn't
-// read as a change nobody wrote.
-//
-// A decided suggestion's retired slot goes with them. Its markup is still in the
-// document — the honoring version is what finally drops it — but the user has
-// removed it, and the live view is the version plus their decisions. Text nobody can
-// see is text nobody can mean: without this a comment made on a passage then accepted
-// away kept reading as attached in the panel and jumped nowhere, and a quote from
-// elsewhere could match inside the invisible half of a replacement.
-//
-// Which slots retire is the registry's to say, so this and interact.py's reading of the
-// same page follow one declaration: x-retired-when names the decision that removes the
-// element, x-parent the wrapper the decision is recorded on.
-// Computed once — but only once the registry has loaded: the aim listeners are
-// live from module evaluation, and a mousemove in the upgrade window would
-// otherwise seed the cache from the empty pre-fetch registry and disable the
-// retired-slot skip for the life of the page. It used to be rebuilt per
-// candidate ancestor per mousemove (itemAt's aim walk).
-let retiredSlotsMemo;
-function retiredSlots() {
-  if (retiredSlotsMemo != null) return retiredSlotsMemo;
-  // One selector per holder, never the array interpolated: `x-parent` is a list, and
-  // `${list}` joins it with a comma, so a slot naming two holders wrote a selector
-  // *list* whose first member was a bare tag — every instance of the first holder read
-  // as a retired slot, decided or not, and the pair that was meant matched nothing.
-  const value = widgetEntries()
-    .filter(([, entry]) => entry["x-retired-when"])
-    .flatMap(([tag, entry]) =>
-      entry["x-parent"].map(
-        (parent) => `${parent}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
-      ),
-    )
-    .join(", ");
-  if (Object.keys(registry).length) retiredSlotsMemo = value;
-  return value;
-}
-// The same relation read the other way: holder tag → each settling outcome and the
-// slot tags that leave the page under it. Replay reads it to paint the settlement
-// (markSettled, renderRetired), so which verbs settle a holder is the registry's fact
-// here exactly as it is in the selector above. Same registry-loaded guard, for the
-// same aim-window reason.
-let settlementSlotsMemo;
-function settlementSlots() {
-  if (settlementSlotsMemo != null) return settlementSlotsMemo;
-  const value = {};
-  for (const [tag, entry] of widgetEntries().filter(([, e]) => e["x-retired-when"]))
-    for (const parent of entry["x-parent"])
-      ((value[parent] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
-  if (Object.keys(registry).length) settlementSlotsMemo = value;
-  return value;
-}
-
-// The rendering of a settlement, in one place for the two occasions that paint it —
-// replay (markSettled) and a module saying its own gesture (lf-suggestion's #settle):
-// reads the holder's mark and paints data-lf-retired onto the slots the standing
-// outcome retires, clearing it from the rest. One static theme rule hides the marked
-// slots, so a family a project declares hides what a settlement removes the day it
-// declares it — by-name rules in theme.css were the closed list wearing CSS's
-// clothes — and the same pair of marker and rule is what carries the disappearance
-// into an exported copy, which keeps markup and stylesheet and drops every module.
-export function renderRetired(el) {
-  const outcomes = settlementSlots()[el.localName];
-  if (!outcomes) return;
-  const mark = el.getAttribute("data-lf-state");
-  for (const [outcome, tags] of Object.entries(outcomes))
-    for (const tag of tags)
-      for (const root of [el, ...(el.shadowRoot ? [el.shadowRoot] : [])])
-        for (const slot of root.querySelectorAll(`:scope > ${tag}`))
-          slot.toggleAttribute(PAGE_PAINT_ATTRIBUTE.retired, outcome === mark);
-}
-// What no label can speak through, however it is marked: an inline script, the
-// stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
-// decision took off the page. Chrome is the rest of what the anchor pass skips and
-// the one part a label yields — it is a look, and a look cannot make a word the
-// runtime's.
-let silencedMemo;
-function silenced() {
-  if (silencedMemo) return silencedMemo;
-  const retired = retiredSlots();
-  const value = ["script", "style", ...(retired ? [retired] : [])].join(", ");
-  // Same registry-loaded guard as retiredSlots, for the same aim-window reason.
-  if (Object.keys(registry).length) silencedMemo = value;
-  return value;
-}
-
-// An element the user's decision took off the page, asked of an element rather
-// than of text: a retired slot (or anything inside one), or a decided element the
-// retirement emptied — a deletion accepted, an insertion refused — whose every child
-// is now a retired slot or the runtime's own chrome, with no text of its own. The
-// same declaration the anchor pass skips text by answers both (a declared label
-// counts as words still showing), and so an element anchor and a quote cannot
-// disagree about what left the page.
-//
-// The chrome question is bounded at the element, because the answer is about what this
-// element has left rather than about where it is standing. A suggestion an agent sent
-// in a reply stands inside the panel, which is chrome, so asked the unbounded way its
-// surviving half counted as apparatus too: one accepted slot emptied it, the anchor a
-// reader had put on it detached, and the mark went out from under a thread that was
-// still open. The same suggestion on the page kept both.
-function settledAway(el) {
-  const retired = retiredSlots();
-  if (!retired) return false;
-  if (el.closest(retired)) return true;
-  const nodes = [...el.childNodes];
-  return (
-    nodes.some((n) => n.nodeType === 1 && n.matches(retired)) &&
-    nodes.every((n) =>
-      n.nodeType === 1
-        ? n.matches(retired) || uiInside(n, el)
-        : n.nodeType !== 3 || !n.data.trim(),
-    )
-  );
-}
-const GENERATED = ".lf-ui, [data-lf-gen]";
-// A label a widget declared as the page speaking (relabel), which the anchor pass reads
-// over the chrome it sits in.
-const SAID = "[data-lf-said]";
-const DATUM = "[data-lf-projection][data-lf-datum]";
-// The same question one node at a time: is this the runtime's own chrome rather than the
-// document? Every affordance asks it before acting on where the pointer or the caret is.
-// The nearest element that answers wins: a declared label is the page's words inside the
-// control it labels, and a control nested inside one is chrome again. `.lf-ui` alone was
-// the answer once, and it is a look — which is how a user ended up reading a heading
-// they could not point at, twice.
-//
-// Bounded or not, by the second argument, and that is the whole difference between the
-// two ways this gets asked. Unbounded — `inUi` — the answer is about the page: a
-// control is the runtime's apparatus wherever it stands, which is what a pointer or a
-// caret needs to know. Bounded at an element, the answer is about that element's own
-// insides, which is what a reading of one widget needs: the panel holding a widget an
-// agent sent in a reply is itself `.lf-ui`, so asked the unbounded way every child of
-// such a widget answers yes, and the widget reads as having nothing of its own left.
-// The text readings took the same seam (quotable, authored); it is stated once here so
-// that what a mark may hang on, what a settlement has emptied, and what a quote may
-// name cannot come apart.
-const uiInside = (el, within) => {
-  const near = el && overIn(el, `.lf-ui, ${SAID}`, within);
-  return Boolean(near) && !near.matches(SAID);
-};
-export const inUi = (node) =>
-  uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
-// A different question the class also used to answer, and not a question about looks at
-// all: which document is this element in? The runtime's layer is one container, so a
-// widget inside a reply — markup frozen in the log, carried by no version — is exactly
-// what that container holds, and the reading position is a place in the page rather than
-// in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
-// on the page besides, which is the look standing in for the place.
-// Across the boundary for the same reason the climb below is: the marker lives out in
-// the document, so a node inside a widget's shadow tree can only reach it by leaving the
-// tree, and a widget staged inside a reply would otherwise read as page content.
-export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
-// The two together, which is what an affordance acting on where the pointer or the caret
-// is actually needs: the page's own words, as against the layer over them and as against
-// the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
-// was this one — a declared label is nearer than the panel and answers for itself, so a
-// drag across a question an agent asked in a reply read as a passage of the page. It
-// raised the page's 💬 and wrote an anchor onto a thread's own id, into an append-only
-// log, naming a section no version holds. `leaf comment --section` refuses exactly that
-// from the file side, and file capture is the reading that is supposed to promise less.
-const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
-// The runtime's own parts, as against everything else standing in its layer. Its parts
-// wear its id namespace — `lf-composer-quote`, which authored markup may not take — and
-// a widget an agent sent stands in the layer wearing an id of its own, no part of it.
-// `inChrome` answers which document an element is in, and it was standing in for this
-// question too: a design comment on a question asked in a reply was filed under the
-// runtime's own buttons and named "ps ask", where the same widget on the page reads
-// "lf-options · ps-ask".
-const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
-const TEXT_BLOCK =
-  "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
-// The two readings, each one predicate over a text node and named for the question it
-// answers. Anchoring reads what the user can point at: not the runtime's own words —
-// `inUi`, which a declared label answers for itself — and nothing behind a wall no label
-// speaks through, so a pick mark inside a slot the user accepted away is gone with
-// the slot, its marker notwithstanding. The diff reads what the base version holds, and
-// the base parses unupgraded, so everything an upgrade generated goes, a declared label
-// included: the version being compared against has none.
-//
-// Built per walk rather than per node, because the retired half of the wall is read out
-// of the registry each time it is asked for.
-// A text node's parent is an element, and all four readings of these nodes say so:
-// the two below, pageText's cell walk and snapOut's seam. Written four ways it was four
-// answers to one question, three of them asserting the parent and one quietly admitting
-// a node without one — which is a claim about the page nothing backs: what a widget
-// stages into a shadow root is the only text these walks reach with no element over it,
-// and a module staging a bare text node would be handing the page words no cell, no
-// fence and no block. So the assertion is one function, and refusing is what it does.
-//
-// It refuses in the words of the mistake, which is the half that was missing. Throwing
-// out of the pass the render gate reads the console for is the loud direction, and the
-// throw was `Cannot read properties of null (reading 'closest')` on a page showing
-// nothing at all — naming neither the widget that staged the text nor what was wrong
-// with it. A refusal whose message is a property name reaches its author as the runtime
-// being broken, which is the one thing it isn't.
-const elementOver = (n) => {
-  if (n.parentElement) return n.parentElement;
-  const host = n.getRootNode()?.host;
-  const at = host
-    ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
-    : "a module";
-  throw new Error(
-    `${at} staged bare text into a shadow root: ` +
-      `${JSON.stringify(n.data.trim().slice(0, 40).trim())} has no element over it, ` +
-      `so the page holds no block, cell or fence for it. Give a module's rendered ` +
-      `words an element to sit in.`,
-  );
-};
-// Is `node` inside `root`? `Element.contains` stops at a shadow boundary and these
-// readings walk through one, so the climb is the same one `closestAcross` makes.
-const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? a.host ?? null) if (a === root) return true;
-  return false;
-};
-// The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
-// author, and a reading rooted at the document takes that straight: everything the layer
-// holds is the layer's, which is the whole of what the anchor pass and the version diff
-// need. Inside a widget it is a different sentence, and the widget is where it changes.
-//
-// A widget riding a message stands inside the comment panel, so the panel is `.lf-ui`
-// over every word it says — and read straight, a question an agent asked in a reply says
-// nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the asks tray named the
-// question by its id, and every widget reading its own words in a message got "" and fell
-// back to something else.
-//
-// So chrome between the words and their widget is that widget's own apparatus, and chrome
-// above the widget is somebody else's. Rooting the search at the element handed in says
-// almost the same thing and is wrong in one case that matters: a reading can start
-// *inside* generated chrome. A conversation box's messages are `<p>`s the runtime built,
-// on the page, inside the group they belong to — and `diffBlocks` reads every block on the
-// page, so bounded at the block each of them stopped being generated and the version diff
-// painted the reader's own comments as changes to the document.
-const frameOf = (node) => {
-  for (let a = node?.nodeType === 1 ? node : upFrom(node); a; a = upFrom(a))
-    if (a.localName?.startsWith("lf-")) return a;
-  return null;
-};
-// The chrome over a node, read within one frame: above the frame it is nobody's, and with
-// no frame at all it is the document's own reading, unchanged.
-const overIn = (el, selector, frame) => {
-  const near = el.closest(selector);
-  return near && (!frame || under(near, frame)) ? near : null;
-};
-const quotable = (root) => {
-  const gone = silenced();
-  const frame = frameOf(root);
-  return (n) => {
-    const el = elementOver(n);
-    return !uiInside(el, frame) && !el.closest(gone);
-  };
-};
-const authored = (root) => {
-  const frame = frameOf(root);
-  return (n) => !overIn(elementOver(n), GENERATED, frame);
-};
-// The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (x-shadow) shows the reader what its shadow tree holds, and a host's
-// own children stop rendering the moment it has one. A TreeWalker sees none of that — it
-// stops dead at the boundary — so the walk is written out, and it is the same walk in
-// both directions: a host's shadow root stands in for its children, a <slot> stands for
-// what was assigned to it, and everything else is the light DOM it always was. Nothing
-// here asks which widget it is looking at; a document with no shadow roots in it walks
-// exactly as it did before.
-//
-// The order is what earns the recursion. `pageText` builds one string in reading order
-// and indexes every position into it, so shadow text has to arrive at the host's own
-// place in that string — not appended from a second walk, which would put a diff's lines
-// after the page's last paragraph and every neighbour of theirs a lie.
-export function textNodesUnder(rootEl, accepts = quotable(rootEl)) {
-  const segments = [];
-  const visit = (node) => {
-    for (const child of node.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE) {
-        if (accepts(child))
-          segments.push({ node: child, start: 0, end: child.data.length });
-        continue;
-      }
-      if (child.nodeType !== Node.ELEMENT_NODE) continue;
-      if (child.localName === "slot")
-        for (const assigned of child.assignedNodes({ flatten: true }))
-          assigned.nodeType === Node.TEXT_NODE
-            ? accepts(assigned) &&
-              segments.push({
-                node: assigned,
-                start: 0,
-                end: assigned.data.length,
-              })
-            : visit(assigned);
-      else {
-        // Only a root the registry declares (x-shadow): the capture asks
-        // getComposedRanges for exactly the declared ones, and every climb
-        // crosses exactly those — so a walk that entered any open root read
-        // words the anchor side could never place, and a widget's undeclared
-        // root anchored quotes astray instead of staying opaque. The render gate
-        // names an undeclared root; this leaves its words alone.
-        const declared = child.shadowRoot && registry[child.localName]?.["x-shadow"];
-        visit(declared ? child.shadowRoot : child);
-      }
-    }
-  };
-  visit(rootEl);
-  return segments;
-}
-
-// One step towards the document from any node, shadow boundary included: the ordinary
-// parent within a tree, and the host where a tree runs out. Every question the runtime
-// asks about where a node sits — which section, which block, which passage cell, whether
-// it is chrome — is asked of the page, and a climb that stops at a shadow root answers
-// about the widget's own markup instead.
-const upFrom = (node) => node.parentElement ?? node.getRootNode()?.host ?? null;
-
-// contains() stops at a boundary the same way, and this is the one that decides whether a
-// quote is found at all: a section holding an x-shadow widget does not contain the words
-// that widget renders, so narrowing a search to that section threw away every candidate
-// inside it and the passage resolved to nothing — the anchor captured, the mark never
-// painted. Asked of each tree on the way out, so the section contains what it renders.
-const containsAcross = (ancestor, node) => {
-  for (let n = node; n; n = n.getRootNode()?.host ?? null)
-    if (ancestor.contains(n)) return true;
-  return false;
-};
-
-// closest() stops at a shadow boundary, so a node inside a widget's shadow tree can't
-// reach the section that holds it or the chrome marker above it — both out in the
-// document. Same climb as upFrom, asked with a selector at each tree it passes through.
-function closestAcross(node, selector) {
-  let el = node?.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
-  while (el) {
-    const hit = el.closest(selector);
-    if (hit) return hit;
-    el = el.getRootNode()?.host ?? null;
-  }
-  return null;
-}
-
-// getElementById searches the document tree alone, which is the same boundary again and
-// the one every question the runtime asks by id runs into: which element an anchor names,
-// what an action rests on, which unit a fold paints, which ask a key steps to. A widget
-// that stages its authored children into a shadow tree takes their ids in there with it,
-// and each of those answers would come back null and quietly do nothing — the anchor
-// captured, the mark never painted, no error anywhere. The document first, because that
-// is where everything but a staged widget's own parts lives, and only the roots the
-// registry declares after it, so the walk sees what the capture saw.
-const elementById = (id) => {
-  const found = document.getElementById(id);
-  if (found) return found;
-  for (const root of pageShadowRoots()) {
-    const inside = root.getElementById(id);
-    if (inside) return inside;
-  }
-  return null;
-};
-
-// elementFromPoint retargets to the host for a point over a shadow tree, so it names the
-// widget rather than the thing in it, and each root answers for its own. Asked only where
-// the question is which element exactly the pointer is over (markAt, deciding which of
-// several marks it touched). Where the question is which *item* the reader is aiming at,
-// the host is the right answer and this is the wrong helper: aiming at a diff means the
-// diff, whose rows are nothing anyone can anchor on (aimedItem).
-const elementFromPointAcross = (x, y) => {
-  let el = document.elementFromPoint(x, y);
-  while (el?.shadowRoot) {
-    const inner = el.shadowRoot.elementFromPoint(x, y);
-    if (!inner || inner === el) break;
-    el = inner;
-  }
-  return el;
-};
-
-// A pass that clears its own marks before repainting has to sweep everywhere it can
-// write, and `elementById` above is what widened that: a mark placed on a staged element
-// sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
-// the mark outlive the reason for it. Only the runtime's own marks are read back this
-// way. Which widgets the page holds is a different question and still the document's:
-// a widget staged inside another's tree is a nesting the registry's x-parent contract
-// does not model, and answering it here would be inventing that contract in a sweep.
-const pageQueryAll = (selector) =>
-  [document, ...pageShadowRoots()].flatMap((root) => [
-    ...root.querySelectorAll(selector),
-  ]);
-
-// The range the reader actually drew. Chrome keeps the legacy Range in the light DOM: a
-// drag wholly inside a widget's shadow tree comes back with `commonAncestorContainer` at
-// BODY and its ends clamped to the host, so `sel.toString()` says the right words while
-// every node the capture would index says the wrong place. That is the one failure mode
-// worth naming twice — not a refusal, which the fence rule turns into a message to the
-// author, but a quote anchored somewhere the reader never pointed.
-//
-// `getComposedRanges` is the only thing that answers truthfully, and it answers only for
-// the roots it is handed, which is why the declaration (x-shadow) and not a sweep decides
-// what is passed. A selection that starts in one tree and ends in another is left to the
-// light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote running
-// from the page's prose into a widget's shadow is exactly what the fences already refuse.
-function pageRange(sel) {
-  const plain = sel.getRangeAt(0);
-  if (typeof sel.getComposedRanges !== "function") return plain;
-  const shadowRoots = pageShadowRoots();
-  if (!shadowRoots.length) return plain;
-  const [composed] = sel.getComposedRanges({ shadowRoots });
-  if (!composed) return plain;
-  const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
-  const range = document.createRange();
-  range.setStart(startContainer, startOffset);
-  range.setEnd(endContainer, endOffset);
-  return range;
-}
-
-// Whether a range covers a node, asked so a shadow tree answers the same as the light
-// DOM it renders in place of. `intersectsNode` compares within one tree, so every node
-// inside an x-shadow widget says no to a range drawn out in the document — and a drag
-// from the paragraph above a diff to the one below it would come back holding the two
-// paragraphs joined, with the lines the reader dragged straight over missing from the
-// quote and still sitting between them in the reading, so the search could never find
-// it. The tree renders where its host stands, so the host is what the question is really
-// about: climb to whichever ancestor shares the range's root, and ask there.
-function coveredBy(range, node) {
-  const root = range.commonAncestorContainer.getRootNode();
-  let n = node;
-  while (n && n.getRootNode() !== root) n = n.getRootNode().host;
-  return Boolean(n) && range.intersectsNode(n);
-}
-
-// The segments a selection covers, clipped to where it starts and ends.
-function segmentsIn(range) {
-  const root = range.commonAncestorContainer;
-  const whole = textNodesUnder(
-    root.nodeType === Node.ELEMENT_NODE ? root : root.parentElement,
-  );
-  const segments = [];
-  for (const { node, end: length } of whole) {
-    if (!coveredBy(range, node)) continue;
-    const start = node === range.startContainer ? range.startOffset : 0;
-    const end = node === range.endContainer ? range.endOffset : length;
-    if (end > start) segments.push({ node, start, end });
-  }
-  return segments;
-}
-
-// Segments as prose — what a comment stores as its quote, and what a reading position
-// remembers. A space goes in wherever a block boundary falls between two segments, so a
-// passage crossing two paragraphs doesn't read as one run-on word. Whitespace collapses,
-// since the same passage carries the author's line wraps in the source and the rendering's
-// on screen. Sliced by code point, because half a surrogate pair is a character no UTF-8
-// file can hold. Where the spaces landed is cosmetic to the search: a quote's own
-// whitespace is elastic to findQuote, so nothing downstream depends on this.
-// The block a node reads as part of, and null where it belongs to no block of its own —
-// which is a different answer from "its parent", and the two callers want different ones.
-const blockAt = (node) => closestAcross(node, TEXT_BLOCK);
-const blockOf = (node) => blockAt(node) ?? upFrom(node);
-// One collapse class, stated outright and spelled to the same set interact.py's
-// COLLAPSE_CHARS enumerates: JS's \s and Python's str.isspace() disagree at the
-// edges — U+FEFF is whitespace to JS alone, U+0085 and U+001C–001F to Python
-// alone — and a page carrying one of those in prose read differently on the two
-// sides, so a `leaf comment` quote could be written against text this runtime
-// never produces. (trim() removes exactly this class, so it needs no twin.)
-const COLLAPSE =
-  /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-function quoteFrom(segments) {
-  let text = "";
-  segments.forEach((seg, i) => {
-    if (i && blockOf(seg.node) !== blockOf(segments[i - 1].node)) text += " ";
-    text += seg.node.data.slice(seg.start, seg.end);
-  });
-  return [...text.replace(COLLAPSE, " ").trim()].join("");
-}
-// Cutting one to length is the caller's business and always by code point: half a surrogate
-// pair is a character no UTF-8 file can hold, and a quote is written to one.
-const cut = (text, from, to) => [...text].slice(from, to).join("");
-
-// One lossless text alignment for every widget that needs to explain a sequence of
-// whole-text states. Segmenter keeps words and punctuation in the language-aware
-// units this runtime already assumes; a linear-space Hirschberg walk supplies the
-// ordered shared spine. Its quadratic *time* is capped: after stripping a common
-// prefix and suffix, a very large divergent middle is one replacement instead of a
-// page-freezing attempt at fine-grained alignment. Joining same+delete reconstructs
-// `before`, and joining same+insert reconstructs `after`, exactly.
-const textUnits = new Intl.Segmenter(undefined, { granularity: "word" });
-const ALIGN_CELLS = 1_000_000;
-
-function lcsRow(left, lo, hi, right, rlo, rhi, reverse) {
-  const width = rhi - rlo;
-  let previous = new Uint32Array(width + 1);
-  for (let at = 0; at < hi - lo; at++) {
-    const current = new Uint32Array(width + 1);
-    const word = reverse ? left[hi - at - 1] : left[lo + at];
-    for (let across = 1; across <= width; across++) {
-      const other = reverse ? right[rhi - across] : right[rlo + across - 1];
-      current[across] =
-        word === other
-          ? previous[across - 1] + 1
-          : Math.max(previous[across], current[across - 1]);
-    }
-    previous = current;
-  }
-  return previous;
-}
-
-function lcsMatches(left, lo, hi, right, rlo, rhi, matches) {
-  if (lo === hi || rlo === rhi) return;
-  if (hi - lo === 1) {
-    for (let at = rlo; at < rhi; at++)
-      if (left[lo] === right[at]) {
-        matches.push([lo, at]);
-        break;
-      }
-    return;
-  }
-
-  const middle = lo + Math.floor((hi - lo) / 2);
-  let split = 0;
-  {
-    const forward = lcsRow(left, lo, middle, right, rlo, rhi, false);
-    const backward = lcsRow(left, middle, hi, right, rlo, rhi, true);
-    let best = -1;
-    const width = rhi - rlo;
-    for (let at = 0; at <= width; at++) {
-      const score = forward[at] + backward[width - at];
-      if (score > best) {
-        best = score;
-        split = at;
-      }
-    }
-  }
-  lcsMatches(left, lo, middle, right, rlo, rlo + split, matches);
-  lcsMatches(left, middle, hi, right, rlo + split, rhi, matches);
-}
-
-export function alignText(before, after) {
-  const left = [...textUnits.segment(before)].map((part) => part.segment);
-  const right = [...textUnits.segment(after)].map((part) => part.segment);
-  const runs = [];
-  const push = (kind, text) => {
-    if (!text) return;
-    const last = runs.at(-1);
-    if (last?.kind === kind) last.text += text;
-    else runs.push({ kind, text });
-  };
-
-  let prefix = 0;
-  while (
-    prefix < left.length &&
-    prefix < right.length &&
-    left[prefix] === right[prefix]
-  )
-    prefix++;
-  let suffix = 0;
-  while (
-    prefix + suffix < left.length &&
-    prefix + suffix < right.length &&
-    left[left.length - suffix - 1] === right[right.length - suffix - 1]
-  )
-    suffix++;
-
-  push("same", left.slice(0, prefix).join(""));
-  const leftEnd = left.length - suffix;
-  const rightEnd = right.length - suffix;
-  const matches = [];
-  if ((leftEnd - prefix) * (rightEnd - prefix) <= ALIGN_CELLS)
-    lcsMatches(left, prefix, leftEnd, right, prefix, rightEnd, matches);
-
-  let i = prefix;
-  let j = prefix;
-  for (const [li, rj] of matches) {
-    push("delete", left.slice(i, li).join(""));
-    push("insert", right.slice(j, rj).join(""));
-    push("same", left[li]);
-    i = li + 1;
-    j = rj + 1;
-  }
-  push("delete", left.slice(i, leftEnd).join(""));
-  push("insert", right.slice(j, rightEnd).join(""));
-  push("same", left.slice(leftEnd).join(""));
-  return runs;
-}
-
-// The words that moved between two texts: `{del, ins, shared}` — spans as [from, to) into
-// `before` and into `after`, and the ink the two hold in common — or null where the pair
-// shares too little of it to be worth marking. A wholesale swap is a replacement rather
-// than an edit, and emphasis over everything says nothing the change's own tint already
-// did — the similarity gate every mature diff view applies. Whitespace-only runs advance
-// the cursors and mark nothing: reformatted markup is not a changed word.
-//
-// Sharing nothing is a replacement whatever the lengths are, and the ratio cannot say so
-// on its own: where one side has no ink the smaller side is zero, so every pair clears a
-// bar standing at zero. A deletion over an added blank line went through with its whole
-// body marked as words that had moved — the one shape the gate exists to refuse.
-//
-// `shared` is the gate's own reading of how much of the pair stood still. lf-diff has a
-// second question to put to it — of the additions in a change block, which one does this
-// deletion answer — and settles it by comparing candidates on this number. Unsaid, it would
-// have been recovered downstream from the spans, and that is a second definition of the
-// same ink, one edit from disagreeing with this one.
-//
-// The alignment is taken here rather than passed in, because both consumers ask the same
-// question and only the painting differs — lf-suggestion paints ranges through the
-// highlight registry, lf-diff wraps spans, ::highlight() not reaching into a shadow tree.
-// Written twice it would be two thresholds, and the reader would meet whichever was tuned
-// last.
-export function movedWords(before, after) {
-  const runs = alignText(before, after);
-  const ink = (text) => text.replace(/\s+/g, "").length;
-  const shared = runs
-    .filter((run) => run.kind === "same")
-    .reduce((n, run) => n + ink(run.text), 0);
-  if (!shared || shared * 3 < Math.min(ink(before), ink(after))) return null;
-  const del = [];
-  const ins = [];
-  let o = 0;
-  let n = 0;
-  for (const run of runs) {
-    const len = run.text.length;
-    if (run.kind !== "insert") {
-      if (run.kind === "delete" && run.text.trim()) del.push([o, o + len]);
-      o += len;
-    }
-    if (run.kind !== "delete") {
-      if (run.kind === "insert" && run.text.trim()) ins.push([n, n + len]);
-      n += len;
-    }
-  }
-  return { del, ins, shared };
-}
-
-// What an element says, read the way this file reads the page everywhere else. A widget
-// wanting the words in one of its own slots asks for them here rather than through
-// `textContent`, because the two differ: the paint pass writes a hidden line into any text
-// block that carries a comment, including blocks inside a widget, and `textContent` returns
-// it. A suggestion labelled that way offered to accept “Retry three times. 1 comment”.
-export const says = (el) => quoteFrom(textNodesUnder(el));
-// The other question, and a different answer: what the *author* wrote here, with
-// everything an upgrade generated left out. The version diff asks it because the base
-// version it compares against has no generated nodes at all; a widget asks it to name
-// one of its own parts, where `says` would hand back the widget's own declared labels
-// along with the words — a picked row's mark is the page speaking, so it is in the
-// reading a user points at and out of the row's name.
-export const wrote = (el) => quoteFrom(textNodesUnder(el, authored(el)));
-
-// A passage as one Range: what paints it, and what measures it for a scroll.
-function rangeOf(segments) {
-  const range = document.createRange();
-  range.setStart(segments[0].node, segments[0].start);
-  range.setEnd(segments.at(-1).node, segments.at(-1).end);
-  return range;
-}
-
-// Find `quote` among `segments`; returns the segments it covers, or none. The quote's own
-// whitespace is treated as elastic and the page's is not, which is the asymmetry the
-// problem actually has. The same passage gets written down with a break where the source
-// wrapped it, with one where the rendering broke a block, and with none where two blocks
-// abut, so a gap in the quote has to match any gap in the page or none at all — otherwise
-// every producer has to agree on whitespace, and that agreement is the one this file kept
-// getting wrong. The converse is not true: where the quote runs two words together the
-// page may not, or a short quote starts matching inside longer words — "never" finding the
-// tail of "on every", in a different paragraph.
-// So a gap has to match *something* that separates words. Whitespace is one; an element
-// boundary is the other, and it leaves no character behind, which is why the raw text is
-// built with one standing in for it. Between the characters of a single word only a
-// boundary may fall — `<strong>bold</strong>text` reads as one word and is quoted as one —
-// and without that floor a gap could match nothing at all, so "set up" would find "setup"
-// in an earlier sentence and anchor there for good.
-const EDGE = "\u0000"; // no document holds one, so it can't collide with page text
-// A quote names text, not a place, and a page is free to say the same thing twice. Where it
-// does, the words on either side decide which occurrence was meant. A unified diff holds
-// the same line on both sides by construction, so without this, commenting on a fixed line
-// marked the broken one — the user's objection attached to the code they were objecting
-// to, and stored that way. Section scoping cannot reach it, because both sides of a diff
-// live under one id. Context rather than an offset: an offset goes stale silently when the
-// page is revised, while neighbours can be checked against the page as it now stands — see
-// `holds` for what checking them means, and what it deliberately refuses to do.
-// Anchors written before this carry none: their quote resolves only when it has a
-// single candidate, since there is no evidence that can identify one repeated copy.
-// The characters of raw[lo..hi) as segments, so a neighbourhood can be read back with the
-// same function that wrote it down. Edges hold no character and are simply absent.
-function spanOf(origin, lo, hi) {
-  const out = [];
-  for (let i = Math.max(0, lo); i < Math.min(origin.length, hi); i++) {
-    const at = origin[i];
-    if (!at) continue;
-    const last = out.at(-1);
-    if (last && last.node === at.node && last.end === at.offset)
-      last.end = at.offset + 1;
-    else out.push({ node: at.node, start: at.offset, end: at.offset + 1 });
-  }
-  return out;
-}
-// Context identifies a passage only when its neighbours are still exactly what they were.
-// A partial match is not weak evidence for the right copy — it is evidence the page moved
-// on, and acting on it is how a comment ends up somewhere it was never made: a version that
-// rewrote the sentence beside the anchored copy left an untouched copy elsewhere matching
-// better, and the comment followed it there. Demanding the whole stored context prevents
-// that: without one exact contextual match, only a quote with a sole candidate resolves;
-// repeated candidates detach rather than inheriting document order.
-//
-// Rare, not impossible. The bar is however much was stored, and the capture reads the
-// neighbours out of the whole document — a section is a filter on where a passage may sit,
-// not on what surrounds it — so both sides are full except against the document's own
-// ends. Anchors written before context reached past the section carry a side clipped at
-// that edge; they confirm at that shorter bar, which is the bar they were stored under.
-//
-// The bar is what the capture actually produces, not a number picked to fit: across every
-// selection in the shipped examples, an unmodified page confirms its stored context in full.
-//
-// An empty side is the case worth stating, because reading it as an absent constraint is
-// what sends a comment to a copy it was never made on. The capture reads the whole
-// document, so a side comes out empty only where the passage had nothing at all beside it:
-// the top or bottom of the page, the one place no capture can give two sides to. That is
-// not a missing constraint but the tightest one there is, and it is checkable — a candidate
-// confirms it by also having nothing there, which exactly one occurrence does. Refusing to
-// read it that way handed the last copy's mark to the first.
-const holds = ({ origin, fences }, at, want, before) => {
-  // One character is all it takes to refute an empty side, and asking for none would answer
-  // with none: doubling zero never grows.
-  const there = neighbourhood(origin, fences, at, want.length || 1, before);
-  if (!want) return there === "";
-  return before ? there.endsWith(want) : there.startsWith(want);
-};
-// As much collapsed text as the caller asked for, however much raw text that takes.
-// A fixed raw budget reads less than the capture wrote wherever whitespace runs dense — an
-// indented line inside a <pre> — and the right occurrence then confirms none of its own
-// neighbours.
-//
-// Counted in code points, which is the unit both captures write in: `cut` slices the
-// window this returns by code point, and interact.py's reading of the same passage slices
-// a Python string, which has no other unit. Counting code units here stopped the growth
-// early on any neighbourhood holding an emoji — the window reached 24 of them while
-// holding 23 characters — so the browser stored a prefix a character short of the one the
-// file's reading stores for that same passage, and the two captures wrote different
-// anchors for one passage. `holds` asks in the other unit (`want.length`, the stored
-// string's own, which is what its endsWith compares in), and that is an over-ask this can
-// only over-satisfy: reaching N code points takes at least N code units, so its window is
-// never the one short of confirming that a repeated anchor would detach over.
-function neighbourhood(origin, fences, at, want, before) {
-  const edge = before
-    ? (fences.filter((f) => f <= at).at(-1) ?? 0)
-    : (fences.find((f) => f >= at) ?? origin.length);
-  for (let raw = want * 2; ; raw *= 2) {
-    const lo = before ? Math.max(edge, at - raw) : at;
-    const hi = before ? at : Math.min(edge, at + raw);
-    const text = quoteFrom(spanOf(origin, lo, hi));
-    if ([...text].length >= want || (before ? lo === edge : hi === edge)) return text;
-  }
-}
-// What the page says, once, as one string with a way back to the nodes it came from. Built
-// per pass rather than per anchor: every anchor a pass places is asking about the same
-// document, and the pass is what fixes which document that is — resolving each against its
-// own fresh reading would let two marks in one pass answer for two different pages, since a
-// widget can upgrade between them. Forty threads on a 13k-character page also spent it
-// forty times: 9.3ms of index building per pass, besides the forty tree walks feeding
-// it, against 1.5ms for the one read that replaces them.
-function pageText() {
-  let raw = "";
-  const origin = []; // origin[i] = {node, offset} for raw[i]; null for an edge
-  const positions = new WeakMap(); // text node -> its offset-zero position in raw
-  const fences = new Set();
-  const segments = textNodesUnder(document.body);
-
-  // Generated page-words that the registry does not model are their own passage
-  // cells. Controls and the hidden comment count contain no accepted text and never
-  // become fences; x-says spans are already present in the file-side reading.
-  const dynamicWords = new WeakSet();
-  for (const seg of segments) {
-    const generated = elementOver(seg.node).closest("[data-lf-gen]");
-    if (!generated) continue;
-    const attr = generated.getAttribute("data-lf-said");
-    const hostEntry = registry[generated.parentElement?.localName];
-    const declared = attr && hostEntry?.["x-says"]?.[attr];
-    if (!declared) dynamicWords.add(generated);
-  }
-  // Climbing crosses the shadow boundary (upFrom), and that is what keeps an x-shadow
-  // widget fenced. The parts were remembered off the light DOM before any module ran,
-  // so nothing inside a shadow tree is in either set; a climb that stopped at the root
-  // would put a diff's lines in no cell at all, which reads as ordinary page prose and
-  // lets a quote run from the paragraph above straight into the first changed line. One
-  // move further up finds the host, which is the opaque root it always was.
-  const cellOf = (node) => {
-    for (let el = upFrom(node); el; el = upFrom(el)) {
-      if (dynamicWords.has(el)) return el;
-      if (opaquePassageParts.has(el) || opaquePassageRoots.has(el)) return el;
-    }
-    return null;
-  };
-
-  let previousCell = null;
-  let started = false;
-  for (const seg of segments) {
-    const cell = cellOf(seg.node);
-    if (!started) {
-      if (cell) fences.add(0);
-      started = true;
-    } else {
-      if (cell !== previousCell && (cell || previousCell)) fences.add(raw.length);
-      origin.push(null);
-      raw += EDGE;
-    }
-    positions.set(seg.node, raw.length - seg.start);
-    for (let i = seg.start; i < seg.end; i++) {
-      origin.push({ node: seg.node, offset: i });
-      raw += seg.node.data[i];
-    }
-    previousCell = cell;
-  }
-  if (previousCell) fences.add(raw.length);
-  return { raw, origin, positions, fences: [...fences].sort((a, b) => a - b) };
-}
-// Where a passage's segments start and stop in that reading, as [start, stop). A passage
-// is `{node, start, end}` segments and every question about the region it covers is asked
-// in the reading's own coordinates, so the join between the two is one function — the
-// capture writing an anchor's neighbours and the snap widening a drag both ask it. No
-// segments is the document's own start: a selection that covers no quotable character has
-// a position and no extent.
-function spanIn(reading, segments) {
-  const first = segments[0];
-  const last = segments.at(-1);
-  const start = first ? reading.positions.get(first.node) + first.start : 0;
-  return [start, last ? reading.positions.get(last.node) + last.end : start];
-}
-const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// How much of a quote the search compiles into its pattern. The bound is the pattern's,
-// never the passage's: one expression covering every word of a long passage is a term
-// per character, and V8 refuses to compile one that long at all — a ceiling a reader
-// reaches by selecting a page and pressing c. Measured on the gallery: 1.3ms at this
-// length, 11.6ms at five thousand characters, and a SyntaxError at twelve. So the lead
-// finds the candidates and the rest of the quote is walked against the text from each,
-// which is a comparison per character rather than a term, and the search stays flat in
-// the passage's length instead of ending at a wall.
-const LEAD_CAP = 400;
-// The rest of a quote, matched from `at` by the pattern's own rules: any run of
-// whitespace or edges between words, an edge free to fall between two characters of
-// one. Answers where the passage ends, or -1 where the text stops saying it.
-function confirmRest(raw, at, words) {
-  let i = at;
-  for (const w of words) {
-    const gap = i;
-    while (i < raw.length && (raw[i] === EDGE || /\s/.test(raw[i]))) i++;
-    if (i === gap) return -1; // two words the text runs together are not these two
-    for (const ch of w) {
-      while (raw[i] === EDGE) i++;
-      if (!raw.startsWith(ch, i)) return -1;
-      i += ch.length;
-    }
-  }
-  return i;
-}
-function findQuote(text, quote, anchor, within) {
-  const { raw, origin } = text;
-  const words = quote.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  // Whole words up to the cap, and never none: a single word longer than it is still
-  // the only lead there is, and one that spent the cap exactly is not worth a term
-  // the walk would take anyway.
-  const lead = [];
-  for (let spent = 0; words.length > lead.length;) {
-    const next = words[lead.length];
-    if (lead.length && spent + next.length > LEAD_CAP) break;
-    lead.push(next);
-    spent += next.length + 1;
-  }
-  const rest = words.slice(lead.length);
-  const pattern = new RegExp(
-    lead.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
-    "g",
-  );
-  // A unique exact-context occurrence wins. If no context survives, a sole quote
-  // occurrence is still identifiable; two are not. Document order is not identity:
-  // guessing the first copy after the intended one's neighbours changed quietly moves
-  // a comment to words it was never made on. matchAll steps past each lead, so two
-  // occurrences overlapping within it are one candidate — which is the lead's own
-  // repetition and not the passage's, since the walk still has to confirm the rest.
-  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
-  const candidates = [];
-  const exact = [];
-  for (const at of raw.matchAll(pattern)) {
-    const stop = confirmRest(raw, at.index + at[0].length, rest);
-    if (stop === -1) continue;
-    if (
-      within &&
-      !(
-        containsAcross(within, origin[at.index].node) &&
-        containsAcross(within, origin[stop - 1].node)
-      )
-    )
-      continue;
-    const hit = { from: at.index, to: stop };
-    candidates.push(hit);
-    if (holds(text, hit.from, pre, true) && holds(text, hit.to, post, false))
-      exact.push(hit);
-  }
-  const found =
-    exact.length === 1
-      ? exact[0]
-      : exact.length === 0 && candidates.length === 1
-        ? candidates[0]
-        : null;
-  // The characters the match covers, cut out of the index the same way a neighbourhood is —
-  // walking the segments a second time to rebuild the span would be a second answer to
-  // "which text is this", and the two disagree wherever an edge falls inside the match.
-  return found ? spanOf(origin, found.from, found.to) : [];
-}
-
-// ---------- view continuity ----------
-// Following a new version replaces the authored main, whether the live root keeps this
-// document or historical travel opens another one. A raw replacement leaves the reader
-// at the top mid-session, standing nowhere in the walk they were making. Where they are
-// rides across as one semantic view — and through tabStore on document travel, per-tab
-// because a place in a page shouldn't outlive it. Two things are recorded, because
-// askPosition reads two the runtime can write down: the passage they were reading, and
-// the ask the n/p walk had stepped them to. The passage travels as a landmark rather
-// than a pixel offset, since content moves between versions: re-find it by its text
-// within its section, then the section alone, and only fall back to the raw offset when
-// neither survived the revision. The panel's own open state is restored separately
-// (PANEL_KEY); because that runs first, the column is already reflowed by the time we
-// scroll.
-const VIEW_KEY = "lf-view";
-
-// The page's own text blocks the reader can see, in document order, with the rect of each
-// one's first line — one reading of what is in front of them, for the two questions that
-// ask it: which passage a version change should land them back on (below), and where a
-// walk over the page's asks starts when they have pointed at nothing (askPosition).
-// A block's landmark is the top of its first line (a range), not its border box; restore
-// measures the matched text the same way, so the line box's leading cancels out.
-function* blocksOnScreen() {
-  for (const block of document.querySelectorAll(TEXT_BLOCK)) {
-    // [hidden] needs an explicit skip: hidden="until-found" resolves to
-    // content-visibility, under which descendants still report real rects —
-    // but what's behind an inactive tab isn't what the reader is reading.
-    if (inChrome(block) || block.closest("[hidden]")) continue;
-    const range = document.createRange();
-    range.selectNodeContents(block);
-    const rect = range.getBoundingClientRect();
-    if (rect.height && rect.bottom > 42) yield [block, rect]; // 42 = banner height
-  }
-}
-// The quote and the section it's searched in come from the same block, or the search is
-// filtered to a section the text isn't in and can only ever fail — restore then falls back
-// to the section, which doesn't absorb content added above the reader inside it.
-function captureView() {
-  const view = { v: runtime.currentVersion, y: pageScroller.scrollTop };
-  // Where the ask walk left off, which is the reader's place stated more exactly than
-  // any block can state it — the walk put them there on purpose. Its element identity
-  // does not survive an authored-main replacement, and the module variable does not
-  // survive document travel, so the id is the one form both can restore. The ring is not
-  // recorded beside it: it is painted from focus, and another document starts on the page.
-  view.ask = landed?.id;
-  for (const [block, rect] of blocksOnScreen()) {
-    const section = block.closest("[id]");
-    if (!view.section && section) {
-      // The first on-screen block's section, kept only until a quotable block supplies
-      // its own: a page with nothing quotable on screen still has somewhere to land.
-      view.section = section.id;
-      view.sectionTop = shownBox(section).top;
-    }
-    // Written down the way a comment's quote is, so the search that re-finds it is
-    // looking for a string of the same kind.
-    const text = cut(quoteFrom(textNodesUnder(block)), 0, LANDMARK_CAP);
-    // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
-    if (text.length >= 24) {
-      // Unconditionally, so a quotable block under no section clears the earlier one
-      // rather than sending the search into a subtree its text isn't in.
-      view.section = section?.id;
-      view.sectionTop = section && shownBox(section).top;
-      view.quote = text;
-      view.quoteTop = rect.top;
-      break;
-    }
-  }
-  return view;
-}
-
-// A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
-// animating from the replacement's raw position is worse than the jump it replaces.
-// Moving to a mark the reader asked for is the other case, and says so.
-// The document scrolls for its own content; the panel's list scrolls for a widget an
-// agent sent in a reply. Most callers mean the document, so it remains the default.
-const jumpBy = (dy, behavior = "instant", box = pageScroller) =>
-  box.scrollBy({ top: dy, behavior });
-function restoreView(view) {
-  // Where the walk left off, put back before the scroll below restores the coarser
-  // reading of the same fact — and put back whether or not this version answered that
-  // ask, since an ask the reader has not stepped off is still the one they would step
-  // from. The document's own lookup rather than elementById: the ask list is the
-  // document's (openAsks), and a landing inside a shadow tree is one askStep could never
-  // measure against. A thread's ask is not here yet — the panel is rebuilt from the log
-  // on the first poll, which is behind this — so the record answers for the page's asks
-  // and says nothing about the panel's, rather than restoring a second time later over a
-  // walk the reader has made since.
-  landed = (view.ask && document.getElementById(view.ask)) || null;
-  const text = pageText();
-  const found = view.quote && resolveAnchor(view, text);
-  if (found?.segments) {
-    reveal(found.segments[0].node.parentElement); // the passage may sit behind a tab
-    jumpBy(rangeOf(found.segments).getBoundingClientRect().top - view.quoteTop);
-    return;
-  }
-  const section = resolveAnchor({ section: view.section }, text)?.element;
-  if (section) {
-    reveal(section);
-    // The shown reading on both sides of the subtraction, because the landmark is
-    // whatever id stands nearest the block the reader was on, and a section that
-    // generates no box of its own is one a suggestion wrapping whole sections leaves
-    // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
-    // that had somewhere to land did nothing, silently, and left the reader at the top.
-    jumpBy(shownBox(section).top - view.sectionTop);
-  } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
-}
-
-// ---------- anchors ----------
-// An anchor names a passage: a section id, a quote, or both. Resolving one is the only
-// place the page is searched, so the three things that read a passage back — a thread's
-// mark, the composer's own, and the reading position a version change rides on — cannot
-// disagree about where to look. A quoteless anchor has no text to paint and resolves to
-// its element instead.
-// The search always reads the whole document — the same text the capture wrote the
-// neighbours from — and the section the anchor names filters where a candidate may sit.
-// A section the page no longer has filters nothing, so the quote is still looked for
-// everywhere, which is all a stale section ever meant.
-// Which element an anchor names, asked in one place: the element it resolves to when it
-// carries no quote, the subtree a candidate has to sit inside when it does, and the holder
-// of the line saying a passage carries a comment are all this question.
-const sectionOf = (anchor) => (anchor.section ? elementById(anchor.section) : null);
-
-// ---------- pointing at an item ----------
-// One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
-// only route to an item whose words are all inside controls. A plain click reaches the
-// visuals, which have no text to select. Two more routes were tried and cut: a rule in
-// the margin raised by hovering, too strong for what it offered and placed at the
-// item's own left edge, which is the page's margin only for an item the page happens
-// to have left-aligned; and a row of chips beside the 💬 offering the selection's
-// enclosing chain ("⬚ paragraph", "⬚ section") — a correction nobody had asked for,
-// paid in chrome beside every selection a user made.
-//
-// What both write is the anchor leaf already has. A comment on an element is
-// {section: <id>} with no quote — the shape a click on a diagram has made since the
-// beginning — so none of this is a new representation, a new event field, or a second
-// thing for a version to carry. What is missing is only the gesture, and how the panel
-// says which item a thread is on.
-//
-// An item is an element the author gave an id, outside the runtime's own layer and
-// outside the panel (a reply's frozen widget markup carries ids of its own). `version
-// check` holds every id across versions, which is exactly why an anchor naming one
-// survives a rewrite that takes a quote down with it. An id under the runtime's own
-// prefix is not the author's — a module coins one for what it draws (a diagram's svg
-// wears `lf-mermaid-N`, numbered by draw order) — so an anchor on it names nothing a
-// version holds and something the next load may number differently. The item is the
-// element around it, which is the widget.
-const ITEM = '[id]:not(.lf-ui):not([id^="lf-"])';
-// Whether an element is an item: what the aim walks up to, and what the legend draws a
-// box for — one predicate, so the two cannot disagree about what is on the page. Never
-// one the user's decision settled off the page: the aim's paint already refused those,
-// and a press answered by a different predicate anchored a composer to a retired
-// element — a box about nothing, promised by nothing. And never one inside a widget
-// that renders as a picture (x-visual): a diagram's nodes carry the ids its renderer
-// coined — `root-1`, `actor0`, under no prefix of ours — and an anchor on one names
-// nothing a version holds. The entry says the click's anchor is the widget rather than
-// a generated part inside it, and the aim is a click; the plain-click path already
-// took the outermost visual, and the aim named the node under the pointer.
-function isItem(at) {
-  if (!at.matches(ITEM) || inChrome(at) || inUi(at) || settledAway(at)) return false;
-  const visual = tagsDeclaring((e) => e["x-visual"]).join(",");
-  return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
-}
-// The innermost item: a card rather than its column, the column rather than the board —
-// the smallest thing under the pointer is the thing pointed at. The walk continues
-// upward past what is not one, because the enclosing item is what is on screen.
-function itemAt(node) {
-  let at = node?.nodeType === 1 ? node : node?.parentElement;
-  for (; at; at = at.parentElement) if (isItem(at)) return at;
-  return null;
-}
-// What to call an item, in a word the user reads beside a thread's § label. A widget
-// names itself: its tag minus the prefix is already the word the vocabulary chose
-// ("card", "option", "column"), so the twelfth widget gets a name here without core
-// hearing about it.
-//
-// The page's own elements have no such word. A tag is markup rather than English, and a
-// label reading "§ p · …" over ordinary prose names the thing to a browser and to nobody
-// else. So HTML's tags get the nouns a reader would use, and an unlisted one falls back
-// to its tag, which is worse than a word and better than nothing.
-const HTML_WORDS = {
-  // Every one of these is a control the platform gives keys to and no letters — a radio,
-  // a checkbox, a slider, a colour or file button. The ones that take letters never reach
-  // this reading, the typing scope having claimed the key before the page is asked, so
-  // there is no field here for "control" to misname. Worth a word at all because `c` names
-  // what it is about, and a reader standing on a toggle was told "the input".
-  input: "control",
-  select: "control",
-  button: "control",
-  p: "paragraph",
-  li: "item",
-  tr: "row",
-  td: "cell",
-  th: "cell",
-  figure: "figure",
-  blockquote: "quote",
-  pre: "block",
-  section: "section",
-  article: "section",
-  aside: "aside",
-  ul: "list",
-  ol: "list",
-  dl: "list",
-  table: "table",
-  details: "note",
-  h1: "heading",
-  h2: "heading",
-  h3: "heading",
-  h4: "heading",
-  h5: "heading",
-  h6: "heading",
-};
-export function itemWord(item) {
-  if (!item) return "";
-  const tag = item.tagName.toLowerCase();
-  // A widget whose kind is not its tag says which it is. Three shapes of change are all
-  // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks tray
-  // under the words it proposed to remove, reading exactly like the insertion above it.
-  // Asked only where an entry says there is something to ask, and answered only by an
-  // element that has upgraded — before that, and for every widget that declares nothing,
-  // the tag is the word.
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = item.lfWord?.();
-    if (own) return own;
-  }
-  if (tag.startsWith("lf-")) return tag.slice(3);
-  // A <pre> is a block of something and the something is in the markup: the documented
-  // shape for source is <pre><code class="language-*">, and a <pre> without the <code> is
-  // the shape for what isn't source — a transcript, a stack trace, command output. So the
-  // word is read rather than assumed, and a user who calls it a code block is offered
-  // one.
-  if (tag === "pre") return item.querySelector(":scope > code") ? "code" : "block";
-  return HTML_WORDS[tag] ?? tag;
-}
-// The item's own opening words, read the way anchoring reads everything else — so a label
-// a widget declared as the page speaking is in it and the runtime's own chrome (the hidden
-// "2 comments" line) is not. Cut back to a word boundary and marked as cut, because a label
-// ending mid-word reads as a quote that lost its tail rather than as a name for the thing.
-const ITEM_SAYS_CAP = 52;
-// The reading is the whole answer, and it is the answer wherever the item stands. An
-// ask carried by a message is still an ask, and it is read here exactly as an ask on
-// the page is: rooted at the item, so the panel around it is nobody's chrome (see the
-// note on `overIn`) while the item's own marks and offers still are. A veto on
-// `inChrome` stood in front of this, from the days only an anchor's section reached it:
-// it threw the reading away and left the asks tray naming the question by its raw id.
-function itemSays(item) {
-  if (!item) return "";
-  const whole = quoteFrom(textNodesUnder(item));
-  if ([...whole].length <= ITEM_SAYS_CAP) return whole;
-  const short = cut(whole, 0, ITEM_SAYS_CAP);
-  const at = short.lastIndexOf(" ");
-  return (at > ITEM_SAYS_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
-}
-function resolveAnchor(anchor, text) {
-  // An element anchor asks a different question — whether the section is still on the
-  // user's page — and the whole page is not an answer to it. Existence alone isn't
-  // either: a decided element whose markup settles to nothing is present in the
-  // document and absent from the screen, and an anchor held to it read as attached
-  // while outlining nothing.
-  if (anchor.datum) {
-    const source = sectionOf(anchor);
-    const datum = source
-      ? [...source.children].filter(
-          (el) =>
-            el.matches(DATUM) &&
-            el.dataset.lfProjection === anchor.section &&
-            el.dataset.lfDatum === anchor.datum,
-        )
-      : [];
-    // A projection/key pair identifies exactly one current fact. Disappearance detaches;
-    // duplicates refuse to guess. Where its old display text still stands, mark those
-    // exact words. Where the value changed, outline the same datum whole instead of
-    // silently following the old string to some other fact.
-    if (datum.length !== 1) return null;
-    if (!anchor.quote) return { element: datum[0] };
-    const segments = findQuote(text, anchor.quote, anchor, datum[0]);
-    return segments.length ? { segments } : { element: datum[0] };
-  }
-  if (!anchor.quote) {
-    const section = sectionOf(anchor);
-    return section && !settledAway(section) ? { element: section } : null;
-  }
-  const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
-  return segments.length ? { segments } : null;
-}
-
-// Every mark the page wears, drawn by one pass, so ownership of an element both a thread
-// and the open composer point at is a branch inside a loop rather than an agreement
-// between functions ("One writer per thing" in CLAUDE.md, and why).
-//
-// One range per segment, never one spanning the passage: a single range would paint back
-// over everything the search stepped around on the way — a widget's Choose button, a drag
-// grip, a diagram's generated stylesheet.
-//
-// Keyed by thread, not by mark: a passage is several segments and two comments may land on
-// the same element, so mark → thread loses one of them — and losing it told the panel the
-// passage wasn't in this version while it sat outlined on screen. Every consumer but the
-// hit-test asks "where is thread X", and that is now the direction the map runs.
-const MARK = "lf-mark";
-const PENDING = "lf-pending";
-const NOTE = "lf-mark-note";
-const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record of what it drew
-// thread id -> the element its passage lands in. A different question from `marked`, and
-// the one the panel's order asks: where a thread is, rather than what was drawn for it. A
-// resolved thread has a place and no paint, and an element anchor's paint is the boxes its
-// contents show through (shownParts) rather than the element the anchor named — so neither
-// record answers for the other. Written only by the pass that resolves the anchors, so the
-// two readings can never come from different resolutions.
-const placed = new Map();
-let pendingMarks = []; // the same record for the open composer's own passage
-let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
-// What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
-// mode's target: the element, and the control's word where the pointer is on one — and
-// null when neither is armed. One answer for the box, the cursor and the name.
-function aimTarget() {
-  if (aiming) {
-    const item = aimedItem();
-    return item ? { el: item, part: "" } : null;
-  }
-  if (designOn && pointer.x >= 0)
-    return designTarget(document.elementFromPoint(pointer.x, pointer.y));
-  return null;
-}
-// What a container lets the reader see of what it holds, or null where it shows all of
-// it. Overflow is one of three ways to draw nothing past an edge: paint containment and
-// content-visibility both clip while overflow computes `visible`, and a box under either
-// would be drawn at a rect the reader never sees. The band itself is the padding box less
-// whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
-// nothing about either, and a box drawn under a border is drawn nowhere as surely as one
-// past the edge.
-//
-// `version check --render` imports this to ask which container cut a box away, so the
-// band a handover is refused against and the band the page paints to are one reading.
-// Written twice they disagreed twice, each copy right about one of the two things above
-// and wrong about the other.
-export function shownBand(el) {
-  const s = getComputedStyle(el);
-  if (
-    s.overflowX === "visible" &&
-    s.overflowY === "visible" &&
-    !/paint|strict|content/.test(s.contain) &&
-    s.contentVisibility === "visible"
-  )
-    return null;
-  const b = el.getBoundingClientRect();
-  const left = b.left + el.clientLeft,
-    top = b.top + el.clientTop;
-  return {
-    left,
-    top,
-    right: left + el.clientWidth,
-    bottom: top + el.clientHeight,
-  };
-}
-// The box an element shows as. An element that generates none of its own — a
-// display: contents wrapper — shows as what its contents paint, so its bounds are
-// theirs, and a range asks the platform for that union in one read. Its own rect is
-// (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
-// reads as a real place at the top of the page, so whatever measured it travelled there.
-//
-// No widget in the vocabulary is one now — lf-suggestion was, and its theme comment
-// carries what that cost — but the wrong answer is the platform's rather than that
-// widget's: a page or a project layer styles any wrapper this way in a line. This
-// lived inside the legend's own reading once, where it stood as a fact about the
-// legend rather than about elements, which is exactly why the travel went on asking
-// the element directly and centred the top of the document. One answer to "where is
-// this element", so there is no second way to ask.
-export function shownBox(el) {
-  const r = el.getBoundingClientRect();
-  if (r.width || r.height) return r;
-  const contents = document.createRange();
-  contents.selectNodeContents(el);
-  return contents.getBoundingClientRect();
-}
-// The same reading in elements rather than pixels, for the marks the runtime paints on
-// the page's own elements: an outline needs a box to hang on, so a mark aimed at a
-// boxless element goes to the boxes its contents make. Read from the platform rather
-// than from the registry, because generating no box is not a fact about which widget
-// this is — any wrapper in any layer can do it, and CSS has no selector that says so.
-//
-// Area, where shownBox asks only for a box, because the two want different things of
-// one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
-// where it can be seen.
-//
-// The runtime's own chrome leaves by name rather than on that test. Area read as though
-// it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
-// a span with no width, so the apparatus fell out on its own. The line saying how many
-// comments a block holds is clipped to a pixel and has one — so an ask that had been
-// commented on wore its ring on the runtime's word about the page rather than on the
-// page, and the pixel it hung from moves the first time a comment lands. That question is
-// already asked, declared labels and all, and it is the one the anchor pass puts
-// to a text node — so what a mark hangs on and what a quote may name cannot come apart.
-// Bounded at the element, for the reason given where the question is stated: a widget an
-// agent sent stands inside the panel, and asked about the page instead it would have no
-// child of its own left to fall back to.
-export function shownParts(el) {
-  const r = el.getBoundingClientRect();
-  if (r.width && r.height) return [el];
-  return [...el.children]
-    .filter((child) => !uiInside(child, el))
-    .flatMap((child) => shownParts(child));
-}
-// An item's bounds, held to what the page shows of them: the rect a box in the chrome's
-// layer is drawn from, for the aim's box and the legend's alike. The layer is one no
-// ancestor's clip can reach — that is the point of it — so the box owes the clips an
-// answer of its own: an option's table box runs on under its group's overflow: hidden,
-// and a card half-scrolled out of a board is half gone. A box drawn from the raw rect
-// claims pixels the page has already refused, over the neighbour standing in them.
-// body is the page's own scroller, so its edge is one of these too: what is scrolled
-// off screen has no rect, and a legend draws boxes for what is on it and nothing for
-// the rest.
-//
-// The walk stops at a box the viewport holds rather than the document: nothing above a
-// `position: fixed` element clips it, so the ancestors past that one are answering about a
-// flow the element left. Every box in the chrome is behind one — the comment panel is
-// fixed, and body is the page's scroller narrowed to the column beside it — so a reply box
-// measured through body's band came back wholly clipped away, at any window wide enough for
-// the panel to stand beside the page rather than over it. The one caller before this asked
-// only about the page's own items, none of which is ever inside a fixed box, which is why
-// the walk could be written as "every ancestor" and read as complete.
-//
-// Which leaves the viewport itself, applied to everything: for a box in the page it is
-// what body's own band already said, and for one in a fixed layer it is the whole of what
-// clips it.
-//
-// `clips` caches each ancestor's answer for one pass: the legend asks for every item
-// on the page in one breath, and the items share their scrollers, so what a pass spends
-// on the walk is two style reads per ancestor rather than two per item per ancestor.
-function shownRect(item, clips) {
-  return clipped(shownBox(item), item, clips);
-}
-// Where a member begins, as the reader sees it: the first of the boxes it paints that
-// survives the clips, rather than the bounds of all of them. They are the same box for
-// anything in flow and different for an inline that wraps, whose bounds run from the
-// column's left margin to its right — so a digit placed on that corner sat four hundred
-// pixels from the link it addressed, a line above it, on top of somebody else's sentence.
-// `shownBox`'s union answers "how much room does this take", which is what a legend box and
-// an aim outline want; this answers "where does it start", which is what anything hung on a
-// corner wants. The first that survives rather than the first outright, since a link whose
-// opening line has scrolled away still has a corner on the line below it.
-const startsAt = (item, clips) => {
-  const fragments = item.getClientRects();
-  return (fragments.length ? [...fragments] : [shownBox(item)])
-    .map((box) => clipped(box, item, clips))
-    .find(Boolean);
-};
-// The clips standing over a box, applied to it. Taken apart from shownRect because the two
-// readings above want the same walk over different boxes.
-function clipped(box, item, clips) {
-  let left = Math.max(box.left, 0),
-    top = Math.max(box.top, 0),
-    right = Math.min(box.right, innerWidth),
-    bottom = Math.min(box.bottom, innerHeight);
-  // From the box itself, not from its parent: an element is not clipped by its own
-  // overflow — that clips what it holds — so its band is skipped and only its position is
-  // read. Starting at the parent instead asked the question of every ancestor of a fixed
-  // box and never of the box, which is the same bug one level up: in design mode the aim
-  // resolves the comment panel itself, and the panel measured through body's band came
-  // back wholly clipped away, so a mode whose row promises a click on the chrome drew
-  // nothing over the chrome.
-  for (let a = item; a; a = a.parentElement) {
-    let c = clips.get(a);
-    if (c === undefined)
-      clips.set(
-        a,
-        (c = {
-          band: shownBand(a),
-          // Read here rather than out of shownBand, whose answer is a band and is the
-          // render gate's too: what clips a box and what a box is positioned against are
-          // two facts, and one of them is this walk's alone.
-          fixed: getComputedStyle(a).position === "fixed",
-        }),
-      );
-    if (a !== item && c.band) {
-      left = Math.max(left, c.band.left);
-      top = Math.max(top, c.band.top);
-      right = Math.min(right, c.band.right);
-      bottom = Math.min(bottom, c.band.bottom);
-    }
-    if (c.fixed) break;
-  }
-  return right > left && bottom > top ? { left, top, right, bottom } : null;
-}
-// The aim's one writer, and the whole of its paint: the box in the chrome's layer
-// (aimBox), the cursor's half of the same promise, and in design mode the name of what
-// the box is on. Everything is derived fresh on every ask — the aimed item, lf-over-item,
-// the box's geometry — because a latch here was a second answer to the question the
-// press asks fresh, and a replay repainted it stale. Synchronous, not coalesced to a
-// frame the way refreshHover is: the keydown that arms the page is followed by the press
-// in the same gesture, and a promise a frame behind the arm is one the press can outrun.
-// What each ask costs is one hit-test and one rect walk, which is what the repaint gate
-// this replaced already spent per event on deciding whether to run a far dearer pass.
-function refreshAim() {
-  const target = aimTarget();
-  const aimed = target?.el ?? null;
-  // The cursor's half, written where the box's half is decided, so the hand cannot
-  // stand over a press the paint knows takes nothing. `aiming` alone says the page
-  // is armed; this says the aim has landed on something.
-  document.body.classList.toggle("lf-over-item", Boolean(aimed));
-  const r = aimed && shownRect(aimed, new Map());
-  if (!r) {
-    aimBox.style.display = "none";
-    aimBox.removeAttribute("data-for");
-    paintInspect(null);
-    return;
-  }
-  const { left, top, right, bottom } = r;
-  aimBox.setAttribute("data-for", aimed.id);
-  // The item's own corner radius, so the ring hugs the corner the item draws.
-  Object.assign(aimBox.style, {
-    display: "block",
-    left: left + "px",
-    top: top + pageScroller.scrollTop + "px",
-    width: right - left + "px",
-    height: bottom - top + "px",
-    borderRadius: getComputedStyle(aimed).borderRadius,
-  });
-  paintInspect(designOn ? target : null, { left, top });
-}
-// The name of what design mode is aimed at, at the box's top-left corner — above it
-// where there is room, inside it where there isn't (the banner sits at the top edge).
-// Document-anchored like the box, so a scroll moves the two together between the events
-// that re-derive them.
-function paintInspect(target, corner) {
-  inspectEl.classList.toggle("lf-shown", Boolean(target));
-  if (!target) return;
-  const name = target.part
-    ? `${target.part} · ${designName(target.el)}`
-    : designName(target.el);
-  if (inspectEl.textContent !== name) inspectEl.textContent = name;
-  const above = corner.top - inspectEl.offsetHeight - 2;
-  inspectEl.style.left = `${Math.max(2, corner.left)}px`;
-  inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
-}
-const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
-let hovering = null;
-let hoverQueued = false;
-const marksOf = (id) => marked.get(id) ?? [];
-const allMarks = () => [...marked.values()].flat();
-// What a reader who cannot see the paint is told. A highlight is glyphs, not an element, so
-// it builds no accessibility node — where a <mark> wrapper was a `mark` node, the paint is
-// nothing at all, and a passage carrying a comment reads exactly like one that doesn't.
-// Neither relation ARIA offers brings it back on something not focusable: NVDA ignores
-// aria-describedby there in browse mode and reports none of the labelling attributes on a
-// bare p or div at all, VoiceOver reads it only on an interactive, image or landmark role,
-// and aria-details is supported unevenly and says only that details exist. What every
-// screen reader announces in every mode is text, so the fact is carried as text — one
-// hidden, unselectable line inside whatever holds the mark, saying how many comments are
-// on it.
-//
-// Coarser than the mark, and deliberately: it names the block a passage sits in rather than
-// the passage, because naming the passage means wrapping it, and wrapping is what a redraw
-// between a mousedown and its mouseup turns into a swallowed click. The panel still carries
-// each thread's own quote. Written only where the text differs from what is already there,
-// because a screen reader rebuilds its buffer on every mutation and this pass runs on every
-// poll.
-function noteMarks(noted) {
-  for (const [holder, threadIds] of noted) {
-    const note =
-      holder.querySelector(`:scope > .${NOTE}`) ??
-      holder.appendChild(offer("button", NOTE));
-    note.lfThreads = threadIds;
-    note.onclick = () => {
-      setPanel(true);
-      const id = note.lfThreads.find((threadId) =>
-        threadsBox.querySelector(`:scope > .lf-thread[data-id="${threadId}"]`),
-      );
-      const thread =
-        id && threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`);
-      if (!thread) return;
-      thread.focus({ preventScroll: true });
-      thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
-      scrollToThread(id);
-    };
-    const n = threadIds.length;
-    const said = `${n} comment${n === 1 ? "" : "s"}`;
-    if (note.textContent !== said) note.textContent = said;
-  }
-  for (const note of pageQueryAll(`.${NOTE}`))
-    if (!noted.has(note.parentElement)) note.remove();
-}
-
-function paintAnchors(threads = buildThreads()) {
-  if (!anchoringReady) return;
-  for (const where of allMarks())
-    if (where instanceof Element) where.classList.remove("lf-mark-el");
-  for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
-  marked.clear();
-  placed.clear();
-  pendingOutline = [];
-
-  const text = pageText(); // read once, for every anchor this pass places
-  const posted = [];
-  const noted = new Map(); // element -> ordered thread ids marking something inside it
-  for (const t of threads) {
-    if (!t.root.anchor) continue;
-    const found = resolveAnchor(t.root.anchor, text);
-    if (!found) continue;
-    // Where the thread's passage lands in this version, recorded for every thread the
-    // page still holds — the resolved ones too, which take no paint but do take a place
-    // in the panel's order and keep the one they had while they fold out of it.
-    placed.set(t.root.id, found.element ?? elementOver(found.segments[0].node));
-    if (t.resolved) continue;
-    if (found.element) {
-      // The boxes the element shows through, for the same reason the ask ring hangs on
-      // those: an outline needs a box, and a wrapper that generates none took its ring
-      // to the document's origin and drew nothing there. The record is what the pass
-      // clears, what the pointer hit-tests, and what the composer stands off, so all
-      // three follow the paint by holding the parts rather than the element.
-      const parts = shownParts(found.element);
-      for (const part of parts) part.classList.add("lf-mark-el");
-      marked.set(t.root.id, parts);
-    } else {
-      const ranges = found.segments.map((seg) => rangeOf([seg]));
-      marked.set(t.root.id, ranges);
-      posted.push(...ranges);
-    }
-    // Where the line goes: every block the passage crosses, so the reader of any of them
-    // hears it — or, for a passage that sits in no block of its own, the element the
-    // anchor names, which is where the runtime already puts chrome a widget has to live
-    // with (a card's drag grip). Never the inline run or the body div in between, because
-    // a widget reads those back as its own: lf-draft seeds the editor a user types
-    // into from its body div, and a line inside it is chrome in the text they send back.
-    const blocks = found.element
-      ? [found.element]
-      : [...new Set(found.segments.map((seg) => blockAt(seg.node)))].filter(Boolean);
-    // Not inside the chrome: the line is the runtime's word inside the page's own
-    // blocks, and a design comment on a runtime part is on chrome the panel already
-    // reads out — an aria-hidden injected note button would be focusable content nobody
-    // is told about.
-    for (const holder of blocks.length ? blocks : [sectionOf(t.root.anchor)])
-      if (holder && !inChrome(holder))
-        noted.set(holder, [...(noted.get(holder) ?? []), t.root.id]);
-  }
-
-  // The composer's own passage, in the accent rather than the mark's own ink, so a draft
-  // never reads as a posted comment. An element a thread already outlines keeps the posted
-  // colour: there is one outline to give, and the thread's is the clickable one.
-  //
-  // The ⌥ aim does not wear this paint, though it is the same fact one step earlier:
-  // a promise has to interrupt where an annotation may whisper, so the aim has a box
-  // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
-  // why). An open composer doesn't stand the aim down — a press while the box is up
-  // re-anchors it to the aimed item (openOnItem) — so the two can show at once, which
-  // is the true state: where the draft stands, and where a press would move it.
-  const draft =
-    composerOpen && pendingAnchor ? resolveAnchor(pendingAnchor, text) : null;
-  // Where the draft's passage is, recorded the way the threads' is, because placeComposer
-  // has to keep the box off it. An element a thread already outlines belongs
-  // in the record too — it is marked, just in the posted colour rather than the accent.
-  pendingMarks = draft
-    ? draft.element
-      ? shownParts(draft.element)
-      : draft.segments.map((seg) => rangeOf([seg]))
-    : [];
-  const pending = [];
-  if (draft?.element) {
-    // Part by part, because a thread's outline is claimed the same way: the draft takes
-    // whichever boxes are still free and leaves the rest in the posted colour. The record
-    // above is the parts too, so placeComposer stands the box off the passage the reader
-    // can see rather than off a wrapper whose rect sits at the top of the document.
-    const taken = allMarks();
-    for (const part of pendingMarks)
-      if (!taken.includes(part)) {
-        part.classList.add("lf-mark-el", PENDING);
-        pendingOutline.push(part);
-      }
-  }
-  if (draft?.segments) pending.push(...pendingMarks);
-
-  // The composer's echo of its own passage, decided here because here is where it is known
-  // whether the page is showing that passage. Usually it is — the box opens beside the words
-  // it just marked, and printing them inside it says the same sentence twice, side by side.
-  // So the quote is the fallback rather than the statement: it shows where the mark can't,
-  // which is where this version no longer holds the passage — a draft the user carried
-  // onto a newer version, whose text survived the trip when its passage didn't. Dashed and
-  // muted, the panel's detached treatment, for the same fact.
-  //
-  // Scrolled out of view looks like that case and is not: the passage is still there, one
-  // scroll back, and the reader put it there seconds ago. A quote coming and going with the
-  // scroll position would resize the box under the hands typing in it.
-  //
-  // Out of sight is not gone: a painted mark has no accessibility exposure at all, so the
-  // quote stays in the tree as the box's description whichever way it renders. Written only
-  // when it changes, because assigning textContent replaces the node even with the same
-  // string, and this pass reruns whenever a comment arrives — a stranded quote is the only
-  // copy of that passage left, so it is text a user may be selecting to keep.
-  const label = composerOpen ? anchorLabel(pendingAnchor, pendingAbout) : "";
-  if (composerQuote.textContent !== label) composerQuote.textContent = label;
-  // A design comment's label stays: the outline says which element, and only the words
-  // say the comment is about the layer and which control the press landed on.
-  composerQuote.classList.toggle(
-    "lf-unseen",
-    !label || (Boolean(draft) && !pendingAbout),
-  );
-
-  // Ranked so each reading survives the ones under it: a posted mark, the hover over it,
-  // the standing comment's own mark, and the draft above all three. A higher highlight
-  // supplies only the properties it states, so the standing mark under the pointer takes
-  // the hover's wash and keeps its own ink. The
-  // passage under the pointer answers the pointer.
-  CSS.highlights.set(MARK, new Highlight(...posted));
-  CSS.highlights.set(
-    PENDING,
-    Object.assign(new Highlight(...pending), { priority: 3 }),
-  );
-  noteMarks(noted); // and the same fact for a reader who can't see any of it
-  paintStanding(); // the ranges are new objects and the element classes were just cleared
-  // The semantic thread may be unchanged while this pass replaced every Range or
-  // element part that paints its hover. Rebind the projection before geometry decides
-  // whether the parked pointer still indicates that thread at all.
-  if (hovering || hoverThread || hoverParts.length) paintHover(hovering);
-  pageShifted(); // the content moved: the hover, a held aim's promise, the legend ask again
-
-  paintThreadQuotes();
-
-  // A message pointing at the page — [the group](#d-channel) — travels by the
-  // browser's own fragment navigation, which is already the whole feature within one
-  // document: collapsed content wears hidden="until-found", so the jump fires
-  // beforematch and the owning tab or settled group opens itself. Opened in a new tab
-  // it is an arrival rather than a jump, and landArrival is what answers it there.
-  // What the browser has no answer for is the id
-  // this version hasn't got. A comment outlives the version it was written on, so
-  // that happens without anyone doing anything wrong — and unmarked, the reference
-  // reads live, moves nothing on the press, and leaves a fragment nobody holds in the
-  // URL for the next load to honor. So it wears the same detached face a quote whose
-  // passage left the page wears, asked of the same resolveAnchor, and its press is
-  // taken rather than spent. aria-disabled because the title only reaches a pointer.
-  for (const a of panel.querySelectorAll(MSG_REF)) {
-    const id = fragmentId(a.getAttribute("href"));
-    const alive = Boolean(resolveAnchor({ section: id }));
-    a.classList.toggle("detached", !alive);
-    if (alive) a.removeAttribute("aria-disabled");
-    else a.setAttribute("aria-disabled", "true");
-    a.title = alive ? `Jump to § ${id}` : `§ ${id} isn't in the version you're viewing`;
-  }
-}
-
-// Re-resolve marks after a package replaces derived passage nodes during replay.
-let projectionAnchorPaintQueued = false;
-document.addEventListener("lf-projection", () => {
-  if (projectionAnchorPaintQueued) return;
-  projectionAnchorPaintQueued = true;
-  queueMicrotask(() => {
-    projectionAnchorPaintQueued = false;
-    paintAnchors();
-  });
-});
-
-// A reference a message makes into the page: its own Markdown link, or one a widget
-// in its frozen markup writes (a lf-option's `for`). One selector, so what the paint
-// above dresses and what the press below refuses are the same set.
-const MSG_REF = '.lf-msg-body a[href^="#"]';
-// The id a fragment names. An href holds it as the renderer percent-encoded it and
-// location.hash as the browser did; the document holds it as written. A malformed
-// escape ("#100%") keeps its own characters. One reading for both, because a reference
-// the panel paints and a URL the page arrived at name their element the same way.
-function fragmentId(fragment) {
-  const raw = fragment.slice(1);
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
-}
-// The only press this layer takes from the browser: a reference this version can't
-// follow. Everything else — the travel, the reveal, the back button — is the
-// platform's, and an exported copy keeps it by having a real href to jump through.
-panel.addEventListener("click", (ev) => {
-  const a = ev.target.closest(MSG_REF);
-  if (a && !resolveAnchor({ section: fragmentId(a.getAttribute("href")) }))
-    ev.preventDefault();
-});
-
-// Which thread's mark is under a point. A painted range is not an element, so the pointer
-// finds it by the boxes the range occupies rather than by hit-testing the DOM — asking for
-// the caret position instead would claim the empty space past the end of a short line.
-function markAt(x, y) {
-  const over = document.elementFromPoint(x, y);
-  if (!pageWords(over)) return null;
-  // The retargeted element answers the chrome question, whose subject is which layer the
-  // pointer is in; an element mark needs the tree's own answer, because a host contains
-  // every mark staged inside it and so tells none of them apart.
-  const deep = elementFromPointAcross(x, y);
-  for (const [id, marks] of marked)
-    for (const where of marks) {
-      const hit =
-        where instanceof Range
-          ? [...where.getClientRects()].some(
-              (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom,
-            )
-          : containsAcross(where, deep);
-      if (hit) return id;
-    }
-  return null;
-}
-
-// Bring an element in the document to the position its caller names. A thread's element
-// anchor takes the middle; an Ask takes the readable start so its context comes before
-// its control. Which box does the travelling is scrollerFor's answer, asked here rather
-// than assumed: the document's scroller was written into this twice, so an element
-// standing in the panel's list was taken into view by the platform and then had this
-// travel spent on the page behind it, moving a reader who had asked for nothing there.
-// Reveal first, since opening a tab or settled group moves
-// everything below it. For a centred destination, "the middle" means the viewport's:
-// scrollIntoView measures against the scroller's own
-// scroll-padding-top — declared so a native fragment jump clears the banner — and every
-// "center" through it therefore landed 27px low. An element taller than the viewport has
-// no middle to show, and centring one puts its opening words above the top edge, so it
-// takes that same banner clearance instead and the reader starts at the start.
-//
-// The viewport is the scroller's own box rather than the window's, which is the same
-// number for the document — body is the page's scroller and is the window's height — and
-// is the panel's list where that is what scrolls.
-//
-// It glides, because a page the reader is already holding is one the motion keeps their
-// place in — the same reason a restore doesn't (jumpBy). An arrival passes "instant" for
-// exactly that reason: a document that appeared a moment ago holds no place to keep, so
-// the glide would be animating from nowhere.
-function centreBy(where, block = "center", box = pageScroller) {
-  const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
-  // The scroller's own box rather than the window's: the same number for the document,
-  // whose scroller is body, and the list's own where the list is what scrolls.
-  const view = shownBox(box);
-  const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
-  const place =
-    where instanceof Range
-      ? (view.height - rect.height) / 2
-      : block === "start"
-        ? clear
-        : Math.max((view.height - rect.height) / 2, clear);
-  return rect.top - view.top - place;
-}
-function scrollToElement(el, behavior = SCROLL, block = "center") {
-  reveal(el);
-  el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  const box = scrollerFor(el);
-  if (!under(el, box)) return;
-  jumpBy(centreBy(el, block, box), behavior, box);
-}
-
-// Move to where a thread is painted, if it still is — asked of the pass's own record, so the
-// panel and the page can't disagree about whether the passage survived. A painted range has
-// no element to scroll into view, so its own box does the work.
-//
-// Every "show me that comment's passage" route ends here. The focus its caller already
-// placed in the thread owns the standing paint; this function owns only the travel. It
-// makes the target's box visible in both axes, then glides the exact mark to the centre
-// of the region that holds it. No transient effect waits on that motion or survives it
-// as separate state.
-function scrollToThread(id) {
-  const where = marksOf(id)[0] ?? placed.get(id);
-  if (!where) return;
-  if (!(where instanceof Range)) {
-    reveal(where);
-    if (!marksOf(id).length) paintAnchors();
-    scrollToElement(marksOf(id)[0] ?? where);
-    return;
-  }
-  const holder = where.startContainer.parentElement;
-  reveal(holder);
-  // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
-  // rendered diagram sits in a box with its own horizontal scroll, which the vertical
-  // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
-  holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  jumpBy(centreBy(where), SCROLL);
-}
-
-// Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which
-// ::highlight() can carry — it styles glyphs, not boxes. Same hit-test as the click, so
-// what lights up is what would open. It is a function of where the pointer is and what the
-// page's geometry is, so everything that moves either asks again: the pointer moving, the
-// page scrolling under a still pointer, and the pass redrawing the ranges themselves.
-//
-// The pointer can indicate a thread from either surface, and the panel is the other one.
-// A card is the thread's view in the list the way a mark is its view in the prose, so
-// resting on the card lights the passage exactly as resting on the passage lights it —
-// the same wash, because it is the same fact, and a second strength would be a third
-// thing to learn on a page that already asks the reader to tell a mark from a standing
-// mark. It answers the question a reader scanning a full list keeps asking, which of
-// these is about what, without a press and without a travel they may not want; the
-// standing mark answers it for the one comment they chose, and this answers it for the
-// one under their hand.
-//
-// One answer rather than two, because the pointer is in one place: markAt refuses a point
-// that lands in the chrome, so the panel's reading and the page's cannot both name a
-// thread. That is also why the two are read here rather than painted by separate hands —
-// a second writer to this highlight would be overwritten by whichever frame ran last, and
-// the hit-test runs on every mousemove.
-//
-// The whole card and not the quote alone, though the quote is the part that presses. The
-// card is where the eye is while it reads the comment, and the question arrives there
-// rather than on the three clamped lines at the top; a reader who wanted the quote's
-// press would already be on it.
-const HOVER = "lf-mark-hover";
-const hoveredThreadOf = () => threadsBox.querySelector(".lf-thread:hover");
-let hoverParts = [];
-let hoverThread = null;
-const hoverCardOf = (id) =>
-  id ? threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`) : null;
-function paintHover(id) {
-  hovering = id;
-  // The page and panel are reciprocal views of the thread. The highlight paints the
-  // passage when the pointer is on its card; this class paints the card when the pointer
-  // is on its passage. One writer keeps them on the same id, and keeping the node lets a
-  // sweep touch only the two cards whose answer changed.
-  const thread = hoverCardOf(id);
-  if (hoverThread !== thread) {
-    hoverThread?.classList.remove(HOVER);
-    thread?.classList.add(HOVER);
-    hoverThread = thread;
-  }
-  const where = marksOf(id);
-  // Both kinds of anchor, for the reason paintStanding takes both: one question about one
-  // thread, and a reading that answered only the passages with words left an element
-  // anchor saying nothing back. Only what changed, and guarded on each side, for the
-  // reason spelled out there — this runs on every frame of a pointer sweep.
-  const parts = where.filter((mark) => mark instanceof Element);
-  for (const part of hoverParts)
-    if (!parts.includes(part)) part.classList.remove(HOVER);
-  for (const part of parts)
-    if (!part.classList.contains(HOVER)) part.classList.add(HOVER);
-  hoverParts = parts;
-  CSS.highlights.set(
-    HOVER,
-    Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
-      priority: 1,
-    }),
-  );
-}
-// Which comment the reader is standing in, said out on the page. The panel has always
-// answered it on its own surface — the thread holds the focus, and a press on a mark
-// flashes the thread it opens — while the page answered nothing back: every posted mark
-// wears one wash, so a reader sent from a comment to its passage arrived among a dozen
-// identical marks with no way to tell which one they had asked to see. The j/k walk's
-// comment already called the panel and the page "two views of the same thread"; this is
-// the view that was missing.
-//
-// Derived from the focus rather than written where the travel put the reader, for the
-// reason markHere gives about the ask ring: a mark written at the arrival says where the
-// reader was *sent*, and goes on saying it after they have clicked away, read on down the
-// page and come back tomorrow. Every way into a thread then paints it — the quote's press,
-// j/k, `g c 2`, a plain click on the card — because they all end in the same focus, and no
-// way in has to be taught to paint.
-//
-// Read through `closest` rather than off the thread itself, so a reader typing a reply is
-// still standing in the comment they are replying to; that is exactly when knowing which
-// passage it is on is worth most.
-//
-// Above the hover and below the draft. A pointer resting on the standing mark supplies
-// the middle wash, while this higher paint keeps the strongest wash and its accent ink:
-// the cursor promises the press, and the ink answers "which one".
-const HERE = "lf-mark-here";
-let hereParts = [];
-function paintStanding() {
-  const where = marksOf(focusedThreadOf()?.dataset.id);
-  const parts = where.filter((mark) => mark instanceof Element);
-  // Only what changed, because the anchor pass calls this and the anchor pass runs on
-  // every poll: an element that keeps the class would otherwise have it taken off and put
-  // straight back, writing the page's own attribute twice a poll for as long as the
-  // reader stands there, and a mutation on an authored element is something this page's
-  // observers hear. Both sides are guarded, because Chrome records a mutation for a
-  // classList.add of a token already in the list — the same reason noteMarks writes its
-  // line only when the words differ.
-  for (const part of hereParts) if (!parts.includes(part)) part.classList.remove(HERE);
-  for (const part of parts)
-    if (!part.classList.contains(HERE)) part.classList.add(HERE);
-  hereParts = parts;
-  CSS.highlights.set(
-    HERE,
-    Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
-      priority: 2,
-    }),
-  );
-}
-// Coalesced to a frame: scroll outruns layout, the hit-test reads layout, and a repaint
-// asks from inside a pass that must stay cheap enough to run from a mousedown. The frame
-// is what settles the panel's half too — that reading is the browser's own :hover state,
-// and asking for it from inside the pointer event that is moving it asks mid-move.
-function refreshHover() {
-  if (hoverQueued || (!marked.size && !hovering && !hoverThread)) return;
-  hoverQueued = true;
-  requestAnimationFrame(() => {
-    hoverQueued = false;
-    // The cursor stays with the page's own reading. It is the promise that a press here
-    // opens something, and over a card the press on offer is the card's own — which the
-    // panel already says for itself, on the quote that makes it. Unconditional because
-    // toggle runs no update step when the answer has not changed, unlike the add that
-    // noteMarks and the standing paint have to guard.
-    const onMark = markAt(pointer.x, pointer.y);
-    document.body.classList.toggle("lf-over-mark", Boolean(onMark));
-    const id = hoveredThreadOf()?.dataset.id ?? onMark;
-    // A reconcile normally keeps a thread node, but settlement replaces it. If the
-    // pointer stayed over the same semantic thread, repaint the reciprocal class onto
-    // that new card even though the id did not change.
-    if (id !== hovering || hoverCardOf(id) !== hoverThread) paintHover(id);
-  });
-}
-document.addEventListener("mousemove", (ev) => {
-  pointer.x = ev.clientX;
-  pointer.y = ev.clientY;
-  refreshHover();
-});
-// The page moving under a parked pointer is the pointer moving over the page: what a
-// press would take, whether a mark is under the hand, and where every legend box
-// stands can all change with no mouse event to say so, and a box left over the old
-// item promises a press the click no longer makes. One repaint set for every door
-// that says so — a scroll, a window resize, a replay's marks landing (paintAnchors),
-// a widget's FLIP settling, and the reflows only the legend's observers hear, the
-// panel opening re-centring the column among them.
-function pageShifted() {
-  refreshHover();
-  refreshAim();
-  // A board scrolled sideways carries its cards out from under their boxes, and the
-  // page scrolled brings items into view that had no box yet (shownRect).
-  queueLegend();
-}
-// At the document and at capture, because scroll does not bubble and body is not the
-// page's only scroller: a board scrolls its columns sideways, and a card carried under
-// a parked pointer that way is the same fact as the page scrolling under it. Capture is
-// the one place every scroller's event passes.
-document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
-
 // ---------- selection → comment ----------
 // Floating UI stays inside the document's own box, which is body's client box: it
 // already ends at the open panel's edge (syncLayout's margin) and inside a classic
@@ -7566,7 +4353,7 @@ function place(node, left, top) {
 // better spot.
 function placeComposer(left, top) {
   place(composer, left, top);
-  const rects = pendingMarks.flatMap((where) =>
+  const rects = anchorRuntime.pendingMarks.flatMap((where) =>
     where instanceof Range
       ? [...where.getClientRects()]
       : [where.getBoundingClientRect()],
@@ -7590,7 +4377,7 @@ function placeComposer(left, top) {
   // one object, so a box standing anywhere on it is a box between them and the thing they
   // are writing about. ⌥-click made that plain by opening the composer under the pointer,
   // which is by definition inside what was clicked.
-  const whole = pendingMarks.some((where) => where instanceof Element);
+  const whole = anchorRuntime.pendingMarks.some((where) => where instanceof Element);
   const touching = (r) =>
     r.left < box.right &&
     box.left < r.right &&
@@ -8001,6 +4788,10 @@ addEventListener("blur", () => setAiming(false));
 // carry that same live state, so the move re-derives the arm from the freshest carrier,
 // through the one setter, rather than trusting the latch.
 document.addEventListener("mousemove", (ev) => {
+  // This listener used to follow the pointer recorder in the monolith. Keep that
+  // ordering explicit now that the recorder is installed by the anchor module.
+  pointer.x = ev.clientX;
+  pointer.y = ev.clientY;
   const held = ev.getModifierState(AIM.modifier);
   if (held !== aiming) setAiming(held);
   else refreshAim();
@@ -9513,11 +6304,15 @@ const PANEL = {
       // emptying `threadList` at every phase but ready.
       keys: ["w"],
       does: () =>
-        needsYou ? "Show every comment again" : "Show only the comments waiting on you",
-      line: () => (needsYou ? "all comments" : "waiting on you"),
+        conversationRuntime.needsYou
+          ? "Show every comment again"
+          : "Show only the comments waiting on you",
+      line: () => (conversationRuntime.needsYou ? "all comments" : "waiting on you"),
       also: needsBtn,
       when: () =>
-        runtime.statePhase === "ready" && (needsYou || threadList.some(awaitsReader)),
+        runtime.statePhase === "ready" &&
+        (conversationRuntime.needsYou ||
+          conversationRuntime.threadList.some(awaitsReader)),
       run: () => needsBtn.click(),
     },
     {
@@ -9531,7 +6326,7 @@ const PANEL = {
       // A conversation with nothing in it has nothing to find in, and the panel says so
       // itself; a page still reading the log is not yet a page with no comments, which
       // the scope's own `when` answers for both rows here.
-      when: () => threadList.length > 0,
+      when: () => conversationRuntime.threadList.length > 0,
       run: () => {
         findInput.focus();
         findInput.select();
@@ -11886,6 +8681,175 @@ latestChip.onclick = () => goVersion(runtime.latestVersion);
 // premise nothing checked, and acknowledgement is not assent. Only a version can say
 // what the agent did with an action, and saying it is `version check`'s business now
 // (restatement_errors), not something inferred here from silence.
+let conversationRuntime;
+let anchorRuntime;
+
+function buildThreads(...args) {
+  return conversationRuntime.buildThreads(...args);
+}
+function loadMarked(...args) {
+  return conversationRuntime.loadMarked(...args);
+}
+function anchorLabel(...args) {
+  return conversationRuntime.anchorLabel(...args);
+}
+function openThreads(...args) {
+  return conversationRuntime.openThreads(...args);
+}
+function narrowed(...args) {
+  return conversationRuntime.narrowed(...args);
+}
+function awaitsReader(...args) {
+  return conversationRuntime.awaitsReader(...args);
+}
+function setChildren(...args) {
+  return conversationRuntime.setChildren(...args);
+}
+function paintWorkLines(...args) {
+  return conversationRuntime.paintWorkLines(...args);
+}
+function widen(...args) {
+  return conversationRuntime.widen(...args);
+}
+function paintThreadQuotes(...args) {
+  return conversationRuntime.paintThreadQuotes(...args);
+}
+function renderPanel(...args) {
+  return conversationRuntime.renderPanel(...args);
+}
+function showThread(...args) {
+  return conversationRuntime.showThread(...args);
+}
+
+function blocksOnScreen(...args) {
+  return anchorRuntime.blocksOnScreen(...args);
+}
+function captureView(...args) {
+  return anchorRuntime.captureView(...args);
+}
+function restoreView(...args) {
+  return anchorRuntime.restoreView(...args);
+}
+function sectionOf(...args) {
+  return anchorRuntime.sectionOf(...args);
+}
+function isItem(...args) {
+  return anchorRuntime.isItem(...args);
+}
+function itemAt(...args) {
+  return anchorRuntime.itemAt(...args);
+}
+export function itemWord(...args) {
+  return anchorRuntime.itemWord(...args);
+}
+function itemSays(...args) {
+  return anchorRuntime.itemSays(...args);
+}
+function resolveAnchor(...args) {
+  return anchorRuntime.resolveAnchor(...args);
+}
+export function shownBand(...args) {
+  return anchorRuntime.shownBand(...args);
+}
+export function shownBox(...args) {
+  return anchorRuntime.shownBox(...args);
+}
+export function shownParts(...args) {
+  return anchorRuntime.shownParts(...args);
+}
+function shownRect(...args) {
+  return anchorRuntime.shownRect(...args);
+}
+function startsAt(...args) {
+  return anchorRuntime.startsAt(...args);
+}
+function refreshAim(...args) {
+  return anchorRuntime.refreshAim(...args);
+}
+function paintAnchors(...args) {
+  return anchorRuntime.paintAnchors(...args);
+}
+function fragmentId(...args) {
+  return anchorRuntime.fragmentId(...args);
+}
+function markAt(...args) {
+  return anchorRuntime.markAt(...args);
+}
+function scrollToElement(...args) {
+  return anchorRuntime.scrollToElement(...args);
+}
+function scrollToThread(...args) {
+  return anchorRuntime.scrollToThread(...args);
+}
+function paintStanding(...args) {
+  return anchorRuntime.paintStanding(...args);
+}
+function refreshHover(...args) {
+  return anchorRuntime.refreshHover(...args);
+}
+function pageShifted(...args) {
+  return anchorRuntime.pageShifted(...args);
+}
+
+const passageRuntime = createPassages({
+  PAGE_PAINT_ATTRIBUTE,
+  opaquePassageParts,
+  opaquePassageRoots,
+  pageShadowRoots,
+  registry,
+  widgetEntries,
+});
+const {
+  settlementSlots,
+  renderRetired,
+  settledAway,
+  DATUM,
+  uiInside,
+  inUi,
+  inChrome,
+  pageWords,
+  layerPart,
+  TEXT_BLOCK,
+  elementOver,
+  under,
+  authored,
+  textNodesUnder,
+  upFrom,
+  containsAcross,
+  closestAcross,
+  elementById,
+  elementFromPointAcross,
+  pageQueryAll,
+  pageRange,
+  segmentsIn,
+  blockAt,
+  blockOf,
+  COLLAPSE,
+  quoteFrom,
+  cut,
+  textUnits,
+  alignText,
+  movedWords,
+  says,
+  wrote,
+  rangeOf,
+  holds,
+  neighbourhood,
+  pageText,
+  spanIn,
+  findQuote,
+} = passageRuntime;
+export {
+  alignText,
+  inChrome,
+  inUi,
+  movedWords,
+  renderRetired,
+  says,
+  textNodesUnder,
+  wrote,
+};
+
 const runtimeProjection = createProjection(runtime, {
   ASK_ROW,
   COLLAPSE,
@@ -11961,6 +8925,127 @@ const {
   undoable,
   unitOf,
 } = runtimeProjection;
+
+conversationRuntime = createConversation({
+  COMMENTS,
+  FOLD_MS,
+  MARKED_ANYWHERE,
+  SCROLL,
+  addressLabel,
+  addressed,
+  agentName,
+  ago,
+  captureAuthoredFacets,
+  claimState: () => ({ agentTurnClosed, claimingSession, claimsHeld }),
+  designName,
+  droppedAt,
+  el,
+  elementById,
+  findInput,
+  focused,
+  highlightBlocks,
+  inChrome,
+  isMarked: (id) => marked.has(id),
+  itemSays,
+  itemWord,
+  landTyping,
+  layerPart,
+  loadDraft,
+  markDeclared,
+  matchesWhen,
+  mirrorDraft,
+  motion,
+  needsBtn,
+  offer,
+  pageParts,
+  pageQueryAll,
+  paintAnchors,
+  paintHere,
+  panelIsOpen: () => panelOpen,
+  panelTitle,
+  placedAt: (id) => placed.get(id),
+  post,
+  quietSince,
+  reachScrollers,
+  refreshHover,
+  registry,
+  rememberAuthoredMarkup,
+  renderQuiet,
+  renderSaid,
+  reportPageError,
+  retractedIds,
+  retractionFloors,
+  runtime,
+  saveDraft,
+  scrollToElement,
+  scrollToThread,
+  sectionOf,
+  sendDraft,
+  setPanel,
+  settling,
+  takenBack,
+  tellDraft,
+  threadsBox,
+  toggleBtn,
+  updateSequence,
+  wireInput,
+});
+
+anchorRuntime = createAnchors({
+  DATUM,
+  LANDMARK_CAP,
+  SCROLL,
+  TEXT_BLOCK,
+  aimBox,
+  aimIsOn: () => aiming,
+  aimedItem,
+  anchorLabel,
+  anchorsReady: () => anchoringReady,
+  blockAt,
+  buildThreads,
+  closestAcross,
+  composerAbout: () => pendingAbout,
+  composerAnchor: () => pendingAnchor,
+  composerIsOpen: () => composerOpen,
+  composerQuote,
+  containsAcross,
+  cut,
+  designIsOn: () => designOn,
+  designName,
+  designTarget,
+  elementById,
+  elementFromPointAcross,
+  elementOver,
+  findQuote,
+  focusedThreadOf,
+  inChrome,
+  inUi,
+  inspectEl,
+  landedAt: () => landed,
+  offer,
+  pageQueryAll,
+  pageScroller,
+  pageText,
+  pageWords,
+  paintThreadQuotes,
+  panel,
+  quoteFrom,
+  queueLegend,
+  rangeOf,
+  registry,
+  reveal,
+  runtime,
+  scrollerFor,
+  setLanded: (value) => (landed = value),
+  setPanel,
+  settledAway,
+  tagsDeclaring,
+  textNodesUnder,
+  threadsBox,
+  uiInside,
+  under,
+});
+const { VIEW_KEY, ITEM, NOTE, marked, placed, pointer } = anchorRuntime;
 export { shallowSigs, standingState };
 
 async function poll() {

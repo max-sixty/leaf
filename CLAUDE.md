@@ -40,12 +40,15 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
   live beside it under `scripts/leaf_interact/`: `files` owns atomic file
   operations, `events` the append-only model, `service` host and process
   lifetime, `registry` the merged vocabulary, and `projection` the standing
-  state derived from events. Schema, document, and render-check modules sit
-  below the facade on the same dependency path. The payload's `bin/leaf` shim
-  invokes the facade. There is no daemon or database.
+  state derived from events. `validation` owns event, markup, and authored-page
+  checks; `rendering` owns the browser gate and standalone export; `cli` declares
+  the Click surface. Schema, document, and browser-probe modules sit below those
+  owners on the same dependency path. The payload's `bin/leaf` shim invokes the
+  facade. There is no daemon or database.
 - `assets/leaf.js` is the public page runtime and comment layer. Its private
-  context, state projector, and chrome stylesheet live under `assets/runtime/`
-  and are composed by that stable module. There is no build step.
+  context, state projector, passage reader, anchor painter, conversation
+  reconciler, and chrome stylesheet live under `assets/runtime/` and are
+  composed by that stable module. There is no build step.
 - `assets/registry.json` is the kernel vocabulary and the layer-wide `$`
   declarations read by the runtime, linter, renderer, catalog, and docs.
 - `assets/theme.css` owns tokens, elements, class idioms, and the shared look of
@@ -101,9 +104,10 @@ removes live handlers and replaces controls with their answers.
 ## Ownership rules
 
 Detailed browser, widget, and theme rules live in
-`plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the code
-in `interact.py`; test rules live in `tests/CLAUDE.md`; corpus rules live in
-`examples/CLAUDE.md`. The rules below cross those boundaries.
+`plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the
+facade and its `leaf_interact` domains; test rules live in `tests/CLAUDE.md`;
+corpus rules live in `examples/CLAUDE.md`. The rules below cross those
+boundaries.
 
 ### The document is the initial state; the log owns transitions
 

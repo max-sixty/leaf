@@ -12,11 +12,10 @@ rules there; state here only what a test must observe or control.
 
 ## Run the narrowest useful surface
 
-The repository guide owns setup and the everyday and complete-suite commands.
-During development, select the owning file or one named case. Both browser modules
-are marked at module scope, so include `--run-nightly`; use `-n 0` while debugging
-so the trace and process tree stay local. Before landing a browser-facing change,
-run its complete browser file and the repository's normal suite.
+The repository guide's "The suite" section owns setup and test commands. During
+development, select the owning file or one named case and use `-n 0` so the trace
+and process tree stay local. Before landing a browser-facing change, run its
+complete browser file and the repository's normal suite.
 
 ## Put each assertion at the boundary that owns it
 

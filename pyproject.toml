@@ -26,7 +26,7 @@ requires-python = ">=3.10"
 
 [dependency-groups]
 dev = [
-  "pytest>=8",
+  "pytest>=9.1",
   "pytest-xdist>=3",
   "playwright>=1.49",
   "axe-playwright-python>=0.1.4",
@@ -53,3 +53,7 @@ package = false
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup"
 markers = ["nightly: complete browser or site integration; `--run-nightly` runs it"]
+# A stuck test prints every thread's stack, then exits its test process. This is a hang
+# guard, not a performance assertion; ordinary slow tests still have three minutes.
+faulthandler_timeout = 180
+faulthandler_exit_on_timeout = true

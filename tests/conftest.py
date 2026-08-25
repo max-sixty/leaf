@@ -44,9 +44,14 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Leave browser integration out of the everyday worker queues. What earns the
-    mark, and what still runs it, is in CLAUDE.md beside this file."""
-    if config.getoption("--run-nightly"):
+    """Broad discovery stays cheap; explicit selections run what they name."""
+    selected = (
+        config.getoption("keyword")
+        or config.getoption("markexpr")
+        or config.getoption("lf")
+        or any(Path(arg.split("::", 1)[0]).is_file() for arg in config.args)
+    )
+    if config.getoption("--run-nightly") or selected:
         return
     nightly = [item for item in items if "nightly" in item.keywords]
     items[:] = [item for item in items if "nightly" not in item.keywords]

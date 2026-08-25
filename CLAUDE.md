@@ -426,23 +426,25 @@ the browser gate:
 uv run pytest tests
 ```
 
-The `test_render_*.py` modules and `test_site.py` are marked nightly. A focused
-browser run must include `--run-nightly`; without it pytest deselects the module
-and exits 5. Turn xdist off while iterating:
+The `test_render_*.py` modules and `test_site.py` are marked nightly. Broad
+discovery leaves them out; an explicit file, node id, `-k`, `-m`, or `--lf`
+selection runs what it names. Turn xdist off while iterating:
 
 ```sh
-uv run pytest tests/test_render_widgets.py -q -n0 --run-nightly -k board
+uv run pytest tests/test_render_widgets.py -q -n0 -k board
 ```
 
-Run the complete suite before handoff. It needs a network because the installed
-launcher's browser path may resolve Playwright outside `uv.lock`:
+After a failure, rerun only the failed cases while debugging:
 
 ```sh
-uv run pytest tests --run-nightly
+uv run pytest --lf --lfnf=none -x -n0
 ```
 
-Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` runs them and
-the suite through `.config/wt.toml`; CI repeats both on main and pull requests.
+Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` is the complete
+suite gate: `.config/wt.toml` runs them and `uv run pytest tests --run-nightly`
+once against the rebased tree. The nightly run needs a network because the
+installed launcher's browser path may resolve Playwright outside `uv.lock`. CI
+repeats both on main and pull requests.
 
 ```sh
 pre-commit run --all-files

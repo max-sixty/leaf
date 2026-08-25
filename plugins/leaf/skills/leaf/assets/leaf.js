@@ -13982,15 +13982,19 @@ async function receiveState(state) {
   try {
     if (willActivate) {
       const running = (async () => {
-        if (document.startViewTransition) {
+        // A hidden document refuses the transition at the call itself
+        // (InvalidStateError, before the callback runs), so it takes the
+        // no-animation path a runtime without the API takes.
+        if (document.startViewTransition && document.visibilityState !== "hidden") {
           document.documentElement.classList.add("lf-versioning");
           try {
             const transition = document.startViewTransition(apply);
-            // A skipped transition — a hidden document, or the platform
-            // dropping the animation — rejects `finished` even though the
-            // update ran. The application's own failure travels through
-            // `updateCallbackDone`; a skip is the no-animation path, not an
-            // error, and must not send an applied state to the restore path.
+            // A transition skipped after it began — the document hidden
+            // mid-flight, or the platform dropping the animation — rejects
+            // `finished` even though the update ran. The application's own
+            // failure travels through `updateCallbackDone`; a skip is the
+            // no-animation path, not an error, and must not send an applied
+            // state to the restore path.
             await transition.updateCallbackDone;
             await transition.finished.catch(() => {});
           } finally {

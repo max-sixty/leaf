@@ -4,7 +4,10 @@ import errno
 import http.client
 import http.cookiejar
 import json
+import os
 import socket
+import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -1623,6 +1626,103 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
     assert interact.page_access(page_dir) == service
     assert interact.host_key() == minted
+
+
+# A lease held the way a server holds one: until the service is disabled, which
+# is the exit `stop_when_service_ends` takes. A holder that slept instead would
+# leave a sweep that reached it blocked on the lease, and the run with it. The
+# deadline is for the sweep that never comes — the case
+# `test_a_run_ends_only_the_servers_it_started` exists to catch — so a missing
+# sweep fails a test instead of leaving a process behind.
+HOLDER = """
+import fcntl, json, sys, time
+from pathlib import Path
+page = Path(sys.argv[1])
+lease = open(page / "server.lock", "a+b")
+fcntl.flock(lease, fcntl.LOCK_EX)
+print("held", flush=True)
+deadline = time.monotonic() + 60
+while json.loads((page / "service.json").read_text())["enabled"]:
+    if time.monotonic() > deadline:
+        sys.exit("no sweep came")
+    time.sleep(0.05)
+"""
+
+
+def hold_standing(page: Path, start) -> subprocess.Popen:
+    """A standing page with its lease held, as `server run --standing` leaves one."""
+    page.mkdir(parents=True)
+    interact.write_json(
+        page / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 1,
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
+    holder = start(
+        [sys.executable, "-c", HOLDER, str(page)], stdout=subprocess.PIPE, text=True
+    )
+    assert holder.stdout.readline() == "held\n"
+    return holder
+
+
+def test_a_page_left_standing_is_the_sweeps_to_stop():
+    """The forgotten server, on purpose: a standing page under the run's state
+    home, its lease held, and nothing here to stop it. `_no_page_outlives_its_test`
+    ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
+    watch that happen. Not `spawn`, whose teardown would end the holder before
+    the sweep reached it."""
+    hold_standing(interact.state_home() / "pages" / "left", subprocess.Popen)
+
+
+def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
+    """The sweep reads the run's own state home, and does read it.
+
+    A standing server under the machine's `~/.local/state/leaf/pages` looks to
+    the sweep exactly like a page a test forgot: a held lease under an enabled
+    service. The sweep once took its root from the environment before
+    `isolated_session` had moved it, and stopped every such server on the
+    machine after every test (tests/CLAUDE.md, "A process the suite starts ends
+    with the run").
+
+    So a run is made against a home planted the way the developer's is, of the
+    one test that leaves a page for the sweep. The planted page must come out as
+    it went in, with nothing written beside it, and the page the run left under
+    its own home must have been stopped — or the sweep proves nothing."""
+    home = tmp_path / "state"
+    review = home / "leaf" / "pages" / "review"
+    holder = hold_standing(review, spawn)
+    planted = sorted(path.relative_to(home) for path in home.rglob("*"))
+    nested = tmp_path / "nested"
+
+    run = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-n0",
+            "-q",
+            f"--basetemp={nested}",
+            "-o",
+            f"cache_dir={tmp_path / 'cache'}",
+            f"{__file__}::test_a_page_left_standing_is_the_sweeps_to_stop",
+        ],
+        env=os.environ | {"XDG_STATE_HOME": str(home)},
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert interact.read_json(review / "service.json")["enabled"]
+    assert holder.poll() is None
+    assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
+    (left,) = nested.rglob("left/service.json")
+    assert not interact.read_json(left)["enabled"]
+    assert not interact.lock_is_held(left.parent / "server.lock")
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):

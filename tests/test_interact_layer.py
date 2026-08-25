@@ -519,13 +519,15 @@ def test_init_vendors_the_layer(page_dir):
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
-    """What `isolated_session` promises, asserted where a break would show. The
-    two homes are the only thing leaf reads from the developer's own, and a
+    """What `isolated_session` promises, asserted where a test would see a break.
+    The two homes are the only thing leaf reads from the developer's own, and a
     suite that reached theirs fails silently in both directions: it would vendor
     their overlay into fixtures that never say what a theme should contain, and
     register a dozen throwaway pages a run in the state home the loop guard reads,
     for pages nobody has. Every other test here sets whichever home it is about,
-    so none of them would notice."""
+    so none of them would notice. What a fixture sees before the isolation is up
+    is a different question; `test_a_run_ends_only_the_servers_it_started` asks
+    it."""
     root = tmp_path_factory.getbasetemp()
     assert interact.config_home().is_relative_to(root)
     assert interact.state_home().is_relative_to(root)

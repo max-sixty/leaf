@@ -117,6 +117,18 @@ definition, and tests of standing lifetime must stop it themselves. Keep that
 exception narrow and short-lived. If the test does not need standing lifetime, use
 the ordinary served-page fixtures.
 
+The sweep's roots are the run's own: the test's `tmp_path` and the state home
+`isolated_session` returns. An autouse fixture that needs the isolated home takes it
+from that fixture; the environment is wrong at both of its ends. Autouse fixtures set
+up outermost first — a `pytest_plugins` module's before the conftest's — and tear
+down in reverse, so a sweep with no dependency on the isolation reads `state_home()`
+before it is applied at setup and after `monkeypatch` has undone it at teardown. Read
+at setup, it answered with the developer's `~/.local/state/leaf`, and every page
+server they had standing there was stopped half a second after each start whenever
+any suite ran on the machine, with no run reporting it.
+`test_a_run_ends_only_the_servers_it_started` runs a nested suite against a planted
+home and requires the planted page untouched and the run's own leftover stopped.
+
 ### Reloading is not resetting
 
 Fixtures also own browser storage boundaries. Reloading a page is not resetting it:

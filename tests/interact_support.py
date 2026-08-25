@@ -733,7 +733,7 @@ def fifo_writer(path: Path, failure: str) -> int:
 
 
 @pytest.fixture(autouse=True)
-def _no_page_outlives_its_test(tmp_path):
+def _no_page_outlives_its_test(tmp_path, isolated_session):
     """Nothing the suite put up is still up when the test that put it there ends.
 
     The suite's own pretend servers go first. They do not run the cooperative
@@ -745,14 +745,15 @@ def _no_page_outlives_its_test(tmp_path):
     them rather than reading a list the tests append to, since the serve nobody
     remembered is the one this is here for.
 
-    Both roots are read before the test rather than after, because the override
-    that puts the state home somewhere temporary is another fixture's to undo,
-    and the home derived without it is the developer's own."""
-    state = interact.state_home()
+    Both roots are the run's own: `tmp_path`, and the state home as
+    `isolated_session`'s value. Read from the environment here instead, at setup
+    or after the yield, the root is the developer's `~/.local/state/leaf`, and
+    this sweep stopped every server standing there (tests/CLAUDE.md, "A process
+    the suite starts ends with the run")."""
     yield
     while HELD_LEASES:
         HELD_LEASES.pop().close()
-    for root in (tmp_path, state):
+    for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if interact.running_server(lease.parent):
                 interact.cmd_stop(lease.parent)

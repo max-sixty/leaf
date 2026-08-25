@@ -1544,10 +1544,10 @@ function merge(sections, { title, when, at, claims, rows }) {
  * machine have neighbours to walk, does this page have a second version — and it gates the
  * reference. The row's is whether this press would move now — is a card held, has this
  * thread a box to reply into — and it gates the line, where the reader is standing in the
- * scope and can see the answer. So the reference names `r` wherever the page has threads,
+ * scope and can see the answer. So the reference names `x` wherever the page has threads,
  * which is what a reader learning the keyboard needs, and the line offers it only on a
  * thread that has something to resolve, which is what "a key on screen is a key that
- * works" asks for. One `when` answering both left `r` and Enter live over the whole page,
+ * works" asks for. One `when` answering both left `x` and Enter live over the whole page,
  * where the press no-opped.
  *
  * A control whose keys change with its state declares every state's rows at once, each
@@ -5807,7 +5807,7 @@ const hasThreads = () => openThreads().length > 0;
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
 // takes ask the same question, so they cannot disagree about which thread this is. Not a
 // control inside it, whose own press is its own; nor a resolved thread, which has no reply
-// box for Enter to reach and no Resolve for r to press.
+// box for Enter to reach and no Resolve for x to press.
 const focusedThread = () => {
   const active = document.activeElement;
   return active?.classList?.contains("lf-thread") ? active : null;
@@ -6368,7 +6368,7 @@ const PANEL = {
 // "On a focused thread" in their own sentences and were live over the whole page, so a
 // reader who had focused nothing was offered a press that no-opped — d/u's bug from the
 // other side. The compose row is what tells an open thread from a resolved one, which has
-// neither a box for Enter to reach nor a Resolve for r to press.
+// neither a box for Enter to reach nor a Resolve for x to press.
 const THREAD = {
   title: "On a focused thread",
   when: hasThreads,
@@ -6389,7 +6389,12 @@ const THREAD = {
       run: () => COMMENTS.go(focusedThread()),
     },
     {
-      keys: ["r"],
+      // `x` and not `r`, though resolve is the word it does: the press beside it in this
+      // same scope is the reply, and a reader meeting `r` on the line reads "reply" before
+      // they read "resolve". A key spelling its own word is the wrong key when the
+      // neighbouring press owns the word it would be read as. `x` is the letter a thing
+      // closes under, and no other scope had claimed it.
+      keys: ["x"],
       does: "Resolve it",
       line: "resolve",
       // Through the thread's own button, so keyboard and mouse are one behaviour — the
@@ -7305,7 +7310,7 @@ function showHelp(open) {
       // they can see which state they are in and a row that would refuse the press must
       // not be on screen. A scope they are merely near is listed whole: a row's `when`
       // asks whether the press moves *here*, and here is not where they are, so a grip's
-      // "arrows move" belongs in the reference though no card is held and `r` belongs in
+      // "arrows move" belongs in the reference though no card is held and `x` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
       //

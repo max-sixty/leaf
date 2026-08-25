@@ -312,7 +312,7 @@ export function createConversation(dependencies) {
   // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
   // children rather than a record kept beside them: a thread the log settles is renamed out
   // of them in that frame (foldOut), which takes it out of the walk, out of the addresses and
-  // out of r's press in one stroke. A map of id → address stood here once, written by
+  // out of x's press in one stroke. A map of id → address stood here once, written by
   // renderThreads and read back by the chip and the placeholder — one list held twice, and
   // the copy free to be a reconcile behind the panel it described.
   const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
@@ -874,7 +874,7 @@ export function createConversation(dependencies) {
   // motion more: nothing in this tab moved, so the fold is the only thing saying so.
   //
   // Everything that walks the list asks for .lf-thread, so the one rename takes the
-  // node out of j/k, out of the g addresses, out of r's press and out of what the panel
+  // node out of j/k, out of the g addresses, out of x's press and out of what the panel
   // repaints, in a stroke: what stands there is room, not a thread. `inert` says the
   // same to the pointer and the tab order, so the fold can't be pressed a second time
   // or typed into on its way out.

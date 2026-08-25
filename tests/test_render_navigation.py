@@ -1914,7 +1914,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
 
 def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
-    """r resolves the thread j/k landed on, through the button's own press, so
+    """x resolves the thread j/k landed on, through the button's own press, so
     focus lands where the button already sends it — on the thread that takes the
     resolved one's place. The promise is scoped the way it is worded: the key
     line offers resolve only over an open focused thread, the overlay row
@@ -1935,7 +1935,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     line = page.locator(".lf-keyline")
 
-    # At page scope nothing promises r — its target is the focused thread, and
+    # At page scope nothing promises x — its target is the focused thread, and
     # none is — while the overlay teaches the capability, scope in its words.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
@@ -1943,13 +1943,13 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     expect(page.locator(".lf-help")).to_contain_text("Resolve it")
     page.keyboard.press("Escape")
 
-    # j lands on the first thread and the line offers resolve; r takes it, and
+    # j lands on the first thread and the line offers resolve; x takes it, and
     # focus lands on the thread now holding the resolved one's place, so j/k
-    # and a second r walk on from there.
+    # and a second x walk on from there.
     page.keyboard.press("j")
     expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
-    page.keyboard.press("r")
+    page.keyboard.press("x")
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
@@ -1961,7 +1961,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     resolved.click()
     expect(resolved).to_be_focused()
     expect(line).not_to_contain_text("resolve")
-    page.keyboard.press("r")
+    page.keyboard.press("x")
     # The absence is read after a poll the test forces, so a resolve the press
     # had wrongly posted would have landed by now.
     comment("Third thought.")

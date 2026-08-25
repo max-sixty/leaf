@@ -986,6 +986,35 @@ def open_page(
     return page, errors
 
 
+def opened_tab(page, press, tries=3, each=10_000):
+    """The tab a press opens, pressed again when the harness loses the one Chromium made.
+
+    Chromium makes the tab every time. After a press whose tab never arrives,
+    `Target.getTargets` holds a second page target in this browser context — attached,
+    loaded, titled, sitting at the href the press named — while `context.pages` still
+    holds one, and it stays that way for the life of the page: the targets pile up press
+    after press and Playwright reports none of them. So `expect_page` spends its whole
+    timeout waiting on a tab that already exists, and the test reads as though the press
+    had opened nothing.
+
+    A driver that loses the handle is not a page state a route can arrange, and there is
+    no second channel to reach an unreported tab through, so the press is made again
+    rather than waited on longer. This is instrument repair, not tolerance for a flaky
+    subject: the press itself is deterministic — measured at roughly one press in twenty
+    on a loaded machine, and at the same rate for every chord, ⌃-click, ⌃⇧-click and
+    ⇧-click alike — so a runtime that stopped leaving a real href for the platform to act
+    on opens no tab for any of the tries, and the last one raises the wait it failed.
+    """
+    for attempt in range(tries):
+        try:
+            with page.context.expect_page(timeout=each) as opened:
+                press()
+            return opened.value
+        except PlaywrightTimeout:
+            if attempt == tries - 1:
+                raise
+
+
 def primed(browser, prepare):
     """A browser whose pages reach the product with the suite's hands already on them.
 
@@ -4929,12 +4958,11 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
     destination = link.get_attribute("href")
-    with page.context.expect_page() as opened:
-        link.click()
+    tab = opened_tab(page, link.click)
     # The new tab keeps the other page's live root, authorized by the key its link
     # carried, rather than being redirected onto one immutable version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
-    expect(opened.value).to_have_url(destination)
+    expect(tab).to_have_url(destination)
     # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -5104,10 +5132,9 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
     destination = rows.nth(1).get_attribute("href")
-    with page.context.expect_page() as opened:
-        page.keyboard.press("Enter")
+    tab = opened_tab(page, lambda: page.keyboard.press("Enter"))
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
-    expect(opened.value).to_have_url(destination)
+    expect(tab).to_have_url(destination)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # Closing while focus is inside would drop the reader on the body; it lands on
@@ -15244,9 +15271,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
     # gesture and lets Playwright spell it. Named outright, the Linux press opened
     # nothing at all and the wait for the tab ran its full 30s before saying so.
-    with page.context.expect_page() as opened:
-        live.click(modifiers=["ControlOrMeta"])
-    tab = opened.value
+    tab = opened_tab(page, lambda: live.click(modifiers=["ControlOrMeta"]))
     tab.wait_for_function(BOTH_STAMPS)
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();

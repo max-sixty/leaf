@@ -243,6 +243,13 @@ If a race appears only on a loaded machine, make the ordering explicit with
 the route before the gesture whose request it must catch. For initial navigation,
 attach it through `primed` so no request is already in flight.
 
+That rule is about the page. A fact the driver loses on its way out of the browser
+is not a page state any route can arrange, and it has no second channel to be read
+through: `opened_tab` makes the press again because Chromium made the tab every time
+and Playwright reported none of the lost ones. Reach for a repeat only with that
+evidence in hand — the browser's own record showing the subject did its part — and
+say so where the repeat is written.
+
 A handler that appends a route to `held` has established only that the browser made
 the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a
 request event, or another fact named by the handler. Some resources are requested

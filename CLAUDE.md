@@ -58,7 +58,8 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
 - `packages/default/` supplies the bundled content vocabulary. It enters the
   composer through the same package contract as an explicit package, `.leaf/`,
   or `~/.config/leaf/`. A package may carry a theme, zero or more widgets,
-  helper modules, vendor files, authoring guidance, or top-level layer files.
+  helper modules, vendor files, named guidance audiences, or top-level layer
+  files.
 
 The seventh product part is repo-root `examples/`: complete pages that form the
 render corpus. `examples/gallery.html` is generated from them.
@@ -90,7 +91,8 @@ package, explicit package paths in command order, `~/.config/leaf/`, then
 `.leaf/`. The vendored registry records explicit paths under `$layer.packages`
 so a plain re-init resolves the same packages. Theme files concatenate.
 Runtime, icon, widget, and vendor files replace by path. Registry tag entries
-replace whole, while members of shared `$` entries compose. Each initialization
+replace whole, while members of shared `$` entries compose. Guidance files with
+the same audience name concatenate in package order. Each initialization
 validates the merged vocabulary and writes the same fresh layer epoch into the
 runtime and registry. An open tab carrying an older contract reloads before its
 next poll or event reaches the replacement server.

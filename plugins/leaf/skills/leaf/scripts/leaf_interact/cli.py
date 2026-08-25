@@ -29,6 +29,7 @@ def create_cli(api):
     cmd_comment = relay("cmd_comment")
     cmd_events = relay("cmd_events")
     cmd_export = relay("cmd_export")
+    cmd_guidance = relay("cmd_guidance")
     cmd_hook = relay("cmd_hook")
     cmd_init = relay("cmd_init")
     cmd_media = relay("cmd_media")
@@ -149,6 +150,13 @@ def create_cli(api):
     def catalog(dir: str) -> None:
         """Print the page's widget and theme vocabulary."""
         cmd_catalog(resolve_dir(dir))
+
+    @page.command(short_help="List or print package guidance by audience.")
+    @click.argument("dir", metavar="PAGE")
+    @click.argument("audience", required=False, metavar="AUDIENCE")
+    def guidance(dir: str, audience: str | None) -> None:
+        """List audiences, or print the guidance for AUDIENCE."""
+        cmd_guidance(resolve_dir(dir), audience)
 
     @page.command(short_help="Print where the page stands, as JSON.")
     @click.argument("dir", metavar="PAGE")

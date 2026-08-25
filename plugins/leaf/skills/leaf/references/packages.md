@@ -25,9 +25,9 @@ leaf package init PACKAGE
 leaf package check PACKAGE
 ```
 
-`package init` creates `registry.json`, `theme.css`, `authoring.md`, `runtime/`,
+`package init` creates `registry.json`, `theme.css`, `guidance/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. The package author
-edits those files, then checks their composition before adding the package to a page:
+edits that directory, then checks its composition before adding the package to a page:
 
 ```bash
 leaf package init packages/callout
@@ -47,7 +47,7 @@ Every package has the same partial layout:
 package/
 ├── registry.json       widget entries and shared $ declarations
 ├── theme.css           rules appended to the cascade
-├── authoring.md        guidance appended to `page catalog`
+├── guidance/           Markdown guides named for their audiences
 ├── runtime/            private runtime modules and replacements
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
@@ -58,9 +58,15 @@ package/
 No individual file is required. The kernel supplies the files every complete layer
 needs. Theme files concatenate. Runtime, icon, widget, and vendor files replace by
 path. A later package replaces a tag's complete registry entry and one member inside
-a shared `$` entry. Authoring guides concatenate in package order, and `page catalog`
-prints them after the merged vocabulary. The merged vocabulary is validated before
-vendoring.
+a shared `$` entry. Guidance files with the same audience name concatenate in package
+order. The merged vocabulary is validated before vendoring.
+
+Each file directly under `guidance/` is named `<audience>.md`; the filename must match
+`[a-z][a-z0-9-]*\.md`. Packages define audiences such as `author`, `reviewer`, or
+`worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists the audiences
+in the vendored page, and `leaf page guidance PAGE AUDIENCE` prints one. `page catalog`
+also prints `author` after the merged vocabulary so the instructions for writing a
+widget arrive with that widget.
 
 Composition order is kernel, bundled default package, explicit packages in command
 order, user package, then project package. Later packages win collisions. `page init`

@@ -79,10 +79,11 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  catalog  Print the widget and theme vocabulary.
-  init     Create or re-vendor a page directory.
-  media    Add images and print their page paths.
-  state    Print where the page stands, as JSON.
+  catalog   Print the widget and theme vocabulary.
+  guidance  List or print package guidance by audience.
+  init      Create or re-vendor a page directory.
+  media     Add images and print their page paths.
+  state     Print where the page stands, as JSON.
 """,
             id="page",
         ),
@@ -197,7 +198,7 @@ def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
 
     # The Command Hub package carries its own worker protocol, so its reply example
     # must keep the long-answer shape when the package leaves Leaf's kernel.
-    worker = (COMMAND_HUB_PACKAGE / "authoring.md").read_text()
+    worker = (COMMAND_HUB_PACKAGE / "guidance" / "worker.md").read_text()
     assert 'reply "$PAGE" --to "$THREAD" <<' in worker
 
 
@@ -1225,20 +1226,37 @@ def test_init_refuses_non_utf8_package_guidance_before_revendoring(
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
+    package = tmp_path / ".leaf" / "guidance"
+    package.mkdir(parents=True)
+    source = package / "author.md"
+    source.write_text("# Project author\n")
     page = tmp_path / "page"
     initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    before = (page / "authoring.md").read_bytes()
+    before = (page / "guidance" / "author.md").read_bytes()
 
-    package = tmp_path / ".leaf"
-    package.mkdir()
-    (package / "authoring.md").write_bytes(b"\xff")
+    source.write_bytes(b"\xff")
 
     result = runner.invoke(interact.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
-    assert "authoring.md must be UTF-8" in result.output
-    assert (page / "authoring.md").read_bytes() == before
+    assert "guidance/author.md must be UTF-8" in result.output
+    assert (page / "guidance" / "author.md").read_bytes() == before
+
+
+def test_init_refuses_a_noncanonical_guidance_audience(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    guidance = tmp_path / ".leaf" / "guidance"
+    guidance.mkdir(parents=True)
+    malformed = guidance / "Project Lead.md"
+    malformed.write_text("Use the project package.\n")
+    page = tmp_path / "page"
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+
+    assert result.exit_code != 0
+    assert f"{malformed} must be named <audience>.md" in result.output
+    assert not page.exists()
 
 
 def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
@@ -1333,7 +1351,7 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     [
         ("theme.css", True),
         ("registry.json", True),
-        ("authoring.md", True),
+        ("guidance", False),
         ("widgets", False),
         ("vendor", False),
     ],
@@ -1469,7 +1487,7 @@ def test_package_command_accepts_the_root_of_a_standalone_package_repo(
     assert result.exit_code == 0, result.output
     assert (package / "registry.json").is_file()
     assert (package / "theme.css").is_file()
-    assert (package / "authoring.md").is_file()
+    assert (package / "guidance").is_dir()
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
 
@@ -1589,7 +1607,7 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert theme.read_text() == ":root { --accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
-    (layer / "authoring.md").write_text("Keep me.\n")
+    (layer / "guidance" / "author.md").write_text("Keep me.\n")
     before = {
         path.relative_to(layer): path.read_bytes()
         for path in layer.rglob("*")
@@ -1677,12 +1695,14 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     package = tmp_path / ".leaf"
     assert json.loads((package / "registry.json").read_text()) == {}
     assert (package / "theme.css").is_file()
-    assert (package / "authoring.md").read_text() == ""
+    assert list((package / "guidance").iterdir()) == []
     assert (package / "widgets").is_dir()
     assert (package / "vendor").is_dir()
 
     entry = add_test_widget(package, "lf-callout", upgrade=True)
-    (package / "authoring.md").write_text("# Callouts\n\nUse them for short notices.\n")
+    (package / "guidance" / "author.md").write_text(
+        "# Callouts\n\nUse them for short notices.\n"
+    )
     (package / "widgets" / "callout-format.js").write_text(
         'export const label = "Heads up";\n'
     )
@@ -1696,7 +1716,9 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert initialized.exit_code == 0, initialized.output
     assert "lf-callout {" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
-    assert "Use them for short notices." in (page / "authoring.md").read_text()
+    assert (
+        "Use them for short notices." in (page / "guidance" / "author.md").read_text()
+    )
     assert (page / "widgets" / "lf-callout.js").is_file()
     assert (page / "widgets" / "callout-format.js").read_text() == (
         package / "widgets" / "callout-format.js"
@@ -1954,7 +1976,7 @@ def test_package_refuses_sources_aliased_to_page_owned_state(
     initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     target = page / page_name
-    if source_name in interact.VENDORED_DIRS:
+    if source_name in interact.BROWSER_DIRS:
         target.mkdir(exist_ok=True)
     before = {
         path.relative_to(page): path.read_bytes()
@@ -2096,12 +2118,24 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         "export const ready = (el) => { el.dataset.ready = '1'; };\n"
     )
     (widget_package / "vendor" / "solo.json").write_text('{"accent":"plum"}\n')
-    (widget_package / "authoring.md").write_text("# Solo widget\n\nUse one solo.\n")
+    (widget_package / "guidance").mkdir()
+    (widget_package / "guidance" / "author.md").write_text(
+        "# Solo widget\n\nUse one solo.\n"
+    )
+    (widget_package / "guidance" / "worker.md").write_text(
+        "# Solo worker\n\nReport the result.\n"
+    )
 
     theme_package = tmp_path / "night"
     theme_package.mkdir()
     (theme_package / "theme.css").write_text(":root { --solo-night: 1; }\n")
-    (theme_package / "authoring.md").write_text("# Night theme\n\nUse after dusk.\n")
+    (theme_package / "guidance").mkdir()
+    (theme_package / "guidance" / "author.md").write_text(
+        "# Night theme\n\nUse after dusk.\n"
+    )
+    (theme_package / "guidance" / "reviewer.md").write_text(
+        "# Night reviewer\n\nCheck the contrast.\n"
+    )
 
     page = tmp_path / "page"
     initialized = CliRunner().invoke(
@@ -2126,8 +2160,17 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
     assert theme.index("lf-solo { --lf-frame: 1; }") < theme.index("--solo-night: 1")
-    guidance = (page / "authoring.md").read_text()
+    guidance = (page / "guidance" / "author.md").read_text()
     assert guidance.index("# Solo widget") < guidance.index("# Night theme")
+    assert "Report the result." in (page / "guidance" / "worker.md").read_text()
+    assert "Check the contrast." in (page / "guidance" / "reviewer.md").read_text()
+
+    audiences = CliRunner().invoke(interact.cli, ["page", "guidance", str(page)])
+    worker = CliRunner().invoke(interact.cli, ["page", "guidance", str(page), "worker"])
+    assert audiences.exit_code == 0, audiences.output
+    assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
+    assert worker.exit_code == 0, worker.output
+    assert worker.output == "# Solo worker\n\nReport the result.\n"
 
     revendored = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
@@ -2172,19 +2215,31 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert packaged_registry["$layer"]["packages"] == [package]
     assert not (plain / "widgets" / "lf-command.js").exists()
     assert (command / "widgets" / "lf-command.js").is_file()
-    assert (plain / "authoring.md").read_text() == ""
-    assert "# Command Hub package" in (command / "authoring.md").read_text()
+    assert list((plain / "guidance").iterdir()) == []
+    assert "# Command Hub package" in (command / "guidance" / "author.md").read_text()
+    plain_audiences = CliRunner().invoke(interact.cli, ["page", "guidance", str(plain)])
     plain_catalog = CliRunner().invoke(interact.cli, ["page", "catalog", str(plain)])
     packaged_catalog = CliRunner().invoke(
         interact.cli, ["page", "catalog", str(command)]
     )
+    assert plain_audiences.exit_code == 0, plain_audiences.output
+    assert plain_audiences.output == ""
     assert plain_catalog.exit_code == 0, plain_catalog.output
     assert packaged_catalog.exit_code == 0, packaged_catalog.output
     assert '"lf-worktree"' not in plain_catalog.output
     assert '"lf-worktree"' in packaged_catalog.output
-    assert "Package authoring guidance" not in plain_catalog.output
+    assert "Package guidance for authors" not in plain_catalog.output
     assert "# $command, declared by this layer." in packaged_catalog.output
+    assert "# Package guidance for authors" in packaged_catalog.output
     assert "# Command Hub package" in packaged_catalog.output
+    audiences = CliRunner().invoke(interact.cli, ["page", "guidance", str(command)])
+    coordinator = CliRunner().invoke(
+        interact.cli, ["page", "guidance", str(command), "coordinator"]
+    )
+    assert audiences.exit_code == 0, audiences.output
+    assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
+    assert coordinator.exit_code == 0, coordinator.output
+    assert "Keep each host task handle" in coordinator.output
 
     revendor = CliRunner().invoke(interact.cli, ["page", "init", str(command)])
     assert revendor.exit_code == 0, revendor.output
@@ -2201,4 +2256,4 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert removed_registry["$layer"]["packages"] == []
     assert "lf-command" not in removed_registry
     assert not (command / "widgets" / "lf-command.js").exists()
-    assert (command / "authoring.md").read_text() == ""
+    assert list((command / "guidance").iterdir()) == []

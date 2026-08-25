@@ -30,8 +30,10 @@ A page directory holds:
                          each x- key means), and the page's vocabulary stamp ($events,
                          x-state): the one statement of what this page's vendored
                          runtime speaks
-    authoring.md         package-owned guidance for using this page's vocabulary,
-                         concatenated in package order and printed by `page catalog`
+    guidance/            package-owned guidance grouped by audience. Files with the
+                         same name concatenate in package order; `page catalog` adds
+                         author.md to the vocabulary, while `page guidance` reads any
+                         audience
     icon.svg             the mark the tab wears, whose lf-tone element the runtime
                          paints in whatever colour the banner's dot is wearing — so a
                          reader with six leaves open sees which one wants them
@@ -647,9 +649,12 @@ from leaf_interact.schema import (
     ANSWER_ASK_INSTRUCTION,
     ASSETS,  # noqa: F401 - public facade re-export
     BINARY_TYPES,
+    BROWSER_DIRS,
     CONTENT_TYPES,
     DEFAULT_PACKAGE,
     EXTENSION_SCHEMA,  # noqa: F401 - public facade re-export
+    GUIDANCE_DIR,
+    GUIDANCE_FILE,
     KERNEL,
     KEY_COOKIE,
     LAYER_PLACEHOLDER,
@@ -657,12 +662,11 @@ from leaf_interact.schema import (
     MEDIA_TYPES,
     NO_KEY,
     ORPHAN_GRACE_SECS,  # noqa: F401 - public facade re-export
+    PACKAGE_DIRS,
     PACKAGE_FILES,
-    PACKAGE_GUIDANCE,
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SERVED_PATH,
-    VENDORED_DIRS,
     VENDORED_FILES,
 )
 from leaf_interact.service import (
@@ -1426,7 +1430,7 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
                 sys.exit(f"{path} must be a file")
-        for sub in VENDORED_DIRS:
+        for sub in PACKAGE_DIRS:
             directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
                 continue
@@ -1435,6 +1439,8 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
             for path in directory.iterdir():
                 if not path.is_file():
                     sys.exit(f"{path} must be a file")
+                if sub == GUIDANCE_DIR and not GUIDANCE_FILE.fullmatch(path.name):
+                    sys.exit(f"{path} must be named <audience>.md")
         roots.append(root)
     return roots
 
@@ -1449,7 +1455,7 @@ def input_paths(inputs: list[Path]) -> list[Path]:
             for name in PACKAGE_FILES
             if ((path := root / name).exists() or path.is_symlink())
         )
-        for sub in VENDORED_DIRS:
+        for sub in PACKAGE_DIRS:
             directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
                 continue
@@ -1507,20 +1513,23 @@ def composed_theme(inputs: list[Path]) -> str:
     return "".join(parts)
 
 
-def composed_authoring(inputs: list[Path]) -> str:
-    """Package-owned authoring guidance, in layer precedence order."""
-    parts = []
+def composed_guidance(inputs: list[Path]) -> dict[str, bytes]:
+    """Package guidance joined by audience in layer precedence order."""
+    parts: dict[str, list[str]] = {}
     for root in inputs:
-        path = root / PACKAGE_GUIDANCE
-        if not path.is_file():
+        directory = root / GUIDANCE_DIR
+        if not directory.is_dir():
             continue
-        try:
-            guidance = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            sys.exit(f"{path} must be UTF-8")
-        if guidance.strip():
-            parts.append(guidance.rstrip() + "\n")
-    return "\n".join(parts)
+        for path in sorted(directory.iterdir()):
+            if not path.is_file():
+                continue
+            try:
+                guidance = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                sys.exit(f"{path} must be UTF-8")
+            if guidance.strip():
+                parts.setdefault(path.name, []).append(guidance.rstrip() + "\n")
+    return {name: "\n".join(passages).encode() for name, passages in parts.items()}
 
 
 def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
@@ -1544,7 +1553,7 @@ class LayerComposition(NamedTuple):
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     incoming = incoming_registry(roots)
-    directory_sources = {sub: composed_dir_files(roots, sub) for sub in VENDORED_DIRS}
+    directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(
         tag
         for tag, entry in incoming.items()
@@ -1559,10 +1568,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
             + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
         )
 
-    top_files = {
-        "theme.css": composed_theme(roots).encode(),
-        PACKAGE_GUIDANCE: composed_authoring(roots).encode(),
-    }
+    top_files = {"theme.css": composed_theme(roots).encode()}
     for name in VENDORED_FILES:
         if name == "registry.json" or name in top_files:
             continue
@@ -1581,8 +1587,9 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         sub: {
             name: source.read_bytes() for name, source in directory_sources[sub].items()
         }
-        for sub in VENDORED_DIRS
+        for sub in BROWSER_DIRS
     }
+    directory_files[GUIDANCE_DIR] = composed_guidance(roots)
     return LayerComposition(incoming, top_files, directory_files)
 
 
@@ -1679,7 +1686,7 @@ def _vendor_page(
     roots = checked_layer_inputs(inputs)
     destinations = [
         *(page_target / name for name in PACKAGE_FILES),
-        *(page_target / sub for sub in ("versions", *VENDORED_DIRS)),
+        *(page_target / sub for sub in ("versions", *PACKAGE_DIRS)),
     ]
     located_destinations = located(destinations)
     if overlap := next(
@@ -1751,7 +1758,7 @@ def _vendor_page(
     # than its modules.
     if (page_dir.exists() or page_dir.is_symlink()) and not page_dir.is_dir():
         sys.exit(f"{page_dir} must be a directory")
-    directories = [page_dir / "versions"] + [page_dir / sub for sub in VENDORED_DIRS]
+    directories = [page_dir / "versions"] + [page_dir / sub for sub in PACKAGE_DIRS]
     for destination in directories:
         if destination.is_symlink():
             sys.exit(f"{destination} must be a real directory, not a symlink")
@@ -1763,7 +1770,7 @@ def _vendor_page(
         *(page_dir / name for name in top_files),
         *(
             page_dir / sub / name
-            for sub in VENDORED_DIRS
+            for sub in PACKAGE_DIRS
             for name in directory_files[sub]
         ),
     ]
@@ -1781,7 +1788,7 @@ def _vendor_page(
         claim_path(page_dir).unlink(missing_ok=True)
     page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     (page_dir / "versions").mkdir(exist_ok=True)
-    for sub in VENDORED_DIRS:
+    for sub in PACKAGE_DIRS:
         (page_dir / sub).mkdir(exist_ok=True)
     # Stage the whole layer together. The registry is the declaration that
     # makes every other file live, so it is the final replacement.
@@ -1792,13 +1799,13 @@ def _vendor_page(
     ]
     writes.extend(
         (page_dir / sub / name, data, False)
-        for sub in VENDORED_DIRS
+        for sub in PACKAGE_DIRS
         for name, data in directory_files[sub].items()
     )
     writes.append((page_dir / "registry.json", top_files["registry.json"], False))
     replace_files(writes)
 
-    for sub in VENDORED_DIRS:
+    for sub in PACKAGE_DIRS:
         destination = page_dir / sub
         for stale in destination.iterdir():
             if stale.name not in directory_files[sub] and (
@@ -1877,7 +1884,7 @@ def initialized_page_owning(path: Path):
         if not (
             (root / "versions").is_dir()
             and all((root / name).is_file() for name in VENDORED_FILES)
-            and all((root / name).is_dir() for name in VENDORED_DIRS)
+            and all((root / name).is_dir() for name in BROWSER_DIRS)
         ):
             continue
         if (
@@ -1941,14 +1948,13 @@ def check_package(package: Path, *, require_exists: bool) -> tuple[Path, list]:
 def cmd_package_init(package: Path) -> Path:
     package, protected = check_package(package, require_exists=False)
     refuse_package_overlap(
-        [package, *(package / name for name in (*PACKAGE_FILES, *VENDORED_DIRS))],
+        [package, *(package / name for name in (*PACKAGE_FILES, *PACKAGE_DIRS))],
         protected,
     )
 
     files = {
         "registry.json": b"{}\n",
         "theme.css": b"",
-        PACKAGE_GUIDANCE: b"",
     }
     writes = [
         (package / name, contents, False)
@@ -1956,7 +1962,7 @@ def cmd_package_init(package: Path) -> Path:
         if not ((package / name).exists() or (package / name).is_symlink())
     ]
     package.mkdir(parents=True, exist_ok=True)
-    for name in VENDORED_DIRS:
+    for name in PACKAGE_DIRS:
         (package / name).mkdir(exist_ok=True)
     replace_files(writes)
     print(f"initialized {package}")
@@ -3046,6 +3052,27 @@ CATALOG_FACTS = (
 CATALOG_INTERNAL_FACTS = {"$events", "$layer"}
 
 
+def page_guidance(page_dir: Path) -> dict[str, Path]:
+    """The vendored guidance files indexed by their package-defined audience."""
+    directory = page_dir / GUIDANCE_DIR
+    return {path.stem: path for path in sorted(directory.iterdir())}
+
+
+def cmd_guidance(page_dir: Path, audience: str | None) -> None:
+    require_registry(page_dir)
+    guides = page_guidance(page_dir)
+    if audience is None:
+        if guides:
+            print("\n".join(guides))
+        return
+    if path := guides.get(audience):
+        text = path.read_text(encoding="utf-8")
+        print(text, end="" if text.endswith("\n") else "\n")
+        return
+    available = ", ".join(guides) or "none"
+    sys.exit(f"guidance audience {audience!r} is not available; available: {available}")
+
+
 def cmd_catalog(page_dir: Path) -> None:
     reg = require_registry(page_dir)
     print(CATALOG_PREAMBLE)
@@ -3066,9 +3093,9 @@ def cmd_catalog(page_dir: Path) -> None:
         if key.startswith("$"):
             print(f"\n# {key}, declared by this layer.\n")
             print(json.dumps(reg[key], indent=2, ensure_ascii=False))
-    guidance = page_dir / PACKAGE_GUIDANCE
-    if guidance.is_file() and (text := guidance.read_text(encoding="utf-8").strip()):
-        print("\n# Package authoring guidance\n")
+    guidance = page_guidance(page_dir).get("author")
+    if guidance and (text := guidance.read_text(encoding="utf-8").strip()):
+        print("\n# Package guidance for authors\n")
         print(text)
 
 

@@ -6,7 +6,7 @@
     <title>leaf packages</title>
     <meta
       name="description"
-      content="Create Leaf packages that carry themes, widgets, modules, libraries, and authoring guidance."
+      content="Create Leaf packages that carry themes, widgets, modules, libraries, and guidance for named audiences."
     />
     <link
       rel="icon"
@@ -44,10 +44,10 @@
         <h1>Package what a page needs</h1>
         <p class="lede" id="lede">
           A package may change the theme, add one <code>lf-*</code> element, carry a
-          related widget family, or supply browser behavior and libraries.
-          <code>page init</code> combines the kernel and packages, checks the result,
-          and vendors one layer into the page. Leaf's content defaults use the same
-          contract. The bundled
+          related widget family, supply browser behavior and libraries, or carry
+          guidance for the roles using the page. <code>page init</code> combines the
+          kernel and packages, checks the result, and vendors one layer into the page.
+          Leaf's content defaults use the same contract. The bundled
           <a
             href="https://github.com/max-sixty/leaf/tree/main/plugins/leaf/skills/leaf/packages/default"
             ><code>default/</code></a
@@ -94,14 +94,15 @@
         <pre><code>package/
 ├── registry.json       widget entries and shared $ declarations
 ├── theme.css           rules appended to the cascade
-├── authoring.md        guidance appended to page catalog
+├── guidance/           Markdown guides named for their audiences
+├── runtime/            private modules and replacements
 ├── widgets/            entry modules and private helpers
 ├── vendor/             third-party libraries or data
 ├── icon.svg            optional replacement
 └── leaf.js             optional runtime replacement</code></pre>
         <p>
-          <code>package init</code> creates the registry, theme, authoring guide, and
-          two directories without replacing existing contents. After editing any part,
+          <code>package init</code> creates the registry, theme, and contribution
+          directories without replacing existing contents. After editing any part,
           <code>package check</code> validates the directory through the same
           composition gate that <code>page init</code> uses.
         </p>
@@ -110,18 +111,22 @@ leaf package check packages/callout</code></pre>
         <p>
           Run project commands from the project root. During <code>page init</code>, the
           kernel and bundled default package load first, followed by explicit packages
-          in command order, the user package, and the project package. Theme files join
-          in that order. A later registry entry or same-named file replaces the earlier
-          one; members of a shared <code>$</code> entry compose individually. Files may
-          be symlinked, but package and page-owned paths must resolve separately so one
-          scope can never overwrite another.
+          in command order, the user package, and the project package. Theme files and
+          same-audience guidance join in that order. A later registry entry or
+          same-named runtime, widget, or vendor file replaces the earlier one; members
+          of a shared <code>$</code> entry compose individually. Files may be symlinked,
+          but package and page-owned paths must resolve separately so one scope can
+          never overwrite another.
         </p>
         <p>
-          Package-specific authoring advice belongs in <code>authoring.md</code>. Guides
-          concatenate in package order, and <code>page catalog</code> prints them after
-          the merged widget vocabulary and shared <code>$</code> declarations. The
-          widget and the instructions needed to use it therefore arrive through the same
-          selected package.
+          Files directly under <code>guidance/</code> are named for their audience. A
+          filename matches <code>[a-z][a-z0-9-]*\.md</code>; examples include
+          <code>author.md</code>, <code>reviewer.md</code>, and <code>worker.md</code>.
+          Packages define the audience names; Leaf does not keep a role list.
+          <code>leaf page guidance PAGE</code> lists the vendored audiences, and
+          <code>leaf page guidance PAGE AUDIENCE</code> prints one. The
+          <code>author</code> guide also follows the merged vocabulary in
+          <code>page catalog</code>.
         </p>
         <p>
           <code>--package</code> accepts a project-relative or <code>~</code> package
@@ -682,7 +687,8 @@ customElements.define(
         <h2>Vendor and check the result</h2>
         <pre><code>leaf package check .leaf
 leaf page init &lt;page-dir&gt;
-leaf page catalog &lt;page-dir&gt;</code></pre>
+leaf page catalog &lt;page-dir&gt;
+leaf page guidance &lt;page-dir&gt;</code></pre>
         <p>
           Then use the custom element in the page's next
           <code>versions/vN.html</code> file and run the same gate as any other version:

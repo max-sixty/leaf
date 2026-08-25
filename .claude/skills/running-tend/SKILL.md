@@ -41,9 +41,10 @@ pulls next. Treat it as live.
 
 Nearly every test drives a real browser, so a red run has more ways to be
 uninteresting here than in a repo of unit tests. Classify before writing a fix —
-but not by whether the failures move between runs. They move here whichever
-class they are, because `main` moves fast and reddens on a different test most
-days. Sort on what the failure is.
+but not by whether the failures move between runs. `main` reddens on a different
+test most days, and each of those failures reproduced on its own commit, most of
+them deterministically, so movement across runs says nothing about which class
+you have. Sort on what the failure is.
 
 - **A read or press that ran before the page said it was ready.** The dominant
   class here, and the one a re-run hides. The test measures a point, presses it,
@@ -61,17 +62,20 @@ days. Sort on what the failure is.
 - **Contention.** Concurrent suites starve each other, and the failures surface
   as `Page.goto` timeouts and slow-read assertion failures scattered across
   unrelated tests — a shape that reads as "the browser layer is broken" when it
-  means "the machine was busy". Confirm it from the machine rather than from the
-  spread: unrelated tests failing on waits none of them owns, with the box
-  demonstrably loaded. It is the rarest of the four.
+  means "the machine was busy". Confirm it from the run rather than from the
+  spread: unrelated tests failing on waits none of them owns, and every job on
+  the commit slow against its usual wall time. It is the rarest of the four.
 - **The network.** Tests marked `nightly` shell out to `bin/leaf` on the paths
   that resolve Playwright outside the script's lock, so they need pypi. CI
   passes `--run-nightly` deliberately (it holds a network). If only those tests
   fail while the rest of the suite is green, suspect the index rather than the
   code.
 
-Reproducing at `-n0` separates a race from contention and keeps the evidence. A
-re-run discards it: the second attempt replaces the run's reported conclusion
+Reproducing at `-n0` keeps the evidence, but it classifies in one direction
+only: a failure that reproduces is real, while one that does not is still
+unclassified — `-n0` also drops the load some races need, so repeat it to
+measure a rate before falling through to contention. A re-run discards the
+evidence instead: the second attempt replaces the run's reported conclusion
 while both stay separately true, so a diagnosis written against attempt 1 does
 not describe attempt 2. If you re-run anyway, cite the attempt you read.
 

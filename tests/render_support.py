@@ -3683,64 +3683,6 @@ def wait_standing(page, text, ids=()):
         ) from None
 
 
-def hide_scroll_operation_promises(page):
-    """Exercise the scrollend path used by current Firefox and Safari."""
-    page.evaluate("""() => {
-        const scrollTo = document.body.scrollTo.bind(document.body);
-        document.body.scrollTo = options => { scrollTo(options); };
-        const scrollIntoView = Element.prototype.scrollIntoView;
-        Element.prototype.scrollIntoView = function(options) {
-            scrollIntoView.call(this, options);
-        };
-    }""")
-
-
-def hold_arrival_scroll_ends(page):
-    """Hold each fallback edge so an arrival can be inspected between operations."""
-    page.evaluate("""() => {
-        const add = document.body.addEventListener.bind(document.body);
-        const remove = document.body.removeEventListener.bind(document.body);
-        window.__lfHeldScrollEnds = new Set();
-        document.body.addEventListener = (type, listener, options) => {
-            if (type === 'scrollend') {
-                window.__lfHeldScrollEnds.add(listener);
-                return;
-            }
-            return add(type, listener, options);
-        };
-        document.body.removeEventListener = (type, listener, options) => {
-            if (type === 'scrollend') {
-                window.__lfHeldScrollEnds.delete(listener);
-                return;
-            }
-            return remove(type, listener, options);
-        };
-        const scrollIntoView = Element.prototype.scrollIntoView;
-        Element.prototype.scrollIntoView = function(options) {
-            if (this.closest('.lf-ui')) scrollIntoView.call(this, options);
-            else document.body.scrollTop += 1;
-        };
-        const scrollTo = document.body.scrollTo.bind(document.body);
-        window.__lfSmoothGoals = [];
-        document.body.scrollTo = options => {
-            if (options?.behavior === 'smooth') {
-                window.__lfSmoothGoals.push(options.top);
-                return;
-            }
-            scrollTo(options);
-        };
-        window.__lfArrivalStarts = 0;
-        document.addEventListener('animationstart', event => {
-            if (event.animationName.endsWith('-arrive')) window.__lfArrivalStarts++;
-        }, true);
-        window.__lfReleaseScrollEnd = () => {
-            const listener = [...window.__lfHeldScrollEnds][0];
-            if (!listener) throw new Error('no held scrollend');
-            listener(new Event('scrollend'));
-        };
-    }""")
-
-
 HOVERED = """(text) => {
     const h = CSS.highlights.get('lf-mark-hover');
     const said = (h ? [...h].map(r => r.toString()).join('') : '').split(/\\s+/)

@@ -1050,28 +1050,24 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     # names it under a negation to withhold the live page's scroller from a file that has
     # no panel to scroll beside; a rule that dresses no element can leak onto none, and
     # what the pin is for is the day one of these stops being either kind.
-    assert (
-        {c for c in surface["global"] if c.startswith("lf-")}
-        == {
-            "lf-copy",
-            "lf-ui",
-            "lf-btn",
-            "lf-pill",
-            "lf-address",
-            "lf-over-mark",
-            "lf-mark-el",
-            "lf-mark-hover",  # the same element mark, for the one the pointer indicates
-            "lf-mark-here",  # the same element mark, for the comment the reader is in
-            "lf-pending",
-            "lf-ins-block",
-            "lf-mark-note",
-            "lf-aiming",
-            "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
-            "lf-arrived",  # the arrival's clock, on the blocks the standing mark is painted over
-            "lf-over-item",
-            "lf-quiet",
-        }
-    ), (
+    assert {c for c in surface["global"] if c.startswith("lf-")} == {
+        "lf-copy",
+        "lf-ui",
+        "lf-btn",
+        "lf-pill",
+        "lf-address",
+        "lf-over-mark",
+        "lf-mark-el",
+        "lf-mark-hover",  # the same element mark, for the one the pointer indicates
+        "lf-mark-here",  # the same element mark, for the comment the reader is in
+        "lf-pending",
+        "lf-ins-block",
+        "lf-mark-note",
+        "lf-aiming",
+        "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
+        "lf-over-item",
+        "lf-quiet",
+    }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
     page.close()
@@ -1250,9 +1246,8 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     thread.scroll_into_view_if_needed()
     before = page.evaluate(BOTH_BOXES)
     thread.click()
-    # The arrival is announced rather than immediate: the travel settles the platform's
-    # own scroll first and centres from inside that completion, so the destination is
-    # the fact to wait on and a read after the press is a read of the nudge into view.
+    # The exact destination is the completion fact: the target first comes into view,
+    # then the region-local correction centres it.
     try:
         page.wait_for_function(
             f"() => {{ const w = ({WHERE})(); return Math.abs(w.at - w.want) < 2; }}"
@@ -1371,13 +1366,8 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     }"""
     stood = page.evaluate(seen)
     thread.click()
-    # The travel is announced on landing, so it is deferred through a promise chain the
-    # press starts. An absence read before that chain runs is an absence of anything at
-    # all; drained, what is left is the press's whole effect.
-    page.evaluate(
-        "async () => { for (let i = 0; i < 3; i++)"
-        "   await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))); }"
-    )
+    # Reduced motion makes both region-local scroll operations instant, so the read
+    # directly after the press is the whole travel.
     after = page.evaluate(BOTH_BOXES)
     page.keyboard.up("Alt")
 

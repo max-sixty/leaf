@@ -2224,53 +2224,17 @@ const STRIP_MIN = parseFloat(
    standing mark's accent ink, because one focus decides both and an open composer holds
    it.
 
-   The standing mark's own wash is a mix the arrival drives (--lf-mark-lift, 1 on landing
-   and 0 at rest), because the two moments want different volumes out of one paint. On
-   landing, the reader has just been carried down a page holding a dozen marks that all
-   look alike, and the question is *which one* — which nothing at this palette's resting
-   strengths answers loudly enough: the marks' two inks are a violet and a navy of nearly
-   the same darkness, and the wash cannot be taken past --mark-strong without spending
-   what code read through a mark still has to clear. Nothing in the suite gates that —
-   theme.css says so where it states the numbers, which is why they are a measurement
-   kept by hand and not a floor something will catch. Measured for this: a resting wash
-   past --mark-strong takes the worst syntax role from 4.06 to 3.49, and one close enough
-   to be cheap is not one the eye can find. That is what fixes --mark-strong as the top of
-   the ramp, and it is why the step separating the standing mark from the hovered one was
-   taken out of the hover's side. It buys a second glance, not a landing: arriving among a
-   dozen marks, the question is which one, and one step of wash does not carry across the
-   distance the eye has just travelled. A moment of motion answers it where a stronger
-   colour cannot, and costs nothing at rest.
-   Afterwards the question is only *is it still that one*, which the settled wash and the
-   accent ink answer to a second glance. The pulse decays into that state rather than
-   uncovering it, so this is one paint at two volumes. The reduced-motion guard in
-   theme.css collapses the animation onto its resting end, which is that state: a reader
-   who asked for no motion lands on the settled mark and does without the louder moment,
-   which is the trade the preference asks for and not a free one — the landing is the
-   case the lift was for. What answers for them is the same thing that answers on a
-   second glance: a wash a step above every other mark's, and the accent ink.
-
    Stated once and installed twice, because the registry is the document's and the
    ::highlight() rule is not: a rule in the document styles no glyph inside a shadow
    tree, so a widget that renders the page's words into one (x-shadow) adopts this same
    text (`markSheet`). Two copies of these declarations would be two chances for a mark
    to mean one thing in the document and another inside a diff. */
 const MARK_RULES = `
-  /* The arrival's lift, on whichever boxes carry the standing mark (paintStanding). Here
-     rather than in the chrome's own block so a mark staged in a widget's shadow tree
-     lifts too: its carrier is inside that tree, and a rule in the document reaches no
-     element there. The 1.2s is the panel's own arrival (.lf-thread.flash), so either
-     surface spends the same duration saying that a landing happened; the page clock
-     starts only when the final scroll operation completes without interruption. The
-     shorthand replaces any animation the page had put on that box, which is the cost of
-     hanging a runtime class on an authored element; the alternative was hanging it on
-     body, which costs every element on the page a style recalculation per frame. */
-  @keyframes lf-runtime-4f3c2a8d-arrive { from { --lf-mark-lift: 1; } to { --lf-mark-lift: 0; } }
-  .lf-arrived { animation: lf-runtime-4f3c2a8d-arrive 1.2s ease-out; }
   ::highlight(lf-mark) { background-color: var(--mark);
     text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
   ::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
   ::highlight(lf-mark-here) {
-    background-color: color-mix(in srgb, var(--accent) calc(var(--lf-mark-lift) * 45%), var(--mark-strong));
+    background-color: var(--mark-strong);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
@@ -6510,82 +6474,10 @@ function captureView() {
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the reader asked for is the other case, and says so.
-// Which box, in every one of these: the document's scroller for everything the
-// document holds, and the panel's own list for a widget an agent sent in a reply
-// (scrollerFor). They default to the page's because that is what all but one
-// caller means, and a scrollend is the box's own event rather than the window's.
-function nextScrollEnd(box) {
-  if (!("onscrollend" in box)) return null;
-  let cancel;
-  const completion = new Promise((resolve) => {
-    let settled = false;
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      box.removeEventListener("scrollend", ended);
-      resolve(result);
-    };
-    const ended = () => finish({});
-    // Cancellation is completion too. Removing a listener without settling its promise
-    // leaves every continuation retaining this operation, and a superseding scroll at
-    // the same offset may emit no edge that could ever release it.
-    cancel = () => finish({ interrupted: true });
-    box.addEventListener("scrollend", ended, { passive: true });
-  });
-  return { completion, cancel };
-}
-const scrollGoal = (dy, box) =>
-  Math.max(0, Math.min(box.scrollHeight - box.clientHeight, box.scrollTop + dy));
-const jumpBy = (dy, behavior = "instant", box = pageScroller) => {
-  const start = box.scrollTop;
-  const goal = scrollGoal(dy, box);
-  // Installed before the operation so Firefox and Safari cannot finish a short glide
-  // between the call and its fallback listener. Chromium's operation promise wins when
-  // present and removes this listener immediately.
-  const fallback = behavior === "smooth" ? nextScrollEnd(box) : null;
-  const nativeCompletion = box.scrollTo({ top: goal, behavior });
-  let completion = null;
-  let cancel = null;
-  if (typeof nativeCompletion?.then === "function") {
-    fallback?.cancel();
-    completion = nativeCompletion;
-  } else if (behavior === "instant" || Math.abs(start - goal) <= 1) {
-    fallback?.cancel();
-    completion = Promise.resolve({});
-  } else {
-    completion = fallback?.completion ?? null;
-    cancel = fallback?.cancel ?? null;
-  }
-  return {
-    goal,
-    // Chromium reports an `interrupted` result in addition to resolving at completion.
-    // Other promise implementations and the scrollend fallback need no such field: the
-    // destination check at the consumer distinguishes a landing from an interruption.
-    completion,
-    cancel,
-  };
-};
-
-// Drain the preliminary instant scroll before arming the final glide's fallback. Without
-// this boundary, the final listener can consume the earlier operation's scrollend and
-// announce while the target is still short of its destination.
-function settlePreliminaryScroll(move, box = pageScroller) {
-  const before = box.scrollTop;
-  const fallback = nextScrollEnd(box);
-  const nativeCompletion = move();
-  // Any change schedules a scrollend, including a one-pixel or subpixel correction.
-  // The one-pixel allowance belongs only to judging the final destination below.
-  const moved = box.scrollTop !== before;
-  if (typeof nativeCompletion?.then === "function") {
-    fallback?.cancel();
-    return { completion: nativeCompletion, cancel: null };
-  }
-  if (!moved || !fallback) {
-    fallback?.cancel();
-    return { completion: Promise.resolve({}), cancel: null };
-  }
-  return fallback;
-}
+// The document scrolls for its own content; the panel's list scrolls for a widget an
+// agent sent in a reply. Most callers mean the document, so it remains the default.
+const jumpBy = (dy, behavior = "instant", box = pageScroller) =>
+  box.scrollBy({ top: dy, behavior });
 function restoreView(view) {
   // Where the walk left off, put back before the scroll below restores the coarser
   // reading of the same fact — and put back whether or not this version answered that
@@ -7334,130 +7226,24 @@ function scrollToElement(el, behavior = SCROLL, block = "center") {
   reveal(el);
   el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
   const box = scrollerFor(el);
-  if (!under(el, box)) return { goal: box.scrollTop, completion: null, cancel: null };
-  return jumpBy(centreBy(el, block, box), behavior, box);
+  if (!under(el, box)) return;
+  jumpBy(centreBy(el, block, box), behavior, box);
 }
 
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
 // panel and the page can't disagree about whether the passage survived. A painted range has
 // no element to scroll into view, so its own box does the work.
 //
-// This is the one function every "show me that comment's passage" ends in — the quote's
-// press, the hidden count button, `g c 2`, the j/k walk — so the arrival is announced here
-// rather than at each of them, and a way in added later inherits it without being told.
-// After the guard, so a thread whose passage this version no longer holds pulses nothing:
-// there is no mark to look at, and a page flashing about a passage it hasn't got is
-// pointing at nothing. Which mark lifts is not this function's to say — the paint follows
-// the focus (paintStanding), and every caller has already put the reader in the thread.
-//
-// The announcement starts at the destination rather than at the request. Both travels
-// first make the target's own box visible instantly and then glide it to its final place.
-// settlePreliminaryScroll drains the first operation before centre starts the second, so
-// either the final operation promise or its one-shot scrollend fallback belongs to the
-// glide alone. A token prevents a superseded preliminary edge from even starting its
-// final glide and prevents older completions from announcing out of order. The anchor
-// itself is another part of that operation: a live version can replace its Range while
-// the preliminary edge is pending, so that edge restarts the trip against a new current
-// record rather than centring the detached one it began with.
-//
-// A text mark's identity is its boundary points. Snapshot them because Range is live:
-// replacing an ancestor can mutate the old object before paintAnchors installs the new
-// record. An ordinary paint pass instead creates a fresh Range over the same points.
-const snapshotMark = (mark) =>
-  mark instanceof Range
-    ? {
-        startContainer: mark.startContainer,
-        startOffset: mark.startOffset,
-        endContainer: mark.endContainer,
-        endOffset: mark.endOffset,
-      }
-    : mark;
-const sameMark = (mark, snapshot) =>
-  mark instanceof Range
-    ? mark.startContainer === snapshot?.startContainer &&
-      mark.startOffset === snapshot.startOffset &&
-      mark.endContainer === snapshot.endContainer &&
-      mark.endOffset === snapshot.endOffset
-    : mark === snapshot && mark?.isConnected;
-let arrivalTravel = null;
-function announceThreadArrival(id, anchor, preliminary, centre, box = pageScroller) {
-  arrivalTravel?.cancel?.();
-  const token = { cancel: null };
-  const target = snapshotMark(anchor);
-  arrivalTravel = token;
-  const first = settlePreliminaryScroll(preliminary, box);
-  token.cancel = first.cancel;
-  first.completion.then(
-    (preliminaryResult) => {
-      if (arrivalTravel !== token) return;
-      if (preliminaryResult?.interrupted) {
-        arrivalTravel = null;
-        return;
-      }
-      const current = marksOf(id)[0];
-      if (!sameMark(current, target)) {
-        arrivalTravel = null;
-        // Repaint has supplied a new target, so restart against it. If this is still
-        // the old live Range, activation mutated it before repaint and there is no
-        // current geometry to follow yet; suppress this stale trip.
-        if (current !== anchor) scrollToThread(id);
-        return;
-      }
-      const travel = centre();
-      token.cancel = travel.cancel;
-      if (!travel.completion) {
-        arrivalTravel = null;
-        return;
-      }
-      travel.completion.then(
-        (result) => {
-          if (arrivalTravel !== token) return;
-          arrivalTravel = null;
-          if (result?.interrupted || Math.abs(box.scrollTop - travel.goal) > 1) return;
-          // A redraw may rebuild the same mark. It belongs to this arrival only while
-          // its boundaries and centred page position still match the measured target.
-          const current = marksOf(id)[0];
-          if (
-            !sameMark(current, target) ||
-            Math.abs(scrollGoal(centreBy(current, "center", box), box) - travel.goal) >
-              1
-          )
-            return;
-          if (focusedThreadOf()?.dataset.id === id) paintStanding(true);
-        },
-        () => {
-          if (arrivalTravel === token) arrivalTravel = null;
-        },
-      );
-    },
-    () => {
-      if (arrivalTravel === token) arrivalTravel = null;
-    },
-  );
-}
+// Every "show me that comment's passage" route ends here. The focus its caller already
+// placed in the thread owns the standing paint; this function owns only the travel. It
+// makes the target's box visible in both axes, then glides the exact mark to the centre
+// of the region that holds it. No transient effect waits on that motion or survives it
+// as separate state.
 function scrollToThread(id) {
   const where = marksOf(id)[0];
   if (!where) return;
   if (!(where instanceof Range)) {
-    reveal(where);
-    // A mark stands wherever its element does, and an element anchor may name a widget
-    // an agent sent in a reply — scrolled by the panel's list and by nothing else. The
-    // travel and the arrival it announces are that box's, or none at all where the
-    // element is one of the layer's fixed parts, which are in neither region.
-    const box = scrollerFor(where);
-    if (!under(where, box)) return;
-    announceThreadArrival(
-      id,
-      where,
-      () =>
-        where.scrollIntoView({
-          block: "nearest",
-          inline: "nearest",
-          behavior: "instant",
-        }),
-      () => jumpBy(centreBy(where, "center", box), SCROLL, box),
-      box,
-    );
+    scrollToElement(where);
     return;
   }
   const holder = where.startContainer.parentElement;
@@ -7465,17 +7251,8 @@ function scrollToThread(id) {
   // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
   // rendered diagram sits in a box with its own horizontal scroll, which the vertical
   // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
-  announceThreadArrival(
-    id,
-    where,
-    () =>
-      holder.scrollIntoView({
-        block: "nearest",
-        inline: "nearest",
-        behavior: "instant",
-      }),
-    () => jumpBy(centreBy(where), SCROLL),
-  );
+  holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+  jumpBy(centreBy(where), SCROLL);
 }
 
 // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which
@@ -7562,19 +7339,9 @@ function paintHover(id) {
 // Above the hover and below the draft. A pointer resting on the standing mark supplies
 // the middle wash, while this higher paint keeps the strongest wash and its accent ink:
 // the cursor promises the press, and the ink answers "which one".
-//
-// `arrived` says the reader was just carried here, and lifts the wash on the way in. It
-// is this function's rather than the travel's because the lift hangs on the boxes the
-// mark is painted over, and this is the only place that knows them — the travel knows an
-// id. Called from the final scroll operation's successful completion rather than left to
-// the next focus repaint: the standing paint arrived with focus, while this pulse belongs
-// to the later moment the mark itself arrives.
 const HERE = "lf-mark-here";
-const ARRIVED = "lf-arrived";
 let hereParts = [];
-let lifted = [];
-let lifting;
-function paintStanding(arrived = false) {
+function paintStanding() {
   const where = marksOf(focusedThreadOf()?.dataset.id);
   const parts = where.filter((mark) => mark instanceof Element);
   // Only what changed, because the anchor pass calls this and the anchor pass runs on
@@ -7594,40 +7361,6 @@ function paintStanding(arrived = false) {
       priority: 2,
     }),
   );
-  if (!arrived) return;
-
-  // The boxes the lift hangs on: an element anchor's own parts, and the block each
-  // painted range sits in. A block and not the range, because a range is not an element
-  // and a class needs one; the property inherits from there down to the glyphs, and the
-  // marks of other threads inside the same block are painted by rules that do not read
-  // it, so lifting their block lifts nothing of theirs.
-  //
-  // Restarted from the top on every arrival — two steps of the j/k walk in quick
-  // succession are two arrivals, and an animation left running would have the second
-  // land in the middle of the first's decay. Taking the class off and reading a layout
-  // box before putting it back is what makes the browser start it again rather than see
-  // no change; one read for the whole set, since they all restart together.
-  const carriers = [
-    ...new Set([
-      ...parts,
-      ...where
-        .filter((mark) => mark instanceof Range)
-        .map((range) => blockOf(range.startContainer))
-        .filter(Boolean),
-    ]),
-  ];
-  for (const el of lifted) el.classList.remove(ARRIVED);
-  void document.body.offsetWidth;
-  for (const el of carriers) el.classList.add(ARRIVED);
-  lifted = carriers;
-  // The class's way back off, so a box the reader has long since left is not still
-  // carrying an animation declaration that outranks whatever the page put there. Keyed,
-  // so a second arrival inside the window cannot cut its own pulse short.
-  clearTimeout(lifting);
-  lifting = setTimeout(() => {
-    for (const el of lifted) el.classList.remove(ARRIVED);
-    lifted = [];
-  }, 1300);
 }
 // Coalesced to a frame: scroll outruns layout, the hit-test reads layout, and a repaint
 // asks from inside a pass that must stay cheap enough to run from a mousedown. The frame

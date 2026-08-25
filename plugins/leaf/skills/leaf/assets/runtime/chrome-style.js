@@ -427,18 +427,6 @@ ${MARK_RULES}
      makes this runtime-private in the one CSS namespace scoping cannot protect. */
   @keyframes lf-runtime-4f3c2a8d-pulse { 50% { opacity: .35; } }
   @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
-  /* How lately the reader arrived at the standing mark, which is what its wash reads
-     (MARK_RULES). Registered, because an unregistered custom property is a string and
-     interpolates by swapping at the halfway point — a flash rather than a fade. It has
-     to inherit, because the wash is read where the glyphs are and the class can only be
-     put on a box above them; and an inherited property is invalidated down the whole
-     subtree of whatever animates it, which is why the class goes on the standing mark's
-     own boxes and not on body. Hung on body it recomputed every element's style on every
-     tick for the length of the pulse: on the gallery, 663ms of style recalculation and
-     156 layouts against 74ms and 2 with the invalidation confined, and a held j walks
-     that cost the length of the walk. Declared here rather than in MARK_RULES because a
-     registration is the document's however many trees read it. */
-  @property --lf-mark-lift { syntax: "<number>"; inherits: true; initial-value: 0; }
   @keyframes lf-runtime-4f3c2a8d-flash {
     0% { background: var(--hi-tint); } 100% { background: var(--card); }
   }

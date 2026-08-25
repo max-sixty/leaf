@@ -875,34 +875,12 @@ Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
-in, so the arrival is announced there. The target's own box first comes into
-view instantly, then `jumpBy` glides it to its final page position. The completion
-promise belongs to that final `scrollTo`. Where the browser does not return one,
-`settlePreliminaryScroll` consumes the instant operation's `scrollend` before
-`jumpBy` arms a one-shot listener for the glide. `announceThreadArrival` also
-requires the latest travel token, the commanded `scrollTop`, the same mark, and
-the matching focused thread before it calls `paintStanding(true)`. It snapshots
-a text mark's boundary points because `Range` is live and an ancestor replacement
-can mutate the old object before the next anchor pass; an ordinary paint pass creates
-a fresh `Range` over the same points. Chromium's promise result can report
-interruption; the destination and token checks cover
-implementations without that extension. A browser with neither signal keeps the
-standing paint and omits the pulse.
-
-The arrival lifts `--lf-mark-lift` from 1 to 0 over the 1.2s the panel's own
-arrival takes; `MARK_RULES` carries the argument for why the landing needs a lift
-rather than a stronger resting colour. An element anchor's ring does not lift —
-it already differs from an ordinary mark's hairline in weight as well as hue.
-The theme's reduced-motion guard collapses the animation onto its resting end,
-which is the standing state.
-
-The property is registered and inherits, so it is invalidated down the subtree of
-whatever animates it. The class therefore goes on the standing mark's own boxes —
-an element anchor's parts, and the block each painted range sits in — and never
-on `body`, where the pulse cost every element on the page a style recalculation
-per frame: 663ms of recalculation and 156 layouts on the gallery against 69ms and
-56 with it confined. `paintStanding` owns that class because it is the only
-reading that knows which boxes carry the mark.
+in. The target's own box first comes into view instantly, including inside a
+sideways scroller, then `jumpBy` glides the exact mark to its final position in
+the region that holds it. The travel owns no standing or arrival state. Focus
+already supplies the durable answer through `paintStanding`, and a transient
+page effect does not observe, restart, or reconcile across the browser's
+scrolling operation.
 
 Use the CSS custom highlight registry for text marks. Wrapping ranges mutates and
 splits authored text nodes, can cancel a click between pointer down and pointer

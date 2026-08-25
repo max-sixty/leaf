@@ -11,6 +11,11 @@ no subject in `$ARGUMENTS`, use the work already under discussion.
 
 $ARGUMENTS
 
+## Return to the user
+
+Once the page has a URL, repeat that exact URL every time you return to the user
+in chat, including interim updates, questions, and the final handoff.
+
 ## Page contract
 
 The subject decides the shape. Use options for decisions, boards for movable
@@ -62,8 +67,7 @@ is absent, report that the plugin payload is incomplete. A checkout keeps it at
    `leaf status <page> waiting "<what you want back>"`; leave the detail empty
    on an informational page with no concrete ask.
 7. Send the exact URL and one sentence naming the available gesture: comment,
-   use the stated control, or approve declared sign-off. Include the URL in every
-   later handoff.
+   use the stated control, or approve declared sign-off.
 8. Enter the host wait loop defined in `references/conversation-loop.md`.
 
 The conversation reference owns acknowledgement, event processing, later

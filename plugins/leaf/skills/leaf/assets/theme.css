@@ -857,9 +857,10 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
        condition — a cramped page has handed the strip back and its notes are indented
        blocks in the flow, so there is no float out there to clear and no margin to take.
 
-       Only the right. The rail claims that side too for a suggestion's controls, which
-       are positioned rather than floated, so `clear` cannot see them and that claim is
-       still spent page-wide below.
+       Only the note. The rail claims this side too for a suggestion's controls, which
+       are positioned rather than floated, so `clear` cannot see them; the module that
+       hangs them measures the same collision instead, and the rule beside
+       .lf-sug-actions spends its answer.
 
        Every wide element, including one inside a box that withheld the room from it. A
        widget with no room has no negative margin and could not have reached the note, so
@@ -944,7 +945,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    (`leaf report`) and no version has answered it yet. Provisional news
    rather than a decision — amber and dashed, so it never reads as the user's
    green, and it clears the moment a version absorbs or overrules the report
-   (the note's `reports` ids). The runtime sets this from the log; the
+   (the note's `settles` targets of kind `report`). The runtime sets this from the log; the
    answering version's word is `overruled` on the element, or simply writing
    the reported state. */
 [data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 55%, transparent);
@@ -968,17 +969,23 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
-/* The note the agent leaves on a thread, at the seat inside the widget. The panel's
-   copy is styled in the runtime's own sheet, which is scoped to .lf-chrome and cannot
-   reach a box in the page — so the class is one and the rule is the page's, the way
-   every other .lf-conversation- rule here is. */
-.lf-conversation .lf-thread-note { display: flex; gap: 6px; align-items: baseline;
-  margin-top: var(--sp-2); padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
+/* What the agent says it is doing about one local subject (`leaf status --on`).
+   Thread panels, inline conversations, and prose widgets are seats for the same
+   transient claim, so its rule is global rather than duplicated between runtime and
+   page styles. Provisional news wears the report channel's amber dashed edge rather
+   than message ink. The detail wraps; the age and the explicit silence word do not.
+   The shadow markers carry the same rule into any declared tree an authored subject
+   is staged into; they remain ordinary comments in the document stylesheet. */
+/* lf-shadow:start */
+.lf-work-line { display: flex; gap: 6px; align-items: flex-end; clear: both;
+  width: 100%; box-sizing: border-box; grid-column: 1 / -1;
+  margin: var(--sp-2) 0 0; padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
   border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
-.lf-conversation .lf-thread-note span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.lf-conversation .lf-thread-note .lf-note-cold { flex: none; color: var(--warn-ink);
+.lf-work-line span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lf-work-line .lf-work-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
-.lf-conversation .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
+.lf-work-line time { color: var(--muted-2); white-space: nowrap; }
+/* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled
@@ -1235,15 +1242,24 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media screen and (min-width: 900px) {
   body:has(.lf-sug-actions) {
     --claim-rail: var(--rail, 0px);
-    /* And the right margin is spoken for, so a wide widget grows to the left alone. The
-       row hangs 22px off the column and the strip is reserved out of the far side of the
-       page, which are not the same place once the column centres in what is left: a board
-       grown to the strip stood 134px over these controls at a laptop's width. Said here
-       because this is where the claim is made — the reservation above and this are the
-       two halves of taking a margin, and a page that reserves one without saying so is a
-       page whose exhibits are drawn over its own apparatus. */
-    & [data-lf-wide] { --lf-grow-r: 0px; }
   }
+  /* And the right margin is spoken for where a row hangs in it, so a wide widget level
+     with one grows to the left alone. The row hangs 22px off the column and the strip is
+     reserved out of the far side of the page, which are not the same place once the
+     column centres in what is left: a board grown to the strip stood 134px over these
+     controls at a laptop's width. Refusing the side page-wide answered that collision by
+     never having it, and charged every exhibit on the page for a row somewhere above it —
+     measured, one change near the top of a page held a board 1400px below it to the
+     column's width with 345px of margin standing empty beside it. The collision is a fact
+     about one height, the same fact `clear` states for a sidenote on the left; a row is
+     positioned rather than floated, so no layout rule can see it, and the module that
+     hangs the rows is what knows where they ended up — it marks the exhibits whose bands
+     a row reaches (lf-suggestion.js, data-lf-yield) and this is where the mark is spent.
+     Said beside the reservation because they are the two halves of taking a margin, and a
+     page that reserves one without saying so is a page whose exhibits are drawn over its
+     own apparatus. A copy runs no script and keeps the marks it was exported with, the
+     way it keeps the rail its decided rows reserved. */
+  [data-lf-wide][data-lf-yield~="r"] { --lf-grow-r: 0px; }
 }
 
 /* Where a widget upgrade fails, it fails soft into this box. */

@@ -38,6 +38,7 @@ Each mutable fact has one writer:
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
+| local agent work | the typed, log-projected claims in `status.work` | `paintWorkLines` paints every subject seat without becoming another store |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
@@ -506,8 +507,10 @@ The extension keys describe general behavior:
 | `x-parent` | the child widgets whose decisions belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
+| `x-ask` | the complete reading and arrival region around one nested request |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
 | `x-conversation` | the condition under which the widget owns a conversation seat |
+| `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -536,7 +539,8 @@ behavior, the layer implements it once. Current examples are:
   the theme.
 - `markSettled` paints the holder's authoritative settlement.
 - `renderRetired` marks slots retired by the declared holder relation.
-- `rowPresence` and the ask tray read `x-awaits` rather than a tag selector.
+- `rowPresence` reads `x-awaits`, while the ask tray projects a declared `x-ask`
+  region around that source where one exists; neither names a tag.
 - `standingState` exposes replay winners to the render gate without naming a
   widget, the panel's own folds included: a widget an agent sent folds the way a
   page widget does and the poll replays it the same way, so the premise that
@@ -786,15 +790,16 @@ parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the ask ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
 it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
-reply box. A press on a page mark does not, because `showThread` reveals the
-thread without focusing it, and nothing has put the reader in the comment.
-`paintHere` repaints it beside the ask ring, and `paintAnchors` repaints it after
-rebuilding the ranges it holds.
+reply box. A press on a page mark reaches `showThread`, which focuses the thread
+with `preventScroll` before its deliberate reveal; the page and card therefore
+both say which comment that press opened, and the next key belongs to the thread
+scope. `paintHere` repaints it beside the ask ring, and `paintAnchors` repaints
+it after rebuilding the ranges it holds.
 
 The panel paints the same fact on the card, through `.lf-thread:focus-within` —
 the same predicate, so the two halves cannot disagree about which comment the
-reader is in. Not `:focus-visible`, which is a claim about the last input device
-and left a mouse reader with the page marked and the card plain.
+reader is in. `:focus-visible` instead answers which input modality should draw
+the browser's focus indicator.
 
 `lf-mark-hover` answers a different question — which thread the pointer is
 indicating — and reads both surfaces in one frame. A card is the thread's view in
@@ -815,6 +820,11 @@ offer is the card's, which `.lf-quote` states for itself. `setPanel` asks the
 question again on the way out as well as in, because the panel is one of the two
 surfaces this reads: closing it from the keyboard, with a hand resting on a card,
 takes that card out from under a pointer that never moved.
+
+Hover state keeps both the semantic id and painted card node because reconciliation
+can replace one without changing the other. `paintAnchors` rebinds replaced ranges
+and element parts; `renderThreads`, page movement, and a version transition's end
+refresh the reading when content moves under a stationary pointer.
 
 `paintHover` paints both kinds of anchor, as `paintStanding` does. `::highlight`
 paints glyphs, so a box takes no wash; the element mark says the same rank in the
@@ -839,13 +849,26 @@ Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
-in, so the arrival is announced there and a route added later inherits it. It
-calls `paintStanding` with the arrival, which lifts `--lf-mark-lift` from 1 to 0
-over the 1.2s the panel's own arrival takes; `MARK_RULES` carries the argument
-for why the landing needs a lift rather than a stronger resting colour. An
-element anchor's ring does not lift — it already differs from an ordinary mark's
-hairline in weight as well as hue. The theme's reduced-motion guard collapses the
-animation onto its resting end, which is the standing state.
+in, so the arrival is announced there. The target's own box first comes into
+view instantly, then `jumpBy` glides it to its final page position. The completion
+promise belongs to that final `scrollTo`. Where the browser does not return one,
+`settlePreliminaryScroll` consumes the instant operation's `scrollend` before
+`jumpBy` arms a one-shot listener for the glide. `announceThreadArrival` also
+requires the latest travel token, the commanded `scrollTop`, the same mark, and
+the matching focused thread before it calls `paintStanding(true)`. It snapshots
+a text mark's boundary points because `Range` is live and an ancestor replacement
+can mutate the old object before the next anchor pass; an ordinary paint pass creates
+a fresh `Range` over the same points. Chromium's promise result can report
+interruption; the destination and token checks cover
+implementations without that extension. A browser with neither signal keeps the
+standing paint and omits the pulse.
+
+The arrival lifts `--lf-mark-lift` from 1 to 0 over the 1.2s the panel's own
+arrival takes; `MARK_RULES` carries the argument for why the landing needs a lift
+rather than a stronger resting colour. An element anchor's ring does not lift —
+it already differs from an ordinary mark's hairline in weight as well as hue.
+The theme's reduced-motion guard collapses the animation onto its resting end,
+which is the standing state.
 
 The property is registered and inherits, so it is invalidated down the subtree of
 whatever animates it. The class therefore goes on the standing mark's own boxes —
@@ -1156,6 +1179,34 @@ on: `w` narrows the comment panel's list and `/` searches it, and both live in
 `PANEL`. The page's alphabet is small and every letter spent there is spent on
 every page, so a letter earns page scope only by acting on the page.
 
+A scope's rows act on contents the reader is looking at rather than standing in,
+which is why they can be sorted by surface at all. One press is not like that:
+`c` follows the reader, and what it means is whatever they are standing in.
+
+That it reaches into the panel is not an exception. Page scope already crosses
+there, and the register says so twice: `g c N` is a page address that lands the
+reader in a panel textarea, and `openAsks` counts a widget an agent sent as an
+ask like any other, so `g a N` can put them inside a thread. A page key that
+takes the reader somewhere owes them an answer once they are standing there.
+Rescoping `c` per surface would not even buy the tidiness it looks like — the
+reader stands in one place at a time, so it is several rows spelling one key,
+each live exactly where the others are not.
+
+Its destination is the anchor the 💬 carries, then the open thread the reader is
+in, then the item they are standing in, then the page. `commentTarget` names that
+destination and the row's `does` and `line` are both readings of it, so the key
+line and the reference cannot come to spell it differently. The pointer's answers
+outrank the standing: a selection or a raised 💬 is the more recent thing the
+reader said. `standingItem` and `standingConversation` are what "standing"
+means here, and **Standing somewhere** below owns that reading.
+
+The item's box is the composer, on the item, and not a widget's own conversation
+seat even where it has one. `openOnItem` writes the anchor `renderConversations`
+collects, so the remark lands in that seat's conversation by either route; reaching
+into the seat instead means escaping an author-written id into a selector, asking
+whether the box can take focus, and choosing among the boxes a seat holds once it
+carries threads. One route answers those by not asking them.
+
 Standing in a surface is where focus is, not merely that the surface is open. A
 tray's or panel's own button lives in the banner, so opening by pointer leaves
 the reader outside it, and a key, a Tab or a click on its contents is what puts
@@ -1239,6 +1290,27 @@ shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
 control that contains focus. The ring is derived on each paint; it does not
 store the ask walk's position.
 
+A press that acts on where the reader is standing reads it through
+`standingItem`: the open ask where focus is on a control that works it — a pick,
+a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's own
+reading. It answers nothing in the chrome, where a reader is working on the page
+rather than standing in it.
+
+Working an ask and standing in one are different facts, and `markHere`'s ring
+answers the second. A reader who addressed a link inside a question has named
+something more particular than the question, so a press there means the link's
+own block; reading the ring instead overrode what they named, and made the same
+markup answer differently according to whether its question was still open. The
+two agree wherever the reader is working the ask, which is every arrival the ask
+walk makes.
+
+`standingConversation` is the exception, and covers all three containers that
+hold a conversation the reader can stand in: the panel's thread, a conversation
+seated on the page, and each thread inside that seat. It asks for the box rather
+than for the container's class, because a resolved thread is built by the same
+function and wears the same class while having no box to reach, and a collapsed
+one answers the same honest way.
+
 `landed` stores where the ask walk last arrived. This is distinct from focus:
 the banner's Asks button retains focus while the walk moves through the page.
 Clicking elsewhere removes the focus-derived ring without erasing the walk's
@@ -1313,16 +1385,21 @@ can populate state-dependent rows. It restores intent through `showTray` without
 replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
 each persisted tray.
 
-Ask rows come from `x-awaits`, not from a list of ask tags. `itemSays` supplies
-each row's own label. Selecting a row travels through the same ask-arrival
-function as `n` and `p`, so numbered and directional navigation agree about
-focus, reveal, scroll, and `landed`.
+Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
+nested in an `x-ask` region, the row names the region: its heading, context, and
+evidence are the request the reader is being sent to, while the source remains
+the owner of the answer. `itemSays` supplies each row's own label. Selecting a
+row travels through the same ask-arrival function as `n` and `p`, so numbered
+and directional navigation agree about focus, reveal, start-aligned scroll, and
+`landed`.
 
 An ask is answered only through a verb listed in `x-awaits.answers`; do not infer
 that every state change is an answer. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
-roll-ups, and finally itself as a leaf. The visible list keeps the deepest open
-member, while `actionAvailable` may query an ancestor's exact value.
+roll-ups, and finally itself as a leaf. The standing projection keeps the
+deepest open member; an enclosing `x-ask` replaces that member only on the
+visible/navigation surface. `actionAvailable` still queries the source or an
+ancestor's exact projected value.
 
 ### Address chord
 
@@ -1404,6 +1481,17 @@ help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
 
+`.lf-work-line` is transient runtime chrome that may also stand inside a page
+widget. `paintWorkLines` is its one writer. A thread subject paints in the panel
+and every inline conversation seat; a page-widget subject paints only in the
+content or conversation seat its active `x-work` declaration names. A content
+seat is block prose, but block prose alone grants no seat. The line wears `lf-ui`
+and `data-lf-gen`:
+it is an account of the widget, not authored words of the widget, so selection
+and diff readings skip it. Reconcile widget state first and paint work afterward,
+because a module may rebuild the subtree that seats it. Keep surviving nodes
+across polls so an unchanged claim is not re-announced.
+
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still
 stands. Polling must not discard a reader's caret, focus, reply text, disclosure
@@ -1449,6 +1537,9 @@ landing in a thread in front of them — and takes the list as it stands.
 `showThread` insists: a press out on the page or in a message knows nothing of
 the narrowing it would be asking past, and a comment the reader has just written
 cannot vanish into a narrowing it does not match, so the narrowing goes instead.
+It focuses the containing thread before `revealThread` scrolls it, making the
+thread the standing result rather than a card flashed while focus remains on the
+page. `preventScroll` leaves the panel's reveal as the one writer of its position.
 A reveal that widened for a reply would take the reader's narrowing away for
 having been used, which is how the waiting-on-you list is emptied.
 
@@ -1591,6 +1682,7 @@ The JavaScript readings embedded in `interact.py` each answer one failure class:
 | `TINY_BOXES` | every declared widget has a usable rendered box |
 | `UNMARKABLE_ITEMS` | every pointable item has a visible part for an outline |
 | `MISPLACED_BOXES` | boxes stay in the column or in genuinely reachable overflow |
+| `WITHHELD_ROOM` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `CLIPPED_CONTROLS` | actionable controls are visible and reachable |
 | `UNREACHABLE_WORDS` | visible page words remain in reachable flow |
 | `COVERED_WORDS` | browser words are not silently clipped, hidden, or claimed by chrome |

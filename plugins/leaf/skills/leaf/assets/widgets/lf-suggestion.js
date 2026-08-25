@@ -199,10 +199,32 @@ function relayout() {
     .map((row) => ({ row, rect: row.getBoundingClientRect() }))
     .sort((a, b) => a.rect.top - b.rect.top);
   let floor = -Infinity;
+  const bands = [];
   for (const { row, rect } of placed) {
     const push = Math.max(0, floor + GAP - rect.top);
     if (push) row.style.transform = `translateY(${push}px)`;
     floor = rect.top + push + rect.height;
+    bands.push({ top: rect.top + push, bottom: floor });
+  }
+  // The margin is spoken for at the rows' own heights, and nowhere else. A wide
+  // widget grows right into the very space a row hangs in — the row sits 22px off
+  // the column, not in the strip reserved at the page's far edge — so an exhibit
+  // level with a row must decline that side, and `clear`, which settles the same
+  // collision with a sidenote on the left, cannot see a positioned row. The rows'
+  // final bands are known only here, after docking and the nudge walk, so this
+  // pass is what says which exhibits a row actually reaches; the theme spends the
+  // mark (data-lf-yield), and refusing the side page-wide instead held a board
+  // 1400px below the only row to the column with the margin beside it empty.
+  // The write converges rather than cycles: declining a side can only make a box
+  // taller, which moves rows below it down by the same growth, so no band gains a
+  // widget it did not already hold, and the next observer pass repaints the same
+  // answer. The value carries the side, so a margin idiom on the left is another
+  // letter rather than a second attribute.
+  for (const el of document.querySelectorAll("[data-lf-wide]")) {
+    const box = el.getBoundingClientRect();
+    if (bands.some((band) => band.top < box.bottom && band.bottom > box.top))
+      el.setAttribute("data-lf-yield", "r");
+    else el.removeAttribute("data-lf-yield");
   }
 }
 

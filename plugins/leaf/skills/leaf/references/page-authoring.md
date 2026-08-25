@@ -39,8 +39,9 @@ first, then `<` and `>`; any other order can silently decode entity text. The
 catalog is the only widget vocabulary.
 
 The runtime injects the status banner, comment sidebar, version picker, keyboard
-shortcuts, live-leaves tray, and open-asks tray. Author the asks as widgets,
-but do not duplicate that chrome or maintain a second list of it in the page.
+shortcuts, live-leaves tray, and open-asks tray. Author asks through the
+registry's request widgets and regions, but do not duplicate that chrome or
+maintain a second list of it in the page.
 
 Keep content inside the page's column. Give raw `<pre>`, tables, SVG, and images
 `max-width: 100%` or local overflow. Widgets whose catalog entry declares a wide
@@ -71,9 +72,13 @@ case, and evidence in the option itself. When whole page sections are the
 alternatives, use short option labels with `for="<section-id>"`. Use `multiple`
 only when several options may stand.
 
-An ask must name itself without surrounding context. Give an options group a
+An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
-`<strong>` title.
+`<strong>` title. When the context begins above the actionable widget, wrap the
+heading, introduction, evidence, and that one widget in `lf-ask`. The inner
+widget still records the answer; the wrapper is what the Asks tray names and
+what `n` / `p` aligns below the banner, so the reader arrives at the premise
+before the options.
 
 The question leads the group in every shape it takes, and opens at the same
 column its answers open at. Under `choose` it is the joined control's first cell;

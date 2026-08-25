@@ -26,7 +26,11 @@ jobs:
 
       # `--run-nightly` adds the complete browser and published-site integration
       # suites; the runner has the package index the launcher resolves Playwright from.
+      # Bound browser wedges so they fail in time for `tend-ci-fix` to respond. On the
+      # step deliberately: a job-level bound concludes `cancelled` — the conclusion
+      # that hid the 360-minute cap's kills from `tend-ci-fix` in the first place.
       - name: 🧪 Test suite
+        timeout-minutes: 45
         run: uv run pytest tests --run-nightly
 
   lint:

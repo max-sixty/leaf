@@ -33,17 +33,18 @@
           list you have to keep in your head.
         </p>
 
-        <h3 id="hub-ask-schema">Land the schema migration?</h3>
-        <p id="hub-ask-schema-why">
-          finch has written and tested the two nullable columns the reconciliation work
-          writes into. It is green, and it holds anyway: it touches
-          <code>schema/atlas.sql</code>, which the standing policy below reserves for
-          your word however green the tests are. Landing it unblocks the variance report
-          and frees junco after today; holding it leaves <code>main</code> untouched and
-          idles two of the five.
-        </p>
-        <lf-tree id="hub-schema-files">
-          <pre>
+        <lf-ask id="hub-schema-ask">
+          <h3 id="hub-ask-schema">Land the schema migration?</h3>
+          <p id="hub-ask-schema-why">
+            finch has written and tested the two nullable columns the reconciliation
+            work writes into. It is green, and it holds anyway: it touches
+            <code>schema/atlas.sql</code>, which the standing policy below reserves for
+            your word however green the tests are. Landing it unblocks the variance
+            report and frees junco after today; holding it leaves
+            <code>main</code> untouched and idles two of the five.
+          </p>
+          <lf-tree id="hub-schema-files">
+            <pre>
 schema/
   atlas.sql  +14
   migrations/
@@ -53,14 +54,14 @@ atlas/
 tests/
   test_migrations.py  +48
 </pre>
-        </lf-tree>
-        <details id="hub-schema-diff-box">
-          <summary>
-            The whole of <code>atlas-schema</code> at <code>9f3c2a1</code> — the four
-            files above, and what Land it now lands
-          </summary>
-          <lf-diff id="hub-schema-diff">
-            <pre>
+          </lf-tree>
+          <details id="hub-schema-diff-box">
+            <summary>
+              The whole of <code>atlas-schema</code> at <code>9f3c2a1</code> — the four
+              files above, and what Land it now lands
+            </summary>
+            <lf-diff id="hub-schema-diff">
+              <pre>
 diff --git a/schema/atlas.sql b/schema/atlas.sql
 --- a/schema/atlas.sql
 +++ b/schema/atlas.sql
@@ -118,43 +119,44 @@ diff --git a/tests/test_migrations.py b/tests/test_migrations.py
 +    plan = explain(db, "select * from ledger_entry where reconciled_at is null")
 +    assert "ledger_entry_unreconciled" in plan
 </pre>
-          </lf-diff>
-        </details>
-        <lf-options id="hub-gate-schema" choose>
-          <lf-option id="hub-gs-land">
-            <lf-chip tone="ok">tests green</lf-chip><lf-chip>4 files</lf-chip>
-            <strong>Land it now</strong>
-            <dl class="facts">
-              <dt>Unblocks</dt>
-              <dd>the variance report, and junco after today</dd>
-              <dt>Reversible</dt>
-              <dd>both columns are nullable; the revert is one migration</dd>
-            </dl>
-            <p>
-              The columns are additive and nothing reads them yet, so the shadow run
-              tonight exercises the new path against the old one before anything depends
-              on it.
-            </p>
-          </lf-option>
-          <lf-option id="hub-gs-hold">
-            <lf-chip>effort: none</lf-chip><lf-chip tone="warn">idles two</lf-chip>
-            <strong>Hold until the backfill is written</strong>
-            <dl class="facts">
-              <dt>Unblocks</dt>
-              <dd>nothing</dd>
-              <dt>Costs</dt>
-              <dd>junco and siskin have nothing else scoped this week</dd>
-            </dl>
-            <p>
-              Worth it if you would rather see the backfill and the schema land in one
-              piece, which is one review instead of two.
-            </p>
-          </lf-option>
-        </lf-options>
-        <p id="hub-gate-schema-ask">
-          Neither of those yet? Say so in the box under the options — a question for
-          finch goes to finch, and the gate stays open until you answer it.
-        </p>
+            </lf-diff>
+          </details>
+          <lf-options id="hub-gate-schema" choose>
+            <lf-option id="hub-gs-land">
+              <lf-chip tone="ok">tests green</lf-chip><lf-chip>4 files</lf-chip>
+              <strong>Land it now</strong>
+              <dl class="facts">
+                <dt>Unblocks</dt>
+                <dd>the variance report, and junco after today</dd>
+                <dt>Reversible</dt>
+                <dd>both columns are nullable; the revert is one migration</dd>
+              </dl>
+              <p>
+                The columns are additive and nothing reads them yet, so the shadow run
+                tonight exercises the new path against the old one before anything
+                depends on it.
+              </p>
+            </lf-option>
+            <lf-option id="hub-gs-hold">
+              <lf-chip>effort: none</lf-chip><lf-chip tone="warn">idles two</lf-chip>
+              <strong>Hold until the backfill is written</strong>
+              <dl class="facts">
+                <dt>Unblocks</dt>
+                <dd>nothing</dd>
+                <dt>Costs</dt>
+                <dd>junco and siskin have nothing else scoped this week</dd>
+              </dl>
+              <p>
+                Worth it if you would rather see the backfill and the schema land in one
+                piece, which is one review instead of two.
+              </p>
+            </lf-option>
+          </lf-options>
+          <p id="hub-gate-schema-ask">
+            Neither of those yet? Say so in the box under the options — a question for
+            finch goes to finch, and the gate stays open until you answer it.
+          </p>
+        </lf-ask>
 
         <h3 id="hub-ask-fixture">The reconciliation fixture is yours to pull</h3>
         <p id="hub-ask-fixture-why">

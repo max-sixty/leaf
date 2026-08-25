@@ -33,6 +33,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -577,6 +578,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
         check=False,
     )
     assert help_result.returncode == 0, help_result.stderr
+    assert help_result.stderr == ""
     assert (
         "Build and run interactive pages a session shares with its user."
         in help_result.stdout
@@ -609,6 +611,53 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     )
     assert publish_result.returncode == 0, publish_result.stderr
     assert interact.published_versions(page, interact.read_events(page)) == [1]
+
+
+@pytest.mark.nightly  # the resolve behind the lock asks the index for the header
+def test_the_launcher_starts_where_the_locks_own_urls_cannot_be_served(tmp_path):
+    """The lock records an absolute URL per wheel and uv fetches exactly those, so an
+    index the host configures is never consulted while the lock can be satisfied. On a
+    host whose index is a private mirror rather than pypi.org that fetch fails, and it
+    fails before the script runs — `page init`, `version check` and `server run` alike.
+
+    The mirror is stood up from the other side, because that is the half this repro
+    needs: the lock's recorded URLs are pointed at a closed port, which leaves the
+    configured index as the only thing that can serve the three dependencies. The cache
+    gets a directory of its own for the same reason — a wheel already in the developer's
+    cache answers whatever the lock says, and the run proves nothing."""
+    installed = tmp_path / "plugins" / "leaf"
+    shutil.copytree(PLUGIN_ROOT, installed)
+    lock = installed / "skills" / "leaf" / "scripts" / "interact.py.lock"
+    lock.write_text(
+        lock.read_text().replace(
+            "https://files.pythonhosted.org/", "http://127.0.0.1:1/"
+        )
+    )
+
+    result = subprocess.run(
+        [installed / "bin" / "leaf", "--help"],
+        cwd=tmp_path,
+        env={**os.environ, "UV_CACHE_DIR": str(tmp_path / "uv-cache")},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (
+        "Build and run interactive pages a session shares with its user."
+        in result.stdout
+    )
+    # The fallback re-resolves a header with no upper bounds and writes the result
+    # over the pins, and the run behind it succeeds — so it says so on stderr,
+    # which is the only account anyone gets of a moved pin.
+    assert "resolving the header against this host's index" in result.stderr
+    # Which failure it was is the ask's to say and not the announcement's — an
+    # unservable lock reads nothing like a 503 or a host with no `uv` at all — so
+    # the ask's own words come with it rather than dying with its exit status.
+    assert "127.0.0.1:1" in result.stderr
+    # The resolve is paid once: it rewrites the lock to what this host's index
+    # served, so the next run is pinned again rather than resolving afresh.
+    assert "127.0.0.1:1" not in lock.read_text()
 
 
 def case_alias(path):
@@ -3286,11 +3335,24 @@ def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
     assert check(page_dir, version=2).exit_code == 0
 
 
-def test_publishing_names_the_reports_it_answered(page_dir):
-    """Absorption is explicit, by id: the note carries the report ids the
-    version answered, and only that record ends a report — a later version is
-    free to move the state again exactly because the report ended."""
+def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_dir):
+    """One durable relation ends both kinds of provisional agent information.
+    Its typed targets keep report-event ids and widget-work ids distinct without
+    growing one note field for each channel."""
+
+    def add_board(version: int) -> None:
+        path = page_dir / "versions" / f"v{version}.html"
+        path.write_text(
+            path.read_text().replace(
+                '<lf-diagram id="flow">',
+                '<lf-board id="rollout"><lf-column id="now" label="Now">'
+                '<lf-card id="rollout-card"><strong>Ship</strong></lf-card>'
+                '</lf-column></lf-board><lf-diagram id="flow">',
+            )
+        )
+
     _tasks_version(page_dir, 1, "active")
+    add_board(1)
     runner = CliRunner()
     assert (
         runner.invoke(
@@ -3302,18 +3364,37 @@ def test_publishing_names_the_reports_it_answered(page_dir):
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0
     report_id = json.loads(sent.output)["id"]
+    claimed = _status(
+        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    )
+    assert claimed.exit_code == 0, claimed.output
 
     _tasks_version(page_dir, 2, "review")
+    add_board(2)
     published = runner.invoke(
         interact.cli,
-        ["version", "publish", str(page_dir), "--version", "2", "--text", "absorb"],
+        [
+            "version",
+            "publish",
+            str(page_dir),
+            "--version",
+            "2",
+            "--text",
+            "absorb",
+            "--completes",
+            "rollout-card",
+        ],
     )
     assert published.exit_code == 0, published.output
     note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
-    assert note["reports"] == [report_id]
+    assert note["settles"] == [
+        {"kind": "report", "id": report_id},
+        {"kind": "work", "id": "rollout-card"},
+    ]
 
     # The report ended at v2, so v3 owes it nothing.
     _tasks_version(page_dir, 3, "done")
+    add_board(3)
     assert check(page_dir, version=3).exit_code == 0
 
     # And a repeated `overruled` after the answer is the carried-forward
@@ -3344,7 +3425,7 @@ def test_publishing_names_the_reports_it_answered(page_dir):
     assert republished.exit_code == 0, republished.output
     note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["version"] == 1
-    assert future_report not in note.get("reports", [])
+    assert {"kind": "report", "id": future_report} not in note.get("settles", [])
 
 
 def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
@@ -3392,7 +3473,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
     report = [event for event in events if event["kind"] == "report"][-1]
     note = [event for event in events if event["kind"] == "note"][-1]
     assert serialized, "publish calculated mutable log state outside its transaction"
-    assert note["version"] == 2 and "reports" not in note
+    assert note["version"] == 2 and "settles" not in note
     assert report["version"] == 2
 
 
@@ -3941,6 +4022,40 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
 
 
+def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
+    """The Ask list names the whole reading the reader arrives at. Its nested
+    request remains the action owner, so answering it closes the broader Ask without
+    moving the standing decision onto a wrapper that declares no state."""
+    opts = OPTIONS.format(
+        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
+    )
+    ask = (
+        '<lf-ask id="plan-ask"><h2>Plan</h2>'
+        "<p>Choose after reading this framing.</p>"
+        f"{opts}</lf-ask>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<h2>Plan</h2>", ask))
+    publish(page_dir)
+
+    state = state_json(page_dir)
+    assert state["asks"] == [{"id": "plan-ask", "tag": "lf-ask", "thread": None}]
+
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"options": ["o-shim"]},
+        },
+    )
+    state = state_json(page_dir)
+    assert state["asks"] == []
+    assert state["state"][0]["widget"] == "g1"
+
+
 def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page_dir):
     """A report remains live for later absorption, but the reader's action is
     the desired state and the only record debt on their shared coordinate."""
@@ -4121,7 +4236,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "author": "claude",
             "version": 2,
             "text": "absorbed",
-            "reports": [rep["id"]],
+            "settles": [{"kind": "report", "id": rep["id"]}],
         },
     )
     state = state_json(page_dir)
@@ -5105,6 +5220,8 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-state", []),
         ("x-upgrade", "yes"),
         ("x-verbatim", "false"),
+        ("x-work", []),
+        ("x-work", {"seat": "content", "when": {"choose": True}}),
         ("x-unknown", True),
     ],
 )
@@ -5117,6 +5234,38 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-options> registry extensions are invalid" in result.output
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda registry: registry["lf-chip"].update(
+                {"x-work": {"seat": "content"}}
+            ),
+            "content work seat but is inline",
+        ),
+        (
+            lambda registry: registry["lf-diagram"].update(
+                {"x-work": {"seat": "content"}}
+            ),
+            "content work seat but x-content is data",
+        ),
+        (
+            lambda registry: registry["lf-options"].pop("x-conversation"),
+            "conversation work seat but declares no x-conversation",
+        ),
+    ],
+)
+def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    mutate(registry)
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
 
 
 def _mutated_registry_check(page_dir, mutate):
@@ -6791,6 +6940,27 @@ def test_server_round_trip(server, page_dir):
     }
 
 
+def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
+    server, page_dir
+):
+    """A Unicode separator before an indented script must not shift its marker."""
+    # Keep the separator escaped so normalization cannot silently weaken the fixture.
+    script = '<script type="module" src="/leaf.js"></script>'
+    source = PAGE.replace(
+        "<title>t</title>", "<title>Backfill plan\u2028Q3</title>"
+    ).replace(script, "  " + script)
+    (page_dir / "versions" / "v1.html").write_text(source, encoding="utf-8")
+    assert check(page_dir).exit_code == 0
+    publish(page_dir)
+
+    body = fetch(f"{server}/")[1].decode()
+
+    marker = '<meta name="lf-version" data-lf-runtime content="1">'
+    assert body == source.replace(script, marker + script)
+    # The old splice corrupted this tag while leaving the page renderable.
+    assert '<link rel="stylesheet" href="/theme.css">' in body
+
+
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     server, page_dir
 ):
@@ -8292,24 +8462,24 @@ def _status(page_dir, *args):
     return CliRunner().invoke(interact.cli, ["status", str(page_dir), *args])
 
 
-def test_a_working_note_says_which_thread_the_agent_is_on(page_dir, capsys):
+def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys):
     """`leaf status --on` writes one claim at two seats: the page's line, which the
-    banner reads, and a note on the thread the work is about, which the reader sees
+    banner reads, and a line on the thread the work is about, which the reader sees
     under their own words. One command writes both because they are one sentence — a
     delegate that reports its thread is the agent checking in, and the shared timestamp
     is what keeps a `working` claim believed across a turn boundary the session that
     made the claim can no longer write across.
 
-    The note carries across every later write but its own. That is the case it exists
+    The line carries across every later write but its own. That is the case it exists
     for: a wait handing over mid-delegation writes "picking up 1 update" over the
-    page's line, and a note dropped there would take the reader's only sign that their
+    page's line, and a line dropped there would take the reader's only sign that their
     question is in hand with it. `idle` is the end of the agent's side, and clears them
     with the leaf."""
     interact.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    # A note names a thread, says what is being done, and says it about work in hand:
-    # the two other states have nothing to put on a thread, and a note with no words
+    # A line names a thread, says what is being done, and says it about work in hand:
+    # the two other states have nothing to put on a thread, and a line with no words
     # says nothing the thread does not already show.
     assert (
         "not a comment thread"
@@ -8320,22 +8490,29 @@ def test_a_working_note_says_which_thread_the_agent_is_on(page_dir, capsys):
         in _status(page_dir, "waiting", "your read on this", "--on", "c1").output
     )
     assert "needs a detail" in _status(page_dir, "working", "--on", "c1").output
-    assert "on" not in interact.read_json(page_dir / "status.json")
+    assert "work" not in interact.read_json(page_dir / "status.json")
 
     assert (
         _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
     )
     status = interact.read_json(page_dir / "status.json")
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
-    assert status["on"] == {"c1": {"detail": "reading the traces", "ts": status["ts"]}}
+    assert status["work"] == [
+        {
+            "subject": {"kind": "thread", "id": "c1"},
+            "detail": "reading the traces",
+            "ts": status["ts"],
+            "after": 1,
+        }
+    ]
     # And it reaches the page the way the claim beside it does, on the one poll answer.
-    assert page_state(page_dir)["status"]["on"]["c1"]["detail"] == "reading the traces"
+    assert page_state(page_dir)["status"]["work"][0]["detail"] == "reading the traces"
 
     # A later claim about the page as a whole answers nothing on the thread.
     assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     waiting = interact.read_json(page_dir / "status.json")
     assert (waiting["state"], waiting["detail"]) == ("waiting", "look at v2")
-    assert waiting["on"]["c1"]["detail"] == "reading the traces"
+    assert waiting["work"][0]["detail"] == "reading the traces"
 
     # Nor does the handoff a wait writes on its way out, which is the whole point of
     # carrying them: the pickup interrupts the delegate rather than replacing it.
@@ -8347,10 +8524,198 @@ def test_a_working_note_says_which_thread_the_agent_is_on(page_dir, capsys):
     capsys.readouterr()
     handed = interact.read_json(page_dir / "status.json")
     assert (handed["state"], handed["handoff"]) == ("working", True)
-    assert handed["on"]["c1"]["detail"] == "reading the traces"
+    assert handed["work"][0]["detail"] == "reading the traces"
 
     interact.cmd_status(page_dir, "idle", "")
-    assert "on" not in interact.read_json(page_dir / "status.json")
+    assert "work" not in interact.read_json(page_dir / "status.json")
+
+
+def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir):
+    """A page widget and a comment root are two kinds of subject, resolved once at
+    the CLI boundary and stored with the distinction intact. Widget work ends only
+    when a later published version explicitly says it completes that widget work: an
+    unrelated version cannot silently cancel a local claim, while a version cannot
+    remove the claim's only seat without naming the work it completed."""
+    work_page = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+        '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
+        "Check the fallback before cutover.</lf-card>\n"
+        '</lf-column></lf-board>\n<lf-diagram id="flow">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(work_page)
+    publish(page_dir)
+
+    claimed = _status(
+        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    )
+    assert claimed.exit_code == 0, claimed.output
+    status = interact.read_json(page_dir / "status.json")
+    assert status["work"] == [
+        {
+            "subject": {"kind": "widget", "id": "rollout-card"},
+            "detail": "checking the rollout",
+            "ts": status["ts"],
+            "after": 1,
+        }
+    ]
+    assert "version" not in status["work"][0]
+    assert page_state(page_dir)["status"]["work"][0]["version"] == 1
+
+    # A drawing has no prose or declared conversation in which a local line can
+    # stand. The declaration, not a widget-name branch, decides that at the door.
+    no_seat = _status(page_dir, "working", "checking the graph", "--on", "flow")
+    assert no_seat.exit_code == 1
+    assert "has no local work seat" in no_seat.output
+
+    # A new version that leaves the widget alone does not settle the claim by mere
+    # chronology. It publishes normally and the same local work remains standing.
+    (page_dir / "versions" / "v2.html").write_text(work_page)
+    unrelated = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(page_dir), "--version", "2", "--text", "Elsewhere"],
+    )
+    assert unrelated.exit_code == 0, unrelated.output
+    assert page_state(page_dir)["status"]["work"][0]["subject"]["id"] == "rollout-card"
+
+    # Settlement is explicit and durable on the version note.
+    (page_dir / "versions" / "v3.html").write_text(work_page)
+    settled = CliRunner().invoke(
+        interact.cli,
+        [
+            "version",
+            "publish",
+            str(page_dir),
+            "--version",
+            "3",
+            "--text",
+            "Rollout checked",
+            "--completes",
+            "rollout-card",
+        ],
+    )
+    assert settled.exit_code == 0, settled.output
+    note = interact.read_events(page_dir)[-1]
+    assert note["settles"] == [{"kind": "work", "id": "rollout-card"}]
+    assert page_state(page_dir)["status"].get("work", []) == []
+
+    # A later claim on the same subject starts after that answer and therefore stands.
+    renewed = _status(
+        page_dir, "working", "checking the fallback", "--on", "rollout-card"
+    )
+    assert renewed.exit_code == 0, renewed.output
+    assert (
+        page_state(page_dir)["status"]["work"][0]["detail"] == "checking the fallback"
+    )
+
+    # Replacing the prose widget with a data widget would keep the anchor id but remove
+    # the local chrome seat. Publication refuses that silent loss until this version
+    # names the work it answers.
+    without_seat = re.sub(
+        r'<lf-board id="rollout">.*?</lf-board>',
+        '<div id="rollout"><div id="rollout-now">'
+        '<lf-diagram id="rollout-card"><pre>graph LR\n  A --> B\n</pre></lf-diagram>'
+        "</div></div>",
+        work_page,
+        count=1,
+        flags=re.DOTALL,
+    )
+    (page_dir / "versions" / "v4.html").write_text(without_seat)
+    dropped = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(page_dir), "--version", "4", "--text", "Removed"],
+    )
+    assert dropped.exit_code == 1
+    assert (
+        "would remove the local seat for active work on 'rollout-card'"
+        in dropped.output
+    )
+
+    finished = CliRunner().invoke(
+        interact.cli,
+        [
+            "version",
+            "publish",
+            str(page_dir),
+            "--version",
+            "4",
+            "--text",
+            "Removed",
+            "--completes",
+            "rollout-card",
+        ],
+    )
+    assert finished.exit_code == 0, finished.output
+
+    # Naming no active widget claim is an unearned settlement, not inert metadata.
+    (page_dir / "versions" / "v5.html").write_text(without_seat)
+    unearned = CliRunner().invoke(
+        interact.cli,
+        [
+            "version",
+            "publish",
+            str(page_dir),
+            "--version",
+            "5",
+            "--text",
+            "Again",
+            "--completes",
+            "rollout-card",
+        ],
+    )
+    assert unearned.exit_code == 1
+    assert "no active widget work claim" in unearned.output
+
+
+def test_revendoring_cannot_remove_an_active_widget_work_seat(page_dir):
+    """A layer transition changes the same declaration the status door trusted.
+    Re-vendoring must not leave the page-wide claim standing while silently removing
+    its local half; the active claim is settled by a version note, not by new assets."""
+    work_page = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
+        '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
+        '</lf-column></lf-board>\n<lf-diagram id="flow">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(work_page)
+    publish(page_dir)
+    claimed = _status(
+        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    )
+    assert claimed.exit_code == 0, claimed.output
+    before = (page_dir / "registry.json").read_bytes()
+
+    card = json.loads((interact.BUNDLED / "registry.json").read_text())["lf-card"]
+    card.pop("x-work")
+    layer = Path.cwd() / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 1
+    assert "incoming layer would remove the local seat" in result.output
+    assert "'rollout-card'" in result.output
+    assert (page_dir / "registry.json").read_bytes() == before
+
+
+@pytest.mark.parametrize("target", ["effort", "flag-first"])
+def test_only_a_declared_widget_work_seat_is_admitted(page_dir, target):
+    """A content model says what authors may put inside a widget, not whether core
+    may add local chrome there. Inline prose has no block slot, and a prose option is
+    itself the click target of its holder; neither becomes a seat by inference."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "<lf-chip>effort: low</lf-chip>",
+            '<lf-chip id="effort">effort: low</lf-chip>',
+        )
+    )
+    publish(page_dir)
+
+    claimed = _status(page_dir, "working", "checking the estimate", "--on", target)
+    assert claimed.exit_code == 1
+    assert "has no local work seat" in claimed.output
 
 
 def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsys):
@@ -9041,7 +9406,7 @@ def claimed(page_dir, monkeypatch):
 @pytest.fixture(scope="session")
 def codex_program(tmp_path_factory):
     """A program named `codex` to run a session under, which is the whole of what
-    `session_pid` looks for above a leaf: a copy of this interpreter wearing that
+    `session_lifetime` looks for above a leaf: a copy of this interpreter wearing that
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
@@ -9538,16 +9903,7 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
 @pytest.mark.parametrize(
     "identity_names",
     [
-        pytest.param(
-            (
-                "CLAUDE_CODE_SESSION_ID",
-                "CLAUDE_PID",
-                "CODEX_THREAD_ID",
-                "LEAF_SESSION_ID",
-                "LEAF_AGENT",
-            ),
-            id="bare-shell",
-        ),
+        pytest.param(CLAUDE_IDENTITY + CODEX_IDENTITY, id="bare-shell"),
         pytest.param((), id="host-session"),
     ],
 )
@@ -9994,6 +10350,30 @@ def test_loop_guard_agrees_on_claim_home_and_active_ownership(
     record_claim(page, id="guarded", pid=dead_pid)
     assert not guard.session_has_active_claim("guarded")
 
+    # A background job's claim names the job's record and no process at all, so
+    # the pid the environment states — dead here — is nothing to either reader.
+    # Claimed through the real door, which asks for an initialized page.
+    (page / "comments.jsonl").write_bytes(b"")
+    job = tmp_path / "job"
+    job.mkdir()
+    interact.write_json(job / "state.json", {"sessionId": "guarded"})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "guarded")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    assert interact.claim_page(page)
+    assert "pid" not in interact.page_claim(page)
+    assert guard.session_has_active_claim("guarded")
+    assert interact.claim_is_active(interact.page_claim(page))
+    # Deleting the job takes its record; the directory can stay behind empty.
+    (job / "state.json").unlink()
+    assert not guard.session_has_active_claim("guarded")
+    assert not interact.claim_is_active(interact.page_claim(page))
+    # A dead job claim passes the walk on to the session's other records.
+    other = tmp_path / "other"
+    other.mkdir()
+    record_claim(other, id="guarded")
+    assert guard.session_has_active_claim("guarded")
+
 
 def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     """`leaf status PAGE idle` is the way out of the guard's other case, so it
@@ -10152,6 +10532,61 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert claim is not None
     assert claim["released"] is not None
     assert interact.owned_pages("s1") == []
+
+
+def test_a_background_jobs_server_lives_as_long_as_the_job(
+    page_dir, tmp_path, monkeypatch, dead_pid
+):
+    """A background job runs each sitting on a worker its daemon retires between
+    them, so a claim naming that worker's pid takes the page down an hour after
+    every turn. The job's record is the lifetime instead: the page stays held
+    and served whatever became of the process that claimed it, and retires when
+    the job is deleted — which takes the record and may leave the directory."""
+    job = tmp_path / "job"
+    job.mkdir()
+    interact.write_json(job / "state.json", {"sessionId": "bg-job"})
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    assert interact.claim_page(page_dir)
+    assert interact.start_server(page_dir)
+    assert interact.read_json(page_dir / "service.json")["lifetime"] == "session"
+    # Longer than the reaper's grace, so a server that was going to retire on the
+    # dead pid has had the chance.
+    time.sleep(interact.ORPHAN_GRACE_SECS + 0.5)
+    assert interact.running_server(page_dir)
+    assert interact.owned_pages("bg-job") == [page_dir.resolve()]
+    assert interact.presence(page_dir, [])["session_alive"] is True
+
+    (job / "state.json").unlink()
+    deadline = time.time() + 5
+    while interact.running_server(page_dir):
+        assert time.time() < deadline, "the deleted job's server stayed up"
+        time.sleep(0.05)
+    assert interact.owned_pages("bg-job") == []
+    assert interact.presence(page_dir, [])["session_alive"] is False
+
+
+def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
+    page_dir, tmp_path, monkeypatch
+):
+    """CLAUDE_JOB_DIR is inherited, so a session started under a background job's
+    shell tool carries the job's directory while being a process of its own: its
+    claim names its pid. A job record that is not there is refused, since a claim
+    written on it would be over before the server it licensed came up."""
+    job = tmp_path / "job"
+    job.mkdir()
+    interact.write_json(job / "state.json", {"sessionId": "the-job"})
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "nested")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert interact.claim_page(page_dir)
+    assert interact.page_claim(page_dir)["pid"] == os.getpid()
+    assert "job" not in interact.page_claim(page_dir)
+
+    (job / "state.json").unlink()
+    with pytest.raises(SystemExit, match="names no job record"):
+        interact.claim_page(page_dir)
 
 
 @pytest.fixture
@@ -10699,6 +11134,54 @@ def test_specimen_admits_interactive_widgets(page_dir):
         registry,
     )
     assert errs == []
+
+
+def test_an_ask_region_frames_exactly_one_request(page_dir):
+    """A broad Ask has one source of liveness and state; zero leaves navigation
+    pointing at nothing, while two make its answer and roll-up ownership ambiguous."""
+    registry = interact.load_registry(page_dir)
+    first = (
+        '<lf-options id="g-one" choose>'
+        '<lf-option id="o-one"><strong>One</strong></lf-option>'
+        "</lf-options>"
+    )
+    second = (
+        '<lf-options id="g-two" choose>'
+        '<lf-option id="o-two"><strong>Two</strong></lf-option>'
+        "</lf-options>"
+    )
+
+    assert (
+        fragment_errors(
+            f'<lf-ask id="ask-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
+            registry,
+        )
+        == []
+    )
+
+    # Evidence can quote another request-shaped widget without giving this Ask a
+    # second live source. The runtime already excludes x-exhibit descendants from the
+    # Ask list, so the authored boundary must read the same relation.
+    with_evidence = (
+        '<lf-ask id="ask-with-evidence"><h2>Choose</h2>'
+        f'{first}<lf-specimen id="request-example" label="another request">'
+        f"{second}</lf-specimen></lf-ask>"
+    )
+    assert fragment_errors(with_evidence, registry) == []
+
+    empty = fragment_errors(
+        '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
+    )
+    assert "an Ask must frame exactly one x-awaits widget, found none" in " ".join(
+        empty
+    )
+
+    crowded = fragment_errors(
+        f'<lf-ask id="ask-crowded">{first}{second}</lf-ask>', registry
+    )
+    message = " ".join(crowded)
+    assert "an Ask must frame exactly one x-awaits widget" in message
+    assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
 def test_settling_a_decision_drops_no_ids(page_dir):
@@ -12052,13 +12535,14 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "claude",
             "version": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-options id="gm" choose>'
+            "markup": '<lf-ask id="gm-ask"><p>The retry budget is shared.</p>'
+            '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options>",
+            "</lf-options></lf-ask>",
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+        {"id": "gm-ask", "tag": "lf-ask", "thread": root["id"]}
     ]
     interact.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}

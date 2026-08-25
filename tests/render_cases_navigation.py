@@ -230,6 +230,32 @@ session.</p></details>
 # a whole address, so one reading answers which lists are on offer, which members of
 # each, and in what order — three facts a count and a bare digit answered separately.
 CHIPS = ".lf-addresses > .lf-address"
+# The half of each address already behind the reader. A chip carries the whole motion, so
+# how far in they are is the split rather than the text: `g` alone once the window is up,
+# and `g c` once a letter has named a list. The selector arrives as an argument so the one
+# spelling above is the one this reads.
+SPENT = """(sel) => [...document.querySelectorAll(sel)]
+    .map(chip => chip.querySelector('.lf-spent').textContent)"""
+# And that the split runs the way it has to, in both channels that carry it: the keys
+# already pressed stand back from the chip's own paper where the ones still to come stand
+# out from it, and they are set smaller. Contrast rather than two colours being different,
+# which a change painting the spent half brighter would satisfy while saying the opposite
+# thing; and the size beside it because muted against accent is 1.45:1 in the light palette
+# and 1.28:1 in the dark — a colour-only split reads as one word on an 11px key, and to a
+# reader who does not separate those hues it is one word.
+STANDS_BACK = r"""(sel) => {
+    const chip = document.querySelector(sel), face = getComputedStyle(chip);
+    const spent = getComputedStyle(chip.querySelector('.lf-spent'));
+    const lum = c => { const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map(Number)
+        .map(v => { const s = v / 255;
+                    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const against = c => { const [hi, lo] = [lum(c), lum(face.backgroundColor)]
+        .sort((a, b) => b - a);
+      return (hi + 0.05) / (lo + 0.05); };
+    return {quieter: against(spent.color) < against(face.color),
+            smaller: parseFloat(spent.fontSize) < parseFloat(face.fontSize)};
+  }"""
 
 
 NOTED_PAGE = leaf_page(

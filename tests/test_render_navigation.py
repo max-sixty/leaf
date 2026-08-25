@@ -23,6 +23,8 @@ from render_support import (
     OVER_WORDS,
     PANEL_PAGE,
     ROOT,
+    SPENT,
+    STANDS_BACK,
     TARGETS_PAGE,
     WHERE_I_STAND_PAGE,
     _publish,
@@ -794,7 +796,8 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
     """An address the reader can read is one no other address is sitting on.
 
     Chips are centred on the corner their member starts at, and a chip is wider than it was
-    — it carries a letter now. Two addressable things can start within that width: markers
+    — it carries the whole address now, leader and letter and digit. Two addressable things
+    can start within that width: markers
     in a footnote run, or a link that is the whole of a summary, which is one corner in two
     lists at once and could not arise while a letter had to be pressed before anything was
     painted.
@@ -832,10 +835,21 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
         f"addresses are drawn on top of each other: {piles['found']} "
         f"(drawn: {piles['drawn']})"
     )
+    # And the page was crowded, or a clean sweep says nothing. Five members start within a
+    # chip's width of each other here — three footnote markers, the link that is the whole
+    # of a summary, and the summary itself — so all five surviving would mean the chips had
+    # stopped colliding rather than that this pass had taken the collisions down. Two is
+    # the fewest a pair can be checked between. The window between those two numbers is
+    # what a chip growing or shrinking moves, which is the change that empties this test.
+    drawn = piles["drawn"]
+    assert 2 <= len(drawn) < 5, (
+        f"the crowded page drew {len(drawn)} of its five addresses ({drawn}): the pass "
+        f"either dropped nothing or left too few to have checked a pair"
+    )
     # And the ones that survived still say what they reach: pressing the first link's own
     # digit lands on that link and not on the neighbour whose chip it might have worn.
     first = piles["drawn"][0]
-    letter, digit = first.split(" ")
+    _leader, letter, digit = first.split(" ")
     page.keyboard.press(letter)
     page.keyboard.press(digit)
     assert page.evaluate("() => document.activeElement.id") in {
@@ -905,8 +919,9 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
 
     So each list states itself, and every surface reads the table: the letters on the line
     are the lists the page has, the digits are the members the named one holds, each member
-    on screen wears its own two-key address as a chip from the moment the chord is armed,
-    and a reply box's placeholder speaks the whole address it answers to. What is asserted
+    on screen wears its whole address as a chip from the moment the chord is armed — the
+    same address a reply box's placeholder speaks, key for key, with the keys already
+    pressed dimmed. What is asserted
     here is that the lists behave as one mechanism — a comment, an ask, a link and a
     disclosure reached the same way — rather than that any of them works, which is each
     list's own business elsewhere."""
@@ -961,7 +976,16 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # address, so the press that opened the window states what the next one reaches. The
     # comments are the one list absent, its panel being shut — a chip is drawn from a
     # member's own visible box, and a shut panel gives none.
-    expect(page.locator(CHIPS)).to_have_text(["a 1", "l 1", "l 2", "d 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    # Whole, and saying how much of it is still to press: the leader is behind the reader
+    # here, so it stands back and the two keys that finish the motion keep the chip's own
+    # size and colour. A chip set evenly would state an address and leave the reader to
+    # work out for themselves which part of it they had already made.
+    assert page.evaluate(SPENT, CHIPS) == ["g", "g", "g", "g"]
+    assert page.evaluate(STANDS_BACK, CHIPS) == {"quieter": True, "smaller": True}, (
+        "the keys already pressed do not stand back from the ones still to come: "
+        f"{page.evaluate(STANDS_BACK, CHIPS)}"
+    )
     # The chips are the eye's copy of a mode; a reader who cannot see them is told the
     # window opened and what it holds, off the same rows the line just drew — the ranges
     # among them, where a row whose label counts the page used to be read out key by key
@@ -983,9 +1007,12 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
         ".getBoundingClientRect().left > document.body.clientWidth"
     )
     # The offer narrows to the named list: the links and the disclosure drop their chips,
-    # and the three that arrive say the same two keys their boxes answer to whether or not
-    # anything is armed — the reply box's placeholder reads them out below.
-    expect(page.locator(CHIPS)).to_have_text(["c 1", "c 2", "c 3"])
+    # and the three that arrive say the same motion their boxes answer to whether or not
+    # anything is armed — the reply box's placeholder reads it out below, key for key. The
+    # letter is behind the reader now, so it joins the leader in the quiet half and the
+    # digit is left standing alone.
+    expect(page.locator(CHIPS)).to_have_text(["g c 1", "g c 2", "g c 3"])
+    assert page.evaluate(SPENT, CHIPS) == ["g c", "g c", "g c"]
     assert page.evaluate(
         """() => {
              const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
@@ -1041,7 +1068,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     )
     page.keyboard.press("g")
     page.keyboard.press("a")
-    expect(page.locator(CHIPS)).to_have_text(["a 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g a 1"])
     assert page.evaluate(
         """() => document.querySelector('.lf-addresses > .lf-address')
                    .getBoundingClientRect().top
@@ -1058,7 +1085,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("l")
-    expect(page.locator(CHIPS)).to_have_text(["l 1", "l 2"])
+    expect(page.locator(CHIPS)).to_have_text(["g l 1", "g l 2"])
     assert page.evaluate(
         """() => {
              const links = [...document.querySelectorAll('#refs a[href]')];
@@ -1112,7 +1139,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("d")
-    expect(page.locator(CHIPS)).to_have_text(["d 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g d 1"])
     assert page.evaluate(
         """() => {
              const c = document.querySelector('.lf-addresses > .lf-address')

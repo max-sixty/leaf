@@ -273,11 +273,12 @@ export function chromeStyle({
      wore what read as 12.
 
      Wide enough for the keys it carries and no wider, down to that floor: a pick's
-     address is one digit and comes out square, the chord's is a letter and a digit and
-     comes out wide. Stated as a fixed width instead, the second would have needed a rule
-     of its own in the chord's layer, and the family would have been dressed in two
-     places. The keys hold one line, the box being shrink-to-fit and placed from a corner
-     — one near the window's right edge would otherwise break in two. */
+     address is one digit and comes out square, the chord's is the whole motion — leader,
+     letter and digit — and comes out wide. Stated as a fixed width instead, the second
+     would have needed a rule of its own in the chord's layer, and the family would have
+     been dressed in two places. The keys hold one line, the box being shrink-to-fit and
+     placed from a corner — one near the window's right edge would otherwise break in
+     two. */
   .lf-address { display: none; box-sizing: border-box; min-width: 17px; height: 17px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: 11px; line-height: 15px; text-align: center; white-space: nowrap; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
@@ -992,6 +993,25 @@ ${MARK_RULES}
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
+    /* The half of an address already pressed. A chip carries the whole of it, so how far
+       in the reader is has to be said by how the keys are set: what is behind them stands
+       back and the press that finishes the motion keeps the chip's own accent. Muted
+       rather than dropped, which is what the chip used to do — the address it drew was
+       then shorter than the one its own reply box speaks, and the short one reaches
+       nothing from a standing start.
+
+       Two channels and not one. Muted against accent is 1.45:1 in the light palette and
+       1.28:1 in the dark, which is a difference in hue and barely one in lightness: on an
+       11px key at arm's length the two halves read as one word, and to a reader who does
+       not separate those hues they are one word. The size is the channel that survives
+       both, and it gives back a third of the width the leader cost — which is room this
+       layer spends on telling two neighbouring addresses apart. It rides the same
+       baseline, and the chip's line-height is fixed, so nothing moves.
+
+       In here rather than beside the shared face, because only the chord's chips have a
+       half behind them: an option's digit is one key, whole whenever it is drawn, and a
+       name a page could coin belongs to no document-level vocabulary. */
+    .lf-addresses > .lf-address .lf-spent { color: var(--muted); font-size: 9px; }
     /* Under the banner there is no room to straddle the corner, so the chip hangs below
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */

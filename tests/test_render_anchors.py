@@ -550,8 +550,9 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
 
     Width is the third kind, and it is content: a chip is as wide as the keys it carries,
     and these two carry different numbers of them — a pick answers one digit, the chord
-    wants its letter as well. So the shared minimum and padding are compared and the
-    result of them is not, and the difference is asserted in the direction it has to run.
+    carries the whole motion it is halfway through. So the shared minimum and padding are
+    compared and the result of them is not, and the difference is asserted in the
+    direction it has to run.
     The face is compared because it is the half a letter made load-bearing: in the
     document's sans a lowercase l is a bare stroke, and the chord's second link wore what
     read as 12."""
@@ -614,7 +615,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     # And what each is wide enough for is its own keys. The pick's one digit comes out at
     # the shared floor exactly, which is the half a compared `min-width` cannot prove: a
     # wearer restating `width: 19px` on its own copy would raise nothing and pass every
-    # property above. The chord's letter and digit come out past that floor. Both are read
+    # property above. The chord's leader, letter and digit come out past it. Both are read
     # from the rendered box, since the widths are the key face's answer and not the
     # stylesheet's.
     floor = float(on_page["min-width"].removesuffix("px"))
@@ -628,7 +629,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
         f"{floor} — a wearer has restated a width of its own"
     )
     assert widths[0] < widths[1], (
-        f"the chord's two-key chip is not wider than a pick's one-key chip: {widths}"
+        f"the chord's whole-address chip is not wider than a pick's one-key chip: {widths}"
     )
     assert errors == []
     page.close()

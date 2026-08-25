@@ -1530,11 +1530,16 @@ Adding a list adds one entry. The page-level `g` row promises only the mode;
 ranges belong to the list rows inside it.
 
 Arming the mode paints the whole offer: every list contributes chips at once, and
-a letter narrows them to its own list. A chip carries the letter and the digit,
-and keeps both after the letter is pressed, because it states which member this
-is rather than how much of the address is left to type. `addressKeys` is the one
-spelling of that pair; the key line's ranges and the placeholder that speaks a
-reply box's whole address both build on it.
+a letter narrows them to its own list. A chip carries the whole address — leader,
+letter and digit — and sets the keys already pressed smaller and quieter, so it
+states which member this is and what is left to type at once. Two channels, since
+muted against accent is a difference in hue and barely one in lightness: on an
+11px key a colour-only split reads as one word. `addressKeys` is the one spelling of
+that sequence, and `chordKeys` the one reading of how far the chord has come: the
+key line drops those keys, having said them in the chip that heads it, the
+reference drops them under a heading that names the mode, a chip on the page dims
+them, and the placeholder that speaks a reply box's whole address joins the whole
+array.
 
 Addresses are stable within the document. The first addressable members do not
 change identity as the reader scrolls. Chips are painted only for members whose

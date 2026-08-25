@@ -111,9 +111,10 @@
  * `g G` are the page's own edges, the top and the bottom, addresses with no list to name.
  * Which lists there are is one table (ADDRESSES) and no consumer branches on which one is
  * aimed at.
- * Arming shows the whole offer: everything addressable the reader can see wears its own
- * two-key address as a chip — `c 1`, `l 2` — so the first press states what the rest of
- * the chord reaches. A letter then narrows the chips to its own list, and reveals that
+ * Arming shows the whole offer: everything addressable the reader can see wears its whole
+ * address as a chip — `g c 1`, `g l 2` — with the keys already pressed dimmed, so the chip
+ * states both which member this is and what is left to type. A letter then narrows the
+ * chips to its own list, and reveals that
  * list where it draws nothing until asked. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other, and the rung is whichever scope in reach binds it
@@ -5644,22 +5645,54 @@ const ADDRESSES = [
 // what the keyboard can reach.
 const addressed = (entry) => entry.list().slice(0, ADDRESS_CAP);
 const range = (n) => (n > 1 ? `1–${n}` : "1");
-// How an address is spelled, in one place and off the row that binds the key (GOTO): a
-// member with a standing surface of its own says the whole motion there — a reply box's
-// placeholder reads "Reply · g c 2" — and the armed chip is built the same way. Written
-// out at each of them, `g` was a letter three sites had agreed on and none could correct.
+// How an address is spelled, in one place and off the row that binds the key (GOTO): the
+// keys it takes, in press order. A member with a standing surface of its own says the
+// whole motion there — a reply box's placeholder reads "Reply · g c 2" — and the chord's
+// own chip is built from the same array. Written out at each of them, `g` was a letter
+// three sites had agreed on and none could correct.
 //
-// Two readings, because the surfaces drawn inside the window can leave `g` off: the key
-// line above them already says the mode's name, and repeating it on every member of every
-// list is a letter the reader has read. `n` is a digit on a chip and a range on the line,
-// which is the same pair either way — written out at both, the space between letter and
-// digit was a third site to keep in step.
+// An array rather than a string, because the surfaces drawn inside the armed window differ
+// only in how much of the address the reader has already pressed: the key line drops those
+// keys, having said them once in the chip that heads it, and an address on the page dims
+// them. `n` is a digit on a chip and a range on the line, which is the same array either
+// way — spelled out at both, the space between letter and digit was a third site to keep
+// in step.
+const addressKeys = (entry, n) => [labelOf(GOTO), entry.key, String(n)];
+const addressLabel = (entry, n) => addressKeys(entry, n).join(" ");
+// How far the chord has come: `g`, and the list's letter once one has named a list. Every
+// surface that shows an address asks it — the chip that heads the key line, the ranges
+// beside it, the reference's rows and the dimmed half of a chip on the page — so none of
+// them can disagree about which press comes next.
 //
-// The letter stays on a chip after it has been pressed, because a chip states which thing
-// this is rather than how much of the address is left to type. That is the address the
-// reply box's placeholder wears while nothing is armed at all.
-const addressKeys = (entry, n) => `${entry.key} ${n}`;
-const addressLabel = (entry, n) => `${labelOf(GOTO)} ${addressKeys(entry, n)}`;
+// The chord's stage and not the reader's presses, which is the reading the reference needs:
+// `?` reaches it from a page nobody has armed (declaredStack walks every scope, live or
+// not), and its rows belong under a heading that says "With g armed". So `g` is spoken for
+// there by the section, exactly as the key line's own chip speaks for it, and the rows say
+// what remains inside the mode either way. A chip is the one surface with nothing around
+// it to carry the leader, and it is drawn only while the window is up, so its two questions
+// — how far in, and how much the surroundings already say — have one answer.
+const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
+// An address as the page wears it: the whole of it, the keys already pressed dimmed and the
+// ones still to come in the chip's own colour. The whole of it, because a chip is the
+// address — the same one its reply box's placeholder speaks while nothing is armed at all,
+// and a chip saying `c 2` two pixels from a placeholder saying `g c 2` was a second
+// spelling of one motion, the shorter of which reaches nothing from a standing start. The
+// dimming carries what the letter's disappearance used to say: this much is behind you,
+// and what is lit is the press that finishes it. Built only inside the armed window, which
+// is where the chord's own keys are never none — and, past the letter, only for the list
+// the chord has named (paintAddresses narrows to `aimedList` there), which is what makes
+// those keys a prefix of this address rather than a different list's.
+const addressChip = (entry, n) => {
+  const keys = addressKeys(entry, n);
+  const made = chordKeys().length;
+  const chip = el("span", "lf-address");
+  chip.append(
+    el("span", "lf-spent", keys.slice(0, made).join(" ")),
+    " ",
+    keys.slice(made).join(" "),
+  );
+  return chip;
+};
 
 // Whether the chord is up, and the list a digit addresses once a letter has named one.
 // The armed window is a mode the whole keyboard is in, and a digit pressed inside it
@@ -5742,7 +5775,7 @@ function paintAddresses() {
       for (const [i, member] of addressed(entry).entries()) {
         const r = startsAt(entry.spot?.(member) ?? member, clips);
         if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
-        const chip = el("span", "lf-address", addressKeys(entry, i + 1));
+        const chip = addressChip(entry, i + 1);
         if (r.top < covered) chip.classList.add("lf-in");
         chip.style.left = `${r.left}px`;
         chip.style.top = `${Math.max(r.top, covered)}px`;
@@ -6134,7 +6167,7 @@ function allButTheReference(binding) {
 // opposite order to the line that had just offered them.
 const GO = {
   title: "With g armed",
-  chord: () => (aimedList ? `${labelOf(GOTO)} ${aimedList.key}` : labelOf(GOTO)),
+  chord: () => chordKeys().join(" "),
   at: () => chordArmed,
   claims: EVERYTHING,
   rows: [
@@ -6144,12 +6177,12 @@ const GO = {
           ? addressed(entry).map((_, i) => String(i + 1))
           : [entry.key],
       // The range the list actually holds, so the label cannot offer an address no member
-      // wears; the letter drops off it once it has been pressed, the armed chip having
-      // taken it (`g c`).
+      // wears; the keys already pressed drop off the front of it, the chip heading the
+      // line having taken them (`g c`).
       label: () =>
-        aimedList === entry
-          ? range(addressed(entry).length)
-          : addressKeys(entry, range(addressed(entry).length)),
+        addressKeys(entry, range(addressed(entry).length))
+          .slice(chordKeys().length)
+          .join(" "),
       does: entry.does,
       line: entry.word,
       when: () => entry.list().length > 0 && (!aimedList || aimedList === entry),
@@ -7042,7 +7075,7 @@ function renderLine() {
     keylineEl.append(span);
     return span;
   };
-  const armed = chord ? chip(chord, "", true) : null;
+  if (chord) chip(chord, "", true);
   const drawn = ordered.map((row) => {
     const span = chip(labelOf(row), word(row.line));
     span.hidden = !short.has(row);

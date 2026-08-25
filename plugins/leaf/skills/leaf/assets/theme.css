@@ -106,7 +106,16 @@
   --field: #f4f1e8;  /* tinted fields: details, callouts, notes */
   --code-bg: #eeeade; --pre-bg: #f5f2e9;
   --chip: #eeeade;   /* neutral chip */
-  --ink-2: #3c3934;  --muted-2: #9d968a; --border-2: #d5cfc2;
+  /* --muted-2 is the ink secondary text is set in — a message's timestamp, a work
+     line's clock, a code block's line numbers — at 11.5px, where WCAG AA asks 4.5:1. It
+     was 2.91 light and 3.61 dark: text a reader with ordinary eyes squints at and some
+     cannot read at all.
+     Cleared against every surface it lands on rather than against --card alone. Chosen
+     for --card first, it still failed on paper, field, chip and the two code grounds —
+     and the line numbers, which are the token's only *visible* use across the corpus, sit
+     on --pre-bg out on the page. A token used in six places is only as good as its worst
+     pairing, which is the rule UNREAD_SYNTAX already states for code ink. */
+  --ink-2: #3c3934;  --muted-2: #6d6960; --border-2: #d5cfc2;
   /* The banner's translucent backdrop is the paper it floats over, so it is derived
      rather than restated: a project that overrides --paper gets a backdrop that
      follows it, where a second hex kept the default ivory behind a recoloured page,
@@ -207,7 +216,7 @@
     --card: #201e1a; --field: #232019;
     --code-bg: #29251e; --pre-bg: #1e1c18;
     --chip: #2d2922;
-    --ink-2: #c9c3b6; --muted-2: #756e62; --border-2: #453f36;
+    --ink-2: #c9c3b6; --muted-2: #988f7f; --border-2: #453f36;
     --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;

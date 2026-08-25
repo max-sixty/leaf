@@ -2078,6 +2078,85 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(
     page.close()
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+@pytest.mark.parametrize("width", [1200, 420])
+def test_the_chrome_a_key_opens_has_no_serious_violations(
+    browser, serve, other_leaf, color_scheme, width
+):
+    """The corpus sweep above reads every example, and reads all of them with the chrome
+    shut: it never presses a key, so the comment panel, its box, the trays, the versions
+    menu, the keyboard reference and the chord's chips are surfaces forty parametrisations
+    pass straight over. A `role="list"` whose children are run headings and threads shipped
+    through it, green every time.
+
+    One page rather than the corpus, because the chrome is the same on all of them: what
+    varies between examples is the document, which the sweep above already reads. What
+    varies here is which of the chrome's own surfaces is standing — and the scheme and the
+    width, which are the two axes that sweep carries and this one has to carry too. Dropped,
+    they cost this test the dark palette entirely: the token these very sweeps caught was
+    left failing on the dark half, because nothing here ever rendered it.
+
+    Each surface is opened by its own key, which is also the assertion that it can be, and
+    each is proved standing before axe reads it — a sweep over a surface that never opened
+    is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    resized(page, width, 900)
+    page.emulate_media(color_scheme=color_scheme)
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+
+    def sweep(where):
+        violations, report = serious_axe_violations(page)
+        assert violations == [], f"{where}: {report}"
+
+    sweep("the page as it arrives")
+
+    # The panel, and then its list — which is where `c` lands the reader, and the box it
+    # used to land in is one press further in.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    sweep("standing on the comment list")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    sweep("standing in the general box")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+
+    # A tray on the far edge, which the sweep above never opens either. Waited out rather
+    # than pressed past: the close is animated, so the next surface would otherwise be read
+    # with this one still sliding away behind it.
+    page.keyboard.press("l")
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
+    sweep("standing in the leaves tray")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
+
+    # The versions menu, whose way out this branch made live on a first version.
+    page.keyboard.press("v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    sweep("in the versions menu")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-version-menu")).not_to_be_visible()
+
+    # The keyboard reference, which is a dialog and owes the most of any of them.
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    sweep("in the keyboard reference")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+
+    # And the chord's chips, which are painted over the page rather than in it — so the
+    # letter as well as the `g`, because arming alone paints none.
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-addresses > .lf-address").first).to_be_visible()
+    sweep("with the chord aimed at the comments")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    assert errors == []
+    page.close()
+
+
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     """The gate refuses words under `.lf-ui` inside a widget, because a widget reaching for
     that marker is how a user ends up unable to comment on a heading they can see. The

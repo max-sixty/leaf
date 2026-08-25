@@ -2022,6 +2022,64 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     page.close()
 
 
+def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
+    """A layer owes a way out over exactly the pages its way in is live on, and the
+    menu's two were live over different ones. `v` opened it wherever there was a version
+    at all; the mode binding its Escape stood only above one. So on the commonest page
+    there is — a page with one version — `v` raised a menu no key could put down: the
+    Escape chip read "back to the page", focus fell to body, and the menu stayed painted
+    over the bar.
+
+    Not fixed by taking the menu away, which is what the walk being empty invites. A
+    first version's menu holds that version and the note saying what it changed, and that
+    is the whole reason the chooser is a menu rather than a select — see
+    test_a_key_on_screen_is_a_key_that_works, which asks for it by name. Two facts, so
+    two predicates: `versionsOffered` for the layer and `versionsToWalk` for the rows.
+
+    Asserted from both doors, the pointer's being the one that would have kept the trap,
+    and the walk asserted absent so the fix cannot be "make everything live"."""
+    url = serve(INLINE_PAGE)
+    page, errors = open_page(browser, url)
+    menu = page.locator(".lf-version-menu")
+    line = page.locator(".lf-keyline")
+
+    # One version: the menu opens, holds its one row, and Escape ends it.
+    expect(line).to_contain_text("versions")
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    expect(page.locator(".lf-version-row")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(menu).not_to_be_visible()
+    expect(page.locator(".lf-version")).to_be_focused()
+
+    # The pointer's door reaches the same layer, and the same key ends it.
+    page.locator(".lf-version").click()
+    expect(menu).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(menu).not_to_be_visible()
+
+    # The way out is named while the reader is in it, and the walk — which has nowhere
+    # to step — is not offered beside it.
+    page.keyboard.press("v")
+    expect(line).to_contain_text("close versions")
+    expect(line).not_to_contain_text("walk — marking changes")
+    page.keyboard.press("Escape")
+
+    # The control: a second version, where the walk is live and the layer is unchanged.
+    _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+    page.reload()
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-version-row').length > 1"
+    )
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    expect(line).to_contain_text("walk — marking changes")
+    page.keyboard.press("Escape")
+    expect(menu).not_to_be_visible()
+    assert errors == []
+    page.close()
+
+
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     """The chooser is a press and a menu rather than a select, which buys the notes
     somewhere they can be read whole and costs the platform's own popup: opening,

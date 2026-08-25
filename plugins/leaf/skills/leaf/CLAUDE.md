@@ -1169,6 +1169,52 @@ of rows applies and which platform keys that context claims. The dispatcher,
 key line, `?` reference, control tooltips, and announcements are projections of
 those objects.
 
+### The keyboard is a stack
+
+A press that takes the reader in pushes one layer. Escape pops one. The way out
+is therefore as deep as the way in, and the reader walks it back without having
+counted: three presses in, three Escapes out, each giving up the press that
+earned it.
+
+A press that opens a surface and then steps into something inside it pushes two
+layers at once, and Escape can only hand one of them back. The reader reads that
+as Escape not undoing what the key did, and no surface can tell them otherwise,
+because what the key line promises is one press. Where a press looks like it
+wants two layers, the second layer earns a key of its own — usually the same
+letter again, from the scope the first press stood up. That press is the
+reader's own next step rather than a toll, and the layer it leaves between is
+where the surface's own keys become reachable at all. `c` into the comment panel
+and then its box is that shape, and the paragraphs above own the detail.
+
+Landing focus in what a press opened is arrival, not a second layer: a tray on
+its first row, the versions menu on a version, the panel on its list. The second
+layer is a box the surface does not shadow — the reference's search box is inside
+a surface too, and what keeps it one layer is `HELP` standing nearer with a claim
+over the whole keyboard, so the box's letters were never the page's to take back.
+
+The rule holds for a sequence as much as for a surface, where the stack it is
+about is the reader's rather than the dispatcher's. The address chord arms on `g`
+and narrows to a list on the letter, and each of those is an Escape's worth of
+state — the armed chip says so, reading `g` and then `g c`, and the chips on the
+page narrow with it — so one scope owes two presses out. A letter that also
+reveals its list owes the reveal back with it: `reveal` returns its own undo, and
+`setChord` runs that on every way down but the digit's.
+
+A layer also owes a way out at all, over the same page the way in is live on.
+`versionsOffered` (there is a menu) answers for the key, the mode binding its
+Escape, and the button; `versionsToWalk` (there is somewhere to step) answers for
+the menu's own scope. One predicate for both left `v` opening a menu on a page
+whose Escape no scope was live to bind. A section merges the rows of every scope
+sharing its title, so a contributor the page hasn't got must bring none — `merge`
+drops it — or the two capabilities cannot differ in liveness under one heading.
+
+`rung()` has a single `panelOpen` branch, and that is the rule rather than a
+looseness in it: a surface and where the reader stands in it are one layer. The
+panel's list and the thread `j` walks to are the same rung, which is why `c` from
+either of them is the box — the box being the layer below. So the click that
+opened the panel is the press one Escape gives back, whichever of its contents
+the reader walked to first.
+
 The register owns capabilities, not controls. Every capability the chrome offers
 has a row, and each control that reaches one names its key through `also`; a
 control is a route to a capability rather than a capability of its own, so a
@@ -1309,6 +1355,18 @@ One box inside another scope states only what it does differently. `FINDING`
 stands before `TYPING` in `SCOPES`, so the find box keeps every text-box key and
 shadows the one it answers for itself: Escape lets the narrowing go, and the box
 on the press after that. One press is one rung there as everywhere else.
+
+A box hands the reader back to the conversation it is written in, which is the
+rung `c` came down. `backFromBox` climbs `SAYS_IN` from the box where
+`standingConversation` climbs it from where the reader stands, so the press in
+and the press out name one element and one word — "comment on the thread" going
+in, "back to thread" coming out. The panel's general box has no conversation and
+lands on the list. A box with neither leaves the row dead and the page's own
+"let go" standing, which is the honest rung when there is nothing outside the
+box to stand on: a seat holding no thread yet is that case whole, so it wears no
+seat of its own rather than being named as an exception. Asking whether the
+container can take focus is what keeps this a relation rather than a list of the
+containers that happen to be focusable.
 
 A key may repeat across nesting scopes to mean the same intent one scope further
 in. `c` reads that way: from

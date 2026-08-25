@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import interact
+from leaf_interact import http as http_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -458,6 +459,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         return None
 
     monkeypatch.setattr(interact, "append_event", held_append_event)
+    monkeypatch.setattr(http_model, "append_event", held_append_event)
     monkeypatch.setattr(interact, "composed_theme", held_composed_theme)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)

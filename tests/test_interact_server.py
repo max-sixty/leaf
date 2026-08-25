@@ -28,6 +28,7 @@ from interact_support import (
     record_claim,
 )
 from leaf_interact import events as event_model
+from leaf_interact import http as http_model
 from leaf_interact import service as service_model
 
 
@@ -525,7 +526,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(interact.Handler, "_page_state", own_state)
-    monkeypatch.setattr(interact, "other_leaves", neighbours)
+    monkeypatch.setattr(http_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -565,7 +566,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
             assert release.wait(5), "the test never released the first attempt"
         return "the action was refused"
 
-    monkeypatch.setattr(interact, "action_contract_error", refuse_once)
+    monkeypatch.setattr(http_model, "action_contract_error", refuse_once)
     monkeypatch.setattr(interact.AttemptExecution, "__init__", observe_attempt)
     sent = {
         "kind": "action",
@@ -1867,14 +1868,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = interact.full_state
+    original = http_model.full_state
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(interact, "full_state", held_state)
+    monkeypatch.setattr(http_model, "full_state", held_state)
     response = []
 
     def read_state():

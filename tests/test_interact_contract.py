@@ -47,6 +47,7 @@ from interact_support import (
     trial_version,
     widget_entry,
 )
+from leaf_interact import http as http_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):
@@ -188,7 +189,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     # same standing target and proceed, while the transactional handler keeps the
     # second outside until the first append is visible. A bounded wait keeps the
     # correct serialization from deadlocking the probe itself.
-    real_undo_error = interact.undo_error
+    real_undo_error = http_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
     validation_calls = 0
@@ -205,7 +206,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             second_validation.set()
         return error
 
-    monkeypatch.setattr(interact, "undo_error", expose_validation_gap)
+    monkeypatch.setattr(http_model, "undo_error", expose_validation_gap)
     start = threading.Barrier(3)
     results = []
 

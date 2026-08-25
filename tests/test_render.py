@@ -9710,9 +9710,9 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
 
 
 def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
-    """A note answers "is anyone on this", and the reader who asked from inside the
+    """A work line answers "is anyone on this", and the reader who asked from inside the
     widget's own box is the one least likely to open the panel to find out. One thread
-    has one note, so it is said at both of the thread's seats — the question's inline
+    has one claim, so it is said at both of the thread's seats — the question's inline
     view and the panel's list are two renderings of one conversation, not a complete one
     and a lesser one.
 
@@ -9727,42 +9727,67 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     conversation.locator(".lf-say [role='button']").click()
     round_trip(page)
     held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
-    note = conversation.locator(".lf-thread-note")
-    expect(note).to_have_count(0)
+    work_line = conversation.locator(".lf-work-line")
+    expect(work_line).to_have_count(0)
 
-    def claim(note_ts):
+    def claim(claim_ts):
         interact.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "pricing the camera",
                 "ts": interact.now_iso(),
-                "on": {held: {"detail": "pricing the camera", "ts": note_ts}},
+                "work": [
+                    {
+                        "subject": {"kind": "thread", "id": held},
+                        "detail": "pricing the camera",
+                        "ts": claim_ts,
+                        "after": next(
+                            e["seq"] for e in interact.read_events(d) if e["id"] == held
+                        ),
+                    }
+                ],
             },
         )
         told(page)
 
     claim(interact.now_iso())
-    expect(note).to_have_text(
+    expect(work_line).to_have_text(
         re.compile(r"^Claude is on this — pricing the camera\s*just now$")
     )
+    page.evaluate(
+        "() => { window.heldWorkLine = document.querySelector('.lf-work-line') }"
+    )
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "An unrelated page-level comment.",
+        },
+    )
+    told(page)
+    assert page.evaluate(
+        "() => window.heldWorkLine === document.querySelector('.lf-work-line')"
+    ), "an unrelated event replaced and re-announced an unchanged local work line"
     # Drawn, not merely present: the runtime's own sheet is scoped to .lf-chrome and
     # cannot reach a box in the page, so this seat's rule is the page theme's own and
     # a text assertion alone would pass over a line nobody can see.
-    expect(note).to_be_visible()
-    expect(note).not_to_contain_text("quiet")
+    expect(work_line).to_be_visible()
+    expect(work_line).not_to_contain_text("quiet")
 
     # The same silence the banner reads, at this seat: forty minutes with nothing
-    # renewing the note, while the page's own claim above it is as fresh as ever.
+    # renewing the claim, while the page's own claim above it is as fresh as ever.
     claim(
         (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
             timespec="seconds"
         )
     )
-    expect(note).to_contain_text("quiet")
-    expect(note.locator("time")).to_have_text("40m ago")
+    expect(work_line).to_contain_text("quiet")
+    expect(work_line.locator("time")).to_have_text("40m ago")
 
-    # Answering is what ends it, here as in the panel: nothing writes a note off.
+    # Answering is what ends it, here as in the panel: nothing deletes a local record.
     interact.append_event(
         d,
         {
@@ -9774,7 +9799,238 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
         },
     )
     told(page)
-    expect(note).to_have_count(0)
+    expect(work_line).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
+    """A page widget is a first-class work subject even before anybody comments.
+
+    The same typed claim uses the two declaration-backed seats: prose takes a generated
+    child directly, while an item widget uses the conversation box its declaration and
+    module already provide. Neither invents a comment thread. Unrelated versions leave
+    both claims standing; a typed later-version settlement ends exactly the work it
+    names, and a claim made on v2 does not leak backward into a pinned v1 tab.
+    """
+    work_page = ASK_PAGE.replace(
+        '<h1 id="h">Three jobs</h1>',
+        '<h1 id="h">Three jobs</h1>\n'
+        '<lf-board id="work-board"><lf-column id="work-now" label="In flight">\n'
+        '  <lf-card id="card-migration"><strong>Run the migration</strong> '
+        "Check the shard before cutover.</lf-card>\n"
+        '</lf-column><lf-column id="work-next" label="Next"></lf-column>\n'
+        '<lf-column id="work-done" label="Done"></lf-column></lf-board>',
+    )
+    url = serve(work_page)
+    page, errors = open_page(browser, url)
+    d = serve.page_dir
+
+    def claim(subject, detail):
+        result = CliRunner().invoke(
+            interact.cli,
+            ["status", str(d), "working", detail, "--on", subject],
+        )
+        assert result.exit_code == 0, result.output
+        told(page)
+
+    claim("card-migration", "checking the shard")
+    claim("jobs", "pricing the alternatives")
+
+    card_line = page.locator("#card-migration > .lf-work-line")
+    question_line = page.locator("#jobs > .lf-conversation > .lf-work-line")
+    expect(card_line).to_have_text(
+        re.compile(r"^Claude is on this — checking the shard\s*just now$")
+    )
+    expect(question_line).to_have_text(
+        re.compile(r"^Claude is on this — pricing the alternatives\s*just now$")
+    )
+    expect(card_line).to_be_visible()
+    expect(question_line).to_be_visible()
+    card_words, card_age = card_line.locator(
+        ":scope > span, :scope > time"
+    ).evaluate_all("els => els.map(el => el.getBoundingClientRect().bottom)")
+    assert abs(card_words - card_age) <= 1, (
+        "the age splits a wrapped card sentence instead of following its last line"
+    )
+    expect(page.locator(".lf-thread")).to_have_count(0)
+    expect(page.locator(".lf-panel .lf-work-line")).to_have_count(0)
+    expect(card_line).to_have_class(re.compile(r"\blf-ui\b"))
+    assert card_line.get_attribute("data-lf-gen") == "1"
+    assert question_line.evaluate("el => el === el.parentElement.firstElementChild"), (
+        "the question's work line is not the first thing in its conversation seat"
+    )
+
+    # An unrelated version changes neither coordinate.
+    (d / "versions" / "v2.html").write_text(work_page)
+    unrelated = CliRunner().invoke(
+        interact.cli,
+        ["version", "publish", str(d), "--version", "2", "--text", "Elsewhere"],
+    )
+    assert unrelated.exit_code == 0, unrelated.output
+    page.wait_for_url("**/versions/v2.html*")
+    expect(card_line).to_have_count(1)
+    expect(question_line).to_have_count(1)
+
+    # A new claim belongs to v2. The pinned v1 page still shows the older question
+    # claim, but not work whose subject was claimed against a page later than its own.
+    claim("card-migration", "checking the fallback")
+    expect(card_line).to_contain_text("checking the fallback")
+    pinned, pinned_errors = open_page(browser, url, pin=True)
+    expect(pinned.locator("#card-migration > .lf-work-line")).to_have_count(0)
+    expect(pinned.locator("#jobs > .lf-conversation > .lf-work-line")).to_contain_text(
+        "pricing the alternatives"
+    )
+    assert pinned_errors == []
+    pinned.close()
+
+    (d / "versions" / "v3.html").write_text(work_page)
+    settled = CliRunner().invoke(
+        interact.cli,
+        [
+            "version",
+            "publish",
+            str(d),
+            "--version",
+            "3",
+            "--text",
+            "Local work complete",
+            "--completes",
+            "card-migration",
+            "--completes",
+            "jobs",
+        ],
+    )
+    assert settled.exit_code == 0, settled.output
+    page.wait_for_url("**/versions/v3.html*")
+    expect(page.locator(".lf-work-line")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
+    """A customization may deliberately give a container member a content seat.
+    The runtime's generated line is still apparatus rather than that member's own
+    gesture: clicking status about an option must not choose the option."""
+    option = json.loads((interact.BUNDLED / "registry.json").read_text())["lf-option"]
+    option["x-work"] = {"seat": "content"}
+    layer = tmp_path / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
+
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    result = CliRunner().invoke(
+        interact.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "checking the mount",
+            "--on",
+            "job-mounts",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+
+    work_line = page.locator("#job-mounts > .lf-work-line")
+    expect(work_line).to_be_visible()
+    work_line.click()
+    page.wait_for_timeout(250)
+
+    assert not any(e["kind"] == "action" for e in interact.read_events(serve.page_dir))
+    expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+
+def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
+    """A typed widget claim follows an id through declared shadow roots, so its
+    settlement must reach the same tree. This stages an authored prose widget the way
+    a future x-shadow vocabulary member may: the lookup already promises to find it
+    there, and the cleanup cannot leave the provisional line behind after the server
+    projects the claim away."""
+    work_page = TWICE_PAGE.replace(
+        '<lf-diff id="patch">',
+        '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
+        '  <lf-card id="shadow-card"><strong>Check the shard</strong></lf-card>\n'
+        '</lf-column></lf-board>\n<lf-diff id="patch">',
+    )
+    url = serve(work_page)
+    page, errors = open_page(browser, url, pin=True)
+    d = serve.page_dir
+
+    claimed = CliRunner().invoke(
+        interact.cli,
+        ["status", str(d), "working", "checking the shard", "--on", "shadow-card"],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    work_line = page.locator("#shadow-card > .lf-work-line")
+    expect(work_line).to_have_count(1)
+
+    page.evaluate(
+        """() => document.getElementById('patch').shadowRoot.append(
+            document.getElementById('shadow-card'))"""
+    )
+    expect(work_line).to_have_count(1)
+
+    (d / "versions" / "v2.html").write_text(work_page)
+    settled = CliRunner().invoke(
+        interact.cli,
+        [
+            "version",
+            "publish",
+            str(d),
+            "--version",
+            "2",
+            "--text",
+            "Shard checked",
+            "--completes",
+            "shadow-card",
+        ],
+    )
+    assert settled.exit_code == 0, settled.output
+    told(page)
+    expect(work_line).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
+    """The same declaration-backed seat may be staged into an x-shadow widget;
+    crossing that supported boundary must not turn the shared local line back into an
+    unstyled block."""
+    work_page = TWICE_PAGE.replace(
+        '<lf-diff id="patch">',
+        '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
+        '  <lf-card id="shadow-card"><strong>Check the shard</strong></lf-card>\n'
+        '</lf-column></lf-board>\n<lf-diff id="patch">',
+    )
+    url = serve(work_page)
+    page, errors = open_page(browser, url, pin=True)
+    result = CliRunner().invoke(
+        interact.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "checking the shard",
+            "--on",
+            "shadow-card",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    work_line = page.locator("#shadow-card > .lf-work-line")
+    expect(work_line).to_have_css("display", "flex")
+
+    page.evaluate(
+        """() => document.getElementById('patch').shadowRoot.append(
+            document.getElementById('shadow-card'))"""
+    )
+    expect(work_line).to_have_css("display", "flex")
+    expect(work_line).to_have_css("border-left-style", "dashed")
     assert errors == []
     page.close()
 
@@ -13339,8 +13595,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(fraction).to_contain_text("2/2 done")
     expect(page.locator(".lf-asks")).to_be_hidden()
 
-    # The overruling version: its markup keeps `active` and names the reports on
-    # the note (publish resolves the ids from `overruled`), so replay stops them
+    # The overruling version: its markup keeps `active` and publishes typed report
+    # settlements resolved from `overruled`, so replay stops them
     # and the document speaks again.
     (d / "versions" / "v2.html").write_text(
         REPORT_PAGE.replace(
@@ -13353,7 +13609,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
         ["version", "publish", str(d), "--version", "2", "--text", "not done yet"],
     )
     assert published.exit_code == 0, published.output
-    assert len(interact.read_events(d)[-1]["reports"]) == 2
+    assert len(interact.read_events(d)[-1]["settles"]) == 2
     page.wait_for_url("**/versions/v2.html")
     page.wait_for_function(BOTH_STAMPS)
     task = page.locator("#t-parser")
@@ -27647,7 +27903,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; a note says which of the reader's
+    """The banner says what the agent is doing; a work line says which of the reader's
     questions it is doing it about. Both are one claim written by one command
     (`leaf status … --on`), which is what makes a delegate's check-in keep the page's
     line true as well as its own thread's.
@@ -27658,7 +27914,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     it — a sentence somebody rewrites every few minutes is a claim, and it is painted
     as provisional news rather than as a message, because the answer is still owed.
 
-    Nothing writes a note off. Answering is what ends the work, so the agent's own next
+    Nothing deletes the line directly. Answering is what ends the work, so the agent's own next
     word in the thread settles it, and a second act saying so would be a second writer
     for one fact."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
@@ -27667,8 +27923,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
-    note = page.locator(".lf-thread-note")
-    expect(note).to_have_count(0)
+    work_line = page.locator(".lf-work-line")
+    expect(work_line).to_have_count(0)
 
     def status(*args):
         assert (
@@ -27677,37 +27933,37 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         told(page)
 
     status("working", "reading the reconnect traces", "--on", held)
-    # One note, on the thread it names: a mark that stood on every open thread would
+    # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
-    expect(note).to_have_count(1)
-    expect(note).to_have_text(
+    expect(work_line).to_have_count(1)
+    expect(work_line).to_have_text(
         re.compile(r"^Claude is on this — reading the reconnect traces\s*just now$")
     )
-    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-thread-note')).to_have_count(
-        1
+    expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-work-line')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{other}"] .lf-work-line')).to_have_count(
+        0
     )
-    expect(
-        page.locator(f'.lf-thread[data-id="{other}"] .lf-thread-note')
-    ).to_have_count(0)
     # Under the words that asked and above the box that answers, so it reads in the
     # thread's own order: what you said, what has been said back, what is being done.
     assert page.evaluate(
         f"""() => {{
         const thread = document.querySelector('.lf-thread[data-id="{held}"]');
-        const kids = [...thread.children].map((el) => el.className);
-        return kids.indexOf('lf-thread-note') > kids.lastIndexOf('lf-msg user')
-            && kids.indexOf('lf-thread-note') < kids.indexOf('lf-compose');
+        const kids = [...thread.children];
+        return kids.findIndex((el) => el.matches('.lf-work-line'))
+                > kids.findLastIndex((el) => el.matches('.lf-msg.user'))
+            && kids.findIndex((el) => el.matches('.lf-work-line'))
+                < kids.findIndex((el) => el.matches('.lf-compose'));
     }}"""
-    ), "the note is not between the thread's last message and its reply box"
+    ), "the work line is not between the thread's last message and its reply box"
 
     # A later claim about the page as a whole is not an answer to the thread, so the
-    # note stands: the two seats are one claim, and only one of them has been rewritten.
+    # line stands: the two seats are one claim, and only one of them has been rewritten.
     status("working", "drafting v2")
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^Claude is working — drafting v2")
     )
-    expect(note).to_have_count(1)
-    expect(note).to_contain_text("reading the reconnect traces")
+    expect(work_line).to_have_count(1)
+    expect(work_line).to_contain_text("reading the reconnect traces")
 
     # The answer is what ends it.
     interact.append_event(
@@ -27724,44 +27980,44 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(page.locator(f'.lf-thread[data-id="{held}"] .lf-msg.claude')).to_have_count(
         1
     )
-    expect(note).to_have_count(0)
+    expect(work_line).to_have_count(0)
 
-    # And a note the agent renews after answering stands again: it is on the thread
+    # And a claim the agent renews after answering stands again: its line is on the thread
     # a second time, which is a fact about now rather than about what was said.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    expect(note).to_have_count(1)
+    expect(work_line).to_have_count(1)
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
     interact.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    expect(note).to_have_count(0)
+    expect(work_line).to_have_count(0)
 
-    # And a note goes with the claim it is part of. The banner drops a claim nothing
-    # is behind rather than repeating it, and a note that outlived that judgment would
+    # And a local line goes with the claim it is part of. The banner drops a claim nothing
+    # is behind rather than repeating it, and a line that outlived that judgment would
     # sit under a line saying no session holds the page, the two halves of one claim
     # arguing about it.
     interact.append_event(d, {"kind": "unresolve", "author": "user", "parent": held})
     told(page)
-    expect(note).to_have_count(1)
+    expect(work_line).to_have_count(1)
     record_claim(d, pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^No session holds this page\.")
     )
-    expect(note).to_have_count(0)
+    expect(work_line).to_have_count(0)
     assert errors == []
     page.close()
 
 
-def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
+def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
     """One page holds one answer to how long is too long, at every seat that shows a
     claim of work.
 
     The banner cannot answer for this seat. Every `leaf status … --on` write refreshes
     the page's own line as well as the thread's, so one delegate still checking in keeps
-    the banner green while another's note ages beside the reader's question — the
+    the banner green while another's claim ages beside the reader's question — the
     roster's dead-row failure one level down, reached by exactly the command that makes
     two delegates possible.
 
@@ -27775,25 +28031,34 @@ def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
     held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
-    note = page.locator(".lf-thread-note")
+    work_line = page.locator(".lf-work-line")
 
-    def claim(note_ts):
-        """A page claim made now, carrying a note last renewed whenever."""
+    def claim(claim_ts):
+        """A page claim made now, carrying local work last renewed whenever."""
         interact.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "rerunning the failing shard",
                 "ts": interact.now_iso(),
-                "on": {held: {"detail": "reading the reconnect traces", "ts": note_ts}},
+                "work": [
+                    {
+                        "subject": {"kind": "thread", "id": held},
+                        "detail": "reading the reconnect traces",
+                        "ts": claim_ts,
+                        "after": next(
+                            e["seq"] for e in interact.read_events(d) if e["id"] == held
+                        ),
+                    }
+                ],
             },
         )
         told(page)
 
     claim(interact.now_iso())
     # A claim somebody is keeping says nothing about silence.
-    expect(note).to_have_count(1)
-    expect(note).not_to_contain_text("quiet")
+    expect(work_line).to_have_count(1)
+    expect(work_line).not_to_contain_text("quiet")
 
     quiet_ts = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
         timespec="seconds"
@@ -27804,10 +28069,10 @@ def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(note).to_contain_text("quiet")
-    expect(note.locator("time")).to_have_text("40m ago")
+    expect(work_line).to_contain_text("quiet")
+    expect(work_line.locator("time")).to_have_text("40m ago")
 
-    # The other question the banner asks, asked here too: a note left behind by a turn
+    # The other question the banner asks, asked here too: a claim left behind by a turn
     # that ended is quiet without waiting out the rope. Six minutes is nothing on that
     # rope — what dates this one is the ending, and the page's own line stays green
     # beside it because a second delegate is still renewing the claim.
@@ -27825,15 +28090,15 @@ def test_a_note_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path):
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(note).to_contain_text("quiet")
-    expect(note.locator("time")).to_have_text("6m ago")
+    expect(work_line).to_contain_text("quiet")
+    expect(work_line.locator("time")).to_have_text("6m ago")
 
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d)
     claim(interact.now_iso())
-    expect(note).not_to_contain_text("quiet")
-    expect(note).to_have_count(1)
+    expect(work_line).not_to_contain_text("quiet")
+    expect(work_line).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -28090,6 +28355,45 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     assert page.locator("script").count() == 0, (
         "the snapshot still claims it can refresh"
     )
+    assert errors == []
+    page.close()
+
+
+def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
+    """A local work line is live runtime chrome even though its seat is in the page.
+    A standalone copy has no agent behind it, so preserving the rendered sentence
+    would turn a provisional claim into a frozen lie."""
+    work_page = leaf_page(
+        "work export",
+        """
+<h1 id="h">Rollout</h1>
+<lf-board id="rollout"><lf-column id="now" label="Now">
+  <lf-card id="rollout-card"><strong>Ship the rollout</strong> Check the shard.</lf-card>
+</lf-column></lf-board>
+""",
+    )
+    url = serve(work_page)
+    result = CliRunner().invoke(
+        interact.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "checking the shard",
+            "--on",
+            "rollout-card",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    out = tmp_path / "work-copy.html"
+    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    page = browser.new_page()
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+
+    expect(page.locator(".lf-work-line")).to_have_count(0)
+    expect(page.locator("#rollout-card")).not_to_contain_text("checking the shard")
     assert errors == []
     page.close()
 

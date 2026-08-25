@@ -55,9 +55,9 @@ A page directory holds:
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
-                         "on" maps a comment thread id to the {"detail", "ts"} of
-                         the work in flight on it, which the panel shows under
-                         the reader's own words (`leaf status … --on`);
+                         "work" holds typed, sequence-bounded claims on comment
+                         threads or page widgets, which their local seats show
+                         beside the page-wide line (`leaf status … --on`);
                          when `leaf wait` prints for a non-working page, it
                          writes working with "handoff": true until the agent's
                          own `leaf status` lands
@@ -105,12 +105,14 @@ is already working leaves the existing claim untouched; there is no pickup gap
 to date.
 
 So a claim of work has to be renewed, and the command that makes one renews it.
-`--on` names the comment thread the work is about, so one check-in moves both
-the page's line and the note the reader sees under their own words in the
-comment panel, where it stands until the agent's next word in that thread. That
-is how a claim crosses a turn boundary the session cannot write across: nothing
-in a session touches status.json while its turn is over, so work handed to a
-delegate is renewed from the delegate's own hands or not at all.
+`--on` names the open comment thread or local page widget the work is about, so
+one check-in moves both the page's line and the note beside its subject. A
+thread claim stands until the agent's next word there. A widget claim stands
+until a later version note carries its typed settlement; chronology or an unrelated
+rewrite cannot silently claim the work is done. That is how a claim crosses a
+turn boundary the session cannot write across: nothing in a session touches
+status.json while its turn is over, so work handed to a delegate is renewed
+from the delegate's own hands or not at all.
 
 Where nothing answers for the claim at all, the banner drops the claim rather
 than repeating it. A claimant whose lifetime has ended settles the question
@@ -225,6 +227,10 @@ vocabulary for rides in the custom keywords below:
                 textually inside the widget as well as in the comments panel. The
                 module places the conversationBox; both views share one reply draft,
                 while interactive reply markup stays in the panel.
+    x-work      the local seat for a typed widget work claim: "content" admits a
+                generated line in block prose, while "conversation" places it at
+                the start of the matching x-conversation. An optional when narrows
+                the instances that have that seat. x-content alone grants nothing.
     x-says      attributes whose values are words the reader sees, mapped to the
                 edge they render at ("before" = first child, "after" = last).
                 The runtime renders them as real text there, because a user can
@@ -310,8 +316,9 @@ vocabulary for rides in the custom keywords below:
                 body words, so a report never touches the passage reading. The
                 precedence is opposite to x-state's: an action outranks every
                 later version until `restated` retracts it, while a report is
-                provisional and stands only until a version answers it by id —
-                `reports` on the note, written by `version publish`; `overruled`
+                provisional and stands only until a version settles it by id —
+                a `report` target in the note's `settles` relation, written by
+                `version publish`; `overruled`
                 on the element is how a version keeps its own state over one.
                 See $report in the registry.
     x-retired-when  the outcome under which this element leaves the page — the
@@ -355,8 +362,8 @@ provisional state change on a page widget — same widget/action/detail/version
 shape as an action, validated by the widget's x-report declaration at the
 `leaf report` door, and standing only until a version answers it), note
 (agent; per-version changelog, carrying `restated`: the element ids whose
-decisions the publishing version took back, and `reports`: the report event ids
-the version absorbed or overruled), error (the page's own runtime reporting a
+decisions the publishing version took back, and typed `settles` targets for the
+provisional reports or work claims the version completed), error (the page's own runtime reporting a
 failure in front of the user — author=page, heard by the watcher like a report
 and never counted against the reader).
 
@@ -663,6 +670,15 @@ AWAITS_SCHEMA = {
     },
     "additionalProperties": False,
 }
+WORK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "seat": {"enum": ["content", "conversation"]},
+        "when": ASK_CONDITION,
+    },
+    "required": ["seat"],
+    "additionalProperties": False,
+}
 # A list of the widget's own attribute names. One shape for the three keys that hold
 # one, since the shape is a consequence of what they name rather than three decisions.
 _ATTRIBUTE_LIST = {
@@ -718,6 +734,7 @@ EXTENSION_SCHEMA = {
         "x-wide": {"enum": ["box", "drawing"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
+        "x-work": WORK_SCHEMA,
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {"x-retired-when": ["x-parent"]},
@@ -1201,6 +1218,69 @@ def anchored_ids(events: list, spk: dict) -> set:
         for t in build_threads(events, spk).values()
         if not t["resolved"]
     } - {None}
+
+
+def note_settlements(event: dict, kind: str) -> set[str]:
+    """The ids one version note settles for a provisional-information kind."""
+    return {
+        target["id"] for target in event.get("settles", []) if target["kind"] == kind
+    }
+
+
+def work_claim_version(claim: dict, events: list) -> int:
+    """The published page at a claim's sole stored temporal boundary."""
+    return max(
+        event["version"]
+        for event in events
+        if event["kind"] == "note" and event["seq"] <= claim["after"]
+    )
+
+
+def standing_work_claims(
+    status: dict, events: list, *, include_resolved: bool = False
+) -> list:
+    """The transient work claims the durable exchange has not ended.
+
+    A claim starts after one exact log sequence. Thread work ends at the agent's
+    next reply in that conversation; widget work ends at a later version note
+    that explicitly settles its id. The sequence boundary matters in both
+    directions: renewing work after an answer creates a new claim, and an old
+    answer cannot settle it merely because it names the same subject.
+
+    Resolution only hides a thread claim. An unresolve can make it visible again,
+    so callers carrying status across a rewrite ask to include resolved threads;
+    presence does not. A reply and a widget settlement are permanent log answers and
+    are filtered in both readings.
+    """
+    threads = build_threads(events, {})
+    standing = []
+    for claim in status.get("work", []):
+        subject = claim["subject"]
+        after = claim["after"]
+        if subject["kind"] == "thread":
+            thread = threads.get(subject["id"])
+            if thread is None:
+                continue
+            replied = any(
+                msg["kind"] == "reply"
+                and msg["author"] == "claude"
+                and msg["seq"] > after
+                for msg in thread["msgs"]
+            )
+            if replied or (thread["resolved"] and not include_resolved):
+                continue
+        elif subject["kind"] == "widget":
+            if any(
+                event["kind"] == "note"
+                and event["seq"] > after
+                and subject["id"] in note_settlements(event, "work")
+                for event in events
+            ):
+                continue
+        else:
+            continue
+        standing.append(claim)
+    return standing
 
 
 VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
@@ -1816,29 +1896,40 @@ class PageTransaction:
         return read_json(self.page_dir / "status.json") or {"state": "idle"}
 
     def set_status(
-        self, state: str, detail: str, *, handoff: bool = False, on: str | None = None
+        self,
+        state: str,
+        detail: str,
+        *,
+        handoff: bool = False,
+        work: dict | None = None,
     ) -> None:
-        """Write the claim, and the note under it where the work has a subject.
+        """Write the page claim and any typed local claim it renews.
 
-        A note is the same sentence read at a second seat: the page's one line
-        says what the agent is doing, and the thread it is doing it about says
-        so where the reader asked. One command writes both, because they are
-        one claim — a delegate reporting its thread is also the agent checking
-        in, which is what keeps a `working` claim believed across a turn
-        boundary the session itself cannot write across.
+        A local line is the same sentence read at a second seat: the page's one
+        line says what the agent is doing, and a typed subject says so where the
+        work lives. One command writes both because they are one claim — a
+        delegate reporting its subject is also the agent checking in, which is
+        what keeps `working` believed across a turn boundary the session itself
+        cannot write across.
 
-        Notes carry across every other write, so a handoff's "picking up 2
-        updates" does not silently drop what a helper is holding, and `idle`
-        clears them with the leaf.
+        Standing work carries across every other status write, so a handoff's
+        "picking up 2 updates" does not silently drop what a helper is holding.
+        A new claim replaces the old claim on its semantic subject; `idle`
+        clears them all with the leaf.
         """
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if handoff:
             status["handoff"] = True
-        notes = {} if state == "idle" else dict(self.status.get("on", {}))
-        if on:
-            notes[on] = {"detail": detail, "ts": status["ts"]}
-        if notes:
-            status["on"] = notes
+        claims = (
+            []
+            if state == "idle"
+            else standing_work_claims(self.status, self.events, include_resolved=True)
+        )
+        if work:
+            claims = [held for held in claims if held["subject"] != work["subject"]]
+            claims.append({**work, "detail": detail, "ts": status["ts"]})
+        if claims:
+            status["work"] = claims
         write_json(self.page_dir / "status.json", status)
 
     @property
@@ -2027,6 +2118,23 @@ def presence(page_dir: Path, events: list) -> dict:
         "detail": "",
         "ts": None,
     }
+    # status.json is the writer's latest transient claim. The event log is the
+    # authority for what has answered it, so no consumer receives work a reply,
+    # resolution, or typed version settlement has already ended. Keep the raw
+    # file intact: an unresolve makes a hidden thread claim visible again.
+    status = dict(status)
+    work = standing_work_claims(status, events)
+    if work:
+        status["work"] = [
+            (
+                {**claim, "version": work_claim_version(claim, events)}
+                if claim["subject"]["kind"] == "widget"
+                else claim
+            )
+            for claim in work
+        ]
+    else:
+        status.pop("work", None)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
@@ -2895,6 +3003,27 @@ def _vendor_page(
             + "\nre-vendoring would silently stop these replaying — the user's"
             " recorded decisions among them."
         )
+    published = published_versions(page_dir, events)
+    if published:
+        version = published[-1]
+        html = version_path(page_dir, version).read_text(encoding="utf-8")
+        projection, parser, _spk = page_projection(html, events, incoming, version)
+        unseated = widget_work_without_seats(
+            html,
+            parser,
+            projection,
+            events,
+            read_json(page_dir / "status.json") or {},
+            incoming,
+        )
+        if unseated:
+            sys.exit(
+                "the incoming layer would remove the local seat for active widget "
+                "work on "
+                + ", ".join(repr(widget) for widget in unseated)
+                + "; publish a later version with --completes for that work before "
+                "re-vendoring"
+            )
 
     # Resolve and read the complete incoming layer before the first page write.
     # A bad late source must not leave the registry newer than the theme or its
@@ -3494,6 +3623,119 @@ def cmd_serve(
         lease.close()
 
 
+def widget_work_seat(
+    rec: dict, projection: "StateProjection", registry: dict
+) -> str | None:
+    """The active, validated local-work seat declared by this widget's layer."""
+    entry = registry.get(rec["tag"]) or {}
+    work = entry.get("x-work")
+    attrs = replayed_attrs(rec, projection)
+    if not work or not asking(attrs, work.get("when", {})):
+        return None
+    if work["seat"] == "conversation" and not asking(
+        attrs, entry["x-conversation"].get("when", {})
+    ):
+        return None
+    return work["seat"]
+
+
+def widget_work_without_seats(
+    html: str,
+    parser,
+    projection: "StateProjection",
+    events: list,
+    status: dict,
+    registry: dict,
+    ignored=(),
+) -> list[str]:
+    """Standing widget work the given document and vocabulary cannot show locally."""
+    ignored = set(ignored)
+    decided = decisions(projection.actions, registry)
+    passages = page_passages(
+        html, registry, decided, rewritten_bodies(projection.actions)
+    )
+    missing = []
+    for claim in standing_work_claims(status, events, include_resolved=True):
+        subject = claim["subject"]
+        if subject["kind"] != "widget" or subject["id"] in ignored:
+            continue
+        widget = subject["id"]
+        rec = parser.by_id.get(widget)
+        if not (
+            rec
+            and rec["tag"] in registry
+            and widget not in passages.retired
+            and widget not in passages.gone
+            and not quoted_in(rec, registry)
+            and widget_work_seat(rec, projection, registry)
+        ):
+            missing.append(widget)
+    return sorted(missing)
+
+
+def work_subject(page_dir: Path, events: list, target: str) -> dict:
+    """Resolve one bare CLI id to a typed, locally renderable work subject."""
+    threads = build_threads(events, {})
+    thread = threads.get(target)
+
+    widget = None
+    widget_version = None
+    widget_projection = None
+    registry = None
+    html = None
+    published = published_versions(page_dir, events)
+    if published:
+        widget_version = published[-1]
+        html = version_path(page_dir, widget_version).read_text(encoding="utf-8")
+        registry = require_registry(page_dir)
+        widget_projection, parser, _spk = page_projection(
+            html, events, registry, widget_version
+        )
+        rec = parser.by_id.get(target)
+        if rec and rec["tag"] in registry:
+            widget = rec
+
+    if thread is not None and widget is not None:
+        sys.exit(
+            f"{target} names both a comment thread and a page widget; "
+            "rename one so --on has one subject"
+        )
+    if thread is not None:
+        if thread["resolved"]:
+            sys.exit(
+                f"{target} is a resolved comment thread; reopen it before claiming work"
+            )
+        return {
+            "subject": {"kind": "thread", "id": target},
+            "after": events[-1]["seq"] if events else 0,
+        }
+    if widget is not None:
+        assert (
+            registry is not None and widget_projection is not None and html is not None
+        )
+        decided = decisions(widget_projection.actions, registry)
+        passages = page_passages(
+            html,
+            registry,
+            decided,
+            rewritten_bodies(widget_projection.actions),
+        )
+        if target in passages.retired or target in passages.gone:
+            sys.exit(f"{target} is not visible under the page's standing decisions")
+        if quoted_in(widget, registry):
+            sys.exit(f"{target} is quoted exhibit content, not a live page widget")
+        if not widget_work_seat(widget, widget_projection, registry):
+            sys.exit(
+                f"{target} has no local work seat; its widget declaration "
+                "does not provide one in this state"
+            )
+        return {
+            "subject": {"kind": "widget", "id": target},
+            "after": events[-1]["seq"] if events else 0,
+        }
+    sys.exit(f"{target} is not a comment thread or local page widget on this page")
+
+
 def cmd_status(
     page_dir: Path,
     state: str,
@@ -3502,17 +3744,17 @@ def cmd_status(
     on: str | None = None,
 ) -> None:
     with PageTransaction(page_dir) as page:
+        work = None
         if on is not None:
-            # A note says "I am on this now", so the two other states have
-            # nothing to put on a thread: `waiting` is the reader's move, and
+            # A local claim says "I am on this now", so the two other states
+            # have nothing to put there: `waiting` is the reader's move, and
             # `idle` is the end of the agent's side.
             if state != "working":
                 sys.exit("--on says what you are working on; use it with `working`")
             if not detail:
-                sys.exit("--on needs a detail; a note with no words says nothing")
-            if on not in build_threads(page.events, {}):
-                sys.exit(f"{on} is not a comment thread on this page")
-        page.set_status(state, detail, handoff=handoff, on=on)
+                sys.exit("--on needs a detail; a work line with no words says nothing")
+            work = work_subject(page_dir, page.events, on)
+        page.set_status(state, detail, handoff=handoff, work=work)
 
 
 def start_server(
@@ -4333,7 +4575,9 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
 
 
 @contract_writer
-def cmd_publish(page_dir: Path, version: int, text) -> None:
+def cmd_publish(
+    page_dir: Path, version: int, text, completes: tuple[str, ...] = ()
+) -> None:
     name = version_name(version)
     path = version_path(page_dir, version)
     if not path.is_file():
@@ -4355,13 +4599,49 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
         projection, parser, spk = page_projection(html, events, registry, version)
         retracts = sorted(parser.restated)
         byid = parser.by_id
-        answered = []
+        if len(set(completes)) != len(completes):
+            sys.exit("--completes names each widget at most once")
+        completed = set(completes)
+        widget_work = {
+            claim["subject"]["id"]: claim
+            for claim in standing_work_claims(
+                page.status, events, include_resolved=True
+            )
+            if claim["subject"]["kind"] == "widget"
+        }
+        unearned = sorted(completed - widget_work.keys())
+        if unearned:
+            sys.exit(
+                "no active widget work claim for "
+                + ", ".join(repr(widget) for widget in unearned)
+            )
+        not_later = sorted(
+            widget
+            for widget in completed
+            if version <= work_claim_version(widget_work[widget], events)
+        )
+        if not_later:
+            sys.exit(
+                f"v{version} is not later than the active widget work claim for "
+                + ", ".join(repr(widget) for widget in not_later)
+            )
+        unseated = widget_work_without_seats(
+            html, parser, projection, events, page.status, registry, completed
+        )
+        if unseated:
+            widgets = ", ".join(repr(widget) for widget in unseated)
+            sys.exit(
+                f"refusing to publish {name}: it would remove the local seat "
+                f"for active work on {widgets}; pass --completes for each widget "
+                "this version completes"
+            )
+        settled_reports = []
         for (_widget, unit, _facet), reports in projection.reports.items():
             last, spec = reports[-1]
             if unit in parser.overruled or markup_facet(
                 unit, spec, byid, spk, registry
             ) == folded_facet(last, spec):
-                answered.extend(report["id"] for report, _ in reports)
+                settled_reports.extend(report["id"] for report, _ in reports)
         event = {
             "kind": "note",
             "author": "claude",
@@ -4371,8 +4651,15 @@ def cmd_publish(page_dir: Path, version: int, text) -> None:
         }
         if retracts:
             event["restated"] = retracts
-        if answered:
-            event["reports"] = sorted(answered)
+        settlements = [
+            *(
+                {"kind": "report", "id": identity}
+                for identity in sorted(settled_reports)
+            ),
+            *({"kind": "work", "id": identity} for identity in sorted(completed)),
+        ]
+        if settlements:
+            event["settles"] = settlements
         accepted = append_event(page, event)
     print(json.dumps(accepted, ensure_ascii=False))
 
@@ -6688,6 +6975,7 @@ def validate_registry(registry: dict, source) -> dict:
             ("x-awaits", awaits.get("when", {})),
             ("x-awaits", awaits.get("until", {}).get("when", {})),
             ("x-conversation", entry.get("x-conversation", {}).get("when", {})),
+            ("x-work", entry.get("x-work", {}).get("when", {})),
         ]
         for declaration, condition in conditions:
             for attr, values in condition.items():
@@ -6731,6 +7019,24 @@ def validate_registry(registry: dict, source) -> dict:
                             f"{value!r}, which its own schema does not admit: "
                             f"{errors[0].message}"
                         )
+        work = entry.get("x-work")
+        if work and work["seat"] == "content":
+            if entry.get("x-inline"):
+                raise RegistryError(
+                    f"{path}: <{tag}> declares a content work seat but is inline; "
+                    "local work chrome needs a block slot"
+                )
+            if entry.get("x-content") != "prose":
+                raise RegistryError(
+                    f"{path}: <{tag}> declares a content work seat but x-content is "
+                    f"{entry.get('x-content')}; generated local chrome may only join "
+                    "authored prose"
+                )
+        if work and work["seat"] == "conversation" and not entry.get("x-conversation"):
+            raise RegistryError(
+                f"{path}: <{tag}> declares a conversation work seat but declares "
+                "no x-conversation"
+            )
         # A blanket answer is one of this widget's own verbs, so the log records it
         # the way every other decision is recorded.
         answers = awaits.get("answers", [])
@@ -7786,30 +8092,25 @@ def action_subjects(event: dict, byid: dict, now: dict, registry: dict) -> list:
     return subjects or [widget]
 
 
-def note_floors(events: list, field: str, upto=None) -> dict:
-    """id named by a note field → the last version that named it in the window.
-
-    `restated` and `reports` are the reviewer and agent channels' two readings
-    of the same durable relation: one version's note answers ids, and that
-    answer lasts without being repeated. Keeping their filter-and-max fold here
-    prevents the channels from disagreeing about how a window is applied.
-    """
+def retractions(events: list, upto=None) -> dict:
+    """id → the greatest version whose `restated` note took back its decision."""
     at = {}
     for event in events:
         if event["kind"] == "note" and (upto is None or event["version"] <= upto):
-            for named in event.get(field, []):
+            for named in event.get("restated", []):
                 at[named] = max(at.get(named, 0), event["version"])
     return at
 
 
-def retractions(events: list, upto=None) -> dict:
-    """id → the version whose `restated` note last took back its decision."""
-    return note_floors(events, "restated", upto)
-
-
-def report_absorptions(events: list, upto=None) -> dict:
-    """report event id → the version whose `reports` note last answered it."""
-    return note_floors(events, "reports", upto)
+def report_settlements(events: list, upto=None) -> dict:
+    """Report event id → the greatest version whose note settled it."""
+    at = {}
+    for event in events:
+        if event["kind"] != "note" or (upto is not None and event["version"] > upto):
+            continue
+        for identity in note_settlements(event, "report"):
+            at[identity] = max(at.get(identity, 0), event["version"])
+    return at
 
 
 def action_rests_on(event: dict, spk: dict) -> list:
@@ -7854,7 +8155,7 @@ class StateProjection(NamedTuple):
     actions: dict
     reports: dict
     desired: dict
-    report_answers: dict
+    report_settlements: dict
 
 
 def state_coordinate(widget: str, unit: str, spec: dict) -> tuple[str, str, str]:
@@ -7879,17 +8180,17 @@ def state_projection(
 
     Both channels share one classification pass over the window. They end by
     different facts: undo or a retraction floor ends an action, while a note
-    naming a report ends that report. `report_answers` retains the answer
-    version for gate diagnostics after an absorbed report leaves the live maps.
+    settling a report ends that report. `report_settlements` retains the version
+    for gate diagnostics after a settled report leaves the live maps.
     A report or action whose widget the markup lacks resolves no declaration
     and stands nowhere."""
     if floors is None:
         floors = retractions(events, upto)
     withdrawn = taken_back(events)
-    absorbed = report_absorptions(events, upto)
+    settled = report_settlements(events, upto)
     actions = {}
     reports = {}
-    report_answers = {}
+    settlement_versions = {}
     for event in events:
         if event["kind"] == "action":
             channel = "x-state"
@@ -7918,9 +8219,9 @@ def state_projection(
             if event["id"] in withdrawn or action_retracted(event, floors, spk):
                 continue
             actions[coordinate] = entry
-        elif answered_at := absorbed.get(event["id"]):
-            report_answers[coordinate] = max(
-                report_answers.get(coordinate, 0), answered_at
+        elif settled_at := settled.get(event["id"]):
+            settlement_versions[coordinate] = max(
+                settlement_versions.get(coordinate, 0), settled_at
             )
         else:
             reports.setdefault(coordinate, []).append(entry)
@@ -7931,7 +8232,7 @@ def state_projection(
         actions,
         reports,
         desired,
-        report_answers,
+        settlement_versions,
     )
 
 
@@ -8579,7 +8880,7 @@ def report_errors(
     """The report gate, beside the reviewer one — the same shape with the
     precedence reversed. A report is a worker's provisional news: the runtime
     paints it onto every version published before it, and it stands only until
-    a version answers it by id (`reports` on the note, the mirror of
+    a version settles its typed id on the note (the agent-side counterpart to
     `restated`). Three outcomes are legal. Writing the reported state is
     honoring — publishing records it as absorption. Leaving the markup as the
     previous version had it is blessed silence — the report keeps painting.
@@ -8638,7 +8939,7 @@ def report_errors(
     # answered the unit's reports, for the message that says to drop it.
     answered_at = {}
     if unearned:
-        for (_widget, unit, _facet), version in projection.report_answers.items():
+        for (_widget, unit, _facet), version in projection.report_settlements.items():
             answered_at[unit] = max(answered_at.get(unit, 0), version)
     for sid in sorted(unearned):
         rec = byid.get(sid)
@@ -9186,11 +9487,11 @@ UNMARKABLE_ITEMS = """async () => {
 # see. The declaration is made where the label is written: data-lf-said for the page
 # speaking, which the anchor pass reads over the box around it, data-lf-offer for a
 # thing to work. So inside a widget, every word under .lf-ui has to be declared the
-# page's, be a control's own label, or be the line the paint pass writes to say how
-# many comments a block carries: that one is about the document rather than of it,
-# which is the same reason it wears .lf-ui at all, and it lands inside a widget
-# whenever a comment does. The comment panel is out of scope: a widget in a reply is
-# markup frozen in the event log, not the document.
+# page's, be a control's own label, or be a runtime line about the document rather
+# than of it: the count of comments a block carries, or the transient work claim a
+# widget locally seats. Those are chrome precisely because a comment must anchor on
+# the subject under them rather than on Leaf's account of it. The comment panel is out
+# of scope: a widget in a reply is markup frozen in the event log, not the document.
 #
 # And a declared label inside a form control is out of reach whatever it is marked:
 # Chrome starts no pointer selection inside one, which is why `offer` builds a press
@@ -9238,6 +9539,10 @@ UNREACHABLE_WORDS = """() => {
         const chrome = el.closest('.lf-ui');
         if (!chrome || !widget(chrome)) continue;
         if (speaks(el) || el.closest(CONTROL)) continue;
+        // A local work line is runtime chrome about its owning widget, not authored
+        // words of that widget. Its subject is the anchor; the provisional sentence
+        // deliberately is not another passage the reader can thread.
+        if (el.closest('.lf-work-line')) continue;
         // .lf-quiet is words for a reader listening, clipped to nothing: not on
         // screen, so there is nothing here the eye can see and the pointer can't
         // reach — the failure this check exists for.
@@ -10936,6 +11241,16 @@ def render_check(page_dir: Path, version: int, transition_held: bool = False) ->
 # is named here: this marks the medium, and the widgets answer for themselves.
 BAKE = """() => {
     document.documentElement.classList.add('lf-copy');
+    // A work line is runtime chrome even where its declared seat is in the page rather
+    // than under .lf-chrome. Remove it from the document and every open shadow root
+    // before those roots are serialized below: a file has no agent behind the claim,
+    // so preserving the rendered sentence would turn provisional news into a lie.
+    const roots = [document];
+    for (const root of roots)
+        for (const element of root.querySelectorAll('*'))
+            if (element.shadowRoot) roots.push(element.shadowRoot);
+    for (const root of roots)
+        root.querySelectorAll('.lf-work-line').forEach(el => el.remove());
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
     // A measurement of this window is not a fact about the reader's. The live page
     // measures two of them and states each inline on the root — the room a wide widget
@@ -11335,12 +11650,21 @@ def check(dir: str, version: int, render: bool) -> None:
     "--version", type=int, required=True, metavar="N", help="version to publish"
 )
 @click.option("--text", help="changelog text (default: stdin)")
-def publish(dir: str, version: int, text: str) -> None:
+@click.option(
+    "--completes",
+    multiple=True,
+    metavar="WIDGET",
+    help="active widget work this version completes (repeatable)",
+)
+def publish(dir: str, version: int, text: str, completes: tuple[str, ...]) -> None:
     """Publish a checked version with a changelog.
 
-    Checks the version first, then makes it visible to the page server.
+    Checks the version first, then makes it visible to the page server. Repeat
+    --completes for each active widget work claim this version completes. A
+    widget claim otherwise survives unrelated versions, and a version cannot
+    silently remove its local seat.
     """
-    cmd_publish(resolve_dir(dir), version, text)
+    cmd_publish(resolve_dir(dir), version, text, completes)
 
 
 @version.command(short_help="Export a published version to one HTML file.")
@@ -11469,8 +11793,8 @@ def stop(dir: str) -> None:
 @click.option(
     "--on",
     "on",
-    metavar="THREAD",
-    help="The comment thread this working detail is about.",
+    metavar="SUBJECT",
+    help="The open comment thread or local page widget this work is about.",
 )
 def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
@@ -11480,14 +11804,15 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     storage engine"). A waiting page that declares none falls back to the
     standing "select text to comment".
 
-    --on names the comment thread that detail is about, and the reader sees it
-    under their own words as well as in the banner. It stands until you answer
-    that thread, so work in flight — a delegate, a long tool run — reads as
-    picked up rather than as silence. A `working` claim is believed while the
-    turn that wrote it is open; the page is told when that turn ends, so
-    something has to renew the claim within a couple of minutes of the ending,
-    and one nobody renews at all goes quiet after about a quarter of an hour —
-    on the banner and on each note alike.
+    --on names the open comment thread or local page widget that detail is about,
+    and the reader sees it beside that subject as well as in the banner. Thread
+    work stands until your next reply there. Widget work stands until a later
+    version publish explicitly names it with --completes. Work in flight — a
+    delegate, a long tool run — therefore reads as picked up rather than as
+    silence. A `working` claim is believed while the turn that wrote it is open;
+    the page is told when that turn ends, so something has to renew the claim
+    within a couple of minutes of the ending, and one nobody renews at all goes
+    quiet after about a quarter of an hour — on the banner and each local line.
     """
     page_dir = resolve_dir(dir)
     # Idling over an event nobody has answered ends the leaf on a user still

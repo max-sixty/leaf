@@ -128,6 +128,24 @@ event order. Reports remain live until a version note absorbs or overrules them.
 Actions remain live until undo or a later retraction floor ends them. Both Python
 and JavaScript derive those answers from the same registry declarations.
 
+Work claims are transient rather than event history, but they follow the same
+one-coordinate rule. `status.json` stores a typed subject (`thread` or `widget`)
+and the log sequence after which the claim began. Presence derives a widget
+claim's origin version from that sequence and projects the record against the log
+before any consumer receives it. A later agent reply permanently answers thread
+work; a resolution hides it and an unresolve reveals it again. Widget work survives
+unrelated versions and ends only when a later version note carries a `work`
+settlement for the widget. A version may not silently remove an active claim's
+local seat, and neither may a layer re-vendor: settle the work in a later version
+first. Pinned pages do not show widget work claimed on a later version.
+
+A widget's local seat also stays declaration-driven. `x-work` explicitly admits
+the transient line either as a generated child of block prose (`content`) or at
+the start of a matching `x-conversation` (`conversation`), optionally under a
+predicate. `x-content: prose` alone is not permission: that prose may itself be
+a holder gesture or may stand in a hidden panel. Core must refuse an undeclared
+target rather than branch on a tag name or infer a safe insertion point.
+
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
 log markup and take the whole conversation window. That markup is a second

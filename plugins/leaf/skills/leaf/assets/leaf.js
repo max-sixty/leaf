@@ -808,7 +808,12 @@ export function worksInside(node, container) {
   // `contains` counts an element as containing itself, so the container is ruled out by
   // name — the question is what stands between the two, and a container that is itself
   // a thing to work would otherwise answer with itself and never take a gesture again.
-  const inner = node.closest([...held, WORKS, "[data-lf-offer]"].join(","));
+  // A local work line is runtime apparatus too. It may deliberately sit in one of
+  // this container's declared parts, where the part is otherwise the gesture target;
+  // reading or selecting the status must not cast that gesture on its way through.
+  const inner = node.closest(
+    [...held, WORKS, "[data-lf-offer]", ".lf-work-line"].join(","),
+  );
   return inner && inner !== container && container.contains(inner) ? inner : null;
 }
 
@@ -1703,11 +1708,12 @@ const shadowRootsIn = (root) =>
 const pageShadowRoots = () => shadowRootsIn(document);
 
 // The theme's rules for shadow trees, sliced out once at load (see the markers in
-// theme.css). Read from the theme rather than written here so a project that overrides
-// the theme overrides these with it — and fetched during the upgrade, before any module
-// renders, so the stage below can stay synchronous for its callers.
+// theme.css). Every layer may contribute a block; concatenating them in theme order
+// preserves the same cascade inside a declared shadow root as in the document. Read
+// from the theme rather than written here so a project override travels with the widget,
+// and fetched during upgrade so the stage below stays synchronous for its callers.
 let shadowRules = "";
-const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//;
+const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
 // A top-layer element no longer composites through its light/shadow ancestors, so the
 // document's main gate cannot hide a dialog promoted out of an x-shadow widget. Every
 // legitimate page shadow tree is built here; put the same subtree boundary inside it,
@@ -1732,13 +1738,13 @@ async function loadShadowRules() {
   // widgets this slice feeds — which would arrive unstyled with no error anywhere, the
   // failure that reads as a widget nobody finished rather than as a theme missing a
   // block. Whichever theme is vendored, either it carries these or the page says so.
-  const found = SHADOW_CSS.exec(await response.text());
-  if (!found)
+  const found = [...(await response.text()).matchAll(SHADOW_CSS)];
+  if (!found.length)
     throw new Error(
       "leaf: the theme carries no /* lf-shadow:start */…/* lf-shadow:end */ block, " +
         "which is where the rules an x-shadow widget renders under are read from",
     );
-  shadowRules = found[1];
+  shadowRules = found.map((match) => match[1]).join("\n");
 }
 
 // The stage an x-shadow widget renders into. A module never calls attachShadow itself,
@@ -3043,28 +3049,6 @@ ${MARK_RULES}
     /* The general Send stays beside its field; a thread gives the field its own row. */
     .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
     .lf-general textarea { flex: 1; min-width: 0; }
-    /* What the agent says it is doing about this thread (leaf status --on).
-       Provisional news, so it wears the amber dashed edge the page's own reported
-       state wears ([data-lf-reported] in theme.css) rather than a message's ink: it
-       is a claim somebody renews every few minutes, not something said to the reader,
-       and the answer when it comes is a message under it. The age is the half that
-       makes it worth reading, so it is on the line rather than in a hover — a note
-       nobody has renewed for twenty minutes is the case this exists to show. */
-    .lf-thread-note { display: flex; gap: 6px; align-items: baseline; margin: 8px 0 0;
-      padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
-      border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
-    .lf-thread-note span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-    /* The age is two words wide and the detail is a sentence, so the words wrap and the
-       clock does not: broken over two lines it read as "just / now" down the right
-       edge, which is the one part of the line the eye goes to first. No width is
-       stated anywhere here, the panel's being the reader's to drag. */
-    /* Silence, said beside the clock rather than instead of it. The roster says this
-       same word on the same rope (lf-agent's heard, .lf-cold in the bundled theme);
-       the class is chrome's own because chrome must not rest on a rule an overlay
-       layer owns, while the tokens under it are core. */
-    .lf-thread-note .lf-note-cold { color: var(--warn-ink); background: var(--warn-tint);
-      border-radius: 3px; padding: 0 4px; white-space: nowrap; }
-    .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
     .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
     .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
     .lf-thread-action:hover { color: var(--ok); }
@@ -4172,21 +4156,21 @@ let lastVersionsKey = "";
 let latestVersion = null;
 let versions = [];
 let agentMsgCount = -1;
-// The agent's dated claim that it is working on one thread (`leaf status … --on`),
-// keyed by that thread's root id. It is the banner's own claim read at a second seat:
-// the page's line says what the agent is doing, and the thread it is doing it about
-// says so under the words that asked for it. It lives in status.json beside the page's
-// claim rather than in the log, because it is a sentence somebody revises every few
-// minutes and the log is the record of what happened — and because one writer for the
-// two seats is what makes a delegate's check-in keep the banner true (set_status).
-let agentNotes = {};
+// The agent's typed, dated claims that it is working on local subjects (`leaf status
+// … --on`). Each is the banner's own claim read at another seat: the page's line says
+// what the agent is doing, and the thread or page widget it is about says so locally.
+// They live in status.json rather than the log because they are sentences somebody
+// renews every few minutes, while the log is what happened. Subject kind and sequence
+// boundary arrive intact; the server has already projected away every claim a reply,
+// resolution, or typed version settlement ended.
+let agentWork = [];
 // When the claiming session's last turn ended, as this tab last heard it. Held beside
-// the notes because it is the other half of reading one: a note is renewed by the same
+// the claims because it is the other half of reading one: a claim is renewed by the same
 // command that renews the page's claim, so a turn ending under both is one fact, and
-// the note seat has to reach it without asking the banner.
+// the local seat has to reach it without asking the banner.
 let agentTurnClosed = null;
-// The threads the panel last reconciled. The note line repaints on the poll's clock and
-// not only on the log's, because its age is half of what it says and a note nobody
+// The threads the panel last reconciled. A work line repaints on the poll's clock and
+// not only on the log's, because its age is half of what it says and a claim nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
 // makes that cheap: buildThreads walks the log and the page, and a second walk every two
 // seconds would answer nothing the last one didn't.
@@ -5737,7 +5721,8 @@ function conversationThreadNode(host, t) {
       wireReply(t, input, send);
     }
   }
-  setChildren(thread, [...messages, tail]);
+  const work = thread.querySelector(":scope > .lf-work-line");
+  setChildren(thread, [...messages, ...(work ? [work] : []), tail]);
   return thread;
 }
 
@@ -5762,7 +5747,9 @@ function renderConversations(threads) {
     if (!owned.length) continue;
     const first = host.lfFirstMessage;
     const pending = loadDraft("say:" + owner.id) !== null ? first : null;
+    const work = host.querySelector(":scope > .lf-work-line");
     setChildren(host, [
+      ...(work ? [work] : []),
       ...owned.map((thread) => conversationThreadNode(host, thread)),
       ...(pending ? [pending] : []),
     ]);
@@ -5781,7 +5768,7 @@ function threadNode(t, grow) {
   if (existing && existingResolved === Boolean(t.resolved)) {
     const compose = existing.querySelector(":scope > .lf-compose");
     const tail =
-      existing.querySelector(":scope > .lf-thread-note") ??
+      existing.querySelector(":scope > .lf-work-line") ??
       compose ??
       existing.querySelector(":scope > .lf-thread-actions");
     for (const m of t.msgs) {
@@ -5973,84 +5960,103 @@ function foldOut(t) {
   return node;
 }
 
-// A note stands until the agent's own next word in this thread. Nothing writes one off:
-// answering is what ends the work, so a second act saying so would be a second writer
-// for one fact — and a note whose answer landed while this tab was asleep is settled by
-// the next poll with no help from anyone. A resolved thread shows none for the same
-// reason its reply box is gone: the conversation is over, whoever closed it.
-function standingNote(t) {
-  const note = agentNotes[t.root.id];
-  if (!note || t.resolved) return null;
-  const since = Date.parse(note.ts);
-  return t.msgs.some((m) => m.author === "claude" && Date.parse(m.ts) > since)
-    ? null
-    : note;
-}
-
-// One writer for the line, called from the reconcile that builds the thread nodes and
-// from every poll after it — the first because a new node has none, the second because
-// a note arrives and ages without the log changing at all.
-// One note written at one seat. Which element the line goes above is the seat's — the
-// panel's reply box, or the inline conversation's — and everything else about it is the
-// thread's, so both callers hand this the same note and get the same sentence, the same
-// word for silence and the same clock.
-function paintNote(host, note, tail) {
+// One writer for every local work line. Which box it stands in is the subject's — a
+// thread's complete or inline seat, a widget's declared conversation, or a prose
+// widget itself — while the sentence, silence word, and clock are identical. Lines are
+// kept across polls so an unchanged claim is not announced again every two seconds.
+function paintWorkLine(host, claim, before, wanted) {
   if (!host) return;
-  let line = host.querySelector(":scope > .lf-thread-note");
-  if (!note) {
-    line?.remove();
-    return;
-  }
+  const { kind, id } = claim.subject;
+  let line = [...host.children].find(
+    (child) =>
+      child.matches(".lf-work-line") &&
+      child.dataset.subjectKind === kind &&
+      child.dataset.subjectId === id,
+  );
   if (!line) {
-    line = el("div", "lf-thread-note");
+    line = el("div", "lf-work-line lf-ui");
+    line.dataset.lfGen = "1";
+    line.dataset.subjectKind = kind;
+    line.dataset.subjectId = id;
     line.append(el("span"), el("time"));
-    host.insertBefore(line, host.querySelector(tail));
   }
+  const next = before ?? null;
+  if (line.parentElement !== host || line.nextSibling !== next)
+    host.insertBefore(line, next);
+  wanted.add(line);
   const what = line.firstElementChild;
   const when = line.lastElementChild;
   // Written only on change, like the message clocks beside it: an unchanged poll must
   // not hand the reader's screen reader the same sentence every two seconds.
-  const said = `${agentName()} is on this — ${note.detail}`;
+  const said = `${agentName()} is on this — ${claim.detail}`;
   if (what.textContent !== said) what.textContent = said;
   // A claim of work nobody has renewed, said in a word. The banner cannot answer for
   // this seat: every `leaf status … --on` write refreshes the page's own line, so one
-  // delegate still reporting keeps the banner green while another's note ages here —
+  // delegate still reporting keeps the banner green while another's claim ages here —
   // the fleet's dead-row failure one level down, and the reason the roster says this
   // in words rather than leaving it to a tint. Both of the banner's own questions,
   // asked here by the same two predicates: gone unrenewed too long, or left behind by
-  // a turn that ended. A note is written by the command that writes the claim, so a
+  // a turn that ended. A local line is written by the command that writes the claim, so a
   // seat answering either question differently would have the page arguing with
   // itself about one silence. `ago` is still rendered whole beside the word rather
   // than reworded to absorb it. The cell is added and removed rather than hidden,
   // because a hidden one still reads out in the thread's text.
-  let cold = line.querySelector(":scope > .lf-note-cold");
-  if (quietSince(note.ts) || droppedAt(note.ts, agentTurnClosed)) {
-    if (!cold) line.insertBefore(el("span", "lf-note-cold", "quiet"), when);
+  let cold = line.querySelector(":scope > .lf-work-quiet");
+  if (quietSince(claim.ts) || droppedAt(claim.ts, agentTurnClosed)) {
+    if (!cold) line.insertBefore(el("span", "lf-work-quiet", "quiet"), when);
   } else cold?.remove();
-  const age = ago(note.ts);
+  const age = ago(claim.ts);
   if (when.textContent !== age) when.textContent = age;
 }
 
-// Every seat the same thread is readable at. A widget carrying its own conversation
-// (x-conversation) is a second rendering of one thread, not a lesser one: the reader
-// who asked from inside the widget is the one least likely to open the panel, and a
-// question being worked has to read differently there too. The inline node is rebuilt
-// whenever the log grows, which is why this runs after renderPanel rather than inside
-// the node's own builder — and why it runs on every poll, since a note ages without
-// the log changing at all.
-function paintNotes() {
-  for (const t of threadList) {
-    const note = standingNote(t);
-    paintNote(
-      threadsBox.querySelector(`.lf-thread[data-id="${t.root.id}"]`),
-      note,
-      ":scope > .lf-compose",
-    );
-    for (const inline of document.querySelectorAll(
-      `.lf-conversation-thread[data-thread="${t.root.id}"]`,
-    ))
-      paintNote(inline, note, ":scope > .lf-say");
+function widgetWorkSeat(owner) {
+  const work = registry[owner.localName]?.["x-work"];
+  if (!work || !matchesWhen(owner, work.when)) return null;
+  if (work.seat === "content") return { host: owner, before: null };
+  const conversation = registry[owner.localName]["x-conversation"];
+  if (!matchesWhen(owner, conversation.when)) return null;
+  const host = [...owner.children].find(
+    (child) =>
+      child.matches(".lf-conversation[data-lf-conversation]") &&
+      child.dataset.lfConversation === owner.id,
+  );
+  if (!host) return null;
+  const before = [...host.children].find((child) => !child.matches(".lf-work-line"));
+  return { host, before: before ?? null };
+}
+
+// Every local seat for every typed subject. The merged x-work declaration decided at
+// the CLI boundary whether a widget could safely carry one and tells this reading which
+// of the two general seats to use. Core still knows no content-widget tag name. A claim
+// created on a later version cannot leak backward into a pinned historical page.
+function paintWorkLines() {
+  const wanted = new Set();
+  for (const claim of agentWork) {
+    const { kind, id } = claim.subject;
+    if (kind === "thread") {
+      const thread = threadList.find((candidate) => candidate.root.id === id);
+      if (!thread || thread.resolved) continue;
+      const complete = threadsBox.querySelector(`.lf-thread[data-id="${id}"]`);
+      paintWorkLine(
+        complete,
+        claim,
+        complete?.querySelector(":scope > .lf-compose"),
+        wanted,
+      );
+      for (const inline of document.querySelectorAll(
+        `.lf-conversation-thread[data-thread="${id}"]`,
+      ))
+        paintWorkLine(inline, claim, inline.querySelector(":scope > .lf-say"), wanted);
+      continue;
+    }
+    if (kind !== "widget" || claim.version > currentVersion) continue;
+    const owner = elementById(id);
+    if (!owner || inChrome(owner)) continue;
+    const seat = widgetWorkSeat(owner);
+    if (seat) paintWorkLine(seat.host, claim, seat.before, wanted);
   }
+  for (const line of pageQueryAll(".lf-work-line"))
+    if (!wanted.has(line)) line.remove();
 }
 
 // The DOM is the one record of what's rendered, reconciled against the log: nodes the
@@ -6163,7 +6169,6 @@ function renderThreads(threads) {
   for (const div of openThreads()) div.lfSync();
   toggleBtn.textContent = `Comments (${open.length})`;
   paintNarrowing(open, shown);
-  paintNotes();
   // The anchor pass wrote its record before this list existed, and this reconcile may have
   // built the nodes that wear it. Both passes therefore repaint it: the one that changes
   // the record, and the one that changes what the record is painted on.
@@ -6200,6 +6205,7 @@ function paintNarrowing(open, shown) {
 function renarrow() {
   if (statePhase !== "ready") return;
   renderThreads(threadList);
+  paintWorkLines();
   // A new set of results starts at its own beginning. Keeping the old offset lands the
   // reader in the middle of a shorter list, or past the end of it, over a change they
   // made a keystroke at a time.
@@ -6289,6 +6295,7 @@ function renderPanel() {
   paintAnchors(threads);
   renderThreads(threads);
   renderConversations(threads);
+  paintWorkLines();
 }
 
 // One answer to "show me that thread", whoever asks: a click on a mark out on the page
@@ -12763,31 +12770,38 @@ function retractedIds(e, floors, widget) {
 // Reading it from the log rather than from the markup is what makes it last —
 // the version *after* the rewrite declares nothing, and its silence would
 // otherwise hand the user's retracted state straight back.
-// The two note fields are the reviewer and agent channels' readings of one durable
-// relation: a version answers ids, and its answer lasts without being repeated.
-// Memoized on the log's identity and the field/window query: `events` has one writer,
+// Retractions and settlements are separate durable relations carried by the same
+// version note. `restated` retracts reader decisions; typed `settles` targets end
+// provisional agent facts without overloading a field name or an id namespace.
+// Memoized on the log's identity and the relation/window query: `events` has one writer,
 // which replaces the array wholesale (poll), so a cached answer cannot be stale and
 // every consumer shares the same filter-and-max fold.
 const noteFloorsMemo = new WeakMap();
-function noteFloors(field, upto) {
+function noteFloors(relation, upto, idsOf) {
   let byQuery = noteFloorsMemo.get(events);
   if (!byQuery) noteFloorsMemo.set(events, (byQuery = new Map()));
-  const query = `${field}:${upto}`;
+  const query = `${relation}:${upto}`;
   if (byQuery.has(query)) return byQuery.get(query);
   const floors = new Map();
   for (const e of events)
     if (e.kind === "note" && e.version <= upto)
-      for (const id of e[field] || [])
+      for (const id of idsOf(e))
         floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
   byQuery.set(query, floors);
   return floors;
 }
-const retractionFloors = (upto) => noteFloors("restated", upto);
+const retractionFloors = (upto) =>
+  noteFloors("retraction", upto, (e) => e.restated ?? []);
 // A report's end: the ids the notes in the window answered, absorbed or
 // overruled — the agent channel's mirror of retractionFloors, read from the
 // log for the same reason (the version after the answer declares nothing, and
 // its silence must not hand the report back).
-const answeredReports = (upto) => noteFloors("reports", upto);
+const settledReports = (upto) =>
+  noteFloors("settlement:report", upto, (e) =>
+    (e.settles ?? [])
+      .filter((target) => target.kind === "report")
+      .map((target) => target.id),
+  );
 // An id-bearing element's state as markup can say it: tag, attributes, and
 // place among its id-bearing kin. Text is deliberately absent — words are the
 // static gate's subject (restatement_errors); this is the rest, the state no
@@ -13196,7 +13210,7 @@ function compareProjected(a, b) {
 function stateProjection(upto, without = null) {
   const floors = retractionFloors(upto);
   const withdrawn = takenBack();
-  const answered = answeredReports(upto);
+  const settled = settledReports(upto);
   const actions = new Map();
   const reports = new Map();
   const classified = new Map();
@@ -13236,7 +13250,7 @@ function stateProjection(upto, without = null) {
       entry.restated = restated;
       if (restated.length) continue;
       actions.set(coordinate, entry);
-    } else if (!answered.has(e.id)) {
+    } else if (!settled.has(e.id)) {
       const standing = reports.get(coordinate) ?? [];
       standing.push(entry);
       reports.set(coordinate, standing);
@@ -13762,6 +13776,7 @@ function reconcileKnownState() {
   const authoredOnly = lastEventSeq < 0 && events.length === 0;
   if (!complete && !authoredOnly) return false;
   reconcileState();
+  paintWorkLines();
   return true;
 }
 
@@ -13914,7 +13929,7 @@ async function receiveState(state) {
     }
     settleAcceptedDrafts();
     agent = state.agent || "Claude";
-    agentNotes = presented(state).held ? state.status.on || {} : {};
+    agentWork = presented(state).held ? state.status.work || [] : [];
     agentTurnClosed = state.turn_closed || null;
     renderStatus(state);
     renderVersions(state);
@@ -13934,15 +13949,14 @@ async function receiveState(state) {
         );
       agentMsgCount = agentReplies.length;
     }
-    // Outside the block above, which only the log's own growth enters: a note lands,
-    // ages and is settled by an answer, and the first two of those change no event
-    // this tab holds. Inside the try with the rest, so a paint that refuses the state
-    // rolls the whole reading back like any other.
-    paintNotes();
     // Last, because the panel has just rendered the log: a widget carried by a reply is
     // on the page by now, so an action naming one that isn't names a widget no version
     // holds, and reconciliation can retire it instead of looking for it forever.
     reconcileState();
+    // Outside the log-growth block: a work claim lands and ages without changing an
+    // event this tab holds. After widget reconciliation because a module may rebuild
+    // its authored subtree; the local line is the transient overlay that follows it.
+    paintWorkLines();
     if (activation) {
       restoreView(activation.view);
       paintAnchors();

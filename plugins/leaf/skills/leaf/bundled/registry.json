@@ -29,6 +29,7 @@
     "x-says": {"label": "before"},
     "x-upgrade": true,
     "x-conversation": {"when": {"choose": [true]}},
+    "x-work": {"seat": "conversation", "when": {"settled": [false]}},
     "x-awaits": {"when": {"choose": [true], "settled": [false]}, "answers": ["choose"], "until": {"verb": "answer", "when": {"multiple": [true]}}},
     "x-state": {
       "choose": {
@@ -386,6 +387,7 @@
     "additionalProperties": false,
     "x-parent": ["lf-column"],
     "x-content": "prose",
+    "x-work": {"seat": "content"},
     "x-upgrade": false
   },
   "lf-tabs": {

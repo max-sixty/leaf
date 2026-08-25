@@ -945,7 +945,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    (`leaf report`) and no version has answered it yet. Provisional news
    rather than a decision — amber and dashed, so it never reads as the user's
    green, and it clears the moment a version absorbs or overrules the report
-   (the note's `reports` ids). The runtime sets this from the log; the
+   (the note's `settles` targets of kind `report`). The runtime sets this from the log; the
    answering version's word is `overruled` on the element, or simply writing
    the reported state. */
 [data-lf-reported] { outline: 2px dashed color-mix(in srgb, var(--warn) 55%, transparent);
@@ -969,17 +969,23 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-body > :last-child { margin-bottom: 0; }
 .lf-conversation-open { margin-top: var(--sp-2); }
 .lf-conversation-resolved { margin-top: var(--sp-2); color: var(--ok); text-align: right; }
-/* The note the agent leaves on a thread, at the seat inside the widget. The panel's
-   copy is styled in the runtime's own sheet, which is scoped to .lf-chrome and cannot
-   reach a box in the page — so the class is one and the rule is the page's, the way
-   every other .lf-conversation- rule here is. */
-.lf-conversation .lf-thread-note { display: flex; gap: 6px; align-items: baseline;
-  margin-top: var(--sp-2); padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
+/* What the agent says it is doing about one local subject (`leaf status --on`).
+   Thread panels, inline conversations, and prose widgets are seats for the same
+   transient claim, so its rule is global rather than duplicated between runtime and
+   page styles. Provisional news wears the report channel's amber dashed edge rather
+   than message ink. The detail wraps; the age and the explicit silence word do not.
+   The shadow markers carry the same rule into any declared tree an authored subject
+   is staged into; they remain ordinary comments in the document stylesheet. */
+/* lf-shadow:start */
+.lf-work-line { display: flex; gap: 6px; align-items: flex-end; clear: both;
+  width: 100%; box-sizing: border-box; grid-column: 1 / -1;
+  margin: var(--sp-2) 0 0; padding: 2px 8px; font-size: var(--t-6); color: var(--muted);
   border-left: 3px dashed color-mix(in srgb, var(--warn) 55%, transparent); }
-.lf-conversation .lf-thread-note span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.lf-conversation .lf-thread-note .lf-note-cold { flex: none; color: var(--warn-ink);
+.lf-work-line span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lf-work-line .lf-work-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
-.lf-conversation .lf-thread-note time { color: var(--muted-2); white-space: nowrap; }
+.lf-work-line time { color: var(--muted-2); white-space: nowrap; }
+/* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {
     /* :not([hidden]), because a caller may take the box behind a collapse (a settled

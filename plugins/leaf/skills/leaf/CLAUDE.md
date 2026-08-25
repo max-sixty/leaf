@@ -38,6 +38,7 @@ Each mutable fact has one writer:
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes `placed` |
+| local agent work | the typed, log-projected claims in `status.work` | `paintWorkLines` paints every subject seat without becoming another store |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
@@ -509,6 +510,7 @@ The extension keys describe general behavior:
 | `x-ask` | the complete reading and arrival region around one nested request |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
 | `x-conversation` | the condition under which the widget owns a conversation seat |
+| `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
 
@@ -1478,6 +1480,17 @@ comment panel, composer, floating comment control, toast, live region, key line,
 help, inspection paint, legend, and address layer. The page and panel are
 separate scroll regions. Opening or closing one calls its state setter, updates
 the persisted intent, and schedules the shared layout and key paint.
+
+`.lf-work-line` is transient runtime chrome that may also stand inside a page
+widget. `paintWorkLines` is its one writer. A thread subject paints in the panel
+and every inline conversation seat; a page-widget subject paints only in the
+content or conversation seat its active `x-work` declaration names. A content
+seat is block prose, but block prose alone grants no seat. The line wears `lf-ui`
+and `data-lf-gen`:
+it is an account of the widget, not authored words of the widget, so selection
+and diff readings skip it. Reconcile widget state first and paint work afterward,
+because a module may rebuild the subtree that seats it. Keep surviving nodes
+across polls so an unchanged claim is not re-announced.
 
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still

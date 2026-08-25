@@ -253,6 +253,18 @@ The main causal helpers are:
 - `undo(page)` first waits until the key line offers undo, presses `z`, observes the
   new send enter the wire, and waits for its round trip. A visible changed widget is
   not enough: undo can be refused while the preceding gesture is still unresolved.
+- `key_line(page)` reads what the key line says, once, after the repaint's own frame.
+  `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
+  round-trip as the press that caused it is a read of the frame before.
+
+The key line is the sharpest case of the rule above, because a second mechanism will
+supply its answer late. Every state poll repaints it, so an auto-retrying assertion on
+what it says goes green on whichever poll lands inside its budget — which is the poll's
+answer, not the writer's. A word that is supposed to turn over within the press is
+therefore read once, through `key_line`, and never waited for. The bug-back is what
+says which one a test has: with the runtime's disclosure watch removed, an
+`expect(...).to_contain_text(..., timeout=1500)` on the word still passed, and the
+same assertion read once failed.
 
 Read the event log only after `round_trip`. Polling the file until one expected event
 appears can miss an extra send, and it cannot distinguish an unresolved request from

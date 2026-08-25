@@ -51,7 +51,7 @@ Each mutable fact has one writer:
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
-| how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
+| how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | tray visibility | `trayUp` | `showTray` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -1695,10 +1695,23 @@ stands covered. That answer is the one number in the list's `scroll-padding` tha
 CSS cannot work out, because a long heading wraps — the tallest is written to
 `--lf-head-room`, and a `ResizeObserver` on the list writes it again when the
 reader draws the panel narrower and a heading wraps — a drag posts no event, so a
-reconcile never comes. Nothing after the read takes geometry synchronously, so a
-reconcile still costs one layout. Without it a walk lands threads under the
-heading with the opening words of the comment behind it, which is what
+reconcile never comes. Without it a walk lands threads under the heading with the
+opening words of the comment behind it, which is what
 `test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered` holds.
+
+The measurement is taken only while the panel is open, and this is a rule rather
+than an optimization. Shut, the panel is `display: none` and every heading
+measures zero, so the number written is not the room a heading takes but the
+absence of a panel. Taking it anyway costs a forced layout on every reconcile,
+for a page whose reader may never open the panel at all — and that cost is not
+notional: it delayed an event's acknowledgement past the window an undo is
+offered in, so a press the key line had just promised was refused, which
+`test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll`
+caught under a loaded machine and nowhere else. The observer covers the reopen,
+a box arriving being a resize, so the number is written at the first moment it
+can be right. A retained value from the last open panel is a real measurement
+and stands until then; the property is unset until the first open, where the
+`0px` fallback in the rule is the honest answer.
 
 ### Narrowing the list
 

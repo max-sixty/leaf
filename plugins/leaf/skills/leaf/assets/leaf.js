@@ -6548,7 +6548,6 @@ const PANEL = {
   title: "In the comment panel",
   at: () => panelOpen && containsAcross(panel, focused()),
   rows: [
-    PANEL_SAY,
     {
       // `w` for the words the control says, the way `l` spells the leaves and `a` the
       // asks. It is the phrase the page already uses for the same question asked of its
@@ -6595,6 +6594,13 @@ const PANEL = {
         findInput.select();
       },
     },
+    // Last, because the line paints two chips and the first is this scope's first live
+    // row. Standing here, `w` and `/` are the only rows that can ever hold that slot —
+    // inside a thread THREAD is nearer, inside a box TYPING claims the letters, outside
+    // the panel this scope is not standing — so a `c` in front of them is the two keys
+    // this landing exists to expose going unadvertised at the one place they work. The
+    // second press has a surface of its own: the box says the key in its placeholder.
+    PANEL_SAY,
   ],
 };
 
@@ -7437,7 +7443,10 @@ function stepThread(dir) {
 // The page the step halves is the one the reader can see. The document's box lends its
 // top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
 // exactly so by scrollToElement — is where the box already says how much of itself stands
-// covered; the thread list declares none and subtracts nothing.
+// covered. The thread list says the same thing about itself: a stuck run heading covers
+// its top, so a half-page step there is half of what is left rather than half of the
+// box, which is the answer the reader wants — a step that landed them under the heading
+// would be a step onto words they cannot read.
 const PAGE_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
 // The glide's claim on the box: it holds only while the box is where the glide last

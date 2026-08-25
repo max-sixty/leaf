@@ -1905,3 +1905,62 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         page.close()
     finally:
         context.close()
+
+
+def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
+    browser, serve
+):
+    """The two chips the line paints are what a reader standing on the list is offered,
+    and they have to be the keys that act on the list.
+
+    `c` brought them here so that `w` and `/` would be live — the general box is where
+    the typing scope claims every letter, which is the whole reason the press stops at
+    the list. This is the one focus position where those two rows can hold a chip at
+    all: inside a thread `THREAD` is nearer, inside a box `TYPING` claims the letters,
+    and outside the panel this scope is not standing. So a row in front of them here
+    spends the slot the landing exists to fill, which is what the panel's own `c` did
+    until it was moved to the end of the scope.
+
+    Read off `:not([hidden])`, because `renderLine` leaves every live row in the DOM and
+    hides the ones it has no room to paint. `to_contain_text` on the line therefore
+    answers about the register rather than about the reader, and passes just as well
+    when the chip is one nobody can see — which is why the rest of the panel's tests
+    could not have caught this.
+
+    The second press keeps a surface of its own: the box says the key in its own
+    placeholder, which the last phase reads."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(3):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "Which way round should this go?",
+            "anchor": {"section": "how-store"},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    # The list's own key leads: something is waiting, so `w` is live and nearest.
+    expect(shown.nth(0)).to_contain_text("waiting on you")
+    expect(shown.nth(1)).to_contain_text("close comments")
+
+    # And the press it displaced still works, from the placeholder that advertises it.
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "placeholder", re.compile(r"·\s*c$")
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+
+    assert errors == []
+    page.close()

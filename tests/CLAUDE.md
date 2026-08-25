@@ -62,6 +62,25 @@ box at last, and puts the product's own readings to it: `TINY_BOXES` and
 asserts its population first, and a planted fault is scoped to `.lf-chrome`, so a
 clean result cannot come from a reading that never arrived.
 
+A reading that asks what keeps a box from being seen should not be a second answer
+to a question the product already answers. `shownBand` is the layer's own reading
+of the band a box shows, and it names all three ways a box draws nothing past its
+edge: overflow, paint containment, and `content-visibility`. `version check
+--render` imports it so the band a handover is refused against and the band the
+page paints to are one reading, and its comment records that the two copies before
+it disagreed twice. `RING_FAULTS` is a third consumer of it rather than a third
+copy of it, and it asks the window on the same terms as any other box: a fixed
+subtree is laid out against the window, and everything else reaches it through
+`body`, which is this page's scroller.
+
+The failure that makes this worth stating is a quiet one. A reading blind to one
+mechanism does not report that it is blind — it returns the same clean result it
+returns when nothing is wrong — so a green corpus is not evidence of a clean
+corpus. Assert a gate's reach the way its population is asserted:
+`test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge` puts
+one displacement under three parents differing only in how they clip, with a
+control case that has to report nothing.
+
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call

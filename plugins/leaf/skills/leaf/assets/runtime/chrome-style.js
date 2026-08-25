@@ -653,13 +653,17 @@ ${MARK_RULES}
        were boards until the same reading caught them: lf-board is a widget an author
        writes into a page, so a grep for it hit the runtime's own furniture and a grep for
        the furniture hit the widget. They are trays now, and the word is core's alone. */
-    /* Starting a ring's width below the tray's own top, because the tray's top is the
-       banner's bottom: flush with it, the band this strip wears when the keyboard
-       reaches it was drawn into the two pixels the banner stands over, and the reader
-       tabbing to the edge got a ring with no top. The handle gives up those pixels of
-       reach; the alternative is a ring inside an eight-pixel strip, which is a second
-       accent line beside the one ::before already draws. */
-    .lf-edge { position: absolute; top: var(--here-ring-w); bottom: 0; width: 8px;
+    /* Held a ring's width in from both ends, because a flush ring at either end is
+       drawn where nothing can show it: under the banner at the head, past the bottom of
+       the window at the foot — and the reader tabbing to the edge got a ring missing that
+       run. The two ends fail differently and it is worth keeping them apart, because the
+       gate reports them as different things: the banner declares no overflow and clips
+       nothing, it paints over at z-index 9000, while the window clips outright. The
+       handle gives up those pixels of reach at both; the alternative is a ring inside an
+       eight-pixel strip, which is a second accent line beside the one ::before already
+       draws. RING_FAULTS fails the page if either run goes back. */
+    .lf-edge { position: absolute; top: var(--here-ring-w);
+      bottom: var(--here-ring-w); width: 8px;
       z-index: 1; cursor: col-resize; touch-action: none; }
     .lf-edge::before { content: ""; position: absolute; top: 0; bottom: 0;
       width: 2px; background: var(--accent); opacity: 0; transition: opacity .12s; }

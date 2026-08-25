@@ -597,7 +597,15 @@ DEEP_FOCUS = """() => {
 }"""
 
 
-RING_FAULTS = f"""() => {{
+RING_FAULTS = f"""async () => {{
+  // shownBand, rather than a fourth reading of what a box clips to. Its own comment
+  // carries why: version check --render imports it so the band a handover is refused
+  // against and the band the page paints to are one reading, and written twice they
+  // disagreed twice. This was the third copy and it was wrong in both of the ways that
+  // comment names — it asked only about overflow, so paint containment and
+  // content-visibility clipped a ring away with nothing said, and it measured the
+  // padding box with the scrollbar's gutter still in it.
+  const {{ shownBand }} = await import('/leaf.js');
   const el = ({DEEP_FOCUS})();
   if (!el || el === document.body || el === document.documentElement) return null;
   const holds = (a, b) => {{
@@ -615,35 +623,57 @@ RING_FAULTS = f"""() => {{
   const cuts = [];
   let scrolled = false;
   const above = (n) => n.parentElement || n.getRootNode().host || null;
-  if (cs.position !== 'fixed')
-    for (let up = above(el); up; up = above(up)) {{
-      const s = getComputedStyle(up);
-      if (s.overflowX !== 'visible' || s.overflowY !== 'visible') {{
-        if (up.scrollHeight > up.clientHeight) scrolled = true;
-        const r = up.getBoundingClientRect();
-        const over = {{
-          top: (r.top + parseFloat(s.borderTopWidth)) - ring.top,
-          left: (r.left + parseFloat(s.borderLeftWidth)) - ring.left,
-          bottom: ring.bottom - (r.bottom - parseFloat(s.borderBottomWidth)),
-          right: ring.right - (r.right - parseFloat(s.borderRightWidth)),
-        }};
-        // Only what could have been shown whole. A code block taller than the window
-        // hangs out of it however the browser scrolls, and saying so on every one would
-        // be noise standing where the findings are — so the claim is the one that can be
-        // met: a ring that fits in the box is a ring the box has to show all of.
-        const fits = {{
-          top: ring.bottom - ring.top <= up.clientHeight,
-          bottom: ring.bottom - ring.top <= up.clientHeight,
-          left: ring.right - ring.left <= up.clientWidth,
-          right: ring.right - ring.left <= up.clientWidth,
-        }};
-        for (const [side, by] of Object.entries(over))
-          if (by > 0.5 && fits[side])
-            cuts.push(`its ${{side}} edge is ${{Math.round(by * 10) / 10}}px outside `
-                      + named(up));
-      }}
-      if (s.position === 'fixed') break;
+  // One side, one message, named for the innermost box that took it. A scroll region's
+  // edge is often the window's to the pixel — .lf-threads' right edge is .lf-panel's is
+  // innerWidth — and one ring reported twice reads as two defects. The innermost box is
+  // the more useful of the two answers anyway: it is the box the control lives in.
+  const taken = {{}};
+  const took = (band, who) => {{
+    const room = {{ w: band.right - band.left, h: band.bottom - band.top }};
+    // Only the sides that could have been shown whole. A code block taller than the
+    // window hangs out of it however the browser scrolls, and saying so on every one
+    // would be noise standing where the findings are — so the claim is the one that can
+    // be met: a ring that fits in the box is a ring the box has to show all of.
+    const fits = {{
+      top: ring.bottom - ring.top <= room.h,
+      bottom: ring.bottom - ring.top <= room.h,
+      left: ring.right - ring.left <= room.w,
+      right: ring.right - ring.left <= room.w,
+    }};
+    for (const [side, by] of Object.entries({{
+      top: band.top - ring.top,
+      left: band.left - ring.left,
+      bottom: ring.bottom - band.bottom,
+      right: ring.right - band.right,
+    }}))
+      if (!taken[side] && by > 0.5 && fits[side])
+        taken[side] =
+          `its ${{side}} edge is ${{Math.round(by * 10) / 10}}px outside ` + who;
+  }};
+  // `clipped` in anchors.js is this walk, and this is its shape: from the box itself
+  // rather than its parent, skipping the box's own band because an element is not clipped
+  // by its own overflow, and stopping at the first fixed box. Its comment records what
+  // starting at the parent cost — "the question of every ancestor of a fixed box and
+  // never of the box" — which is the bug this reading had too.
+  for (let a = el; a; a = above(a)) {{
+    if (a !== el) {{
+      if (a.scrollHeight > a.clientHeight) scrolled = true;
+      const band = shownBand(a);
+      if (band) took(band, named(a));
     }}
+    if (getComputedStyle(a).position === 'fixed') break;
+  }}
+  // The window last, so an inner box that shares an edge with it is the one named, and
+  // unconditionally, because the walk above may have stopped at a fixed box and every
+  // box stops somewhere. It is the outermost clip there is: a fixed subtree is laid out
+  // against it, and everything else reaches it through body, which is this page's
+  // scroller. Not a claim that nothing else could clip a fixed box — a containing block
+  // established by transform, filter or containment is a real case, and .lf-banner's
+  // backdrop-filter is one such generator — but the walk covers that case now by asking
+  // every box on the way up instead of branching on the focused one's own position.
+  took({{ top: 0, left: 0, bottom: innerHeight, right: innerWidth }}, 'the window');
+  for (const side of ['top', 'left', 'bottom', 'right'])
+    if (taken[side]) cuts.push(taken[side]);
   const paints = (n) => {{
     const s = getComputedStyle(n);
     return s.backgroundImage !== 'none'
@@ -661,11 +691,14 @@ RING_FAULTS = f"""() => {{
     for (const over of document.elementsFromPoint(x, y)) {{
       if (over === el || holds(el, over) || holds(over, el)) break;
       if (!paints(over)) continue;
-      // Is the control itself under this too? A tray's edge handle runs the whole height
-      // of the window and the banner stands over the top of it, so the ring's top run is
-      // behind the banner because the handle is — which is a fact about where the handle
-      // was put, not about the ring being drawn outside the box. The claim worth making
-      // is the other one: where the control can be seen, so can the ring that names it.
+      // Is the control itself under this too? Where a control stands partly behind
+      // something, the ring's run on that side is behind whatever the control is behind,
+      // which is a fact about where the control was put rather than about the ring being
+      // drawn outside its box. The claim worth making is the other one: where the control
+      // can be seen, so can the ring that names it. Stated without a case on purpose —
+      // the one this was written for was the tray's edge handle running the whole height
+      // of the window under the banner, which stopped being true in 3a8f16f0, the commit
+      // that added this comment and the handle's top inset together.
       const inx = x + (side === 'left' ? grow + 1 : side === 'right' ? -grow - 1 : 0);
       const iny = y + (side === 'top' ? grow + 1 : side === 'bottom' ? -grow - 1 : 0);
       if (document.elementsFromPoint(inx, iny).includes(over)) break;

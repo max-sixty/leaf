@@ -3176,6 +3176,58 @@ customElements.define("lf-quota", class extends HTMLElement {
     current.close()
 
 
+def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
+    browser, serve
+):
+    """Overflow is one of three, and the other two leave `overflow` computing `visible`.
+
+    The gate below reports a cut ring by asking each box on the way up what band it
+    shows. A reading that knows only `overflow` answers "nothing is wrong" for a box that
+    clips by paint containment or by `content-visibility`, and answers it in the same
+    words it uses when nothing is wrong — which is why the corpus staying green could not
+    have told anyone. `shownBand` is the product's own reading and names all three; this
+    holds the probe to it rather than to a copy free to drift from it again.
+
+    One control, one displacement, three parents differing only in how they clip. The
+    first case is the control: without it a reading that reported at every stop would
+    pass the other three and prove nothing.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example.read_text(), comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-sug-accept").first.focus()
+
+    plant = """(how) => {
+      const el = document.activeElement;
+      const p = el.parentElement;
+      p.style.overflow = p.style.contain = p.style.contentVisibility = '';
+      // Pull the control out of its parent so the ring runs past the parent's left edge.
+      el.style.position = 'relative';
+      el.style.left = '-6px';
+      if (how === 'overflow') p.style.overflow = 'hidden';
+      if (how === 'contain') p.style.contain = 'paint';
+      if (how === 'content-visibility') p.style.contentVisibility = 'auto';
+      const s = getComputedStyle(p);
+      return `${s.overflowX}/${s.contain}/${s.contentVisibility}`;
+    }"""
+
+    clean = page.evaluate(plant, "none")
+    assert page.evaluate(RING_FAULTS)["cuts"] == [], (
+        f"the displaced ring is reported cut with nothing clipping it ({clean}), so the "
+        "cases below would only be repeating whatever this reading always says"
+    )
+    for how in ("overflow", "contain", "content-visibility"):
+        style = page.evaluate(plant, how)
+        cuts = page.evaluate(RING_FAULTS)["cuts"]
+        assert any("left edge" in c for c in cuts), (
+            f"a parent clipping by {how} ({style}) drew the ring away and the reading "
+            f"said {cuts}"
+        )
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
     browser, serve, example

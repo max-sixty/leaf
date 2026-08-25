@@ -1,7 +1,8 @@
 # The page in the browser
 
-This file defines the contract for `assets/leaf.js`, the widget modules, and
-`assets/theme.css`. It describes the current runtime. Page-authoring commands and
+This file defines the contract for `assets/leaf.js`, its private modules under
+`assets/runtime/`, the widget modules, and `assets/theme.css`. It describes the
+current runtime. Page-authoring commands and
 markup rules live in `references/page-authoring.md`; layer overlays and widget
 scaffolding live in `references/customizing.md`. The repository-level `AGENTS.md`
 owns the rules that cross the JavaScript and Python runtimes:
@@ -18,7 +19,8 @@ record the sequence of implementations that led to the current one.
 
 ## Runtime ownership
 
-`leaf.js` is one ES module with two layers. The widget layer loads the vendored
+`leaf.js` is the one public ES module, with two code layers and private support
+modules behind it. The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
 words, and reconciles recorded state. The comment layer polls `GET /api/state`,
 posts to `POST /api/event`, renders the status and conversation chrome, captures

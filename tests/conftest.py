@@ -10,18 +10,28 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 
-_spec = importlib.util.spec_from_file_location(
-    "interact",
+INTERACT_SCRIPT = (
     Path(__file__).parent.parent
     / "plugins"
     / "leaf"
     / "skills"
     / "leaf"
     / "scripts"
-    / "interact.py",
+    / "interact.py"
 )
-interact = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(interact)
+# Executing the script normally puts its directory on sys.path. Loading it by path for
+# the suite must preserve that import boundary for the implementation package beside it.
+sys.path.insert(0, str(INTERACT_SCRIPT.parent))
+try:
+    _spec = importlib.util.spec_from_file_location("interact", INTERACT_SCRIPT)
+    interact = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(interact)
+finally:
+    sys.path.pop(0)
+
+# Domain test modules import their assertions explicitly; these two support modules
+# own the shared fixtures and register them once for the complete suite.
+pytest_plugins = ("interact_support", "render_support")
 
 
 def pytest_addoption(parser):

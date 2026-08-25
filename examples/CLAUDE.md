@@ -83,7 +83,7 @@ its events as `<stem>.jsonl` beside the page, the way an example that wants a
 screenshot ships the image bytes beside it. Every place that builds a page
 directory out of an example lays the log in: `scripts/preview.py`,
 `publish_pages` in `scripts/site.py`, `test_examples_pass_check`, and `serve` in
-`test_render.py`. That last one is the browser corpus, and it laid an example's
+`tests/render_support.py`. That last one is the browser corpus, and it laid an example's
 media in while leaving its log out — so the eight sweeps read every example as a
 page with nothing standing on it, which is not a page anybody is served. `serve`
 seeds when it is handed an example rather than markup, and sets the cursor past
@@ -182,7 +182,7 @@ An `lf-shot` needs image bytes a single file can't hold. `examples/media/`
 carries them, content-addressed exactly as `leaf page media` names them in a page
 directory, and every place that builds a page directory out of an example lays
 them in: `serve` and `test_an_installed_payload_passes_its_real_browser_gate` in
-`test_render.py`, `test_examples_pass_check`, `publish_pages` in
+the browser test modules, `test_examples_pass_check`, `publish_pages` in
 `scripts/site.py`, and `scripts/preview.py`. A publisher that forgets fails
 loudly, because `version check` refuses a `/media/` reference the directory can't
 answer.

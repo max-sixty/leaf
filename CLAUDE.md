@@ -32,11 +32,13 @@ repo-root pointers are `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json`; the payload carries one manifest for each
 host. Six parts live under `plugins/leaf/skills/leaf/`:
 
-- `scripts/interact.py` is one `uv` script containing the server, event log,
-  `version check`, vendoring, and export. The payload's `bin/leaf` shim invokes
-  it. There is no daemon or database.
-- `assets/leaf.js` is the page runtime and comment layer. Its private styles live
-  in the module. There is no build step.
+- `scripts/interact.py` is the `uv` script and public CLI facade for the server,
+  event log, `version check`, vendoring, and export. Pure implementation domains
+  live beside it under `scripts/leaf_interact/`. The payload's `bin/leaf` shim
+  invokes the facade. There is no daemon or database.
+- `assets/leaf.js` is the public page runtime and comment layer. Its private
+  stylesheet lives under `assets/runtime/` and is imported by that stable module.
+  There is no build step.
 - `assets/registry.json` is the integrated widget vocabulary and the layer-wide
   `$` declarations read by the runtime, linter, renderer, catalog, and docs.
 - `assets/theme.css` owns tokens, element styles, class idioms, integrated widget
@@ -382,11 +384,13 @@ handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
 
 ### The suite
 
-`test_interact.py` covers lint, vendoring, publishing, catalog, export, thread
-markup, and file-side anchors. `test_render.py` covers the browser runtime and
-examples. `test_product_page.py` covers `docs/`. `test_site.py` builds and reads
-the published site. The journey test selects a passage, comments, moves a card,
-follows a version, and checks the surviving anchor and log.
+The `test_interact_*.py` modules cover lint, vendoring, publishing, catalog,
+export, thread markup, and file-side anchors. The `test_render_*.py` modules
+cover the browser runtime and examples. Their shared fixtures and readings live
+in `interact_support.py` and `render_support.py`. `test_product_page.py` covers
+`docs/`. `test_site.py` builds and reads the published site. The journey test
+selects a passage, comments, moves a card, follows a version, and checks the
+surviving anchor and log.
 
 The browser corpus is read in both color schemes, and each example is read under
 the log it ships, so a thread and any widget a message carries are part of what
@@ -408,12 +412,12 @@ the browser gate:
 uv run pytest tests
 ```
 
-`test_render.py` and `test_site.py` are marked nightly. A focused browser run must
-include `--run-nightly`; without it pytest deselects the module and exits 5. Turn
-xdist off while iterating:
+The `test_render_*.py` modules and `test_site.py` are marked nightly. A focused
+browser run must include `--run-nightly`; without it pytest deselects the module
+and exits 5. Turn xdist off while iterating:
 
 ```sh
-uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
+uv run pytest tests/test_render_widgets.py -q -n0 --run-nightly -k board
 ```
 
 Run the complete suite before handoff. It needs a network because the installed

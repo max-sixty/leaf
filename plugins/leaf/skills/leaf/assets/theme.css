@@ -355,7 +355,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
        run spread of the same pages. `transition` does not inherit, so what an
        unreached descendant can still play is a transition of its own declaring; that
        is the trade, and the check that finds one is the suite's rather than this
-       rule's (test_render.py, the reader who left something standing). */
+       rule's (the render suite's returning-reader coverage). */
     html:has(script[type="module"][src="/leaf.js"])
       body:not([data-lf-presented]),
     html:has(script[type="module"][src="/leaf.js"])

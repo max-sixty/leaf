@@ -20,11 +20,13 @@ run its complete browser file and the repository's normal suite.
 
 ## Put each assertion at the boundary that owns it
 
-`test_interact.py` exercises authored markup, the registry, the event log, CLI
-commands, vendoring, publishing, export, and server lifetime. `test_render.py`
-drives the browser runtime and the render gate. `test_site.py` reads the built site
-through its served URLs. Product documentation tests compare the docs with the
-shipped vocabulary and command surface.
+The `test_interact_*.py` modules exercise authored markup, the registry, the event
+log, CLI commands, vendoring, publishing, export, and server lifetime. The
+`test_render_*.py` modules drive the browser runtime and the render gate. Shared
+fixtures and browser readings live in `interact_support.py` and
+`render_support.py`. `test_site.py` reads the built site through its served URLs.
+Product documentation tests compare the docs with the shipped vocabulary and
+command surface.
 
 The distinction matters most around `render_version`. A property caused by a
 particular page belongs in that gate, because `version check --render` must report
@@ -114,7 +116,7 @@ message carries — exists nowhere else. Pass the markup where the log would be
 noise for the subject, and say which in a comment. Reach its page directory through `serve.page_dir`
 when a test needs to publish v2 or inspect the log; do not construct a parallel
 directory whose relationship to the served URL is implicit. `page_dir` in
-`test_interact.py` owns command-level files without starting a browser. Keeping
+`interact_support.py` owns command-level files without starting a browser. Keeping
 those roles separate makes it clear whether a failure belongs to the file/CLI
 boundary or to the served runtime.
 

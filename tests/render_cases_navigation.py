@@ -824,6 +824,24 @@ def compose(page, passage, text=None):
 
 # The two presses this asks about, on one page: a draft's ✎ (a thing to do) and a pick
 # mark (a thing to do that becomes a thing the page says once it is pressed).
+# Both spellings a page has for a folded section: the platform's <details>, and a settled
+# option group, which is a span the widget wrote `aria-expanded` onto. They stand together
+# because a reader standing on one cannot see which of the two it is — a fixture holding
+# one of them proves the scope for that spelling and says nothing about the other.
+DISCLOSED_PAGE = leaf_page(
+    "disclosed",
+    """
+<h1 id="t">Disclosed</h1>
+<p id="p1">A first passage, so the page reads as one rather than as two controls.</p>
+<details id="dsc"><summary id="dsc-head">What the store costs</summary>
+<p id="dsc-body">A replica in each region, and a read on every request that carries a
+session.</p></details>
+<lf-options id="settled" choose settled>
+  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week.</lf-option>
+  <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
+</lf-options>
+""",
+)
 KEYS_PAGE = leaf_page(
     "keys",
     """

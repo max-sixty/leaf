@@ -90,9 +90,10 @@
  * box clear of the open panel. Two scroll regions side by side, each scrollbar drawn
  * inside its own region — a viewport-scrolled document would paint its scrollbar over
  * the panel, stacked on the panel's own. Reading position goes through pageScroller.
- * The browser's own scroll keys are left alone (Space, arrows, Home/End, PageUp/Down);
- * d and u are the runtime's, stepping half the visible page at the browser's own paging
- * pace through whichever of the two regions the reader's own scrolling moves.
+ * The page binds none of the browser's own scroll keys (Space, arrows, Home/End,
+ * PageUp/Down); a focused control may, and a disclosure's arrows are core's own case of
+ * that. d and u are the runtime's, stepping half the visible page at the browser's own
+ * paging pace through whichever of the two regions the reader's own scrolling moves.
  *
  * Keyboard: one register, and every surface is a projection of it. A row binds keys and
  * says what pressing one does; a scope is where the keyboard means something particular,
@@ -1393,8 +1394,14 @@ function answers(binding, ev) {
     return ev.key.toLowerCase() === key.toLowerCase() && ev.shiftKey === shift;
   // A punctuation key is reached with Shift on some layouts and without it on others
   // ("?" is Shift+/ here and a key of its own there), so its Shift is the layout's
-  // business rather than the binding's.
-  return ev.key === key && (!shift || ev.shiftKey);
+  // business rather than the binding's. A named key carries no such ambiguity — no layout
+  // hides ArrowLeft behind Shift — so there the modifier is asked for exactly, the way it
+  // is on a letter. Shift+→ is how a reader extends a selection through the words of a
+  // <summary> they are standing on, and the laxity here was closing the section under
+  // them and eating the extension.
+  return key.length > 1
+    ? ev.key === key && ev.shiftKey === shift
+    : ev.key === key && (!shift || ev.shiftKey);
 }
 
 // Checked where a scope is declared, which is the edge this data enters at: a row that
@@ -1458,6 +1465,15 @@ const walkRows = (rows, dir) => {
   row?.focus();
   return row;
 };
+
+// Where a disclosure keeps which way it stands, in both spellings. Declared up here
+// because `shadowStage` calls it, far above the key line it repaints for.
+const disclosureWatch = new MutationObserver(() => paintHere());
+const watchDisclosures = (root) =>
+  disclosureWatch.observe(root, {
+    subtree: true,
+    attributeFilter: ["open", "aria-expanded"],
+  });
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the overlay, their rows gathered under each title. A section is
@@ -1815,6 +1831,9 @@ export function shadowStage(host, nodes) {
   const root =
     host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
   root.adoptedStyleSheets = [markSheet];
+  // A root is the one place the key line's watch cannot reach on its own: a `toggle` from
+  // inside one is not composed, and a MutationObserver does not cross the boundary either.
+  watchDisclosures(root);
   const style = document.createElement("style");
   style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
   root.replaceChildren(style, ...nodes);
@@ -5517,9 +5536,12 @@ approveBtn.onclick = async () => {
 // the box the digit lands in, not on the thread's far corner.
 // What the document holds, in reading order, as against what the chrome holds: the banner,
 // the versions and the leaves tray have keys of their own, and a comment's message is the
-// panel's rather than the page's. The addresses and the scopes that name a platform key
-// read the page through here alike, so a part `g` sends the reader to is exactly a part the
-// reference says they can stand on.
+// panel's rather than the page's. The addresses read the document through here, where
+// a scope naming a platform key reads `pageQueryAll` and crosses the declared shadow roots
+// as well: an address is a place in a list the reader counts down the page, and a tree a
+// module built has no place in that count, while what the reader can stand on is wherever
+// the markup ended up — a diff stages a <details> per file in a root they tab straight
+// into.
 //
 // The whole document and not the parts on screen, which is the tempting reading and the
 // wrong one twice over. An address that counted what is in the window is an address that
@@ -5541,6 +5563,13 @@ const pageLinks = () => pageParts("a[href]");
 // disclosure and not the shut ones, for the reason above: a list counting what is shut
 // means a different section the moment one of them opens.
 const pageDisclosures = () => pageParts("details > summary");
+// Narrower than the disclosure scope's own reading on purpose, and in both directions: an
+// address is a place in a list the reader counts down the authored page, so it stops at the
+// document where the scope crosses declared roots, and it counts the platform's spelling
+// where the scope also answers ARIA's. So a settled option group takes the arrows and takes
+// no digit, and `g d` can say three where four things fold. Widening it is not free —
+// `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
+// the count a reader wants under `g` is of the sections the author wrote.
 
 // How many members of a list a digit can reach. The bound is the keyboard's — ten digits,
 // one of them no ordinal — and not any list's, so it is stated once here rather than in
@@ -6375,50 +6404,109 @@ const THREAD = {
   ],
 };
 
-// The platform's own controls in the page, and the press each already answers. The control
-// scope below cannot cover them: it works a span `offer` made pressable, where these arrive
-// with their keys already bound, and which keys differ — Enter follows an <a> while Space
-// scrolls the page out from under it, and both open a <summary>. So neither row binds a
-// `run`, the press being the browser's; nothing here promises more than the browser already
-// does, and what a row adds is the promise being on screen. `g` puts the reader on both of
-// these by key, and until a scope existed the line went quiet at exactly the moment they
-// arrived, with the press that finishes the motion unnamed.
+// Where the reader is standing, when what they are standing on is one of the page's own
+// parts rather than a widget's own declaration. The control scope below cannot cover
+// these: it works a span `offer` made pressable, where these arrive with keys already
+// bound, and which keys differ — Enter follows an <a> while Space scrolls the page out
+// from under it, and both work a disclosure. `g` puts the reader on both of them by key,
+// and until a scope existed the line went quiet at exactly the moment they arrived, with
+// the press that finishes the motion unnamed.
 //
-// A table and not a scope apiece, for the reason the addresses are one: two scopes differing
-// only in a selector and a word are two things to edit the day either the chrome rule or the
-// shape of a capability changes, and the third platform control would make it three. The
-// page's controls and not every one, which is the reading the addresses take as well: the
-// chrome's own links are the leaves tray's and its resolved comments are the panel's, and
-// both of those declare what they answer themselves. Asked of the document at large, "On a
-// link" was had by every page — a machine with one neighbour has a tray full of links — so
-// the reference named it wherever the reader went, on pages holding none to stand on.
-const NATIVE = [
-  {
-    title: "On a link",
-    sel: "a[href]",
-    press: ["Enter"],
-    does: "Follow it",
-    line: "follow",
-  },
-  {
-    title: "On a disclosure",
-    sel: "details > summary",
-    press: PRESS,
-    does: "Open or close it",
-    // Read where it is painted rather than named once for both branches, the way a diff's
-    // own file rows read theirs: what this press does is whichever way the disclosure is
-    // standing, and a word fixed at declaration could only ever say one of them.
-    line: () => (focused().parentElement.open ? "close" : "open"),
-  },
-].map(({ title, sel, press, does, line }) => ({
+// The page's parts and not every one, which is the reading the addresses take as well:
+// the chrome's own links are the leaves tray's and its resolved comments are the panel's,
+// and both of those declare what they answer themselves. Asked of the document at large,
+// "On a link" was had by every page — a machine with one neighbour has a tray full of
+// links — so the reference named it wherever the reader went, on pages holding none to
+// stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
+// of questions of a different selector, and the day the chrome rule changes is the day a
+// second copy of it is wrong.
+const standingOn = (title, sel, rows) => ({
   title,
   at: () => {
     const el = focused();
     return Boolean(el?.matches?.(sel)) && !inChrome(el);
   },
-  when: () => pageParts(sel).length > 0,
-  rows: [{ keys: press, does, line }],
-}));
+  // Across the declared shadow roots, where the addresses stop at the document: a row on
+  // a staged disclosure names a key the browser does not answer, so a scope that could not
+  // see one would leave the line promising a press nothing makes.
+  when: () => pageQueryAll(sel).some((el) => !inChrome(el)),
+  rows,
+});
+
+// A link's press is the browser's whole answer, so this row binds no `run`: it promises
+// nothing the browser does not already do, and what it adds is the promise being on
+// screen. Enter alone, Space under a link being the page's own scroll.
+const LINK = standingOn("On a link", "a[href]", [
+  { keys: ["Enter"], does: "Follow it", line: "follow" },
+]);
+
+// A disclosure, in either spelling the page has for one. The platform's <details> keeps
+// the state on itself; a control a widget built out of a span says the same thing through
+// ARIA's own attribute, which it already writes for the theme and the screen reader. Two
+// vocabularies, one capability — and a reader standing on a settled group cannot see
+// which of the two they are standing on, so a scope apiece would be the same press
+// answered on one of them and not the other.
+//
+// ARIA's disclosure pattern and not the attribute at large. A combobox wears
+// aria-expanded over a box words are typed into and a treeitem wears it in a walk of its
+// own, and ← / → belong to the caret and the walk there. The pattern is the pair, so the
+// selector asks for the button half too — which is what `offer` writes, and what a real
+// <button> brings with it.
+const DISCLOSURE_SELECTOR =
+  'details > summary, :is(button, [role="button"])[aria-expanded]';
+// Which way the disclosure at this element is standing: open, shut, or null where it is
+// not a disclosure at all — which is a question asked from wherever the reader happens to
+// be, the reference listing a scope the page has rather than the one they are in.
+const disclosed = (el) =>
+  !el?.matches?.(DISCLOSURE_SELECTOR)
+    ? null
+    : el.matches("details > summary")
+      ? el.parentElement.open
+      : el.getAttribute("aria-expanded") === "true";
+// The keys that work the disclosure at `el`, which is the whole of what a row over one has
+// to know — this scope's row, and a widget's own row re-wording the same press in its own
+// terms. Named once here so the two cannot come to name different sets, which `lineRows`
+// would resolve by printing the nearer one and dropping the other whole: a widget naming
+// one key fewer takes the rest off the line, and one key more promises what nothing runs.
+//
+// The press is answered wherever the element stands, being the platform's on a <summary>
+// and the control scope's on an offered span. The arrows are this scope's alone, so they
+// are named where this scope reaches — the page, and not the runtime's own layer, where a
+// diff inside a comment message keeps the platform's pair and nothing more.
+//
+// Only the direction that changes something, so every key a surface names is a key that
+// works: over an open section the chip reads ←, over a shut one →. Both of them where the
+// reader stands on no disclosure at all, because the question there is what this scope can
+// do rather than what this press will do.
+//
+// Asked whether it is a disclosure before asked where it stands, which is the order the
+// answers want anyway — what a scope can do is the same wherever the reader is — and the
+// order module evaluation needs: `checked` reads every core row's bindings as the register
+// is declared, which is before the passage runtime this file destructures `inChrome` from
+// has been bound. Reversed, the layer takes down the first page it loads.
+export const DISCLOSE = (el) => {
+  const open = disclosed(el);
+  if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
+  return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
+};
+const DISCLOSURE = standingOn("On a disclosure", DISCLOSURE_SELECTOR, [
+  {
+    keys: () => DISCLOSE(focused()),
+    does: "Open or close it",
+    // Read where it is painted rather than named once for both branches, the way a diff's
+    // own file rows read theirs: what the press does is whichever way the disclosure is
+    // standing, and a word fixed at declaration could only ever say one of them.
+    line: () => (disclosed(focused()) ? "close" : "open"),
+    // Through the element's own click, so keyboard and pointer are one behaviour: a
+    // <summary>'s click is the toggle the browser was already making, and a widget's
+    // control runs the handler its own pointer press runs. Enter and Space are the
+    // runtime's here rather than the platform's, because a row owns its whole binding set
+    // and the dispatcher takes the key before the platform sees it. One toggle answers all
+    // three: the arrow bound is the one that changes this disclosure, so a press cannot
+    // mean anything else.
+    run: () => focused().click(),
+  },
+]);
 
 // Every press the runtime builds out of a span, in one declaration. `offer` writes
 // role="button" onto an element the platform gives no keys, so these two are the UA's
@@ -6699,7 +6787,8 @@ const SCOPES = [
   TYPING,
   THREAD,
   PANEL,
-  ...NATIVE,
+  LINK,
+  DISCLOSURE,
   CONTROL,
   DESIGN,
   PAGE,
@@ -6870,12 +6959,19 @@ document.addEventListener("focusout", () => paintHere());
 // file reports it: the word on a summary's row is read off `open`, and the reader standing
 // there has moved nothing else. Left unpainted, the line said "close" for the three seconds
 // until a poll happened past — a key line stale about the press under the reader's finger,
-// where every gate reads it as eventually right. The event does not bubble, so this
-// captures; and it is the document's rather than each <details>'s, because the disclosures
-// on a page are whatever its author wrote and whatever its widgets built, which is not a
-// list this file can hold. lf-diff had exactly that listener on each file it renders, which
-// is one widget's answer to a question the runtime is the one that asks.
-document.addEventListener("toggle", () => paintHere(), true);
+// where every gate reads it as eventually right.
+//
+// Watched as state rather than heard as an event, because the event only covers one of the
+// two spellings and only in one of the two trees. `toggle` is not composed, so a <details>
+// a widget staged in a shadow root fires nothing a document listener hears — measured: a
+// diff's file rows sat stale until the poll for as long as this listener has existed. And a
+// control keeping its state in aria-expanded fires nothing anywhere. Both keep that state
+// in an attribute, so one observer over the two attributes answers for both, and
+// `shadowStage` hands it each root it attaches. It is the document's rather than each
+// element's for the reason the listener before it was: the disclosures on a page are
+// whatever its author wrote and whatever its widgets built, which is not a list this file
+// can hold.
+watchDisclosures(document);
 
 // ---------- the key line ----------
 // What the next press does, walked outward from where the reader stands. The full register

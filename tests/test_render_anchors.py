@@ -38,6 +38,7 @@ from render_support import (
     _traffic,
     compare_with,
     composer_quote,
+    key_line,
     mark_point,
     open_page,
     panel_settled,
@@ -1482,9 +1483,10 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
 
     The two differ in what they answer, and saying so is the point: a <summary> is
     button-like and takes both keys, while a checkbox takes Space alone, Enter being
-    the form's key and a leaf page having no form. Each row binds no `run`, so the
-    dispatcher passes the press to the platform that was going to make it anyway; a row
-    that consumed it would be the same lie from the other side.
+    the form's key and a leaf page having no form. Neither row binds a `run`: the
+    checkbox's press is the platform's, and the summary's is the disclosure scope's,
+    which has to reach a staged control the same way this declaration does. A row
+    consuming a press it does not make would be the same lie from the other side.
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
@@ -1518,6 +1520,23 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page.keyboard.press("Enter")
     expect(line).to_contain_text("show this file")
     assert not details.evaluate("el => el.open")
+
+    # The row also names an arrow, which no browser answers, so unlike the pair above it is
+    # only ever as good as the scope that runs it — and that scope has to find a staged
+    # disclosure the same way this declaration had to reach a staged control. Read off the
+    # document alone it finds none here, the page's only <details> being the ones the
+    # widget put in a shadow root. The press is what says so, not the chip: this widget's
+    # own row is the nearer of the two naming these keys, so it prints them either way.
+    expect(line).to_contain_text("⏎ / space / →")
+    page.keyboard.press("ArrowRight")
+    assert details.evaluate("el => el.open")
+    # And the word turns over inside the press, read once so a poll cannot answer for it.
+    # A toggle from a staged root is not composed, so no document listener hears it: this
+    # is the watch `shadowStage` hands each root, and without it the line sat on "show
+    # this file" until the next poll two seconds later.
+    said = key_line(page)
+    assert "⏎ / space / ←" in said, said
+    assert "hide this file" in said, said
 
     # Neither control is handed a letter by any platform, so the page's own keyboard
     # stands behind both of them.

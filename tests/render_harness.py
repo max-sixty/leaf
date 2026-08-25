@@ -928,6 +928,24 @@ def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
         errors.append(interact.recurring_resize_observer_error("navigation"))
 
 
+def key_line(page):
+    """What the key line says, once the runtime has had its frame to say it.
+
+    `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
+    round-trip as the press that caused it is a read of the frame before. Two frames,
+    because the repaint's own rAF may be queued behind this one's.
+
+    Read once and never retried, which is the point of it: a disclosure's word is either
+    what the watch painted within the press or what the two-second poll paints later, and
+    an assertion that retries goes green on whichever poll lands inside its budget —
+    reading a stale line as an eventually right one.
+    """
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    return page.locator(".lf-keyline").inner_text()
+
+
 def open_page(
     browser,
     url,

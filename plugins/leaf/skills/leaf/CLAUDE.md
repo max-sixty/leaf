@@ -1271,8 +1271,8 @@ A row has these meanings:
 - `when` says whether the capability exists.
 - `at`, expressed by the current `readerIn` predicate, says whether this press
   can act at the reader's current position.
-- `run` performs one result. A run-less row documents a native control whose
-  platform behavior must remain untouched.
+- `run` performs one result. A run-less row names a press it does not make: the
+  platform's own on a link, or one another scope's row already runs.
 
 `live` answers the declared liveness once for every projection. Do not repeat a
 guard inside `run` if the guard changes whether the key should be shown. When
@@ -1283,8 +1283,9 @@ promise an immediate press, keep `pageHas` and `readerIn` separate.
 `answers` share the supported modifiers `Mod`, `Alt`, and `Shift`. Unknown
 modifier names are errors rather than bindings that accidentally fire on a bare
 key. `spell` is the one platform-aware display of a binding. `PRESS` states the
-native key behavior of controls; links retain their platform distinction from
-buttons.
+native key behavior of controls, and `DISCLOSE` reads the whole set a disclosure
+answers off the element it is asked about; links retain their platform
+distinction from buttons.
 
 A label names this press, not the broad feature. Prefer "Comment on selection"
 or "Hide comments" to "Comment" or "Toggle". Compute the word through `word`
@@ -1332,8 +1333,40 @@ contract.
 
 `offer` supplies the two press keys for injected span controls at the shared
 bubble listener. A widget that already handled the event can prevent its default
-before that listener. Native controls stay native and their run-less rows only
-project the platform press into help.
+before that listener. A link stays the browser's, and its run-less row only
+projects the platform press into help.
+
+A disclosure adds ← and →, which no browser answers, so its row runs the press
+itself — through the element's own click, so keyboard and pointer stay one
+behaviour. They sit on the row that already carries Enter and Space rather than
+a row of their own, because two rows changing one thing spend both of the key
+line's hints saying one word twice.
+
+Only the direction that changes something is bound: → over a shut section, ←
+over an open one, and both where the reader is standing on no disclosure at all,
+which is the question the reference asks. So every key a surface names is a key
+that works, and the row's one word covers the three keys it binds.
+
+`DISCLOSE` answers that for an element, and every row over a disclosure reads
+it — this scope's, and a widget's own row re-wording the same press. Two rows
+naming different sets is not two promises but one: `lineRows` prints the nearer
+row and drops the other whole, so a widget naming one key fewer takes the rest
+off the line, and one key more promises what nothing runs. It also answers where
+the element stands, the arrows being named only where this scope reaches: a
+widget's disclosure inside a comment message keeps the platform's pair alone.
+
+One scope covers both spellings, `details > summary` and ARIA's disclosure
+pattern (`aria-expanded` on a button), because a reader standing on a settled
+group cannot see which of the two they are standing on. A widget keeping the
+pattern is covered by keeping it rather than by being named. The attribute alone
+would be too wide: a combobox wears it over a box words are typed into, and a
+treeitem in a walk of its own, where the arrows belong to the caret and the walk.
+
+Which way a disclosure stands is watched as state, not heard as an event. A
+`toggle` is not composed, so one from a shadow-staged `<details>` reaches no
+document listener, and an `aria-expanded` control fires nothing anywhere. Both
+keep that state in an attribute, so one `MutationObserver` over `open` and
+`aria-expanded` repaints for both, and `shadowStage` hands it each root.
 
 ### Standing somewhere
 

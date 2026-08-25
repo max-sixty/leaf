@@ -23,7 +23,7 @@
  * paints, is bodyNodes; why it is ruled rather than tinted deeper is the theme's own
  * comment, and the answer is that the tint spent the contrast. */
 import {
-  PRESS,
+  DISCLOSE,
   dataBody,
   failSoft,
   keys,
@@ -387,13 +387,16 @@ function fileNode(file, colored) {
       textContent: `+${file.adds} −${file.dels}`,
     }),
   );
-  // Enter and Space are both the platform's on a <summary>, so this binds no `run` —
-  // one would toggle a disclosure the browser has already toggled — and exists to say
-  // the word. Which word depends on what the reader can see standing here, so it is read
-  // where it is painted rather than named once for both branches.
+  // The keys a disclosure answers are the runtime's, so this binds no `run` — one would
+  // work a disclosure the disclosure scope has already worked — and exists to say the word
+  // in this file's own terms. Which word depends on what the reader can see standing here,
+  // so it is read where it is painted rather than named once for both branches. The
+  // bindings are read the same way and off the same declaration, because a row that named
+  // one key fewer than the row running them would take the rest off the line, and one key
+  // more would promise a press nothing makes.
   keys(summary, "On a diff", [
     {
-      keys: PRESS,
+      keys: () => DISCLOSE(summary),
       does: () => `${details.open ? "Hide" : "Show"} that file's diff`,
       line: () => `${details.open ? "hide" : "show"} this file`,
     },

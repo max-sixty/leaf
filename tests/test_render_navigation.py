@@ -14,6 +14,7 @@ from render_support import (
     CHIPS,
     CLIPPED_BY,
     CROWDED_PAGE,
+    DISCLOSED_PAGE,
     FOOTED_PAGE,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
@@ -27,6 +28,7 @@ from render_support import (
     _publish,
     card_body,
     composer_quote,
+    key_line,
     leaf_page,
     live_url,
     mark_point,
@@ -1125,22 +1127,28 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     expect(page.locator("#dsc-head")).to_be_focused()
     expect(page.locator("#dsc")).to_have_attribute("open", "")
 
-    # Standing there, the line says which way the next press goes — the platform's press,
-    # which the runtime names rather than binds, and which is Space as well as Enter here
-    # where a link takes Enter alone, Space under one being the page's own scroll. A word
-    # fixed at declaration could say only one of the two directions.
-    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"))
+    # Standing there, the line says which way the next press goes and names every key that
+    # goes that way: Space as well as Enter, where a link takes Enter alone and Space under
+    # one is the page's own scroll, and the one arrow with somewhere to go. Both cells are
+    # read where they are painted — a word fixed at declaration could say only one of the
+    # two directions, and a binding set fixed there would name an arrow that does nothing.
+    # What the arrows do is the test below this one; here they are what the line offers.
+    opened, shut = r"⏎ / space / ←", r"⏎ / space / →"
+    expect(line).to_contain_text(re.compile(opened + r"\s*close"))
     page.keyboard.press("Enter")
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
-    # Timed out short, because the poll would otherwise answer for the toggle. Opening a
-    # disclosure is the one change in what the next press does that no writer in the
-    # runtime reports, so the word stood at "close" for the three seconds until a poll
-    # came past — and every assertion that waits reads a stale line as an eventually
-    # right one.
-    expect(line).to_contain_text(re.compile(r"⏎ / space\s*open"), timeout=1500)
+    # Read once rather than waited for. Opening a disclosure is the one change in what the
+    # next press does that no writer in the runtime reports, so the word stood at "close"
+    # until a poll came past — and an assertion that retries reads a stale line as an
+    # eventually right one, going green on whichever poll happens to land inside its
+    # budget. The attribute watch has answered by the time the press returns or nothing
+    # has.
+    said = key_line(page)
+    assert re.search(shut + r"\s*open", said), said
     page.keyboard.press(" ")
     expect(page.locator("#dsc")).to_have_attribute("open", "")
-    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"), timeout=1500)
+    said = key_line(page)
+    assert re.search(opened + r"\s*close", said), said
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key is the whole address — G glides to the bottom, g to the top.
@@ -1173,6 +1181,149 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.type("gc1")
     expect(ta1).to_have_value("gc1")
     expect(ta1).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, serve):
+    """⏎ and space toggle a disclosure; → opens it and ← closes it. A direction and not a
+    second toggle, which is the whole of what they add: → over a section already open
+    leaves it open, where a toggle would have shut it. Only the direction with somewhere
+    to go is bound, so the line names ← over an open section and → over a shut one and
+    every key it names is a key that works — and each press that must change nothing
+    follows one that changed something, since a box nobody has touched passes that
+    assertion however dead the scope is.
+
+    Both spellings of a folded section, because a reader standing on one cannot see which
+    it is: the platform's <details>, and a settled option group, which is a span the
+    widget wrote `aria-expanded` onto. One scope answers for both, and the press goes
+    through the element's own click either way, so the keyboard leaves the page in the
+    state the pointer would have left it in.
+
+    The word follows either spelling within the press, not within the poll. Neither
+    reports itself — an aria-expanded write fires no event at all — so what the line says
+    about the key under the reader's finger rests on the attribute watch rather than on
+    the two-second poll behind it. Both readings of it are taken once, through
+    `key_line`: an assertion that retries cannot tell the watch from a poll that lands
+    inside its budget, and the first version of this test went green with the watch
+    broken.
+
+    Shift+← is the last thing this holds to: a summary's words are the page's, and
+    extending a selection through them must not shut the section they are in."""
+    page, errors = open_page(browser, serve(DISCLOSED_PAGE))
+    line = page.locator(".lf-keyline")
+    opened, shut = r"⏎ / space / ←", r"⏎ / space / →"
+
+    dsc = page.locator("#dsc")
+    head = page.locator("#dsc-head")
+    head.focus()
+    expect(dsc).not_to_have_attribute("open", "")
+    expect(line).to_contain_text(re.compile(shut + r"\s*open"))
+
+    page.keyboard.press("ArrowRight")
+    expect(dsc).to_have_attribute("open", "")
+    # The press does not move the reader off what they pressed it on, so the next one
+    # lands on the same section.
+    expect(head).to_be_focused()
+    said = key_line(page)
+    assert re.search(opened + r"\s*close", said), said
+
+    # A direction and not a toggle, which is the one thing ⏎ cannot say: this press
+    # follows one that is proven live, so a scope answering nothing at all could not pass
+    # it, and a toggle bound to the arrows would have shut the section here.
+    page.keyboard.press("ArrowRight")
+    expect(dsc).to_have_attribute("open", "")
+    # Shift+← is a reader extending a selection through the summary's own words. A named
+    # key asks for its modifiers exactly, so it is not this row's binding.
+    page.keyboard.press("Shift+ArrowLeft")
+    expect(dsc).to_have_attribute("open", "")
+
+    page.keyboard.press("ArrowLeft")
+    expect(dsc).not_to_have_attribute("open", "")
+    page.keyboard.press("ArrowLeft")
+    expect(dsc).not_to_have_attribute("open", "")
+
+    # And the platform's own pair still toggles, once each: the row owns its whole binding
+    # set, so the runtime makes the press the browser was going to make.
+    page.keyboard.press("Enter")
+    expect(dsc).to_have_attribute("open", "")
+    page.keyboard.press(" ")
+    expect(dsc).not_to_have_attribute("open", "")
+
+    # The other spelling, which keeps its state in ARIA's own attribute rather than in
+    # `open`, and whose press is the widget's own handler rather than the platform's.
+    row = page.locator("#settled .lf-settled")
+    row.focus()
+    expect(row).to_have_attribute("aria-expanded", "false")
+    expect(line).to_contain_text(re.compile(shut + r"\s*open"))
+    page.keyboard.press("ArrowRight")
+    expect(row).to_have_attribute("aria-expanded", "true")
+    expect(page.locator("#st-keep")).to_be_visible()
+    # Nothing reports this one at all — an aria-expanded write fires no event anywhere —
+    # so read once: the word is the attribute watch's answer by the time the press
+    # returns, or it is the poll's two seconds later, and only an assertion that refuses
+    # to retry can tell those apart.
+    said = key_line(page)
+    assert re.search(opened + r"\s*close", said), said
+    page.keyboard.press("ArrowRight")
+    expect(row).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowLeft")
+    expect(row).to_have_attribute("aria-expanded", "false")
+    expect(page.locator("#st-keep")).to_be_hidden()
+
+    # A disclosure in a message, where the disclosure scope does not reach: thread markup
+    # is a second document beside the version, and the arrows are the page's. A diff,
+    # because what is being asked is what a widget's own row names — a widget re-wording
+    # this press reads its bindings from DISCLOSE, which answers for where the element
+    # stands as well as which way it is standing, so the row cannot offer a key that
+    # nothing there runs. The platform's pair still works it, so what differs is the
+    # offer rather than the capability.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-diff",
+            "author": "claude",
+            "version": 1,
+            "text": "The patch, for the record.",
+            "markup": '<lf-diff id="msg-diff"><pre>'
+            "diff --git a/gateway/limits.py b/gateway/limits.py\n"
+            "--- a/gateway/limits.py\n"
+            "+++ b/gateway/limits.py\n"
+            "@@ -38,7 +38,7 @@ class Limiter:\n"
+            "     def bucket_key(self, request):\n"
+            "-        return request.remote_addr\n"
+            "+        return request.token.id\n"
+            "</pre></lf-diff>",
+        },
+    )
+    told(page)
+    # Opened, because standing somewhere is where focus is and a shut panel has nowhere to
+    # stand: without this the summary took no focus, the reader was still on the page's own
+    # row, and the line went on describing that one — an assertion that would have passed
+    # for the wrong reason had the two been in the same state.
+    page.get_by_role("button", name=re.compile("Comments")).click()
+    staged = page.locator("#msg-diff summary").first
+    expect(staged).to_be_visible()
+    staged.focus()
+    expect(staged).to_be_focused()
+    # Every live row rather than the two hints that fit: the panel's own rows win the line
+    # where the reader is standing in it, and what is asked here is what the register
+    # answers, not which two chips got the room.
+    key_line(page)  # the repaint's own frame, as everywhere else here
+    chips = page.evaluate(
+        "() => [...document.querySelectorAll('.lf-keyline .lf-key')]"
+        ".map(c => c.textContent)"
+    )
+    assert any("⏎ / space" in c for c in chips), chips
+    assert not any("←" in c or "→" in c for c in chips), chips
+    # And the press, which is the half that would matter if no surface said anything: the
+    # arrow is the page's here and moves nothing, where the platform's pair still folds it.
+    opened_now = staged.evaluate("el => el.parentElement.open")
+    page.keyboard.press("ArrowLeft")
+    assert staged.evaluate("el => el.parentElement.open") is opened_now
+    page.keyboard.press("Enter")
+    assert staged.evaluate("el => el.parentElement.open") is not opened_now
     assert errors == []
     page.close()
 

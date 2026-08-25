@@ -99,7 +99,8 @@ is what the catalog shows.
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:
 an absolute `applyAction`, `says()` over `textContent`, `offer()` and `relabel()` on anything
-injected, `keys()` at upgrade, `quoted()` before wiring input, `actionAvailable()` for
+injected, `keys()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
+runtime owning those keys — `quoted()` before wiring input, `actionAvailable()` for
 an x-state verb with `requires`, and durable state in attributes because export drops
 the scripts. The helper surface `/leaf.js` exports is the whole Leaf API a module gets.
 The widget still owns its implementation: supporting modules can sit beside its entry

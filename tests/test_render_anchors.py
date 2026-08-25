@@ -2066,8 +2066,11 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     page.keyboard.press("Escape")
 
     # The control: a second version, where the walk is live and the layer is unchanged.
+    # The page is unpinned, so it follows the new version itself on its next poll —
+    # waited for rather than forced with a reload, which raced that navigation and lost
+    # the press to it about one run in five.
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
-    page.reload()
+    page.wait_for_url("**/versions/v2.html*")
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-version-row').length > 1"
     )

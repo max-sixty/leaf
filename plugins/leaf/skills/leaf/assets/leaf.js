@@ -8008,10 +8008,16 @@ function renderAsks(asks) {
 // it out of the list, so forward is the direction that has somewhere to go, and a walk
 // that clamped there would strand them at the end of it.
 //
-// A press this control belongs to: one inside the ask, or one hoisted out of it and
-// pointing back (a suggestion's row is the column's child, so that it can hang in the
-// page margin). Landing on it rather than on the ask puts the reader on the press that
-// answers it, and Tab walks the rest of that ask's own controls from there.
+// Somewhere inside the ask the reader can be stood: one within it, or one hoisted out of
+// it and pointing back (a suggestion's row is the column's child, so that it can hang in
+// the page margin). Landing on it rather than on the ask puts the reader on something
+// that works it, and Tab walks the rest of that ask's own controls from there.
+//
+// Focusable, not pressable, and that is why it reads the tabindex where `CONTROL_SELECTOR`
+// reads `data-lf-offer="button"`. The two selectors look like one that drifted and are two
+// questions: what the reader can be put on, and what answers a press. Aligning this one to
+// its twin would leave the ask walk with nowhere to land on any ask whose only chrome is a
+// focus target — which is what a conversation thread is.
 const ASK_CONTROL = "[data-lf-offer][tabindex]";
 // Which ask such a control decides, where the widget hoisted it out of the element (the
 // attribute lf-suggestion writes on the row it hangs in the margin).

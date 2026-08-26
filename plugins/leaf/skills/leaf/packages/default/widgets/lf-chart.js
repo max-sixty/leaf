@@ -122,6 +122,7 @@ function readAxis(labels) {
   if (dates.every(Boolean) && (months === 0 || months === dates.length))
     return {
       type: "utc",
+      granularity: months === dates.length ? "month" : "day",
       values: dates.map(
         ([, year, month, day]) => new Date(Date.UTC(+year, +month - 1, day ? +day : 1)),
       ),
@@ -211,23 +212,40 @@ const spread = (values) => {
  * over four days it chooses hours: a chart of four daily totals came out under eight ticks
  * reading 12 AM and 12 PM, naming instants the body never mentions. A short run says its
  * own ticks — the reader's dates, and no others — in one line: Plot's multi-tier formatter
- * put a month directly under a neighbouring day on Linux. Thin those labels when the room
- * cannot hold them, just as a band axis does. A long run keeps Plot's choosing while being
- * held to a day at the finest. */
-const dateLabeler = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
-const dateLabel = (value) => dateLabeler.format(value);
-function timeAxis(values, room, font) {
+ * put a month directly under a neighbouring day on Linux. Thin those labels by where the
+ * dates land on the scale when the room cannot hold them; unlike bands, dates need not be
+ * evenly spaced. A long run keeps Plot's choosing while being held to a day at the finest. */
+const dateLabelers = {
+  month: new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" }),
+  day: new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }),
+};
+function timeAxis(values, room, font, granularity) {
   if (values.length <= 10) {
-    const every = Math.ceil(
-      (textWidth(values.map(dateLabel), font) + 6) / (room / values.length),
-    );
+    const label = (value) => dateLabelers[granularity].format(value);
+    const ordered = [...values].sort((a, b) => a - b);
+    const [first, last] = [Number(ordered[0]), Number(ordered.at(-1))];
+    const candidates = ordered
+      .map((value) => {
+        const centre =
+          last === first ? room / 2 : ((Number(value) - first) / (last - first)) * room;
+        const half = textWidth([label(value)], font) / 2;
+        return { value, left: centre - half, right: centre + half };
+      })
+      .sort((a, b) => a.right - b.right);
+    const ticks = [];
+    let right = -Infinity;
+    for (const candidate of candidates) {
+      if (candidate.left < right + 6) continue;
+      ticks.push(candidate.value);
+      right = candidate.right;
+    }
     return {
-      ticks: values.filter((_, i) => i % every === 0),
-      tickFormat: dateLabel,
+      ticks: ticks.sort((a, b) => a - b),
+      tickFormat: label,
     };
   }
   const days = (Math.max(...values) - Math.min(...values)) / 86400000;
@@ -417,7 +435,12 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
     ...(axis.type === "utc"
       ? {
           type: "utc",
-          ...timeAxis(axis.values, width - marginLeft - common.marginRight, font),
+          ...timeAxis(
+            axis.values,
+            width - marginLeft - common.marginRight,
+            font,
+            axis.granularity,
+          ),
         }
       : {}),
   };

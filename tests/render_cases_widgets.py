@@ -264,6 +264,20 @@ week, meter
 2026-01-12, 542
 2026-01-19, 498
 </pre></lf-chart>
+<lf-chart id="crowd-clustered-dates" kind="line" y="gas, kWh a week"><pre>
+week, meter
+2026-01-05, 441
+2026-01-12, 470
+2026-01-19, 512
+2026-06-01, 538
+</pre></lf-chart>
+<lf-chart id="crowd-months" kind="line" y="gas, kWh a month"><pre>
+month, meter
+2025-09, 441
+2025-10, 470
+2025-11, 512
+2025-12, 538
+</pre></lf-chart>
 """,
 )
 # Every pair of words the drawing paints, and whether any two of them are in the same

@@ -251,6 +251,19 @@ element, loss
 the single-glazed bay window in the front room, 410
 uninsulated loft hatch, 265
 </pre></lf-chart>
+<lf-chart id="crowd-dates" kind="line" y="gas, kWh a week"><pre>
+week, meter
+2025-11-17, 441
+2025-11-24, 470
+2025-12-01, 512
+2025-12-08, 538
+2025-12-15, 561
+2025-12-22, 604
+2025-12-29, 588
+2026-01-05, 597
+2026-01-12, 542
+2026-01-19, 498
+</pre></lf-chart>
 """,
 )
 # Every pair of words the drawing paints, and whether any two of them are in the same

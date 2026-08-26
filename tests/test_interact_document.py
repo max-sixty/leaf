@@ -22,6 +22,7 @@ from interact_support import (
     _marker_for,
     _paint_names,
     _report,
+    _runtime_function,
     _status,
     _tasks_version,
     check,
@@ -365,13 +366,12 @@ def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
     )
-    js = (schema_model.ASSETS / "leaf.js").read_text()
     assert _paint_names().get("ask") == "data-lf-ask", (
         "the theme excludes data-lf-ask and PAGE_PAINT_ATTRIBUTE spells the standing "
         f"ask's mark {_paint_names().get('ask')!r}, so nothing puts that mark on a "
         "page and a group inside an open ask draws the reader's band a second time"
     )
-    assert re.search(r"function markHere\(\)(?:.|\n)*?PAGE_PAINT_ATTRIBUTE\.ask", js), (
+    assert "PAGE_PAINT_ATTRIBUTE.ask" in _runtime_function("markHere"), (
         "markHere is what paints the standing ask, and it no longer writes "
         "PAGE_PAINT_ATTRIBUTE.ask — the exclusion in the theme then answers for a "
         "mark nothing leaves on the page"

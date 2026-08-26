@@ -308,6 +308,47 @@ def _balanced(css, start):
     return css[start : at - 1]
 
 
+def _runtime_function(name):
+    """The source of a runtime function, wherever the layer's modules keep it.
+
+    The runtime is one program written across several files, and which file holds a
+    given writer is a fact about its own composition rather than about the behaviour
+    a test is asking after. A path spelled here asserts both, so a split that moves
+    the function and changes nothing reddens the suite for the one thing it does not
+    mean to hold still — `markHere` moved from `leaf.js` into `runtime/asks/view.js`
+    and took this reading's grounding with it, on main, with the behaviour intact.
+
+    Exactly one module may define the name: none is a writer that left the layer
+    under a reading that would otherwise report on a file it no longer paints in,
+    and two is a reading answered by whichever file the walk reached first.
+
+    The source ends at the closing brace standing at the declaration's own
+    indentation, which prettier guarantees and a brace count over strings, comments,
+    and template holes does not. Bounding it is the point: a search that runs on
+    past the function lets the next writer in the file answer for this one, and the
+    answer it gives is the one that reads as fine."""
+    assets = schema_model.ASSETS
+    opening = re.compile(rf"^([ \t]*)function {re.escape(name)}\(", re.MULTILINE)
+    found = []
+    for path in [assets / "leaf.js", *sorted((assets / "runtime").rglob("*.js"))]:
+        js = path.read_text()
+        for start in opening.finditer(js):
+            close = re.compile(rf"^{start.group(1)}\}}$", re.MULTILINE).search(
+                js, start.end()
+            )
+            assert close, (
+                f"{path.name} opens {name}() and never closes it at the indentation "
+                "it was declared with, so this reading has no bound to stop at"
+            )
+            found.append(js[start.start() : close.end()])
+    assert len(found) == 1, (
+        f"the runtime defines {name}() {len(found)} times, and every reading of one "
+        "wants the single writer: none is a function that has left the layer, and "
+        "two is a question answered by whichever file the walk reached first"
+    )
+    return found[0]
+
+
 def _paint_names():
     """PAGE_PAINT_ATTRIBUTE: the spelling every writer in the runtime shares, and the
     set of names no version file may assert. A name in it says only that the runtime

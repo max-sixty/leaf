@@ -23,6 +23,7 @@ record the sequence of implementations that led to the current one.
 helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
+`runtime/composing/` owns shared text-box and composer behavior;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;

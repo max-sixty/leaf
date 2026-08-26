@@ -162,6 +162,7 @@
  * detached face a stranded quote wears, and its press is refused (paintAnchors). */
 
 import { chromeStyle } from "./runtime/chrome-style.js";
+import { createInput } from "./runtime/composing/input.js";
 import { runtime } from "./runtime/context.js";
 import { DESIGN_KEY, createDesign, designOn } from "./runtime/design.js";
 import {
@@ -2927,106 +2928,7 @@ function showToast(msg, onClick) {
 }
 
 // ---------- text inputs ----------
-// One helper wires every composer: the general box, each per-thread reply, and the
-// selection composer. They persist a draft on each keystroke, send on ⌘/Ctrl+Enter, and
-// can't be double-sent by an impatient second click. Growing with their content is the
-// stylesheet's job (field-sizing), not this file's.
-// Returns a sync() the caller runs after setting .value programmatically, so the send
-// button agrees with what's in the box.
-// The send binding, and the register's spelling of it: the placeholder, the button's
-// tooltip and the row a box declares all read one string, where the constant they used to
-// share sat beside a listener that bound the chord independently.
-const SEND = "Mod+Enter";
-const SEND_KEYS = spell(SEND);
-// `sends` is the word the box's own send row says — "send", "suggest", "comment" — since
-// a composer in suggestion mode and a thread's reply are the same binding doing different
-// things, and the row is where the surfaces read that from.
-function wireInput(
-  ta,
-  {
-    hint,
-    address,
-    save,
-    send,
-    sendBtn,
-    sends,
-    altBtn = null,
-    altSend = null,
-    busy = () => false,
-  },
-) {
-  // The hint goes in the placeholder, where it's visible exactly while the box is
-  // empty and can't be found any other way; the button's tooltip spells the send key
-  // out. The send shortcut is focus-scoped, so only the focused box may claim it —
-  // unfocused, the placeholder carries the box's own address instead (the chord
-  // that reaches it), where the box has one. hint is a function where the
-  // label changes under a live box (the composer's suggest mode); address is always
-  // one, because a thread's number renumbers as earlier threads resolve while its box
-  // stands.
-  const label = () => (typeof hint === "function" ? hint() : hint);
-  const paint = () => {
-    const suffix = document.activeElement === ta ? SEND_KEYS : address?.();
-    ta.placeholder = suffix ? `${label()} · ${suffix}` : label();
-  };
-  ta.addEventListener("focus", paint);
-  ta.addEventListener("blur", paint);
-  sendBtn.title = `Send (${SEND_KEYS})`;
-  if (altBtn) altBtn.title = altBtn.textContent;
-  let sending = false;
-  // aria-disabled rather than the property, because a widget's send button is a span
-  // wearing role="button" (see offer) and a span has no `disabled` to set — it would
-  // have looked live while submit() below refused it. The attribute reads on either
-  // element, and the guard in submit() is what actually holds; a focusable button
-  // saying it can't send yet is better than one the reader can't reach to find out.
-  const sync = () => {
-    paint();
-    const disabled = String(sending || busy() || !ta.value.trim());
-    sendBtn.setAttribute("aria-disabled", disabled);
-    altBtn?.setAttribute("aria-disabled", disabled);
-  };
-  paint();
-  const submit = async (sender) => {
-    if (sending || busy()) return;
-    // A send key on an empty box answered with silence reads as a send that
-    // happened — the blind drive believed exactly that. Say the nothing out loud
-    // (the toast announces too).
-    const raw = ta.value;
-    const text = raw.trim();
-    if (!text) return showToast("Nothing to send — the box is empty");
-    sending = true;
-    sync();
-    try {
-      await sender(text, raw);
-    } finally {
-      sending = false;
-      sync();
-    }
-  };
-  ta.addEventListener("input", () => {
-    save(ta.value);
-    sync();
-  });
-  // The box's own scope: one row, so the key line's word, the "?" overlay's sentence and
-  // the press are the same object. Every box the runtime wires gets it — the general box,
-  // each thread's reply, the selection composer, a widget conversation — where the reference
-  // used to carry one row saying "in the focused composer" for a chord that fires in all
-  // of them.
-  // The sentence is the same in every box, so the reference names the binding once however
-  // many boxes the page holds; the word is this box's, because what the press does here is
-  // what the line is for — a composer in suggestion mode and a thread's reply are one
-  // binding doing two things.
-  keys(ta, "In a text box", [
-    {
-      keys: [SEND],
-      does: "Send what you have typed",
-      line: sends,
-      run: () => submit(send),
-    },
-  ]);
-  sendBtn.addEventListener("click", () => submit(send));
-  altBtn?.addEventListener("click", () => submit(altSend));
-  return sync;
-}
+const wireInput = createInput({ keys, showToast, spell });
 
 // ---------- time ----------
 // Elapsed, in the page's one wording. Exported for the same reason quietSince is: a

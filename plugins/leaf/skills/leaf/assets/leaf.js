@@ -162,6 +162,8 @@
  * detached face a stranded quote wears, and its press is refused (paintAnchors). */
 
 import { chromeStyle } from "./runtime/chrome-style.js";
+import { createAim } from "./runtime/composing/aim.js";
+import { createSelectionCapture } from "./runtime/composing/capture.js";
 import { createInput } from "./runtime/composing/input.js";
 import {
   composerOpen,
@@ -169,6 +171,7 @@ import {
   pendingAbout,
   pendingAnchor,
 } from "./runtime/composing/selection.js";
+import { createSelectionSurface } from "./runtime/composing/surface.js";
 import { runtime } from "./runtime/context.js";
 import { DESIGN_KEY, createDesign, designOn } from "./runtime/design.js";
 import {
@@ -2560,8 +2563,9 @@ function syncFloats() {
     const box = composer.getBoundingClientRect();
     placeComposer(box.left, box.top);
   }
-  if (fabAnchor?.quote && pageSelection()) updateFab();
-  else if (fabAnchor) {
+  const anchor = fabAnchorAt();
+  if (anchor?.quote && pageSelection()) updateFab();
+  else if (anchor) {
     const box = fab.getBoundingClientRect();
     placeClear(fab, box.left, box.top);
   }
@@ -2674,576 +2678,79 @@ export const ago = (ts) => {
   return `${Math.round(secs / 86400)}d ago`;
 };
 
-// ---------- selection → comment ----------
-// Floating UI stays inside the document's own box, which is body's client box: it
-// already ends at the open panel's edge (syncLayout's margin) and inside a classic
-// scrollbar's gutter, so a float clamped to it can't hand body a sideways scrollbar
-// by overhanging either. The covering sheet is the one strip that box no longer
-// states — body keeps its full width under it — so the sheet's own width comes off
-// here, and a float raised from the strip beside it can't stand over the thread list.
-const rightEdge = () =>
-  (panelCovers() ? innerWidth - panel.offsetWidth : pageScroller.clientWidth) - 8;
-// The floats live in the document — they scroll with the passage they stand beside —
-// while every caller reasons in viewport terms: rects, the pointer, the banner's own
-// band. Named, because four sites had the number written out and it is neither of the
-// two it stands near — the banner is 42px and the scroller's scroll-padding-top 54px,
-// this being the slack over the first that says what the reader can actually see.
-const BANNER_CLEAR = 48;
-// So the one writer of their position is where the coordinates change space: clamp in
-// the viewport, store in the document.
-function place(node, left, top) {
-  node.style.left = Math.max(8, Math.min(left, rightEdge() - node.offsetWidth)) + "px";
-  node.style.top =
-    Math.max(BANNER_CLEAR, Math.min(top, innerHeight - node.offsetHeight - 8)) +
-    pageScroller.scrollTop +
-    "px";
-}
-// The composer's first choice of a place is the column's margin, beside the passage, so
-// the mark and the box stand side by side — where the box opened instead at the gesture
-// (the fab, the ⌥-click's pointer), it stood on the page's own text next to the
-// passage, which is the one thing a 320px card over a 720px column can't avoid doing
-// there. placeClear steps it down past any control the page hangs out in that same
-// margin (a suggestion's Accept/Reject row).
-//
-// A sidenote is out there too and the box covers one whole while it stands, which is
-// where this stops short of stepping clear. What the walk steps past is controls,
-// because a control the box hides is a press the reader was reaching for; a note is
-// prose they are not mid-gesture on, and the box goes when they are done with it. The
-// walk could be taught the note as easily — the cost is where it would then put the box
-// on a page carrying a run of them, which is far enough down the margin to be about a
-// different paragraph.
-//
-// Where the margin is too narrow for the box — a laptop window, the panel open — it
-// has one thing left to stay clear of: its own mark. That mark is the only thing
-// naming the passage the box is about, so a box standing on all of it is a box about
-// nothing. Not "no overlap" — the box has always covered the tail of a long passage
-// and that reads fine — but every rect hidden is the case to move for, and it is a
-// case that happens: a restored draft reappears near the top of the viewport, and the
-// reading position puts the passage it was made on back in the same place.
-// Below the passage where the viewport has room, above it otherwise; place()'s own
-// clamp has the last word, so a passage too tall for either side simply keeps the
-// better spot.
-function placeComposer(left, top) {
-  place(composer, left, top);
-  const rects = anchorRuntime.pendingMarks.flatMap((where) =>
-    where instanceof Range
-      ? [...where.getClientRects()]
-      : [where.getBoundingClientRect()],
-  );
-  const box = composer.getBoundingClientRect();
-  const column = document.querySelector("main")?.getBoundingClientRect();
-  if (rects.length && column && column.right + 8 + box.width <= rightEdge())
-    return placeClear(composer, column.right + 8, Math.min(...rects.map((r) => r.top)));
-  // Vertically only: the document never scrolls sideways and body's margin keeps it clear
-  // of the panel, so off-screen means scrolled past, and a mark scrolled past is not one
-  // this box is standing on.
-  const onScreen = (r) => r.bottom > BANNER_CLEAR && r.top < innerHeight;
-  const behindBox = (r) =>
-    r.left >= box.left &&
-    r.right <= box.right &&
-    r.top >= box.top &&
-    r.bottom <= box.bottom;
-  // A passage and a thing want different rules here, because
-  // they are read differently. Covering the tail of a quote is fine — the user has read
-  // it, and the mark still names where it starts. A card, a column, a metric is judged as
-  // one object, so a box standing anywhere on it is a box between them and the thing they
-  // are writing about. ⌥-click made that plain by opening the composer under the pointer,
-  // which is by definition inside what was clicked.
-  const whole = anchorRuntime.pendingMarks.some((where) => where instanceof Element);
-  const touching = (r) =>
-    r.left < box.right &&
-    box.left < r.right &&
-    r.top < box.bottom &&
-    box.top < r.bottom;
-  const clear = whole
-    ? !rects.some((r) => onScreen(r) && touching(r))
-    : rects.some((r) => onScreen(r) && !behindBox(r));
-  if (!rects.length || clear) return;
-  const below = Math.max(...rects.map((r) => r.bottom)) + 8;
-  const above = Math.min(...rects.map((r) => r.top)) - box.height - 8;
-  if (below + box.height <= innerHeight - 8) return place(composer, left, below);
-  if (above >= BANNER_CLEAR) return place(composer, left, above);
-  // Neither end has room, which a tall thing reaches easily: a board column is most of the
-  // viewport before the box's own height is counted, and place()'s clamp would haul the box
-  // back over it — the very thing this is here to stop. So go beside instead, even where
-  // the margin is narrower than the box wants; the side is chosen rather than clamped,
-  // because the clamp keeps a box on screen by sliding it left, back over the thing it
-  // is avoiding.
-  const rightOf = Math.max(...rects.map((r) => r.right)) + 8;
-  const leftOf = Math.min(...rects.map((r) => r.left)) - box.width - 8;
-  place(composer, rightOf + box.width <= rightEdge() ? rightOf : leftOf, top);
-}
-// The anchor a selection makes: the enclosing section, and the passage as the document
-// holds it. Not the selection's own toString(), which is what the reader sees rendered —
-// text-transform uppercases an eyebrow or a table header, and the runtime's own chrome
-// inside the passage comes along — and a quote the search can't find is no highlight while
-// composing and a comment that posts permanently detached. A selection with nothing
-// quotable in it yields no quote, which makes it an element anchor on its section: what
-// such a selection meant anyway.
-//
-// The whole of it, however long. A cap here read as an economy and was a claim: the
-// stored quote is the passage, so the mark paints it and the comment is on it, and a
-// reader who selected a paragraph past the cap got a comment on its opening and a
-// highlight that shrank to match — silently, on most of the paragraphs a leaf page
-// holds. What the cap was really bounding is the search's pattern, which is where the
-// bound now lives (LEAD_CAP), so nothing has to be given up to keep it cheap.
-const LANDMARK_CAP = 160;
-// How much of a passage's surroundings an anchor writes down. Only the capture decides
-// this; the search asks for whatever a given anchor happens to hold.
-const CONTEXT = 24;
-function selectionAnchor(sel) {
-  const range = pageRange(sel);
-  const node = range.commonAncestorContainer;
-  const holder = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-  // The neighbours come from the same indexed reading the search uses and stop at
-  // the same opaque-widget fences as the file-side capture. The browser knows words
-  // a module generated and may quote them; it does not pretend the file can confirm
-  // context across their seam.
-  const segments = segmentsIn(range);
-  const quote = quoteFrom(segments);
-  const dataNodes = new Set(
-    segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),
-  );
-  const [onlyDatum] = dataNodes;
-  const datum =
-    dataNodes.size === 1 &&
-    segments.every((seg) => closestAcross(seg.node, DATUM) === onlyDatum)
-      ? onlyDatum
-      : null;
-  const section =
-    datum?.dataset.lfProjection ??
-    closestAcross(holder, "[id]:not(.lf-ui)")?.id ??
-    null;
-  // Identity is the context for projected data. Neighbouring display values may reorder
-  // or repeat, so storing their words as prefix/suffix would make incidental layout a
-  // second, conflicting answer to which datum the reader selected.
-  if (datum)
-    return {
-      section,
-      datum: datum.dataset.lfDatum,
-      quote,
-    };
-  const reading = pageText();
-  const [start, stop] = spanIn(reading, segments);
-  const prefix = cut(
-    neighbourhood(reading.origin, reading.fences, start, CONTEXT, true),
-    -CONTEXT,
-    Infinity,
-  );
-  const suffix = cut(
-    neighbourhood(reading.origin, reading.fences, stop, CONTEXT, false),
-    0,
-    CONTEXT,
-  );
-  // Only what there is. A passage against the document's own edge has no neighbour on
-  // that side, and writing that down as an empty string puts a field in the event that
-  // never says anything.
-  return {
-    section,
-    quote,
-    ...(prefix && { prefix }),
-    ...(suffix && { suffix }),
-  };
-}
-
-// Controls the page is standing on its own account, as against the ones in the runtime's
-// layer: a reply's widget is markup frozen in the log, and the layer's own buttons are
-// what floating chrome is allowed to sit beside. `data-lf-offer` is what makes a thing
-// pressable (`offer`), so this asks after any widget's controls without naming one.
-//
-// The line saying how many comments a block holds is the one control out here that is
-// still the layer's. It wears the marker because a screen reader reaches it by Tab, and
-// it is clipped to a pixel where it stands (it only takes a box on focus, fixed under
-// the banner) — so a float stepping down past it steps around nothing anyone can see,
-// which is exactly the movement this walk exists to prevent.
-const pageControls = () =>
-  [...document.querySelectorAll(`[data-lf-offer]:not(.${NOTE})`)].filter(
-    (c) => !inChrome(c),
-  );
-
-// The 💬 button carries the anchor it would open a composer on, so raising it and acting
-// on it can't come to different conclusions about what the reader picked. Visibility is
-// derived from that anchor and never read back off the stylesheet.
-const beside = (rect) => [rect.right + 6, rect.top - 6];
-// A float has one more thing to stay clear of, and it is the same kind of thing the
-// composer's mark is: a control standing on the page. The floats float and they don't.
-// A selection runs to the column's right edge on any line it fills, so `beside` puts
-// the button in the margin — which is where a suggestion hangs the row deciding the
-// change that selection just covered. The user's own gesture then hid the Accept
-// they were reaching for, and the press that would have dismissed the button was the
-// press it was covering. The composer's margin placement stands in the same column of
-// rows, so it takes the same walk.
-//
-// Down, and past each in turn, because the margin runs down the page: clearing one row
-// can land on the next, and walking a sorted list is the step the rows themselves take to
-// nudge apart. place()'s clamp still has the last word, so a float with nowhere left to
-// go keeps the best spot rather than leaving the screen.
-function placeClear(node, left, top) {
-  place(node, left, top);
-  const box = node.getBoundingClientRect();
-  const sharing = pageControls()
-    .map((c) => c.getBoundingClientRect())
-    .filter((r) => r.width && r.left < box.right && box.left < r.right)
-    .sort((a, b) => a.top - b.top);
-  let y = box.top;
-  for (const r of sharing) if (r.top < y + box.height && y < r.bottom) y = r.bottom + 6;
-  if (y !== box.top) place(node, left, y);
-}
-let fabAnchor = null;
-function showFab(anchor, left, top) {
-  fabAnchor = anchor;
-  fab.style.display = anchor ? "block" : "none";
-  if (anchor) placeClear(fab, left, top);
-  paintHere(); // the c row names this anchor, so the line is one more rendering of it
-}
-// The one way an item under a gesture becomes the composer's anchor, so no two routes
-// can come to write different anchors for the same press.
-function openOnItem(item, from) {
-  showFab(null);
-  openComposer({ section: item.id }, "", from.left, from.top);
-}
-// The button follows the selection. What counts as one is measured on the quote it would
-// store, not on the selection's own toString(): those are different strings, and gating on
-// the one the reader sees while storing the one the document holds lets a two-character
-// quote through behind a rendered three-character selection — a quote short enough to match
-// almost anywhere.
-const MIN_QUOTE = 3;
-// A selection of the page's own words, as against none, a bare caret, or one made inside
-// the runtime's own layer. That is the line between a user reaching for a passage and
-// one working the chrome, and it is the question every caller here is really asking.
-const pageSelection = () => {
-  const sel = getSelection();
-  return sel && !sel.isCollapsed && pageWords(sel.anchorNode) ? sel : null;
-};
-// Where a send ends is where typing continues, and the reader has the last word on it.
-// A send is a round trip, so this step lands whenever the server answers — long after
-// the gesture on a loaded machine — and focusing a box collapses whatever the page had
-// selected. A passage picked out while the send was in the wire is a later gesture and
-// stands, for the same reason a later edit does. It has less recourse than the edit:
-// nothing re-decides the 💬 until the reader gestures again, so the words in front of
-// them stop being something to comment on, and no surface says why. Stated once, for
-// the three boxes a send can land in, because it is one fact about a send landing.
-//
-// A box is the whole of it, which is why this is named for typing rather than for
-// focus. The panel's other two landings — a resolve and a reopen, each behind a round
-// trip of its own — put the reader on a thread node instead, and Chrome collapses the
-// selection for a landing that takes a caret, not a control as such — a button and a
-// select leave it standing, and so does a `tabindex="-1"` div. Same
-// shape, then, and not the same steal: those two keep the standing place a control
-// that folds away with its thread owes the reader.
-function landTyping(box) {
-  if (!pageSelection()) box?.focus({ preventScroll: true });
-}
-// A drag stops where the hand stopped, not where the reader aimed: a release two glyphs
-// short of a word's end meant the word, and the capture would store the fragment as if
-// the fragment were the point. So the pointer path grows a selection outward — never
-// inward — until each end sits on a boundary of the same word units the runtime already
-// reads sequences by (textUnits), and only where the end fell strictly inside a
-// word-like unit. An end resting on a boundary, in space, or against punctuation stays
-// exactly where the reader put it, and keyboard selections never come here at all:
-// shift-arrow is the reader being precise, and precision is not a thing to correct.
-//
-// One end, because the two are the same question asked at two places, and the words are
-// read in the indexed text every other reading of the page uses. That is what keeps a
-// snap from claiming what the capture would refuse: a word never continues across a
-// fence, and never across a block seam, which is where the collapse writes the space the
-// markup doesn't hold. One seam is snapping's own, past what the collapse knows: where
-// machine-placed words (data-lf-gen) stand flush against the author's — a chip row is
-// written with no space after the title it follows — the two runs read as one word, and
-// growing across that seam would hand a selection of the chip the title too.
-function snapOut(reading, at, back) {
-  const { raw, origin, fences } = reading;
-  const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
-  const ahead = fences.find((f) => f >= at) ?? raw.length;
-  const spoke = (o) => elementOver(o.node).closest("[data-lf-gen]");
-  // An EDGE's neighbours are the nearest characters, not the nearest cells: an empty
-  // text node is an empty segment, which puts two EDGEs flush, and every reader of
-  // `origin` steps over its nulls.
-  const joined = (i) => {
-    if (origin[i] !== null) return true;
-    let a = i - 1;
-    while (origin[a] === null) a--;
-    let b = i + 1;
-    while (b < origin.length && origin[b] === null) b++;
-    const prev = origin[a];
-    const next = origin[b];
-    if (!prev || !next) return false;
-    return blockOf(prev.node) === blockOf(next.node) && spoke(prev) === spoke(next);
-  };
-  const inRun = (i) => !/\s/.test(raw[i]) && joined(i);
-  let lo = at;
-  while (lo > behind && inRun(lo - 1)) lo--;
-  let hi = at;
-  while (hi < ahead && inRun(hi)) hi++;
-  let run = "";
-  let boundary = 0; // the end's own index within `run`
-  const from = []; // from[i] = the raw index run[i] came from; an EDGE holds no character
-  for (let i = lo; i < hi; i++) {
-    if (origin[i] === null) continue;
-    if (i < at) boundary++;
-    from.push(i);
-    run += raw[i];
-  }
-  const word = textUnits.segment(run).containing(boundary);
-  if (!word || word.index >= boundary || !word.isWordLike) return at;
-  return back ? from[word.index] : from[word.index + word.segment.length - 1] + 1;
-}
-// An end the snap didn't move keeps the boundary the browser gave it: a drag out into
-// chrome ends past the last quotable character, and rewriting that end from the reading
-// would pull the visible selection off words the reader chose to cover. The gesture's
-// direction survives too, or the shift-click that next extends the selection would
-// extend it from the wrong end.
-function snapSelection() {
-  if (!anchoringReady) return;
-  const sel = pageSelection();
-  if (!sel) return;
-  const range = pageRange(sel);
-  const segments = segmentsIn(range);
-  if (!segments.length) return;
-  const reading = pageText();
-  const [start, stop] = spanIn(reading, segments);
-  const lo = snapOut(reading, start, true);
-  const hi = snapOut(reading, stop, false);
-  if (lo === start && hi === stop) return;
-  const head =
-    lo === start
-      ? [range.startContainer, range.startOffset]
-      : [reading.origin[lo].node, reading.origin[lo].offset];
-  const tail =
-    hi === stop
-      ? [range.endContainer, range.endOffset]
-      : [reading.origin[hi - 1].node, reading.origin[hi - 1].offset + 1];
-  // Backward means the anchor sits past the range's start — asked of boundary points,
-  // because node order misreads containment: a focus on the element holding the anchor's
-  // text node both precedes and contains it.
-  //
-  // Both points have to be in one tree to be compared at all. Inside an x-shadow widget
-  // they are not: the selection's own anchorNode is the light-DOM one Chrome clamped to
-  // the host, while the range is the composed one this snapped from, and comparing them
-  // throws rather than answering. A selection that never left the widget has no direction
-  // worth recovering — there is one text node under the pointer either way — so it snaps
-  // forward, which is what a drag inside one block does regardless.
-  const probe = document.createRange();
-  probe.setStart(sel.anchorNode, sel.anchorOffset);
-  const comparable =
-    sel.anchorNode.getRootNode() === range.commonAncestorContainer.getRootNode();
-  const backward =
-    comparable && probe.compareBoundaryPoints(Range.START_TO_START, range) > 0;
-  if (backward) sel.setBaseAndExtent(...tail, ...head);
-  else sel.setBaseAndExtent(...head, ...tail);
-}
-// What the button is on, decided here alone. The selection is read fresh; a visual find —
-// a clicked diagram or image, which has no text to select — comes in from the click that
-// found it, and a qualifying selection outranks it. The last branch is why order between
-// that click and the update queued behind its mouseup never matters: no selection speaks
-// for an element anchor, so the selection's absence takes down only a quote, and the
-// queued re-decide lands on the same outcome.
-function updateFab(visual) {
-  if (!anchoringReady) {
-    showFab(null);
-    return;
-  }
-  const sel = pageSelection();
-  const anchor = sel ? selectionAnchor(sel) : null;
-  if (anchor?.quote.length >= MIN_QUOTE)
-    showFab(anchor, ...beside(pageRange(sel).getBoundingClientRect()));
-  else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
-  else if (fabAnchor?.quote) showFab(null);
-}
-// Where the pointer stopped is not the question; where the selection is, is. The guard
-// exists so a mouseup inside the runtime's layer — a click in the panel, the composer —
-// can't re-decide the button out from under an open draft. A drag that ends on a widget's
-// control is the opposite case: the user was selecting that control's label, and a
-// tab's name runs to within a few pixels of the strip button's padding, so the mouseup
-// lands on chrome while the selection is the page's. The snap runs in the same queued
-// step that raises the button, so the button lands beside the selection as snapped and
-// the capture reads the one the reader is looking at — and only for the primary
-// button, because a right button's release precedes its context menu, and growing the
-// selection there rewrites what Copy was aimed at.
-document.addEventListener("mouseup", (ev) => {
-  if (!pageWords(ev.target) && !pageSelection()) return;
-  setTimeout(() => {
-    if (ev.button === 0) snapSelection();
-    updateFab();
+const { landTyping, pageSelection, selectionAnchor, snapSelection } =
+  createSelectionCapture({
+    anchoringIsReady: () => anchoringReady,
+    blockOf: (...args) => blockOf(...args),
+    closestAcross: (...args) => closestAcross(...args),
+    cut: (...args) => cut(...args),
+    datumSelector: () => DATUM,
+    elementOver: (...args) => elementOver(...args),
+    neighbourhood: (...args) => neighbourhood(...args),
+    pageRange: (...args) => pageRange(...args),
+    pageText: (...args) => pageText(...args),
+    pageWords: (...args) => pageWords(...args),
+    quoteFrom: (...args) => quoteFrom(...args),
+    segmentText: (...args) => textUnits.segment(...args),
+    segmentsIn: (...args) => segmentsIn(...args),
+    spanIn: (...args) => spanIn(...args),
   });
-});
-// Selections made from the keyboard (shift-arrows, ⌘A) deserve the same button. Typing in
-// a box never does, whatever is selected elsewhere.
-document.addEventListener("keyup", (ev) => {
-  if (takesLetters(ev.target)) return;
-  if (!pageWords(ev.target) && !pageSelection()) return;
-  setTimeout(updateFab);
-});
-// Floating chrome getting out of the way of a press somewhere else, which is a fact about
-// the press rather than about who receives it: the aim takes a press away from the page
-// (see claimPress) and must not take this with it, or the keyboard reference stays up over
-// the composer that press just opened. Hence one function, called from both.
-// The two side panels are absent from it on purpose. A float answers the press in front
-// of it and stands down behind it; the comment panel and the leaves tray are
-// workspaces the reader stood up, kept through a reload (PANEL_KEY, TRAY_KEY) and so
-// through a click all the more — a tray any press removes cannot be watched while
-// working, which is the tray's point. Each closes by its own button, its key, or Esc.
-function standDown(target) {
-  if (!target.closest?.(".lf-fab, .lf-composer")) {
-    showFab(null);
-    // Keep a composer that holds unsent text open so a stray click can't drop it;
-    // Cancel discards explicitly, and the draft is persisted regardless. Asked only of a
-    // composer that is up, so an ordinary press in the page repaints nothing.
-    if (composerOpen && !composerInput.value) hideComposer();
-  }
-  if (reference.open && !target.closest?.(".lf-help")) reference.show(false);
-  // The press on the button itself is its own toggle, so it is not an outside click;
-  // without that the open and this close would both run and the menu could never open.
-  if (versionMenuOpen && !target.closest?.(".lf-version-menu, .lf-version"))
-    showVersionMenu(false);
-}
-document.addEventListener("mousedown", (ev) => standDown(ev.target));
 
-// What a click on the page means, decided once. A mark under the pointer opens its thread;
-// otherwise a diagram or image is a find handed to updateFab, which raises the same 💬
-// button on an element anchor — the id the visual lives under — unless a selection
-// outranks it.
-//
-// Once, because the hit-test reads layout and opening the panel rewrites it. Two handlers
-// each asking `markAt` looked independent and were not: the first one's setPanel() reflowed
-// the document out from under the second, which then missed the very mark it had just
-// opened and raised the comment button on top of it — leaving an element anchor set, which
-// midComposition() reads, so the page quietly stopped following new versions. The rule this
-// file already carries covers it: a guard that reads state another function wrote is a sign
-// the two are one function.
-// What a click anchors on whole, because there is no text in it to select: the page's
-// own pictures, and every widget that declares it renders as one.
-const visualSel = () =>
-  [...tagsDeclaring((e) => e["x-visual"]), "svg", "img", "figure"].join(",");
-// While ⌥ is held the page shows what a click would take — the item under
-// the pointer wears the aim's box (refreshAim), so the chord
-// answers "which" before the click rather than asking the user to press and find out.
-// `aiming` is the state and the class is a rendering of it; nothing reads the class back.
-//
-// It comes off on blur as well as on keyup, because the chord that switches windows takes
-// the keyup with it, and a page left armed under nobody's hand is a claim the user
-// cannot dismiss.
-let aiming = false;
-// The aim chord, declared once: the key listeners, the press guard (claimPress) and the
-// reference's row all read this object. It is the register's one row that is not a key —
-// a modifier held while the pointer clicks — so it binds nothing and carries no press, and
-// the rule that keeps it off the key line is the same one that keeps F7 off it. The label
-// is spelled from the modifier through the register's own table rather than written out
-// twice in two platforms' glyphs.
-const AIM = {
-  modifier: "Alt",
-  keys: [],
-  label: `${spell("Alt")} click`,
-  does: "Comment on the item under the pointer, whole",
-};
-// What the pointer is over, asked of the page rather than of an event, so pressing the key
-// without moving the mouse answers too — the user holds ⌥ to find out what they would
-// get, and the answer cannot wait for them to jiggle the mouse first. An open composer
-// is no reason to say nothing: the press still acts (it re-anchors the box), so the
-// promise still paints — what stood down here left that one press made blind.
-function aimedItem() {
-  if (pointer.x < 0) return null;
-  const at = document.elementFromPoint(pointer.x, pointer.y);
-  return at && !inChrome(at) ? itemAt(at) : null;
-}
-function setAiming(on) {
-  aiming = on;
-  document.body.classList.toggle("lf-aiming", on);
-  refreshAim();
-}
-addEventListener("keydown", (ev) => ev.key === AIM.modifier && setAiming(true));
-addEventListener("keyup", (ev) => ev.key === AIM.modifier && setAiming(false));
-addEventListener("blur", () => setAiming(false));
-// The keydown above can go unheard: a page reloaded under a held key — the poll following
-// a new version — never hears it, and claimPress reads live modifier state, so every
-// press on the new page was claimed while nothing could paint the promise. Mouse events
-// carry that same live state, so the move re-derives the arm from the freshest carrier,
-// through the one setter, rather than trusting the latch.
-document.addEventListener("mousemove", (ev) => {
-  // This listener used to follow the pointer recorder in the monolith. Keep that
-  // ordering explicit now that the recorder is installed by the anchor module.
-  pointer.x = ev.clientX;
-  pointer.y = ev.clientY;
-  const held = ev.getModifierState(AIM.modifier);
-  if (held !== aiming) setAiming(held);
-  else refreshAim();
+const {
+  BANNER_CLEAR,
+  beside,
+  fabAnchorAt,
+  openOnItem,
+  placeClear,
+  placeComposer,
+  showFab,
+  standDown,
+  updateFab,
+} = createSelectionSurface({
+  anchoringIsReady: () => anchoringReady,
+  composer,
+  composerInput,
+  composerIsOpen: () => composerOpen,
+  designIsOn: () => designOn,
+  designTarget,
+  fab,
+  hideComposer: () => hideComposer(),
+  hideReference: () => reference.show(false),
+  inChrome: (node) => inChrome(node),
+  markAt,
+  noteClass: () => NOTE,
+  openComposer,
+  openOnDesign,
+  pageRange: (...args) => pageRange(...args),
+  pageScroller,
+  pageSelection,
+  pageWords: (...args) => pageWords(...args),
+  paintHere,
+  panel,
+  panelCovers,
+  pendingMarks: () => anchorRuntime.pendingMarks,
+  referenceIsOpen: () => reference.open,
+  selectionAnchor,
+  showThread,
+  showVersionMenu,
+  snapSelection,
+  tagsDeclaring,
+  takesLetters: (node) => takesLetters(node),
+  versionMenuIsOpen: () => versionMenuOpen,
 });
 
-// ⌥-click means the item under the pointer, whatever it holds. It costs the page no
-// chrome and the user no selection, and it reaches an item whose words are all
-// inside a control. What it costs is discoverability, which the cursor answers as far as
-// a modifier can: while the key is down the pointer says a click will aim.
-//
-// The press it aims with is the aim's alone, so it is taken at capture — ahead of every
-// handler out on the page, and of the browser's own defaults. Read on the way back up
-// instead, it was a press the page had already had: ⌥-clicking an option card opened the
-// composer *and* picked the option, sending Claude a decision the user never made,
-// and ⌥-clicking a tab's name aimed at the widget while switching the panel under it.
-// Every widget that takes a press had it, because none of them was ever told. The box
-// is the promise, and a press keeps it by being the only thing the press does.
-//
-// Claimed at the press rather than judged at the click, because the press is where ⌥
-// states what the user meant. A key released before the button comes back up would
-// otherwise leave a press already taken from the page doing nothing at all.
-//
-// What is armed is the page rather than the items on it: an armed press aims where there
-// is an item under it, and acts on nothing where there isn't. That is what the cursor is
-// already saying, over everything the chrome doesn't hold out of it. Falling through to
-// the page instead would leave the user reading the box to find out which of the
-// two a press is about to be — and a suggestion's ✓ Accept hangs in the page's own
-// column, outside the element it decides, so there is nothing above it to aim at and
-// getting that wrong sends Claude a decision.
-//
-// A press is its down, its up and the click they make, a double press one event more, and
-// the aim takes every one of them: which a widget listens on is not something the runtime
-// can know, and lf-draft already opens its editor on the second mousedown rather than on
-// the dblclick, for reasons of its own.
-const PRESS_EVENTS = [
-  "pointerdown",
-  "mousedown",
-  "pointerup",
-  "mouseup",
-  "click",
-  "dblclick",
-];
-// The press the aim has taken — {item} for the ⌥ aim, {design} for design mode — until
-// the next one starts.
-let aimedPress = null;
-function claimPress(ev) {
-  // Made and dropped at the same moment, which is the start of a press: a drag already
-  // under way when the key goes down keeps the events it is waiting for, and one that
-  // ends after the aim's own press can still be ended.
-  if (ev.type === "pointerdown") {
-    const aim = ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
-    const design = !aim && designPress(ev.target) ? designTarget(ev.target) : null;
-    // The item the outline is naming, through the reading that named it (aimedItem, which
-    // aimTarget and so the box itself go through) rather than through this event's own
-    // target. Both are hit tests at the one place the pointer is, and asking twice is what
-    // let them differ: the browser resolves a press from its own dispatch, elementFromPoint
-    // builds its own, and where two boxes share an edge — every cell of a joined group,
-    // which butt with no gap between them — nothing makes the two tie-break the same way.
-    // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
-    aimedPress = aim ? { item: aimedItem() } : design ? { design } : null;
-    if (aimedPress) standDown(ev.target);
-  }
-  if (!aimedPress) return;
-  // A click carrying no press belongs to the control it is on rather than to a press that
-  // has already finished: `offer` calls click() to supply the keys a span doesn't come
-  // with, and the user's Enter must reach the control they are on whatever the last
-  // press was.
-  if (ev.type === "click" && !ev.detail) return;
-  // Not on pointerdown, whose cancellation takes the mouse events with it — the click this
-  // aim ends on included. On mousedown, which is where the selection, the focus and a
-  // native drag would start, and on the click, since ⌥ on a link is a download.
-  if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
-  ev.stopPropagation();
-  if (ev.type !== "click") return;
-  const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
-  if (aimedPress.item) openOnItem(aimedPress.item, from);
-  else if (aimedPress.design) openOnDesign(aimedPress.design, from);
-}
-for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
-
+const { AIM, aimIsOn, aimedItem } = createAim({
+  designPress,
+  designTarget,
+  inChrome: (node) => inChrome(node),
+  itemAt,
+  openOnDesign,
+  openOnItem,
+  pointerAt: () => pointer,
+  refreshAim,
+  spell,
+  standDown,
+});
 // ---------- design mode ----------
 let designRuntime;
 function setDesign(...args) {
@@ -3268,31 +2775,6 @@ function openOnDesign(...args) {
   return designRuntime.openOnDesign(...args);
 }
 
-document.addEventListener("click", (ev) => {
-  if (!pageWords(ev.target)) return;
-  // A press design mode did not take at the press is a press on prose: a drag that
-  // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
-  // block; a plain click comments on the block it landed in.
-  if (designOn) {
-    if (pageSelection()) return;
-    const target = designTarget(ev.target);
-    if (target) openOnDesign(target, { left: ev.clientX + 6, top: ev.clientY - 40 });
-    return;
-  }
-  const threadId = markAt(ev.clientX, ev.clientY);
-  if (threadId) return showThread(threadId);
-  if (ev.target.closest?.("a")) return;
-  const sel = visualSel();
-  let visual = ev.target.closest?.(sel);
-  if (!visual) return;
-  // Outermost visual: a rendered diagram's inner svg carries a generated id;
-  // the anchor belongs to the widget (or figure) that holds it.
-  while (visual.parentElement?.closest(sel)) visual = visual.parentElement.closest(sel);
-  const id = visual.closest("[id]:not(.lf-ui)")?.id;
-  if (!id) return;
-  updateFab({ id, x: ev.clientX, y: ev.clientY });
-});
-
 selectionComposerRuntime = createSelectionComposer(runtime, {
   clearDraft,
   composer,
@@ -3302,7 +2784,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   designIsOn: () => designOn,
   draftContexts,
   fab,
-  fabAnchor: () => fabAnchor,
+  fabAnchor: fabAnchorAt,
   landTyping,
   loadDraft,
   paintAnchors,
@@ -3374,7 +2856,7 @@ const PANEL_SAY = {
   // answer, and the two ways into a thread's box stay one landing. A resolved card has
   // no box to be the nearer answer, and standingConversation reads the box rather than
   // the class, so the press there is the general box's after all.
-  when: () => !fabAnchor && !standingConversation(),
+  when: () => !fabAnchorAt() && !standingConversation(),
   run: () => generalInput.focus({ preventScroll: true }),
 };
 
@@ -3580,12 +3062,11 @@ const commenting = (word) => ({
   line: `comment on the ${word}`,
 });
 const commentDestination = () => {
-  if (fabAnchor)
+  const anchor = fabAnchorAt();
+  if (anchor)
     return {
       ...commenting(
-        fabAnchor.quote
-          ? "selection"
-          : itemWord(elementById(fabAnchor.section)) || "item",
+        anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
       ),
       go: () => fab.onclick(),
     };
@@ -5447,7 +4928,7 @@ const unaccountedGesture = () =>
 // edit.
 const midComposition = () =>
   composerOpen ||
-  Boolean(fabAnchor) ||
+  Boolean(fabAnchorAt()) ||
   unaccountedGesture() ||
   (document.activeElement?.tagName === "TEXTAREA" &&
     (document.activeElement.value !== "" ||
@@ -5828,11 +5309,10 @@ updateRuntime = createUpdates(runtime, {
 
 anchorRuntime = createAnchors({
   DATUM,
-  LANDMARK_CAP,
   SCROLL,
   TEXT_BLOCK,
   aimBox,
-  aimIsOn: () => aiming,
+  aimIsOn,
   aimedItem,
   anchorLabel,
   anchorsReady: () => anchoringReady,

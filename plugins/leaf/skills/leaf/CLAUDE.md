@@ -25,7 +25,11 @@ owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
 `runtime/asks/model.js` owns request discovery and folding;
 `runtime/asks/view.js` owns ask chrome, marking, and navigation;
-`runtime/composing/` owns shared text-box and composer behavior;
+`runtime/composing/capture.js` owns selection capture and snapping;
+`runtime/composing/surface.js` owns floating comment geometry and page-click routing;
+`runtime/composing/aim.js` owns modifier aim and captured presses;
+`runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
+and selection-composer state;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;

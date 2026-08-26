@@ -692,12 +692,17 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      outline-offset: var(--here-ring-gap); }
     & > lf-option > .lf-pick:focus-visible { outline: none; }
   }
-  /* The column an option's keyboard address and its status bar stand in: 6px, a 17px
-   * chip, 7px, a 3px bar, and 3px before the words. Both are held whether or not anyone
+  /* The column an option's keyboard address and its status bar stand in: 6px, the chip,
+   * 5px, a 3px bar, and 3px before the words. Both are held whether or not anyone
    * reaches for the keyboard and whether or not the option has a status, because the
    * alternative is one of them arriving into room the option hasn't got — which is what
-   * a bar taking the 30px column the digit already filled did, on a row, where the digit
-   * is centred and the two came out touching. 17px is the shared rule's floor
+   * a bar taking the column the digit already filled did, on a row, where the digit is
+   * centred and the two came out touching.
+   *
+   * The chip's own term is --lf-key-box (theme.css) rather than the width it comes to
+   * today, for the reason that token exists: the chip follows the type, so a package
+   * redeclaring the ladder grows it, and a column stated as a number is the room it was
+   * measured against rather than the room it holds. The chip's floor
    * rather than a width now, and what keeps the chip at it is that a pick answers one
    * digit (lf-options.js caps the group at nine); a two-key address is the chord's, and
    * the chord draws in a layer of its own. The first drafts all borrowed room
@@ -718,7 +723,8 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
    * question is also written as: no selector reaches an element child and a
    * pseudo-element at once, so that one is stated twice and the column is the part
    * that must not drift. */
-  lf-options[choose]:not(:where([data-lf-exhibit]) *) { --lf-address-col: 36px; }
+  lf-options[choose]:not(:where([data-lf-exhibit]) *) {
+                     --lf-address-col: calc(var(--lf-key-box) + 17px); }
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
                      padding-inline-start: var(--lf-address-col); }
  }

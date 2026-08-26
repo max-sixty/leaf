@@ -1179,8 +1179,12 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
         "the recommended cell and its plain neighbour carry the same paint, so this "
         "reads nothing about the recommendation"
     )
-    column = page.locator("#live-group").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-address-col'))"
+    # The column as the cell spends it, rather than the token's own text: the term is a
+    # calc over the chip's box, so `getPropertyValue` answers with the expression and a
+    # number read off it is NaN — which compares false against everything and reports a
+    # bar in the wrong place as convincingly as a real one.
+    column = marked.evaluate(
+        "el => parseFloat(getComputedStyle(el).paddingInlineStart)"
     )
     assert 0 < left and left + width < column, (
         f"the bar at {left}…{left + width} does not stand inside the {column}px the "
@@ -1191,6 +1195,28 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     assert marked.evaluate(paint)[:4] == [stripe, [left, width], 0, 0], (
         f"the pointer took the recommendation with it: {marked.evaluate(paint)} "
         f"against {[stripe, [left, width], border, radius]} at rest"
+    )
+
+    # The column holds two things, and the other one arrives only for the keyboard. Both
+    # terms of the column follow the type — the chip's box does by declaration
+    # (--lf-key-box), and the bar hangs off the column's trailing edge — so this is what
+    # says the column is still the sum of what stands in it. A package redeclaring the
+    # ladder is the case: written as a number, the column stayed the size the chip was
+    # when somebody measured it, and the chip grew into the bar's three pixels.
+    page.mouse.move(0, 0)
+    mark = page.locator("#l-stage .lf-pick").first
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    chip = page.locator("#l-stage .lf-address")
+    expect(chip).to_be_visible()
+    ends = chip.evaluate(
+        """el => el.getBoundingClientRect().right
+                 - el.closest('lf-option').getBoundingClientRect().left"""
+    )
+    assert ends < left, (
+        f"the keyboard address runs to {ends} and the status bar opens at {left}, so "
+        "the column is holding one of them in the other's room"
     )
     assert errors == []
     page.close()

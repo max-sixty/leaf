@@ -257,9 +257,9 @@ export function chromeStyle({
      stand in a layer of their own, placed on each member's visible corner, an option's in
      a column that option holds for it. This rule dresses; theirs place and paint.
 
-     The box follows the type rather than standing beside it, and --lf-key-box is the one
-     expression that says how: the line box, which is a ratio of the font, plus the ring
-     drawn around it. Height and the square floor are both that, so the ring keeps its
+     The box follows the type rather than standing beside it, and --lf-key-box says how
+     (theme.css, where it is stated because an option's column has to read it back).
+     Height and the square floor are both that, so the ring keeps its
      clearance and a one-key address comes out square whatever the type is set at. At --t-6
      it lands on the 17px interior and 19px box this chip has always been drawn to, so
      nothing moves today — but a package may redeclare the ladder, theme files being
@@ -306,7 +306,7 @@ export function chromeStyle({
      it as surely and cost the space between the keys — flex drops a whitespace-only text
      node, so the address rendered as "ga 1", correct in every rule here and wrong in the
      one place a reader looks. */
-  .lf-address { --lf-key-box: calc(round(var(--t-6) * 1.478 + 2px, 1px)); display: none; box-sizing: border-box; min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: var(--t-6); line-height: 1.478; text-align: center; white-space: nowrap; z-index: 1; }
+  .lf-address { display: none; box-sizing: border-box; min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: var(--t-6); line-height: 1.478; text-align: center; white-space: nowrap; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a

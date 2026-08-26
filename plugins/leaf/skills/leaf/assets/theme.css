@@ -186,6 +186,14 @@
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
+     the ring drawn around it (chrome-style.js dresses one). It is a token for the
+     reason the ring's width is — a box somebody else holds room for has to be read
+     back in a calc, and the option that holds a column for one is in another layer's
+     stylesheet entirely. Written as a number there, the column stayed at the size the
+     chip was when it was measured, and a package redeclaring the ladder grows the chip
+     into whatever the column was holding beside it. */
+  --lf-key-box: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;

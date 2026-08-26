@@ -129,6 +129,169 @@ sequenceDiagram
 </pre></lf-diagram>
 """,
 )
+# Every chart kind on one page, each body small enough to count the marks it should have
+# produced by hand. A reading that only ever meets bars says nothing about the four other
+# routes through the module, and each of them hands Plot a different mark.
+CHART_PAGE = leaf_page(
+    "charts",
+    """
+<h1 id="t">Charts</h1>
+<lf-chart id="c-bars" kind="bars" y="merged"><pre>
+quarter, apps, infra
+Q1, 12, 7
+Q2, 19, 11
+Q3, 14, 17
+</pre></lf-chart>
+<lf-chart id="c-rows" kind="rows" y="open"><pre>
+area, open
+platform infrastructure, 42
+billing, 19
+</pre></lf-chart>
+<lf-chart id="c-stack" kind="stack" y="hours"><pre>
+week, features, fixes
+w1, 21, 9
+w2, 18, 14
+</pre></lf-chart>
+<lf-chart id="c-line" kind="line" y="hours to review"><pre>
+week, backend
+2026-06-01, 31
+2026-06-08, 26
+2026-06-15, 19
+</pre></lf-chart>
+<lf-chart id="c-dots" kind="dots" y="minutes"><pre>
+lines changed, review
+12, 4
+90, 26
+310, 71
+</pre></lf-chart>
+""",
+)
+# What a chart drew, read off the composed drawing rather than off the body it came from.
+# Marks are found by the class the module puts on each series, because that class is the
+# whole of its colour contract: nothing else in the drawing carries a series' identity,
+# and the colour itself is the stylesheet's answer to it.
+CHART_MARKS = """(id) => {
+    const svg = document.getElementById(id).querySelector('svg');
+    if (!svg) return null;
+    const probe = document.createElement('span');
+    document.body.append(probe);
+    const token = (n) => {
+        probe.style.color = `var(--series-${n})`;
+        return getComputedStyle(probe).color;
+    };
+    const series = [...svg.querySelectorAll('[class^="lf-series-"]')].map((g) => {
+        const n = Number(g.getAttribute('class').replace('lf-series-', ''));
+        const shapes = [...g.querySelectorAll('rect, circle, path')];
+        const paint = shapes.length ? getComputedStyle(shapes[0]) : null;
+        return { n, shapes: shapes.length, tag: shapes[0] && shapes[0].tagName,
+                 worn: paint && [paint.fill, paint.stroke], token: token(n) };
+    });
+    probe.remove();
+    return {
+        series,
+        // A colour the module wrote into the drawing, which would freeze the scheme this
+        // browser happened to be in when the copy was exported.
+        painted: svg.outerHTML.match(/(?:fill|stroke)="#[0-9a-fA-F]{3,8}"/g) || [],
+        // The painted box of the first tick label. Its computed font-size is the theme's
+        // and cannot move; what a scaled drawing changes is the box.
+        tick: (() => { const r = svg.querySelector('text').getBoundingClientRect();
+                       return [Math.round(r.width), Math.round(r.height)]; })(),
+        width: Number(svg.getAttribute('width')),
+        room: Math.round(document.getElementById(id).clientWidth),
+    };
+}"""
+# What the axes have to do when the room runs out: five names that each take about as much
+# room as a band has, and a series whose numbers are wider than the axis they are labelled
+# on. Read at a phone's width, where the column is a third of what the corpus is drawn at.
+CROWDED_CHART_PAGE = leaf_page(
+    "crowded charts",
+    """
+<h1 id="t">Crowded</h1>
+<lf-chart id="crowd-band" kind="bars" y="gas, kWh a winter"><pre>
+winter, meter
+2021-22, 11840
+2022-23, 10920
+2023-24, 11510
+2024-25, 12260
+2025-26, 10480
+</pre></lf-chart>
+<lf-chart id="crowd-wide" kind="bars" y="bytes"><pre>
+tier, bytes
+cache, 128400000000
+disk, 291000000000
+</pre></lf-chart>
+<lf-chart id="crowd-rows" kind="rows" y="watts lost"><pre>
+element, loss
+the single-glazed bay window in the front room, 410
+uninsulated loft hatch, 265
+</pre></lf-chart>
+""",
+)
+# Every pair of words the drawing paints, and whether any two of them are in the same
+# place. Rectangles rather than a sort along one axis: a value axis stacks its labels at
+# one left edge, and a reading that compared neighbours by x alone called every one of
+# those a collision.
+CHART_COLLISIONS = """() => {
+    const hit = (a, b) =>
+        a.left < b.right - 0.5 && b.left < a.right - 0.5 &&
+        a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+    const found = [];
+    for (const el of document.querySelectorAll('lf-chart')) {
+        const svg = el.querySelector('svg');
+        if (!svg) { found.push({chart: el.id, pair: 'drew nothing'}); continue; }
+        const words = [...svg.querySelectorAll('text')]
+            .map((t) => [t.textContent, t.getBoundingClientRect()]);
+        for (let i = 0; i < words.length; i++)
+            for (let j = i + 1; j < words.length; j++)
+                if (hit(words[i][1], words[j][1]))
+                    found.push({chart: el.id, pair: `${words[i][0]} / ${words[j][0]}`});
+    }
+    return found;
+}"""
+# The bodies the module refuses, each for its own reason. The last three are the ones a
+# count of marks cannot see: every one of them draws a chart that looks like a chart and
+# says something the body does not.
+BAD_CHART_PAGE = leaf_page(
+    "bad charts",
+    """
+<h1 id="t">Bad</h1>
+<lf-chart id="bad-cell" kind="bars" y="merged"><pre>
+quarter, merged
+Q1, 12
+Q2, twelve
+</pre></lf-chart>
+<lf-chart id="bad-count" kind="bars" y="merged"><pre>
+quarter, a, b, c, d, e, f
+Q1, 1, 2, 3, 4, 5, 6
+</pre></lf-chart>
+<lf-chart id="bad-twice" kind="bars" y="merged"><pre>
+quarter, merged
+Q1, 12
+Q1, 19
+</pre></lf-chart>
+<lf-chart id="bad-sign" kind="stack" y="hours"><pre>
+week, features, fixes
+w1, 21, -9
+</pre></lf-chart>
+<lf-chart id="bad-blank" kind="bars" y="merged"><pre>
+quarter, apps, infra
+Q1, 12,
+Q2, 19,
+</pre></lf-chart>
+""",
+)
+# A chart an agent sent in a reply, which upgrades inside a panel nobody has opened yet.
+CHART_MARKUP = (
+    '<lf-chart id="{id}" kind="bars" y="merged"><pre>\n'
+    "quarter, merged\nQ1, 12\nQ2, 19\n</pre></lf-chart>"
+)
+CHART_IN_A_MESSAGE_PAGE = leaf_page(
+    "chart in a message",
+    """
+<h1 id="t">Sent</h1>
+<p id="p">The reply carries the drawing.</p>
+""",
+)
 # A margin with the page's own apparatus in it, and drawings either side of what the free
 # margin can hold. A rail is what most shipped pages that carry a wide widget also carry,
 # so this is the ordinary case rather than a corner.

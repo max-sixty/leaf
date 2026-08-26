@@ -25,6 +25,7 @@ TABS = [
     ("postmortem", "Postmortem"),
     ("pr-walkthrough", "PR walkthrough"),
     ("live-progress", "Live progress"),
+    ("heat-loss", "Heating review"),
     ("triage-board", "Triage board"),
     ("command-hub", "Command hub"),
     ("release-notes", "Release notes"),

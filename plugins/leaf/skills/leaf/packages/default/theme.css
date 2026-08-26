@@ -1338,10 +1338,10 @@ lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
  * inside these widgets is a <pre> that gives up the document's dressing and inherits from
  * here (the rule below), so this copy is the size such a page is set in until a module
  * runs. */
-lf-diagram, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
+lf-diagram, lf-chart, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: 13px;
              color: var(--muted); position: relative; overflow-x: auto; }
-lf-diagram.lf-rendered, lf-diff.lf-rendered, lf-tree.lf-rendered,
+lf-diagram.lf-rendered, lf-chart.lf-rendered, lf-diff.lf-rendered, lf-tree.lf-rendered,
 lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
@@ -1351,7 +1351,8 @@ lf-code.lf-rendered {
    be rendered or edited, inside an element that has already said how it looks and how
    far it stands off. The rendered <pre> a module builds is evidence again, and keeps
    the dressing. */
-lf-diagram:not(.lf-rendered) > pre, lf-diff:not(.lf-rendered) > pre,
+lf-diagram:not(.lf-rendered) > pre, lf-chart:not(.lf-rendered) > pre,
+lf-diff:not(.lf-rendered) > pre,
 lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
@@ -1382,6 +1383,42 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
 @media print {
   lf-diagram svg { max-width: 100%; }
 }
+
+/* A chart's colors are all here, and none of them are in its module. Plot leaves every
+ * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes
+ * one — it gives each series' marks a class and nothing else — so `color` on that class
+ * paints the bars, the line and the dots of one series at once. What it buys is that the
+ * drawing is painted by the same cascade as the page: a scheme flipped mid-read repaints
+ * it, an export opens honestly for a reader whose scheme is not the exporter's, and a
+ * project overriding --series-N gets its own charts without touching a widget. A palette
+ * resolved in JavaScript, which is what mermaid's diagrams need, can do none of the
+ * three.
+ *
+ * One font declaration, and the module reads it back. The margins a chart reserves are
+ * room for text the browser has not drawn yet, so the module measures the labels on a
+ * canvas — and a canvas measures in a font string, which is what --lf-chart-font is.
+ * Overriding it keeps that shape: a size in px, then a family. */
+lf-chart { --lf-chart-font: var(--t-6) var(--sans); }
+/* The box each drawing goes in, so that redrawing for a new width replaces the drawing and
+   not the widget's children: by then the runtime may have hung a line of its own on the
+   element saying a comment stands here, and that line is a child of the element. */
+lf-chart .lf-chart-drawing { display: block; }
+lf-chart svg { display: block; font: var(--lf-chart-font); color: var(--muted); }
+lf-chart .lf-series-1 { color: var(--series-1); }
+lf-chart .lf-series-2 { color: var(--series-2); }
+lf-chart .lf-series-3 { color: var(--series-3); }
+lf-chart .lf-series-4 { color: var(--series-4); }
+lf-chart .lf-series-5 { color: var(--series-5); }
+/* The key sits above the drawing, so the colors are named before they are met. Its words
+   wear the ink every other label on the page wears, never the series color: a name set in
+   its own mark's color is a second, weaker copy of the swatch beside it, and it is the
+   half that has to stay legible at 3:1 on paper. */
+lf-chart .lf-chart-keys { display: flex; flex-wrap: wrap; gap: 2px var(--sp-3);
+             margin-bottom: var(--sp-2); font: var(--lf-chart-font);
+             color: var(--muted-2); }
+lf-chart .lf-chart-key { display: inline-flex; align-items: center; gap: 6px; }
+lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
+             background: currentColor; flex: none; }
 
 /* The rules a shadow-rendering widget (x-shadow) carries into its own tree. A selector
    written out here reaches the document and stops dead at a shadow boundary, so these

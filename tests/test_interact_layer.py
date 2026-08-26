@@ -424,8 +424,10 @@ def test_init_vendors_the_layer(page_dir):
         assert (page_dir / name).is_file()
     assert (page_dir / "runtime" / "widget-api.js").is_file()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
+    assert (page_dir / "widgets" / "lf-chart.js").is_file()
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
+    assert (page_dir / "vendor" / "plot.esm.js").is_file()
 
 
 def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):

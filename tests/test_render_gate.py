@@ -722,7 +722,25 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
     table that scrolls with nothing left to wrap is the theme's honest third case
     and passes."""
-    failures = rendering_model.render_version(browser, serve(BARE_IDENTIFIERS_PAGE))
+    url = serve(BARE_IDENTIFIERS_PAGE)
+    page, errors = open_page(browser, url)
+    # The premise the finding rests on, asserted before the finding is asked for. How
+    # far a name stands past the measure is the resolved serif's to say — Charter on a
+    # workstation, Liberation Serif on a Linux runner, an eighth narrower — so the
+    # reading is the margin and not merely that the table scrolls. Written at the
+    # length the repository's own test names reach, this page cleared the measure by
+    # 83px on one and fell 23px short on the other, where the table fitted, the gate
+    # correctly reported nothing, and this test failed on an empty list saying so.
+    over = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+    assert errors == []
+    page.close()
+    assert over > 100, (
+        f"the names stand only {over}px past the measure, so the next font over fits"
+        " them and this page is no longer squeezed — lengthen them in"
+        " prose_beside_identifiers rather than reading an empty gate as a regression"
+    )
+
+    failures = rendering_model.render_version(browser, url)
 
     squeezed = [f for f in failures if "<table id=held> scrolls" in f]
     assert squeezed, failures

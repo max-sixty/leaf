@@ -251,9 +251,19 @@ WIDE_TABLE_PAGE = leaf_page(
 
 # Prose beside identifiers, which is the table a plan or a PR walkthrough writes: a row's
 # name, its mechanism in words, and the test that holds it. A test name is one word to
-# the line breaker and most of the measure long, so whether it can break is the whole
+# the line breaker and longer than the measure, so whether it can break is the whole
 # difference between the theme's second case and a squeezed table — `held` says how
 # each name is written, and nothing else differs between the two pages below.
+#
+# Longer than the measure at whatever serif the run resolves, which is why the names
+# run past anything the suite itself is called: the width of a name is a font's to
+# decide, and the theme asks for Charter and falls through to whatever the host has.
+# Written at the length the repository's own names reach, the bare table cleared the
+# 720px measure by 83px on a workstation's Charter and fell 23px short of it on the
+# Liberation Serif a Linux runner answers with — a table that fits, a gate with
+# nothing to report, and a fixture proving nothing on exactly the host CI runs.
+# `test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break` states the
+# margin it needs, so a font narrower still says so rather than going quiet.
 def prose_beside_identifiers(held):
     rows = [
         (
@@ -263,7 +273,12 @@ def prose_beside_identifiers(held):
                 " and <code>reply</code>; a record is one or the other, and a token rides"
                 " no suggestion, hold, or markup."
             ),
-            ["test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares"],
+            [
+                (
+                    "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares"
+                    "_and_refuses_one_written_as_text"
+                )
+            ],
         ),
         (
             "In threads",
@@ -272,7 +287,10 @@ def prose_beside_identifiers(held):
                 " agent message ends the wait as a reading of the log, undo restores it."
             ),
             [
-                "test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting",
+                (
+                    "test_an_ok_on_the_agents_latest_reply_takes_the_thread_out"
+                    "_of_waiting_until_the_agent_writes_again"
+                ),
                 "test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor",
             ],
         ),
@@ -283,7 +301,10 @@ def prose_beside_identifiers(held):
                 " order; a stray key disarms and keeps its meaning."
             ),
             [
-                "test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back"
+                (
+                    "test_the_keyboard_arms_the_bar_with_address_chip_digits_in"
+                    "_declared_order_and_the_key_line_names_what_z_takes_back"
+                )
             ],
         ),
     ]

@@ -462,7 +462,7 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  * this reaches nothing there and the cell's own hover is the answer instead. The keyboard
  * is an aim like the pointer: inside a joined group the mark's own focus ring is withheld
  * (the group's is the ring, below), so the warmed tick and the wash are what say which
- * mark ⏎ will take. Guarded with the group's other answers to the pointer, and free of
+ * mark the next toggle will take. Guarded with the group's other answers to the pointer, and free of
  * specificity for the same reason they are. */
 @media screen {
  :where(html:not(.lf-copy)) {

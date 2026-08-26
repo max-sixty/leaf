@@ -631,8 +631,8 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     expect(mark).to_have_attribute("role", "checkbox")
     expect(mark).to_have_attribute("aria-checked", "false")
     line = key_line(page)
-    assert "write another option" in line, (
-        f"the selected Ask hides its text-entry binding behind More: {line}"
+    assert "toggle the nth" in line, (
+        f"the selected Ask hides its numbered answers behind More: {line}"
     )
     expect(page.locator("#storage-options .lf-address")).to_have_text(["1", "2"])
     expect(page.locator("#storage-options .lf-address").first).to_be_visible()
@@ -655,6 +655,55 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     expect(chosen).to_have_attribute("role", "checkbox")
     expect(chosen).to_have_attribute("aria-checked", "true")
     expect(page.locator("#storage-options textarea")).not_to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_enter_does_not_drift_into_an_existing_option_thread(browser, serve):
+    """A re-armed Ask never borrows an earlier option thread's reply box.
+
+    Once a reader has written an option, its page seat holds that thread instead of the
+    pristine first-message box. An agent reply returns the Ask to the reader. Enter has
+    no unambiguous new-option box in that state, so the binding is absent; it must not
+    choose whichever existing thread happens to come first. The numbered options remain
+    one press away.
+    """
+    url = serve(ASK_WITH_CONTEXT_PAGE)
+    for text in ("First option I wrote.", "Second option I wrote."):
+        root = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "anchor": {"section": "storage-options"},
+                "text": text,
+            },
+        )
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "version": 1,
+                "parent": root["id"],
+                "text": "Understood.",
+            },
+        )
+
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    mark = page.locator("#storage-evict .lf-pick")
+    expect(mark).to_be_focused()
+    seat = page.locator("#storage-options > .lf-conversation")
+    expect(seat.locator(":scope > .lf-say textarea")).to_have_count(0)
+    expect(seat.locator(".lf-conversation-thread textarea")).to_have_count(2)
+
+    page.keyboard.press("Enter")
+    expect(mark).to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("2")
+    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     assert errors == []
     page.close()
 

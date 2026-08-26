@@ -1482,12 +1482,12 @@ rung `c` came down. `backFromBox` climbs `SAYS_IN` from the box where
 `standingConversation` climbs it from where the reader stands, so the press in
 and the press out name one element and one word — "comment on the thread" going
 in, "back to thread" coming out. The panel's general box has no conversation and
-lands on the list. A box with neither leaves the row dead and the page's own
-"let go" standing, which is the honest rung when there is nothing outside the
-box to stand on: a seat holding no thread yet is that case whole, so it wears no
-seat of its own rather than being named as an exception. Asking whether the
-container can take focus is what keeps this a relation rather than a list of the
-containers that happen to be focusable.
+lands on the list. A page-owned first-message seat has no standing place of its
+own; a widget control that explicitly enters its box supplies both the return
+control and the caller-owned word for that route through `landInConversation`.
+A visit reached by Tab supplies neither and leaves the page's own "let go"
+standing. Asking whether the container can take focus is what keeps every other
+route a relation rather than a list of containers that happen to be focusable.
 
 A key may repeat across nesting scopes to mean the same intent one scope further
 in. `c` reads that way: from

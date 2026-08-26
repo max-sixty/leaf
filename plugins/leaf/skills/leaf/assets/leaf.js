@@ -2311,13 +2311,17 @@ const SAY_BOX = ":scope > .lf-compose textarea, :scope > .lf-say textarea";
 // body case standingItem also guards needs nothing here: the climb from `body` reaches
 // `html`, whose root has no host, and ends on its own.
 const heldConversation = () => focused() && closestAcross(focused(), SAYS_IN);
+const conversationInputOf = (held) => {
+  const box = held?.querySelector(SAY_BOX);
+  return box && shownBox(box).height ? box : null;
+};
 // The current box belonging to the nearest conversation around a widget. A behavior
 // module may supply words the conversation itself owns without knowing whether that
 // conversation is seated on the page or in the panel, or how its shadow boundary is
 // staged. `conversationBox` answers the inverse question when the widget owns the seat.
 export function conversationInput(node) {
   const held = node && closestAcross(node, SAYS_IN);
-  return held?.querySelector(SAY_BOX) ?? null;
+  return conversationInputOf(held);
 }
 // A keyboard press that steps from a control into a conversation box owes the reader
 // the same control on the way out. Focusable conversations already own that rung — a
@@ -2327,8 +2331,8 @@ export function conversationInput(node) {
 const conversationReturns = new WeakMap();
 const standingConversation = () => {
   const held = heldConversation();
-  const box = held?.querySelector(SAY_BOX);
-  return box && shownBox(box).height ? { held, box } : null;
+  const box = conversationInputOf(held);
+  return box ? { held, box } : null;
 };
 // Putting the reader in a conversation, in one place, so the three presses that do it —
 // the `g c` address, `Enter` on a focused thread, and `c` from inside one — cannot come to
@@ -2339,11 +2343,20 @@ function landIn({ held, box }) {
   held.scrollIntoView({ behavior: SCROLL, block: "nearest" });
   if (held.dataset.id) scrollToThread(held.dataset.id);
 }
-export function landInConversation(box, back) {
+export function landInConversation(box, route = null) {
+  if (
+    route &&
+    (!(route.target instanceof Element) ||
+      typeof route.line !== "string" ||
+      !route.line.trim())
+  )
+    throw new TypeError(
+      "landInConversation return route needs an element target and a non-empty line",
+    );
   const held = box && closestAcross(box, SAYS_IN);
   if (!held) return false;
-  if (back && !held.hasAttribute("tabindex")) {
-    conversationReturns.set(box, back);
+  if (route && !held.hasAttribute("tabindex")) {
+    conversationReturns.set(box, route);
     box.addEventListener("blur", () => conversationReturns.delete(box), { once: true });
   }
   landIn({ held, box });
@@ -2779,8 +2792,8 @@ const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
 const backFromBox = () => {
   const held = heldConversation();
   if (held?.hasAttribute("tabindex")) return { target: held, line: "back to thread" };
-  const target = conversationReturns.get(focused());
-  return target?.isConnected ? { target, line: "back to question" } : null;
+  const route = conversationReturns.get(focused());
+  return route?.target?.isConnected ? route : null;
 };
 // A box words are typed into takes the keys that put a character in it, and only those:
 // the page's bare letters are keystrokes here, while Escape and Enter are the box's to

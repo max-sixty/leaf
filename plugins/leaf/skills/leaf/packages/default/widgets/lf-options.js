@@ -254,7 +254,7 @@ customElements.define(
     // first-message box it appended; in a thread the surrounding conversation owns its
     // reply box. One reading for the Enter row, across the shadow boundary between them.
     #words() {
-      return this.#another?.querySelector("textarea") ?? conversationInput(this);
+      return conversationInput(this.#another ?? this);
     }
 
     // The one statement a live channel can't derive: the set is whole. One press,
@@ -347,13 +347,6 @@ customElements.define(
         // branch the reader could see.
         keys(mark, SECTION, [
           {
-            keys: ["Enter"],
-            does: "Write another option",
-            line: "write another option",
-            when: () => Boolean(this.#words()),
-            run: () => landInConversation(this.#words(), mark),
-          },
-          {
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
             // are the markup's and do not change under the reader — where the chord's
@@ -367,6 +360,17 @@ customElements.define(
               target.focus();
               target.click();
             },
+          },
+          {
+            keys: ["Enter"],
+            does: "Write another option",
+            line: "write another option",
+            when: () => Boolean(this.#words()),
+            run: () =>
+              landInConversation(this.#words(), {
+                target: mark,
+                line: "back to question",
+              }),
           },
           {
             keys: ["ArrowUp", "ArrowDown"],

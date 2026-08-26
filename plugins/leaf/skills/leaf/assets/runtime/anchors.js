@@ -947,7 +947,7 @@ export function createAnchors(dependencies) {
   // that lands in the chrome, so the panel's reading and the page's cannot both name a
   // thread. That is also why the two are read here rather than painted by separate hands —
   // a second writer to this highlight would be overwritten by whichever frame ran last, and
-  // the hit-test runs on every mousemove.
+  // the hit-test runs on every pointer move.
   //
   // The whole card and not the quote alone, though the quote is the part that presses. The
   // card is where the eye is while it reads the comment, and the question arrives there
@@ -1058,10 +1058,31 @@ export function createAnchors(dependencies) {
       if (id !== hovering || hoverCardOf(id) !== hoverThread) paintHover(id);
     });
   }
-  document.addEventListener("mousemove", (ev) => {
+  // The pointer's place is read off a pointer event and not off `mousemove`, because the
+  // legacy mouse events round clientX/clientY to whole pixels and the browser hit-tests the
+  // position they were rounded from. Every consumer of this record asks a hit-test question
+  // — what a press would take, whether a mark is under the hand — so a rounded point is an
+  // answer about somewhere the pointer is not, and within a pixel of a boundary it is a
+  // different element: an ⌥ aim outlined the option above the one the press then took,
+  // because the outline asked elementFromPoint at the rounded point while the press read
+  // the target the browser resolved at the true one.
+  document.addEventListener("pointermove", (ev) => {
     pointer.x = ev.clientX;
     pointer.y = ev.clientY;
     refreshHover();
+  });
+  // A finger arrives already down. A tap dispatches `pointerdown` and then the
+  // compatibility mouse events — no `pointermove` anywhere in it — so a record kept from
+  // movement alone is still its start value when the click asks, and a consumer with no
+  // guard asks elementFromPoint about a point off the page: the quote under the finger
+  // opened nothing. The press is the pointer's place too, and for a tap it is the only
+  // statement of it: a drag still dispatches `pointermove` until the browser cancels it.
+  // No hover refresh with it — a mouse has already moved to this point and refreshed
+  // there — which is not a claim that the record paints no hover on touch. pageShifted
+  // reads it too, and a drag reached that paint before this recorder existed.
+  document.addEventListener("pointerdown", (ev) => {
+    pointer.x = ev.clientX;
+    pointer.y = ev.clientY;
   });
   // The page moving under a parked pointer is the pointer moving over the page: what a
   // press would take, whether a mark is under the hand, and where every legend box

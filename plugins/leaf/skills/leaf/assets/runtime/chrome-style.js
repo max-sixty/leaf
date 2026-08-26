@@ -202,15 +202,27 @@ export function chromeStyle({
      .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
      quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
      so it holds no room; the covered-words gate skips this class the way it skips the
-     runtime's own .lf-mark-note, whose clip this is.
+     runtime's own .lf-mark-note, which wears the same clip.
 
      And out of the selection, which the clip does not do on its own: a word standing
      among the page's own words is inside any selection drawn across them, so the
      runtime's reading skipped it and the user's clipboard did not — a copied task line
      came away carrying the word "done", and a copied code block would carry
-     "highlighted" into whatever editor it was bound for. .lf-mark-note answered this
-     the day it was written; the clip it shares had not. */
-  .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; user-select: none; -webkit-user-select: none; }
+     "highlighted" into whatever editor it was bound for. .lf-mark-note had answered
+     this the day it was written and the clip it shares had not — two copies of one
+     recipe, already drifted apart, which is why there is one of them here now.
+
+     No offsets, so the box keeps the static position its holder gives it. That place is
+     read: shownBox reads it for a wrapper that draws no box of its own, and everything
+     asking where such an element is asks through that. What the box must not do is
+     escape the box it sits in, which it did — an out-of-flow box with no positioned
+     ancestor is positioned against the page, so the count on a cell of a table scrolling
+     inside itself stood three hundred pixels past the window with the page scrolling
+     sideways to reach it. The answer is the scroller's rather than this rule's: a box
+     that scrolls contains what it scrolls (theme.css, at pre). */
+  .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); user-select: none; -webkit-user-select: none; }
+  .lf-quiet { white-space: nowrap; }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -424,24 +436,26 @@ ${MARK_RULES}
   body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
   body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The one runtime word living inside the page's own elements, so its hiding cannot
-     come from the chrome's scoped .lf-unseen — the same recipe, restated at document
-     level. It becomes a skip-link-style control on focus: a reader who hears the count
-     can enter its first thread, then j/k through the rest. user-select keeps it out of
-     a selection, so the runtime's own words never enter a captured quote. */
-  .lf-mark-note { position: absolute; width: 1px; height: 1px; padding: 0; border: 0;
-    overflow: hidden; clip-path: inset(50%); user-select: none; }
+     come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
+     once above for both. It becomes a skip-link-style control on focus: a reader who
+     hears the count can enter its first thread, then j/k through the rest. The rule
+     below states its whole visible form, so the resting one adds nothing to the clip —
+     the padding and border reset that stood here were a real button's, and the note has
+     been a span since offer() built it. */
   .lf-mark-note:focus-visible { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
-  /* The open ask the reader is standing in (markHere), worn by the ask rather than by
-     whichever of its controls holds the focus — they are standing in the whole thing,
-     however they got there. Exactly one ask wears it at a time: every shipped widget
+  /* The unanswered ask the reader is standing in (markHere), worn by the ask rather than
+     by whichever of its controls holds the focus — they are standing in the whole thing,
+     however they got there. Unanswered and not open: a widget whose own seat is
+     mid-conversation with the agent has left the reader's list while the reader is still
+     standing in it. Exactly one ask wears it at a time: every shipped widget
      draws one box for it to paint on, and one a page styles boxless hangs it on the
      boxes its contents make (shownParts). While the asks tray is open, its row mirrors
-     the same fact on the second surface. It is an outline like every other mark the
+     the same fact — for an ask the tray lists, which is one the reader still owes. It is an outline like every other mark the
      runtime paints on the page's own elements: it moves nothing on arriving, and it
      keeps its place for nothing, being the element's own paint rather than a box in
      the chrome that would have to chase it down every scroll, reflow and drag. */
@@ -647,8 +661,9 @@ ${MARK_RULES}
     /* Both rings this row can wear, inset together. A control packed into a list states
        its own inset (theme.css, --here-ring), because the list clips to its padding box.
        The second ring arrives from a rule written for a page element with room around
-       it: while the tray is open the row mirrors the standing ask (markHere), so it
-       wears the ask's own outset ring and lost a pixel of it to each edge. */
+       it: while the tray is open the row mirrors the standing ask (markHere) wherever
+       the tray lists that ask, so it wears the ask's own outset ring and lost a pixel of
+       it to each edge. */
     .lf-asks-row:is(:focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
       outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
     /* What kind of thing is asking, in the apparatus voice, over the ask's own words in

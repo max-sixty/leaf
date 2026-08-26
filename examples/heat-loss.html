@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Where the heat goes: a winter of gas readings</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">heating review · November to February</p>
+      <h1>Where the heat goes</h1>
+      <p class="lede" id="heat-lede">
+        You sent me the meter readings, the thermostat log, and the survey the installer
+        left behind. This is what they say together. A chart has no words to select, so
+        click one and the comment lands on the whole picture — say which number you want
+        and I will put it in the next version. The last section asks which measure to
+        pay for first.
+      </p>
+
+      <section id="heat-years-section">
+        <h2>Five winters</h2>
+        <p id="heat-years-note">
+          The meter has November-to-March totals back to 2021. This winter is the lowest
+          of the five, and it is also the mildest, which is the reason for everything
+          below.
+        </p>
+        <lf-chart id="heat-years" kind="bars" y="gas, kWh a winter">
+          <pre>
+winter, meter
+2021-22, 11840
+2022-23, 10920
+2023-24, 11510
+2024-25, 12260
+2025-26, 10480
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="heat-winter">
+        <h2>This winter, week by week</h2>
+        <p id="heat-winter-note">
+          Gas use climbed until the week before Christmas and then fell away faster than
+          the weather did. The draught-proofing went in on 12 January, which is the week
+          the line turns.
+        </p>
+        <lf-chart id="heat-weekly" kind="line" y="gas, kWh a week">
+          <pre>
+week, meter
+2025-11-17, 441
+2025-11-24, 470
+2025-12-01, 512
+2025-12-08, 538
+2025-12-15, 561
+2025-12-22, 604
+2025-12-29, 588
+2026-01-05, 597
+2026-01-12, 542
+2026-01-19, 498
+</pre>
+        </lf-chart>
+        <p id="heat-winter-caveat">
+          One of those weeks is not comparable: the boiler was serviced on 8 December,
+          so that week starts a day late and reads low for a reason the weather cannot
+          explain.
+        </p>
+      </section>
+
+      <section id="heat-split">
+        <h2>What the gas is doing</h2>
+        <p id="heat-split-note">
+          The meter cannot tell heating from hot water, so this split comes from the
+          boiler's own hour counters. Hot water and cooking barely move across the
+          winter; the whole of the seasonal swing is space heating.
+        </p>
+        <lf-chart id="heat-uses" kind="stack" y="gas, kWh a month">
+          <pre>
+month, space heating, hot water, cooking
+Nov, 1180, 320, 60
+Dec, 1890, 350, 95
+Jan, 1720, 340, 70
+Feb, 1240, 315, 60
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="heat-fabric">
+        <h2>Where it leaves</h2>
+        <p id="heat-fabric-note">
+          These five are the installer's survey, in watts lost at a 20°C difference
+          between inside and out. The bay window is a third of the five together.
+        </p>
+        <lf-chart id="heat-elements" kind="rows" y="watts lost">
+          <pre>
+element, loss
+single-glazed bay window, 410
+uninsulated loft hatch, 265
+suspended timber floor, 240
+front door and letterbox, 155
+chimney with no cap, 120
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="heat-weather">
+        <h2>Against the weather</h2>
+        <p id="heat-weather-note">
+          Every week sits at its own average outside temperature, so a colder winter
+          cannot be mistaken for a leakier house. The two runs are the same house six
+          weeks apart: the second sits about 40 kWh a week below the first at the same
+          temperature, which is the draught-proofing showing up.
+        </p>
+        <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
+          <pre>
+outside average, before, after
+2.1, 604,
+3.0, 588,
+3.4, 561,
+4.2, 538,
+5.0, 512,
+6.1, 470,
+2.6, , 542
+3.8, , 498
+5.2, , 470
+6.4, , 449
+</pre>
+        </lf-chart>
+      </section>
+
+      <lf-ask id="heat-first-ask">
+        <h2>Which one first</h2>
+        <p id="heat-first-note">
+          The three are independent, and doing all of them this year needs the floor to
+          come up while the room is being used. Pick the one to book now; the click
+          records it and I will get the date from whichever firm you name.
+        </p>
+        <lf-options
+          id="heat-first"
+          choose
+          label="Which measure should be booked first?"
+        >
+          <lf-option id="heat-opt-hatch">
+            <strong>The loft hatch</strong>
+            <lf-chip>£180</lf-chip><lf-chip tone="ok">an afternoon</lf-chip>
+            <p>
+              265 watts for the cheapest job on the list, and nothing has to be moved to
+              do it. It is the smallest saving of the three and the only one that can
+              happen next week.
+            </p>
+          </lf-option>
+          <lf-option id="heat-opt-window">
+            <strong>Secondary glazing on the bay</strong>
+            <lf-chip>£1,180</lf-chip><lf-chip>three weeks' lead</lf-chip>
+            <p>
+              The largest single loss, and the room nobody sits in during January. The
+              quote is for an internal panel, so the sash and the outside of the house
+              are untouched.
+            </p>
+          </lf-option>
+          <lf-option id="heat-opt-floor">
+            <strong>Under the floorboards</strong>
+            <lf-chip>£2,100</lf-chip
+            ><lf-chip tone="warn">the room is out for a week</lf-chip>
+            <p>
+              240 watts, and the disruption of the three. It is worth doing before the
+              floor is refinished rather than after, which is the argument for taking it
+              now instead of next winter.
+            </p>
+          </lf-option>
+        </lf-options>
+      </lf-ask>
+    </main>
+  </body>
+</html>

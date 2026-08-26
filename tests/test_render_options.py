@@ -1960,7 +1960,7 @@ def test_writing_the_last_option_leaves_the_question_with_the_agent(browser, ser
             "text": "The camera costs us the mounts this month. Still first?",
         },
     )
-    round_trip(page)
+    told(page)
     expect(asks).to_have_text("Asks (3)")
     expect(page.locator('.lf-asks-row[data-lf-at="jobs"]')).to_have_count(1)
     assert errors == []

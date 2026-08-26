@@ -153,7 +153,7 @@ TINY_BOXES = """(widgets) => {
 # actually paints cannot come apart — the whole point of the pair being that there is one
 # answer to where an element is.
 UNMARKABLE_ITEMS = """async () => {
-    const { shownBox, shownParts } = await import('/leaf.js');
+    const { shownBox, shownParts } = await import('/runtime/widget-api.js');
     const HTML = 'http://www.w3.org/1999/xhtml';
     const found = [];
     for (const el of document.querySelectorAll('[id]')) {
@@ -234,7 +234,7 @@ UNREACHABLE_WORDS = """() => {
     // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
     // whose script is gone. The line counting a passage's comments is one of these too —
     // the runtime builds it through `offer`, as a widget builds its own.
-    const CONTROL = `${FORM}, label, [data-lf-offer]`;
+    const CONTROL = `${FORM}, label, a[href], [data-lf-offer]`;
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
@@ -352,7 +352,7 @@ MISPLACED_BOXES = (
     // apart — and because `overflow` is one of three ways to draw nothing past an edge.
     // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
     // formatting context keeps in.)
-    const { shownBand } = await import('/leaf.js');
+    const { shownBand } = await import('/runtime/widget-api.js');
     const main = document.querySelector('main');
     if (!main) return [];
     const style = getComputedStyle(main), box = main.getBoundingClientRect();
@@ -691,7 +691,7 @@ WITHHELD_ROOM = (
 SQUEEZED_TABLES = r"""async () => {
     const main = document.querySelector('main');
     if (!main) return [];
-    const { uiInside } = await import('/leaf.js');
+    const { uiInside } = await import('/runtime/widget-api.js');
     const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
     // What a heading says, for the column's name.
     const says = (cell) => {
@@ -773,7 +773,7 @@ SQUEEZED_TABLES = r"""async () => {
 REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
     const ids = (document.body.dataset.lfReplayWrote ?? '').split(' ').filter(Boolean);
     if (!ids.length) return [];
-    const { shallowSigs } = await import('/leaf.js');
+    const { shallowSigs } = await import('/runtime/widget-api.js');
     const sigs = (html) => shallowSigs(
         new DOMParser().parseFromString(html, 'text/html').body);
     const cur = sigs(curHtml), prev = sigs(prevHtml);
@@ -831,7 +831,7 @@ REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
 # it — its nearest ancestor with the method, as a replayed override already is — since
 # across a batch no single verb owns the difference.
 RELATIVE_REPLAYS = """async () => {
-    const { standingState, shallowSigs } = await import('/leaf.js');
+    const { standingState, shallowSigs } = await import('/runtime/widget-api.js');
     const at = (el) => `<${el.localName}${el.id ? ' id=' + el.id : ''}>`;
     // A fold reads the registry, so a decided widget whose module never loaded is in it
     // and has no method to converge. That failure is reported on its own — the console,
@@ -1162,7 +1162,7 @@ UNREAD_SYNTAX = (
 # `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
 # asking whether it renders covers both and the panel besides.
 SILENT_WORDS = (
-    """(widgets) => import('/leaf.js').then(leaf => {"""
+    """(widgets) => import('/runtime/widget-api.js').then(leaf => {"""
     + OPEN_ROOTS
     + """
     const found = [];
@@ -1279,7 +1279,7 @@ RETIRED_SLOTS = (
     """async (holders) => {"""
     + OPEN_ROOTS
     + """
-    const leaf = await import('/leaf.js');
+    const leaf = await import('/runtime/widget-api.js');
     const all = roots(document);
     const find = (id) => {
         for (const r of all) {
@@ -1369,7 +1369,7 @@ TRAPPED_MARGINS = (
     // reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow roots
     // of its own, and a `closest` written out here stops at the first of them and
     // calls what it finds the page's.
-    const { inChrome } = await import('/leaf.js');"""
+    const { inChrome } = await import('/runtime/widget-api.js');"""
     + OPEN_ROOTS
     + """
     const px = (v) => parseFloat(v) || 0;

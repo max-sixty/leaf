@@ -15,3 +15,5 @@ export const runtime = {
   undoing: false,
   versions: [],
 };
+
+export const agentName = () => runtime.agent;

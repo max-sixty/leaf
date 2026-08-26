@@ -55,6 +55,10 @@ CATALOG_FACTS = (
     ),
     ("$tones", "The tones this page's layer paints, on any x-tone attribute."),
     (
+        "$series",
+        "The categorical steps a chart's series are painted in, and how many there are.",
+    ),
+    (
         "$idioms",
         "Theme idioms — shapes the theme styles directly; no registry entry, no JS.",
     ),

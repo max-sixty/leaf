@@ -1,4 +1,21 @@
 /* Canonical action, work-claim, and report feeds exposed to widgets and chrome. */
+let publishedActionSequence;
+let publishedPublishedAt;
+let publishedSaidAt;
+let publishedUpdateSequence;
+let publishedWatchActions;
+let publishedWatchHistory;
+let publishedWatchUpdates;
+export {
+  publishedActionSequence as actionSequence,
+  publishedPublishedAt as publishedAt,
+  publishedSaidAt as saidAt,
+  publishedUpdateSequence as updateSequence,
+  publishedWatchActions as watchActions,
+  publishedWatchHistory as watchHistory,
+  publishedWatchUpdates as watchUpdates,
+};
+
 export function createUpdates(runtime, dependencies) {
   const {
     closestAcross,
@@ -214,6 +231,14 @@ export function createUpdates(runtime, dependencies) {
 
   const watchHistory = (owner, callback) =>
     watch(owner, () => callback(runtime.events.map((event) => structuredClone(event))));
+
+  publishedActionSequence = actionSequence;
+  publishedPublishedAt = publishedAt;
+  publishedSaidAt = saidAt;
+  publishedUpdateSequence = updateSequence;
+  publishedWatchActions = watchActions;
+  publishedWatchHistory = watchHistory;
+  publishedWatchUpdates = watchUpdates;
 
   return {
     actionSequence,

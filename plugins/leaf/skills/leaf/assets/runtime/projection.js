@@ -137,6 +137,21 @@ export function createProjection(runtime, dependencies) {
     unitOf,
   } = createAuthoredProjection({ quoteFrom, textNodesUnder, widgetEntries });
 
+  function resetAuthoredPage() {
+    authoredFacets.clear();
+    authoredDetails.clear();
+    authoredStatements.clear();
+    authoredMarkup.clear();
+    authoredWidgets.clear();
+    committedProjection.clear();
+    for (const attr of [
+      PAGE_PAINT_ATTRIBUTE.applied,
+      PAGE_PAINT_ATTRIBUTE.replayWrote,
+      PAGE_PAINT_ATTRIBUTE.reportWrote,
+    ])
+      document.body.removeAttribute(attr);
+  }
+
   const {
     compareProjected,
     foldedFacet,
@@ -761,6 +776,7 @@ export function createProjection(runtime, dependencies) {
     reconcileState,
     releaseProjectedOutbox,
     rememberAuthoredMarkup,
+    resetAuthoredPage,
     requirementMatches,
     retractedIds,
     retractionFloors,

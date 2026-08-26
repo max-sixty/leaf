@@ -346,8 +346,11 @@ Declarations describe general behavior:
   on the agent's own gate rather than nowhere; `awaits_agent` is the one
   spelling of it, beside the runtime's `awaitsAgent`. Which side opened the
   thread does not enter into it. Because it is not an answer, a reading that
-  asks whether the request is answered — an action's `requires` — takes the
-  seats out again rather than sharing this one. Frozen thread markup seats no
+  asks whether the request is answered takes the seats out again rather than
+  sharing this one. An action's `requires` is one such reading. Where the
+  reader is standing is the other: the ring and `c`'s destination say what the
+  reader is working, not what they owe, and a widget they are mid-sentence in
+  is still the question in front of them. Frozen thread markup seats no
   conversation, so only an action answers there.
 - `x-parent` declares the members that make up a holder. Combined with
   `x-retired-when`, it defines which slots a settlement retires.
@@ -582,3 +585,9 @@ same languages.
 
 `scripts/vendor-marked.sh` copies the pinned, dependency-free
 `vendor/marked.esm.js` used for thread Markdown.
+
+`scripts/vendor-plot.sh` rebuilds
+`plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js`, which draws
+`lf-chart`. Observable Plot publishes no entry point a browser can load — its
+ESM imports d3 by bare specifier and its UMD build leaves d3 external — so this
+bundles the two together, the way the highlight bundle is built.

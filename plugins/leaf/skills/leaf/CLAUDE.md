@@ -23,6 +23,9 @@ record the sequence of implementations that led to the current one.
 helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
+`runtime/registry.js` owns vocabulary queries;
+`runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
+highlight rules;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;

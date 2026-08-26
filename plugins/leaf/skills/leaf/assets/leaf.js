@@ -168,6 +168,23 @@ import { createAnchors } from "./runtime/anchors.js";
 import { createConversation } from "./runtime/conversation.js";
 import { createPassages } from "./runtime/passages.js";
 import {
+  closestDeclaring,
+  declarationFor,
+  elementsDeclaring,
+  layerFact,
+  matchesWhen,
+  registry,
+  tagsDeclaring,
+  widgetEntries,
+} from "./runtime/registry.js";
+import {
+  MARK_RULES,
+  createShadowStage,
+  loadShadowRules,
+  pageShadowRoots,
+  shadowRootsIn,
+} from "./runtime/shadow.js";
+import {
   PAGE_SCOPE,
   VERSION_PATH,
   draftStore,
@@ -176,6 +193,8 @@ import {
   versionUrl,
 } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
+
+export { closestDeclaring, declarationFor, elementsDeclaring, layerFact, matchesWhen };
 
 // ---------- widget layer ----------
 
@@ -1312,6 +1331,8 @@ const watchDisclosures = (root) =>
     subtree: true,
     attributeFilter: ["open", "aria-expanded"],
   });
+const shadowStage = createShadowStage(watchDisclosures);
+export { shadowStage };
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the overlay, their rows gathered under each title. A section is
@@ -1536,11 +1557,6 @@ function reveal(el) {
   }
 }
 
-// The vocabulary, vendored per page: which tags a module upgrades, and which of their
-// attributes are words the page says (see renderSaid). Empty only during the real
-// fetch interval, when the already-wired chrome can legitimately be used; a failed
-// fetch still rejects startup rather than becoming an empty vocabulary.
-const registry = runtime.registry;
 let anchoringReady = false;
 // The file-side passage reader fences an upgraded element and each of its original
 // direct children when the registry cannot promise its body is verbatim. Remember
@@ -1548,148 +1564,6 @@ let anchoringReady = false;
 // browser can stop captured context at the same seams after every upgrade has run.
 const opaquePassageRoots = new WeakSet();
 const opaquePassageParts = new WeakSet();
-
-// The vocabulary's widgets: every entry under a tag, and never a `$` entry. Those are
-// the layer's own facts, and one of them ($keys) is spelled in the x- keys' own names —
-// so a sweep that picked widgets by "declares x-says" without asking the tag took it
-// for a widget called $keys, and querySelectorAll refused the name. Every walk over the
-// registry that means widgets goes through here.
-const widgetEntries = () =>
-  Object.entries(registry).filter(([tag]) => tag.startsWith("lf-"));
-// Shared `$` entries belong to the layer rather than to one widget. Return a copy so
-// a package module can read its cross-widget vocabulary without a registry write path.
-export function layerFact(name) {
-  if (!name?.startsWith("$"))
-    throw new Error(`leaf: layerFact expects a $ entry, got ${String(name)}`);
-  const value = registry[name];
-  return value === undefined ? undefined : structuredClone(value);
-}
-export const declarationFor = (el, key) => registry[el?.localName]?.[key];
-export const elementsDeclaring = (root, key, { direct = false } = {}) => {
-  const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
-  return candidates.filter((el) => declarationFor(el, key) !== undefined);
-};
-export function closestDeclaring(el, key) {
-  for (let at = el; at; at = at.parentElement)
-    if (declarationFor(at, key) !== undefined) return at;
-  return null;
-}
-// Which widgets answer a question the way the caller means it, read from what they
-// declare. Nothing out here names a widget: a behaviour some widgets want is an x- key
-// they carry, so the twelfth widget is covered by its entry alone — the alternative
-// keeps working perfectly on the widget it was taught and silently does nothing for the
-// next one.
-const tagsDeclaring = (holds) =>
-  widgetEntries()
-    .filter(([, entry]) => holds(entry))
-    .map(([tag]) => tag);
-// Every declared attribute holds one of the admitted values. A boolean asks whether a
-// flag is present; other values compare with the attribute's text. The lint holds each
-// value to the attribute's schema.
-export const matchesWhen = (el, when) =>
-  Object.entries(when ?? {}).every(([attr, values]) =>
-    values.some((value) =>
-      typeof value === "boolean"
-        ? el.hasAttribute(attr) === value
-        : el.getAttribute(attr) === value,
-    ),
-  );
-
-// The open shadow roots under some root that hold the page's own words, from what the
-// registry declares rather than from a sweep of every element: an x-shadow widget is
-// making a promise about whose words those are, and a root some other library happened
-// to attach is not covered by it. `getComposedRanges` is told exactly these, so what the
-// capture can see and what the reading walks are one list.
-//
-// Which root to look under is the axis, because the whole document is not the only
-// answer: a message arriving in the panel carries widget markup that upgrades in a
-// subtree, so a pass over that subtree has the same boundary to cross and no document
-// to ask about.
-const shadowRootsIn = (root) =>
-  tagsDeclaring((entry) => entry["x-shadow"])
-    .flatMap((tag) => [...root.querySelectorAll(tag)])
-    .map((host) => host.shadowRoot)
-    .filter(Boolean);
-const pageShadowRoots = () => shadowRootsIn(document);
-
-// The theme's rules for shadow trees, sliced out once at load (see the markers in
-// theme.css). Every layer may contribute a block; concatenating them in theme order
-// preserves the same cascade inside a declared shadow root as in the document. Read
-// from the theme rather than written here so a project override travels with the widget,
-// and fetched during upgrade so the stage below stays synchronous for its callers.
-let shadowRules = "";
-const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
-// A top-layer element no longer composites through its light/shadow ancestors, so the
-// document's main gate cannot hide a dialog promoted out of an x-shadow widget. Every
-// legitimate page shadow tree is built here; put the same subtree boundary inside it,
-// in an anonymous first layer so later widget stylesheet rules cannot outrank it.
-const SHADOW_PRESENTATION_CSS = `
-@layer {
-  @media screen {
-    :host-context(body:not([data-lf-presented])) *,
-    :host-context(body:not([data-lf-presented])) *::backdrop {
-      visibility: hidden !important;
-      opacity: 0 !important;
-      interactivity: inert !important;
-      pointer-events: none !important;
-    }
-  }
-}`;
-async function loadShadowRules() {
-  const response = await fetch("/theme.css");
-  if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
-  // Refused rather than defaulted to nothing. A project theme that drops the markers
-  // still styles the document, so the page looks right everywhere except inside the
-  // widgets this slice feeds — which would arrive unstyled with no error anywhere, the
-  // failure that reads as a widget nobody finished rather than as a theme missing a
-  // block. Whichever theme is vendored, either it carries these or the page says so.
-  const found = [...(await response.text()).matchAll(SHADOW_CSS)];
-  if (!found.length)
-    throw new Error(
-      "leaf: the theme carries no /* lf-shadow:start */…/* lf-shadow:end */ block, " +
-        "which is where the rules an x-shadow widget renders under are read from",
-    );
-  shadowRules = found.map((match) => match[1]).join("\n");
-}
-
-// The stage an x-shadow widget renders into. A module never calls attachShadow itself,
-// because the marks the runtime paints come from a registry that is the document's while
-// the ::highlight() rules styling them are not — they reach no shadow tree. A root
-// attached anywhere else would show words the reader can select and no mark could ever
-// paint, which is the one failure this whole capability exists to avoid.
-//
-// The two sheets arrive differently on purpose. The theme's rules go in as a <style>
-// element, because that is markup and a copy keeps it; the marks are adopted, because
-// they are the live comment layer, which a copy drops with the rest of the chrome — an
-// adopted sheet is in no element's markup and would not survive the export either way.
-//
-// It takes the nodes rather than handing back a root to fill, so the style cannot be
-// left out: a module that wrote its own children would replace the one thing holding its
-// look, and it would look right in exactly the session where someone remembered. Same
-// reasoning as renderSaid — a rule each widget has to remember is a rule that gets
-// forgotten, and the forgetting is invisible until a page ships without it.
-let markSheet;
-export function shadowStage(host, nodes) {
-  if (!markSheet) {
-    markSheet = new CSSStyleSheet();
-    markSheet.replaceSync(MARK_RULES);
-  }
-  // serializable, because a copy is rendered DOM with the scripts dropped and a shadow
-  // root is in no element's outerHTML: exported without this, a diff leaves an empty
-  // element where its lines were, which is the one medium that cannot be re-rendered
-  // later. With it, `version export` writes a declarative <template shadowrootmode>
-  // the browser rebuilds on open, with nothing running.
-  const root =
-    host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
-  root.adoptedStyleSheets = [markSheet];
-  // A root is the one place the key line's watch cannot reach on its own: a `toggle` from
-  // inside one is not composed, and a MutationObserver does not cross the boundary either.
-  watchDisclosures(root);
-  const style = document.createElement("style");
-  style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
-  root.replaceChildren(style, ...nodes);
-  return root;
-}
 
 function rememberPassageParts(scope = document) {
   for (const tag of tagsDeclaring(
@@ -2168,15 +2042,6 @@ const STRIP_MIN = parseFloat(
    tree, so a widget that renders the page's words into one (x-shadow) adopts this same
    text (`markSheet`). Two copies of these declarations would be two chances for a mark
    to mean one thing in the document and another inside a diff. */
-const MARK_RULES = `
-  ::highlight(lf-mark) { background-color: var(--mark);
-    text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
-  ::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
-  ::highlight(lf-mark-here) {
-    background-color: var(--mark-strong);
-    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-  ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
-    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
 const style = document.createElement("style");
 style.dataset.lfRuntime = "1";
 // The chrome's whole stylesheet, and a template literal, so a backtick anywhere in

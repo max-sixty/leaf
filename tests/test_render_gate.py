@@ -2,6 +2,7 @@
 
 import itertools
 import json
+import re
 import time
 
 import pytest
@@ -16,6 +17,8 @@ from render_support import (
     ARRANGEMENTS,
     ASK_PAGE,
     ASKS_PAGE,
+    AUTHORED_LINES_PAGE,
+    BARE_IDENTIFIERS_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
     COLORED_CODE_PAGE,
@@ -27,6 +30,8 @@ from render_support import (
     FAINT_CODE_PAGE,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
+    IDENTIFIERS_IN_CODE_PAGE,
+    LINKED_CELLS_PAGE,
     LONG_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
@@ -677,6 +682,91 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert errors == []
     page.close()
     assert rendering_model.render_version(browser, url) == []
+
+
+def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
+    """The theme's second case, reached by a table that used to fall through to the
+    third: a column of test names beside a column of prose. A name is one word to
+    the line breaker, and unbreakable it held its column at 583px of the 720px
+    measure, squeezed the prose to 118px and a few words a line, and scrolled the
+    table 83px sideways for the rest. In <code> it breaks inside its cell where it
+    must, and the table fits. The names are longer than any share of the measure a
+    column gets, so a name that did not break is a name that fitted by luck rather
+    than by the rule, and the test says so."""
+    url = serve(IDENTIFIERS_IN_CODE_PAGE)
+    page, errors = open_page(browser, url)
+    measured = page.locator("#held").evaluate(
+        """(t) => {
+        const range = document.createRange(), lines = (code) => {
+            range.selectNodeContents(code.firstChild);
+            return new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+        };
+        return { scrolls: t.scrollWidth - t.clientWidth,
+                 broke: [...t.querySelectorAll('td code')].some(c => lines(c) > 1),
+                 sideways: document.body.scrollWidth - document.body.clientWidth };
+    }"""
+    )
+    assert measured["scrolls"] == 0, measured
+    assert measured["broke"], "every name fitted whole, so the rule was never asked"
+    assert measured["sideways"] == 0
+    assert errors == []
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):
+    """The same table with its names written bare. Every column of a scrolling table
+    is at its longest unbreakable run, so the prose column wrapping beside a name
+    that cannot break is the squeeze read off the page, and the finding states the
+    widths that carry the diagnosis: the names' column several times the prose's.
+    The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
+    table that scrolls with nothing left to wrap is the theme's honest third case
+    and passes."""
+    failures = rendering_model.render_version(browser, serve(BARE_IDENTIFIERS_PAGE))
+
+    squeezed = [f for f in failures if "<table id=held> scrolls" in f]
+    assert squeezed, failures
+    for finding in squeezed:
+        widths = dict(re.findall(r'"([^"]+)" wraps at (\d+)px', finding))
+        assert {"Mechanism", "Held by"} <= widths.keys(), finding
+        assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
+    assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+
+
+def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
+    """A wrap that falls at a node boundary rather than inside a text node: a
+    column of owners as links, one word each, in a table eight single-token
+    columns hold open. Read node by node it never wraps, and the column stood at
+    84px on five lines with the gate green; set at line-height 1, the second
+    line's glyph box overlaps the first's, and a reading of line boxes lost it
+    again. The table without that column is
+    `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`'s, and passes."""
+    failures = rendering_model.render_version(browser, serve(LINKED_CELLS_PAGE))
+
+    squeezed = [f for f in failures if "<table id=sessions> scrolls" in f]
+    assert squeezed, failures
+    assert all('"Owners" wraps at' in f for f in squeezed), squeezed
+
+
+def test_a_line_the_author_drew_is_not_a_wrap(browser, serve):
+    """Four cells of a table single tokens hold open, each with a line the author
+    wrote and nothing wrapped: `value <code>7</code>` on one line (an inline <code>
+    is set at 84% and starts 3px lower, so a reading of rect tops called it a wrap
+    and told the author to write the <code> they had written), a <br>, a newline
+    under <pre>, and words either side of a nested table. A wrap is what goes away
+    with soft wrapping turned off, and none of these does."""
+    assert rendering_model.render_version(browser, serve(AUTHORED_LINES_PAGE)) == []
+
+
+def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
+    """The mark pass puts a comment badge in the cell it marks, and the badge is
+    two words in `.lf-ui` that wrap in a 33px cell. Read as the cell's words it
+    turned this table — single tokens, the theme's honest third case — red the
+    moment a reader commented on it. The runtime's words are not the page's."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+    failures = rendering_model.render_version(browser, url)
+
+    assert not [f for f in failures if "<table id=sessions> scrolls" in f], failures
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):

@@ -31,6 +31,7 @@ from leaf.render_checks import (
     RETIRED_SLOTS,
     SERVED_TIMEOUT_MS,
     SILENT_WORDS,
+    SQUEEZED_TABLES,
     TINY_BOXES,
     TRAPPED_MARGINS,
     UNDECLARED_ATTRS,
@@ -338,6 +339,7 @@ def _render_version_attempt(
         )
         misplaced = page.evaluate(MISPLACED_BOXES)
         withheld = page.evaluate(WITHHELD_ROOM)
+        squeezed = page.evaluate(SQUEEZED_TABLES)
         clipped = page.evaluate(CLIPPED_CONTROLS)
         unreachable = page.evaluate(UNREACHABLE_WORDS)
         covered = page.evaluate(COVERED_WORDS)
@@ -544,6 +546,7 @@ def _render_version_attempt(
             found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
         found += [f"[{scheme}] {s}" for s in misplaced]
         found += [f"[{scheme}] {w}" for w in withheld]
+        found += [f"[{scheme}] {s}" for s in squeezed]
         found += [
             f"[{scheme}] the control .{c['ctrl'].split()[0]}"
             + (f" (#{c['id']})" if c["id"] else "")

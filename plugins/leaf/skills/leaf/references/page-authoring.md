@@ -44,10 +44,15 @@ shortcuts, live-leaves tray, and open-asks tray. Author asks through the
 registry's request widgets and regions, but do not duplicate that chrome or
 maintain a second list of it in the page.
 
-Keep content inside the page's column. Give raw `<pre>`, tables, SVG, and images
-`max-width: 100%` or local overflow. Widgets whose catalog entry declares a wide
-shape size themselves; fix a diagram that is too wide in its source rather than
-pinning a page width.
+Keep content inside the page's column. The theme scrolls a `<pre>` or a table
+that runs wider than it and fits an image or SVG to it, so none of them needs a
+width. A table that scrolls has every column at its longest unbreakable run,
+and the browser gate refuses one that scrolls with a cell in it wrapped: put an
+identifier in `<code>`, where it breaks inside its cell, rather than bare, where
+it holds its column and squeezes the prose beside it, and keep the columns to
+what the measure holds. Widgets whose catalog
+entry declares a wide shape size themselves; fix a diagram that is too wide in
+its source rather than pinning a page width.
 
 ## Stable anchors
 

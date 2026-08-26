@@ -1330,13 +1330,40 @@ def bucket_key(self, request):
 
       <section id="testing">
         <h2>Testing</h2>
-        <ul id="test-list">
-          <li>Unit: bucket key for tokened, untokened, and both-present requests.</li>
-          <li>
-            Integration: two tokens behind one address each get a full budget; two
-            addresses on one token share one.
-          </li>
-        </ul>
+        <table id="test-table">
+          <caption>
+            What each half of the change proves, and the test that holds it.
+          </caption>
+          <thead>
+            <tr>
+              <th>Suite</th>
+              <th>What it proves</th>
+              <th>Held by</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Unit</th>
+              <td>The bucket key for tokened, untokened, and both-present requests.</td>
+              <td>
+                <code
+                  >test_the_bucket_key_prefers_the_token_and_falls_back_to_the_address</code
+                >
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Integration</th>
+              <td>
+                Two tokens behind one address each get a full budget; two addresses on
+                one token share one.
+              </td>
+              <td>
+                <code>test_two_tokens_behind_one_address_each_get_a_full_budget</code>,
+                <code>test_two_addresses_on_one_token_share_one_budget</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
         <p id="test-run">Both suites run under the rate-limit marker:</p>
         <pre
           id="test-cmd"

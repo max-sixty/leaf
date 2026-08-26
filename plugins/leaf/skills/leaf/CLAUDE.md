@@ -1144,6 +1144,17 @@ signals the cut. A scroll container may expose content in its scroll direction.
 reachable. `MISPLACED_BOXES`, `CLIPPED_CONTROLS`, and `COVERED_WORDS` enforce
 the distinct geometry, interaction, and text consequences.
 
+`SQUEEZED_TABLES` reports a table that scrolls sideways with a cell in it wrapped.
+A scrolling table's columns are all at their longest unbreakable run, so a cell
+wrapping there wraps at a word a line — beside a name that could not break (an
+identifier written outside `<code>`, a bare URL), or because the table has more
+columns than the measure holds. A column wraps when it stands wider with
+wrapping turned off — its content asked for more than its longest run — which
+hidden content, laid out on demand but size-contained, cannot change. The
+finding lists the wrapping columns with their widths, names the widest, and
+leaves the diagnosis to the author. A table that scrolls with nothing left to
+wrap is the theme's honest third case.
+
 `TINY_BOXES` ensures each declared widget upgrades to a usable box.
 `UNREACHABLE_WORDS` catches rendered words outside reachable flow.
 `MISPLACED_BOXES` asks each container's actual overflow behavior. Do not exempt

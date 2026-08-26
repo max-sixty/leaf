@@ -167,6 +167,23 @@ import { createProjection } from "./runtime/projection.js";
 import { createAnchors } from "./runtime/anchors.js";
 import { createConversation } from "./runtime/conversation.js";
 import { createPassages } from "./runtime/passages.js";
+import {
+  PAGE_SCOPE,
+  VERSION_PATH,
+  draftStore,
+  readerStore,
+  tabStore,
+  versionUrl,
+} from "./runtime/storage.js";
+import {
+  highlightBlocks,
+  langForPath,
+  synNodes,
+  syntax,
+  tokenLines,
+} from "./runtime/syntax.js";
+
+export { langForPath, synNodes, syntax, tabStore, tokenLines };
 
 // ---------- widget layer ----------
 
@@ -461,264 +478,6 @@ export function measure(el, take) {
   }
   measurements.set(el, take);
   unmeasured.observe(el);
-}
-
-// ---------- where a page's versions are ----------
-// A page directory's versions are served as siblings under its own root:
-// versions/v1.html, v2.html… Three things read that path — which version this document
-// is, where another version of it is, and which page a tab's working state belongs
-// to — so the shape is spelled once here rather than three times, and a document served
-// under a directory of its own cannot have one of them agreeing with its URL while the
-// next two contradict it.
-const VERSION_PATH = /\/versions\/v([1-9]\d*)\.html$/;
-// Where another version is: beside this one. It was "/versions/vN.html" at the three
-// seats that travel, which is a claim about where the page directory sits — true of a
-// server serving one page at a root of its own, and of nothing else. The published site
-// serves every example from one vendored layer with each page under its own directory,
-// and there each absolute jump left the page for a root that serves nothing. Resolved
-// against the document, the travel agrees with the path the version number itself was
-// read off, which is the one form that cannot disagree with what this document is.
-const versionUrl = (version) =>
-  `${location.pathname.match(VERSION_PATH) ? "" : "versions/"}v${version}.html`;
-// Which page this document belongs to, as a prefix for what the tab keeps: "" wherever a
-// server serves one page at its own root, so every key below is spelled exactly as it was.
-// Two leaf pages on one origin is what needs it — web storage is the origin's, so the
-// reading position a reader left on one example was handed back on the next, at an offset
-// that meant nothing there.
-const PAGE_SCOPE =
-  location.pathname === "/" ? "" : location.pathname.replace(VERSION_PATH, "");
-
-// ---------- what the page keeps, and what a store may refuse ----------
-// Reading or writing web storage throws outright where the browser has it switched off —
-// a locked-down profile, a private window on some engines — and nothing kept here is
-// worth breaking the page for: a reader who cannot save which tab they were on still
-// gets the page. Said once, because a policy spelled at each caller is a policy free to
-// be spelled differently at the next one, and eleven of them had accumulated across the
-// runtime and two widget modules.
-//
-// Which store is the part worth reading at a call site, and naming them is what puts it
-// there. `tabStore` is this window's working state and dies with the tab — the reading
-// position, which panel of a widget stands open, whether design mode is on — because each
-// of those is about the window rather than about the page. `draftStore` is what the user
-// typed and hasn't sent: it outlives the tab, because closing one is the ordinary end of
-// a tab here, and every tab shows one live copy of it (see the draft section below).
-// `readerStore` is this reader's standing preference across pages, which is the chrome
-// they arrange and expect to find arranged. Anything two tabs must *agree* about is none
-// of the three: it goes in the log.
-//
-// Values are the store's own vocabulary, strings and null, so nothing here has an
-// opinion about encoding: an absent key reads back as null, and writing null removes it.
-const stored = (backing, scope = "") => ({
-  read(key) {
-    try {
-      return { available: true, value: backing.getItem(scope + key) };
-    } catch {
-      return { available: false, value: null };
-    }
-  },
-  get(key) {
-    return this.read(key).value;
-  },
-  set(key, value) {
-    try {
-      if (value === null) backing.removeItem(scope + key);
-      else backing.setItem(scope + key, value);
-      return true;
-    } catch {
-      /* a page that cannot remember still renders */
-      return false;
-    }
-  },
-  // Where this store puts a key, as the platform's own two names for its stores plus
-  // the key the backing actually holds. Only the browser gate asks: it seeds a store
-  // before the page has run, so it cannot ask a store that does not exist yet, and the
-  // alternative is a second copy of the scope rule kept over there to go stale.
-  where(key) {
-    return {
-      store: backing === sessionStorage ? "session" : "local",
-      key: scope + key,
-    };
-  },
-  // What this scope holds, spelled as the callers spell it. The drafts are what needs
-  // it: a composer's key is the passage it is on, so which draft to reopen at load is a
-  // question about the set rather than about a key someone already knows.
-  keys() {
-    try {
-      return Object.keys(backing)
-        .filter((key) => key.startsWith(scope))
-        .map((key) => key.slice(scope.length));
-    } catch {
-      return [];
-    }
-  },
-});
-// Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
-// there are three backings: what the reader arranges is theirs wherever they are reading,
-// while what they typed here belongs to this page. tabStore is the only one on the helper
-// surface, because only widgets keep working state (lf-tabs' open panel, lf-options'
-// collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
-// the reader arranges is the runtime's own, and an export nothing imports is a promise
-// nobody asked for.
-export const tabStore = stored(sessionStorage, PAGE_SCOPE);
-const draftStore = stored(localStorage, PAGE_SCOPE);
-const readerStore = stored(localStorage);
-
-// ---------- syntax ----------
-// Code is colored in the browser, at upgrade, and the spans land in the DOM — which is
-// what makes one answer serve the served page and the standalone one, where the script
-// is gone and only markup and CSS remain. Colouring it in Python instead would put the
-// spans in the file, and the file is what Claude writes the next version from.
-//
-// What a page ends up wearing is leaf's own vocabulary, not the tokenizer's: six
-// roles on one data-lf-syn attribute, styled from --syn-* like every other surface, so
-// both color schemes come from the same token block the rest of the theme uses. The
-// bundle's ~50 scopes collapse here, at the one place that knows both — a page that
-// carried hljs-* classes would have pinned that library into every version ever written.
-// Anything unmapped keeps the block's ink, so a scope this table forgets reads plain
-// rather than reading wrong.
-// Every key is a scope one of the bundled grammars actually emits; operator, punctuation,
-// emphasis and strong are left out on purpose, because a block reads calmer with its
-// syntax uncoloured and its prose unstyled.
-// A line per role rather than per scope, so the collapse is what the table shows.
-// prettier-ignore
-const SYNTAX_ROLE = {
-  comment: "cm", quote: "cm", doctag: "cm",
-  keyword: "kw", literal: "kw", built_in: "kw", type: "kw", bullet: "kw",
-  string: "st", regexp: "st", "char": "st", subst: "st", "template-variable": "st",
-  code: "st", link: "st",
-  number: "nu",
-  title: "fn", meta: "fn", section: "fn",
-  name: "ty", tag: "ty", attr: "ty", attribute: "ty", property: "ty", variable: "ty",
-  params: "ty", symbol: "ty", "selector-tag": "ty", "selector-id": "ty",
-  "selector-class": "ty", "selector-attr": "ty", "selector-pseudo": "ty",
-  addition: "ins", deletion: "del",
-};
-
-let hljsReady;
-// Lazily, once, and only on a page that has code to color: the bundle is 75 KB and most
-// pages have none.
-const loadHljs = () =>
-  (hljsReady ??= import("/vendor/highlight.esm.js").then((m) => m.default));
-
-// Code as [{text, role}] — a flat run in source order, roles from the table above and
-// null where the block's own ink is the answer. A list rather than markup because the two
-// callers build different DOM from it: a plain <pre> emits one span per token, lf-code
-// interleaves the line spans it numbers. A declared language is validated by `version check` against the
-// registry's $languages.names, so an unknown one here means the vendored bundle was built
-// from a different list — thrown, caught by the caller's failSoft, and reported by the
-// render gate, which fails on a console error.
-export async function syntax(source, lang) {
-  const hljs = await loadHljs();
-  if (!hljs.getLanguage(lang))
-    throw new Error(
-      `no ${lang} in /vendor/highlight.esm.js — rebuild it from registry.json's $languages.names`,
-    );
-  const holder = document.createElement("template");
-  holder.innerHTML = hljs.highlight(source, {
-    language: lang,
-    ignoreIllegals: true,
-  }).value;
-  const tokens = [];
-  const walk = (node, role) => {
-    for (const child of node.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE) tokens.push({ text: child.data, role });
-      // Scopes nest (an html tag holds its own name and attrs); the innermost that this
-      // table knows wins, and one it doesn't inherits rather than clearing.
-      else walk(child, roleOf(child) ?? role);
-    }
-  };
-  walk(holder.content, null);
-  // The vendored tokenizer's output is data entering, so it is checked once, here, and
-  // indexed everywhere after: that the tokens partition the source exactly. Three things
-  // rest on it — lf-code numbers its lines by counting newlines in them, `hi` and each
-  // note's `at` address those numbers, and the anchor pass reads the spans as the text
-  // the file holds — and a dropped character slides all three with nothing on screen
-  // saying so. Failing here fails the block soft to its plain source, and the console
-  // error fails the render gate, which is what puts it in front of whoever can drop the
-  // language declaration.
-  if (tokens.map((t) => t.text).join("") !== source)
-    throw new Error(`the ${lang} tokenizer did not return the source unchanged`);
-  return tokens;
-}
-
-// hljs writes `class="hljs-title function_"`: the scope prefixed, then its sub-scopes bare.
-// Only the prefixed one is a scope name, and `char.escape` arrives as `hljs-char escape_`.
-const roleOf = (el) => {
-  for (const cls of el.classList)
-    if (cls.startsWith("hljs-")) return SYNTAX_ROLE[cls.slice(5)];
-  return undefined;
-};
-
-// Tokens as nodes: one span per role, and the bare text where none applies, so nothing
-// lands in the DOM that says nothing. Both callers build from here — a <pre> replacing its
-// own children, lf-code appending into the line it is numbering — because a second place
-// writing the same span is a second place to forget the attribute.
-export const synNodes = (tokens) =>
-  tokens.map(({ text, role }) => {
-    if (!role) return document.createTextNode(text);
-    const span = document.createElement("span");
-    span.dataset.lfSyn = role;
-    span.textContent = text;
-    return span;
-  });
-
-// Tokens re-cut so none crosses a newline: one array of {text, role} per line, in source
-// order. The tokenizer's runs and a line are two different spans of the same characters,
-// and this is where they are reconciled — for lf-code, whose lines are what it numbers,
-// and for lf-diff, whose lines are what it tints. Both tokenize a whole run and cut it
-// afterwards rather than colouring a line at a time, because a token can span a newline:
-// a docstring coloured line by line restarts the tokenizer inside itself and reads its
-// second line as code.
-export function tokenLines(tokens) {
-  const lines = [[]];
-  for (const { text, role } of tokens) {
-    const parts = text.split("\n");
-    parts.forEach((part, i) => {
-      if (i) lines.push([]);
-      if (part) lines.at(-1).push({ text: part, role });
-    });
-  }
-  return lines;
-}
-
-// What a filename says it holds, or undefined where the registry's table has no answer
-// and the block stays the colour of its own ink. The only place a language is derived
-// rather than declared: a unified diff spans files, so lf-diff has no `language` to read and
-// each file's path is the diff's own statement about what it is. Still a declaration —
-// the rule that nothing is inferred is about source *text*, which no path is. The table
-// is the registry's ($languages), beside the enum it has to agree with, rather than a
-// second list here.
-export const langForPath = (path) =>
-  registry.$languages.paths[
-    path.split("/").pop().split(".").slice(1).pop()?.toLowerCase()
-  ];
-
-// The page's own code blocks: <pre><code class="language-python">. The class is the
-// universal one — what every Markdown renderer emits, and what `version check` validates — so a
-// block Claude wrote anywhere else needs no translation to land here. lf-code declares
-// `language` instead, because a custom element's vocabulary is the registry's to state.
-//
-// The spans change no text: a <span> is no text block, so the anchor pass reads exactly
-// the run of characters it read before. That is what lets this run over the document
-// without the file's reading of the same page needing to know it happened.
-const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
-async function highlightBlocks(root) {
-  const blocks = [];
-  for (const code of root.querySelectorAll("pre > code[class]")) {
-    const lang = code.className.match(LANGUAGE_CLASS)?.[1];
-    if (lang) blocks.push([code, lang]);
-  }
-  if (!blocks.length) return;
-  for (const [code, lang] of blocks) {
-    try {
-      code.replaceChildren(...synNodes(await syntax(code.textContent, lang)));
-    } catch (err) {
-      console.error(
-        `leaf: <pre><code class="language-${lang}"> failed to highlight`,
-        err,
-      );
-    }
-  }
 }
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion

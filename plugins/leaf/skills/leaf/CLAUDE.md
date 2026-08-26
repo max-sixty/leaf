@@ -21,7 +21,9 @@ record the sequence of implementations that led to the current one.
 
 `leaf.js` is the one public ES module, with two code layers and private support
 modules behind it. `runtime/context.js` owns the mutable facts shared across
-those layers; `runtime/passages.js` owns the DOM reading and quote resolver;
+those layers; `runtime/storage.js` owns page addressing and browser-backed
+stores; `runtime/syntax.js` owns code tokenization and highlighting;
+`runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/anchors.js` owns anchor geometry, paint, and navigation;
 `runtime/conversation.js` owns thread folding and panel reconciliation; and
 `runtime/projection.js` owns declaration-driven state folding and

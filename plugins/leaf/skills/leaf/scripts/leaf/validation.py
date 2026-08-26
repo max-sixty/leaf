@@ -234,6 +234,11 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
             spk,
             registry,
             set(passages.retired) | set(passages.gone),
+            # This door asks whether the request is answered, not whether it is the
+            # reader's to deal with: a conversation standing in the widget's seat
+            # takes it off their list without answering it, and refusing their pick
+            # over their own remark would refuse them the answer they were asked for.
+            set(),
         )
     else:
         # Thread markup is frozen in the log: it has no version retraction floor

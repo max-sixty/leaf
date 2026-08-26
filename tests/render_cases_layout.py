@@ -248,6 +248,102 @@ WIDE_TABLE_PAGE = leaf_page(
     cells="".join(f"<td>value_number_{i}</td>" for i in range(8)),
 )
 
+
+# Prose beside identifiers, which is the table a plan or a PR walkthrough writes: a row's
+# name, its mechanism in words, and the test that holds it. A test name is one word to
+# the line breaker and most of the measure long, so whether it can break is the whole
+# difference between the theme's second case and a squeezed table — `held` says how
+# each name is written, and nothing else differs between the two pages below. The
+# names run past ninety characters so that bare they hold the table open on any font:
+# at seventy-nine the bare table scrolled by ten pixels on a Mac and fitted on CI's
+# fonts, where the gate, rightly silent, read as broken.
+def prose_beside_identifiers(held):
+    rows = [
+        (
+            "Log shape",
+            (
+                "<code>token</code> in place of <code>text</code> on <code>comment</code>"
+                " and <code>reply</code>; a record is one or the other, and a token rides"
+                " no suggestion, hold, or markup."
+            ),
+            [
+                "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares_and_refuses_one_it_does_not"
+            ],
+        ),
+        (
+            "In threads",
+            (
+                "A strip under each agent message; <code>settles</code> on the latest"
+                " agent message ends the wait as a reading of the log, undo restores it."
+            ),
+            [
+                "test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting_until_the_next_question",
+                "test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor_whatever_the_version",
+            ],
+        ),
+        (
+            "Keyboard",
+            (
+                "<kbd>r</kbd> arms the bar with address-chip digits, 1–n in declared"
+                " order; a stray key disarms and keeps its meaning."
+            ),
+            [
+                "test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back_when_pressed"
+            ],
+        ),
+    ]
+    body = "".join(
+        f'<tr><th scope="row">{name}</th><td>{how}</td>'
+        f"<td>{', '.join(held(t) for t in tests)}</td></tr>"
+        for name, how, tests in rows
+    )
+    return leaf_page(
+        "held",
+        f"""
+<h1 id="t">The plan</h1>
+<p id="p">Each item, the mechanism that carries it, and the test that holds it.</p>
+<table id="held">
+<thead><tr><th>Plan item</th><th>Mechanism</th><th>Held by</th></tr></thead>
+<tbody>{body}</tbody>
+</table>
+""",
+    )
+
+
+IDENTIFIERS_IN_CODE_PAGE = prose_beside_identifiers(lambda name: f"<code>{name}</code>")
+BARE_IDENTIFIERS_PAGE = prose_beside_identifiers(lambda name: name)
+
+# The honest third case with every line an author can write and no wrap: a token split
+# around an inline <code>, which is set smaller and stands 3px lower on the same line
+# (a reading of rect tops called it a wrap and told the author to write <code>); a
+# <br>; a newline under <pre>; loose words either side of a nested table. Each is a
+# line the author drew, and none stands shorter with soft wrapping off.
+AUTHORED_LINES_PAGE = (
+    WIDE_TABLE_PAGE.replace("<td>value_number_7</td>", "<td>value <code>7</code></td>")
+    .replace("<td>value_number_6</td>", "<td>value<br>six</td>")
+    .replace("<td>value_number_5</td>", "<td><pre>def go():\n    return 5</pre></td>")
+    .replace(
+        "<td>value_number_4</td>",
+        "<td>before <table><tr><td>four</td></tr></table> after</td>",
+    )
+)
+
+# The squeeze written entirely in inline elements: eight single-token columns hold the
+# table open, and the ninth is a run of owners as links, one word each, so every wrap
+# in it falls between two nodes and never inside one — set at line-height 1, where the
+# glyph boxes of two lines overlap and a reading of line boxes lost the second line.
+# WIDE_TABLE_PAGE with the column added, so the two differ in nothing but the run.
+LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
+    "</th></tr></thead>", "</th><th>Owners</th></tr></thead>"
+).replace(
+    "</td></tr></tbody>",
+    '</td><td style="line-height: 1">'
+    + ", ".join(
+        f'<a href="#t">{w}</a>' for w in ["alpha", "bravo", "charlie", "delta", "echo"]
+    )
+    + "</td></tr></tbody>",
+)
+
 # A block wider than the column and narrower than the window: 70% of 1200px is
 # 840px against a 720px column, so it stands 120px out in the margin with
 # the body not scrolling by a pixel. In vw rather than px because the static lint

@@ -6,6 +6,63 @@
 
 /* ---------- element-widgets ---------- */
 
+/* lf-gloss: the prose stays prose; the small raised mark is the keyboard and touch
+ * handle for the same explanation hover reveals. The underline is deliberately quieter
+ * than a link — this phrase goes nowhere — while the top-layer card uses the page's
+ * ordinary paper, ink, and rule rather than inventing a tooltip palette. Static copies
+ * and paper put the explanation after the phrase, where they can honour its words. */
+lf-gloss { display: inline; }
+/* The no-script rendering of x-says. Once the runtime writes the selectable span, that
+ * span takes over; a static exported copy keeps the span and gives it the same inline
+ * fallback below. */
+lf-gloss[tip]::after { content: " (" attr(tip) ")"; color: var(--muted); }
+lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
+@media screen {
+  html:not(.lf-copy) lf-gloss {
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--border-2);
+    text-underline-offset: .16em;
+    cursor: help;
+  }
+}
+.lf-gloss-mark {
+  display: inline-block; margin-left: 1px; border-radius: 3px;
+  color: var(--accent); font-size: .72em; line-height: 1;
+  vertical-align: super; cursor: help;
+}
+.lf-gloss-mark:focus-visible {
+  outline: var(--here-ring); outline-offset: var(--here-ring-gap);
+}
+.lf-gloss-popover {
+  position: fixed; inset: auto; box-sizing: border-box;
+  width: max-content; max-width: min(22rem, calc(100vw - 24px));
+  margin: 0; padding: 10px 13px 11px;
+  border: 1px solid var(--border-2); border-left: 3px solid var(--accent);
+  border-radius: var(--r); background: var(--card); color: var(--ink);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 14%, transparent);
+  font-family: var(--serif); font-size: var(--t-5); line-height: 1.45;
+  text-align: left; white-space: normal;
+  overflow-wrap: anywhere;
+}
+.lf-gloss-popover::backdrop { background: transparent; }
+html.lf-copy lf-gloss > .lf-gloss-popover {
+  display: inline; position: static; width: auto; max-width: none;
+  margin: 0; padding: 0; border: 0; background: none; color: var(--muted);
+  box-shadow: none; font: inherit;
+}
+html.lf-copy lf-gloss > .lf-gloss-popover::before { content: " ("; }
+html.lf-copy lf-gloss > .lf-gloss-popover::after { content: ")"; }
+@media print {
+  lf-gloss > .lf-gloss-popover {
+    display: inline; position: static; width: auto; max-width: none;
+    margin: 0; padding: 0; border: 0; background: none; color: var(--muted);
+    box-shadow: none; font: inherit;
+  }
+  lf-gloss > .lf-gloss-popover::before { content: " ("; }
+  lf-gloss > .lf-gloss-popover::after { content: ")"; }
+}
+
 /* Every attribute the registry marks x-says is written twice here. The runtime
  * renders the value as real text (renderSaid, in a span carrying data-lf-said),
  * because a pseudo-element paints glyphs that live in no text node — a user
@@ -1007,7 +1064,8 @@ lf-metric[direction="up-bad"][delta^="+"] > [data-lf-said="delta"]
  * dropzones) and reports each drop as a `move` action. Unupgraded it reads as a
  * static board. */
 lf-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(10rem, 1fr);
-           gap: var(--sp-2); margin: 14px 0; align-items: stretch; overflow-x: auto; }
+           gap: var(--sp-2); margin: 14px 0; align-items: stretch;
+           position: relative; overflow-x: auto; }
 lf-column { display: block; background: var(--field); border: 1px solid var(--rule);
             border-radius: var(--r); padding: 8px; min-height: 64px; --lf-frame: 1; }
 /* The heading is written by lf-board.js rather than by the x-says pass, because
@@ -1282,7 +1340,7 @@ lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
  * runs. */
 lf-diagram, lf-diff, lf-tree, lf-code { display: block; margin: 14px 0;
              font-family: var(--mono); font-size: 13px;
-             color: var(--muted); overflow-x: auto; }
+             color: var(--muted); position: relative; overflow-x: auto; }
 lf-diagram.lf-rendered, lf-diff.lf-rendered, lf-tree.lf-rendered,
 lf-code.lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
@@ -1351,7 +1409,8 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
 .lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); }
 :host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--rule);
-                          border-radius: 0; padding: 6px 0; overflow-x: auto;
+                          border-radius: 0; padding: 6px 0;
+                          position: relative; overflow-x: auto;
                           font-family: var(--mono); font-size: var(--t-6);
                           line-height: 1.55; color: var(--ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to

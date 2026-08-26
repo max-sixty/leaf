@@ -365,13 +365,30 @@ def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
     )
-    js = (schema_model.ASSETS / "leaf.js").read_text()
     assert _paint_names().get("ask") == "data-lf-ask", (
         "the theme excludes data-lf-ask and PAGE_PAINT_ATTRIBUTE spells the standing "
         f"ask's mark {_paint_names().get('ask')!r}, so nothing puts that mark on a "
         "page and a group inside an open ask draws the reader's band a second time"
     )
-    assert re.search(r"function markHere\(\)(?:.|\n)*?PAGE_PAINT_ATTRIBUTE\.ask", js), (
+    # Asked of the file that defines markHere rather than of a path: the runtime is
+    # composed from leaf.js and the modules beside it, and which one owns a function
+    # moves as those split — this read leaf.js, and the day the ask runtime moved out
+    # of it the reading went missing rather than red about the mark.
+    defines = [
+        f
+        for f in [
+            schema_model.ASSETS / "leaf.js",
+            *sorted((schema_model.ASSETS / "runtime").rglob("*.js")),
+        ]
+        if re.search(r"function markHere\(\)", f.read_text())
+    ]
+    assert len(defines) == 1, (
+        f"the runtime defines markHere in {[f.name for f in defines]}, and this asks "
+        "one file what it writes"
+    )
+    owner = defines[0].read_text()
+    body = _balanced(owner, owner.index("{", owner.index("function markHere()")) + 1)
+    assert "PAGE_PAINT_ATTRIBUTE.ask" in body, (
         "markHere is what paints the standing ask, and it no longer writes "
         "PAGE_PAINT_ATTRIBUTE.ask — the exclusion in the theme then answers for a "
         "mark nothing leaves on the page"
@@ -2247,6 +2264,80 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == []
+
+
+def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
+    """The group's last cell is where the reader writes the option the menu hasn't
+    got, so a conversation standing there is the question in the agent's hands: a
+    session picking the page up is not told to go and ask them again. It is not an
+    answer — no pick rests on the group — and it holds only while that thread waits
+    on the agent. A reply hands the question back, and so does closing it."""
+    opts = OPTIONS.format(a="", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    asking = [{"id": "g1", "tag": "lf-options", "thread": None}]
+    assert state_json(page_dir)["asks"] == asking
+    # A quote inside the group is a note about one of its words, not the reader
+    # standing in the box it offers. Only the seat's own anchor reaches this.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "g1", "quote": "Shim it"},
+            "text": "shim how?",
+        },
+    )
+    assert state_json(page_dir)["asks"] == asking
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "g1"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root["id"],
+            "text": "Capping it costs the backfill. Still worth it?",
+        },
+    )
+    assert state_json(page_dir)["asks"] == asking
+
+
+def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir):
+    """A resolved conversation waits on nobody, so it is no longer the question
+    standing in the agent's hands — and the group still holds no pick."""
+    opts = OPTIONS.format(a="", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c-another",
+            "author": "user",
+            "anchor": {"section": "g1"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+    events_model.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c-another"}
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "g1", "tag": "lf-options", "thread": None}
+    ]
 
 
 def test_page_state_gives_a_thread_its_exchange(page_dir):

@@ -2,6 +2,7 @@
 
 import itertools
 import json
+import re
 import time
 
 import pytest
@@ -16,6 +17,8 @@ from render_support import (
     ARRANGEMENTS,
     ASK_PAGE,
     ASKS_PAGE,
+    AUTHORED_LINES_PAGE,
+    BARE_IDENTIFIERS_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
     COLORED_CODE_PAGE,
@@ -27,6 +30,8 @@ from render_support import (
     FAINT_CODE_PAGE,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
+    IDENTIFIERS_IN_CODE_PAGE,
+    LINKED_CELLS_PAGE,
     LONG_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
@@ -703,6 +708,179 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert measured["past"] <= 0
     assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
     assert measured["sideways"] == 0
+    assert errors == []
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
+    """The theme's second case, reached by a table that used to fall through to the
+    third: a column of test names beside a column of prose. A name is one word to
+    the line breaker, and unbreakable it held its column at 583px of the 720px
+    measure, squeezed the prose to 118px and a few words a line, and scrolled the
+    table 83px sideways for the rest. In <code> it breaks inside its cell where it
+    must, and the table fits. The names are longer than any share of the measure a
+    column gets, so a name that did not break is a name that fitted by luck rather
+    than by the rule, and the test says so."""
+    url = serve(IDENTIFIERS_IN_CODE_PAGE)
+    page, errors = open_page(browser, url)
+    measured = page.locator("#held").evaluate(
+        """(t) => {
+        const range = document.createRange(), lines = (code) => {
+            range.selectNodeContents(code.firstChild);
+            return new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+        };
+        return { scrolls: t.scrollWidth - t.clientWidth,
+                 broke: [...t.querySelectorAll('td code')].some(c => lines(c) > 1),
+                 sideways: document.body.scrollWidth - document.body.clientWidth };
+    }"""
+    )
+    assert measured["scrolls"] == 0, measured
+    assert measured["broke"], "every name fitted whole, so the rule was never asked"
+    assert measured["sideways"] == 0
+    assert errors == []
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):
+    """The same table with its names written bare. Every column of a scrolling table
+    is at its longest unbreakable run, so the prose column wrapping beside a name
+    that cannot break is the squeeze read off the page, and the finding states the
+    widths that carry the diagnosis: the names' column several times the prose's.
+    The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
+    table that scrolls with nothing left to wrap is the theme's honest third case
+    and passes. The table has to scroll before the reading has anything to say, and
+    the test says so first: a fixture that fitted CI's fonts by ten pixels left the
+    gate silent there, and the silence read as the reading's."""
+    url = serve(BARE_IDENTIFIERS_PAGE)
+    page, errors = open_page(browser, url)
+    scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+    assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
+    assert errors == []
+    page.close()
+    failures = rendering_model.render_version(browser, url)
+
+    squeezed = [f for f in failures if "<table id=held> scrolls" in f]
+    assert squeezed, failures
+    for finding in squeezed:
+        widths = dict(re.findall(r'"([^"]+)" wraps at (\d+)px', finding))
+        assert {"Mechanism", "Held by"} <= widths.keys(), finding
+        assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
+    assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+
+
+def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
+    """A wrap that falls at a node boundary rather than inside a text node: a
+    column of owners as links, one word each, in a table eight single-token
+    columns hold open. Read node by node it never wraps, and the column stood at
+    84px on five lines with the gate green; set at line-height 1, the second
+    line's glyph box overlaps the first's, and a reading of line boxes lost it
+    again. The table without that column is
+    `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`'s, and passes."""
+    failures = rendering_model.render_version(browser, serve(LINKED_CELLS_PAGE))
+
+    squeezed = [f for f in failures if "<table id=sessions> scrolls" in f]
+    assert squeezed, failures
+    assert all('"Owners" wraps at' in f for f in squeezed), squeezed
+
+
+def test_a_line_the_author_drew_is_not_a_wrap(browser, serve):
+    """Four cells of a table single tokens hold open, each with a line the author
+    wrote and nothing wrapped: `value <code>7</code>` on one line (an inline <code>
+    is set at 84% and starts 3px lower, so a reading of rect tops called it a wrap
+    and told the author to write the <code> they had written), a <br>, a newline
+    under <pre>, and words either side of a nested table. A wrap is what goes away
+    with soft wrapping turned off, and none of these does."""
+    assert rendering_model.render_version(browser, serve(AUTHORED_LINES_PAGE)) == []
+
+
+def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
+    """The mark pass puts a comment badge in the cell it marks, and the badge is
+    two words in `.lf-ui` that wrap in a 33px cell. Read as the cell's words it
+    turned this table — single tokens, the theme's honest third case — red the
+    moment a reader commented on it. The runtime's words are not the page's.
+
+    The whole gate, rather than this one reading of it: the badge also stood the
+    page three hundred pixels wide of itself until the scroller was made to
+    contain what it scrolls, and a commented page has nothing left to report."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
+    browser, serve
+):
+    """The runtime hangs a word clipped to nothing inside the block a comment lands
+    on, out of flow so it holds no room. Out of flow with no positioned ancestor is
+    positioned against the page, though, and a table scrolling inside itself holds
+    its far column three hundred pixels past the window: the cell was there, the
+    word was laid out there with it, and the page grew a sideways scrollbar
+    carrying the reader to a box nobody can see. The scroller answers for it — a
+    box that scrolls contains what it scrolls — so the word keeps the place on its
+    own cell that every reading of it expects and the table carries it.
+
+    Asked at both of the table's scroll positions, since the word travels with the
+    cell now rather than standing still while the cell moves; and the cell has to
+    be off the table's own edge at the first of them, or nothing here could have
+    escaped. Then the two things the place is for: the reader who takes the skip
+    link, and the gate."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+    page, errors = open_page(browser, url)
+    note = page.locator(".lf-mark-note")
+    expect(note).to_have_count(1)
+    expect(note).to_have_text("1 comment")
+
+    measured = note.evaluate(
+        """(n) => {
+        const table = document.querySelector('#sessions');
+        const read = () => {
+            const word = n.getBoundingClientRect();
+            const cell = n.parentElement.getBoundingClientRect();
+            const shown = table.getBoundingClientRect();
+            return {
+                onItsCell: word.left >= Math.floor(cell.left)
+                           && word.right <= Math.ceil(cell.right),
+                cellShown: cell.left >= Math.floor(shown.left)
+                           && cell.right <= Math.ceil(shown.right),
+                sideways: document.body.scrollWidth - document.body.clientWidth,
+            };
+        };
+        const out = { holder: n.parentElement.firstChild.data,
+                      scrolls: Math.round(table.scrollWidth - table.clientWidth),
+                      rest: read() };
+        table.scrollLeft = table.scrollWidth;
+        out.scrolled = read();
+        return out;
+    }"""
+    )
+    assert measured["holder"] == "value_number_7", "the word is on the marked cell"
+    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+    assert not measured["rest"]["cellShown"], (
+        "the cell is on screen already, so nothing here could have escaped"
+    )
+    assert measured["scrolled"]["cellShown"], "the table did not scroll to the cell"
+    assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
+        f"the word left the cell it belongs to: {measured}"
+    )
+
+    # Reached the way a reader reaches it. `focus()` alone sets :focus and leaves
+    # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
+    # — the skip link would then be asked for its resting form and the failure would
+    # talk about `position` (tests/CLAUDE.md).
+    note.evaluate("(n) => n.focus()")
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    reached = note.evaluate(
+        """(n) => {
+        const r = n.getBoundingClientRect();
+        return { held: document.activeElement === n, said: n.textContent,
+                 inTheWindow: r.width > 1 && r.left >= 0 && r.right <= innerWidth
+                              && r.top >= 0 && r.bottom <= innerHeight };
+    }"""
+    )
+    assert reached == {"held": True, "said": "1 comment", "inTheWindow": True}
     assert errors == []
     page.close()
     assert rendering_model.render_version(browser, url) == []

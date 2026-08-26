@@ -2,7 +2,6 @@
 export function createAnchors(dependencies) {
   const {
     DATUM,
-    LANDMARK_CAP,
     SCROLL,
     TEXT_BLOCK,
     aimBox,
@@ -69,6 +68,7 @@ export function createAnchors(dependencies) {
   // (PANEL_KEY); because that runs first, the column is already reflowed by the time we
   // scroll.
   const VIEW_KEY = "lf-view";
+  const LANDMARK_CAP = 160;
 
   // The page's own text blocks the reader can see, in document order, with the rect of each
   // one's first line — one reading of what is in front of them, for the two questions that

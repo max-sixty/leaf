@@ -444,8 +444,10 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     page.locator("#live-question textarea").click()
     expect(question).to_have_attribute("data-lf-ask", "1")
 
-    # Answering takes it off with the focus still inside, the ring being for what is
-    # waiting on the reader and that ask no longer being one.
+    # Answering takes it off with the focus still inside: the ring is for the question
+    # the reader is working, and an answered one is no longer a question. Answering is
+    # what does this — leaving the reader's list does not, so a widget waiting on the
+    # agent in its own seat keeps the ring while the count drops.
     page.locator("#lq-token .lf-pick").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     expect(page.locator("[data-lf-ask]")).to_have_count(0)

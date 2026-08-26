@@ -23,12 +23,23 @@ record the sequence of implementations that led to the current one.
 helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
-`runtime/composing/` owns shared text-box and composer behavior;
+`runtime/asks/model.js` owns request discovery and folding;
+`runtime/asks/view.js` owns ask chrome, marking, and the ask walk;
+`runtime/composing/capture.js` owns selection capture and snapping;
+`runtime/composing/surface.js` owns floating comment geometry and page-click routing;
+`runtime/composing/aim.js` owns modifier aim and captured presses;
+`runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
+and selection-composer state;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
+`runtime/presence.js` owns claim freshness and attendance judgment;
+`runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;
+`runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
+`runtime/version-activation.js` owns version document loading, authored-root
+replacement, and activation serialization;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;
@@ -37,7 +48,8 @@ highlight rules;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
-`runtime/anchors.js` owns anchor geometry, paint, and navigation;
+`runtime/navigation.js` owns reader travel and scroller selection;
+`runtime/anchors.js` owns anchor geometry, paint, and anchor-specific travel;
 `runtime/conversation/model.js` owns the thread fold;
 `runtime/conversation/messages.js` owns message rendering;
 `runtime/conversation/placement.js` owns document-order grouping;
@@ -119,7 +131,7 @@ Startup order is load-bearing:
 3. Import modules declared by `x-upgrade`.
 4. Wait for module settlement, then run the shared dressing passes.
 5. Capture authored record facets from the upgraded, authored state.
-6. Mark the document `data-lf-upgraded="1"`.
+6. Mark `body` `data-lf-upgraded="1"`.
 7. Read the first state, reconcile it, and present the page.
 
 `rememberAuthoredMarkup` runs before imports because a clone taken after upgrade
@@ -145,7 +157,11 @@ without animation. If activation fails after advancing the document, reload the
 stable root rather than leaving a mixed version. A layer-generation change always
 reloads: soft activation is only valid within one vendored contract.
 
-The page has three readiness facts:
+The page has three readiness facts, all three written on `body` rather than on the
+root element. A reader waiting on the root sees an empty `dataset` forever, with
+every module loaded, nothing logged and nothing failed — which reads exactly like
+a page that never started, and sends the search to the server, the page key and
+the vendored layer in turn:
 
 - `data-lf-upgraded` means widget imports, asynchronous upgrades, geometry, and
   drawings have finished.
@@ -312,7 +328,10 @@ declared parent, and `awaiting` states whether that request must be open or clos
 browser door, and POST evaluates the same declaration from the authoritative log
 under the append lock. No eligibility cache sits beside the ordinary ask and state
 projections. `x-awaits.answers` says which actions actually close the request;
-orthogonal actions do not. `x-awaits.rollup` derives a nested request from direct
+orthogonal actions do not, and neither does a conversation standing in the widget's
+declared `x-conversation` seat — that takes the request off the reader's list without
+answering it, which is why this gate reads the projection with no seats in
+it. `x-awaits.rollup` derives a nested request from direct
 interventions and child roll-ups, using the same reducer in the browser and file
 projection.
 
@@ -1142,10 +1161,32 @@ signals the cut. A scroll container may expose content in its scroll direction.
 reachable. `MISPLACED_BOXES`, `CLIPPED_CONTROLS`, and `COVERED_WORDS` enforce
 the distinct geometry, interaction, and text consequences.
 
+`SQUEEZED_TABLES` reports a table that scrolls sideways with a cell in it wrapped.
+A scrolling table's columns are all at their longest unbreakable run, so a cell
+wrapping there wraps at a word a line — beside a name that could not break (an
+identifier written outside `<code>`, a bare URL), or because the table has more
+columns than the measure holds. A column wraps when it stands wider with
+wrapping turned off — its content asked for more than its longest run — which
+hidden content, laid out on demand but size-contained, cannot change. The
+finding lists the wrapping columns with their widths, names the widest, and
+leaves the diagnosis to the author. A table that scrolls with nothing left to
+wrap is the theme's honest third case.
+
 `TINY_BOXES` ensures each declared widget upgrades to a usable box.
 `UNREACHABLE_WORDS` catches rendered words outside reachable flow.
 `MISPLACED_BOXES` asks each container's actual overflow behavior. Do not exempt
 a box merely because an ancestor declares `overflow`.
+
+A box that scrolls contains what it scrolls. Out-of-flow content inside a scroll
+container that is not a containing block is positioned against the page instead:
+the scroller neither carries it nor clips it, and the page grows a scrollbar
+reaching for a box that belongs to the scroller. The runtime hangs a word clipped
+to nothing inside the block each comment lands on, so a comment on the far column
+of a table wider than the window scrolled the whole page sideways. Every box the
+layer declares scrollable therefore declares `position: relative` in the same
+rule, the way a box declares `--lf-frame` where it draws its frame — a package
+adding a scroller owes the same declaration, and no selector can ask a box
+whether it scrolls.
 
 ### Forms follow authored content
 
@@ -1508,10 +1549,26 @@ already, and the log's news about the content — `restated`, `pending`,
 the address chips.
 
 A press that acts on where the reader is standing reads it through
-`standingItem`: the open ask where focus is on a control that works it — a pick,
-a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's own
-reading. It answers nothing in the chrome, where a reader is working on the page
-rather than standing in it.
+`standingItem`: the unanswered ask where focus is on a control that works it — a
+pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
+own reading. It answers nothing in the chrome, where a reader is working on the
+page rather than standing in it.
+
+Unanswered rather than open: `standingIn` reads `unansweredAsks`, not `openAsks`.
+The two part on a widget whose own seat is mid-conversation with the agent, which
+leaves the reader's list while its pick stays unmade and its controls stay live.
+Following the list took the ring off that widget the moment the remark was sent and
+moved `c` down to whichever option the focus rested on — a second thread on the
+child rather than the next line of the reader's own — and the agent's reply put both
+back, with nothing the reader did moving either. An answered ask parts from neither
+list, so a picked group gains no ring, and a press from one of its picks names the
+option under the focus rather than the question.
+
+The ring is therefore paintable on an ask the `n`/`p` walk will not step to and the
+tray does not list, which is the accepted cost: the walk and the tray are the reader's
+list and this is not. Nothing strands the reader there — `markHere` looks its tray row
+up by id and finds none, the same as on every page with the tray shut, and the Escape
+rung reads focus rather than the list, so the way out is the one they always have.
 
 Working an ask and standing in one are different facts, and `markHere`'s ring
 answers the second. A reader who addressed a link inside a question has named
@@ -1654,8 +1711,31 @@ row travels through the same ask-arrival function as `n` and `p`, so numbered
 and directional navigation agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
-An ask is answered only through a verb listed in `x-awaits.answers`; do not infer
-that every state change is an answer. A `rollup` instance evaluates its own `when`,
+An ask is answered by a verb listed in `x-awaits.answers`; do not infer that every
+state change is an answer. Two things take a request off the reader's list, and only
+that one is an answer. The other is a conversation standing in the widget's own
+declared seat (`x-conversation`) while it waits on the agent: `seatRoot` finds a root
+anchored on the widget and nothing else, which is the anchor `renderConversations`
+collects into that seat, and `awaitsAgent` says the next word there is the agent's.
+So the banner's count and the panel's reading of the same thread cannot disagree
+about whose turn it is. Whose thread it is does not enter into it — the agent may
+open one in the seat too, and once the reader has answered there the question is
+with the agent either way. Finishing with the conversation hands it back, by reply
+or by resolve, and the version that marks the pick `chosen` ends it.
+
+`asksTheReader` is that combined reading and is what `openAsks` returns, so the
+banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
+list, and a request the agent owes the next word on does not belong on one.
+
+Two readings ask the other question — whether the request is *answered* — and both
+say so by emptying the seats (`answeredContext`, stated beside the shape rather than
+by a caller reaching into it, so a member derived from those conversations later
+cannot escape the emptying). An action's `requires` is one: a conversation does not
+answer a question the widget holds no state for, and refusing a pick over the reader's
+own remark would refuse them the answer they were asked for. Where the reader is
+standing is the other, through `unansweredAsks`; **Standing somewhere** owns it.
+Frozen thread markup seats no conversation of its own, so only an action answers
+there. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the

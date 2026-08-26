@@ -11,7 +11,7 @@ export function createProjection(runtime, dependencies) {
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     agentName,
-    askContext,
+    answeredContext,
     askEntry,
     containsAcross,
     dress,
@@ -137,6 +137,21 @@ export function createProjection(runtime, dependencies) {
     unitOf,
   } = createAuthoredProjection({ quoteFrom, textNodesUnder, widgetEntries });
 
+  function resetAuthoredPage() {
+    authoredFacets.clear();
+    authoredDetails.clear();
+    authoredStatements.clear();
+    authoredMarkup.clear();
+    authoredWidgets.clear();
+    committedProjection.clear();
+    for (const attr of [
+      PAGE_PAINT_ATTRIBUTE.applied,
+      PAGE_PAINT_ATTRIBUTE.replayWrote,
+      PAGE_PAINT_ATTRIBUTE.reportWrote,
+    ])
+      document.body.removeAttribute(attr);
+  }
+
   const {
     compareProjected,
     foldedFacet,
@@ -214,7 +229,12 @@ export function createProjection(runtime, dependencies) {
   function requirementMatches(widget, spec) {
     if (!pagePresented()) return false;
     const requirement = spec.requires;
-    const context = askContext();
+    // Whether the request is answered, which is not the question the banner asks: a
+    // conversation standing in the widget's own seat takes the request off the reader's
+    // list without answering it. Reading the reader's list here would refuse the pick
+    // because the reader had remarked on the question, which is refusing them the answer
+    // they were asked for. One reducer, and the caller names the question it wants.
+    const context = answeredContext();
     const target = requirementTarget(widget, requirement.target, context);
     if (!target) return false;
     const awaiting = isAwaiting(target, context);
@@ -756,6 +776,7 @@ export function createProjection(runtime, dependencies) {
     reconcileState,
     releaseProjectedOutbox,
     rememberAuthoredMarkup,
+    resetAuthoredPage,
     requirementMatches,
     retractedIds,
     retractionFloors,

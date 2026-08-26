@@ -44,10 +44,15 @@ shortcuts, live-leaves tray, and open-asks tray. Author asks through the
 registry's request widgets and regions, but do not duplicate that chrome or
 maintain a second list of it in the page.
 
-Keep content inside the page's column. Give raw `<pre>`, tables, SVG, and images
-`max-width: 100%` or local overflow. Widgets whose catalog entry declares a wide
-shape size themselves; fix a diagram that is too wide in its source rather than
-pinning a page width.
+Keep content inside the page's column. The theme scrolls a `<pre>` or a table
+that runs wider than it and fits an image or SVG to it, so none of them needs a
+width. A table that scrolls has every column at its longest unbreakable run,
+and the browser gate refuses one that scrolls with a cell in it wrapped: put an
+identifier in `<code>`, where it breaks inside its cell, rather than bare, where
+it holds its column and squeezes the prose beside it, and keep the columns to
+what the measure holds. Widgets whose catalog
+entry declares a wide shape size themselves; fix a diagram that is too wide in
+its source rather than pinning a page width.
 
 ## Stable anchors
 
@@ -78,6 +83,15 @@ On the page the group's last cell is an option the reader writes, saying
 beside them: a `Something else` option takes a click where that cell takes the
 answer. In a thread the reply box is already that cell, so the group carries
 none of its own.
+
+Writing there is the reader dealing with the question, so the group stops being
+one of the page's open asks and the ball is yours. Nothing is recorded by it:
+the group still holds no pick. Answer what they wrote and honor it in the same
+move — carry their words in as an option, mark the pick it settled, or settle
+the group. Both ways of finishing with the thread hand the question back,
+`leaf reply` and `leaf resolve` alike, so a group still open asks again, now
+with their option on it. Ship a version that leaves the question standing
+without answering them and the page waits on you while saying nothing.
 
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
@@ -126,6 +140,10 @@ onto later versions, but the version must eventually record the decision so the
 page reads correctly without the log:
 
 - Mark every picked option `chosen`.
+- Carry an option a reader wrote in the group's last cell into the group as an
+  option, or settle the question their words settled. Their answer stands in a
+  thread and in no record at all, and the group stops asking only until you have
+  finished with that thread.
 - Replace an accepted suggestion with `lf-new`; replace a rejected one with
   `lf-old`, retaining ids on surviving passages.
 - Carry a reader edit verbatim.

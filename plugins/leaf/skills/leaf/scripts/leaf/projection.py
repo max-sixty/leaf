@@ -557,6 +557,26 @@ def answered_ask(
     )
 
 
+def seat_with_agent(
+    rec: dict, entry: dict, projection: StateProjection, with_agent: set[str]
+) -> bool:
+    """Whether this widget's own conversation seat holds a thread now with the agent.
+
+    Declaration-driven at both ends, the runtime's `seatWithAgent`: a widget with no
+    x-conversation offers no seat, and one whose attributes miss the predicate has none
+    placed on this instance either — so an element anchor written onto some other widget
+    reaches nothing here. The seat's placement asks the same question of the same
+    declaration, so the cell the reader can see and the request this takes off their
+    list are one."""
+    declaration = entry.get("x-conversation")
+    unit = rec["attrs"].get("id")
+    return bool(
+        declaration
+        and unit in with_agent
+        and asking(replayed_attrs(rec, projection), declaration.get("when", {}))
+    )
+
+
 def quoted_in(rec: dict, registry: dict) -> bool:
     """The runtime's `quoted`: inside an element the registry marks x-exhibit,
     a widget is a mention rather than a use, and asks nothing.
@@ -600,6 +620,7 @@ def page_ask_projection(
     spk,
     registry: dict,
     dropped: set,
+    with_agent: set[str],
     *,
     thread: bool = False,
 ) -> tuple[list, dict[str, bool]]:
@@ -610,6 +631,15 @@ def page_ask_projection(
     stops; direct ordinary interventions take precedence;
     otherwise child roll-ups recurse; a matching leaf waits. The browser implements
     this reducer over the DOM and the same standing fold.
+
+    `with_agent` chooses which question this answers, and is the whole of the
+    difference between the two. Given `seats_with_agent`, it is the reader's list: a
+    request whose own conversation seat holds a thread the agent owes an answer to is
+    not one the reader has to deal with, whatever its state. Given an empty set, it is
+    whether the request is answered at all, which is what an action's `requires` asks
+    — a conversation does not answer a question the widget still holds no state for,
+    and refusing the pick over the reader's own remark would refuse them the answer
+    they were asked for. Frozen thread markup seats no conversation either way.
     """
     elements = source.lf_elements if hasattr(source, "lf_elements") else source
     records = [
@@ -646,7 +676,9 @@ def page_ask_projection(
                     action["widget"] == unit and action["action"] == until["verb"]
                     for action, _spec in projection.actions.values()
                 )
-        return answered_ask(rec, rec_entry, projection, byid, spk, registry)
+        return answered_ask(
+            rec, rec_entry, projection, byid, spk, registry
+        ) or seat_with_agent(rec, rec_entry, projection, with_agent)
 
     def rollup_owner(rec):
         rec = holder(rec)
@@ -747,8 +779,11 @@ def page_asks(
     spk,
     registry: dict,
     dropped: set,
+    with_agent: set[str],
 ) -> list:
-    return page_ask_projection(parser, projection, byid, spk, registry, dropped)[0]
+    return page_ask_projection(
+        parser, projection, byid, spk, registry, dropped, with_agent
+    )[0]
 
 
 def thread_ask_projection(
@@ -787,7 +822,11 @@ def thread_ask_projection(
         byid,
         spk,
         registry,
-        set(),
+        dropped=set(),
+        # Frozen thread markup seats no conversation of its own: the thread's reply
+        # box is already where the reader answers, so only an action closes a request
+        # here.
+        with_agent=set(),
         thread=True,
     )
     thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}

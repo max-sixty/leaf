@@ -72,7 +72,7 @@ export function createConversation(dependencies) {
     wireInput,
   } = dependencies;
   let threadList = [];
-  const { buildThreads } = createThreadModel({
+  const { awaitsAgent, awaitsReader, buildThreads, seatRoot } = createThreadModel({
     elementById,
     retractedIds,
     retractionFloors,
@@ -136,13 +136,14 @@ export function createConversation(dependencies) {
   // Two narrowings, and they compose: the words a reader is looking for, and whether the
   // thread is one the agent has left with them. Neither is stored — see the find row's own
   // comment for why a remembered narrowing is the trap rather than the convenience.
+  //
+  // Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
+  // because the banner's ask count asks the same question from the other side: a request
+  // whose own conversation is with the agent is not the reader's to deal with. The panel
+  // saying so while the banner went on counting the ask was one fact told two ways.
   let finding = "";
   let needsYou = false;
   const narrowed = () => Boolean(finding) || needsYou;
-
-  // A thread the agent spoke in last is a thread waiting on the reader; one the reader spoke
-  // in last is waiting on the agent. A resolved thread waits on nobody.
-  const awaitsReader = (t) => !t.resolved && t.msgs.at(-1).author === "claude";
 
   // What a search reads: everything the panel shows of a thread, plus the part of the page
   // it is on — so "merge rule" finds the threads under that heading as well as the ones
@@ -388,14 +389,7 @@ export function createConversation(dependencies) {
       ".lf-conversation[data-lf-conversation]",
     )) {
       const owner = elementById(host.dataset.lfConversation);
-      const owned = threads.filter((thread) => {
-        const anchor = thread.root.anchor;
-        return (
-          !thread.root.about &&
-          anchor?.section === owner.id &&
-          Object.keys(anchor).length === 1
-        );
-      });
+      const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
       // Before the first comment, conversationBox's first-message composer is already
       // the complete view. An externally arriving root may find unsent first-message
       // words here, so the root does not get to take their only box. A hold-capable seat
@@ -1031,7 +1025,9 @@ export function createConversation(dependencies) {
     anchorLabel,
     openThreads,
     narrowed,
+    awaitsAgent,
     awaitsReader,
+    seatRoot,
     setChildren,
     paintWorkLines,
     widen,

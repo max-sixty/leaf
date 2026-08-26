@@ -1836,6 +1836,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
     sources = [
         layer / "assets/leaf.js",
+        *sorted((layer / "assets/runtime").rglob("*.js")),
         *sorted((layer / "packages/default/widgets").glob("*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
@@ -2476,8 +2477,8 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     address put them on an option and the box that opened still said "Comment on the
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
-    Where they are standing is the open ask first, because that is what the page has
-    already told them: markHere rings the whole ask, and `g a 1` addressed the
+    Where they are standing is the unanswered ask first, because that is what the page
+    has already told them: markHere rings the whole ask, and `g a 1` addressed the
     question rather than the first of its options. Below an ask it is the innermost
     item, which is the aim's own reading — so the link the walk stands on speaks for
     the paragraph holding it, no id of its own being what an anchor needs.
@@ -2571,6 +2572,158 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     page.close()
 
 
+def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
+    """Where the reader is standing and what the reader still owes are two facts, and a
+    widget mid-conversation with the agent is where they part. Its seat holds the words
+    the reader just wrote, its pick is unmade and its controls are live, and it has left
+    the banner and the tray because the next word there is the agent's — but the reader
+    is standing in it all the same, and it is still the question they are working.
+
+    Read off the reader's list, both the ring and `c` went with the count: the moment the
+    remark was sent the ring left from under the reader, and `c` slid from the seat they
+    were writing in down to whichever option their focus rested on. That is a different
+    conversation, not a shorter way into the same one — `{section: "shape"}` is the seat's
+    own anchor and `{section: "sh-steel"}` is not — so the next line of a remark landed
+    somewhere the first line was not. The agent's reply moved both back. Nothing the
+    reader did moved either, which is the whole of the complaint; the reply phase here is
+    what says the ring has stopped tracking the count rather than merely tracking it late.
+
+    A picked group is the control on the other side. It is answered, so it is off both
+    readings and must stay off: the switch is about a seat the reader is mid-sentence in,
+    not about reopening what a pick has closed."""
+    url = serve(
+        leaf_page(
+            "mid-sentence",
+            """
+<h1 id="t">Mid-sentence</h1>
+<lf-options id="shape" choose>
+  <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
+  <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
+</lf-options>
+<lf-options id="picked" choose>
+  <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
+</lf-options>
+<p id="p2">A passage carrying
+<lf-suggestion id="sug-window">
+  <lf-old>Refill every feeder each morning.</lf-old>
+  <lf-new>Refill when the camera shows it half-empty.</lf-new>
+</lf-suggestion></p>
+""",
+        )
+    )
+    d = serve.page_dir
+    events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Steel, unless the sealing is quick?",
+            "anchor": {"section": "shape"},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+    asks = page.locator(".lf-asks")
+
+    # The premise, from the reader's list itself: the group has left it, the picked group
+    # was never on it, and the suggestion is what remains to be counted.
+    expect(asks).to_have_text("Asks (1)")
+    asks.click()
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    # Which row, not just how many: one row is also what a build listing the picked group
+    # and dropping the suggestion would show.
+    expect(page.locator('.lf-asks-row[data-lf-at="sug-window"]')).to_have_count(1)
+
+    # The reader is standing in it all the same — and first with the tray still open, the
+    # one state where the ring has a second surface to reach for and this ask has no row
+    # on it. `markHere` looks its row up by id and paints the row too; there is none, and
+    # the scroll that brings a row into view is the tray's own reading. So the ask wears
+    # the ring alone, and the tray goes on listing what the reader owes rather than
+    # gaining a row for where they happen to be standing.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    assert page.locator(".lf-asks-row[data-lf-ask]").count() == 0, (
+        "the tray drew a here-ring on a row for an ask it does not list"
+    )
+    page.evaluate("() => document.activeElement?.blur()")
+    asks.click()
+
+    # And with it shut, which is every other reading below.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the options")
+
+    # And the press means the seat, so the next line joins the conversation the first
+    # line opened rather than starting one on the option under the focus.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("Cedar, then, if it is not.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    expect(page.locator("#shape .lf-conversation-thread")).to_have_count(2)
+    # Both comments, not the last one: the fixture's own opening remark is anchored on the
+    # group, so reading the last anchor alone is satisfied by the setup whatever the press
+    # did. Two seat-anchored comments is the fact, and the thread count above is the
+    # rendering of it rather than a second reading.
+    made = [e for e in events_model.read_events(d) if e.get("kind") == "comment"]
+    assert (
+        len(made) == 2 and [e["anchor"] for e in made] == [{"section": "shape"}] * 2
+    ), f"the second line landed outside the seat: {[e['anchor'] for e in made]}"
+
+    # Back on the pick, and the ring with it. The composer's own Comment button took the
+    # focus on the way out, so this is the reader returning to the question they were
+    # working rather than a fresh arrival at it.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+
+    # Answering hands the question back, and the count moves while the ring does not.
+    # Focus is not touched again from here, so the ring read below is the one painted
+    # above: blurring and coming back would re-derive it and repeat the phase instead of
+    # measuring that it stayed through the news.
+    #
+    # Both threads, because a seat is the reader's again only when every conversation in
+    # it is: one unanswered remark there is still a word the agent owes, and the phase
+    # above left a second one. Replying to the first alone leaves the count at 1, which is
+    # the honest answer and not the one this phase is asking about.
+    for root in [
+        e["id"] for e in events_model.read_events(d) if e.get("kind") == "comment"
+    ]:
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "version": 1,
+                "parent": root,
+                "text": "Sealing is an afternoon.",
+            },
+        )
+    told(page)
+    expect(asks).to_have_text("Asks (2)")
+    expect(page.locator("#shape .lf-pick").first).to_be_focused()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the options")
+    page.evaluate("() => document.activeElement?.blur()")
+
+    # The picked group is the control on the other side: answered, so off both readings,
+    # and the switch leaves it there. Read through the key line, because `markHere` paints
+    # inside `paintHere`'s frame — an absence read in the same round trip as the focus is
+    # the frame before the paint, and stays green while a ring lands here a frame later.
+    # The word is the other half of the same fact: with `standingIn` null the reading falls
+    # through to the innermost item, which from a pick is the option and not the question.
+    page.locator("#picked .lf-pick").first.focus()
+    expect(line).to_contain_text(re.compile(r"comment on the option(?!s)"))
+    assert page.locator("[data-lf-ask]").count() == 0, (
+        "an answered group wears the ring the switch was not about"
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     """The panel's open list is the one part of the chrome that holds a conversation of
     its own, so a press meaning "say something about this" belongs to that box rather
@@ -2648,7 +2801,14 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     so the pair is what makes the assertion mean anything. The first phase is the control
     — standing on the widget rather than in a thread still opens the composer on the
     widget, so a green here is the standing being read and not every press landing in a
-    conversation."""
+    conversation.
+
+    The agent has answered both remarks, so each thread here is a whole exchange. Nothing
+    in this test turns on that: `standingIn` reads the unanswered asks rather than the
+    reader's list, so the group is what the reader is standing in whichever way the seat's
+    conversations are facing, and this control says the same thing before a reply and
+    after one. test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer is what holds
+    that, and it is why the replies are the exchange's shape and not a premise."""
     url = serve(
         leaf_page(
             "seated",
@@ -2675,6 +2835,16 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             },
         )
         said.append(events_model.read_events(d)[-1]["id"])
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "version": 1,
+                "parent": said[-1],
+                "text": "Noted.",
+            },
+        )
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")

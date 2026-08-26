@@ -996,6 +996,64 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     assert len(event_model.read_events(page_dir)) == before
 
 
+def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, page_dir):
+    """A remark in the widget's own seat leaves the pick that would answer it open.
+
+    Two readings of one reducer, and this door takes the one that asks whether the
+    request is *answered*. A conversation standing in the seat takes the request off
+    the reader's list — the banner stops counting it, and
+    `test_page_state_takes_a_seated_question_off_the_readers_list` holds that — but
+    it records nothing: the group still holds no pick and its controls still offer
+    one. A gate reading the reader's list instead would refuse the pick for the
+    reader's having written in the box the page put under the question, which is
+    refusing them the answer they were asked for. It would also refuse it silently:
+    `lf-options` paints a pick before this door sees it, so the option would flip,
+    nothing would be logged, no toast would fire, and the next poll would put it
+    back."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["requires"] = {
+        "target": "self",
+        "awaiting": True,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="seated-options" choose>'
+            '<lf-option id="seated-a">A</lf-option>'
+            '<lf-option id="seated-b">B</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "anchor": {"section": "seated-options"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    choose = {
+        "kind": "action",
+        "version": 1,
+        "widget": "seated-options",
+        "action": "choose",
+        "detail": {"options": ["seated-a"]},
+    }
+    status_code, body = fetch(f"{server}/api/event", data=json.dumps(choose).encode())
+    assert status_code == 200, body
+    # And the answer does close it, so the gate is reading the request rather than
+    # ignoring the declaration outright.
+    again = {**choose, "detail": {"options": ["seated-b"]}}
+    status_code, body = fetch(f"{server}/api/event", data=json.dumps(again).encode())
+    assert status_code == 400
+    assert "no longer awaiting the reader" in json.loads(body)["error"]
+
+
 def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     server, page_dir
 ):

@@ -624,6 +624,135 @@ WITHHELD_ROOM = (
 )
 
 
+# A table scrolling sideways with a cell in it wrapped. The theme's three cases for a
+# table — take the measure only when asked, wrap the cells past that, scroll when even
+# wrapping can't fit — are in order, and the third is reached through the second: a
+# table scrolls once every column is at its minimum, and a column's minimum is its
+# longest unbreakable run. So whatever wraps in a scrolling table wraps at a word a
+# line, and the reader gets both costs at once: prose a few words to the line down a
+# 3174px table, and a scroller for the rest. What scrolls with nothing left to wrap
+# (eight columns of single tokens) is the honest third case and passes.
+#
+# The finding states the widths and leaves the diagnosis to the author, because the
+# widths carry it and a cause asserted here was wrong: a column of test names written
+# outside <code> holds a table open at 583px beside prose at 118px, and twelve columns
+# of ordinary prose hold one open at 87px each, and "squeezed by what cannot break" was
+# said of both. So every column is listed with its width, and both remedies are offered.
+#
+# A column wraps when it stands wider with wrapping turned off, and that is the whole
+# reading: every column of a scrolling table is at its longest unbreakable run, so a
+# sheet turning wrapping off lets each column out to the width its content asked for,
+# and the ones that move are the ones whose content had wrapped. The sheet says
+# `text-wrap: nowrap` and not `white-space: nowrap`, because the shorthand also
+# collapses white space and would have taken an author's newlines under a page rule
+# setting cells `pre-wrap`; `flex-wrap: nowrap` beside it, because a milestone's chips
+# stacked seven deep in a 114px cell with no text wrapping at all; `!important` on the
+# descendants too, because a widget's own rule beats an inherited value — a draft's
+# body is `pre-wrap` by the default package's sheet; and not on a textarea, whose
+# value wraps inside a box the table never sized. The gate reads its own page, so the
+# probe changes nothing a reader sees, and later readings measured the same before
+# and after it.
+#
+# The column and not a row or a cell's glyphs, after three readings of line boxes,
+# three of which glyphs are on the page, and one of row height each fell to a measured
+# counterexample: an inline <code> is set at 84% and starts 3px lower on the same
+# line; two lines' glyph boxes overlap at line-height 1; a closed details' body, an
+# unselected tab and anything under content-visibility: hidden are laid out on demand
+# and hand back real rects, so every reading of rects let some hidden line in or some
+# painted line out; and a row is held tall by its tallest cell, so prose squeezed to
+# a word a line beside a <br> list of names — the ordinary walkthrough table — read
+# clean, and an image at width: 100% grew under the probe and hid the wrap beside it.
+# None of that reaches a column's width: hidden content is size-contained and asks for
+# nothing, a neighbour's height is not a width, a fixed-width block or a widget with a
+# scroller of its own asks for exactly what it had, and a <br> line or a <pre> line is
+# its own longest run. The remaining reach the probe lacks is stated so nobody looks
+# for it here: a rule more specific than a tag name that says `!important` outranks
+# it; a widget's shadow tree takes it by inheritance only, and a rule inside the tree
+# beats that; a grid that flows its items onto more rows is a third kind of wrapping
+# the sheet does not turn off; a cell an author caps with a max-width under its
+# longest word, or fills with absolutely positioned words, asks for nothing more and
+# wraps unreported. Each is a table cell holding something a leaf page has not yet
+# put in one. A widget's own chrome in a cell never binds: a group's reply box sits
+# inside the width its labels already ask for, measured.
+#
+# A column is where its cells stand rather than where they come in the row — a rowspan
+# shifts the next row's cells over, a two-row header names a column twice — and a
+# scrolling table's columns have edges that hold still, so cells are grouped by their
+# left edge, in the table's reading direction, and named by the first column heading
+# standing on it, a head's outranking a foot's; a heading's name is what it says, so
+# a comment badge the mark pass put in it stays out, through the runtime's own
+# `uiInside`. A cell that says `colspan`, whatever the number, belongs to no column,
+# and the sheet leaves it wrapping — one predicate for both, since a `colspan="1"`
+# read as a column by one and left wrapping by the other went unreported: a note
+# across the whole table wraps because it is long, says nothing about a squeeze, and
+# unwrapped would push every column it spans out and name them all.
+# A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
+# is real.
+SQUEEZED_TABLES = r"""async () => {
+    const main = document.querySelector('main');
+    if (!main) return [];
+    const { uiInside } = await import('/leaf.js');
+    const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
+    // What a heading says, for the column's name.
+    const says = (cell) => {
+        let text = '';
+        const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+        for (let node; (node = walker.nextNode());)
+            if (!uiInside(node.parentElement, cell)) text += node.data;
+        return text.trim().replace(/\s+/g, ' ');
+    };
+    const tables = [...main.querySelectorAll('table')].filter(t =>
+        t.checkVisibility() && t.scrollWidth - t.clientWidth > 1);
+    // Each table's columns by left edge, each with its cells, before the probe.
+    const read = new Map();
+    for (const table of tables) {
+        const columns = new Map();
+        for (const cell of table.querySelectorAll('th, td')) {
+            if (cell.closest('table') !== table || cell.hasAttribute('colspan')) continue;
+            const box = cell.getBoundingClientRect();
+            if (!box.height) continue;
+            const left = Math.round(box.left);
+            if (!columns.has(left))
+                columns.set(left, {name: '', width: Math.round(box.width), cells: []});
+            const column = columns.get(left);
+            const head = cell.closest('thead') !== null;
+            if (cell.matches('th:not([scope="row"])') && (!column.name || (head && !column.head))) {
+                column.name = `"${says(cell)}"`;
+                column.head = head;
+            }
+            column.cells.push(cell);
+        }
+        const rtl = getComputedStyle(table).direction === 'rtl';
+        read.set(table, [...columns].sort((a, b) => (rtl ? b[0] - a[0] : a[0] - b[0]))
+            .map(([, c], i) => ({...c, name: c.name || `column ${i + 1}`})));
+    }
+    const probe = document.createElement('style');
+    probe.textContent = 'th:not([colspan]), td:not([colspan]),'
+        + ' th:not([colspan]) *:not(textarea), td:not([colspan]) *:not(textarea)'
+        + ' { text-wrap: nowrap !important; flex-wrap: nowrap !important }';
+    document.head.append(probe);
+    for (const columns of read.values())
+        for (const column of columns)
+            column.wraps = column.cells[0].getBoundingClientRect().width > column.width + 1;
+    probe.remove();
+    const found = [];
+    for (const [table, columns] of read) {
+        const wraps = columns.filter(c => c.wraps);
+        if (!wraps.length) continue;
+        const short = table.scrollWidth - table.clientWidth;
+        const top = Math.max(...columns.map(c => c.width));
+        const widest = columns.find(c => c.width === top && c.wraps)
+            ?? columns.find(c => c.width === top);
+        found.push(`${at(table)} scrolls ${short}px sideways: `
+            + wraps.map(c => `${c.name} wraps at ${c.width}px`).join(', ')
+            + (widest.wraps ? '' : ` beside ${widest.name} at ${widest.width}px`)
+            + ` — an identifier in <code> breaks inside its cell; a column fewer, or a`
+            + ` shorter word in the widest, gives the rest the measure`);
+    }
+    return found;
+}"""
+
+
 # A version whose markup asserts a state the log replays over — `chosen` moved
 # to another option, a card re-authored into a column the user dragged it
 # out of. Replay resolves it in the user's favor, so what needs reporting is

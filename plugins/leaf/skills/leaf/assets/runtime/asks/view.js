@@ -28,6 +28,7 @@ export function createAskView({
   showNews,
   shownParts,
   tagsDeclaring,
+  unansweredAsks,
   versionBtn,
 }) {
   // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding
@@ -248,10 +249,20 @@ export function createAskView({
     const at = row?.getAttribute(ASK_ROW) ?? row?.getAttribute(ASK_AT);
     return (at && elementById(at)) ?? node;
   }
-  // The open ask the reader is standing in: the one holding the focus, or the one a control
+  // The ask the reader is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides. The innermost of them, an ask being able to hold
-  // another (a question inside a suggestion's lf-new) — openAsks answers in document order,
+  // another (a question inside a suggestion's lf-new) — the list answers in document order,
   // so the last container in the list is the nearest one.
+  //
+  // The unanswered asks rather than the reader's list, because standing in a question is
+  // about where the reader is working and not about what they owe. The two part on a widget
+  // whose own seat is mid-conversation with the agent: it leaves the list while its pick
+  // stays unmade and its controls stay live, and reading the list took the ring off that
+  // widget and moved `c` from the seat the reader was writing in down to whichever option
+  // their focus rested on — a second thread on the child rather than the next line of their
+  // own. The agent's reply put both back. Nothing the reader did moved either. An answered
+  // ask parts from neither list: its question is settled, so there is nothing left there to
+  // be standing in, and a settled group goes on being named by its own words.
   //
   // document.activeElement rather than focused(), for the reason askPosition gives: a
   // control staged in a shadow tree retargets to its host, and the host is the place in the
@@ -260,7 +271,9 @@ export function createAskView({
     const held = document.activeElement;
     if (!held || held === document.body) return null;
     const place = askPlace(held);
-    return openAsks().findLast((ask) => ask === place || ask.contains(place)) ?? null;
+    return (
+      unansweredAsks().findLast((ask) => ask === place || ask.contains(place)) ?? null
+    );
   }
   // The ring that says so, painted from the focus rather than written where the reader was
   // put. The walk used to write it, and it then said where the walk had left them rather

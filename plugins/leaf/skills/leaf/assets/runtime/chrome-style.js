@@ -448,12 +448,14 @@ ${MARK_RULES}
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
-  /* The open ask the reader is standing in (markHere), worn by the ask rather than by
-     whichever of its controls holds the focus — they are standing in the whole thing,
-     however they got there. Exactly one ask wears it at a time: every shipped widget
+  /* The unanswered ask the reader is standing in (markHere), worn by the ask rather than
+     by whichever of its controls holds the focus — they are standing in the whole thing,
+     however they got there. Unanswered and not open: a widget whose own seat is
+     mid-conversation with the agent has left the reader's list while the reader is still
+     standing in it. Exactly one ask wears it at a time: every shipped widget
      draws one box for it to paint on, and one a page styles boxless hangs it on the
      boxes its contents make (shownParts). While the asks tray is open, its row mirrors
-     the same fact on the second surface. It is an outline like every other mark the
+     the same fact — for an ask the tray lists, which is one the reader still owes. It is an outline like every other mark the
      runtime paints on the page's own elements: it moves nothing on arriving, and it
      keeps its place for nothing, being the element's own paint rather than a box in
      the chrome that would have to chase it down every scroll, reflow and drag. */
@@ -659,8 +661,9 @@ ${MARK_RULES}
     /* Both rings this row can wear, inset together. A control packed into a list states
        its own inset (theme.css, --here-ring), because the list clips to its padding box.
        The second ring arrives from a rule written for a page element with room around
-       it: while the tray is open the row mirrors the standing ask (markHere), so it
-       wears the ask's own outset ring and lost a pixel of it to each edge. */
+       it: while the tray is open the row mirrors the standing ask (markHere) wherever
+       the tray lists that ask, so it wears the ask's own outset ring and lost a pixel of
+       it to each edge. */
     .lf-asks-row:is(:focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
       outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
     /* What kind of thing is asking, in the apparatus voice, over the ask's own words in

@@ -112,13 +112,19 @@ export function createAskModel({
   }
 
   // The same reducer asked the other question: whether a request is answered, rather than
-  // whether it is the reader's to deal with. A conversation standing in a widget's seat is
-  // the entire difference between them, so taking the seats out is the entire difference
-  // here — and it is stated beside the shape rather than by a caller reaching into it, so
-  // a member derived from those conversations later cannot escape the emptying by being
-  // added somewhere this doesn't name. An action's `requires` is the one caller: a
-  // conversation does not answer a question the widget holds no state for, and refusing a
-  // pick over the reader's own remark would refuse them the answer they were asked for.
+  // whether it is the reader's to deal with. `seatsWithAgent` is the entire difference
+  // between the two contexts, so emptying it is the entire difference here. Every reading
+  // built on either context rests on that being true of the whole shape: a second member
+  // derived from those same conversations would pass through this spread untouched and
+  // reach both callers unemptied, so derive one only by widening this function to empty it
+  // too. Stated here rather than by a caller writing the spread inline, so the two answers
+  // cannot drift apart.
+  //
+  // Two callers ask it. An action's `requires`: a conversation does not answer a question
+  // the widget holds no state for, and refusing a pick over the reader's own remark would
+  // refuse them the answer they were asked for. And `unansweredAsks`, for where the reader
+  // is standing: the ring and `c`'s destination say what they are working, not what they
+  // owe.
   function answeredContext(projection) {
     return { ...askContext(projection), seatsWithAgent: new Set() };
   }
@@ -191,11 +197,13 @@ export function createAskModel({
   // is asked them a second time for what they had just written, in a box the page itself
   // put under the question. That was the panel and the banner telling one fact two ways.
   //
-  // So this is the reader's-list reading, and it is what the banner, the asks tray, the
-  // `n`/`p` walk and the standing ring want. An action's `requires` wants the other one —
-  // whether the request is answered at all — and says so by asking with no seats in its
-  // context. A pick refused because the reader had remarked on the question would be
-  // refusing them the very answer they were asked for.
+  // So this is the reader's-list reading, and it is what the banner, the asks tray and the
+  // `n`/`p` walk want. Two readings want the other one — whether the request is answered at
+  // all — and both say so by asking with no seats in their context. An action's `requires`
+  // is one: a pick refused because the reader had remarked on the question would be
+  // refusing them the very answer they were asked for. Where the reader is standing is the
+  // other (`unansweredAsks`), because standing in a question is what the reader is working
+  // and not what they owe.
   //
   // Finishing with the conversation hands the question back, by reply or by resolve, and
   // the version that marks the pick `chosen` ends it. That is the whole re-arm, and it
@@ -240,20 +248,43 @@ export function createAskModel({
     return asksTheReader(el, context);
   }
 
-  // In document order, because that is the order the page asks them in and the order
-  // the reader walks — the chrome container sits after the page's blocks, so a thread's
-  // question queues behind the page's own. Quoted material asks nothing (an exhibited
-  // decision is a mention). A widget in a thread asks like one on the page: a question
-  // is a request to the reader wherever it stands, and the panel's count is a different
-  // fact — threads open, not answers owed.
+  // The reader's list: the requests still theirs to deal with, which is what the banner,
+  // the asks tray and the `n`/`p` walk follow. The panel's count is a different fact —
+  // threads open, not answers owed.
   function openAsks() {
+    return asksIn(askContext);
+  }
+  // The same list read for the other question, the one `answeredContext` states: which
+  // requests nothing has answered, rather than which are the reader's to deal with. A
+  // widget whose seat holds a conversation with the agent is on this list and off the
+  // other, its controls live and its answer unmade. `standingIn` is its reader: where the
+  // reader is standing is not what the reader owes.
+  function unansweredAsks() {
+    return asksIn(answeredContext);
+  }
+  // What either question comes to on the page, the context saying which — the shape the
+  // rest of this file already takes, `askExists`, `asksTheReader` and `isAwaiting` all
+  // taking one, and `openAsks` the one member that built its own.
+  //
+  // In document order, because that is the order the page asks them in and the order the
+  // reader walks — the chrome container sits after the page's blocks, so a thread's
+  // question queues behind the page's own. Quoted material asks nothing (an exhibited
+  // decision is a mention). A widget in a thread asks like one on the page: a question is a
+  // request to the reader wherever it stands.
+  //
+  // The context arrives as the reader of one rather than one already built: both are
+  // uncached full passes over the log, and the two guards below exist to skip exactly that
+  // work. An argument is evaluated before the call, so a built context paid for both folds
+  // on every early return — once per painted frame through the whole pre-presentation
+  // window, where the answer is `[]` either way.
+  function asksIn(readContext) {
     // Before the first replay, the DOM carries authored initial state while the log may
     // already answer it. This list drives both pixels and actions, so an empty list is the
     // only honest answer until the presentation boundary says replay is complete.
     if (!pagePresented()) return [];
     const tags = askTags();
     if (!tags.length) return [];
-    const context = askContext();
+    const context = readContext();
     const open = [...document.querySelectorAll(tags.join(","))].filter((el) =>
       isAwaiting(el, context),
     );
@@ -293,5 +324,6 @@ export function createAskModel({
     isAwaiting,
     openAsks,
     projectedParent,
+    unansweredAsks,
   };
 }

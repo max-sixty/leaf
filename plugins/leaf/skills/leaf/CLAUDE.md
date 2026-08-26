@@ -24,7 +24,7 @@ helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
 `runtime/asks/model.js` owns request discovery and folding;
-`runtime/asks/view.js` owns ask chrome, marking, and navigation;
+`runtime/asks/view.js` owns ask chrome, marking, and the ask walk;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
@@ -1544,10 +1544,26 @@ already, and the log's news about the content — `restated`, `pending`,
 the address chips.
 
 A press that acts on where the reader is standing reads it through
-`standingItem`: the open ask where focus is on a control that works it — a pick,
-a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's own
-reading. It answers nothing in the chrome, where a reader is working on the page
-rather than standing in it.
+`standingItem`: the unanswered ask where focus is on a control that works it — a
+pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
+own reading. It answers nothing in the chrome, where a reader is working on the
+page rather than standing in it.
+
+Unanswered rather than open: `standingIn` reads `unansweredAsks`, not `openAsks`.
+The two part on a widget whose own seat is mid-conversation with the agent, which
+leaves the reader's list while its pick stays unmade and its controls stay live.
+Following the list took the ring off that widget the moment the remark was sent and
+moved `c` down to whichever option the focus rested on — a second thread on the
+child rather than the next line of the reader's own — and the agent's reply put both
+back, with nothing the reader did moving either. An answered ask parts from neither
+list, so a picked group gains no ring, and a press from one of its picks names the
+option under the focus rather than the question.
+
+The ring is therefore paintable on an ask the `n`/`p` walk will not step to and the
+tray does not list, which is the accepted cost: the walk and the tray are the reader's
+list and this is not. Nothing strands the reader there — `markHere` looks its tray row
+up by id and finds none, the same as on every page with the tray shut, and the Escape
+rung reads focus rather than the list, so the way out is the one they always have.
 
 Working an ask and standing in one are different facts, and `markHere`'s ring
 answers the second. A reader who addressed a link inside a question has named
@@ -1703,12 +1719,18 @@ with the agent either way. Finishing with the conversation hands it back, by rep
 or by resolve, and the version that marks the pick `chosen` ends it.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
-banner, the tray, the `n`/`p` walk and the standing ring all follow it. An action's
-`requires` asks the other question — whether the request is answered — and says so
-by building its `askContext` with no seats in it: a conversation does not answer a
-question the widget holds no state for, and refusing a pick over the reader's own
-remark would refuse them the answer they were asked for. Frozen thread markup seats
-no conversation of its own, so only an action answers there. A `rollup` instance evaluates its own `when`,
+banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
+list, and a request the agent owes the next word on does not belong on one.
+
+Two readings ask the other question — whether the request is *answered* — and both
+say so by emptying the seats (`answeredContext`, stated beside the shape rather than
+by a caller reaching into it, so a member derived from those conversations later
+cannot escape the emptying). An action's `requires` is one: a conversation does not
+answer a question the widget holds no state for, and refusing a pick over the reader's
+own remark would refuse them the answer they were asked for. Where the reader is
+standing is the other, through `unansweredAsks`; **Standing somewhere** owns it.
+Frozen thread markup seats no conversation of its own, so only an action answers
+there. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the

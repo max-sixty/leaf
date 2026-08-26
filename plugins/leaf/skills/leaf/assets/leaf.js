@@ -2930,7 +2930,7 @@ const focusedThread = () => {
 // at nothing. The ⌥ aim reaches an item through the pointer and the keyboard reached none
 // at all: an address put the reader on an option and `c` still offered them the page.
 //
-// The open ask where the reader is standing on a control that works it, and the innermost
+// The unanswered ask where the reader is standing on a control that works it, and the innermost
 // item everywhere else. `g a 1` names the question rather than the first of its options,
 // and the control the walk stands them on is one part of it (standOn) — so a press made
 // from a pick, a ✓ or a mark means the question those answer. Standing *in* an ask is not
@@ -3251,27 +3251,34 @@ function allButTheReference(binding) {
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
 
-const { answeredContext, askEntry, askSource, isAwaiting, openAsks, projectedParent } =
-  createAskModel({
-    authoredParentOf: (node) => authoredParents.get(node),
-    awaitsAgent,
-    buildThreads,
-    closestAcross: (...args) => closestAcross(...args),
-    elementById: (...args) => elementById(...args),
-    inChrome: (node) => inChrome(node),
-    matchesProjectedWhen: (...args) => matchesProjectedWhen(...args),
-    matchesWhen,
-    pagePresented,
-    projectedFacet: (...args) => projectedFacet(...args),
-    quoted,
-    registry,
-    runtime,
-    seatRoot,
-    settledAway: (...args) => settledAway(...args),
-    stateCoordinate: (...args) => stateCoordinate(...args),
-    stateProjection: (...args) => stateProjection(...args),
-    tagsDeclaring,
-  });
+const {
+  answeredContext,
+  askEntry,
+  askSource,
+  isAwaiting,
+  openAsks,
+  projectedParent,
+  unansweredAsks,
+} = createAskModel({
+  authoredParentOf: (node) => authoredParents.get(node),
+  awaitsAgent,
+  buildThreads,
+  closestAcross: (...args) => closestAcross(...args),
+  elementById: (...args) => elementById(...args),
+  inChrome: (node) => inChrome(node),
+  matchesProjectedWhen: (...args) => matchesProjectedWhen(...args),
+  matchesWhen,
+  pagePresented,
+  projectedFacet: (...args) => projectedFacet(...args),
+  quoted,
+  registry,
+  runtime,
+  seatRoot,
+  settledAway: (...args) => settledAway(...args),
+  stateCoordinate: (...args) => stateCoordinate(...args),
+  stateProjection: (...args) => stateProjection(...args),
+  tagsDeclaring,
+});
 export { answeredContext, askSource, openAsks };
 
 const {
@@ -3319,6 +3326,7 @@ const {
   showNews,
   shownParts,
   tagsDeclaring,
+  unansweredAsks,
   versionBtn,
 });
 

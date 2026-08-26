@@ -2464,7 +2464,9 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     The reading is taken twice, as the float and the collapse are: once as the gate runs
     it, where the label's lines are held out, and once with that hold defeated, where it
     has to report. Otherwise a pass here would also be what a gate that never looked at
-    the drawing returns."""
+    the drawing returns. The two lines are pulled onto each other before either reading,
+    so the second leg rests on an overlap this test arranged rather than on the leading
+    the axis happens to be drawn with."""
     url = serve(CHART_PAGE)
     page, errors = open_page(browser, url)
     # Vacuous otherwise: the page has to be carrying a tick that takes two lines.
@@ -2474,6 +2476,16 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
              .map((t) => t.textContent)"""
     )
     assert stacked, "no tick names its month on a second line, so nothing is held out"
+    # The overlap the second reading needs belongs to the test rather than to whatever
+    # leading lf-chart settles on: the month is pulled onto the day above it, so the two
+    # boxes have to land on each other whatever step the drawing asked for. `held` does
+    # not move, because the hold asks which label a line belongs to and not how far apart
+    # a label's lines are.
+    page.evaluate(
+        """() => [...document.querySelectorAll('#c-line text')]
+             .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1))
+             .forEach((line) => line.setAttribute('dy', '0'))"""
+    )
     # The hold defeated by its own predicate rather than the pass rewritten, so what runs
     # is this reading with one answer changed.
     unheld = render_checks_model.COVERED_WORDS.replace(

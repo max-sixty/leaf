@@ -339,6 +339,31 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert "decide" in result.output
 
 
+def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
+    page_dir, monkeypatch
+):
+    """A layer may take a token off its bar (merge-patch `null`), and a page whose log
+    already holds a reaction on it is refused a re-vendor the way one holding a
+    retired verb is: the standing mark would have no glyph and no pill to take it
+    back by. A token the layer keeps re-vendors as before."""
+    publish(page_dir)
+    interact.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+    )
+    assert (
+        CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)]).exit_code == 0
+    )
+    layer = page_dir.parent / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(
+        json.dumps({"$reactions": {"tokens": {"cut": None}}})
+    )
+    monkeypatch.chdir(page_dir.parent)
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output and "`cut`" in result.output
+
+
 def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
     page_dir,
 ):

@@ -3989,6 +3989,7 @@ function syncLayout() {
   }
   stateRoom();
   syncFloats();
+  anchorRuntime?.dockSeats();
 }
 // The room a widget declared wide may take: the document's own content box, less the
 // gutter the column already gives its prose, so a breakout is centred on the column's
@@ -4681,10 +4682,6 @@ function placeClear(node, left, top) {
   if (y !== box.top) place(node, left, y);
 }
 let fabAnchor = null;
-// The page whole as a target: what a reaction with no anchor is aimed at — the shape an
-// unanchored comment already has. The bar raised on it offers the tokens and no Comment,
-// the page's own comment box being the panel's general one.
-const PAGE_WHOLE = Object.freeze({ page: true });
 // `avoid` is the box the bar was raised for — a selection's — and the bar stands off
 // it: beside it where the column has the room, and above its first line where it has
 // not, because a bar clamped back from the edge landed on the very words the reader
@@ -4692,12 +4689,14 @@ const PAGE_WHOLE = Object.freeze({ page: true });
 function showFab(anchor, left, top, avoid = null) {
   fabAnchor = anchor;
   fabBar.style.display = anchor ? "inline-flex" : "none";
-  // Comment's own display is stated as well as the bar's: the page whole has no box to
-  // compose in but the panel's general one, so the bar raised on it is the tokens alone.
-  const commenting = anchor && anchor !== PAGE_WHOLE;
-  fab.style.display = commenting ? "block" : "none";
-  fabSep.style.display = commenting ? "block" : "none";
+  // Comment's own display is stated beside the bar's, being what the passage sweeps
+  // read to know a passage raised the button.
+  fab.style.display = anchor ? "block" : "none";
+  fabSep.style.display = reactionTokens().length ? "" : "none";
   if (anchor) {
+    // The tokens already standing on this very anchor read pressed, and a press on one
+    // takes it back (reactHere): the bar is the strip's shape on the page.
+    conversationRuntime.paintStanding(fabBar, conversationRuntime.reactionsOn(anchor));
     placeClear(fabBar, left, top);
     const box = fabBar.getBoundingClientRect();
     if (
@@ -4761,24 +4760,30 @@ function buildReactBar() {
   for (const pill of reactPills(reactHere)) fabBar.insertBefore(pill, fab);
 }
 // What the bar's target is called, for the line, the reference and the announcement:
-// the selection, the item by its own word, or the page.
+// the selection, or the item by its own word.
 const anchorWord = (anchor) =>
-  anchor === PAGE_WHOLE
-    ? "the page"
-    : anchor.quote
-      ? "the selection"
-      : itemWord(elementById(anchor.section)) || "the item";
+  anchor.quote ? "the selection" : itemWord(elementById(anchor.section)) || "the item";
 // A reaction aimed where the bar is: a comment carrying a token in place of words, on
-// the same anchor a comment from here would carry — the passage a selection named, the
-// item the bar was raised on, or nothing for the page whole — so the file meets it the
-// way it meets a comment. Design mode makes it about the layer, as it does a comment.
-// Sent, the bar and the selection stand down: the mark on the passage is the receipt,
-// and a selection left standing would cover it.
+// the same anchor a comment from here would carry — the passage a selection named or
+// the item the bar was raised on — so the file meets it the way it meets a comment.
+// Design mode makes it about the layer, as it does a comment. Sent, the bar and the
+// selection stand down: the mark on the passage is the receipt, and a selection left
+// standing would cover it.
 async function reactHere(name, pill) {
   const anchor = fabAnchor;
   if (!anchor) return;
-  const event = { kind: "comment", version: runtime.currentVersion, token: name };
-  if (anchor !== PAGE_WHOLE) event.anchor = structuredClone(anchor);
+  if (pill.lfReaction) {
+    await withdraw(pill.lfReaction);
+    showFab(null);
+    setReact(false);
+    return;
+  }
+  const event = {
+    kind: "comment",
+    version: runtime.currentVersion,
+    token: name,
+    anchor: structuredClone(anchor),
+  };
   if (designOn) event.about = "layer";
   const sent = await sendReaction(event, pill, anchorWord(anchor));
   if (!sent) return;
@@ -4802,22 +4807,23 @@ async function sendReaction(event, pill, where) {
 
 // The armed react press: `r` puts a digit on every token of one surface, and the digit
 // sends. Digits rather than letters because the vocabulary is configuration — a letter
-// spelled from a token's word breaks the day a layer renames it, where position survives
-// any set. The surface is the bar where one stands or can be raised — on the selection,
-// on the item the reader is standing on, or on the page whole — and the strip under the
-// latest agent message where the reader is standing in a thread. Armed, the mode owns
-// the keys (REACT claims everything, as the address chord does); Escape or a stray key
-// lets it go, and a bar the arming raised goes down with it.
+// spelled from a token's word breaks the day a layer replaces it, where position
+// survives any set. The surface is whichever strip of pills the reader's place names:
+// the strip under the latest agent message where they are standing in a thread; the bar,
+// where one stands or can be raised on the item they are standing on; and the panel's
+// page strip where nothing stands, the page whole being what an anchorless reaction is
+// aimed at. Armed, the mode owns the keys (REACT claims everything, as the address chord
+// does); Escape or a stray key lets it go, and what the arming raised — the bar, or the
+// panel — goes down with it, unless a digit spent it, which is the reader landing in
+// what the arming showed (the chord's `keepShown`).
 let reactArmed = false;
 let reactRaised = false;
+let reactRevealed = null;
 let reactSurface = null;
 const latestAgentStrip = (held) =>
   [...held.querySelectorAll(".lf-react-strip")].at(-1) ?? null;
-function setReact(on) {
-  if (on === reactArmed) {
-    paintHere();
-    return;
-  }
+function setReact(on, { spent = false } = {}) {
+  if (on === reactArmed) return;
   // Armed over a control that has claimed Escape, one press would have two owners, so
   // the mode refuses to arm there — the chord's own rule.
   if (on && claimsEsc(focused())) return;
@@ -4825,20 +4831,21 @@ function setReact(on) {
   if (on) {
     const said = standingConversation();
     const strip = said && latestAgentStrip(said.held);
+    const here = !strip && !fabAnchor && standingItem();
     if (strip) reactSurface = strip;
-    else {
-      if (!fabAnchor) {
-        const here = standingItem();
-        if (here) {
-          const box = shownRect(here, new Map()) ?? shownBox(here);
-          showFab({ section: here.id }, ...beside(box));
-        } else {
-          const column = document.querySelector("main")?.getBoundingClientRect();
-          showFab(PAGE_WHOLE, (column?.right ?? 0) + 8, BANNER_CLEAR + 8);
-        }
+    else if (fabAnchor || here) {
+      if (here) {
+        showFab(
+          { section: here.id },
+          ...beside(shownRect(here, new Map()) ?? shownBox(here)),
+        );
         reactRaised = true;
       }
       reactSurface = fabBar;
+    } else {
+      reactSurface = conversationRuntime.pageStrip;
+      if (!reactSurface) return;
+      reactRevealed = COMMENTS.reveal();
     }
     reactArmed = true;
     reactSurface.classList.add("lf-armed");
@@ -4847,23 +4854,27 @@ function setReact(on) {
     reactArmed = false;
     reactSurface = null;
     if (reactRaised) showFab(null);
+    if (!spent) reactRevealed?.();
     reactRaised = false;
+    reactRevealed = null;
   }
   paintHere();
 }
 const reactTargetWord = () =>
-  reactSurface && reactSurface !== fabBar
-    ? "the reply"
-    : fabAnchor
-      ? anchorWord(fabAnchor)
-      : "the page";
+  reactSurface === fabBar
+    ? anchorWord(fabAnchor)
+    : reactSurface === conversationRuntime.pageStrip
+      ? "the page"
+      : "the reply";
 // The z row's sentence for a reaction: the token and where it stands, so the line is
 // the receipt after the press and the promise before the next.
 function reactionPlace(e) {
   if (e.kind === "reply") return "the reply";
   if (!e.anchor) return "the page";
   const label = anchorLabel(e.anchor, e.about);
-  return label.length > 44 ? `${cut(label, 0, 40)}…”` : label;
+  return [...label].length > CONTROL_WORD_CAP
+    ? cut(label, 0, CONTROL_WORD_CAP) + "…"
+    : label;
 }
 const undoSentence = () => {
   const e = undoable();
@@ -6306,7 +6317,7 @@ const commenting = (word) => ({
   line: `comment on the ${word}`,
 });
 const commentDestination = () => {
-  if (fabAnchor && fabAnchor !== PAGE_WHOLE)
+  if (fabAnchor)
     return {
       ...commenting(
         fabAnchor.quote
@@ -6611,7 +6622,7 @@ const REACT = {
         // The surface's own pill, pressed: keyboard and pointer are one behaviour,
         // the busy paint and the announcement included.
         reactSurface?.querySelectorAll(".lf-react")[+binding - 1]?.click();
-        setReact(false);
+        setReact(false, { spent: true });
       },
     },
     {
@@ -7112,13 +7123,14 @@ const PAGE = {
       run: commentKey,
     },
     {
-      // `r` from the bar's own word (its name is "React or comment"), free at page scope
-      // now that a focused thread resolves on `x`. What it arms is the bar the pointer
-      // sees, digits on: the same tokens in the same order, so a reader who has seen
-      // the bar once knows the keys.
+      // `r` from the bar's own word (its name is "React or comment"). What it arms is
+      // the bar the pointer sees, digits on: the same tokens in the same order, so a
+      // reader who has seen the bar once knows the keys. Nine at most, the digits being
+      // the addresses.
       keys: ["r"],
       does: () =>
         `React — ${reactionTokens()
+          .slice(0, 9)
           .map(([name, entry]) => `${entry.glyph} ${name}`)
           .join(", ")} — on the selection, the item you are standing on, or the page`,
       line: "react",
@@ -9521,16 +9533,9 @@ const runtimeProjection = createProjection(runtime, {
   projectedParent,
   quoteFrom,
   reachScrollers,
-  // Whether a reaction still paints: in an unresolved thread, and answered by nothing.
-  // Read off the conversation's fold, which is built after this module and asked lazily.
-  reactionStanding: (e) => {
-    const thread = conversationRuntime
-      .buildThreads()
-      .find((t) => t.msgs.some((m) => m.id === e.id));
-    return (
-      Boolean(thread) && !thread.resolved && !thread.msgs.some((m) => m.parent === e.id)
-    );
-  },
+  // Whether a reaction still paints, off the conversation's last fold — built after this
+  // module, so asked lazily.
+  reactionStanding: (e) => conversationRuntime.reactionStanding(e),
   rememberPassageParts,
   removeOutbox,
   renderQuiet,
@@ -9589,6 +9594,7 @@ conversationRuntime = createConversation({
   agentName,
   ago,
   announce,
+  designIsOn: () => designOn,
   captureAuthoredFacets,
   claimState: () => ({ agentTurnClosed, claimingSession, claimsHeld }),
   designName,
@@ -9622,8 +9628,9 @@ conversationRuntime = createConversation({
   post,
   quietSince,
   reachScrollers,
-  reactDone: () => setReact(false),
+  reactDone: () => setReact(false, { spent: true }),
   reactPills,
+  sendReaction,
   refreshHover,
   registry,
   rememberAuthoredMarkup,

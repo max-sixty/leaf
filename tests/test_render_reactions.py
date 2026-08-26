@@ -1,6 +1,7 @@
 """Reactions: one-press tokens on a passage, an item, a reply, or the page."""
 
 import json
+import re
 
 import pytest
 from conftest import interact
@@ -107,6 +108,23 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
         == 0
     )
 
+    # The bar raised on the same passage again says the token stands, and pressing it
+    # there is the same take-back as the glyph's. The panel closed first: open, it takes
+    # the margin, the seat docks into the paragraph's own line, and a drag to the
+    # paragraph's end would end on the glyph rather than on the words.
+    page.locator(".lf-comments").click()
+    panel_settled(page, open=False)
+    expect(page.locator(".lf-reacts")).not_to_have_class(re.compile("lf-docked"))
+    select_paragraph(page, "#how-store")
+    expect(bar).to_be_visible()
+    expect(bar.locator('.lf-react[data-token="cut"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(bar.locator('.lf-react[data-token="ok"]')).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
+    expect(bar).to_be_hidden()
     page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
     round_trip(page)
     withdrawn = interact.read_events(serve.page_dir)[-1]
@@ -121,9 +139,10 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
 ):
     """`r` arms the same bar the pointer sees, each token wearing its digit in declared
     order, so the press survives any layer's vocabulary; a digit sends and disarms, and
-    Escape or a stray key lets go. The target is the selection when one stands and the
-    page when nothing does. Afterwards the undo row's sentence names its target rather
-    than promising a generic take-back."""
+    Escape or a stray key lets go. The target is the selection when one stands; with
+    nothing standing it is the page whole, whose strip is the panel's, so the press
+    opens the panel and arms that strip. Afterwards the undo row's sentence names its
+    target rather than promising a generic take-back."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -145,31 +164,32 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
     )
     painted(page, [["how-cap", "cut"]])
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    expect(page.locator(".lf-keyline")).to_contain_text("undo")
     # The sentence behind the chip, off the register: the reference's z row names the
     # token and the passage it stands on, where it promised a generic take-back before.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     rows = page.locator(".lf-help").inner_text()
-    assert "Take back: cut on" in rows and "capped at forty" in rows, rows
+    assert "Take back: cut on “The store is capped" in rows, rows
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).to_be_hidden()
 
-    # Nothing selected: r aims at the page whole, offers the tokens and no Comment.
+    # Nothing selected: r aims at the page whole — the panel's page strip, digits on —
+    # and Escape gives the panel the arming opened back.
     page.keyboard.press("Escape")
     page.evaluate("() => getSelection().removeAllRanges()")
     page.keyboard.press("r")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-bar .lf-fab")).to_be_hidden()
-    page.keyboard.press("Escape")
+    panel_settled(page)
+    expect(page.locator(".lf-page-strip.lf-armed")).to_be_visible()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
     page.keyboard.press("r")
+    panel_settled(page)
     page.keyboard.press("5")
     round_trip(page)
     sent = interact.read_events(serve.page_dir)[-1]
     assert sent["token"] == "more" and "anchor" not in sent, sent
-    page.locator(".lf-comments").click()
-    panel_settled(page)
+    expect(page.locator(".lf-panel")).to_be_visible()  # spent, the panel stays
     expect(
         page.locator('.lf-page-strip .lf-react[data-token="more"]')
     ).to_have_attribute("aria-pressed", "true")

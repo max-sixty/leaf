@@ -2,7 +2,7 @@
 
 import json
 
-from .events import build_threads, read_events, spoken
+from .events import build_threads, read_events, spoken_turns
 from .files import published_versions
 from .http import full_state
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
@@ -54,7 +54,7 @@ def unanswered_asks(events: list, cursor: int) -> list:
     # answers those by acting (a version, a resolve), not by a reply under each.
     asks = []
     for t in build_threads(events, {}).values():
-        said = spoken(t)
+        said = spoken_turns(t)
         # The cursor is read against the last word, not the root: a follow-up
         # past it is a delivery the agent has yet to take, which is the
         # unacknowledged clause's to report and not this one's.

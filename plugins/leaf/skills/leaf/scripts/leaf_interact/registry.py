@@ -15,6 +15,7 @@ from leaf_interact.schema import (
     ASSETS,
     ATTRIBUTE_KEYS,
     EXTENSION_SCHEMA,
+    HTML_NAME,
     WIDGET_NAME,
 )
 
@@ -140,9 +141,15 @@ def validate_registry(registry: dict, source) -> dict:
         # fields it lists — which of two it must carry (comment and reply carry
         # `text` or `token`), and what one field rules out. Both are compared
         # kind for kind below, so a layer cannot loosen the installed contract
-        # through them.
+        # through them, and both may name only declared fields, checked here.
+        constrained = {
+            name
+            for branch in record.get("oneOf", [])
+            for name in branch.get("required", [])
+        } | set(record.get("dependentSchemas", {}))
         if (
-            set(record) - RECORD_CONSTRAINTS
+            not constrained <= set(properties)
+            or set(record) - RECORD_CONSTRAINTS
             != {"type", "properties", "required", "additionalProperties"}
             or record.get("type") != "object"
             or not envelope <= set(properties)
@@ -243,11 +250,12 @@ def validate_registry(registry: dict, source) -> dict:
     # `settle` that settles nothing, and neither says so anywhere else.
     if not isinstance(tokens, dict) or not all(
         isinstance(name, str)
-        and re.fullmatch(TOKEN_NAME, name)
+        and re.fullmatch(HTML_NAME, name)
         and isinstance(entry, dict)
         and not set(entry) - {"glyph", "means", "settles"}
         and isinstance(entry.get("glyph"), str)
-        and entry["glyph"]
+        and entry["glyph"].strip()
+        and len(entry["glyph"]) <= 4
         and isinstance(entry.get("means"), str)
         and entry["means"]
         and isinstance(entry.get("settles", False), bool)
@@ -255,8 +263,8 @@ def validate_registry(registry: dict, source) -> dict:
     ):
         raise RegistryError(
             f"{path}: $reactions.tokens must map lowercase token names to entries "
-            "with a non-empty `glyph`, a non-empty `means`, and optionally a "
-            "boolean `settles`"
+            "with a `glyph` of one or two characters, a non-empty `means`, and "
+            "optionally a boolean `settles`"
         )
     invalid_names = [
         tag
@@ -971,8 +979,6 @@ def require_registry(page_dir: Path) -> dict:
 
 # The record keys that constrain declared fields rather than list them.
 RECORD_CONSTRAINTS = frozenset({"oneOf", "dependentSchemas"})
-# A reaction token's name: one word the bar, the log, and `leaf wait` all spell.
-TOKEN_NAME = r"[a-z][a-z0-9-]*"
 
 
 def merge_layer_entries(merged: dict, entries: dict) -> None:
@@ -1008,7 +1014,7 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
                 combined[key] = {
                     k: v for k, v in {**earlier[key], **value}.items() if v is not None
                 }
-        merged[name] = combined
+        merged[name] = {k: v for k, v in combined.items() if v is not None}
 
 
 def reaction_tokens(registry: dict | None) -> dict:
@@ -1025,7 +1031,7 @@ def described(event: dict, registry: dict | None) -> dict:
     if not token:
         return event
     entry = reaction_tokens(registry).get(token)
-    return {**event, "means": entry["means"] if entry else None}
+    return {**event, "means": entry["means"]} if entry else event
 
 
 def retirement_slots(registry: dict) -> dict:

@@ -214,7 +214,7 @@ def is_reaction(event: dict) -> bool:
     return bool(event.get("token"))
 
 
-def spoken(thread: dict) -> list:
+def spoken_turns(thread: dict) -> list:
     """The thread's messages with words in them. A reaction is a mark on a
     message rather than a turn in the conversation, so every reading of who
     spoke last — the panel's "waiting on you", the hook's unanswered asks —
@@ -224,17 +224,7 @@ def spoken(thread: dict) -> list:
 
 def bare_reaction(thread: dict) -> bool:
     """A reaction nobody has replied to: paint on the page, and no thread yet."""
-    return is_reaction(thread["root"]) and not spoken(thread)
-
-
-def answered_ids(events: list) -> set:
-    """Message ids a surviving message names as its parent."""
-    withdrawn = taken_back(events)
-    return {
-        e["parent"]
-        for e in events
-        if e["kind"] in MESSAGE_KINDS and e.get("parent") and e["id"] not in withdrawn
-    }
+    return is_reaction(thread["root"]) and not spoken_turns(thread)
 
 
 def undo_error(event: dict, events: list) -> str | None:
@@ -248,9 +238,11 @@ def undo_error(event: dict, events: list) -> str | None:
     whose every other line is something the reader did.
 
     A reaction is the one message a reader takes back rather than answers,
-    and only while it is still a mark: once someone has replied to it the
-    withdrawal would orphan their words, and the reader's move is in the
-    thread that reply opened."""
+    and only while it still paints: once a turn answers it the withdrawal
+    would orphan those words, and the reader's move is in the thread that
+    turn opened; once its thread is resolved, resolve being its floor, there
+    is nothing left to take back. The browser offers exactly the same
+    (conversation.js `reactionStanding`)."""
     target = next((e for e in events if e["id"] == event["undoes"]), None)
     if target is None:
         return f"unknown undoes {event['undoes']!r}"
@@ -262,11 +254,18 @@ def undo_error(event: dict, events: list) -> str | None:
                 f"{target['kind']} {target['id']} is not a reaction; a message "
                 "with words in it is said rather than unsaid"
             )
-        if target["id"] in answered_ids(events):
+        thread = next(
+            t
+            for t in build_threads(events, {}).values()
+            if any(m["id"] == target["id"] for m in t["msgs"])
+        )
+        if any(m.get("parent") == target["id"] for m in spoken_turns(thread)):
             return (
                 f"reaction {target['id']} has been answered; withdraw it in the "
                 "thread the answer opened"
             )
+        if thread["resolved"]:
+            return f"reaction {target['id']} stands on a resolved thread"
     elif target["kind"] not in UNDOABLE_KINDS:
         return (
             f"{target['kind']} events cannot be taken back (the kinds that can "

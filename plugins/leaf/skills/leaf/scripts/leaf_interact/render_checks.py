@@ -1419,10 +1419,12 @@ BAKE = """() => {
         for (const attr of ['tabindex', 'role', 'data-lf-offer', 'title']) mark.removeAttribute(attr);
         mark.setAttribute('aria-label', mark.dataset.token);
     }
+    // Two reactions on overlapping words leave the second range straddling the first's
+    // mark, which no element can wrap; that range keeps its glyph and loses its wash.
     for (const range of CSS.highlights.get('lf-react') ?? []) {
         const wrap = document.createElement('mark');
         wrap.className = 'lf-react';
-        range.surroundContents(wrap);
+        try { range.surroundContents(wrap); } catch { /* straddles a mark */ }
     }
     for (const control of
             document.querySelectorAll('[data-lf-offer][tabindex]:not([data-lf-said])')) {

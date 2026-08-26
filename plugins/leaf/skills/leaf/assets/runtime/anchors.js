@@ -680,24 +680,30 @@ export function createAnchors(dependencies) {
         // The seat: the block a passage starts in, entered at its start; or, for a
         // whole element, the element itself, stood before — an element may render into
         // a shadow tree or rebuild its own children, and a seat before it is level with
-        // its top either way.
-        let seat;
+        // its top either way. A block inside a shadow tree is the host's, seated the
+        // element's way: the document's rules do not reach in there to dress a seat.
+        let at;
+        let before;
         if (found.element) {
           const parts = shownParts(found.element);
           for (const part of parts) part.classList.add("lf-react-el");
           reacted.set(t.root.id, parts);
-          seat = { at: found.element, before: true };
+          [at, before] = [found.element, true];
         } else {
           const ranges = found.segments.map((seg) => rangeOf([seg]));
           reacted.set(t.root.id, ranges);
           reactions.push(...ranges);
           const block = blockAt(found.segments[0].node) ?? sectionOf(t.root.anchor);
-          seat = block && { at: block, before: false };
+          const root = block?.getRootNode();
+          [at, before] =
+            root instanceof ShadowRoot ? [root.host, true] : [block, false];
         }
-        if (seat && !inChrome(seat.at)) {
-          const held = seats.get(seat.at) ?? { ...seat, roots: [] };
-          held.roots.push(t.root);
-          seats.set(seat.at, held);
+        // One entry per element, holding both placements: a reaction on a whole
+        // paragraph and one on a passage inside it are two seats on one element.
+        if (at && !inChrome(at)) {
+          const held = seats.get(at) ?? { before: [], inside: [] };
+          held[before ? "before" : "inside"].push(t.root);
+          seats.set(at, held);
         }
         continue;
       }
@@ -858,21 +864,54 @@ export function createAnchors(dependencies) {
   // reader pressed; stale seats are swept the way note lines are. The seat wears lf-ui
   // and data-lf-gen: an account of the passage, not words of the page, so selection,
   // quote capture and the diff readings skip it, and a frame's first-child trim does.
-  const seatOf = (at, before) =>
-    before
-      ? at.previousElementSibling?.classList.contains(SEAT)
-        ? at.previousElementSibling
-        : null
+  // A seat says which placement it is (data-lf-seat), so the one standing before an
+  // element and the one starting the same element's flow are told apart even where
+  // the element is its parent's first child and the two nodes would otherwise be the
+  // same node seen from two sides.
+  const seatOf = (at, before) => {
+    const node = before
+      ? at.previousElementSibling
       : at.querySelector(`:scope > .${SEAT}`);
+    return node?.classList.contains(SEAT) &&
+      node.dataset.lfSeat === (before ? "before" : "inside")
+      ? node
+      : null;
+  };
+  // Whether the seat hangs in the column's margin or docks at the block's start. It
+  // hangs off its containing block, and a positioned box the passage stands in — a
+  // card, an option, a framed exhibit — is that block, so the glyph would land beside
+  // the card rather than beside the column, over a neighbour or under a clip. Measured
+  // rather than known, the way a suggestion's row decides whether it fits: hung, then
+  // docked wherever it did not reach the column's own margin. Undocked first, so a
+  // seat docked once is asked again when the room comes back.
+  function dockSeat(seat) {
+    seat.classList.remove("lf-docked");
+    const column = document.querySelector("main")?.getBoundingClientRect();
+    const box = seat.getBoundingClientRect();
+    const hangs =
+      getComputedStyle(seat).position === "absolute" &&
+      column &&
+      box.left >= column.right - 1 &&
+      box.right <= document.documentElement.clientWidth;
+    if (!hangs) seat.classList.add("lf-docked");
+  }
   function seatReactions(seats) {
-    for (const [at, { before, roots }] of seats) {
+    const kept = new Set();
+    const placements = [...seats].flatMap(([at, held]) =>
+      ["before", "inside"]
+        .filter((placement) => held[placement].length)
+        .map((placement) => [at, placement === "before", held[placement]]),
+    );
+    for (const [at, before, roots] of placements) {
       let seat = seatOf(at, before);
       if (!seat) {
         seat = el("span", `lf-ui ${SEAT}`);
         seat.dataset.lfGen = "1";
+        seat.dataset.lfSeat = before ? "before" : "inside";
         if (before) at.before(seat);
         else at.prepend(seat);
       }
+      kept.add(seat);
       // What it stands for, for anyone reading the page: the element's id where it
       // has one, the way a suggestion's row names the change it decides.
       if (at.id) seat.dataset.lfFor = at.id;
@@ -897,12 +936,13 @@ export function createAnchors(dependencies) {
           seat.insertBefore(mark, seat.children[i] ?? null);
       });
     }
-    for (const seat of pageQueryAll(`.${SEAT}`)) {
-      const inside = seats.get(seat.parentElement);
-      const beside = seats.get(seat.nextElementSibling);
-      const kept = (inside && !inside.before) || (beside && beside.before);
-      if (!kept) seat.remove();
-    }
+    for (const seat of pageQueryAll(`.${SEAT}`)) if (!kept.has(seat)) seat.remove();
+    dockSeats();
+  }
+  // Asked again whenever the room changes under the seats — the panel opening or
+  // closing, the window resizing (syncLayout) — as well as at every paint.
+  function dockSeats() {
+    for (const seat of pageQueryAll(`.${SEAT}`)) dockSeat(seat);
   }
 
   // Re-resolve marks after a package replaces derived passage nodes during replay.
@@ -1213,6 +1253,7 @@ export function createAnchors(dependencies) {
     shownRect,
     startsAt,
     refreshAim,
+    dockSeats,
     paintAnchors,
     pointer,
     fragmentId,

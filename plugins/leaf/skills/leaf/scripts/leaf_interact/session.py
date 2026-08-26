@@ -8,7 +8,7 @@ from typing import NamedTuple
 from .events import jsonl_line
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
-from .registry import described, load_registry
+from .registry import RegistryError, described, load_registry
 from .service import (
     PageTransaction,
     claim_page,
@@ -267,11 +267,12 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                     # page vendored before the layer last moved fails, and a
                     # wait that cannot deliver a comment over that would be a
                     # wait that delivers nothing.
-                    registry = (
-                        load_registry(reading.page_dir)
-                        if any(e.get("token") for e in reading.batch)
-                        else None
-                    )
+                    registry = None
+                    if any(e.get("token") for e in reading.batch):
+                        try:
+                            registry = load_registry(reading.page_dir)
+                        except RegistryError:
+                            registry = None  # the token still reaches the agent
                     for event in reading.batch:
                         print(jsonl_line(described(event, registry)), flush=True)
                     if reading.status["state"] != "working":

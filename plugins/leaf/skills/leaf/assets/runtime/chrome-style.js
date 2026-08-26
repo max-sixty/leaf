@@ -362,24 +362,21 @@ ${MARK_RULES}
   /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
      registry being script state no file can hold (BAKE). */
   html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
-  /* The glyphs of the reactions standing on a block, in the column's right margin level
-     with the block's first line: the seat is the block's first child and positioned with
-     no top, so its static position is that line, and left: 100% is the margin wherever
-     the column is the containing block — the same margin a suggestion hangs its
-     controls in, 22px off the column as they are. A pill per reaction; the pill is the
-     reaction's own eraser (anchors.js seatReactions). Under the width the rail needs, it
-     docks as a float at the block's start instead, taking a glyph's width off the first
-     line rather than standing in a margin the page hasn't got. */
-  .lf-reacts { position: absolute; left: 100%; margin-left: 22px; display: inline-flex;
-    gap: 4px; white-space: nowrap; padding-right: var(--here-ring-room); z-index: 1; }
+  /* The glyphs of the reactions standing on a block — a pill per reaction, the pill
+     being the reaction's own eraser (anchors.js seatReactions). Docked by default: a
+     float at the block's start, taking a glyph's width off its first line, which is
+     the whole answer on paper and on a narrow window. Given the room — the theme's
+     900px breakpoint, and the panel not having taken it (data-lf-cramped, the posture a
+     sidenote docks under too) — it hangs in the column's right margin instead, level
+     with the block's first line: the seat is positioned with no top, so its static
+     position is that line, and left: 100% is the margin wherever the column is the
+     containing block, 22px off it as a suggestion's controls hang. */
+  .lf-reacts { float: right; margin: 0 0 4px 8px; display: inline-flex; gap: 4px;
+    white-space: nowrap; }
   .lf-react-mark { min-width: 26px; text-align: center; }
-  /* Docked: a float at the block's start, taking a glyph's width off its first line,
-     wherever the margin is not there to hang in — a narrow window, the panel having
-     taken the room (data-lf-cramped, the same posture a sidenote docks under), and paper,
-     which has no margin at all. */
-  body[data-lf-cramped] .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
-  @media screen and (max-width: 899px), print {
-    .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
+  @media screen and (min-width: 900px) {
+    body:not([data-lf-cramped]) .lf-reacts:not(.lf-docked) { float: none; position: absolute;
+      left: 100%; margin: 0 0 0 22px; padding-right: var(--here-ring-room); z-index: 1; }
   }
   /* The draft's own passage — a standing annotation like the posted mark, which is why
      it may share the hairline where the ⌥ aim's promise may not (the .lf-aim rule in
@@ -916,7 +913,6 @@ ${MARK_RULES}
        its receipt, not news moving chrome under them. */
     .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
       justify-content: center; }
-    .lf-react > .lf-address { display: none; position: static; }
     .lf-armed .lf-react > .lf-address { display: inline-block; }
     .lf-react > .lf-react-word { display: none; }
     .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }

@@ -190,8 +190,9 @@ def _write_page_state(page_dir: Path, events: list) -> None:
             {
                 "id": t["root"]["id"],
                 "anchor": t["root"].get("anchor"),
+                # None for a thread that grew out of a reaction; `reactions` below
+                # carries its token, keyed to this thread.
                 "text": t["root"].get("text"),
-                "token": t["root"].get("token"),
                 # Who closed it, or null for a thread still open — the reading a
                 # session picking the page up acts on, since a thread an agent
                 # closed is one the reader may never have answered.
@@ -211,6 +212,7 @@ def _write_page_state(page_dir: Path, events: list) -> None:
                     "id": m["id"],
                     "token": m["token"],
                     "anchor": m.get("anchor"),
+                    "about": m.get("about"),
                     "parent": m.get("parent"),
                     "thread": root,
                     "version": m.get("version"),

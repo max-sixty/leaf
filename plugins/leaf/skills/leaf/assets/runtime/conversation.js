@@ -9,9 +9,9 @@ export function createConversation(dependencies) {
     addressed,
     agentName,
     ago,
-    announce,
     captureAuthoredFacets,
     claimState,
+    designIsOn,
     designName,
     droppedAt,
     el,
@@ -59,6 +59,7 @@ export function createConversation(dependencies) {
     scrollToThread,
     sectionOf,
     sendDraft,
+    sendReaction,
     setPanel,
     settling,
     takenBack,
@@ -85,6 +86,31 @@ export function createConversation(dependencies) {
   const bareReaction = (t) => isReaction(t.root) && !spoken(t).length;
   const conversational = (t) => !bareReaction(t);
   const tokenEntry = (name) => registry.$reactions.tokens[name];
+  // Whether a reaction still paints, and so can still be taken back: in an unresolved
+  // thread, and answered by no turn — the same three the door refuses (`undo_error`).
+  // Read off the last reconcile's fold rather than a fresh one, this being asked on
+  // every key-line paint.
+  let lastThreads = [];
+  // The bare reactions standing on exactly this anchor — the bar's own question, asked
+  // so its pills can say which tokens are already there. Anchors are compared as
+  // records, the way the file compares them.
+  const sameAnchor = (a, b) =>
+    JSON.stringify(a, Object.keys(a ?? {}).sort()) ===
+    JSON.stringify(b, Object.keys(b ?? {}).sort());
+  const reactionsOn = (anchor) =>
+    lastThreads
+      .filter(
+        (t) => bareReaction(t) && !t.resolved && sameAnchor(t.root.anchor, anchor),
+      )
+      .map((t) => t.root);
+  const reactionStanding = (e) => {
+    const thread = lastThreads.find((t) => t.msgs.some((m) => m.id === e.id));
+    return (
+      Boolean(thread) &&
+      !thread.resolved &&
+      !thread.msgs.some((m) => m.parent === e.id && !isReaction(m))
+    );
+  };
 
   // ---------- threads ----------
   function buildThreads() {
@@ -964,30 +990,21 @@ export function createConversation(dependencies) {
     }
   }
   async function pressStrip(m, name, pill) {
-    if (pill.lfReaction) {
-      await withdraw(pill.lfReaction);
-      reactDone();
-      return;
-    }
-    pill.setAttribute("aria-busy", "true");
-    try {
-      const sent = await post({
-        kind: "reply",
-        parent: m.id,
-        version: runtime.currentVersion,
-        token: name,
-      });
-      if (sent) announce(`${name} on ${m.agent || "the agent"}'s reply`);
-    } finally {
-      pill.removeAttribute("aria-busy");
-      reactDone();
-    }
+    if (pill.lfReaction) await withdraw(pill.lfReaction);
+    else
+      await sendReaction(
+        { kind: "reply", parent: m.id, version: runtime.currentVersion, token: name },
+        pill,
+        `${m.agent || "the agent"}'s reply`,
+      );
+    reactDone();
   }
   // The page whole, from the panel: the same strip, above the general box, aimed at
   // nothing in particular — the shape an unanchored comment already has. What stands
   // here is every bare reaction with no anchor; a press puts one there or takes it back.
   let pageStrip = null;
   function paintPageStrip(threads) {
+    if (!Object.keys(registry.$reactions.tokens).length) return;
     if (!pageStrip) {
       pageStrip = el("div", "lf-react-strip lf-page-strip");
       pageStrip.setAttribute("role", "group");
@@ -1002,22 +1019,18 @@ export function createConversation(dependencies) {
         .map((t) => t.root),
     );
   }
+  // About the layer in design mode, as the general box's own comment is: the subject is
+  // decided at the send, by the mode standing then.
   async function pressPage(name, pill) {
     if (pill.lfReaction) {
       await withdraw(pill.lfReaction);
+      reactDone();
       return;
     }
-    pill.setAttribute("aria-busy", "true");
-    try {
-      const sent = await post({
-        kind: "comment",
-        version: runtime.currentVersion,
-        token: name,
-      });
-      if (sent) announce(`${name} on the page`);
-    } finally {
-      pill.removeAttribute("aria-busy");
-    }
+    const event = { kind: "comment", version: runtime.currentVersion, token: name };
+    if (designIsOn()) event.about = "layer";
+    await sendReaction(event, pill, "the page");
+    reactDone();
   }
 
   // A thread the log has resolved and the open list is still holding. Its place is not
@@ -1470,6 +1483,7 @@ export function createConversation(dependencies) {
       return;
     }
     const threads = buildThreads();
+    lastThreads = threads;
     renderHolds(threads);
     threadList = threads.filter(conversational);
     // The marks first, because the list is ordered by where they landed: one resolution of
@@ -1532,9 +1546,9 @@ export function createConversation(dependencies) {
   return {
     buildThreads,
     bareReaction,
-    conversational,
-    isReaction,
-    spoken,
+    paintStanding,
+    reactionsOn,
+    reactionStanding,
     loadMarked,
     anchorLabel,
     openThreads,
@@ -1551,6 +1565,9 @@ export function createConversation(dependencies) {
     },
     get needsYou() {
       return needsYou;
+    },
+    get pageStrip() {
+      return pageStrip;
     },
   };
 }

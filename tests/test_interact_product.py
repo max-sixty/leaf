@@ -944,7 +944,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     interact.cmd_reply(page_dir, answered["id"], "Which part?", None)
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
-    assert state["threads"][0]["token"] == "no" and state["threads"][0]["text"] is None
+    assert state["threads"][0]["text"] is None
     assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
         ("cut", "does not earn its length — shorten or drop", bare["id"]),
         ("no", "this is wrong; the passage is the referent", answered["id"]),

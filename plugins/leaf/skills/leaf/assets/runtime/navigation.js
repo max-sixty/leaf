@@ -4,6 +4,7 @@ export function createNavigation({
   SCROLL,
   beside,
   inChrome,
+  inPanel,
   openOnItem,
   openThreads,
   pageScroller,
@@ -96,10 +97,10 @@ export function createNavigation({
   // The browser's own keys are left to the browser (Space, Home/End, PageUp/Down all reach
   // it untouched, and a test pins that); these are the runtime's.
   //
-  // They move the region the reader's own scrolling moves, which under a covering sheet is
-  // its thread list rather than the page behind it — the rule syncLayout already states for
-  // the wheel, and a key is no different. Scrolling a page nobody can see reads to the user
-  // as the key doing nothing, and then the document is somewhere else when the sheet closes.
+  // They move the region the reader is reading, which is the thread list wherever the
+  // reader stands in the panel or the panel covers the page — seenScroller owns both
+  // halves of that. Scrolling a region the reader is not in reads to them as the key doing
+  // nothing, and then the document is somewhere else when they look back at it.
   //
   // The step moves at the pace of the browser's own paging keys. Native paging is a quick
   // glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same
@@ -130,10 +131,21 @@ export function createNavigation({
   // in that gap otherwise measures from a goal the box has already left.
   const holding = (box) =>
     glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
-  // The box these motions move is the one the reader can see: the document's, or the
-  // thread list where the panel covers the page — a key is no different from a wheel
-  // there, and a page scrolling behind the sheet shows the reader nothing.
-  const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
+  // The box these motions move is the one the reader is reading, and two things make it
+  // the thread list. Standing in it is the first: a press that steps half a page steps
+  // the region the reader is working in, and beside the page the panel is a column of
+  // its own that a reader can be halfway down while the document is perfectly visible
+  // behind them. Layout alone answered this, so on a wide window — the ordinary one —
+  // the keys stepped the page behind a reader reading the comments, which is the same
+  // nothing the covering rule was written to prevent: the region they are reading does
+  // not move, and the document is somewhere else when they look away from the list.
+  //
+  // Covering is the second and is not the first restated. Under the sheet the reader
+  // may be standing outside the panel altogether — the Comments button that raised it
+  // is the banner's — and the page behind the sheet is a page nobody can see, so a key
+  // is no different from a wheel there. Focus says which region is the reader's;
+  // covering says which one the window will show them. A press wants both answers.
+  const seenScroller = () => (inPanel() || panelCovers() ? threadsBox : pageScroller);
   // Which box scrolls a given element, for anything that has to name its scroller rather
   // than search for one. The document's for everything the document holds — and the
   // panel's own list for a widget an agent put in a reply, which is scrolled by that and

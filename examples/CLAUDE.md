@@ -72,6 +72,10 @@ nothing.
 
 ## An example is one version, and the log it ships beside it
 
+`examples/layer.json` names the package paths shared by the corpus. Preview,
+lint, and site tooling all read that list, so the pages exercise the same vendored
+layer the website serves.
+
 An example's markup is v1, and nothing ever revises it. That puts `restated` and
 `overruled` out of reach: each answers something only a later version does —
 `restated` retracts a decision, `overruled` keeps a version's own state over a

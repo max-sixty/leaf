@@ -106,7 +106,16 @@
   --field: #f4f1e8;  /* tinted fields: details, callouts, notes */
   --code-bg: #eeeade; --pre-bg: #f5f2e9;
   --chip: #eeeade;   /* neutral chip */
-  --ink-2: #3c3934;  --muted-2: #9d968a; --border-2: #d5cfc2;
+  /* --muted-2 is the ink secondary text is set in — a message's timestamp, a work
+     line's clock, a code block's line numbers — at 11.5px, where WCAG AA asks 4.5:1. It
+     was 2.91 light and 3.61 dark: text a reader with ordinary eyes squints at and some
+     cannot read at all.
+     Cleared against every surface it lands on rather than against --card alone. Chosen
+     for --card first, it still failed on paper, field, chip and the two code grounds —
+     and the line numbers, which are the token's only *visible* use across the corpus, sit
+     on --pre-bg out on the page. A token used in six places is only as good as its worst
+     pairing, which is the rule UNREAD_SYNTAX already states for code ink. */
+  --ink-2: #3c3934;  --muted-2: #6d6960; --border-2: #d5cfc2;
   /* The banner's translucent backdrop is the paper it floats over, so it is derived
      rather than restated: a project that overrides --paper gets a backdrop that
      follows it, where a second hex kept the default ivory behind a recoloured page,
@@ -161,13 +170,21 @@
   /* The "you are here" ring: where the reader is standing, wherever they are
      standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
      focused as one thing draws its own in the same band (a joined choose group,
-     bundled/theme.css), and so do the runtime's own controls, which is where a
+     packages/default/theme.css), and so do the runtime's own controls, which is where a
      reader backing out of the panel lands. One band for one fact — stated apart,
      the same ring was free to become three, and a reader would have had to learn
      that a blue rectangle on the banner and a blue rectangle down the page meant
      the same thing. The gap is what the ring wants outside a box that stands on
-     its own; a control packed into a list states its own inset instead. */
-  --here-ring: 2px solid var(--accent); --here-ring-gap: 3px;
+     its own; a control packed into a list states its own inset instead.
+
+     The width is a token of its own because the ring is drawn outside the box it
+     names, so a scroll region has to reserve room for it: a shorthand cannot be
+     read back in a calc, and the number was therefore being retyped wherever the
+     room was worked out. --here-ring is composed from it, so there is still one
+     place the band's thickness is decided. */
+  --here-ring-w: 2px;
+  --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
+  --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
@@ -199,7 +216,7 @@
     --card: #201e1a; --field: #232019;
     --code-bg: #29251e; --pre-bg: #1e1c18;
     --chip: #2d2922;
-    --ink-2: #c9c3b6; --muted-2: #756e62; --border-2: #453f36;
+    --ink-2: #c9c3b6; --muted-2: #988f7f; --border-2: #453f36;
     --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;
@@ -581,7 +598,7 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
    * (`--lf-frame`), and the room is the second thing the layer reads out of that one
    * declaration: whoever draws a box gets both by saying one thing, in the layer that
    * draws it, and a project's card is covered the day it says it. Two lists of tags said
-   * it before, one here and one in bundled/theme.css, and a list beside a declaration is
+   * it before, one here and one in packages/default/theme.css, and a list beside a declaration is
    * a copy of it — every tag in them declared the frame, five boxes that declared were in
    * neither, and `figure`, which draws no box at all, was withholding the room.
    *
@@ -628,7 +645,7 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
  * 7.83px a character and the 690px inside this padding fits 88 of them, clear of the 80
  * most source is written to; --t-5 fits 81, and the 84% of an inline <code> exactly 80.
  *
- * The number is a contract across layers, like .tag's below. bundled/theme.css restates
+ * The number is a contract across layers, like .tag's below. packages/default/theme.css restates
  * it twice — the upgraded widgets' pre-upgrade presentation, and a rendered lf-tree —
  * while lf-code's rendered form builds a plain <pre> that takes this rule. So this
  * number moving alone is lf-code changing size the moment its module runs, and a
@@ -718,8 +735,9 @@ dd { margin: 0 0 8px 0; }
  * the serif is left to carry what there is to read. Listing them in one rule is the
  * point: what counts as apparatus is a judgement, and a judgement made in twenty
  * places is twenty chances to answer it differently. This rule is the layer's own
- * words — the idioms and the fail-soft box; a widget layer (bundled/theme.css, or
- * any overlay's) states the same rule for the words its widgets wear.
+ * words — the idioms and the fail-soft box; a package theme
+ * (packages/default/theme.css, or any selected package's) states the same rule for the
+ * words its widgets wear.
  *
  * This is a look, not a permission — the anchoring norm's distinction exactly. A
  * chip a widget says (data-lf-said) is still the page's words and still something
@@ -753,8 +771,8 @@ dd { margin: 0 0 8px 0; }
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The pill a small label rides in. These numbers are a contract across layers: the
- * bundled widgets' chips (lf-chip, a milestone's attribute row) restate them in
- * bundled/theme.css so a band of chips and an inline .tag stand the same height —
+ * default-package widgets' chips (lf-chip, a milestone's attribute row) restate them in
+ * packages/default/theme.css so a band of chips and an inline .tag stand the same height —
  * they drifted four pixels apart once, when the inline label padded itself and
  * nobody had decided that. A wearer keeps only where it sits, and a tint of its
  * own where the tint is the point. */
@@ -1038,7 +1056,7 @@ lf-new { background: var(--add-tint); }
 ::highlight(lf-sug-ins) { background-color: color-mix(in srgb, var(--ok) 26%, transparent); }
 /* Which form a slot takes is asked of the platform's own closed set, inverted: any
  * child that is not phrasing content makes the slot a block. Enumerating the block
- * side named every bundled widget in the integrated layer — the closed list the norms
+ * side named every shipped widget in the integrated layer — the closed list the norms
  * forbid, silently inline for the first project-layer widget staged in a slot, whose
  * fold then dropped it in the frame of the press. Phrasing is the list that cannot
  * grow: a custom element is never in it, so a block widget from any layer is covered
@@ -1046,7 +1064,7 @@ lf-new { background: var(--add-tint); }
  * one wrong answer: an inline widget is a custom element too. Which widgets those are is
  * the registry's to say (x-inline) and a stylesheet cannot read it, so the runtime paints
  * the declaration where a selector can reach it (data-lf-inline, leaf.js markDeclared).
- * Four widget names stood here instead, one of them a bundled chip's — a bundled tag in
+ * Four widget names stood here instead, one of them a standard chip's — a shipped tag in
  * the integrated theme, and the layer that most needed the answer, a project's own, was
  * the one layer it could never be given for. What the tag list bought that the marker
  * does not is the page that never runs the runtime: unpainted, an inline widget in a
@@ -1169,9 +1187,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * would. Docked, it is the same box in flow at that same point: a control line
  * under the block the change sits in, wherever it can't hang clear of the column.
  * Waiting, the change is inside something collapsed and there is no line yet. */
+/* The trailing room is the ring's, reserved in the row's own box rather than subtracted
+ * from the edge by whatever measures it. A row that ended exactly at the page's right
+ * edge fitted and its ring did not — the page clips there, so ✗ Reject reached with the
+ * keyboard wore a band with no right side. Carrying it here means the module's one
+ * question ("does this row fit beside the column?") is still asked of a single measured
+ * box, and nothing has to read a length out of CSS to ask it. Padding rather than
+ * margin, because a margin is not in the box that gets measured. */
 .lf-sug-actions { position: absolute; left: 100%; margin-left: 22px; top: anchor(top);
-    display: inline-flex; gap: 4px; white-space: nowrap; }
+    display: inline-flex; gap: 4px; white-space: nowrap;
+    padding-right: var(--here-ring-room); }
 .lf-sug-actions.lf-waiting { display: none; }
+/* Docked rows flow, so two changes docked in one block sit on one line. What keeps the
+ * ring on the last pill of the left pair off the first pill of the right one is the
+ * trailing room every row carries (padding-right, above) — the same room that keeps a
+ * row in the margin from ending flush against the page's clip, spent here between two
+ * rows instead of between a row and an edge. */
 .lf-sug-actions.lf-docked { position: static; margin: 2px 0 12px; }
 /* The controls are .lf-pill — the margin's press, stated once in the runtime's
  * document-level vocabulary, where the 💬 that shares this margin wears it too, and

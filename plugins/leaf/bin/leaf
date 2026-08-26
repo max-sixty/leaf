@@ -6,8 +6,10 @@
 # `version export` copies it. Both need Playwright, and declaring it in the script's
 # PEP 723 header would put its wheel behind every `server run`, `leaf wait`, and
 # `version publish`, so it is supplied here on exactly the invocations that launch
-# Chrome. It sits outside the script's lock as a result, so these two runs pin
-# everything else and take whatever Playwright resolves.
+# Chrome, under the floor the suite holds it to in `pyproject.toml`. Those two
+# dispatches let uv narrate the 40 MiB download; the rest pass `-q`, because an
+# agent reads their stderr back and an ordinary resolve has nothing to say on it.
+# A failed resolve is reported either way.
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 script=$root/skills/leaf/scripts/interact.py
 
@@ -27,26 +29,15 @@ if [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && [ -n "${CODEX_THREAD_ID:-}" ]; then
   export LEAF_AGENT=${LEAF_AGENT:-Codex}
 fi
 
-# The script lock records absolute pypi.org URLs, so configured mirrors cannot
-# serve it. Probe the locked install first; on failure, `--upgrade` resolves the
-# header through the host's index and rewrites the lock. Any sync failure takes
-# this fallback and may move pins, so report uv's error before retrying.
-resolve=
-if ! sync_report=$(uv sync --script "$script" 2>&1 >/dev/null); then
-  resolve=--upgrade
-  echo "leaf: the locked install failed here; resolving the header against this host's index and rewriting the lock. It failed with:" >&2
-  printf '%s\n' "$sync_report" >&2
-fi
-
 if [ "${1-}" = "version" ] && [ "${2-}" = "export" ]; then
-  exec uv run $resolve --with playwright "$script" "$@"
+  exec uv run --with "playwright>=1.49" "$script" "$@"
 fi
 
 if [ "${1-}" = "version" ] && [ "${2-}" = "check" ]; then
   for cli_arg in "$@"; do
     if [ "$cli_arg" = "--render" ]; then
-      exec uv run $resolve --with playwright "$script" "$@"
+      exec uv run --with "playwright>=1.49" "$script" "$@"
     fi
   done
 fi
-exec uv run $resolve "$script" "$@"
+exec uv run -q "$script" "$@"

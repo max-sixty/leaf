@@ -74,12 +74,11 @@
  * content is never discarded, so there is no failSoft.
  */
 import {
-  PRESS,
+  DISCLOSE,
   agentName,
   dataBody,
   once,
   offer,
-  paintKeys,
   quoted,
   sendAction,
   sendDraft,
@@ -328,18 +327,18 @@ customElements.define(
         );
         previous = text;
       });
-      // The disclosure is the platform's to work, so this binds no `run` and only says
+      // The disclosure scope is what works this box, so this binds no `run` and only says
       // the word — one more contributor to the section the draft's other two declare,
-      // since the reader standing here is still on a draft. Read where it is painted,
-      // because which way the press goes is something they can see.
+      // since the reader standing here is still on a draft. Both cells are read where they
+      // are painted: which way the press goes is something the reader can see, and which
+      // keys it takes is the scope's own answer for where this box is standing.
       keys(summary, "On a draft", [
         {
-          keys: PRESS,
+          keys: () => DISCLOSE(summary),
           does: () => `${history.open ? "Hide" : "Show"} the edit history`,
           line: () => `${history.open ? "hide" : "show"} the history`,
         },
       ]);
-      history.addEventListener("toggle", paintKeys);
 
       history.append(summary, current, list);
       this.#history?.replaceWith(history);

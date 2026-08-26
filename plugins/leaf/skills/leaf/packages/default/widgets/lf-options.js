@@ -580,5 +580,9 @@ customElements.define(
         ),
       );
     }
+
+    lfWord() {
+      return "options";
+    }
   },
 );

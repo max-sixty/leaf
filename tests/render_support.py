@@ -16,6 +16,7 @@ from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     CHIP_PAGE,
     COLLAPSED_PAGE,
+    COMMAND_HUB_PAGE,
     CONVERSATION_DIFF_PAGE,
     DRIFT_MODULE,
     DRIFT_PAGE,
@@ -163,6 +164,7 @@ from render_cases_navigation import (
     DATA_PROJECTION_MODULE,
     DATA_PROJECTION_PAGE,
     DIFF_PAGE,
+    DISCLOSED_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     DRIFT_V1,
@@ -188,7 +190,9 @@ from render_cases_navigation import (
     PASSAGE,
     SENTENCE,
     SMOOTH_LONG_PAGE,
+    SPENT,
     STANDING,
+    STANDS_BACK,
     SUGGEST_BLOCK,
     TAB_AND_DOT,
     TAB_TONE,
@@ -252,13 +256,16 @@ from render_harness import (
     BOARD_PAGE,
     BOTH_STAMPS,
     CARRIED_PAGE,
+    COMMAND_HUB_PACKAGE,
     EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     IMPORTER_CARD,
     INLINE_PAGE,
     LONG_PAGE,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    ROOT,
     SAID_PAGE,
     SETTLED_PAGE,
     SPECIMEN_MARKUP,
@@ -271,9 +278,12 @@ from render_harness import (
     Traffic,
     _traffic,
     _until,
+    author_test_widget,
     compare_with,
     held_stale,
+    key_line,
     leaf_page,
+    link_example_packages,
     navigate,
     open_page,
     page_registry,
@@ -324,6 +334,8 @@ __all__ = (
     "CODE_PAGE",
     "COLLAPSED_PAGE",
     "COLORED_CODE_PAGE",
+    "COMMAND_HUB_PACKAGE",
+    "COMMAND_HUB_PAGE",
     "CONTROL_LABEL_PAGE",
     "CONVERSATION_DIFF_PAGE",
     "CORNER_PAGE",
@@ -335,6 +347,7 @@ __all__ = (
     "DIAGRAM_AND_RAIL_PAGE",
     "DIAGRAM_ROOM",
     "DIFF_PAGE",
+    "DISCLOSED_PAGE",
     "DRAFT_EDITED",
     "DRAFT_MARK",
     "DRAFT_TEXT",
@@ -349,6 +362,7 @@ __all__ = (
     "EDGE_PAGE",
     "EXAMPLES",
     "EXAMPLE_MEDIA",
+    "EXAMPLE_PACKAGES",
     "EXHIBIT_EXTENT",
     "FAINT_CODE_PAGE",
     "FENCED_CAPTURE_PAGE",
@@ -436,6 +450,7 @@ __all__ = (
     "ROOM_GEOMETRY",
     "ROOM_HELD",
     "ROOM_WIDGETS",
+    "ROOT",
     "ROSTER_PAGE",
     "SAID_PAGE",
     "SCROLLED",
@@ -460,12 +475,14 @@ __all__ = (
     "SPECIMEN_MARKUP",
     "SPECIMEN_PAGE",
     "SPECIMEN_TEXT",
+    "SPENT",
     "SPILLING_PAGE",
     "STACKED_OPTIONS_PAGE",
     "STANDING",
     "STANDING_ACTIONS",
     "STANDING_ASK",
     "STANDING_PAGE",
+    "STANDS_BACK",
     "STORED_DRAFT_SETTLED",
     "STORED_DRAFT_TEXT",
     "SUGGESTION_PAGE",
@@ -511,6 +528,7 @@ __all__ = (
     "actions",
     "aim_targets",
     "arrival_findings",
+    "author_test_widget",
     "backdate_note",
     "card_body",
     "compare_with",
@@ -525,7 +543,9 @@ __all__ = (
     "geometry",
     "held_stale",
     "in_threads_scrollport",
+    "key_line",
     "leaf_page",
+    "link_example_packages",
     "live_leaf",
     "live_url",
     "live_watcher",
@@ -568,3 +588,168 @@ __all__ = (
     "watched",
     "written_anchors",
 )
+
+
+DEEP_FOCUS = """() => {
+  let e = document.activeElement;
+  while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
+  return e;
+}"""
+
+
+RING_FAULTS = f"""async () => {{
+  // shownBand, rather than a fourth reading of what a box clips to. Its own comment
+  // carries why: version check --render imports it so the band a handover is refused
+  // against and the band the page paints to are one reading, and written twice they
+  // disagreed twice. This was the third copy and it was wrong in both of the ways that
+  // comment names — it asked only about overflow, so paint containment and
+  // content-visibility clipped a ring away with nothing said, and it measured the
+  // padding box with the scrollbar's gutter still in it.
+  const {{ shownBand }} = await import('/leaf.js');
+  const el = ({DEEP_FOCUS})();
+  if (!el || el === document.body || el === document.documentElement) return null;
+  const holds = (a, b) => {{
+    for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
+    return false;
+  }};
+  const named = {NAMED};
+  const cs = getComputedStyle(el);
+  const w = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0;
+  if (!w) return {{ who: named(el), ring: false, cuts: [], covers: [] }};
+  const grow = w + (parseFloat(cs.outlineOffset) || 0);
+  const b = el.getBoundingClientRect();
+  const ring = {{ top: b.top - grow, left: b.left - grow,
+                 bottom: b.bottom + grow, right: b.right + grow }};
+  const cuts = [];
+  let scrolled = false;
+  const above = (n) => n.parentElement || n.getRootNode().host || null;
+  // One side, one message, named for the innermost box that took it. A scroll region's
+  // edge is often the window's to the pixel — .lf-threads' right edge is .lf-panel's is
+  // innerWidth — and one ring reported twice reads as two defects. The innermost box is
+  // the more useful of the two answers anyway: it is the box the control lives in.
+  const taken = {{}};
+  const took = (band, who) => {{
+    const room = {{ w: band.right - band.left, h: band.bottom - band.top }};
+    // Only the sides that could have been shown whole. A code block taller than the
+    // window hangs out of it however the browser scrolls, and saying so on every one
+    // would be noise standing where the findings are — so the claim is the one that can
+    // be met: a ring that fits in the box is a ring the box has to show all of.
+    const fits = {{
+      top: b.bottom - b.top <= room.h,
+      bottom: b.bottom - b.top <= room.h,
+      left: b.right - b.left <= room.w,
+      right: b.right - b.left <= room.w,
+    }};
+    for (const [side, by] of Object.entries({{
+      top: band.top - ring.top,
+      left: band.left - ring.left,
+      bottom: ring.bottom - band.bottom,
+      right: ring.right - band.right,
+    }}))
+      if (!taken[side] && by > 0.5 && fits[side])
+        taken[side] =
+          `its ${{side}} edge is ${{Math.round(by * 10) / 10}}px outside ` + who;
+  }};
+  // `clipped` in anchors.js is this walk, and this is its shape: from the box itself
+  // rather than its parent, skipping the box's own band because an element is not clipped
+  // by its own overflow, and stopping at the first fixed box. Its comment records what
+  // starting at the parent cost — "the question of every ancestor of a fixed box and
+  // never of the box" — which is the bug this reading had too.
+  for (let a = el; a; a = above(a)) {{
+    if (a !== el) {{
+      if (a.scrollHeight > a.clientHeight) scrolled = true;
+      const band = shownBand(a);
+      if (band) took(band, named(a));
+    }}
+    if (getComputedStyle(a).position === 'fixed') break;
+  }}
+  // The window last, so an inner box that shares an edge with it is the one named, and
+  // unconditionally, because the walk above may have stopped at a fixed box and every
+  // box stops somewhere. It is the outermost clip there is: a fixed subtree is laid out
+  // against it, and everything else reaches it through body, which is this page's
+  // scroller. Not a claim that nothing else could clip a fixed box — a containing block
+  // established by transform, filter or containment is a real case, and .lf-banner's
+  // backdrop-filter is one such generator — but the walk covers that case now by asking
+  // every box on the way up instead of branching on the focused one's own position.
+  took({{ top: 0, left: 0, bottom: innerHeight, right: innerWidth }}, 'the window');
+  for (const side of ['top', 'left', 'bottom', 'right'])
+    if (taken[side]) cuts.push(taken[side]);
+  const paints = (n) => {{
+    const s = getComputedStyle(n);
+    return s.backgroundImage !== 'none'
+      || !/^(transparent$|rgba\\(.*,\\s*0\\))/.test(s.backgroundColor);
+  }};
+  const mid = (a, b) => (a + b) / 2;
+  const covers = [];
+  // Whether this reading has an order to read at all. It works by hit-testing the ring's
+  // own pixels and taking whatever comes back as standing over them — but an outline is
+  // painted by its control, at its control's level, and an outline's pixels are not
+  // hit-testable. A pixel of ring outside the control's box therefore returns whatever
+  // is beneath, and beneath is where the answer would have to come from.
+  //
+  // That is sound while the control's own surface takes hits, because then the ring's
+  // sample either lands on the control's line or lands somewhere the line does not
+  // reach. It stops being sound inside a surface declaring `pointer-events: none`: the
+  // key line stands over the page at z-index 8940 and takes no hits, so its More button
+  // is topmost where it lives and every line of code under the ring's top run read as
+  // standing over it. `cuts` is geometry and still answers for these; this half says
+  // nothing rather than saying the opposite of what the page shows.
+  let ordered = true;
+  for (let a = el; a; a = above(a))
+    if (getComputedStyle(a).pointerEvents === 'none') {{ ordered = false; break; }}
+  for (const [side, x, y] of ordered ? [
+    ['top', mid(ring.left, ring.right), ring.top + 0.5],
+    ['bottom', mid(ring.left, ring.right), ring.bottom - 0.5],
+    ['left', ring.left + 0.5, mid(ring.top, ring.bottom)],
+    ['right', ring.right - 0.5, mid(ring.top, ring.bottom)],
+  ] : []) {{
+    if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+    for (const over of document.elementsFromPoint(x, y)) {{
+      if (over === el || holds(el, over) || holds(over, el)) break;
+      if (!paints(over)) continue;
+      // Is the control itself under this too? Where a control stands partly behind
+      // something, the ring's run on that side is behind whatever the control is behind,
+      // which is a fact about where the control was put rather than about the ring being
+      // drawn outside its box. The claim worth making is the other one: where the control
+      // can be seen, so can the ring that names it. Stated without a case on purpose —
+      // the one this was written for was the tray's edge handle running the whole height
+      // of the window under the banner, which stopped being true in 3a8f16f0, the commit
+      // that added this comment and the handle's top inset together.
+      const inx = x + (side === 'left' ? grow + 1 : side === 'right' ? -grow - 1 : 0);
+      const iny = y + (side === 'top' ? grow + 1 : side === 'bottom' ? -grow - 1 : 0);
+      if (document.elementsFromPoint(inx, iny).includes(over)) break;
+      const o = over.getBoundingClientRect();
+      const at = (r) => [r.left, r.top, r.right, r.bottom].map(Math.round).join();
+      covers.push(`its ${{side}} edge is under ` + named(over)
+                  + ` (ring ${{at(ring)}} vs ${{at(o)}}, sampled ${{Math.round(x)}},`
+                  + `${{Math.round(y)}})`);
+      break;
+    }}
+  }}
+  return {{ who: named(el), ring: true, scrolled, cuts, covers }};
+}}"""
+
+
+COVERED_TOP = """() => {
+  const el = document.activeElement;
+  const box = document.querySelector('.lf-threads');
+  if (!el || !box.contains(el)) return null;
+  const r = el.getBoundingClientRect();
+  const over = document.elementsFromPoint((r.left + r.right) / 2, r.top + 1)
+    .find((n) => n !== el && !el.contains(n) && !n.contains(el)
+                 && n.classList.contains('lf-pinned'));
+  if (!over) return null;
+  const o = over.getBoundingClientRect();
+  return `${over.textContent.trim().slice(0, 32)} covers it down to `
+         + `${Math.round(o.bottom - r.top)}px in`;
+}"""
+
+
+def ring_fault(page, where):
+    """The complaint about where the keyboard is standing, or None if it is clean."""
+    seen = page.evaluate(RING_FAULTS)
+    if not seen or not seen["ring"] or not (seen["cuts"] or seen["covers"]):
+        return None
+    return f"{where}, the ring on {seen['who']} is not all there: " + "; ".join(
+        seen["cuts"] + seen["covers"]
+    )

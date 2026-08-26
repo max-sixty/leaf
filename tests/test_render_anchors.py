@@ -38,6 +38,7 @@ from render_support import (
     _traffic,
     compare_with,
     composer_quote,
+    key_line,
     mark_point,
     open_page,
     panel_settled,
@@ -549,8 +550,9 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
 
     Width is the third kind, and it is content: a chip is as wide as the keys it carries,
     and these two carry different numbers of them — a pick answers one digit, the chord
-    wants its letter as well. So the shared minimum and padding are compared and the
-    result of them is not, and the difference is asserted in the direction it has to run.
+    carries the whole motion it is halfway through. So the shared minimum and padding are
+    compared and the result of them is not, and the difference is asserted in the
+    direction it has to run.
     The face is compared because it is the half a letter made load-bearing: in the
     document's sans a lowercase l is a bare stroke, and the chord's second link wore what
     read as 12."""
@@ -613,7 +615,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     # And what each is wide enough for is its own keys. The pick's one digit comes out at
     # the shared floor exactly, which is the half a compared `min-width` cannot prove: a
     # wearer restating `width: 19px` on its own copy would raise nothing and pass every
-    # property above. The chord's letter and digit come out past that floor. Both are read
+    # property above. The chord's leader, letter and digit come out past it. Both are read
     # from the rendered box, since the widths are the key face's answer and not the
     # stylesheet's.
     floor = float(on_page["min-width"].removesuffix("px"))
@@ -627,7 +629,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
         f"{floor} — a wearer has restated a width of its own"
     )
     assert widths[0] < widths[1], (
-        f"the chord's two-key chip is not wider than a pick's one-key chip: {widths}"
+        f"the chord's whole-address chip is not wider than a pick's one-key chip: {widths}"
     )
     assert errors == []
     page.close()
@@ -1209,8 +1211,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     # The docstring the second hunk rewrites: every line of it is string, on both sides.
     # Colouring line by line instead, `and` inside the prose came back a keyword.
-    doc = [l for l in py if "Called on logout" in l["text"]]
-    assert len(doc) == 2, [l["text"] for l in py]
+    doc = [line for line in py if "Called on logout" in line["text"]]
+    assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
         # How many spans carry it is the word marks' business — a mark re-cuts the tokens
         # it covers, and this pair's closing `\"\"\"` moved to a line of its own — so what
@@ -1222,7 +1224,11 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # yaml, the grammar that would have eaten the prefix: with the column left on, the
     # `-` came back a bullet in keyword ink and the `+` a string. No span opens a line
     # here, and the key is still an attr — so the prefix came off before the lexer looked.
-    yml = [l for l in by_path["gateway/config.yaml"] if l["kind"] in ("add", "del")]
+    yml = [
+        line
+        for line in by_path["gateway/config.yaml"]
+        if line["kind"] in ("add", "del")
+    ]
     assert len(yml) == 2
     for line in yml:
         assert not line["signInSpan"], line
@@ -1231,19 +1237,19 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is git remarking on the line above, not a line of
     # the file. Shown, because the diff says it, but its own kind — read as context it
     # would go into both reconstructed sides as source the file never held.
-    note = [l for l in py if l["kind"] == "note"]
-    assert [l["text"] for l in note] == ["\\ No newline at end of file\n"], py
+    note = [line for line in py if line["kind"] == "note"]
+    assert [line["text"] for line in note] == ["\\ No newline at end of file\n"], py
     assert note[0]["roles"] == [], note
 
     # No extension the table names: plain, the way a lf-code with no `language` is.
-    assert all(l["roles"] == [] for l in by_path["deploy/Dockerfile"]), by_path[
+    assert all(line["roles"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
 
     # Every displayed source line still reads exactly as authored, sign column and all.
     # File headers are metadata already represented by the summary, so the widget drops
     # them instead of leaving hidden text in the DOM for anchoring to find.
-    assert [l["text"] for l in by_path["gateway/config.yaml"]] == [
+    assert [line["text"] for line in by_path["gateway/config.yaml"]] == [
         "@@ -4,6 +4,6 @@ ratelimit:\n",
         "-  burst: 20\n",
         "+  burst: 40\n",
@@ -1478,9 +1484,10 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
 
     The two differ in what they answer, and saying so is the point: a <summary> is
     button-like and takes both keys, while a checkbox takes Space alone, Enter being
-    the form's key and a leaf page having no form. Each row binds no `run`, so the
-    dispatcher passes the press to the platform that was going to make it anyway; a row
-    that consumed it would be the same lie from the other side.
+    the form's key and a leaf page having no form. Neither row binds a `run`: the
+    checkbox's press is the platform's, and the summary's is the disclosure scope's,
+    which has to reach a staged control the same way this declaration does. A row
+    consuming a press it does not make would be the same lie from the other side.
 
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
@@ -1514,6 +1521,23 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     page.keyboard.press("Enter")
     expect(line).to_contain_text("show this file")
     assert not details.evaluate("el => el.open")
+
+    # The row also names an arrow, which no browser answers, so unlike the pair above it is
+    # only ever as good as the scope that runs it — and that scope has to find a staged
+    # disclosure the same way this declaration had to reach a staged control. Read off the
+    # document alone it finds none here, the page's only <details> being the ones the
+    # widget put in a shadow root. The press is what says so, not the chip: this widget's
+    # own row is the nearer of the two naming these keys, so it prints them either way.
+    expect(line).to_contain_text("⏎ / space / →")
+    page.keyboard.press("ArrowRight")
+    assert details.evaluate("el => el.open")
+    # And the word turns over inside the press, read once so a poll cannot answer for it.
+    # A toggle from a staged root is not composed, so no document listener hears it: this
+    # is the watch `shadowStage` hands each root, and without it the line sat on "show
+    # this file" until the next poll two seconds later.
+    said = key_line(page)
+    assert "⏎ / space / ←" in said, said
+    assert "hide this file" in said, said
 
     # Neither control is handed a letter by any platform, so the page's own keyboard
     # stands behind both of them.
@@ -1994,6 +2018,67 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     expect(page.locator(".lf-latest-chip")).to_have_text(
         "New version available → open v10"
     )
+    assert errors == []
+    page.close()
+
+
+def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
+    """A layer owes a way out over exactly the pages its way in is live on, and the
+    menu's two were live over different ones. `v` opened it wherever there was a version
+    at all; the mode binding its Escape stood only above one. So on the commonest page
+    there is — a page with one version — `v` raised a menu no key could put down: the
+    Escape chip read "back to the page", focus fell to body, and the menu stayed painted
+    over the bar.
+
+    Not fixed by taking the menu away, which is what the walk being empty invites. A
+    first version's menu holds that version and the note saying what it changed, and that
+    is the whole reason the chooser is a menu rather than a select — see
+    test_a_key_on_screen_is_a_key_that_works, which asks for it by name. Two facts, so
+    two predicates: `versionsOffered` for the layer and `versionsToWalk` for the rows.
+
+    Asserted from both doors, the pointer's being the one that would have kept the trap,
+    and the walk asserted absent so the fix cannot be "make everything live"."""
+    url = serve(INLINE_PAGE)
+    page, errors = open_page(browser, url)
+    menu = page.locator(".lf-version-menu")
+    line = page.locator(".lf-keyline")
+
+    # One version: the menu opens, holds its one row, and Escape ends it.
+    expect(line).to_contain_text("versions")
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    expect(page.locator(".lf-version-row")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(menu).not_to_be_visible()
+    expect(page.locator(".lf-version")).to_be_focused()
+
+    # The pointer's door reaches the same layer, and the same key ends it.
+    page.locator(".lf-version").click()
+    expect(menu).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(menu).not_to_be_visible()
+
+    # The way out is named while the reader is in it, and the walk — which has nowhere
+    # to step — is not offered beside it.
+    page.keyboard.press("v")
+    expect(line).to_contain_text("close versions")
+    expect(line).not_to_contain_text("walk — marking changes")
+    page.keyboard.press("Escape")
+
+    # The control: a second version, where the walk is live and the layer is unchanged.
+    # The page is unpinned, so it follows the new version itself on its next poll —
+    # waited for rather than forced with a reload, which raced that navigation and lost
+    # the press to it about one run in five.
+    _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+    page.wait_for_url("**/versions/v2.html*")
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-version-row').length > 1"
+    )
+    page.keyboard.press("v")
+    expect(menu).to_be_visible()
+    expect(line).to_contain_text("walk — marking changes")
+    page.keyboard.press("Escape")
+    expect(menu).not_to_be_visible()
     assert errors == []
     page.close()
 

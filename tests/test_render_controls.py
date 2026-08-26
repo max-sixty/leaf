@@ -25,7 +25,9 @@ from render_support import (
     BANNER_WATCH,
     BOTH_STAMPS,
     CARRIED_PAGE,
+    COMMAND_HUB_PACKAGE,
     CORNER_PAGE,
+    DEEP_FOCUS,
     DEFINE_BOXES,
     DRAFT_MARK,
     EDGES,
@@ -46,8 +48,10 @@ from render_support import (
     PICTURE_PAGE,
     PRESS,
     PRINT_LOSS_PAGE,
+    RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    RING_FAULTS,
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
     SCROLLED,
@@ -68,6 +72,7 @@ from render_support import (
     _until,
     actions,
     aim_targets,
+    author_test_widget,
     displaced,
     draw_edge,
     flip_point,
@@ -83,6 +88,7 @@ from render_support import (
     panel_settled,
     record_claim,
     resized,
+    ring_fault,
     round_trip,
     select,
     serious_axe_violations,
@@ -293,7 +299,13 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     regress to an id-less note that renders normally but gives Alt nothing to outline.
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
-    registry = interact.incoming_registry([interact.ASSETS, interact.BUNDLED])
+    registry = interact.incoming_registry(
+        [
+            interact.ASSETS,
+            interact.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
     sidenote = registry["$idioms"]["aside.sidenote"]["example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
@@ -593,278 +605,6 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     page.close()
 
 
-def test_a_stale_custom_widget_uses_recursive_parent_eligibility(
-    browser, serve, one_reader, tmp_path, monkeypatch
-):
-    """A project widget gets honest controls and authoritative stale rejection.
-
-    A fresh tab projects a nested stopped plan and disables Increase. A deliberately
-    stale tab still offers it, so its real press reaches POST; the same registry
-    prerequisite must reject it there. The same absolute `set` action still admits a
-    decrease while the parent is blocked.
-    """
-    monkeypatch.chdir(tmp_path)
-    overlay = tmp_path / ".leaf"
-    (overlay / "widgets").mkdir(parents=True)
-    task = json.loads((interact.BUNDLED / "registry.json").read_text())["lf-task"]
-    task["x-awaits"]["rollup"] = True
-    (overlay / "registry.json").write_text(
-        json.dumps(
-            {
-                "lf-task": task,
-                "lf-quota": {
-                    "description": "A project-defined absolute scalar control.",
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "slots": {"type": "string", "pattern": "^[0-9]+$"},
-                        "restated": {"type": "boolean"},
-                    },
-                    "required": ["id", "slots"],
-                    "additionalProperties": False,
-                    "x-parent": ["lf-task"],
-                    "x-content": "none",
-                    "x-upgrade": True,
-                    "x-state": {
-                        "move": {
-                            "detail": {
-                                "type": "object",
-                                "properties": {
-                                    "to": {"type": "string"},
-                                    "index": {"type": "integer", "minimum": 0},
-                                },
-                                "required": ["to", "index"],
-                                "additionalProperties": False,
-                            },
-                            "facet": "placement",
-                            "unit": "widget",
-                            "record": {
-                                "kind": "position",
-                                "within": "lf-task",
-                                "value": "to",
-                                "order": "index",
-                            },
-                        },
-                        "set": {
-                            "detail": {
-                                "type": "object",
-                                "properties": {
-                                    "slots": {
-                                        "type": "string",
-                                        "pattern": "^[0-9]+$",
-                                    }
-                                },
-                                "required": ["slots"],
-                                "additionalProperties": False,
-                            },
-                            "facet": "capacity",
-                            "unit": "widget",
-                            "record": {
-                                "kind": "value",
-                                "attr": "slots",
-                                "value": "slots",
-                            },
-                            "requires": {
-                                "target": "parent",
-                                "awaiting": False,
-                                "change": "increase",
-                            },
-                        },
-                    },
-                    "x-example": (
-                        '<lf-tasks id="quota-example-tasks">'
-                        '<lf-task id="quota-example-task" status="active">'
-                        "<strong>Task</strong>"
-                        '<lf-quota id="quota-example" slots="1"></lf-quota>'
-                        '<lf-task id="quota-example-child" status="active">'
-                        "<strong>Child</strong></lf-task>"
-                        "</lf-task></lf-tasks>"
-                    ),
-                },
-            }
-        )
-    )
-    (overlay / "widgets" / "lf-quota.js").write_text(
-        """\
-import { actionAvailable, offer, once, sendAction } from "/leaf.js";
-
-const detail = (quota, delta) => ({
-  slots: String(Number(quota.getAttribute("slots")) + delta),
-});
-
-const paint = quota => {
-  for (const [name, delta] of [["decrease", -1], ["increase", 1]])
-    quota.querySelector(`[data-lf-quota="${name}"]`)?.setAttribute(
-      "aria-disabled",
-      String(!actionAvailable(quota, "set", detail(quota, delta))),
-    );
-};
-
-async function change(quota, delta) {
-  const next = detail(quota, delta);
-  if (!actionAvailable(quota, "set", next)) return;
-  const previous = quota.getAttribute("slots");
-  quota.setAttribute("slots", next.slots);
-  paint(quota);
-  if (!await sendAction(quota, "set", next)) quota.setAttribute("slots", previous);
-  paint(quota);
-}
-
-customElements.define("lf-quota", class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const decrease = offer("button", "lf-btn", "Decrease");
-    decrease.dataset.lfQuota = "decrease";
-    decrease.addEventListener("click", () => void change(this, -1));
-    const increase = offer("button", "lf-btn", "Increase");
-    increase.dataset.lfQuota = "increase";
-    increase.addEventListener("click", () => void change(this, 1));
-    this.append(decrease, increase);
-    document.addEventListener("lf-actions", () => paint(this));
-    paint(this);
-    document.getElementById("destination")?.append(this);
-  }
-  applyAction(action, detail) {
-    if (action === "move") document.getElementById(detail.to)?.append(this);
-    else if (action === "set") this.setAttribute("slots", detail.slots);
-    paint(this);
-  }
-});
-"""
-    )
-    quota_v1 = leaf_page(
-        "quota",
-        '<h1 id="heading">Quota</h1><lf-tasks id="tasks">'
-        '<lf-task id="task" status="active"><strong>Task</strong>'
-        '<lf-quota id="quota" slots="1"></lf-quota>'
-        '<lf-options id="quota-intervention" choose label="Proceed?">'
-        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
-        '<lf-task id="child" status="active"><strong>Child</strong></lf-task>'
-        "</lf-task>"
-        '<lf-task id="destination" status="active">'
-        "<strong>Destination</strong></lf-task>"
-        "</lf-tasks>",
-    )
-    url = serve(quota_v1)
-    stale_held = held_stale(one_reader)
-    stale, stale_errors = open_page(browser, url, context=stale_held)
-    current, current_errors = open_page(browser, live_url(url), context=one_reader)
-
-    interact.append_event(
-        serve.page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "version": 1,
-            "widget": "task",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    told(current)
-    expect(current.locator("#task")).to_have_attribute("status", "blocked")
-    # The answered direct intervention takes precedence over the nested task, so
-    # changing the child alone does not close capacity.
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    interact.append_event(
-        serve.page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "version": 1,
-            "widget": "child",
-            "action": "status",
-            "detail": {"status": "blocked"},
-        },
-    )
-    told(current)
-    expect(current.locator("#child")).to_have_attribute("status", "blocked")
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    current.locator("#quota-ready").click()
-    round_trip(current)
-    expect(current.locator("#quota-ready")).not_to_have_attribute("chosen", "")
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "true"
-    )
-    expect(current.get_by_role("button", name="Decrease")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-
-    # A live activation imports fresh element identities. The module reparents quota
-    # while upgrading, but eligibility still reads v2's pristine authored parent.
-    quota_v2 = (
-        quota_v1.replace(
-            '<lf-task id="task" status="active">',
-            '<lf-task id="task" status="blocked">',
-        )
-        .replace(
-            '<lf-task id="child" status="active">',
-            '<lf-task id="child" status="blocked">',
-        )
-        .replace('id="quota-ready" chosen', 'id="quota-ready"')
-    )
-    (serve.page_dir / "versions" / "v2.html").write_text(quota_v2)
-    interact.append_event(
-        serve.page_dir,
-        {"kind": "note", "author": "claude", "version": 2, "text": "same plan"},
-    )
-    told(current)
-    expect(current.locator(".lf-version")).to_contain_text("v2")
-    expect(current.locator("#destination > #quota")).to_have_count(1)
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "true"
-    )
-
-    expect(stale.locator("#task")).to_have_attribute("status", "active")
-    expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    stale.get_by_role("button", name="Increase").click()
-    round_trip(stale)
-
-    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
-    stale_held.restore()
-    told(stale)
-    expect(stale.locator("#quota")).to_have_attribute("slots", "1")
-    expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "true"
-    )
-
-    interact.append_event(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "version": 1,
-            "widget": "quota",
-            "action": "move",
-            "detail": {"to": "destination", "index": 0},
-        },
-    )
-    told(current)
-    expect(current.locator("#destination > #quota")).to_have_count(1)
-    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-
-    current.get_by_role("button", name="Decrease").click()
-    round_trip(current)
-    expect(current.locator("#quota")).to_have_attribute("slots", "0")
-    assert [event["action"] for event in actions(serve.page_dir)] == [
-        "choose",
-        "move",
-        "set",
-    ]
-    assert current_errors == []
-    assert stale_errors and all("400" in error for error in stale_errors)
-    stale.close()
-    current.close()
-
-
 def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -872,8 +612,8 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     monkeypatch.chdir(tmp_path)
     overlay = tmp_path / ".leaf"
     overlay.mkdir()
-    bundled = json.loads((interact.BUNDLED / "registry.json").read_text())
-    options = bundled["lf-options"]
+    standard = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())
+    options = standard["lf-options"]
     options["x-state"]["choose"]["requires"] = {
         "target": "self",
         "awaiting": True,
@@ -966,10 +706,13 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     before = page.evaluate(PAGE_MARKUP)
     page.keyboard.press("i")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+
     # The mode shows what is on the page rather than waiting for the pointer: a legend
     # box on every item, and on every item but a widget's parts its name — the group
     # is named, its options wear the hairline alone and are named under the pointer.
-    box_of = lambda id: page.locator(f'.lf-legend-box[data-for="{id}"]')
+    def box_of(element_id):
+        return page.locator(f'.lf-legend-box[data-for="{element_id}"]')
+
     expect(box_of("t")).to_be_visible()
     assert set(
         page.eval_on_selector_all(".lf-legend-box", "bs => bs.map(b => b.dataset.for)")
@@ -1973,9 +1716,7 @@ def test_esc_in_the_comment_panel_stays_the_panels_while_the_tray_stands(
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
     page.keyboard.press("l")  # the tray first, then the panel over it
-    page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
-    page.keyboard.press("Escape")  # back out of the box, onto the panel's list
+    page.keyboard.press("c")  # which stands the reader on the panel's list
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-keyline")).to_contain_text("close comments")
     page.keyboard.press("Escape")  # the panel the reader stands in, not the tray
@@ -2333,6 +2074,85 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(
     page.emulate_media(color_scheme=color_scheme)
     violations, report = serious_axe_violations(page)
     assert violations == [], report
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+@pytest.mark.parametrize("width", [1200, 420])
+def test_the_chrome_a_key_opens_has_no_serious_violations(
+    browser, serve, other_leaf, color_scheme, width
+):
+    """The corpus sweep above reads every example, and reads all of them with the chrome
+    shut: it never presses a key, so the comment panel, its box, the trays, the versions
+    menu, the keyboard reference and the chord's chips are surfaces forty parametrisations
+    pass straight over. A `role="list"` whose children are run headings and threads shipped
+    through it, green every time.
+
+    One page rather than the corpus, because the chrome is the same on all of them: what
+    varies between examples is the document, which the sweep above already reads. What
+    varies here is which of the chrome's own surfaces is standing — and the scheme and the
+    width, which are the two axes that sweep carries and this one has to carry too. Dropped,
+    they cost this test the dark palette entirely: the token these very sweeps caught was
+    left failing on the dark half, because nothing here ever rendered it.
+
+    Each surface is opened by its own key, which is also the assertion that it can be, and
+    each is proved standing before axe reads it — a sweep over a surface that never opened
+    is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    resized(page, width, 900)
+    page.emulate_media(color_scheme=color_scheme)
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+
+    def sweep(where):
+        violations, report = serious_axe_violations(page)
+        assert violations == [], f"{where}: {report}"
+
+    sweep("the page as it arrives")
+
+    # The panel, and then its list — which is where `c` lands the reader, and the box it
+    # used to land in is one press further in.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    sweep("standing on the comment list")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    sweep("standing in the general box")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+
+    # A tray on the far edge, which the sweep above never opens either. Waited out rather
+    # than pressed past: the close is animated, so the next surface would otherwise be read
+    # with this one still sliding away behind it.
+    page.keyboard.press("l")
+    expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
+    sweep("standing in the leaves tray")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
+
+    # The versions menu, whose way out this branch made live on a first version.
+    page.keyboard.press("v")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    sweep("in the versions menu")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-version-menu")).not_to_be_visible()
+
+    # The keyboard reference, which is a dialog and owes the most of any of them.
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    sweep("in the keyboard reference")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+
+    # And the chord's chips, which are painted over the page rather than in it — so the
+    # letter as well as the `g`, because arming alone paints none.
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-addresses > .lf-address").first).to_be_visible()
+    sweep("with the chord aimed at the comments")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
     assert errors == []
     page.close()
 
@@ -2782,11 +2602,8 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     It would have refused the first page that carried a question in a reply,
     which is a shape the vocabulary describes and `leaf reply --markup` posts."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-badge", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
-    module = tmp_path / ".leaf" / "widgets" / "lf-badge.js"
+    package = author_test_widget(tmp_path, "lf-badge", upgrade=True)
+    module = package / "widgets" / "lf-badge.js"
     module.write_text(
         module.read_text().replace(
             "      if (!once(this)) return;",
@@ -3063,4 +2880,458 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
     assert expanded["toast"]["bottom"] <= expanded["footer"]["top"] - 17, (
         f"the growing composer rose through an already-visible toast: {expanded}"
     )
+    page.close()
+
+
+def test_a_stale_package_widget_uses_recursive_parent_eligibility(
+    browser, serve, one_reader, tmp_path, monkeypatch
+):
+    """A project widget gets honest controls and authoritative stale rejection.
+
+    A fresh tab projects a nested stopped plan and disables Increase. A deliberately
+    stale tab still offers it, so its real press reaches POST; the same registry
+    prerequisite must reject it there. A separate absolute `decrease` action remains
+    available while the parent is blocked.
+    """
+    monkeypatch.chdir(tmp_path)
+    overlay = tmp_path / ".leaf"
+    (overlay / "widgets").mkdir(parents=True)
+    task = json.loads((COMMAND_HUB_PACKAGE / "registry.json").read_text())["lf-task"]
+    task["x-awaits"]["rollup"] = True
+    (overlay / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-task": task,
+                "lf-quota": {
+                    "description": "A project-defined absolute scalar control.",
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "slots": {"type": "string", "pattern": "^[0-9]+$"},
+                        "restated": {"type": "boolean"},
+                    },
+                    "required": ["id", "slots"],
+                    "additionalProperties": False,
+                    "x-parent": ["lf-task"],
+                    "x-content": "none",
+                    "x-upgrade": True,
+                    "x-state": {
+                        "move": {
+                            "detail": {
+                                "type": "object",
+                                "properties": {
+                                    "to": {"type": "string"},
+                                    "index": {"type": "integer", "minimum": 0},
+                                },
+                                "required": ["to", "index"],
+                                "additionalProperties": False,
+                            },
+                            "facet": "placement",
+                            "unit": "widget",
+                            "record": {
+                                "kind": "position",
+                                "within": "lf-task",
+                                "value": "to",
+                                "order": "index",
+                            },
+                        },
+                        "increase": {
+                            "detail": {
+                                "type": "object",
+                                "properties": {
+                                    "slots": {
+                                        "type": "string",
+                                        "pattern": "^[0-9]+$",
+                                    }
+                                },
+                                "required": ["slots"],
+                                "additionalProperties": False,
+                            },
+                            "facet": "capacity",
+                            "unit": "widget",
+                            "record": {
+                                "kind": "value",
+                                "attr": "slots",
+                                "value": "slots",
+                            },
+                            "requires": {
+                                "target": "parent",
+                                "awaiting": False,
+                            },
+                        },
+                        "decrease": {
+                            "detail": {
+                                "type": "object",
+                                "properties": {
+                                    "slots": {
+                                        "type": "string",
+                                        "pattern": "^[0-9]+$",
+                                    }
+                                },
+                                "required": ["slots"],
+                                "additionalProperties": False,
+                            },
+                            "facet": "capacity",
+                            "unit": "widget",
+                            "record": {
+                                "kind": "value",
+                                "attr": "slots",
+                                "value": "slots",
+                            },
+                        },
+                    },
+                    "x-example": (
+                        '<lf-tasks id="quota-example-tasks">'
+                        '<lf-task id="quota-example-task" status="active">'
+                        "<strong>Task</strong>"
+                        '<lf-quota id="quota-example" slots="1"></lf-quota>'
+                        '<lf-task id="quota-example-child" status="active">'
+                        "<strong>Child</strong></lf-task>"
+                        "</lf-task></lf-tasks>"
+                    ),
+                },
+            }
+        )
+    )
+    (overlay / "widgets" / "lf-quota.js").write_text(
+        """\
+import { actionAvailable, offer, once, sendAction } from "/leaf.js";
+
+const detail = (quota, delta) => ({
+  slots: String(Number(quota.getAttribute("slots")) + delta),
+});
+
+const paint = quota => {
+  for (const [name, delta] of [["decrease", -1], ["increase", 1]])
+    quota.querySelector(`[data-lf-quota="${name}"]`)?.setAttribute(
+      "aria-disabled",
+      String(!actionAvailable(quota, name)),
+    );
+};
+
+async function change(quota, delta) {
+  const action = delta > 0 ? "increase" : "decrease";
+  const next = detail(quota, delta);
+  if (!actionAvailable(quota, action)) return;
+  const previous = quota.getAttribute("slots");
+  quota.setAttribute("slots", next.slots);
+  paint(quota);
+  if (!await sendAction(quota, action, next)) quota.setAttribute("slots", previous);
+  paint(quota);
+}
+
+customElements.define("lf-quota", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const decrease = offer("button", "lf-btn", "Decrease");
+    decrease.dataset.lfQuota = "decrease";
+    decrease.addEventListener("click", () => void change(this, -1));
+    const increase = offer("button", "lf-btn", "Increase");
+    increase.dataset.lfQuota = "increase";
+    increase.addEventListener("click", () => void change(this, 1));
+    this.append(decrease, increase);
+    document.addEventListener("lf-actions", () => paint(this));
+    paint(this);
+    document.getElementById("destination")?.append(this);
+  }
+  applyAction(action, detail) {
+    if (action === "move") document.getElementById(detail.to)?.append(this);
+    else if (["increase", "decrease"].includes(action))
+      this.setAttribute("slots", detail.slots);
+    paint(this);
+  }
+});
+"""
+    )
+    quota_v1 = leaf_page(
+        "quota",
+        '<h1 id="heading">Quota</h1><lf-tasks id="tasks">'
+        '<lf-task id="task" status="active"><strong>Task</strong>'
+        '<lf-quota id="quota" slots="1"></lf-quota>'
+        '<lf-options id="quota-intervention" choose label="Proceed?">'
+        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+        '<lf-task id="child" status="active"><strong>Child</strong></lf-task>'
+        "</lf-task>"
+        '<lf-task id="destination" status="active">'
+        "<strong>Destination</strong></lf-task>"
+        "</lf-tasks>",
+    )
+    url = serve(quota_v1)
+    stale_held = held_stale(one_reader)
+    stale, stale_errors = open_page(browser, url, context=stale_held)
+    current, current_errors = open_page(browser, live_url(url), context=one_reader)
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "report",
+            "author": "agent",
+            "version": 1,
+            "widget": "task",
+            "action": "status",
+            "detail": {"status": "blocked"},
+        },
+    )
+    told(current)
+    expect(current.locator("#task")).to_have_attribute("status", "blocked")
+    # The answered direct intervention takes precedence over the nested task, so
+    # changing the child alone does not close capacity.
+    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "report",
+            "author": "agent",
+            "version": 1,
+            "widget": "child",
+            "action": "status",
+            "detail": {"status": "blocked"},
+        },
+    )
+    told(current)
+    expect(current.locator("#child")).to_have_attribute("status", "blocked")
+    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+    current.locator("#quota-ready").click()
+    round_trip(current)
+    expect(current.locator("#quota-ready")).not_to_have_attribute("chosen", "")
+    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+    expect(current.get_by_role("button", name="Decrease")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+
+    # A live activation imports fresh element identities. The module reparents quota
+    # while upgrading, but eligibility still reads v2's pristine authored parent.
+    quota_v2 = (
+        quota_v1.replace(
+            '<lf-task id="task" status="active">',
+            '<lf-task id="task" status="blocked">',
+        )
+        .replace(
+            '<lf-task id="child" status="active">',
+            '<lf-task id="child" status="blocked">',
+        )
+        .replace('id="quota-ready" chosen', 'id="quota-ready"')
+    )
+    (serve.page_dir / "versions" / "v2.html").write_text(quota_v2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "same plan"},
+    )
+    told(current)
+    expect(current.locator(".lf-version")).to_contain_text("v2")
+    expect(current.locator("#destination > #quota")).to_have_count(1)
+    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+
+    expect(stale.locator("#task")).to_have_attribute("status", "active")
+    expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+    stale.get_by_role("button", name="Increase").click()
+    round_trip(stale)
+
+    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
+    stale_held.restore()
+    told(stale)
+    expect(stale.locator("#quota")).to_have_attribute("slots", "1")
+    expect(stale.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "true"
+    )
+
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "quota",
+            "action": "move",
+            "detail": {"to": "destination", "index": 0},
+        },
+    )
+    told(current)
+    expect(current.locator("#destination > #quota")).to_have_count(1)
+    expect(current.get_by_role("button", name="Increase")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+
+    current.get_by_role("button", name="Decrease").click()
+    round_trip(current)
+    expect(current.locator("#quota")).to_have_attribute("slots", "0")
+    assert [event["action"] for event in actions(serve.page_dir)] == [
+        "choose",
+        "move",
+        "decrease",
+    ]
+    assert current_errors == []
+    assert stale_errors and all("400" in error for error in stale_errors)
+    stale.close()
+    current.close()
+
+
+def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
+    browser, serve
+):
+    """Overflow is one of three, and the other two leave `overflow` computing `visible`.
+
+    The gate below reports a cut ring by asking each box on the way up what band it
+    shows. A reading that knows only `overflow` answers "nothing is wrong" for a box that
+    clips by paint containment or by `content-visibility`, and answers it in the same
+    words it uses when nothing is wrong — which is why the corpus staying green could not
+    have told anyone. `shownBand` is the product's own reading and names all three; this
+    holds the probe to it rather than to a copy free to drift from it again.
+
+    One control, one displacement, three parents differing only in how they clip. The
+    first case is the control: without it a reading that reported at every stop would
+    pass the other three and prove nothing.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example.read_text(), comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-sug-accept").first.focus()
+
+    plant = """(how) => {
+      const el = document.activeElement;
+      const p = el.parentElement;
+      p.style.overflow = p.style.contain = p.style.contentVisibility = '';
+      // Pull the control out of its parent so the ring runs past the parent's left edge.
+      el.style.position = 'relative';
+      el.style.left = '-6px';
+      if (how === 'overflow') p.style.overflow = 'hidden';
+      if (how === 'contain') p.style.contain = 'paint';
+      if (how === 'content-visibility') p.style.contentVisibility = 'auto';
+      const s = getComputedStyle(p);
+      return `${s.overflowX}/${s.contain}/${s.contentVisibility}`;
+    }"""
+
+    clean = page.evaluate(plant, "none")
+    assert page.evaluate(RING_FAULTS)["cuts"] == [], (
+        f"the displaced ring is reported cut with nothing clipping it ({clean}), so the "
+        "cases below would only be repeating whatever this reading always says"
+    )
+    for how in ("overflow", "contain", "content-visibility"):
+        style = page.evaluate(plant, how)
+        cuts = page.evaluate(RING_FAULTS)["cuts"]
+        assert any("left edge" in c for c in cuts), (
+            f"a parent clipping by {how} ({style}) drew the ring away and the reading "
+            f"said {cuts}"
+        )
+
+    assert errors == []
+    page.close()
+
+
+def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve):
+    """The half that answers by hit test, held to firing where it can and not where it
+
+    cannot. It takes whatever the ring's own pixels hit as standing over them, and an
+    outline is painted by its control at its control's level while an outline's pixels
+    are not hit-testable — so a sample outside the control's box returns whatever is
+    beneath. That is sound while the control's surface takes hits and unsound inside one
+    that does not, where the answer comes back inverted: the key line stands over the
+    page at z-index 8940 with `pointer-events: none`, and the code under its More button
+    read as standing over it.
+
+    So the reading declines inside such a surface, and that is a way for it to go quiet
+    everywhere by accident. The plant is the population assertion: thin enough to lie
+    over the ring and not over the control, because a cover across the control's own body
+    is excused on purpose — a control put where something stands over it is a fact about
+    where it was put, not about its ring leaving its box.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example, comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator("body").click()
+    # A real press, because `.focus()` alone never raises `:focus-visible` and a control
+    # with no ring is a control with nothing to report about one.
+    page.locator(".lf-threads .lf-btn").first.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(RING_FAULTS)["ring"], "no ring is drawn, so nothing is covered"
+
+    assert page.evaluate(RING_FAULTS)["covers"] == [], (
+        "the control is reported covered before anything is put over it"
+    )
+    page.evaluate(
+        """() => {
+          const b = document.activeElement.getBoundingClientRect();
+          const d = document.createElement('div');
+          // Over the ring's top run and clear of the control's own box.
+          d.style.cssText = `position: fixed; z-index: 99999; background: red;
+            left: ${b.left - 8}px; top: ${b.top - 5}px;
+            width: ${b.width + 16}px; height: 4px;`;
+          document.body.append(d);
+        }"""
+    )
+    assert any(
+        "top edge is under" in c for c in page.evaluate(RING_FAULTS)["covers"]
+    ), (
+        "a band laid over the ring's top run was not reported, so this reading answers "
+        "nothing and the pages it passes are not evidence"
+    )
+
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
+    browser, serve, example
+):
+    """The same invariant asked of the whole corpus, so it is a property of the layer
+    rather than a fact about the one list that was wrong. Tab, because that is the walk
+    every page has and it reaches the page's own controls and the runtime's chrome in
+    one order; the panel is opened first so its head, its find row and its foot are in
+    it. A page's own scroll region is the document, whose top the banner stands over —
+    the same shape of collision the panel had, one layer out."""
+    # The path, not the markup: the fixture lays in the log the example ships, and a
+    # thread and the widgets a message carries are controls this walk has to stand on.
+    url = serve(example, comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator("body").click()
+
+    # The tab order comes back round, so the walk ends when it reaches a control it has
+    # already stood on — held by identity, since two buttons in a row can say the same
+    # words at the same scroll and are still two stops. The cap is a backstop against a
+    # page whose order never repeats; the ring count below is what would notice a walk
+    # that stopped short of one.
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    NEW_STOP = f"""() => {{
+      const e = ({DEEP_FOCUS})();
+      if (!e || e === document.body || e === document.documentElement) return false;
+      if (window.__lfSeen.has(e)) return false;
+      window.__lfSeen.add(e);
+      return true;
+    }}"""
+    stops, ringed, faults = 0, 0, []
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        page.evaluate(RENDERED)
+        if not page.evaluate(NEW_STOP):
+            break
+        stops += 1
+        if page.evaluate(RING_FAULTS)["ring"]:
+            ringed += 1
+        fault = ring_fault(page, f"tabbing to stop {stops}")
+        if fault:
+            faults.append(fault)
+    assert not faults, f"{example.name}: " + "\n  ".join(
+        [f"{len(faults)} of {stops}:"] + faults
+    )
+    assert ringed >= 3, (
+        f"{example.name} tabbed to {stops} stops and only {ringed} drew a ring, "
+        "so this asserts almost nothing"
+    )
+    assert errors == []
     page.close()

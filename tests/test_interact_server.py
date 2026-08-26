@@ -4,8 +4,12 @@ import errno
 import http.client
 import http.cookiejar
 import json
+import os
 import socket
+import subprocess
+import sys
 import threading
+import time
 import urllib.parse
 import urllib.request
 from http.server import HTTPServer
@@ -13,6 +17,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import INTERACT_SCRIPT
 from interact_support import (
     PAGE,
     TOKEN,
@@ -24,6 +29,9 @@ from interact_support import (
     record_claim,
 )
 from leaf_interact import events as event_model
+from leaf_interact import hosting as hosting_model
+from leaf_interact import http as http_model
+from leaf_interact import publishing as publishing_model
 from leaf_interact import service as service_model
 
 
@@ -521,7 +529,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(interact.Handler, "_page_state", own_state)
-    monkeypatch.setattr(interact, "other_leaves", neighbours)
+    monkeypatch.setattr(http_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -561,7 +569,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
             assert release.wait(5), "the test never released the first attempt"
         return "the action was refused"
 
-    monkeypatch.setattr(interact, "action_contract_error", refuse_once)
+    monkeypatch.setattr(http_model, "action_contract_error", refuse_once)
     monkeypatch.setattr(interact.AttemptExecution, "__init__", observe_attempt)
     sent = {
         "kind": "action",
@@ -957,7 +965,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                     "order": "index",
                 },
             },
-            "set": {
+            "increase": {
                 "detail": detail,
                 "facet": "capacity",
                 "unit": "widget",
@@ -965,8 +973,13 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                 "requires": {
                     "target": "parent",
                     "awaiting": False,
-                    "change": "increase",
                 },
+            },
+            "decrease": {
+                "detail": detail,
+                "facet": "capacity",
+                "unit": "widget",
+                "record": record,
             },
         },
     }
@@ -993,7 +1006,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "kind": "action",
         "version": 1,
         "widget": "quota",
-        "action": "set",
+        "action": "increase",
         "detail": {"slots": "2"},
     }
     interact.append_event(
@@ -1040,7 +1053,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     assert status == 400
     assert "still awaiting the reader" in json.loads(body)["error"]
 
-    decrease = {**event, "detail": {"slots": "0"}}
+    decrease = {**event, "action": "decrease", "detail": {"slots": "0"}}
     assert fetch(f"{server}/api/event", data=json.dumps(decrease).encode())[0] == 200
 
     # Placement is projected too. After the absolute move, admission reads the
@@ -1062,7 +1075,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         logged["action"]
         for logged in interact.read_events(page_dir)
         if logged["kind"] == "action"
-    ] == ["set", "set", "choose", "set", "move", "set"]
+    ] == ["increase", "increase", "choose", "decrease", "move", "increase"]
 
 
 def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
@@ -1619,6 +1632,154 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     assert interact.host_key() == minted
 
 
+def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
+    calls = []
+
+    class Pipe:
+        def readline(self):
+            return "http://127.0.0.1:41234/?t=test\n"
+
+        def read(self):
+            return ""
+
+    class Child:
+        stdout = Pipe()
+        stderr = Pipe()
+
+    def popen(command, **options):
+        calls.append((command, options))
+        return Child()
+
+    monkeypatch.setattr(hosting_model.subprocess, "Popen", popen)
+
+    started = interact.start_server(
+        page_dir,
+        host="page.example",
+        standing=True,
+        revive=True,
+    )
+
+    assert started[0] == "http://127.0.0.1:41234/?t=test"
+    assert calls == [
+        (
+            [
+                sys.executable,
+                str(INTERACT_SCRIPT.resolve()),
+                "server",
+                "_serve",
+                str(page_dir),
+                "--host",
+                "page.example",
+                "--standing",
+                "--revive",
+            ],
+            {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+                "start_new_session": True,
+            },
+        )
+    ]
+
+
+# A lease held the way a server holds one: until the service is disabled, which
+# is the exit `stop_when_service_ends` takes. A holder that slept instead would
+# leave a sweep that reached it blocked on the lease, and the run with it. The
+# deadline is for the sweep that never comes — the case
+# `test_a_run_ends_only_the_servers_it_started` exists to catch — so a missing
+# sweep fails a test instead of leaving a process behind.
+HOLDER = """
+import fcntl, json, sys, time
+from pathlib import Path
+page = Path(sys.argv[1])
+lease = open(page / "server.lock", "a+b")
+fcntl.flock(lease, fcntl.LOCK_EX)
+print("held", flush=True)
+deadline = time.monotonic() + 60
+while json.loads((page / "service.json").read_text())["enabled"]:
+    if time.monotonic() > deadline:
+        sys.exit("no sweep came")
+    time.sleep(0.05)
+"""
+
+
+def hold_standing(page: Path, start) -> subprocess.Popen:
+    """A standing page with its lease held, as `server run --standing` leaves one."""
+    page.mkdir(parents=True)
+    interact.write_json(
+        page / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 1,
+            "enabled": True,
+            "lifetime": "standing",
+        },
+    )
+    holder = start(
+        [sys.executable, "-c", HOLDER, str(page)], stdout=subprocess.PIPE, text=True
+    )
+    assert holder.stdout.readline() == "held\n"
+    return holder
+
+
+def test_a_page_left_standing_is_the_sweeps_to_stop():
+    """The forgotten server, on purpose: a standing page under the run's state
+    home, its lease held, and nothing here to stop it. `_no_page_outlives_its_test`
+    ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
+    watch that happen. Not `spawn`, whose teardown would end the holder before
+    the sweep reached it."""
+    hold_standing(interact.state_home() / "pages" / "left", subprocess.Popen)
+
+
+def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
+    """The sweep reads the run's own state home, and does read it.
+
+    A standing server under the machine's `~/.local/state/leaf/pages` looks to
+    the sweep exactly like a page a test forgot: a held lease under an enabled
+    service. The sweep once took its root from the environment before
+    `isolated_session` had moved it, and stopped every such server on the
+    machine after every test (tests/CLAUDE.md, "A process the suite starts ends
+    with the run").
+
+    So a run is made against a home planted the way the developer's is, of the
+    one test that leaves a page for the sweep. The planted page must come out as
+    it went in, with nothing written beside it, and the page the run left under
+    its own home must have been stopped — or the sweep proves nothing."""
+    home = tmp_path / "state"
+    review = home / "leaf" / "pages" / "review"
+    holder = hold_standing(review, spawn)
+    planted = sorted(path.relative_to(home) for path in home.rglob("*"))
+    nested = tmp_path / "nested"
+
+    run = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-n0",
+            "-q",
+            f"--basetemp={nested}",
+            "-o",
+            f"cache_dir={tmp_path / 'cache'}",
+            f"{__file__}::test_a_page_left_standing_is_the_sweeps_to_stop",
+        ],
+        env=os.environ | {"XDG_STATE_HOME": str(home)},
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert interact.read_json(review / "service.json")["enabled"]
+    assert holder.poll() is None
+    assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
+    (left,) = nested.rglob("left/service.json")
+    assert not interact.read_json(left)["enabled"]
+    assert not interact.lock_is_held(left.parent / "server.lock")
+
+
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
     """The key is the machine's, so a reader admitted at one page is admitted at
     the next with no second link — cookies are scoped by host and blind to the
@@ -1761,14 +1922,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = interact.full_state
+    original = http_model.full_state
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(interact, "full_state", held_state)
+    monkeypatch.setattr(http_model, "full_state", held_state)
     response = []
 
     def read_state():
@@ -1831,6 +1992,123 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     assert (
         interact.page_url("10.20.30.40", 41999, "k") == "http://10.20.30.40:41999/?t=k"
     )
+
+
+def test_a_conversation_predicate_cannot_follow_replayed_value_state(page_dir):
+    """Conversation seats are installed from authored predicates once. Refuse a
+    declaration that would make replay and the POST hold gate disagree about one."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-conversation"]["when"] = {"status": ["blocked"]}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert (
+        "x-conversation predicate attributes are authored and static" in result.output
+    )
+
+
+def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
+    """The stronger send is one comment, not a comment followed by a pause action.
+    Its target is therefore checked at the comment door against the same declaration
+    that rendered the control, or a forged field could pause any id on the page."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-task>"
+            '<lf-task id="plain-goal" status="active"><strong>Plain</strong>'
+            "</lf-task></lf-tasks></section>",
+        )
+    )
+    publish(page_dir)
+    event = {
+        "kind": "comment",
+        "version": 1,
+        "text": "Finish the current pass, then pause here.",
+        "anchor": {"section": "goal"},
+        "holds": "goal",
+        "attempt": "hold_comment_good_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 200, body
+    assert interact.read_events(page_dir)[-1]["holds"] == "goal"
+
+    ambiguous = {
+        **event,
+        "anchor": {"section": "goal", "quote": "Goal"},
+        "attempt": "hold_comment_bad_quote",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(ambiguous).encode())
+    assert status == 400
+    assert "exact-section anchor" in json.loads(body)["error"]
+
+    for target in ("plain-goal", "plan"):
+        bad = {
+            **event,
+            "holds": target,
+            "attempt": f"hold_comment_bad_{target.replace('-', '_')}",
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400
+        assert "matching x-conversation hold target" in json.loads(body)["error"]
+
+
+def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
+    """A browser action arriving during the check waits behind the publication
+    note. Otherwise the successor can go live without ever being checked against
+    the decision that replays onto it."""
+    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(html)
+    publish(page_dir)
+    (page_dir / "versions" / "v2.html").write_text(html)
+    entered = threading.Event()
+    release = threading.Event()
+    original = publishing_model.cmd_check
+
+    def paused_check(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(publishing_model, "cmd_check", paused_check)
+    failures = []
+
+    def run_publish():
+        try:
+            interact.cmd_publish(page_dir, 2, "next")
+        except (AssertionError, SystemExit) as error:  # surface thread failures here
+            failures.append(error)
+
+    action = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"options": ["flag-first"]},
+    }
+    publisher = threading.Thread(target=run_publish)
+    publisher.start()
+    assert entered.wait(5)
+    writer = threading.Thread(target=lambda: interact.append_event(page_dir, action))
+    writer.start()
+    time.sleep(0.05)
+    assert writer.is_alive(), "the browser writer crossed the checked snapshot"
+    release.set()
+    publisher.join(5)
+    writer.join(5)
+
+    assert not failures
+    assert not publisher.is_alive() and not writer.is_alive()
+    ordered = [
+        (event["kind"], event.get("version"))
+        for event in interact.read_events(page_dir)
+        if event["kind"] in {"note", "action"}
+    ]
+    assert ordered == [("note", 1), ("note", 2), ("action", 1)]
 
 
 def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):

@@ -27,6 +27,7 @@ local href and src it wrote and refuses a site holding one that names no file.
 Usage: site.py  (no arguments; writes .tmp/site)
 """
 
+import json
 import os
 import re
 import shutil
@@ -61,7 +62,7 @@ RUNTIME = "runtime.js"
 # link is rewritten to name the site's own copy — which is the vendored layer's, so the
 # site is styled by the file its examples are styled by rather than by a second copy of
 # the same rules. Rewritten first and on their own, and the rule has to say *the link
-# element's* href — `customizing.html` also links the stylesheet as source to read, and a
+# element's* href — `packages.html` also links the stylesheet as source to read, and a
 # match on the path alone would send a reader after the token block to the copy the site
 # serves instead of to the source.
 #
@@ -83,10 +84,10 @@ WORN_LINKS = {
 }
 # The one link a page loses here. A checkout has no merged stylesheet to link, so a docs
 # page names both halves of the theme; the site serves the merged file a page directory
-# vendors, which already holds this one — linked again it would restate the bundled half
+# vendors, which already holds this one — linked again it would restate the default half
 # over the top of itself.
-BUNDLED_THEME = re.compile(
-    rf'\s*<link\b[^>]*?"{re.escape(f"{PAYLOAD}/bundled/theme.css")}"[^>]*>'
+DEFAULT_THEME = re.compile(
+    rf'\s*<link\b[^>]*?"{re.escape(f"{PAYLOAD}/packages/default/theme.css")}"[^>]*>'
 )
 
 # Everything else a page reaches into the payload for is source to read, and becomes the
@@ -182,22 +183,24 @@ def leaf(env: dict, *args: str) -> None:
     output is the whole of a refused check's news, and a build that swallowed it stopped
     on a traceback naming this file about a fault in an example."""
     done = subprocess.run(
-        [str(LEAF), *args], env=env, capture_output=True, text=True, check=False
+        [str(LEAF), *args],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if done.returncode:
         sys.exit(f"leaf {' '.join(args)}:\n{done.stdout}{done.stderr}")
 
 
 def publish_pages(out: Path, env: dict) -> None:
-    """The vendored layer at the site's root, and every example under it.
-
-    One page directory does both: the layer the site serves is the one the examples were
-    checked against, and it is what `page init` would give any user — merged from the
-    shipped layers through the same door a customization comes through.
-    """
+    """The corpus's vendored layer at the site root, and every example under it."""
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "page"
-        leaf(env, "page", "init", str(page))
+        packages = json.loads((EXAMPLES / "layer.json").read_text(encoding="utf-8"))
+        selection_args = [arg for name in packages for arg in ("--package", name)]
+        leaf(env, "page", "init", *selection_args, str(page))
         # The page's content, named by the hash of its bytes and served from the root the
         # markup names it at (/media/…). It goes in the page directory rather than
         # straight to the site, because `version check` refuses a reference the directory
@@ -248,7 +251,7 @@ def build(out: Path) -> None:
             text = source.read_text(encoding="utf-8")
             for name, pattern in WORN_LINKS.items():
                 text = pattern.sub(rf'\1"{name}"', text)
-            text = BUNDLED_THEME.sub("", text)
+            text = DEFAULT_THEME.sub("", text)
             text = EXAMPLE_LINK.sub(r"examples/\1/", text)
             text = text.replace(*PAYLOAD_SOURCE)
             target.write_text(text, encoding="utf-8")

@@ -1,9 +1,8 @@
-/* Leaf's bundled widgets: the content families' rules, shipped as an overlay
- * layer over the integrated theme and concatenated after it by `page init` — the
- * same ride a user or project layer gets, which is the point: these widgets reach
- * a page through the door any layer's do. Tokens, elements, idioms and the
- * suggestion family are the integrated theme's; this file carries only what its
- * own widgets wear. */
+/* Leaf's default package: broadly useful content rules concatenated after the kernel
+ * theme by `page init`. These widgets reach a page through the same package route as
+ * selected, user, and project contributions. Tokens, elements, idioms, and the
+ * suggestion family are the kernel theme's; this file carries only what the default
+ * package's widgets wear. */
 
 /* ---------- element-widgets ---------- */
 
@@ -27,13 +26,13 @@
  * chosen-option mark is a direct child of lf-option and came out as a chip band
  * at the head of the card. */
 
-/* The apparatus voice, for this layer's words: the integrated theme states the same
- * rule for the page's idioms, and every layer restates it for the labels its own
- * widgets wear — the statement an overlay widget makes for itself. One rule per
- * layer, because what counts as apparatus is a judgement, and a judgement made per
+/* The apparatus voice, for this package's words: the kernel theme states the same
+ * rule for the page's idioms, and every package restates it for the labels its own
+ * widgets wear. One rule per package, because what counts as apparatus is a judgement,
+ * and a judgement made per
  * widget is a dozen chances to answer it differently.
  *
- * Figures come with the face, and this layer is where that earns its keep: the
+ * Figures come with the face, and this package is where that earns its keep: the
  * numbers a report moves between versions are all here — a task's done fraction, a
  * metric's value, a tree's badge — and in the sans's own figures each rewrite resizes
  * the pill the number is set in, and moves whatever stands after it. The integrated
@@ -45,7 +44,7 @@ lf-column > [data-lf-said="label"], lf-tab::before,
 lf-chip {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
-/* The pill this layer's chips ride in — the integrated theme's .tag numbers,
+/* The pill this package's chips ride in — the kernel theme's .tag numbers,
  * restated so a band of chips and an inline label stand the same height. */
 lf-chip, .lf-chips span {
   display: inline-block; font-size: var(--t-6); line-height: 1.6; padding: 0 8px;
@@ -101,7 +100,7 @@ lf-options { display: block; margin: 14px 0; }
    It leads in both forms, because a question is read before its alternatives, and
    leading is also what makes the screen agree with the file: x-says puts it at the same
    edge in the reading a comment anchors on. The page's own voice and not the apparatus
-   face, so it is absent from the rule above that sets this layer's labels in the sans —
+   face, so it is absent from the rule above that sets this package's labels in the sans —
    these are the page's words in a way a task's done-fraction never is. */
 /* Both halves name the attribute. A group without one asks its question in the prose
    above it, and `content: attr(label)` on such a group is the empty string — which is
@@ -265,7 +264,7 @@ lf-options:has(> lf-option > strong) > lf-option[chosen] { border-color: var(--o
  * combinator asks the descendant half of quoted()'s question: does this element stand
  * inside one. quoted() answers for the element itself too, and that half is nobody's
  * here while lf-options is not an exhibit — a layer declaring it one would have to say
- * so in its own rules. Spelled, it was `lf-specimen` ten times over: the tag this layer
+ * so in its own rules. Spelled, it was `lf-specimen` ten times over: the tag this package
  * happens to ship, and no answer at all for a project whose exhibit has another name.
  *
  * In :where(), which is the idiom the phrasing lists set (theme.css) and not a contest
@@ -402,7 +401,7 @@ lf-option .lf-pick:focus-visible { outline: var(--here-ring);
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
  * (.lf-address) — the g chord's own chips are that same fact and wear the same chip,
- * a letter wider for carrying the list's key as well.
+ * two keys wider for carrying the leader and the list's letter as well.
  * Two things are this rule's: where it sits and when it shows.
  *
  * Where: in the column the option reserves for it (the joined control's rules above).
@@ -524,6 +523,14 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * used to stand here called it a float that "does not fill the row" when the grid
      * had been filling it all along. */
     & > *, &::before { margin-block: 0; }
+    /* A control packed into this group states its own inset (theme.css, --here-ring).
+     * The group clips to the frame it draws, so a ring drawn outside a cell's box is
+     * drawn into the pixels the frame cuts away: the Done press sits flush on the
+     * group's bottom edge and lost the bottom run of its ring there, and the cells lose
+     * their side runs the same way. Inset, the ring is inside the box it names and the
+     * clip has nothing of it to take. The group's own frame is what stands off the
+     * page, which is the gap's job on a box that stands alone. */
+    & .lf-btn:focus-visible { outline-offset: calc(-1 * var(--here-ring-w)); }
     /* The hairline between neighbours: one line, stated once, on the upper of the
      * two, so a child no rule here names arrives already separated. `:not(:last-child)`
      * outranks the cell reset below (a pseudo-class counts above a tag), which is
@@ -833,88 +840,6 @@ lf-milestone[status="done"] > strong { color: var(--muted); }
  * the reading that saying it meant giving the timeline its first module and the
  * quoting fence an upgrade brings with it — which was true of the answer being
  * copied and not of the question. A declaration costs neither. */
-
-/* lf-roster / lf-agent: who is working, and where each of them stands. The rows and
- * the state pill's tints are CSS; everything on the live line — the state word, the
- * `doing` clause, the branch, the § reference and the elapsed line — is built by the
- * lf-agent upgrade, because all but the reference are attributes a worker moves
- * between versions and the elapsed line is computed from the log.
- *
- * A row and not a card. The reader's question is comparative — which of these five is
- * stuck, which has gone quiet — and a card puts a border between every pair of things
- * being compared, so the eye has to cross one to make each comparison. Hairlines
- * between rows and one shape per row is what a set read across wants, which is the
- * same argument the row form of a choose group makes and the reason a roster stands
- * wide (x-wide): the live line's parts land in the same order at the same place on
- * every row, and an eye runs down any one of them. */
-lf-roster { display: block; margin: 14px 0; border-top: 1px solid var(--rule); }
-/* The state's column, and then the row's own text beside it. The width is the module's
- * (--lf-state-room, measured from the five words in the face this page is set in); the
- * gap is the theme's. The pill is out of flow so that a row of one line and a row of
- * three both hang their state at the same place — in flow it would be the first word of
- * a paragraph and would sit where that paragraph's first line happened to start. */
-lf-agent { display: block; position: relative; padding: 10px 2px 10px
-           calc(var(--lf-state-room, 60px) + var(--sp-3));
-           border-bottom: 1px solid var(--rule); }
-lf-agent > .lf-state { position: absolute; left: 0; top: 12px; }
-lf-agent > strong { margin-right: var(--sp-2); }
-lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--muted); }
-/* The live line: what this worker is doing now, and what the log knows about when it
- * last said so. Wrapping, because `doing` is a free clause and a narrow window is not
- * a reason to lose the rest of the row; the elapsed line takes the free width to its
- * left (margin-left: auto) so it ends every row at the same column and grows leftward
- * into space nothing else has claimed — a fact that gains a character every minute
- * must not be able to move anything, and there is nothing to its right to move. */
-.lf-agent-line { display: flex; flex-wrap: wrap; align-items: baseline;
-                 gap: var(--sp-1) var(--sp-2); margin-top: 3px; }
-/* The elapsed line and the call-out beside it are one statement about freshness, so the
- * free width opens before whichever of them comes first rather than between the two —
- * two auto margins would have split it and stood "quiet" in the middle of the row,
- * apart from the words it qualifies. */
-.lf-agent-line .lf-cold, .lf-agent-line .lf-heard { margin-left: auto; }
-.lf-agent-line:has(.lf-cold) .lf-heard { margin-left: var(--sp-2); }
-.lf-agent-line .lf-heard { padding-left: var(--sp-3); }
-/* The clause is the row's content, so it is set in the page's own voice: the reader
- * reads it as a sentence, where everything else on the line is apparatus about it. */
-.lf-doing { color: var(--ink-2); }
-.lf-branch { font-family: var(--mono); font-size: var(--t-6); padding: 0 6px;
-             border-radius: var(--r); background: var(--code-bg); color: var(--ink-2); }
-.lf-heard { color: var(--muted); white-space: nowrap; font-size: var(--t-6); }
-/* Silence against a claim of work. The word is the module's and says the whole of it;
- * the tint is the bonus, on the same amber the vocabulary already spends on "this one
- * is the reader's to deal with". */
-.lf-cold { color: var(--warn-ink); background: var(--warn-tint);
-           padding: 0 8px; border-radius: 999px; font-size: var(--t-6); }
-/* The state, in the vocabulary's own semantics: green for finished, accent for the one
- * in flight, amber for what has come back to the reader, red for stuck, and neutral for
- * a worker with nothing to do — which is not a fault and is not tinted as one. */
-.lf-state { padding: 0 8px; border-radius: 999px; font-size: var(--t-6);
-            white-space: nowrap; background: var(--chip); color: var(--ink-2); }
-.lf-state-working { background: color-mix(in srgb, var(--accent) 14%, transparent);
-                    color: var(--accent); }
-.lf-state-waiting { background: var(--warn-tint); color: var(--warn-ink); }
-.lf-state-blocked { background: var(--danger-tint); color: var(--danger-ink); }
-.lf-state-done    { background: var(--ok-tint); color: var(--ok-ink); }
-
-/* lf-tasks / lf-task: a hierarchy of work. The indent guides and status
- * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's
- * done-fraction) is built by the lf-task upgrade. The marker vocabulary is
- * the milestone's, plus `review` in the warn tint: finished by its holder,
- * awaiting the reader — the amber is the reader's own work showing. */
-lf-tasks { display: block; margin: 14px 0; }
-lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
-lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
-                  width: 10px; height: 10px; border-radius: 50%;
-                  background: var(--paper); border: 2px solid var(--muted); }
-lf-task[status="done"]::before    { background: var(--ok); border-color: var(--ok); }
-lf-task[status="active"]::before  { border-color: var(--accent);
-                                    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-lf-task[status="blocked"]::before { background: var(--danger); border-color: var(--danger); }
-lf-task[status="review"]::before  { background: var(--warn); border-color: var(--warn); }
-lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
-                    --lf-frame: 1; }
-lf-task > strong { margin-right: 6px; }
-lf-task[status="done"] > strong { color: var(--muted); }
 
 /* lf-timeline / lf-event: an event log on a rail. The dot is ::after, absolute,
  * colored by kind; the time label is the `at` attribute, said above the title. */
@@ -1302,7 +1227,7 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
    diagram on every page spends that tenth of a second as source centred in most of the
    window, at an indent set by its own longest line — three diagrams, three indents, none
    of them the column's. A page whose module never arrives spends the rest of its life
-   that way. `.lf-rendered` is this layer's word for a module having replaced its body,
+   that way. `.lf-rendered` is this package's word for a module having replaced its body,
    so this is the sentence theme.css's `.lf-error` rule makes about a failure, said where
    the word for the other half lives. */
 [data-lf-wide="drawing"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
@@ -1324,6 +1249,12 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
                               background: var(--card); border: 1px solid var(--border-2);
                               border-radius: var(--r); }
 :host(.lf-rendered) summary { padding: 6px 12px; font-size: var(--t-5); font-family: var(--sans); }
+/* The file's own row, and the box it opens clips (overflow above), so the ring it wears
+   is inset — theme.css's rule for a control packed into something rather than standing
+   on its own. Outside, its top run was drawn into the border the details draws and lost
+   with it. */
+:host(.lf-rendered) summary:focus-visible { outline: var(--here-ring);
+                                            outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 :host(.lf-rendered) summary code { font-family: var(--mono); font-size: var(--t-6); }

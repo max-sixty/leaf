@@ -40,30 +40,43 @@ codex plugin add leaf@leaf
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) on `PATH` (`interact.py` declares its dependencies
-in a PEP 723 header) and a browser on the same machine as the session.
+in a PEP 723 header, and `uv` resolves them through whatever index you have already
+configured) and a browser on the same machine as the session.
 
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
 currently about.
 
-## Customize
+## Packages
 
-Project customizations live in `.leaf/`; user customizations live in
-`~/.config/leaf/`. The agent works the project layer with the same commands when it
-generates a widget. A short theme file cascades over the defaults, and a widget
-scaffold adds a registry entry, CSS, and optionally an ES module:
+A package is a directory that can supply a theme, one widget, a related family,
+helper modules, vendor files, or guidance for named audiences. Leaf's included
+content widgets are a bundled default package. Project and user packages live at
+`.leaf/` and `~/.config/leaf/`.
+
+Leaf creates and checks the package as one unit:
 
 ```
-leaf customize theme
-leaf customize widget lf-callout
+leaf package init packages/callout
+# edit its registry, theme, guidance/, and modules
+leaf package check packages/callout
 ```
 
-Add `--upgrade` to the widget's first scaffold command when it needs browser
-behavior.
+`package init` creates the common files and directories without replacing anything
+already present. An explicit package joins a page by path:
 
-The next `leaf page init <page-dir>` vendors the merged layer. The
-[customization guide](docs/customizing.html) covers the file contracts and the
-project/user precedence.
+```
+leaf page init --package packages/callout <page-dir>
+```
+
+The page records explicit package paths and their order in its vendored registry,
+so a later plain `page init` reproduces the composition. Paths are relative to the
+project or start with `~`; absolute paths are refused because the registry is
+public. Later explicit packages win collisions, followed by the user package and
+then the project package. `page init --no-packages` clears the explicit list.
+
+The [package guide](docs/packages.html) covers the directory contract and
+precedence.
 
 ## Examples
 

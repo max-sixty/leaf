@@ -1,6 +1,7 @@
 """Host identity, process lifetime, page claims, and serialized transitions."""
 
 import ctypes
+import functools
 import hashlib
 import ipaddress
 import os
@@ -139,7 +140,7 @@ def lock_is_held(path: Path) -> bool:
 def page_lock(page_dir: Path, purpose: str) -> Path:
     """A stable lock for one page, outside the page it guards.
 
-    `page init` must reject a customization source without writing into it, so
+    `page init` must reject a package input without writing into it, so
     locks that can meet init cannot live in the prospective page directory. The
     resolved path gives every process the same lock while the purpose keeps the
     contract transition independent from the page's current session claim.
@@ -153,6 +154,17 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
 def transition_lock(page_dir: Path) -> Path:
     """Serialize service changes, re-vendoring, and contract-bearing writes."""
     return page_lock(page_dir, "transition")
+
+
+def contract_writer(function):
+    """Keep a CLI event's validation and append on one vendored contract."""
+
+    @functools.wraps(function)
+    def locked(page_dir: Path, *args, **kwargs):
+        with flocked(transition_lock(page_dir)):
+            return function(page_dir, *args, **kwargs)
+
+    return locked
 
 
 def running_server(page_dir: Path):
@@ -339,7 +351,7 @@ def page_url(host: str, port: int, token: str) -> str:
 
 
 def config_home() -> Path:
-    """$XDG_CONFIG_HOME/leaf (~/.config/leaf/) — the user's overlay layer."""
+    """$XDG_CONFIG_HOME/leaf (~/.config/leaf/) — the user's implicit package."""
     return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "leaf"
 
 
@@ -717,7 +729,11 @@ def unacknowledged(events: list, cursor: int) -> list:
         if e["seq"] > cursor
         # The user's own, a worker's report, and the page reporting itself
         # broken — the last is the agent's debt exactly as a report is.
-        and (e["author"] == "user" or e["kind"] in ("report", "error"))
+        and (
+            e["author"] == "user"
+            or e["kind"] in ("report", "error")
+            or (e["author"] == "page" and e["kind"] == "action")
+        )
     ]
 
 

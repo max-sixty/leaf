@@ -94,7 +94,7 @@ def replace_files(files: list) -> None:
         for index, left in enumerate(located_targets)
         for right in located_targets[index + 1 :]
     ):
-        sys.exit("two customization files resolve to the same target")
+        sys.exit("two staged files resolve to the same target")
     try:
         for (path, data, follow_symlink), target in zip(files, targets):
             for _ in range(100):
@@ -150,7 +150,7 @@ class _Location(NamedTuple):
     comparison alone.
 
     That is the whole point of the form. The callers are set intersections: every
-    layer source against every other, every source against every vendored
+    package input against every other, every input against every vendored
     destination — 786 containment tests over the shipped layer's thirty-six
     distinct paths. Asked path-by-path, each test re-resolved both paths and
     stat'd its way up both ancestor chains, so `page init` spent two thirds of

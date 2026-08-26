@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.11'",
@@ -40,37 +40,6 @@ wheels = [
 ]
 
 [[package]]
-name = "leaf"
-version = "0"
-source = { virtual = "." }
-
-[package.dev-dependencies]
-dev = [
-    { name = "axe-playwright-python" },
-    { name = "click" },
-    { name = "jsonschema" },
-    { name = "pillow" },
-    { name = "playwright" },
-    { name = "pytest" },
-    { name = "pytest-xdist" },
-    { name = "tinycss2" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "axe-playwright-python", specifier = ">=0.1.4" },
-    { name = "click", specifier = ">=8" },
-    { name = "jsonschema", specifier = ">=4" },
-    { name = "pillow", specifier = ">=11" },
-    { name = "playwright", specifier = ">=1.49" },
-    { name = "pytest", specifier = ">=9.1" },
-    { name = "pytest-xdist", specifier = ">=3" },
-    { name = "tinycss2", specifier = ">=1.4" },
-]
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -84,7 +53,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -221,6 +190,37 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe", size = 18437, upload-time = "2025-09-08T01:34:57.871Z" },
+]
+
+[[package]]
+name = "leaf"
+version = "0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
+dev = [
+    { name = "axe-playwright-python" },
+    { name = "click" },
+    { name = "jsonschema" },
+    { name = "pillow" },
+    { name = "playwright" },
+    { name = "pytest" },
+    { name = "pytest-xdist" },
+    { name = "tinycss2" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "axe-playwright-python", specifier = ">=0.1.4" },
+    { name = "click", specifier = ">=8" },
+    { name = "jsonschema", specifier = ">=4" },
+    { name = "pillow", specifier = ">=11" },
+    { name = "playwright", specifier = ">=1.49" },
+    { name = "pytest", specifier = ">=9.1" },
+    { name = "pytest-xdist", specifier = ">=3" },
+    { name = "tinycss2", specifier = ">=1.4" },
 ]
 
 [[package]]

@@ -94,7 +94,12 @@ def isolated_session(tmp_path_factory, monkeypatch):
     run started from a background job leaves that job's directory behind too, as
     it would any other fact about the developer's session. A test about a
     command run from outside a host session strips the identity:
-    `sessionless`."""
+    `sessionless`.
+
+    The state home is the fixture's value, for `_no_page_outlives_its_test`:
+    the sweep takes its root from here rather than from the environment, which
+    it would read before this fixture sets it and after `monkeypatch` unsets it
+    (tests/CLAUDE.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
@@ -102,6 +107,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
+    return interact.state_home()
 
 
 @pytest.fixture

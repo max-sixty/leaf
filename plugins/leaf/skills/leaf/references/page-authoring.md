@@ -2,7 +2,8 @@
 
 Read this before writing or revising a version and before the first handoff.
 `leaf page catalog <page>` is the authority for the page's vendored widgets,
-attributes, examples, and theme idioms; read it before authoring.
+attributes, examples, theme idioms, and package guidance for authors; read it
+before authoring.
 
 ## Document scaffold
 

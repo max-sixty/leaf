@@ -45,12 +45,15 @@ from playwright.sync_api import expect
 
 pytestmark = pytest.mark.nightly
 
-EXAMPLES = sorted((Path(__file__).parent.parent / "examples").glob("*.html"))
+ROOT = Path(__file__).parent.parent
+COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
+EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
-EXAMPLE_MEDIA = Path(__file__).parent.parent / "examples" / "media"
+EXAMPLE_MEDIA = ROOT / "examples" / "media"
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
@@ -363,8 +366,14 @@ def serve(tmp_path, monkeypatch):
     def go(source, comments=0, anchored=()):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
         example = source if isinstance(source, Path) else None
+        packages = link_example_packages(tmp_path)
+        selection_args = [arg for name in packages for arg in ("--package", name)]
         d = tmp_path / f"page{len(servers)}"
-        assert CliRunner().invoke(interact.cli, ["page", "init", str(d)]).exit_code == 0
+        initialized = CliRunner().invoke(
+            interact.cli,
+            ["page", "init", *selection_args, str(d)],
+        )
+        assert initialized.exit_code == 0, initialized.output
         (d / "versions" / "v1.html").write_text(
             example.read_text() if example else source
         )
@@ -483,6 +492,7 @@ class Traffic:
         self._flying = (
             set()
         )  # event posts in the air, each counted once whichever way it ends
+        self._answered = set()  # requests whose one response has entered the counters
         self._responses = []  # bodies are read outside Playwright's response callback
         page.on("request", self._out)
         page.on("response", self._responded)
@@ -520,8 +530,22 @@ class Traffic:
 
     def _responded(self, response):
         request = response.request
+        if request in self._answered:
+            return
+        self._answered.add(request)
         self._back(request)
         self._responses.append(response)
+
+    def settle_response(self, response):
+        """Account for the exact response a causal wait just consumed.
+
+        Playwright resolves `wait_for_event("response")` independently of ordinary
+        response listeners. Under load the waiter can resume first; explicitly entering
+        that response here closes the ordering without polling or sleeping. `_responded`
+        deduplicates the later listener whichever one wins.
+        """
+        self._responded(response)
+        self.settle()
 
     def settle(self):
         """Read queued bodies from ordinary test control flow, never an event callback.
@@ -603,9 +627,10 @@ def _until(page, fact, wanted):
 
     The events the counters are built from arrive while the client is blocked inside a
     Playwright call, so this blocks on each next response and asks again — no polling
-    interval to pick, and nothing added to the page. Response bodies are settled only
-    after that event returns, so the delivery fact changes atomically from this caller's
-    point of view.
+    interval to pick, and nothing added to the page. The response returned by that wait
+    is entered into Traffic directly because Playwright does not order the waiter after
+    ordinary response listeners; the delivery fact therefore changes before this caller
+    asks again.
 
     It wakes on responses alone, where the counters answer to failures too, so a fact that
     came true through a failed request waits for the next poll that is answered to be
@@ -624,7 +649,8 @@ def _until(page, fact, wanted):
             remaining = int((deadline - time.monotonic()) * 1000)
             if remaining <= 0:
                 raise PlaywrightTimeout("responses outlived the wait deadline")
-            page.wait_for_event("response", timeout=remaining)
+            response = page.wait_for_event("response", timeout=remaining)
+            page.lf_traffic.settle_response(response)
     except PlaywrightTimeout as ran_out:
         raise AssertionError(
             f"the page never {wanted}: the wait began on {began} and gave up on "
@@ -657,6 +683,65 @@ def told(page):
     """Wait for a poll that goes out from here on to come back."""
     asked = _traffic(page).asked
     _until(page, lambda t: t.heard > asked, "finished a poll that went out from here")
+
+
+def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
+    """Author one small widget in the project package for browser fixtures."""
+    package = root / ".leaf"
+    created = CliRunner().invoke(interact.cli, ["package", "init", str(package)])
+    assert created.exit_code == 0, created.output
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    entry = {
+        "description": f"A <{tag}> test block.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": upgrade,
+        "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
+    }
+    if upgrade:
+        entry["x-verbatim"] = True
+    registry[tag] = entry
+    registry_path.write_text(json.dumps(registry, indent=2))
+    with (package / "theme.css").open("a") as theme:
+        theme.write(
+            f"\n{tag} {{\n"
+            "  display: block;\n"
+            "  margin: var(--sp-3) 0;\n"
+            "  padding: var(--sp-3);\n"
+            "  border: 1px solid var(--rule);\n"
+            "  border-radius: var(--r);\n"
+            "  background: var(--card);\n"
+            "  --lf-frame: 1;\n"
+            "}\n"
+        )
+    if upgrade:
+        (package / "widgets" / f"{tag}.js").write_text(
+            'import { once } from "/leaf.js";\n\n'
+            "customElements.define(\n"
+            f'  "{tag}",\n'
+            "  class extends HTMLElement {\n"
+            "    connectedCallback() {\n"
+            "      if (!once(this)) return;\n"
+            "    }\n"
+            "  },\n"
+            ");\n"
+        )
+    return package
+
+
+def link_example_packages(root: Path) -> list[str]:
+    """Expose the corpus packages at their recorded project-relative paths."""
+    for name in EXAMPLE_PACKAGES:
+        relative = Path(name)
+        package = root / relative
+        package.parent.mkdir(parents=True, exist_ok=True)
+        if not package.exists():
+            package.symlink_to(ROOT / relative, target_is_directory=True)
+    return EXAMPLE_PACKAGES
 
 
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
@@ -841,6 +926,24 @@ def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
         raise
     if confirming_notices:
         errors.append(interact.recurring_resize_observer_error("navigation"))
+
+
+def key_line(page):
+    """What the key line says, once the runtime has had its frame to say it.
+
+    `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
+    round-trip as the press that caused it is a read of the frame before. Two frames,
+    because the repaint's own rAF may be queued behind this one's.
+
+    Read once and never retried, which is the point of it: a disclosure's word is either
+    what the watch painted within the press or what the two-second poll paints later, and
+    an assertion that retries goes green on whichever poll lands inside its budget —
+    reading a stale line as an eventually right one.
+    """
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    return page.locator(".lf-keyline").inner_text()
 
 
 def open_page(

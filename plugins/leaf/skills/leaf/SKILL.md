@@ -24,6 +24,11 @@ shape fits. What stands open in the column is what the reader has to take from
 the page, and its backing sits under `<details>`. `leaf page catalog
 <page>` is the authority for the vendored vocabulary and theme.
 
+Packages may also carry guidance for roles involved in the page. `leaf page
+guidance <page>` lists the available audiences, and `leaf page guidance <page>
+<audience>` prints one guide. Read the assigned audience before acting in that
+role; `page catalog` already includes the `author` guide.
+
 Every ask has a control beside its evidence. A page that needs approval declares
 sign-off; an informative page does not. Publish when the subject changes and use
 status detail for finer progress between versions. Keep the waiter alive while
@@ -77,11 +82,9 @@ another.
   before the first handoff.
 - `references/conversation-loop.md`: before waiting, processing a delivered
   batch, opening or replying to a thread, or ending a page.
-- `references/worker-orchestration.md`: when other sessions report into an
-  orchestrator-owned page or a worker receives a Leaf assignment.
 - `references/serving-pages.md`: for `--export`, an unreachable URL, `--host`, a
   standing page, re-vendoring a served page, or resuming another session's page.
-- `references/customizing.md`: for a layer-design request or an event with
+- `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

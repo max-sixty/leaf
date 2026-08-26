@@ -40,6 +40,9 @@ from interact_support import (
     start_through_the_launcher,
     state_json,
 )
+from leaf_interact import hooks as hooks_model
+from leaf_interact import layer as layer_model
+from leaf_interact import session as session_model
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -298,7 +301,9 @@ def test_revendoring_cannot_remove_an_active_widget_work_seat(page_dir):
     assert claimed.exit_code == 0, claimed.output
     before = (page_dir / "registry.json").read_bytes()
 
-    card = json.loads((interact.BUNDLED / "registry.json").read_text())["lf-card"]
+    card = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())[
+        "lf-card"
+    ]
     card.pop("x-work")
     layer = Path.cwd() / ".leaf"
     layer.mkdir()
@@ -594,7 +599,7 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch):
     def unexpected_start(*_args, **_kwargs):
         pytest.fail("disabled desired state was revived")
 
-    monkeypatch.setattr(interact, "start_server", unexpected_start)
+    monkeypatch.setattr(session_model, "start_server", unexpected_start)
     watch = interact.Watch(None, named=page_dir)
     try:
         assert watch.acquire()
@@ -626,7 +631,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
         assert release.wait(5)
         return real_start(*args, **kwargs)
 
-    monkeypatch.setattr(interact, "start_server", delayed_start)
+    monkeypatch.setattr(session_model, "start_server", delayed_start)
     readings, errors = [], []
     watch = interact.Watch(None, named=page_dir)
     assert watch.acquire()
@@ -1151,14 +1156,14 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_layered_theme = interact.layered_theme
+    original_composed_theme = layer_model.composed_theme
 
-    def held_layered_theme(layers):
+    def held_composed_theme(sources):
         reached_layer.set()
         assert resume.wait(timeout=10), "the concurrent init never released its peer"
-        return original_layered_theme(layers)
+        return original_composed_theme(sources)
 
-    monkeypatch.setattr(interact, "layered_theme", held_layered_theme)
+    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(interact.cmd_init, page)
     try:
@@ -2391,7 +2396,7 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="successor")
     interact.cmd_status(page_dir, "waiting", "successor is reviewing")
-    monkeypatch.setattr(interact, "owned_pages", lambda _session_id: [page_dir])
+    monkeypatch.setattr(hooks_model, "owned_pages", lambda _session_id: [page_dir])
 
     interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "predecessor"})
 

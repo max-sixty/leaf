@@ -3,6 +3,7 @@
 import contextlib
 import json
 import re
+import shutil
 import threading
 import time
 
@@ -11,6 +12,7 @@ from click.testing import CliRunner
 from interact_support import (
     ACCEPT,
     ADOPTED,
+    COMMAND_HUB_PACKAGE,
     COMMENT,
     PAGE,
     PILOT_PURGE,
@@ -43,7 +45,11 @@ from interact_support import (
     published,
     styled,
     trial_version,
+    widget_entry,
 )
+from leaf_interact import conversation as conversation_model
+from leaf_interact import http as http_model
+from leaf_interact import layer as layer_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):
@@ -185,7 +191,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     # same standing target and proceed, while the transactional handler keeps the
     # second outside until the first append is visible. A bounded wait keeps the
     # correct serialization from deadlocking the probe itself.
-    real_undo_error = interact.undo_error
+    real_undo_error = http_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
     validation_calls = 0
@@ -202,7 +208,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             second_validation.set()
         return error
 
-    monkeypatch.setattr(interact, "undo_error", expose_validation_gap)
+    monkeypatch.setattr(http_model, "undo_error", expose_validation_gap)
     start = threading.Barrier(3)
     results = []
 
@@ -543,7 +549,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     release_report = threading.Event()
     init_waiting = threading.Event()
     real_append = interact.append_event
-    real_flocked = interact.flocked
+    real_flocked = layer_model.flocked
 
     def paused_append(directory, event):
         if event["kind"] == "report":
@@ -558,8 +564,8 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(interact, "append_event", paused_append)
-    monkeypatch.setattr(interact, "flocked", observed_flocked)
+    monkeypatch.setattr(conversation_model, "append_event", paused_append)
+    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 
     def report():
@@ -597,7 +603,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = interact.layer_generation(page_dir)
     transition = interact.transition_lock(page_dir)
     init_waiting = threading.Event()
-    real_flocked = interact.flocked
+    real_flocked = layer_model.flocked
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -606,7 +612,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(interact, "flocked", observed_flocked)
+    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
     errors = []
 
     def revendoring():
@@ -686,7 +692,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
 ):
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    local = interact.custom_widget_entry("lf-local-thread", False)
+    local = widget_entry("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
     interact.cmd_init(page_dir)
     publish(page_dir)
@@ -1636,22 +1642,6 @@ def test_only_reader_actions_admit_current_eligibility(page_dir):
     assert "requires" in result.output
 
 
-def test_check_refuses_increase_condition_without_an_unsigned_scalar_record(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["choose"]["requires"] = {
-        "target": "self",
-        "awaiting": True,
-        "change": "increase",
-    }
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert "conditions an increase" in result.output
-    assert "unsigned-integer value record" in result.output
-
-
 def test_a_self_position_record_stays_within_the_declared_parent_relation(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["x-parent"] = ["lf-task"]
@@ -2179,6 +2169,102 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
         )
     )
     assert check(page_dir).exit_code == 0
+
+
+def test_an_ask_role_declares_an_addressable_instance(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-idless-ask"] = {
+        "type": "object",
+        "properties": {"open": {"type": "boolean"}},
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-awaits": {"when": {"open": [True]}},
+        "x-upgrade": False,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "x-awaits instances are addressable" in result.output
+
+
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("2026-08-21T08:00:00Z", True),
+        ("2026-08-21t08:00:00z", True),
+        ("2026-08-21T08:00:00+01:30", True),
+        ("2026-08-21T08:00:00", False),
+        ("2026-08-21 08:00:00+00:00", False),
+    ],
+)
+def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
+    schema = {"type": "string", "format": "date-time"}
+
+    assert interact.json_validator(schema).is_valid(value) is valid
+
+
+def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
+    """A hold is recorded against the declaration that admitted it."""
+    package = page_dir.parent / "examples" / "packages" / "command-hub"
+    package.unlink()
+    shutil.copytree(COMMAND_HUB_PACKAGE, package)
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-task></lf-tasks></section>",
+        )
+    )
+    publish(page_dir)
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Pause after this pass.",
+            "anchor": {"section": "goal"},
+            "holds": "goal",
+        },
+    )
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    del registry["lf-task"]["x-conversation"]["hold"]
+    registry_path.write_text(json.dumps(registry))
+
+    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "x-conversation hold target" in result.output
+
+
+def test_shared_package_declarations_compose_by_member():
+    """One package can extend a shared declaration without copying its peers."""
+    board = {"role": "holder", "state": "status"}
+    lane = {"role": "holder", "state": "phase"}
+    merged = {"$workflow": {"widgets": {"lf-board": board}}}
+
+    interact.merge_layer_entries(merged, {"$workflow": {"widgets": {"lf-lane": lane}}})
+
+    assert merged["$workflow"]["widgets"] == {
+        "lf-board": board,
+        "lf-lane": lane,
+    }
+
+
+def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-suggestion"]["x-awaits"]["answers"] = ["missing"]
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "x-awaits names undeclared answer verbs ['missing']" in result.output
 
 
 def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):

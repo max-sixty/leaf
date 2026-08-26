@@ -1,0 +1,374 @@
+{
+  "$command": {
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "widgets": {
+      "lf-command": {
+        "role": "command"
+      },
+      "lf-task": {
+        "role": "goal",
+        "state": "status",
+        "done": [
+          "done"
+        ],
+        "stopped": [
+          "blocked",
+          "review",
+          "stalled"
+        ],
+        "review": [
+          "review"
+        ],
+        "stalled": [
+          "stalled"
+        ],
+        "report": "status",
+        "depends": "needs",
+        "stoppedAt": "stopped-at"
+      },
+      "lf-agent": {
+        "role": "worker",
+        "state": "state",
+        "running": [
+          "working"
+        ],
+        "retired": [
+          "reaped",
+          "done"
+        ],
+        "on": "on",
+        "report": "state"
+      },
+      "lf-worktree": {
+        "role": "evidence"
+      }
+    }
+  },
+  "lf-roster": {
+    "description": "Who is working, and where each of them stands right now. Children are lf-agent elements only. Where lf-tasks is the work and lf-milestones the schedule, a roster is the other axis a page running several workers needs: the tree says a task is active, and only the roster says which of five sessions is holding it, what that one is doing this minute, and whether anybody has heard from it since breakfast. Reach for it on a page one orchestrator publishes and several workers report to — the standing hub arrangement — and leave it off a page with one agent on it, where the banner already says everything a roster would.\n\nIt stands wider than the prose column where the window has the room (x-wide), because a roster is read across rather than down: the comparison a reader wants is one agent's line against the next, and a column narrow enough for prose puts each line's own facts on two rows and destroys it.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "additionalProperties": false,
+    "x-content": "items",
+    "x-upgrade": false,
+    "x-wide": "box",
+    "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\" branch=\"feeder-mounts\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\" branch=\"baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the branch is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
+  },
+  "lf-agent": {
+    "description": "One worker: a session, an agent, a person. Lead with a <strong> name — the identity it reports under — and prose saying its durable remit. On a command surface, placement gives that remit: directly under lf-command means the whole project; directly under an lf-task means that goal and its descendants. This admits coordinators, area owners, and leaf specialists without closing them into a role enum.\n\nThe version carries `state`, optional `on`, and `branch`. `state` says where the worker stands: working, waiting, blocked, idle, reaped, or done. `on` is only the current focus and, inside a command, must remain within the structural remit; a broad coordinator or idle worker need not invent one. `branch` says where work is landing. A report adds the finer-grained `doing` clause and moves the row live until a version absorbs or overrules it. One report verb carries state and doing together so an activity sentence cannot split across fold coordinates; only state creates record debt because a version can adjudicate an enum but not a clause that was true for one minute.\n\nThe row computes when the log last heard from this worker, even past an absorbed report. A working claim silent for the shared quarter-hour grace is called out, so the banner and fleet mean the same thing by quiet. The row is a view rather than an ask: blocked work asks once at its task, while the worker remains somewhere the reader can point a comment.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "state": {
+        "enum": [
+          "working",
+          "waiting",
+          "blocked",
+          "idle",
+          "reaped",
+          "done"
+        ]
+      },
+      "on": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "branch": {
+        "type": "string"
+      },
+      "overruled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "state"
+    ],
+    "additionalProperties": false,
+    "x-parent": [
+      "lf-roster",
+      "lf-command",
+      "lf-task"
+    ],
+    "x-content": "prose",
+    "x-refers": [
+      "on"
+    ],
+    "x-upgrade": true,
+    "x-report": {
+      "state": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "working",
+                "waiting",
+                "blocked",
+                "idle",
+                "reaped",
+                "done"
+              ]
+            },
+            "doing": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "state",
+            "doing"
+          ],
+          "additionalProperties": false
+        },
+        "facet": "activity",
+        "unit": "widget",
+        "update": "doing",
+        "record": {
+          "kind": "value",
+          "attr": "state",
+          "value": "state"
+        }
+      }
+    }
+  },
+  "lf-tasks": {
+    "description": "A hierarchy of work: what a project is made of, who holds each piece, and where each piece stands. Children are lf-task elements, nesting freely — the tree is the plan's own shape, so write the decomposition as it is rather than flattening it. Where lf-milestones is a flat rail of stages on a schedule and lf-board is a set the reviewer re-orders, lf-tasks is structure: a parent's children are what doing it means, and the upgrade counts each parent's subtree into a generated done-fraction chip so the tree reads as progress without a widget of its own. Statuses change by republishing, or between versions by a worker's `leaf report` (x-report on lf-task) — the page keeps up with the work — and comments anchor per task, so keep every task's id stable across versions.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "additionalProperties": false,
+    "x-content": "items",
+    "x-upgrade": false,
+    "x-example": "<lf-tasks id=\"aviary-plan\">\n  <lf-task id=\"t-feeders\" status=\"active\" owner=\"wren\">\n    <strong>Rebuild the feeders</strong> Two of four mounted.\n    <lf-task id=\"t-mounts\" status=\"done\" owner=\"wren\"><strong>Replace the mounts</strong></lf-task>\n    <lf-task id=\"t-baffles\" status=\"review\" owner=\"finch\" when=\"aug 4\"><strong>Fit squirrel baffles</strong></lf-task>\n  </lf-task>\n  <lf-task id=\"t-bath\" status=\"blocked\">\n    <strong>Heat the bird bath</strong> Waiting on the transformer pick below.\n  </lf-task>\n</lf-tasks>"
+  },
+  "lf-command": {
+    "description": "A goal-first command surface. Its nested goals are the one authored plan; each worker lives once at the narrowest tree level matching its durable remit — directly under the command for project-wide coordination, or under any goal for that goal's whole subtree. `on` is only the worker's current focus inside that remit. The orchestration upgrade derives the operator header, stopped-work reading, and live-worker projection from this tree. `label` and `phase` name the outcome and planning horizon. Do not author a second roster or asks list beside it: those are views of the tree and its log. Later packages may add their own goal or worker widgets under `$command.widgets` without teaching Leaf's kernel their names.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string"
+      },
+      "phase": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "items",
+    "x-upgrade": true,
+    "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\">\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
+  },
+  "lf-task": {
+    "description": "One piece of the work. Lead with a <strong> title; prose follows, and child lf-task elements after the prose are its decomposition. `status` colors the marker: planned, active, blocked (stuck — the prose says on what), review (finished by whoever held it, awaiting the reader), stalled (work produced no durable progress), or done. `owner` names who holds it now — an agent, a session, a person — and `when` is a free-text schedule label; both render as chips after the title, with `tags` adding one chip per entry. A parent with children also gets a generated done-fraction chip counting its subtree. A task that needs the reader's word is `review` or `blocked`: those two are the standing asks a tree makes (see $awaits), counted in the banner and stepped to by `n`/`p` alongside every other thing the page is waiting on, so keep them honest — a task marked active that is really waiting on a decision is invisible exactly where it needs to be seen. A stalled task is diagnosis, not a question by itself; put the concrete decision beside it when the reader must choose a disposition. Version-only asks remain until a later version says otherwise: a tree has no reader action channel, so the reader answers in words and you answer by republishing the status. The agent side does have one — `status` is agent-settable (x-report): a worker holding a task reports where it stands (`leaf report <page> <task-id> status status=review`), the page paints it as provisional news, and it stands until a version absorbs or overrules it (see $report; `overruled` is the overruling version's word).",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "status": {
+        "enum": [
+          "planned",
+          "active",
+          "blocked",
+          "review",
+          "stalled",
+          "done"
+        ]
+      },
+      "owner": {
+        "type": "string"
+      },
+      "when": {
+        "type": "string"
+      },
+      "tags": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
+      },
+      "needs": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*( [a-z0-9][a-z0-9-]*)*$"
+      },
+      "stopped-at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "talk": {
+        "type": "boolean"
+      },
+      "overruled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "status"
+    ],
+    "additionalProperties": false,
+    "x-parent": [
+      "lf-tasks",
+      "lf-command",
+      "lf-task"
+    ],
+    "x-content": "prose",
+    "x-paints": [
+      "status"
+    ],
+    "x-upgrade": true,
+    "x-conversation": {
+      "when": {
+        "talk": [
+          true
+        ]
+      },
+      "hold": "Send & pause"
+    },
+    "x-awaits": {
+      "when": {
+        "status": [
+          "review",
+          "blocked"
+        ]
+      }
+    },
+    "x-report": {
+      "status": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "planned",
+                "active",
+                "blocked",
+                "review",
+                "stalled",
+                "done"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "facet": "status",
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "status",
+          "value": "status"
+        }
+      }
+    }
+  },
+  "lf-worktree": {
+    "description": "One disposable worker's inspectable worktree. The attributes are the last pushed snapshot: branch and base/head identity, divergence, diffstat, commit count, and test result. Its body carries the evidence, usually a real lf-diff. The generated summary toggles the evidence without duplicating it; comments may anchor on the worker, this worktree, or an individual diff line.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "branch": {
+        "type": "string"
+      },
+      "base": {
+        "type": "string"
+      },
+      "head": {
+        "type": "string"
+      },
+      "ahead": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      },
+      "behind": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      },
+      "additions": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      },
+      "deletions": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      },
+      "commits": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      },
+      "tests": {
+        "enum": [
+          "passing",
+          "failing",
+          "running",
+          "not-run"
+        ]
+      },
+      "tested-at": {
+        "type": "string"
+      },
+      "committed-at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "id",
+      "branch",
+      "base",
+      "head",
+      "ahead",
+      "behind",
+      "additions",
+      "deletions",
+      "commits",
+      "tests"
+    ],
+    "additionalProperties": false,
+    "x-parent": [
+      "lf-agent"
+    ],
+    "x-content": "prose",
+    "x-upgrade": true,
+    "x-wide": "box"
+  },
+  "lf-record": {
+    "description": "The page's consequential action receipts, projected in log order. It renders reader actions, held comments, resolutions, reports, and publications with their targets and payload summaries. Folds and read-only disclosures do not enter because the log never recorded them. This is evidence, not another state store.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-upgrade": true
+  }
+}

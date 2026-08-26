@@ -7,18 +7,25 @@ from conftest import interact
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    COVERED_TOP,
+    EDGES,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_RUNS,
     LIST_STATE,
     LONG_PAGE,
     PANEL_PAGE,
+    RENDERED,
+    RING_FAULTS,
+    draw_edge,
+    edge_settled,
     in_threads_scrollport,
     leaf_page,
     open_page,
     panel_comment,
     panel_settled,
     resized,
+    ring_fault,
     round_trip,
     told,
     undo,
@@ -497,8 +504,9 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
 
     page, errors = open_page(browser, url)
     # Searching a list is a press on that list, so the key is the panel's: out on the
-    # prose it does nothing, and `c` then Escape is the route in. Read against the same
-    # press landing two lines below, which is what makes the silence a rule.
+    # prose it does nothing, and `c` is the whole route in — it stands the reader on the
+    # list, which is where the panel's own keys are live. Read against the same press
+    # landing two lines below, which is what makes the silence a rule.
     #
     # A plain paragraph rather than the body's own middle, which is a widget on this
     # page: `c` goes to the box belonging to whatever the reader is standing in, so a
@@ -511,7 +519,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(".lf-panel")).not_to_be_visible()
     page.keyboard.press("c")
     panel_settled(page)
-    page.keyboard.press("Escape")  # out of the general box, onto the list
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("/")
     expect(page.locator(".lf-find-box")).to_be_focused()
 
@@ -578,14 +586,20 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("w")
     expect(page.locator(".lf-panel")).not_to_be_visible()
 
-    # `c` puts the reader in the panel, in its general box — where `w` is a character
-    # like any other, the typing scope claiming what types one. Escape backs out onto the
-    # list, and there the key is live and the line says so. The control names it, off the
-    # row, so the two cannot come to spell it differently.
+    # `c` stands the reader on the list, where the key is live and the line says so.
+    # The control names it, off the row, so the two cannot come to spell it differently.
     page.keyboard.press("c")
     panel_settled(page)
+    expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
+    expect(page.locator(".lf-keyline")).to_contain_text("waiting on you")
+    # A second `c` is the general box, and there `w` is a character like any other —
+    # the typing scope claims what types one, so the row stands down and the line drops
+    # it. Escape backs out onto the list and it is live again. Both directions, because
+    # a key that were live in the box would type nothing and read as a dead keyboard.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
     expect(page.locator(".lf-keyline")).not_to_contain_text("waiting on you")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
@@ -1692,5 +1706,261 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
+    assert errors == []
+    page.close()
+
+
+def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
+    """Where the reader is standing has to be visible from wherever they walked to it,
+    and the two ways it stops being visible are geometry rather than anything about the
+    control: a scroll region that never said how much of its own edge it cannot land on,
+    and a neighbour painting over the pixels the ring is in. Both had the panel's thread
+    list, in both directions — walking down cut the ring at the bottom, walking up cut it
+    at the top and slid it under the find row, and the first thread of every run had its
+    top edge painted over by the heading above it, which is what a reader sees as a card
+    with three sides.
+
+    So this walks the list the way a reader does and asks the invariant at every landing,
+    rather than naming the collisions one at a time. A rule stated once is a rule a new
+    control inherits; a list of known collisions is a thing to keep adding to.
+
+    Reduced motion, so a landing is a jump: what is asserted is where a walk ends, and
+    the runtime reads the preference at load to decide between a glide and a jump."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    # A run per section and enough threads to make the list scroll, which is the whole
+    # of what the cut half needs: a list that fits in the panel has no edge to fall off.
+    for i in range(4):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+        panel_comment(d, f"About the whole page, {i}.")
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        threads = page.locator(".lf-threads > .lf-thread").count()
+        assert threads == 16, (
+            f"the fixture built {threads} threads, not the 16 it needs"
+        )
+        assert page.evaluate(
+            "() => { const l = document.querySelector('.lf-threads');"
+            " return l.scrollHeight > l.clientHeight; }"
+        ), "the list does not scroll, so nothing here can be cut by its edge"
+
+        # The walk keys, not Tab: a thread is tabindex -1 and j/k are how a reader
+        # reaches one. Every landing on the way down and again on the way up, because
+        # the two directions align opposite edges of the box with the scrollport and
+        # only one of them was ever wrong at a time.
+        # Standing nowhere, said rather than clicked for: `c` goes to the box belonging to
+        # whatever the reader is standing in, and a click on the body lands wherever the
+        # middle of the document happens to be — which on this page is a diff, whose `pre`
+        # takes focus. The press then opened that widget's composer and the walk below
+        # typed its keys into the box, which is exactly what the non-vacuity check at the
+        # end caught: thirty-two landings asserted, none of them on a thread.
+        page.evaluate("() => document.activeElement?.blur()")
+        page.keyboard.press("c")
+        expect(page.locator(".lf-threads")).to_be_focused()
+        walked, faults = 0, []
+        for key in ("j",) * threads + ("k",) * threads:
+            page.keyboard.press(key)
+            page.evaluate(RENDERED)
+            walked += 1
+            fault = ring_fault(page, f"after {walked} presses of the walk")
+            if fault:
+                faults.append(fault)
+            under = page.evaluate(COVERED_TOP)
+            if under:
+                faults.append(
+                    f"after {walked} presses, the thread landed under a run "
+                    f"heading: {under}"
+                )
+        assert not faults, "\n  ".join(
+            [f"{len(faults)} of {walked} landings:"] + faults
+        )
+
+        # Non-vacuity: the walk has to have been on threads inside the scrolling list,
+        # drawing rings, or the loop above asserted nothing at every step.
+        assert page.evaluate(RING_FAULTS)["ring"], (
+            "the walk ends on nothing wearing a ring"
+        )
+        assert page.evaluate(RING_FAULTS)["scrolled"], (
+            "the walk ends outside a scroll region, so the cut half proved nothing"
+        )
+
+        # The list's own controls, which j and k never reach: Reply and Resolve inside a
+        # card draw their rings outside themselves, as does a run heading, which is a
+        # button. They are what the room reserved at this list's edges is for — the
+        # threads' own rings being inset, nothing else spends it — so without this pass
+        # half of that scroll-padding is unheld. Tab scrolls each stop into view itself,
+        # which is the gesture that puts one against an edge.
+        page.locator(".lf-threads").focus()
+        stops = 0
+        for _ in range(40):
+            page.keyboard.press("Tab")
+            page.evaluate(RENDERED)
+            if not page.evaluate(
+                "() => document.querySelector('.lf-threads')"
+                ".contains(document.activeElement)"
+            ):
+                break
+            stops += 1
+            fault = ring_fault(page, f"tabbing to stop {stops} inside the list")
+            if fault:
+                faults.append(fault)
+        assert stops >= 8, (
+            f"only {stops} of the list's own controls were tabbed to, so the room it "
+            "reserves at its edges is not held by this"
+        )
+        assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
+    browser, serve
+):
+    """How much of the list's top a stuck heading covers is a measurement, because a long
+    heading wraps — and how long is long is the list's width, which is the reader's to
+    set. They set it by dragging the panel's edge, and a drag posts no event, so the
+    reconcile that takes this measurement never comes. The number went on reserving room
+    for the one line the heading had at the width it was written at, and the threads a
+    walk landed on went back under the heading, which is the whole of what the number
+    exists to prevent.
+
+    A heading long enough to wrap at the narrow end and not at the wide one is what makes
+    the drag a single factor: the same list, the same log, one gesture between the two
+    readings."""
+    url = serve(
+        PANEL_PAGE.replace(
+            '<h2 id="h-merge">The merge rule</h2>',
+            '<h2 id="h-merge">The merge rule, and every case two offline editors '
+            "can put it in</h2>",
+        )
+    )
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        edge = next(e for e in EDGES if e.name == "comments")
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        room = (
+            "() => getComputedStyle(document.querySelector('.lf-threads'))"
+            ".getPropertyValue('--lf-head-room')"
+        )
+        tallest = """() => Math.max(0, ...[...document.querySelectorAll(
+             '.lf-threads .lf-pinned')].map((h) => Math.round(
+               h.getBoundingClientRect().height)))"""
+        assert page.evaluate(room) == f"{page.evaluate(tallest)}px"
+
+        # Narrow it until the long heading wraps. The gesture is the reader's own.
+        draw_edge(page, edge, -(edge.wide - 320))
+        edge_settled(page, edge)
+        assert page.evaluate(tallest) > 38, (
+            "no heading wrapped at the narrow end, so the drag changed nothing to notice"
+        )
+        assert page.evaluate(room) == f"{page.evaluate(tallest)}px", (
+            "the room a heading takes was measured at a width the reader has left"
+        )
+
+        # And the walk lands clear of it, which is what the number is for. Standing
+        # nowhere first, said rather than clicked: `c` opens the box belonging to
+        # whatever the reader is standing in, and a click on the body lands wherever the
+        # middle of the document happens to be — here a diff, whose `pre` takes focus, so
+        # the press opened that widget's composer and the sixteen keys below were typed
+        # into it as characters. COVERED_TOP answers null for a focus outside the list,
+        # so every one of those landings agreed with the invariant by never being asked.
+        page.evaluate("() => document.activeElement?.blur()")
+        page.keyboard.press("c")
+        expect(page.locator(".lf-threads")).to_be_focused()
+        faults = []
+        for key in ("j",) * 8 + ("k",) * 8:
+            page.keyboard.press(key)
+            page.evaluate(RENDERED)
+            under = page.evaluate(COVERED_TOP)
+            if under:
+                faults.append(under)
+        assert not faults, "\n  ".join(["landed under a run heading:"] + faults)
+        # Non-vacuity, kept beside the loop it is about: the walk has to have ended on a
+        # thread inside the list, or the loop asked its question sixteen times of a focus
+        # COVERED_TOP declines to answer for.
+        assert page.evaluate(
+            "() => Boolean(document.activeElement?.closest?.('.lf-threads > .lf-thread'))"
+        ), "the walk ends outside the list, so the landings proved nothing"
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
+    browser, serve
+):
+    """The two chips the line paints are what a reader standing on the list is offered,
+    and they have to be the keys that act on the list.
+
+    `c` brought them here so that `w` and `/` would be live — the general box is where
+    the typing scope claims every letter, which is the whole reason the press stops at
+    the list. This is the one focus position where those two rows can hold a chip at
+    all: inside a thread `THREAD` is nearer, inside a box `TYPING` claims the letters,
+    and outside the panel this scope is not standing. So a row in front of them here
+    spends the slot the landing exists to fill, which is what the panel's own `c` did
+    until it was moved to the end of the scope.
+
+    Read off `:not([hidden])`, because `renderLine` leaves every live row in the DOM and
+    hides the ones it has no room to paint. `to_contain_text` on the line therefore
+    answers about the register rather than about the reader, and passes just as well
+    when the chip is one nobody can see — which is why the rest of the panel's tests
+    could not have caught this.
+
+    The second press keeps a surface of its own: the box says the key in its own
+    placeholder, which the last phase reads."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(3):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "Which way round should this go?",
+            "anchor": {"section": "how-store"},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    # The list's own key leads: something is waiting, so `w` is live and nearest.
+    expect(shown.nth(0)).to_contain_text("waiting on you")
+    expect(shown.nth(1)).to_contain_text("close comments")
+
+    # And the press it displaced still works, from the placeholder that advertises it.
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "placeholder", re.compile(r"·\s*c$")
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+
     assert errors == []
     page.close()

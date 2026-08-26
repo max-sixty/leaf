@@ -13,7 +13,9 @@ from render_support import (
     BOARD_PAGE,
     CHIPS,
     CLIPPED_BY,
+    CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
+    DISCLOSED_PAGE,
     FOOTED_PAGE,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
@@ -21,11 +23,15 @@ from render_support import (
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
+    ROOT,
+    SPENT,
+    STANDS_BACK,
     TARGETS_PAGE,
     WHERE_I_STAND_PAGE,
     _publish,
     card_body,
     composer_quote,
+    key_line,
     leaf_page,
     live_url,
     mark_point,
@@ -35,6 +41,7 @@ from render_support import (
     panel_settled,
     pending_text,
     post_event,
+    refuse,
     resized,
     round_trip,
     select,
@@ -42,6 +49,7 @@ from render_support import (
     told,
     wait_hovered,
     wait_standing,
+    watched,
 )
 
 pytestmark = pytest.mark.nightly
@@ -789,7 +797,8 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
     """An address the reader can read is one no other address is sitting on.
 
     Chips are centred on the corner their member starts at, and a chip is wider than it was
-    — it carries a letter now. Two addressable things can start within that width: markers
+    — it carries the whole address now, leader and letter and digit. Two addressable things
+    can start within that width: markers
     in a footnote run, or a link that is the whole of a summary, which is one corner in two
     lists at once and could not arise while a letter had to be pressed before anything was
     painted.
@@ -827,10 +836,21 @@ def test_no_address_is_drawn_on_top_of_another(browser, serve):
         f"addresses are drawn on top of each other: {piles['found']} "
         f"(drawn: {piles['drawn']})"
     )
+    # And the page was crowded, or a clean sweep says nothing. Five members start within a
+    # chip's width of each other here — three footnote markers, the link that is the whole
+    # of a summary, and the summary itself — so all five surviving would mean the chips had
+    # stopped colliding rather than that this pass had taken the collisions down. Two is
+    # the fewest a pair can be checked between. The window between those two numbers is
+    # what a chip growing or shrinking moves, which is the change that empties this test.
+    drawn = piles["drawn"]
+    assert 2 <= len(drawn) < 5, (
+        f"the crowded page drew {len(drawn)} of its five addresses ({drawn}): the pass "
+        f"either dropped nothing or left too few to have checked a pair"
+    )
     # And the ones that survived still say what they reach: pressing the first link's own
     # digit lands on that link and not on the neighbour whose chip it might have worn.
     first = piles["drawn"][0]
-    letter, digit = first.split(" ")
+    _leader, letter, digit = first.split(" ")
     page.keyboard.press(letter)
     page.keyboard.press(digit)
     assert page.evaluate("() => document.activeElement.id") in {
@@ -900,8 +920,9 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
 
     So each list states itself, and every surface reads the table: the letters on the line
     are the lists the page has, the digits are the members the named one holds, each member
-    on screen wears its own two-key address as a chip from the moment the chord is armed,
-    and a reply box's placeholder speaks the whole address it answers to. What is asserted
+    on screen wears its whole address as a chip from the moment the chord is armed — the
+    same address a reply box's placeholder speaks, key for key, with the keys already
+    pressed dimmed. What is asserted
     here is that the lists behave as one mechanism — a comment, an ask, a link and a
     disclosure reached the same way — rather than that any of them works, which is each
     list's own business elsewhere."""
@@ -956,7 +977,16 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # address, so the press that opened the window states what the next one reaches. The
     # comments are the one list absent, its panel being shut — a chip is drawn from a
     # member's own visible box, and a shut panel gives none.
-    expect(page.locator(CHIPS)).to_have_text(["a 1", "l 1", "l 2", "d 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    # Whole, and saying how much of it is still to press: the leader is behind the reader
+    # here, so it stands back and the two keys that finish the motion keep the chip's own
+    # size and colour. A chip set evenly would state an address and leave the reader to
+    # work out for themselves which part of it they had already made.
+    assert page.evaluate(SPENT, CHIPS) == ["g", "g", "g", "g"]
+    assert page.evaluate(STANDS_BACK, CHIPS) == {"quieter": True, "smaller": True}, (
+        "the keys already pressed do not stand back from the ones still to come: "
+        f"{page.evaluate(STANDS_BACK, CHIPS)}"
+    )
     # The chips are the eye's copy of a mode; a reader who cannot see them is told the
     # window opened and what it holds, off the same rows the line just drew — the ranges
     # among them, where a row whose label counts the page used to be read out key by key
@@ -978,9 +1008,12 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
         ".getBoundingClientRect().left > document.body.clientWidth"
     )
     # The offer narrows to the named list: the links and the disclosure drop their chips,
-    # and the three that arrive say the same two keys their boxes answer to whether or not
-    # anything is armed — the reply box's placeholder reads them out below.
-    expect(page.locator(CHIPS)).to_have_text(["c 1", "c 2", "c 3"])
+    # and the three that arrive say the same motion their boxes answer to whether or not
+    # anything is armed — the reply box's placeholder reads it out below, key for key. The
+    # letter is behind the reader now, so it joins the leader in the quiet half and the
+    # digit is left standing alone.
+    expect(page.locator(CHIPS)).to_have_text(["g c 1", "g c 2", "g c 3"])
+    assert page.evaluate(SPENT, CHIPS) == ["g c", "g c", "g c"]
     assert page.evaluate(
         """() => {
              const chips = [...document.querySelectorAll('.lf-addresses > .lf-address')];
@@ -995,7 +1028,9 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # The chord's own chip says which stage the reader is at, and the digits are now the
     # whole of what the letter's row promises — spoken as well as drawn.
     expect(line).to_contain_text("1–3")
-    expect(line).to_contain_text("cancel")
+    # Two presses built this window, so its way out names the one it gives back first.
+    # test_escape_gives_the_chord_back_one_press_at_a_time walks both rungs.
+    expect(line).to_contain_text("back to the lists")
     expect(page.locator(".lf-live")).to_contain_text("1–3 comments")
 
     # And the digit arrives, however long the reader took over it: the mode stands until
@@ -1036,7 +1071,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     )
     page.keyboard.press("g")
     page.keyboard.press("a")
-    expect(page.locator(CHIPS)).to_have_text(["a 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g a 1"])
     assert page.evaluate(
         """() => document.querySelector('.lf-addresses > .lf-address')
                    .getBoundingClientRect().top
@@ -1053,7 +1088,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("l")
-    expect(page.locator(CHIPS)).to_have_text(["l 1", "l 2"])
+    expect(page.locator(CHIPS)).to_have_text(["g l 1", "g l 2"])
     assert page.evaluate(
         """() => {
              const links = [...document.querySelectorAll('#refs a[href]')];
@@ -1070,6 +1105,9 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
         "wrapped": True,
         "on": [True, True],
     }, "a chip is not on the corner its link starts at"
+    # Two rungs down, because two presses built this window: the letter, then the
+    # window itself. test_escape_gives_the_chord_back_one_press_at_a_time owns that.
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
     # And from the foot of the page, where neither of them can be seen.
@@ -1107,7 +1145,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("d")
-    expect(page.locator(CHIPS)).to_have_text(["d 1"])
+    expect(page.locator(CHIPS)).to_have_text(["g d 1"])
     assert page.evaluate(
         """() => {
              const c = document.querySelector('.lf-addresses > .lf-address')
@@ -1122,22 +1160,28 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     expect(page.locator("#dsc-head")).to_be_focused()
     expect(page.locator("#dsc")).to_have_attribute("open", "")
 
-    # Standing there, the line says which way the next press goes — the platform's press,
-    # which the runtime names rather than binds, and which is Space as well as Enter here
-    # where a link takes Enter alone, Space under one being the page's own scroll. A word
-    # fixed at declaration could say only one of the two directions.
-    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"))
+    # Standing there, the line says which way the next press goes and names every key that
+    # goes that way: Space as well as Enter, where a link takes Enter alone and Space under
+    # one is the page's own scroll, and the one arrow with somewhere to go. Both cells are
+    # read where they are painted — a word fixed at declaration could say only one of the
+    # two directions, and a binding set fixed there would name an arrow that does nothing.
+    # What the arrows do is the test below this one; here they are what the line offers.
+    opened, shut = r"⏎ / space / ←", r"⏎ / space / →"
+    expect(line).to_contain_text(re.compile(opened + r"\s*close"))
     page.keyboard.press("Enter")
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
-    # Timed out short, because the poll would otherwise answer for the toggle. Opening a
-    # disclosure is the one change in what the next press does that no writer in the
-    # runtime reports, so the word stood at "close" for the three seconds until a poll
-    # came past — and every assertion that waits reads a stale line as an eventually
-    # right one.
-    expect(line).to_contain_text(re.compile(r"⏎ / space\s*open"), timeout=1500)
+    # Read once rather than waited for. Opening a disclosure is the one change in what the
+    # next press does that no writer in the runtime reports, so the word stood at "close"
+    # until a poll came past — and an assertion that retries reads a stale line as an
+    # eventually right one, going green on whichever poll happens to land inside its
+    # budget. The attribute watch has answered by the time the press returns or nothing
+    # has.
+    said = key_line(page)
+    assert re.search(shut + r"\s*open", said), said
     page.keyboard.press(" ")
     expect(page.locator("#dsc")).to_have_attribute("open", "")
-    expect(line).to_contain_text(re.compile(r"⏎ / space\s*close"), timeout=1500)
+    said = key_line(page)
+    assert re.search(opened + r"\s*close", said), said
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key is the whole address — G glides to the bottom, g to the top.
@@ -1170,6 +1214,394 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.type("gc1")
     expect(ta1).to_have_value("gc1")
     expect(ta1).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve):
+    """Anything a mouse can scroll a keyboard has to reach, and the reference is a list
+    long enough to scroll — but its rows carry no control, so nothing put the reader in it
+    and they could read the first screenful of the key reference and no more.
+
+    The sweep that fixes that asks the box whether it may scroll, and the theme says every
+    table may (`table { display: block; overflow-x: auto }`). So pointing it at the
+    reference tagged all fourteen of its tables, none of which overflows: leaving the
+    reference by Tab went from one press to fifteen, each stop wearing the browser's own
+    ring rather than the layer's. A rule saying a box *could* scroll is not the same fact
+    as a box that *has* something out of sight, and only the second is somewhere a reader
+    needs to be able to stand.
+
+    Asserted as the whole set rather than a count, because the count was right before and
+    the members were wrong: every stop in the overlay has to be a box that really scrolls,
+    or the search box the overlay puts focus in."""
+    page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+
+    stops = page.evaluate(
+        """() => [...document.querySelector('.lf-help').querySelectorAll('*')]
+                 .filter(e => e.tabIndex >= 0)
+                 .map(e => ({
+                    tag: e.tagName,
+                    scrolls: e.scrollWidth > e.clientWidth
+                          || e.scrollHeight > e.clientHeight,
+                 }))"""
+    )
+    assert stops, "the reference offers no tab stop at all, not even its search box"
+    dead = [s for s in stops if s["tag"] != "INPUT" and not s["scrolls"]]
+    assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
+
+    # And the box that does have something out of sight is one of those stops, which is
+    # the whole point of the sweep. Its reachability is what is asserted here and not the
+    # scroll itself: the headless shell does not move a focused div for an arrow or a
+    # PageDown where Chrome does, so a motion assertion would be measuring the harness.
+    # What this can say, and what the defect was, is that the box overflows and that a
+    # reader can be put on it.
+    results = page.locator(".lf-help-results")
+    assert page.evaluate(
+        "() => { const r = document.querySelector('.lf-help-results');"
+        "        return r.scrollHeight > r.clientHeight; }"
+    ), (
+        "this reference fits its box, so it proves nothing about reaching one that does not"
+    )
+    results.focus()
+    expect(results).to_be_focused()
+    page.keyboard.press("Escape")
+    assert errors == []
+    page.close()
+
+
+def test_the_reference_reads_the_same_way_twice(browser, serve):
+    """A widget registers its scope at upgrade, and the set the reference walks is
+    insertion-ordered, so the sections came out in whatever order the modules happened to
+    finish in. The same build read twice put "On a tab" above "On a card grip" once and
+    below it the next time. A reference whose headings move between loads is one a reader
+    cannot learn the shape of, and any assertion on it flakes rather than fails — which is
+    how it was found, a reviewer taking a reordering for fallout from an unrelated change.
+
+    So the widgets' sections read in the order the page holds them. Asserted twice over:
+    the same page loaded twice gives the same list, and that list is the document's own
+    order rather than any order at all — a stable-but-wrong order would pass the first
+    check alone."""
+    url = serve(CONTROL_LABEL_PAGE)
+    seen = []
+    for _ in range(2):
+        page, errors = open_page(browser, url)
+        page.keyboard.press("?")
+        expect(page.locator(".lf-help")).to_be_visible()
+        seen.append(
+            page.evaluate(
+                "() => [...document.querySelectorAll('.lf-help h3')].map(h => h.textContent)"
+            )
+        )
+        assert errors == []
+        page.close()
+
+    assert seen[0] == seen[1], f"the reference reordered between loads: {seen}"
+    assert "On a tab" in seen[0], seen[0]
+
+
+def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, serve):
+    """What makes a press is `offer`'s own answer, and nothing that can be overwritten on
+    the way past. A tab is built by `offer("button", …)` and then wears `role="tab"`,
+    because that is what its strip is; its own scope declares the arrows and Home/End and
+    says nothing about Enter or Space, so the control scope is the only thing that gives a
+    tab a press at all — and the only thing that consumes Space, which is the page's
+    scroll.
+
+    Read off the role, that scope stopped seeing tabs: Enter did nothing and Space threw
+    the reader down the page from a control that looked like it had answered. Read off the
+    tabindex, which is the reading before it, the same scope claimed every focus target
+    `offer` builds, and led with "press it" over a conversation thread that answers
+    nothing. So the marker is the one `offer` writes for this and a widget has no reason
+    to touch.
+
+    Asserted from the state where the press is the only way back: the tab strip is walked
+    with arrows, so a focused tab is usually the selected one. Revealing the *other* panel
+    leaves focus on a tab that is not selected, which is exactly when Enter has work to
+    do."""
+    page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    tabs = page.locator("#projects .lf-tab-btn")
+    expect(tabs).to_have_count(2)
+
+    tabs.first.focus()
+    # Reveal the second panel without moving focus, so the focused tab is not the selected
+    # one and Enter has something to do.
+    page.evaluate(
+        """() => document.querySelector('#tab-bath')
+                 .dispatchEvent(new CustomEvent('lf-reveal',
+                   {bubbles: true, detail: {target: document.querySelector('#tab-bath')}}))"""
+    )
+    expect(tabs.first).to_be_focused()
+    expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
+
+    # The line names the press, and the press re-selects the tab the reader is standing on.
+    expect(page.locator(".lf-keyline")).to_contain_text("press it")
+    page.keyboard.press("Enter")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+
+    # And Space is consumed rather than scrolling the page out from under the press.
+    page.evaluate("() => document.querySelector('#tab-bath').click()")
+    tabs.first.focus()
+    before = page.evaluate("() => document.body.scrollTop")
+    page.keyboard.press(" ")
+    expect(tabs.first).to_have_attribute("aria-selected", "true")
+    assert page.evaluate("() => document.body.scrollTop") == before, (
+        "Space scrolled the page instead of working the control it was promised on"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
+    """The keyboard is a stack and the address chord is two presses of it: `g` opens
+    the window over every list the page has, and the letter names one of them. The
+    armed chip says as much, reading `g` and then `g l`, and the chips on the page
+    narrow with it. So Esc gives the letter back and the next Esc closes the window.
+
+    It spent both on one press, which put a reader who had narrowed to the wrong list
+    back on the page — pressing `g` again to reach a window that had been standing the
+    whole time. The chips are what make the two stages visible, so they are what the
+    unwind is read off: every list's again, then none.
+
+    The comments are the case that has to be asked separately, and the reason the count
+    is asserted rather than the chips. `c` is the one letter that does two things: it
+    narrows the window *and* opens the panel, the list drawing nothing while shut and so
+    having no box to hang a chip on. A rung that gave back only the narrowing left the
+    panel standing, so two presses in cost three out — the rule failing inside the fix
+    written for it. Every other list draws itself, so a walk through `l` and `a` alone
+    passes over exactly the entry that can break."""
+    url = serve(ADDRESSED_PAGE)
+    d = serve.page_dir
+    interact.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Sharpen this.",
+            "anchor": {"quote": "passage under discussion"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+    panel = page.locator(".lf-panel")
+
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    expect(line).to_contain_text("cancel")
+
+    # The letter narrows the window to its own list, which is the second layer.
+    page.keyboard.press("l")
+    expect(page.locator(CHIPS)).to_have_text(["g l 1", "g l 2"])
+    expect(line).to_contain_text("back to the lists")
+
+    # One press gives that back and no more: the window still stands, over every list.
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    expect(line).to_contain_text("cancel")
+    # And a letter still names one, so what came back is the window and not its ghost.
+    page.keyboard.press("a")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1"])
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(line).not_to_contain_text("cancel")
+
+    # The comments, whose letter also opens the panel to have something to draw on. The
+    # press that gives the letter back gives the panel back with it, so the window stands
+    # over every list again exactly as it did before the letter.
+    expect(panel).not_to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    expect(panel).to_be_visible()
+    expect(page.locator(CHIPS)).to_have_text(["g c 1"])
+    page.keyboard.press("Escape")
+    expect(panel).not_to_be_visible()
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    expect(line).to_contain_text("cancel")
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS)).to_have_count(0)
+
+    # A panel the reader opened themselves is not the aim's to take: the letter reveals
+    # nothing, so the press that gives it back leaves the panel where it found it.
+    page.keyboard.press("c")
+    expect(panel).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    page.keyboard.press("Escape")
+    expect(panel).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(CHIPS)).to_have_count(0)
+    expect(panel).to_be_visible()
+
+    # A click into the panel the letter opened is the same arrival the digit makes, so
+    # the reveal is the reader's to keep. Exempting only the digit closed the panel under
+    # their own pointer and dropped them on the toggle button, throwing the click away.
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(panel).not_to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    expect(panel).to_be_visible()
+    page.locator(".lf-general textarea").click()
+    expect(panel).to_be_visible()
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(CHIPS)).to_have_count(0)
+
+    # And the digit keeps what the reveal showed, the reader landing inside it.
+    page.keyboard.press("Escape")  # off the panel's list, back onto the page
+    page.keyboard.press("Escape")  # and the panel down, so the travel opens it again
+    expect(panel).not_to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    page.keyboard.press("1")
+    expect(panel).to_be_visible()
+    expect(page.locator(CHIPS)).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, serve):
+    """⏎ and space toggle a disclosure; → opens it and ← closes it. A direction and not a
+    second toggle, which is the whole of what they add: → over a section already open
+    leaves it open, where a toggle would have shut it. Only the direction with somewhere
+    to go is bound, so the line names ← over an open section and → over a shut one and
+    every key it names is a key that works — and each press that must change nothing
+    follows one that changed something, since a box nobody has touched passes that
+    assertion however dead the scope is.
+
+    Both spellings of a folded section, because a reader standing on one cannot see which
+    it is: the platform's <details>, and a settled option group, which is a span the
+    widget wrote `aria-expanded` onto. One scope answers for both, and the press goes
+    through the element's own click either way, so the keyboard leaves the page in the
+    state the pointer would have left it in.
+
+    The word follows either spelling within the press, not within the poll. Neither
+    reports itself — an aria-expanded write fires no event at all — so what the line says
+    about the key under the reader's finger rests on the attribute watch rather than on
+    the two-second poll behind it. Both readings of it are taken once, through
+    `key_line`: an assertion that retries cannot tell the watch from a poll that lands
+    inside its budget, and the first version of this test went green with the watch
+    broken.
+
+    Shift+← is the last thing this holds to: a summary's words are the page's, and
+    extending a selection through them must not shut the section they are in."""
+    page, errors = open_page(browser, serve(DISCLOSED_PAGE))
+    line = page.locator(".lf-keyline")
+    opened, shut = r"⏎ / space / ←", r"⏎ / space / →"
+
+    dsc = page.locator("#dsc")
+    head = page.locator("#dsc-head")
+    head.focus()
+    expect(dsc).not_to_have_attribute("open", "")
+    expect(line).to_contain_text(re.compile(shut + r"\s*open"))
+
+    page.keyboard.press("ArrowRight")
+    expect(dsc).to_have_attribute("open", "")
+    # The press does not move the reader off what they pressed it on, so the next one
+    # lands on the same section.
+    expect(head).to_be_focused()
+    said = key_line(page)
+    assert re.search(opened + r"\s*close", said), said
+
+    # A direction and not a toggle, which is the one thing ⏎ cannot say: this press
+    # follows one that is proven live, so a scope answering nothing at all could not pass
+    # it, and a toggle bound to the arrows would have shut the section here.
+    page.keyboard.press("ArrowRight")
+    expect(dsc).to_have_attribute("open", "")
+    # Shift+← is a reader extending a selection through the summary's own words. A named
+    # key asks for its modifiers exactly, so it is not this row's binding.
+    page.keyboard.press("Shift+ArrowLeft")
+    expect(dsc).to_have_attribute("open", "")
+
+    page.keyboard.press("ArrowLeft")
+    expect(dsc).not_to_have_attribute("open", "")
+    page.keyboard.press("ArrowLeft")
+    expect(dsc).not_to_have_attribute("open", "")
+
+    # And the platform's own pair still toggles, once each: the row owns its whole binding
+    # set, so the runtime makes the press the browser was going to make.
+    page.keyboard.press("Enter")
+    expect(dsc).to_have_attribute("open", "")
+    page.keyboard.press(" ")
+    expect(dsc).not_to_have_attribute("open", "")
+
+    # The other spelling, which keeps its state in ARIA's own attribute rather than in
+    # `open`, and whose press is the widget's own handler rather than the platform's.
+    row = page.locator("#settled .lf-settled")
+    row.focus()
+    expect(row).to_have_attribute("aria-expanded", "false")
+    expect(line).to_contain_text(re.compile(shut + r"\s*open"))
+    page.keyboard.press("ArrowRight")
+    expect(row).to_have_attribute("aria-expanded", "true")
+    expect(page.locator("#st-keep")).to_be_visible()
+    # Nothing reports this one at all — an aria-expanded write fires no event anywhere —
+    # so read once: the word is the attribute watch's answer by the time the press
+    # returns, or it is the poll's two seconds later, and only an assertion that refuses
+    # to retry can tell those apart.
+    said = key_line(page)
+    assert re.search(opened + r"\s*close", said), said
+    page.keyboard.press("ArrowRight")
+    expect(row).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowLeft")
+    expect(row).to_have_attribute("aria-expanded", "false")
+    expect(page.locator("#st-keep")).to_be_hidden()
+
+    # A disclosure in a message, where the disclosure scope does not reach: thread markup
+    # is a second document beside the version, and the arrows are the page's. A diff,
+    # because what is being asked is what a widget's own row names — a widget re-wording
+    # this press reads its bindings from DISCLOSE, which answers for where the element
+    # stands as well as which way it is standing, so the row cannot offer a key that
+    # nothing there runs. The platform's pair still works it, so what differs is the
+    # offer rather than the capability.
+    interact.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-diff",
+            "author": "claude",
+            "version": 1,
+            "text": "The patch, for the record.",
+            "markup": '<lf-diff id="msg-diff"><pre>'
+            "diff --git a/gateway/limits.py b/gateway/limits.py\n"
+            "--- a/gateway/limits.py\n"
+            "+++ b/gateway/limits.py\n"
+            "@@ -38,7 +38,7 @@ class Limiter:\n"
+            "     def bucket_key(self, request):\n"
+            "-        return request.remote_addr\n"
+            "+        return request.token.id\n"
+            "</pre></lf-diff>",
+        },
+    )
+    told(page)
+    # Opened, because standing somewhere is where focus is and a shut panel has nowhere to
+    # stand: without this the summary took no focus, the reader was still on the page's own
+    # row, and the line went on describing that one — an assertion that would have passed
+    # for the wrong reason had the two been in the same state.
+    page.get_by_role("button", name=re.compile("Comments")).click()
+    staged = page.locator("#msg-diff summary").first
+    expect(staged).to_be_visible()
+    staged.focus()
+    expect(staged).to_be_focused()
+    # Every live row rather than the two hints that fit: the panel's own rows win the line
+    # where the reader is standing in it, and what is asked here is what the register
+    # answers, not which two chips got the room.
+    key_line(page)  # the repaint's own frame, as everywhere else here
+    chips = page.evaluate(
+        "() => [...document.querySelectorAll('.lf-keyline .lf-key')]"
+        ".map(c => c.textContent)"
+    )
+    assert any("⏎ / space" in c for c in chips), chips
+    assert not any("←" in c or "→" in c for c in chips), chips
+    # And the press, which is the half that would matter if no surface said anything: the
+    # arrow is the page's here and moves nothing, where the platform's pair still folds it.
+    opened_now = staged.evaluate("el => el.parentElement.open")
+    page.keyboard.press("ArrowLeft")
+    assert staged.evaluate("el => el.parentElement.open") is opened_now
+    page.keyboard.press("Enter")
+    assert staged.evaluate("el => el.parentElement.open") is not opened_now
     assert errors == []
     page.close()
 
@@ -1209,9 +1641,15 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(line).not_to_contain_text("1–9")
     expect(line).to_contain_text("cancel")
     page.keyboard.press("Escape")
-    expect(line).not_to_contain_text("comments")
+    expect(line).not_to_contain_text("c 1")
+    # Asked of the armed chip: "comments" is the page's own c word now (the key goes to
+    # the panel), so it stands on the resting line and cannot say whether g is pending.
+    expect(page.locator(".lf-keyline kbd.armed")).to_have_count(0)
 
-    # c opens the panel into the general box: the line says send, and where Esc goes.
+    # c stands the reader on the list and c again opens the general box: there the line
+    # says send, and where Esc goes.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("c")
     expect(line).to_contain_text("send")
     expect(line).to_contain_text("back to list")
@@ -1317,7 +1755,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
     sources = [
         layer / "assets/leaf.js",
-        *sorted((layer / "bundled/widgets").glob("*.js")),
+        *sorted((layer / "packages/default/widgets").glob("*.js")),
+        *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
     listeners = [
         f"{src.name}:{n}"
@@ -1434,6 +1873,15 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
 
     # Moving into the box changes the two most useful hints without introducing a
     # second shortlist: the same scope order the dispatcher uses supplies them.
+    #
+    # Two presses, because the panel was opened by its button in the banner and that is
+    # where the reader is standing: focus in the chrome is not a place in the page, so
+    # the first `c` is the page's and goes to the list, and the second is the panel's
+    # and goes to the box. The line in between is the contrast — the list's own keys are
+    # what a reader gets for pressing once, which is the whole point of the two presses.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(visible_hints.nth(0)).not_to_contain_text("send")
     page.keyboard.press("c")
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to list")
@@ -1464,21 +1912,70 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
     page.close()
 
 
-def test_c_reaches_the_general_box_while_the_panel_stands_open(browser, serve):
-    """c goes to the general box from any state. It doubled as the panel's
-    collapse once, which left the box with no shortcut exactly while the panel
-    stood open: the press that promised "comment" answered "close".
-    Collapse is the ladder's — Esc from the list closes the panel, the rung the
-    key-line test walks — so both stay reachable without one key meaning two
-    things."""
-    page, errors = open_page(browser, serve(NOTED_PAGE))
-    page.keyboard.press("c")  # closed: opens the panel into the box
-    expect(page.locator(".lf-general textarea")).to_be_focused()
-    page.keyboard.press("Escape")  # back out to the list, focus outside any box
-    expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("c")  # open: still the box, never the collapse
-    expect(page.locator(".lf-general textarea")).to_be_focused()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
+def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser, serve):
+    """A frame passes between one Tab and the next for every reader, and none for a test.
+
+    `renderLine` runs under `paintHere`'s frame, so it repaints the key line just after
+    focus lands somewhere — including on More, the line's own button. Clearing the line
+    with `textContent = ""` took More out of the document, and removing a focused element
+    blurs it; it came straight back as the same node, connected, with the reader dropped
+    to `body`. The button was never gone to look at and never gone from the DOM to assert
+    on, so nothing but standing on it one frame later could see it.
+
+    That is why the frame is the whole of this test. Pressed back to back the walk is
+    whole, because the repaint has not run yet between the presses — the failure hid
+    behind the one habit every browser test has. So each press waits two frames, and the
+    contrast is against the same walk pressed fast: they have to agree.
+
+    Reaching More is the claim, and going on past it is the other half — a walk that
+    loses focus to `body` does not stop, it silently restarts, and a reader tabbing
+    through their own page never gets past the banner."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
+    frame = (
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    who = """() => {
+      let e = document.activeElement;
+      while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
+      return e === document.body ? 'body' : (e?.className || e?.tagName || 'null');
+    }"""
+
+    walks = {}
+    for settled in (False, True):
+        page.evaluate("() => document.activeElement?.blur()")
+        trail = []
+        for _ in range(24):
+            page.keyboard.press("Tab")
+            if settled:
+                page.evaluate(frame)
+            trail.append(page.evaluate(who))
+        walks["frame" if settled else "fast"] = trail
+
+    # The two walks have to be the same walk. A count of lost stops would need a
+    # threshold, and there is no honest one: this page's order is three controls and a
+    # wrap, so a `body` every fourth press is the walk working. What says focus was lost
+    # is that waiting changed where the presses went.
+    assert walks["fast"] == walks["frame"], (
+        "a frame between presses changed the tab order:\n"
+        f"  fast  {walks['fast']}\n  frame {walks['frame']}"
+    )
+    for how, trail in walks.items():
+        assert any("lf-key-more" in at for at in trail), (
+            f"tabbing {how}, the walk never stood on More in 24 presses: {trail}"
+        )
+
+    # Standing on More, the repaint must leave the reader on it.
+    page.evaluate("() => document.activeElement?.blur()")
+    for _ in range(24):
+        page.keyboard.press("Tab")
+        if page.evaluate(
+            "() => document.activeElement?.classList?.contains('lf-key-more')"
+        ):
+            break
+    expect(page.locator(".lf-key-more")).to_be_focused()
+    page.evaluate(frame)
+    expect(page.locator(".lf-key-more")).to_be_focused()
+
     assert errors == []
     page.close()
 
@@ -1581,11 +2078,12 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
 def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
     """A key's word is the meaning it has now, not one wide enough to cover every
     meaning it could have. c opens a box on the selection, on the item a click raised the
-    💬 on, on whatever the reader is standing in, or on the page, and every one of them
-    read "comment" — true of the key and silent about the press, so a reader with a
-    paragraph selected and one with nothing selected were told the same thing about two
-    different boxes. Both surfaces read the row where they paint it, so both say which box
-    this press opens; o is the same defect and says show or hide rather than both.
+    💬 on, or on whatever the reader is standing in — and with none of those in hand goes
+    to the comments — yet every one of them read "comment": true of the key and silent
+    about the press, so a reader with a paragraph selected and one with nothing selected
+    were told the same thing about two different destinations. Both surfaces read the row
+    where they paint it, so both say where this press goes; o is the same defect and says
+    show or hide rather than both.
 
     Three of the four here, this page holding nothing to stand on;
     test_c_comments_on_what_the_reader_is_standing_in owns the fourth."""
@@ -1593,10 +2091,10 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     line = page.locator(".lf-keyline")
     help_el = page.locator(".lf-help")
 
-    # Nothing in hand: the box c opens is the page's.
-    expect(line).to_contain_text("comment on the page")
+    # Nothing in hand: there is no box to name, so the word is the room c goes to.
+    expect(line).to_contain_text("comments")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Comment on the page")
+    expect(help_el).to_contain_text("Go to the comments")
     page.keyboard.press("Escape")
 
     # A selection under the hand moves the word, on the gesture that raises the button
@@ -1664,9 +2162,12 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # No open threads, one version: the reference names only what a press would do.
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    # Nothing is selected, so c's own row says the box it would open — the word is the
-    # press's, not the key's (see the row's neighbour test below).
-    expect(help_el).to_contain_text("Comment on the page")
+    # Nothing is selected and the reader is standing nowhere, so c's own row says where
+    # the press goes — the word is the press's, not the key's (see the row's neighbour
+    # test below). Not "Comment on the page", which is the panel's own c saying what its
+    # row does, in its own section: naming that sentence here is answered by the wrong
+    # row and says nothing about the page's.
+    expect(help_el).to_contain_text("Go to the comments")
     # The chord's section stands on every page — the edges need no list — but holds
     # no row for a list this page hasn't got.
     expect(help_el).to_contain_text("With g armed")
@@ -1679,9 +2180,15 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
     # The chooser is the one version key a first version has: its menu holds this
-    # version and what it changed, where the menu's own keys have nothing to walk.
+    # version and what it changed, where the menu's own keys have nothing to walk. So the
+    # section holds the one key the layer really has — the way out — and not the walk,
+    # which is the narrower fact and dead here. Both read one predicate once, and the
+    # reference then either named a walk with nowhere to go or went silent about the menu
+    # entirely; the silent reading is the one that shipped, and it took the Escape with
+    # it, leaving `v` opening a layer no key could close.
     expect(help_el).to_contain_text("The versions, and what each one changed")
-    expect(help_el).not_to_contain_text("In the versions menu")
+    expect(help_el).to_contain_text("Close the versions menu")
+    expect(help_el).not_to_contain_text("Walk the versions")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
 
@@ -1712,7 +2219,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next / previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
-    expect(help_el).not_to_contain_text("In the versions menu")
+    # Still one version, so the menu's section holds its way out and not its walk.
+    expect(help_el).to_contain_text("Close the versions menu")
+    expect(help_el).not_to_contain_text("Walk the versions")
     page.keyboard.press("Escape")
 
     # A v2 lands and the unpinned page follows it; on v2 the menu's own keys are
@@ -1760,7 +2269,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 
 
 def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
-    """r resolves the thread j/k landed on, through the button's own press, so
+    """x resolves the thread j/k landed on, through the button's own press, so
     focus lands where the button already sends it — on the thread that takes the
     resolved one's place. The promise is scoped the way it is worded: the key
     line offers resolve only over an open focused thread, the overlay row
@@ -1781,7 +2290,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     line = page.locator(".lf-keyline")
 
-    # At page scope nothing promises r — its target is the focused thread, and
+    # At page scope nothing promises x — its target is the focused thread, and
     # none is — while the overlay teaches the capability, scope in its words.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
@@ -1789,13 +2298,13 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     expect(page.locator(".lf-help")).to_contain_text("Resolve it")
     page.keyboard.press("Escape")
 
-    # j lands on the first thread and the line offers resolve; r takes it, and
+    # j lands on the first thread and the line offers resolve; x takes it, and
     # focus lands on the thread now holding the resolved one's place, so j/k
-    # and a second r walk on from there.
+    # and a second x walk on from there.
     page.keyboard.press("j")
     expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
-    page.keyboard.press("r")
+    page.keyboard.press("x")
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
@@ -1807,7 +2316,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     resolved.click()
     expect(resolved).to_be_focused()
     expect(line).not_to_contain_text("resolve")
-    page.keyboard.press("r")
+    page.keyboard.press("x")
     # The absence is read after a poll the test forces, so a resolve the press
     # had wrongly posted would have landed by now.
     comment("Third thought.")
@@ -1860,7 +2369,12 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     # claimed Escape, or one press would have two owners — the grip consuming it,
     # the chord promising its cancel.
     page.keyboard.press("g")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("comments")
+    # Asked of the armed chip, which is the chord itself saying it is waiting for the
+    # second key. The word "comments" used to stand for that, being one of the addresses
+    # an armed chord lists — but the page's own c says it too now (it goes to the panel
+    # rather than into its box), so the word is on the resting line either way and the
+    # proxy would pass over an armed chord.
+    expect(page.locator(".lf-keyline kbd.armed")).to_have_count(0)
     expect(page.locator(".lf-keyline")).to_contain_text("cancel the move")
     page.keyboard.press("Escape")
     # The grab is over (an uncancelled one would also leave the card in Todo),
@@ -1894,21 +2408,24 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     the seat holds several, what design mode files, where the reader already stood — for
     a focus landing.
 
-    The control is the same press from the same page with the reader standing nowhere
-    in it: `c` still means the page. Without it a green here would follow just as well
-    from a composer that opened on everything.
+    The control is the same press from the same page with the reader standing nowhere in
+    it, where `c` opens no box at all and goes to the comments. Without it a green here
+    would follow just as well from a composer that opened on everything.
 
     Focus is dropped between the phases rather than backed out of, because each press
     lands the reader in a box: the typing scope owns the letter there, and the `g`
     opening the next address would be a character in the last one's draft."""
     page, errors = open_page(browser, serve(WHERE_I_STAND_PAGE))
     line = page.locator(".lf-keyline")
-    drop = lambda: page.evaluate("() => document.activeElement?.blur()")
 
-    # Standing nowhere in the page: the press means the page, as it always did.
-    expect(line).to_contain_text("comment on the page")
+    def drop():
+        page.evaluate("() => document.activeElement?.blur()")
+
+    # Standing nowhere in the page: no box is named, so the press is the room the boxes
+    # are in. Read against every phase below, which is what makes those mean anything.
+    expect(line).not_to_contain_text("comment on the")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
     drop()
 
     # An ask, addressed: the composer opens on the question rather than on the option the
@@ -1985,10 +2502,10 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     test exists at all: it is built by the same `threadNode` and wears the same class,
     under the Resolved disclosure, where it keeps a tab stop and a Reopen button. Reading
     the class alone put the reader in a thread whose reply box is not there, and the press
-    died on the null with the page's own `c` never reached. Whether there is a box is what
+    died on the null with the panel's own `c` never reached. Whether there is a box is what
     tells them apart — `standingConversation` asks for one rather than for the class — so
-    the resolved thread falls through to the page, which is the honest answer for a thread
-    with no box to offer."""
+    the resolved thread falls through to the general box, which is the honest answer for a
+    thread with no box of its own to offer."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     live = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
@@ -1998,13 +2515,13 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")
 
-    # The control: standing nowhere, the press still means the page.
-    expect(line).to_contain_text("comment on the page")
+    # The control: standing nowhere, the press names no box and goes to the list.
+    expect(line).not_to_contain_text("comment on the")
     page.keyboard.press("c")
-    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-threads")).to_be_focused()
 
-    # Standing in the open thread, it means that thread's reply box.
-    page.keyboard.press("Escape")
+    # Standing in the open thread, it means that thread's reply box. `j` walks on from
+    # where the press above left the reader, no backing out of a box first.
     page.keyboard.press("j")
     expect(page.locator(f'.lf-thread[data-id="{live}"]')).to_be_focused()
     expect(line).to_contain_text("comment on the thread")
@@ -2012,13 +2529,24 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     expect(
         page.locator(f'.lf-thread[data-id="{live}"] > .lf-compose textarea')
     ).to_be_focused()
+
+    # And Esc gives that press back: the thread, then the panel. In the panel the old
+    # class-only reading and the new climb agree, so this is the consistency half rather
+    # than the gate — test_c_in_a_seated_conversation_reaches_the_thread_it_is_in is what
+    # actually goes red if the climb regresses, the page being where they diverge.
+    expect(line).to_contain_text("back to thread")
+    page.keyboard.press("Escape")
+    expect(page.locator(f'.lf-thread[data-id="{live}"]')).to_be_focused()
+    expect(line).to_contain_text("close comments")
     page.evaluate("() => document.activeElement?.blur()")
 
-    # A resolved thread has no box, so the press falls through to the page rather than
-    # reaching for one that is not there.
+    # A resolved thread has no box, so the press falls through to the general box rather
+    # than reaching for one that is not there. The panel's own row answers it, saying so in
+    # the panel's words; what matters is that the thread is not named, which is the phase
+    # above's answer and would be the wrong one here.
     page.locator(".lf-details > summary").click()
     page.locator(f'.lf-details .lf-thread[data-id="{gone}"]').focus()
-    expect(line).to_contain_text("comment on the page")
+    expect(line).not_to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
 
@@ -2086,6 +2614,21 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(second.locator("> .lf-say textarea")).to_be_focused()
+
+    # And Esc hands back the press that got them there, which is the keyboard-is-a-stack
+    # rule read on the page rather than in the panel. The box asked for `.lf-thread` and
+    # the panel alone, so out here the rung fell through to the page's own "let go": one
+    # press in from the thread, one press out to body, with the thread they had been
+    # standing in two feet away and no key back to it. Both ends read one climb now, so
+    # the word going in ("comment on the thread") and the word coming out are about the
+    # same element.
+    expect(line).to_contain_text("back to thread")
+    page.keyboard.press("Escape")
+    expect(second).to_be_focused()
+    # One rung, not two: the page's own way out is the press after this one.
+    expect(line).to_contain_text("let go")
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body")
 
     assert errors == []
     page.close()
@@ -2156,3 +2699,74 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     assert errors == []
     page.close()
+
+
+def test_c_reaches_the_panel_and_c_again_the_box(browser, serve):
+    """c goes inward and never back out. It doubled as the panel's collapse once,
+    which left the box with no shortcut exactly while the panel stood open: the press
+    that promised "comment" answered "close". Collapse is the ladder's — Esc from the
+    list closes the panel, the rung the key-line test walks — so both stay reachable
+    without one key meaning two things.
+
+    Where the first press lands is the list rather than the box, because the box is the
+    one place in the panel where the panel's own keys are all shadowed: the typing scope
+    claims a letter before the panel's scope can see it, so a reader who pressed c to
+    reach the comments had to press Escape before w or / would answer. The same letter
+    twice is the same intent one scope further in, and the third press below is what says
+    the second one is about the scope the reader is standing in rather than about the
+    panel being shut."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    page.keyboard.press("c")  # closed: opens the panel and stands on its list
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("c")  # standing in the panel: into the box
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    page.keyboard.press("Escape")  # back out to the list, focus outside any box
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("c")  # open, and still the box — never the collapse
+    expect(page.locator(".lf-general textarea")).to_be_focused()
+    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
+    assert errors == []
+    page.close()
+
+
+def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serve):
+    """A page whose first poll cannot reach the server is a page the reader still writes
+    on: the general box stands, its placeholder names the key that reaches it, and the
+    banner says only that a comment will not send yet. What it has not got is a thread
+    list, so the panel's other two keys — narrow and find — are dead, and the scope used
+    to say that for all three at once.
+
+    Both presses, because one of them is the whole defect: `c` takes the reader to the
+    list, and with the panel's own row out of the stack the second `c` was the page's
+    again, which lands focus where it already is. The key line went on offering the box
+    while no press could reach it, and there is no third key to try.
+
+    Offline rather than mid-load, because it is the state that stays: a loading page
+    answers a moment later, and a page whose server has stopped is where a reader sits."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.route("**/api/state*", refuse)
+    try:
+        page.goto(serve(NOTED_PAGE), wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Server offline — comments won't send"
+        )
+
+        page.keyboard.press("c")
+        expect(page.locator(".lf-threads")).to_be_focused()
+        page.keyboard.press("c")
+        expect(page.locator(".lf-general textarea")).to_be_focused()
+
+        # The two the missing list really does take away, so the scope is not simply
+        # live for everything: a green above has to be about `c` and not about the
+        # guard having been dropped altogether.
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-threads")).to_be_focused()
+        line = page.locator(".lf-keyline")
+        expect(line).not_to_contain_text("waiting on you")
+        expect(line).not_to_contain_text("find")
+
+        assert errors == []
+    finally:
+        page.close()

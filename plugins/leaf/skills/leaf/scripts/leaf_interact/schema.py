@@ -95,7 +95,6 @@ ACTION_REQUIREMENT = {
     "properties": {
         "target": {"enum": ["self", "parent"]},
         "awaiting": {"type": "boolean"},
-        "change": {"const": "increase"},
     },
     "required": ["target", "awaiting"],
     "additionalProperties": False,
@@ -206,7 +205,10 @@ EXTENSION_SCHEMA = {
         "x-awaits": AWAITS_SCHEMA,
         "x-conversation": {
             "type": "object",
-            "properties": {"when": ASK_CONDITION},
+            "properties": {
+                "when": ASK_CONDITION,
+                "hold": {"type": "string", "minLength": 1},
+            },
             "required": ["when"],
             "additionalProperties": False,
         },
@@ -263,10 +265,17 @@ EXTENSION_SCHEMA = {
 # each than that it exists.
 ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-tone")
 
-ASSETS = Path(__file__).resolve().parent.parent.parent / "assets"
-BUNDLED = Path(__file__).resolve().parent.parent.parent / "bundled"
+SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
+PLUGIN_ROOT = SKILL_ROOT.parent.parent
+KERNEL = SKILL_ROOT / "assets"
+ASSETS = KERNEL
+DEFAULT_PACKAGE = SKILL_ROOT / "packages" / "default"
 VENDORED_FILES = ("leaf.js", "theme.css", "registry.json", "icon.svg")
-VENDORED_DIRS = ("runtime", "widgets", "vendor")
+PACKAGE_FILES = VENDORED_FILES
+BROWSER_DIRS = ("runtime", "widgets", "vendor")
+GUIDANCE_DIR = "guidance"
+PACKAGE_DIRS = (*BROWSER_DIRS, GUIDANCE_DIR)
+GUIDANCE_FILE = re.compile(rf"{HTML_NAME}\.md")
 LAYER_PLACEHOLDER = b'"__LEAF_LAYER_GENERATION__"'
 # Images the page shows, named by the hash of their bytes (`page media`). Not vendored
 # — they are the page's content, not the layer's — but served like it, and the
@@ -294,12 +303,12 @@ PAGE_STATE_FILES = (
     "service.json",
     "server.lock",
 )
-PAGE_OWNED_FILES = (*VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("versions", *VENDORED_DIRS, MEDIA_DIR)
-# What the server exposes from a page directory: exactly what init vendors, plus
-# the media and the versions — built from the vendoring constants, so growing
-# them grows this. The dir patterns are keyed by the directories themselves:
-# vendoring a new dir without saying what it may serve fails here, at import.
+PAGE_OWNED_FILES = (*PACKAGE_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("versions", *PACKAGE_DIRS, MEDIA_DIR)
+# What the server exposes from a page directory: the browser layer, media, and
+# versions. Agent-side guidance stays vendored but is read only through the CLI.
+# The dir patterns are keyed by the public directories themselves, so growing
+# that surface without saying what it may serve fails here, at import.
 _DIR_FILES = {
     "runtime": r"[a-z0-9-]+\.js",
     "widgets": r"[a-z0-9-]+\.js",
@@ -310,7 +319,7 @@ SERVED_PATH = re.compile(
     "/(?:"
     + "|".join(
         [re.escape(f) for f in VENDORED_FILES]
-        + [f"{d}/{_DIR_FILES[d]}" for d in (*VENDORED_DIRS, MEDIA_DIR)]
+        + [f"{d}/{_DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [r"versions/v[1-9][0-9]*\.html"]
     )
     + ")"

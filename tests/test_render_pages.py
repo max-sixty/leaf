@@ -40,6 +40,7 @@ from render_support import (
     TWIN_V2,
     WIDE_AND_NARROW_PAGE,
     WIDE_DIAGRAM_PAGE,
+    author_test_widget,
     composer_quote,
     open_page,
     page_registry,
@@ -995,10 +996,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     is done: a claim landing any earlier is the one the call at the end of upgrade already
     covers, and on a fast machine that is where an unheld one would land."""
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(
-        interact.cli, ["customize", "widget", "lf-callout", "--upgrade"]
-    )
-    assert result.exit_code == 0, result.output
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -1416,7 +1414,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     spending the overhang out of the pick's word-room. The box a wide widget gets
     answers to the room and never to its content (contain: inline-size, theme.css),
     and the row keeps its reservation inside the width it states (box-sizing:
-    border-box, bundled/theme.css)."""
+    border-box, packages/default/theme.css)."""
     page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
     boxes = page.evaluate("""() => {
         const box = (sel) => {

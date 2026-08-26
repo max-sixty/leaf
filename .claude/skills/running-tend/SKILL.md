@@ -65,11 +65,10 @@ you have. Sort on what the failure is.
   means "the machine was busy". Confirm it from the run rather than from the
   spread: unrelated tests failing on waits none of them owns, and every job on
   the commit slow against its usual wall time. It is the rarest of the four.
-- **The network.** Tests marked `nightly` shell out to `bin/leaf` on the paths
-  that resolve Playwright outside the script's lock, so they need pypi. CI
-  passes `--run-nightly` deliberately (it holds a network). If only those tests
-  fail while the rest of the suite is green, suspect the index rather than the
-  code.
+- **The network.** Tests marked `nightly` shell out to `bin/leaf`, which resolves
+  everything it needs — Playwright included — through the host's index. CI passes
+  `--run-nightly` deliberately (it holds a network). If only those tests fail
+  while the rest of the suite is green, suspect the index rather than the code.
 
 Reproducing at `-n0` keeps the evidence, but it classifies in one direction
 only: a failure that reproduces is real, while one that does not is still

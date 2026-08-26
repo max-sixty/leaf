@@ -62,6 +62,32 @@ box at last, and puts the product's own readings to it: `TINY_BOXES` and
 asserts its population first, and a planted fault is scoped to `.lf-chrome`, so a
 clean result cannot come from a reading that never arrived.
 
+A reading that asks what keeps a box from being seen should not be a second answer
+to a question the product already answers. `shownBand` is the layer's own reading
+of the band a box shows, and it names all three ways a box draws nothing past its
+edge: overflow, paint containment, and `content-visibility`. `version check
+--render` imports it so the band a handover is refused against and the band the
+page paints to are one reading, and its comment records that the two copies before
+it disagreed twice. `RING_FAULTS` is a third consumer of it rather than a third
+copy of it, and it asks the window on the same terms as any other box: a fixed
+subtree is laid out against the window, and everything else reaches it through
+`body`, which is this page's scroller.
+
+A ring is also only drawn for a press. `element.focus()` sets `:focus` and not
+`:focus-visible`, so a control focused from script wears no ring at all, and every
+reading of one comes back empty — the same empty that a control whose ring is
+perfectly fine comes back with. Reach it with a real `Tab`, or focus it and press
+`Tab` then `Shift+Tab` back onto it, and asserting the ring is there comes before
+asserting anything about its shape.
+
+The failure that makes this worth stating is a quiet one. A reading blind to one
+mechanism does not report that it is blind — it returns the same clean result it
+returns when nothing is wrong — so a green corpus is not evidence of a clean
+corpus. Assert a gate's reach the way its population is asserted:
+`test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge` puts
+one displacement under three parents differing only in how they clip, with a
+control case that has to report nothing.
+
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
@@ -83,13 +109,12 @@ session record, pages, and event history out of the test. Do not replace it by
 moving `HOME`; uv's cache and unrelated developer state are not part of leaf's
 isolation boundary.
 
-The one subject that must take uv's cache into its world is the launcher's
-unlocked path. Where the lock's own URLs cannot be served, `bin/leaf` resolves the
-header against the host's index instead, so a test of that fallback asks the index
-for all three dependencies and needs the network the nightly run holds. It also
+The one subject that must take uv's cache into its world is what the launcher
+resolves. A test of where `bin/leaf` looks for a dependency asks the host's index
+for every one of them, so it needs the network the nightly run holds. It also
 needs a cache directory of its own (`UV_CACHE_DIR`): a wheel already in the
-developer's cache is served whatever URL the lock names, so the run would take the
-fast path and prove nothing.
+developer's cache answers before any index is consulted, so the run would prove
+nothing.
 
 Use `sessionless` when the subject is a command launched outside any host session.
 Use `codex_env` when constructing a real Codex process ancestry; it removes the
@@ -116,6 +141,18 @@ A standing server is the explicit exception. It declines session ownership by
 definition, and tests of standing lifetime must stop it themselves. Keep that
 exception narrow and short-lived. If the test does not need standing lifetime, use
 the ordinary served-page fixtures.
+
+The sweep's roots are the run's own: the test's `tmp_path` and the state home
+`isolated_session` returns. An autouse fixture that needs the isolated home takes it
+from that fixture; the environment is wrong at both of its ends. Autouse fixtures set
+up outermost first — a `pytest_plugins` module's before the conftest's — and tear
+down in reverse, so a sweep with no dependency on the isolation reads `state_home()`
+before it is applied at setup and after `monkeypatch` has undone it at teardown. Read
+at setup, it answered with the developer's `~/.local/state/leaf`, and every page
+server they had standing there was stopped half a second after each start whenever
+any suite ran on the machine, with no run reporting it.
+`test_a_run_ends_only_the_servers_it_started` runs a nested suite against a planted
+home and requires the planted page untouched and the run's own leftover stopped.
 
 ### Reloading is not resetting
 
@@ -241,12 +278,26 @@ The main causal helpers are:
 - `undo(page)` first waits until the key line offers undo, presses `z`, observes the
   new send enter the wire, and waits for its round trip. A visible changed widget is
   not enough: undo can be refused while the preceding gesture is still unresolved.
+- `key_line(page)` reads what the key line says, once, after the repaint's own frame.
+  `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
+  round-trip as the press that caused it is a read of the frame before.
+
+The key line is the sharpest case of the rule above, because a second mechanism will
+supply its answer late. Every state poll repaints it, so an auto-retrying assertion on
+what it says goes green on whichever poll lands inside its budget — which is the poll's
+answer, not the writer's. A word that is supposed to turn over within the press is
+therefore read once, through `key_line`, and never waited for. The bug-back is what
+says which one a test has: with the runtime's disclosure watch removed, an
+`expect(...).to_contain_text(..., timeout=1500)` on the word still passed, and the
+same assertion read once failed.
 
 Read the event log only after `round_trip`. Polling the file until one expected event
 appears can miss an extra send, and it cannot distinguish an unresolved request from
 a settled one. Read browser state after the trip when the returned state is part of
 the assertion. `round_trip` proves delivery; it does not claim every rendered effect
-of the response has completed.
+of the response has completed. When applying the response is itself the subject, wait
+for `data-lf-applied` to cover the expected events before reading the resulting surface
+or making a gesture whose liveness depends on that projection.
 
 After changing a file behind a live page, call `told` before reading the page. Letting
 `expect` absorb the next polling interval hides which mechanism supplied the wait and
@@ -256,6 +307,9 @@ For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's finite
 animations to empty. `resized` waits for the resize event to reach listeners; a new
 viewport size says only that the browser resized, not that page layout handled it.
+An observer or protocol record that outlives a motion is read after `MOVING` says finite
+motion has ended; a fixed number of animation frames only guesses when that record will
+be delivered under load.
 When clicking a quote causes an instant scroll followed by a smooth scroll, the first
 `scrollend` is a real edge but not the destination. Wait for the mark to reach the
 computed position or for the final scroll to stop, then assert where it stopped.
@@ -316,6 +370,27 @@ a default aborted request as a console load failure. That is why `refuse` uses t
 `aborted` cancellation reason for polling conditions. If a test intentionally produces
 an HTTP error, assert the enriched status-and-URL entry collected by `open_page`
 instead of filtering it out globally.
+
+### A repeated gesture has to let the repaint it causes land
+
+Pressing the same key twice inside one round-trip is not a reader pressing it twice.
+Work coalesced into a `requestAnimationFrame` runs between a person's two presses and
+between none of a test's, so a fault that the repaint itself causes is invisible to
+exactly the rhythm a suite presses at — and reads as correct rather than as flaky.
+
+`renderLine` runs under `paintHere`'s frame and cleared the key line with
+`textContent = ""` before putting its More button back. That takes a focused element
+out of the document, which blurs it, so a reader who tabbed to More was dropped to
+`body` a frame later with the button back on the line looking untouched. Pressed back
+to back the walk was whole; at every human speed it was broken, and the button was
+never gone to look at nor gone from the DOM to assert on.
+
+So a walk, or any repeated press a repaint could answer, waits a frame between presses
+and says why. Where waiting is what changes the outcome, the contrast is the assertion
+rather than a threshold: `test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted`
+runs one walk both ways and holds the two to being the same walk. A count of lost stops
+has no honest threshold, because a page whose tab order is three controls and a wrap
+puts the reader on `body` every fourth press as a matter of course.
 
 ## Distinguish a frame, a sequence, and an instant
 

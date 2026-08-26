@@ -1,7 +1,7 @@
 /* lf-agent: upgraded because a roster row has two facts a version cannot write.
  * `doing` is the effective report's live clause, and the line saying how old what the
- * row says is computed at runtime from the worker's last report, or from the version's
- * publish time when no report exists. The version carries the durable
+ * row says is computed at runtime from the worker's last report, or from when the row
+ * itself was said when no report exists. The version carries the durable
  * state; answering its report therefore removes the clause rather than restoring an
  * authored copy of something that was true only between versions.
  *
@@ -30,6 +30,7 @@
  * poll whether or not the log grew, which is what keeps the elapsed line true without
  * a timer of this module's own. */
 import { ago, measure, offer, once, quietSince, saidAt, watchUpdates } from "/leaf.js";
+import { directCommandRole } from "/widgets/command-model.js";
 
 const LINE = "lf-agent-line";
 
@@ -190,7 +191,7 @@ function render(el) {
     ref.href = `#${on}`;
     row.append(ref);
   }
-  el.append(row);
+  el.insertBefore(row, directCommandRole(el, "evidence")[0] ?? null);
   // The pill this row just drew may be the widest in the roster, and on the first pass
   // it is the last one to know: every row measures after its own render, so the column
   // is right once the last row has rendered and right again whenever a report changes

@@ -213,7 +213,7 @@ filesystem draw identically; `lavish-axi design` and seven playbooks (`diagram`,
 `comparison`, `plan`, `code`, `input`, `slides`) are guidance the agent reads, and
 interactivity comes from native controls plus `data-lavish-action`,
 `data-lavish-question` and `window.lavish.queuePrompt()`. leaf goes the other way: 28
-bundled tags in a registry a project or a user overlays, whose declarations drive the
+shipped tags in a registry a project or a user overlays, whose declarations drive the
 lint, the render check, export and replay together. Freehand buys any page the agent can
 imagine; a vocabulary buys a page the machine can check and replay.
 
@@ -338,8 +338,8 @@ screen — Zod on the tool arguments, `version check` on the markup. What differ
 the vocabulary is written, and by whom. A CopilotKit catalog is part of the application,
 written by its developer before the agent ever runs, and the agent's contribution is the
 component tree and the data filling it. leaf's agent writes the page from scratch every
-time, and extends the vocabulary from inside the same session when the shipped one falls
-short: `leaf customize widget lf-callout` is a command meant for the agent's hands.
+time, and can extend a package's vocabulary from inside the same session when the
+shipped one falls short.
 
 At the open end, Open Generative UI is leaf's premise scoped to a chat message. The
 agent generates HTML, CSS and JavaScript, and the runtime streams it into a sandboxed
@@ -482,7 +482,7 @@ else.
 | OpenUI      | OpenUI Lang: `submitBtn = Button("Submit", "submit:signup", "primary")`, positional args in the component's Zod key order    | The app's developer, in Zod, before the model runs        | An action string the app resolves                                                   | React first, with Vue and Svelte bindings, a CDN bundle, and a LangGraph adapter that streams over AG-UI |
 | Hashbrown   | Nothing over the wire: the model names exposed components and their props, and the framework mounts them as they stream      | The app's developer, in TypeScript, via `exposeComponent` | The component's own handler, in the app                                             | Angular and React                                                                                        |
 | A2UI        | A stream of JSON messages — `createSurface`, then `updateComponents` and `updateDataModel` — building a component tree bound to a per-surface data model | The platform's developers, in JSON Schema catalogs named by `catalogId`, before the model runs | An `action` message named by its component, with context read out of the data model | Renderers mapping one tree onto web components, Flutter, React or SwiftUI; CopilotKit ships `a2ui-renderer` |
-| leaf        | HTML against the widget registry, published as a numbered version                                                            | The agent, in session; `leaf customize widget` extends it | An action appended to the event log, replayed onto every version published after it | Claude Code and Codex                                                                                    |
+| leaf        | HTML against the widget registry, published as a numbered version                                                            | The agent, in session; `leaf package init PACKAGE` creates the unit it edits | An action appended to the event log, replayed onto every version published after it | Claude Code and Codex                                                                                    |
 
 The column that separates them from leaf is the second one. A catalog is part of an
 application, fixed before the run, and the model's contribution is the tree and the data

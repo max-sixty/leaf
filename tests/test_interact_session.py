@@ -41,6 +41,7 @@ from interact_support import (
     state_json,
 )
 from leaf_interact import layer as layer_model
+from leaf_interact import session as session_model
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -597,7 +598,7 @@ def test_watch_does_not_revive_a_disabled_service(page_dir, monkeypatch):
     def unexpected_start(*_args, **_kwargs):
         pytest.fail("disabled desired state was revived")
 
-    monkeypatch.setattr(interact, "start_server", unexpected_start)
+    monkeypatch.setattr(session_model, "start_server", unexpected_start)
     watch = interact.Watch(None, named=page_dir)
     try:
         assert watch.acquire()
@@ -629,7 +630,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
         assert release.wait(5)
         return real_start(*args, **kwargs)
 
-    monkeypatch.setattr(interact, "start_server", delayed_start)
+    monkeypatch.setattr(session_model, "start_server", delayed_start)
     readings, errors = [], []
     watch = interact.Watch(None, named=page_dir)
     assert watch.acquire()

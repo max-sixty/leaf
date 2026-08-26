@@ -99,8 +99,8 @@ export function createNavigation({
   //
   // They move the region the reader is reading, which is the thread list wherever the
   // reader stands in the panel or the panel covers the page. Scrolling a region the
-  // reader is not in reads to them as the key doing
-  // nothing, and then the document is somewhere else when they look back at it.
+  // reader is not in reads to them as the key doing nothing, and then the document is
+  // somewhere else when they look back at it.
   //
   // The step moves at the pace of the browser's own paging keys. Native paging is a quick
   // glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same

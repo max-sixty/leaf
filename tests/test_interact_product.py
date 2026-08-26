@@ -23,9 +23,11 @@ from interact_support import (
     page_state,
     publish,
     published,
+    state_json,
 )
 from leaf import checking as checking_model
 from leaf import cli as cli_model
+from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import events as events_model
 from leaf import files as files_model
@@ -735,6 +737,172 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
+def test_an_agent_edits_its_own_messages_without_rewriting_history(
+    page_dir, monkeypatch
+):
+    """An edit changes what the conversation says, not what the log said before it.
+
+    Roots and replies are both messages, and the posting session is their authoring
+    identity. The raw log therefore keeps each original and the revision as separate
+    events, while every folded reading shows the latest words with an edited marker.
+    Another agent session — and an agent looking at the reader's words — cannot revise
+    speech that is not its own.
+    """
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    monkeypatch.setenv("LEAF_AGENT", "Indexer")
+
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["comment", str(page_dir), "--text", "The index is still pending."],
+    )
+    assert opened.exit_code == 0, opened.output
+    root = json.loads(opened.output)
+    reader = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "reader-thread",
+            "author": "user",
+            "version": 1,
+            "text": "What about the crawl?",
+        },
+    )
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            reader["id"],
+            "--text",
+            "The crawl is paused.",
+        ],
+    )
+    assert answered.exit_code == 0, answered.output
+    reply = json.loads(answered.output)
+
+    revisions = []
+    for message, text in [
+        (root, "The index is complete."),
+        (root, "The index is complete and verified."),
+        (reply, "The crawl is running."),
+    ]:
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["edit", str(page_dir), "--to", message["id"], "--text", text],
+        )
+        assert result.exit_code == 0, result.output
+        revisions.append(json.loads(result.output))
+
+    history_result = CliRunner().invoke(cli_model.cli, ["events", str(page_dir)])
+    assert history_result.exit_code == 0, history_result.output
+    events = [json.loads(line) for line in history_result.output.splitlines()]
+    originals = {
+        event["id"]: event for event in events if event["kind"] in {"comment", "reply"}
+    }
+    revision_events = [event for event in events if event["kind"] == "edit"]
+    assert originals[root["id"]]["text"] == "The index is still pending."
+    assert originals[reply["id"]]["text"] == "The crawl is paused."
+    assert [(event["message"], event["text"]) for event in revisions] == [
+        (root["id"], "The index is complete."),
+        (root["id"], "The index is complete and verified."),
+        (reply["id"], "The crawl is running."),
+    ]
+
+    state_result = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert state_result.exit_code == 0, state_result.output
+    state = json.loads(state_result.output)
+    folded = {
+        message["id"]: message
+        for thread in state["threads"]
+        for message in thread["messages"]
+    }
+    latest_revision = {revision["message"]: revision for revision in revision_events}
+    for message in (root, reply):
+        revision = latest_revision[message["id"]]
+        assert folded[message["id"]]["text"] == revision["text"]
+        assert folded[message["id"]]["edited"] == {
+            key: revision[key] for key in ("id", "seq", "ts")
+        }
+
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert transcript.exit_code == 0, transcript.output
+    assert (
+        "- **Indexer** *(edited)*: The index is complete and verified."
+        in transcript.output
+    )
+    assert "- **Indexer** *(edited)*: The crawl is running." in transcript.output
+    assert "still pending" not in transcript.output
+    assert "crawl is paused" not in transcript.output
+
+    before = events_model.read_events(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    monkeypatch.setenv("LEAF_AGENT", "Crawler")
+    foreign = CliRunner().invoke(
+        cli_model.cli,
+        ["edit", str(page_dir), "--to", root["id"], "--text", "Taken over."],
+    )
+    assert foreign.exit_code != 0
+    assert "belongs to agent session 'worker-1'" in foreign.output
+    reader_edit = CliRunner().invoke(
+        cli_model.cli,
+        ["edit", str(page_dir), "--to", reader["id"], "--text", "Changed."],
+    )
+    assert reader_edit.exit_code != 0
+    assert "is not agent-authored" in reader_edit.output
+    assert events_model.read_events(page_dir) == before
+    sessionless = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "No recorded session owns this.",
+        },
+    )
+    before_unidentified_edit = events_model.read_events(page_dir)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+    unidentified = CliRunner().invoke(
+        cli_model.cli,
+        ["edit", str(page_dir), "--to", sessionless["id"], "--text", "Changed."],
+    )
+    assert unidentified.exit_code != 0
+    assert "has no agent session identity" in unidentified.output
+    assert before_unidentified_edit[-1]["id"] == sessionless["id"]
+    assert events_model.read_events(page_dir) == before_unidentified_edit
+
+
+def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkeypatch):
+    """A contract-bearing writer speaks only the vocabulary vendored into the page."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    message = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "version": 1,
+            "text": "The old layer can render this message.",
+        },
+    )
+    registry = files_model.read_json(page_dir / "registry.json")
+    del registry["$events"]["kinds"]["edit"]
+    files_model.write_json(page_dir / "registry.json", registry)
+    before = events_model.read_events(page_dir)
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["edit", str(page_dir), "--to", message["id"], "--text", "Revised."],
+    )
+
+    assert result.exit_code != 0
+    assert "current layer writes" in result.output
+    assert "edit" in result.output
+    assert events_model.read_events(page_dir) == before
+
+
 def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     """The browser door refuses the field rather than silently dropping it: everything
     the log holds under `markup` has been through `check_markup`, which is what lets
@@ -1022,3 +1190,49 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         "no seeded event carries markup, so this read nothing — see "
         "examples/CLAUDE.md on what a log is for"
     )
+
+
+def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
+    """`page state` lists every standing reaction explained, beside threads that
+    leave a bare one out — paint on the page is not a conversation — and takes a
+    reaction back in once someone answers it, as the panel does. The transcript
+    prints one as the reader's mark rather than a turn, glyph and meaning beside it,
+    since it is read where no bar explains the glyph. The catalog names the
+    vocabulary under its own heading."""
+    published(page_dir)
+    bare = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "token": "cut",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+        },
+    )
+    answered = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "no"}
+    )
+    conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
+    state = state_json(page_dir)
+    assert [t["id"] for t in state["threads"]] == [answered["id"]]
+    # The thread opens on the mark that started it, which says its word where a
+    # comment says its text.
+    root = state["threads"][0]["messages"][0]
+    assert (root["id"], root["token"]) == (answered["id"], "no")
+    assert "text" not in root
+    assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
+        ("cut", "does not earn its length — shorten or drop", bare["id"]),
+        ("no", "this is wrong; the passage is the referent", answered["id"]),
+    ]
+    assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
+
+    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert "- **User** reacted: − cut — does not earn its length" in result.output
+    assert "- **User** reacted: × no — this is wrong" in result.output
+
+    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
+    # What the catalog teaches is the vendored vocabulary itself, entry and all.
+    vendored = json.loads((page_dir / "registry.json").read_text())["$reactions"]
+    assert json.dumps(vendored, indent=2, ensure_ascii=False) in catalog.output

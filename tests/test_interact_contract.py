@@ -146,7 +146,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             {"kind": "undo", "undoes": agent_closed["id"]},
             "not the reader's own gesture",
         ),
-        ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
+        ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
         ({"kind": "undo"}, "'undoes' is a required property"),
         (
@@ -350,6 +350,32 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "decide" in result.output
+
+
+def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
+    page_dir, monkeypatch
+):
+    """A layer may take a token off its bar (merge-patch `null`), and a page whose log
+    already holds a reaction on it is refused a re-vendor the way one holding a
+    retired verb is: the standing mark would have no glyph and no pill to take it
+    back by. A token the layer keeps re-vendors as before."""
+    publish(page_dir)
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+    )
+    assert (
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        == 0
+    )
+    layer = page_dir.parent / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(
+        json.dumps({"$reactions": {"tokens": {"cut": None}}})
+    )
+    monkeypatch.chdir(page_dir.parent)
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output and "`cut`" in result.output
 
 
 def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
@@ -1040,20 +1066,42 @@ def test_the_registry_door_refuses_a_drawing_that_says_an_attribute(page_dir):
 
 
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
-    """The runtime writes data-lf-* and .lf-chrome/.lf-live/.lf-copy as its own
-    record and reads them back: authored words inside .lf-chrome leave every
-    reading, and an authored data-lf-gen makes cells the file-side reading has
-    no fence for."""
+    """The runtime writes data-lf-* attributes and lf- classes as its own record
+    and reads them back: authored words inside .lf-chrome leave every reading,
+    .lf-quiet clips them to a point nobody can see or select, and an authored
+    data-lf-gen makes cells the file-side reading has no fence for.
+
+    Both namespaces are reserved by prefix, so the fourth element here wears a
+    class the runtime does not coin today and is refused all the same. A list of
+    the names it happens to write is a list that admits the next one it coins:
+    .lf-quiet was outside the list this once held, and the chrome stylesheet
+    clipped an authored copy of it to 1x1 with both render gates skipping the
+    class unconditionally, so nothing anywhere said the page's own words had
+    gone. The <p class="note"> is the control: an ordinary class is the author's
+    to write, and the count below is exact so a reservation that swallowed it
+    would be caught here rather than in a page that stopped rendering."""
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><div class="lf-chrome"><p id="w">words</p></div>'
+            '<p id="q" class="lf-quiet">said out of sight</p>'
+            '<p id="n" class="lf-not-coined-yet">a name the runtime has not taken</p>'
+            '<p id="k" class="note">an ordinary class the author owns</p>'
             '<p id="g" data-lf-gen="1">generated-looking</p>',
         )
     )
     result = check(page_dir)
     assert result.exit_code != 0
-    assert result.output.count("the runtime's own markers") == 2
+    assert result.output.count("the runtime's own markers") == 4, result.output
+    # The marker list in parentheses, not the bare word: `reserved_marker_errors` names
+    # the tag, the line and the markers and never the element's id, so an `id="k"`
+    # conjunct here would have passed under the very fault it was written to catch. A
+    # bare "note" is the opposite failure — a future message carrying "denote" or
+    # "annotation" turns this red for a reason that has nothing to do with the page.
+    assert "(note)" not in result.output, (
+        "an ordinary authored class was refused as the runtime's own record, so "
+        f"the reservation reaches past the lf- namespace: {result.output}"
+    )
 
 
 @pytest.mark.parametrize(("subschema", "exit_code"), [(True, 0), (False, 1)])
@@ -2142,23 +2190,66 @@ def test_check_reads_a_column_the_theme_states_as_a_token():
     Only the root, and only what is stated outright. A token declared inside a query is
     that condition's, the same reason the column will not read a media query's width, and
     a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
-    stated = ":root { --col: 640px }\nmain { max-width: var(--col) }"
+    column = "--lf-column: 1;"
+    stated = ":root { --col: 640px }\nmain { " + column + " max-width: var(--col) }"
     assert styles_model._column_width("", stated) == 640
 
     conditional = (
-        "@media screen { :root { --col: 640px } }\nmain { max-width: var(--col) }"
+        "@media screen { :root { --col: 640px } }\nmain { "
+        + column
+        + " max-width: var(--col) }"
     )
-    assert (
-        styles_model._column_width("", conditional) == structure_model.COLUMN_FALLBACK
-    )
+    assert styles_model._column_width("", conditional) == styles_model.COLUMN_FALLBACK
 
-    fallback = "main { max-width: var(--col, 512px) }"
+    fallback = "main { " + column + " max-width: var(--col, 512px) }"
     assert styles_model._column_width("", fallback) == 512
 
     # The shipped theme is the case that motivated this: it must still read as itself.
     assert (
         styles_model._column_width("", (schema_model.ASSETS / "theme.css").read_text())
         == 720
+    )
+
+
+def test_the_column_is_the_rule_that_claims_it_and_not_a_rule_that_looks_like_one():
+    """Which rule is the readable column is the stylesheet's to say, and it says it in
+    the block that sets the width — `--lf-column: 1` beside the max-width, so the cascade
+    wins the claim and the width together.
+
+    Seven container names stood in for that answer before, and a name list is wrong in
+    both directions. Too wide: the column is the baseline every other width on the page
+    is measured against, so an unrelated rule spelled `.content` moved it, and moving it
+    up takes the overflow check quiet — which reads not as a broken check but as a page
+    with nothing wrong in it. Too narrow: a page whose column is `.prose` was measured
+    against the fallback and failed for widths that fit inside it.
+
+    The last case is the one that keeps this honest. A rule that claims the column with
+    no width to give states nothing, so the reading must fall through to the next
+    stylesheet rather than settle on a claim it cannot measure."""
+    assert (
+        styles_model._column_width("", "main { max-width: 1400px }")
+        == styles_model.COLUMN_FALLBACK
+    ), "an unclaimed rule still set the column, so the name is still doing the deciding"
+
+    assert (
+        styles_model._column_width("", ".content { max-width: 1400px }")
+        == styles_model.COLUMN_FALLBACK
+    ), "a rule that merely looks like a container still doubled the page's baseline"
+
+    assert (
+        styles_model._column_width("", ".prose { --lf-column: 1; max-width: 560px }")
+        == 560
+    ), "a column named anything at all is still not readable, so the claim is ignored"
+
+    assert (
+        styles_model._column_width("main { --lf-column: 1; max-width: 500px }", "")
+        == 500
+    ), "a page's own <style> no longer states the column it is measured against"
+
+    theme = (schema_model.ASSETS / "theme.css").read_text()
+    assert styles_model._column_width("main { --lf-column: 1 }", theme) == 720, (
+        "a claim with no width of its own stopped the reading where it stood, so a "
+        "page could take the measure off itself by claiming and then saying nothing"
     )
 
 
@@ -2315,7 +2406,8 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     condition holds."""
     (page_dir / "versions" / "v1.html").write_text(
         styled(
-            "main { max-width: 760px } @media print { main { max-width: 2000px } }",
+            "main { --lf-column: 1; max-width: 760px }"
+            " @media print { main { --lf-column: 1; max-width: 2000px } }",
             '<svg width="900" height="10"></svg>',
         )
     )
@@ -2326,7 +2418,7 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     # And nesting is not a condition: a column stated on a rule that also wraps one stands.
     (page_dir / "versions" / "v1.html").write_text(
         styled(
-            "main { max-width: 1000px; & p { color: red } }",
+            "main { --lf-column: 1; max-width: 1000px; & p { color: red } }",
             '<svg width="900" height="10"></svg>',
         )
     )
@@ -2350,9 +2442,17 @@ def test_check_counts_only_a_width_fixed_in_pixels(page_dir):
 
 def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
     """A page-local <style> is the page's own answer to how wide it reads, so it wins
-    over the vendored theme's 720px and an element wider than the theme allows passes."""
+    over the vendored theme's 720px and an element wider than the theme allows passes.
+
+    It answers by claiming the column, the same way the theme's own rule does. A page
+    that only sets a width sets a width: which rule is the measure everything else is
+    read against is a thing a stylesheet says, not a thing a reader works out from how
+    the rule is spelled."""
     (page_dir / "versions" / "v1.html").write_text(
-        styled("main { max-width: 1000px }", '<svg width="900" height="10"></svg>')
+        styled(
+            "main { --lf-column: 1; max-width: 1000px }",
+            '<svg width="900" height="10"></svg>',
+        )
     )
     assert check(page_dir).exit_code == 0
 
@@ -2557,3 +2657,87 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     )
     assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
+
+
+def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
+    server, page_dir
+):
+    """A reaction is a comment or reply carrying `token` in place of `text`: one of
+    the two and never both, a word the merged vocabulary declares, and no
+    suggestion, hold, or markup riding beside it. What the door lets through it
+    also lets the reader take back — while it is still a mark. An answer under it
+    makes it a conversation, and a message with words in it was never a mark."""
+    publish(page_dir)
+    root = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "version": 1, "text": "why?"}).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    for bad, says in [
+        (
+            {"kind": "comment", "version": 1, "token": "shrug"},
+            "unknown reaction token 'shrug'",
+        ),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "text": "and"},
+            "valid under each of",
+        ),
+        ({"kind": "comment", "version": 1}, "not valid under any"),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "suggestion": True},
+            "suggestion",
+        ),
+        (
+            {"kind": "reply", "version": 1, "parent": root["id"], "token": "nope"},
+            "unknown",
+        ),
+    ]:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400, (bad, body)
+        assert says in json.loads(body)["error"], (bad, body)
+
+    reaction = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "version": 1,
+                    "token": "cut",
+                    "anchor": {"section": "plan", "quote": "Ship dark"},
+                }
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert reaction["author"] == "user" and "text" not in reaction
+    nod = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "reply", "version": 1, "parent": root["id"], "token": "ok"}
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert nod["token"] == "ok" and nod["parent"] == root["id"]
+
+    # A message with words in it is said rather than unsaid.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
+    )
+    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    # The mark on the thread comes off with one press.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
+    )
+    assert status == 200, body
+    # Answered, the page reaction is a conversation, and the withdrawal would orphan
+    # the answer; the reader's move is in the thread it opened.
+    conversation_model.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
+    )
+    assert status == 400 and "has been answered" in json.loads(body)["error"]

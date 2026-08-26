@@ -167,6 +167,10 @@
      reads at 4.36:1 in light and 4.03:1 in dark, where it used to read at the
      strongest wash's 4.06 and 3.56. */
   --mark: #dfd1ed66; --mark-hover: #dfd1edb3; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+  /* A reaction's wash: the same hue one step under the resting mark, so a passage
+     someone reacted to reads as touched and a passage someone commented on reads as
+     annotated, and the two never look alike side by side. */
+  --react: #dfd1ed40;
   /* The "you are here" ring: where the reader is standing, wherever they are
      standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
      focused as one thing draws its own in the same band (a joined choose group,
@@ -234,6 +238,37 @@
   --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
   --series-4: #6c489a; --series-5: #8c2d2a;
 }
+/* Which here ring this is, said by the rule that draws it. An outline carries no word
+   for which of the layer's rules put it there — so a reader that had to know worked it
+   back from the selectors, matching the layer's own rules against the document by hand.
+   To ask `querySelectorAll` anything it first had to resolve nesting, join `@scope`
+   roots onto their descendants and split `:host(...)` on a matched paren, and it had
+   been wrong at each of them in turn: an unresolved `&` throws, and a throw there reads
+   exactly like a rule nothing on the page matches, which is the whole of why the joined
+   group's own ring was invisible to the gate that watches it. None of that was a fact
+   about rings. It was the cost of asking the stylesheet a question the browser had
+   already answered.
+
+   The rule says which ring it is instead, in the same declaration that draws it, the
+   way a box already says where it draws its frame (--lf-frame). Readers ask the
+   composed page, and get a truer answer than the matching gave: the cascade hands the
+   name to whichever rule won the outline, so what is credited is the ring the reader is
+   looking at rather than every rule whose selector reached the element.
+
+   Registered rather than reset, because the reset --lf-frame needs is a rule of its own
+   and this wants none: a name left to inherit would put a thread's ring on every word
+   inside it. Typed as one identifier, so a value that is no name — a shadow channel's,
+   under a property somebody else spelled the same way, which is how this one came to be
+   spelled out in full — falls back to `none` rather than reading as one.
+
+   Naming is not how the layer says a ring is there; the outline is, and nothing the
+   product ships reads this. What holds the layer to naming what it draws is the corpus
+   floor, in the suite, which divides by these names and credits what the page paints. */
+@property --lf-here-ring {
+  syntax: "<custom-ident>";
+  inherits: false;
+  initial-value: none;
+}
 
 /* The dark palette is the same page at night, not its inverse: the ground keeps
    the warmth (a brown-black, not a blue-black) and every grey above it is mixed
@@ -248,6 +283,7 @@
     --chip: #2d2922;
     --ink-2: #c9c3b6; --muted-2: #988f7f; --border-2: #453f36;
     --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
+    --react: #6152a036;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;
     --danger-tint: #35211b; --danger-ink: #e0a091;
@@ -478,7 +514,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * out of one column, and the way to have both would be two of them rather than a smaller
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
-       position: relative; --lf-frame: 1; }
+       position: relative; --lf-frame: 1; --lf-column: 1; }
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had
@@ -1051,6 +1087,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           font-size: var(--t-6); }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
+.lf-conversation-head .lf-edited { color: var(--muted-2); }
 .lf-conversation-body { margin-top: 2px; }
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }

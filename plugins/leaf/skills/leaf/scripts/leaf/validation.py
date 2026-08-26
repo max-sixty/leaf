@@ -300,15 +300,15 @@ def reserved_ids_error(ids: list) -> str:
 
 
 def reserved_marker_errors(parser) -> list:
-    """The same trespass as a reserved id, for the runtime's other markers: it
-    writes data-lf-* and the .lf-chrome/.lf-live/.lf-copy classes as its own
-    record and reads them back, so an authored copy makes it misread the page —
-    words inside .lf-chrome leave every reading, data-lf-gen words become cells
-    the file-side reading has no fence for."""
+    """The same trespass as a reserved id, and reserved the same way one is: the
+    runtime writes data-lf-* attributes and lf- classes as its own record and
+    reads them back, so an authored copy makes it misread the page — words
+    inside .lf-chrome leave every reading, .lf-quiet clips them to a point, and
+    data-lf-gen words become cells the file-side reading has no fence for."""
     return [
         f"<{tag}> at line {line} wears the runtime's own markers "
-        f"({', '.join(markers)}); the page may not author what the runtime "
-        "reads back as its own record"
+        f"({', '.join(markers)}); the lf- and data-lf- namespaces are the "
+        "runtime's to write, whether or not it writes this name today"
         for tag, line, markers in parser.reserved_markers
     ]
 
@@ -438,14 +438,16 @@ def incoming_registry(packages: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    events its $events record schemas reject; comments whose conversation contract
-    changed; or actions and reports whose sending tag, verb, or detail the incoming
-    x-state or x-report contract rejects. Empty for a fresh page.
+    events its $events record schemas reject; reactions on a token its
+    $reactions drops; comments whose conversation contract changed; or
+    actions and reports whose sending tag, verb, or detail the incoming x-state
+    or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
         return []
     contracts = incoming["$events"]["kinds"]
+    tokens = incoming.get("$reactions", {}).get("tokens", {})
     thread = thread_structure(events)
     versions = {}
 
@@ -461,6 +463,11 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"kind `{kind}`"
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
+        elif e.get("token") and e["token"] not in tokens:
+            # A token the layer drops has no glyph to paint and no pill to withdraw
+            # it by, so a standing reaction on it would fall silent — the verb rule
+            # (`declared_action_error`) read for the reaction vocabulary.
+            key = f"reaction token `{e['token']}` no longer declared by $reactions"
         elif (
             kind == "comment"
             and e.get("holds")

@@ -45,6 +45,7 @@ Commands:
   ack         Acknowledge one complete, untruncated wait batch.
   comment     Open an agent thread — on a passage, or on the page whole.
   data        Set or clear page-bound external data.
+  edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   package     Create and check packages.
   page        Create pages and add media.
@@ -2364,3 +2365,66 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert "lf-command" not in removed_registry
     assert not (command / "widgets" / "lf-command.js").exists()
     assert list((command / "guidance").iterdir()) == []
+
+
+def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
+    """The shipped tokens are the default layer's statement, not core's. A project's
+    entry under a token's name replaces that token whole, a new name joins after
+    the shipped ones, and `null` removes one — which is the only way a layer can take
+    a token off the bar without restating the whole set. The order the page numbers
+    the armed digits by is the merged map's."""
+    project = tmp_path / "proj"
+    layer = project / ".leaf"
+    layer.mkdir(parents=True)
+    (layer / "registry.json").write_text(
+        json.dumps(
+            {
+                "$reactions": {
+                    "tokens": {
+                        "ok": {"glyph": "👍", "means": "ship it", "settles": True},
+                        "cut": None,
+                        "meh": {"glyph": "~", "means": "neither here nor there"},
+                    }
+                }
+            }
+        )
+    )
+    monkeypatch.chdir(project)
+
+    page = tmp_path / "page"
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+
+    assert result.exit_code == 0, result.output
+    tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
+    assert list(tokens) == ["ok", "no", "lost", "more", "this", "meh"]
+    assert tokens["ok"] == {"glyph": "👍", "means": "ship it", "settles": True}
+    assert tokens["meh"] == {"glyph": "~", "means": "neither here nor there"}
+    assert "settles" not in tokens["no"]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"glyph": "✓"},  # no meaning for `leaf wait` to print
+        {"glyph": "", "means": "x"},
+        {"glyph": "✓", "means": "x", "settle": True},  # a flag nothing reads
+        {"glyph": "✓", "means": "x", "settles": "yes"},
+    ],
+)
+def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
+    """Every consumer reads a token's entry directly — the bar paints `glyph`,
+    `leaf wait` prints `means`, the panel reads `settles` — so a member missing or
+    misspelled is a token that paints nothing or a flag that settles nothing, and
+    nothing else would say so."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$reactions"] = {"tokens": {"nod": entry}}
+    registry_path.write_text(json.dumps(registry))
+
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+
+    assert result.exit_code != 0
+    assert "$reactions.tokens must map lowercase token names" in result.output

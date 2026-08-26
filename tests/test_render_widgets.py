@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from leaf import events as events_model
+from leaf import render_checks as render_checks_model
 from leaf import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
@@ -55,6 +56,95 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
+    browser, serve
+):
+    """The authored element is only a request for navigation. The module reads the
+    page's headings in document order, keeps their relative depth, and gives an
+    id-less heading a generated target without writing state onto the heading itself.
+    A link also takes the runtime's reveal route, so a heading in a closed disclosure
+    is reachable rather than merely named."""
+    source = leaf_page(
+        "contents",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<section><h2 id="prepare">Prepare <lf-gloss tip="One cohort at a time.">gradually</lf-gloss></h2><p>Take a snapshot.</p></section>
+<details style="margin-top: 110vh">
+  <summary>Implementation detail</summary>
+  <h3>Move the readers</h3>
+  <p>Shift one cohort at a time.</p>
+</details>
+<section style="margin-bottom: 110vh"><h2>Verify</h2><p>Compare the totals.</p></section>
+""",
+    )
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    toc = page.get_by_role("navigation", name="On this page")
+
+    expect(toc.get_by_role("link")).to_have_count(3)
+    assert toc.get_by_role("link").all_text_contents() == [
+        "Prepare gradually",
+        "Move the readers",
+        "Verify",
+    ]
+    assert toc.locator("li").evaluate_all(
+        "nodes => nodes.map(node => node.dataset.lfDepth)"
+    ) == ["0", "1", "0"]
+    assert page.locator("h2, h3").evaluate_all(
+        "nodes => nodes.map(node => node.getAttribute('id'))"
+    ) == ["prepare", None, None]
+
+    hrefs = toc.get_by_role("link").evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    )
+    assert hrefs[0] == "#prepare"
+    assert hrefs[1].startswith("#lf-contents-section-")
+    target = page.locator(hrefs[1])
+    expect(target).to_have_attribute("data-lf-gen", "1")
+    expect(target).to_have_class(re.compile(r"\blf-ui\b"))
+
+    details = page.locator("details")
+    expect(details).not_to_have_attribute("open", "")
+    toc.get_by_role("link", name="Move the readers").click()
+    expect(details).to_have_attribute("open", "")
+    expect(page.locator(":target")).to_have_attribute("id", hrefs[1][1:])
+    expect(page).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    top = page.locator("h3").evaluate("heading => heading.getBoundingClientRect().top")
+    assert 0 <= top < 150, f"the revealed heading stopped at {top}px"
+
+    # The title is a visible page label, while each repeated heading is the label of a
+    # browser-owned link under .lf-ui. The authored heading remains the one passage.
+    spoken = page.locator("main").evaluate(
+        "async main => (await import('/runtime/widget-api.js')).says(main)"
+    )
+    assert spoken.count("Prepare gradually") == 1
+    assert spoken.count("Move the readers") == 1
+    assert spoken.count("Verify") == 1
+    expect(toc).to_have_class(re.compile(r"\blf-ui\b"))
+    expect(toc).to_have_attribute("data-lf-gen", "1")
+    assert errors == []
+    page.close()
+
+    # On first parse this id does not exist yet. The shared arrival pass runs after every
+    # widget settles, so a copied link still reveals and reaches the generated target.
+    direct, direct_errors = open_page(browser, url + hrefs[1])
+    expect(direct.locator("details")).to_have_attribute("open", "")
+    expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
+    direct.wait_for_function(
+        "heading => { const box = heading.getBoundingClientRect(); "
+        "return box.top >= 0 && box.bottom <= innerHeight; }",
+        arg=direct.locator("h3").element_handle(),
+    )
+    assert direct.locator("h3").evaluate(
+        "heading => { const box = heading.getBoundingClientRect(); "
+        "return box.top >= 0 && box.bottom <= innerHeight; }"
+    )
+    assert direct_errors == []
+    direct.close()
 
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
@@ -1702,6 +1792,90 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     page.close()
 
 
+def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
+    browser, serve
+):
+    """The edit is one log arrival and both views fold it onto the original message.
+
+    Neither view gains a second message. Their standing message nodes survive the
+    arrival, so an edit cannot disturb a reader working elsewhere in the same thread;
+    only the prose inside changes, and both heads disclose that it changed.
+    """
+    url = serve(CONVERSATION_DIFF_PAGE)
+    d = serve.page_dir
+    message = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "edited-agent-message",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "version": 1,
+            "text": "The north bracket fit.",
+            "anchor": {"section": "cd-q"},
+            "markup": (
+                '<lf-options id="edited-message-choice" choose>'
+                '<lf-option id="edited-message-now">Fit it now</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+    expect(inline.locator(".lf-conversation-body")).to_have_text(
+        "The north bracket fit."
+    )
+    page.locator(".lf-comments").click()
+    panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
+    expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
+    page.evaluate(
+        """([message]) => {
+          window.__editedInline = document.querySelector(
+            `#cd-q .lf-conversation-msg[data-event="${message}"]`);
+          window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
+          window.__editedWidget = document.querySelector('#edited-message-choice');
+        }""",
+        [message["id"]],
+    )
+
+    revision = events_model.append_event(
+        d,
+        {
+            "kind": "edit",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "message": message["id"],
+            "text": (
+                "The north bracket fits.\n\n"
+                "```python\n"
+                "def fitted():\n"
+                "    return True\n"
+                "```"
+            ),
+        },
+    )
+    told(page)
+
+    expect(inline.locator(".lf-conversation-body")).to_contain_text(
+        "The north bracket fits."
+    )
+    expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
+    expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
+    expect(inline.locator(".lf-edited")).to_have_text("edited")
+    expect(panel.locator(".lf-edited")).to_have_text("edited")
+    expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
+    assert page.evaluate(
+        "() => window.__editedInline.isConnected && window.__editedPanel.isConnected"
+        " && window.__editedWidget.isConnected"
+    ), "the edit replaced a standing message or its frozen widget"
+    assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
     """A question the agent asked is not one of the runtime's own buttons.
 
@@ -2358,6 +2532,63 @@ def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
         )
         assert errors == []
         page.close()
+
+
+def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
+    browser, serve
+):
+    """A dated axis names the month where one begins, on a line under the day: the tick
+    for the first week of June reads 1 over Jun. Those two lines are two tspans of one
+    <text>, offset by the dy the drawing asked for, and each reports a line box carrying
+    the font's own leading — a couple of pixels taller than the step between them. So the
+    pass hunting words drawn on other words read every such tick as a collision, on a
+    drawing where no glyph comes near another, and the corpus's own heat-loss page failed
+    the gate for drawing a perfectly ordinary axis.
+
+    The reading is taken twice, as the float and the collapse are: once as the gate runs
+    it, where the label's lines are held out, and once with that hold defeated, where it
+    has to report. Otherwise a pass here would also be what a gate that never looked at
+    the drawing returns. The two lines are pulled onto each other before either reading,
+    so the second leg rests on an overlap this test arranged rather than on the leading
+    the axis happens to be drawn with."""
+    url = serve(CHART_PAGE)
+    page, errors = open_page(browser, url)
+    # Vacuous otherwise: the page has to be carrying a tick that takes two lines.
+    stacked = page.evaluate(
+        """() => [...document.querySelectorAll('#c-line text')]
+             .filter((t) => t.querySelectorAll('tspan').length > 1)
+             .map((t) => t.textContent)"""
+    )
+    assert stacked, "no tick names its month on a second line, so nothing is held out"
+    # The overlap the second reading needs belongs to the test rather than to whatever
+    # leading lf-chart settles on: the month is pulled onto the day above it, so the two
+    # boxes have to land on each other whatever step the drawing asked for. `held` does
+    # not move, because the hold asks which label a line belongs to and not how far apart
+    # a label's lines are.
+    page.evaluate(
+        """() => [...document.querySelectorAll('#c-line text')]
+             .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1))
+             .forEach((line) => line.setAttribute('dy', '0'))"""
+    )
+    # The hold defeated by its own predicate rather than the pass rewritten, so what runs
+    # is this reading with one answer changed.
+    unheld = render_checks_model.COVERED_WORDS.replace(
+        "a.label && a.label === b.label", "false"
+    )
+    held, reported = (
+        page.evaluate(render_checks_model.COVERED_WORDS),
+        page.evaluate(unheld),
+    )
+    assert errors == []
+    assert held == []
+    assert unheld != render_checks_model.COVERED_WORDS, (
+        "the pass no longer holds a label's own lines out by the predicate this reaches for"
+    )
+    assert any("c-line" in found for found in reported), (
+        "the lines land on nothing, so a gate that never looked would pass this too"
+    )
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):

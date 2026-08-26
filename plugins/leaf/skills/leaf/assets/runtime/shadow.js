@@ -69,7 +69,8 @@ export const MARK_RULES = `
     background-color: var(--mark-strong);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
-    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
+    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
+  ::highlight(lf-react) { background-color: var(--react); }`;
 
 // The stage an x-shadow widget renders into. A module never calls attachShadow itself,
 // because the marks the runtime paints come from a registry that is the document's while

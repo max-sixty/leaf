@@ -187,6 +187,13 @@ predicate. `x-content: prose` alone is not permission: that prose may itself be
 a holder gesture or may stand in a hidden panel. Core must refuse an undeclared
 target rather than branch on a tag name or infer a safe insertion point.
 
+An agent revises one of its messages with an append-only `edit` event naming the
+original comment or reply. The raw log therefore retains the original and every
+revision; conversation folds replace only that message's text and mark it edited.
+The message keeps its id, author, place, timestamp, anchor, and frozen markup, so
+the revision neither takes another turn nor rebuilds a widget a reader may already
+have acted on. Only the agent session recorded on the message may revise it.
+
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
 log markup and take the whole conversation window. That markup is a second
@@ -228,6 +235,30 @@ accounts for them; retries keep the same attempt id and cannot reorder later
 events. The runtime's detailed contract lives in its own `CLAUDE.md`.
 
 Registry declarations choose these routes. Core does not branch on widget names.
+
+### A reaction is a comment that starts as a mark
+
+A `comment` or `reply` carrying `token` in place of `text` is a reaction: one
+word from `$reactions`, aimed where the comment's anchor or the reply's parent
+points, or with neither at the page whole. It opens no thread. It paints — a
+glyph in the margin and a wash fainter than a comment's on the words — and the
+reader takes it back with the ordinary `undo` naming it, which is what makes it
+cheap. Someone replying to it is what turns it into a conversation; from then on
+it is a thread whose root is a mark, and the reaction can no longer be withdrawn.
+`resolve` is its floor: after it the reaction stops painting. No note member
+absorbs one, and no version is gated by one — its anchor re-resolves or
+detaches like a comment's.
+
+The vocabulary is configuration, not contract. The kernel declares the
+`$reactions` namespace and no token; the default package ships the working set,
+and layers reshape it merge-patch style. Behavior rides the entry: a token's
+`glyph` is what the page paints, its `means` is what `leaf wait` prints beside
+the event, and `settles` says a reaction of that kind on the latest agent
+message of a thread takes the thread out of "waiting on you" — a reading of the
+log, never a second event. Core never names a token; POST refuses one the merged
+vocabulary lacks. Both runtimes read "who spoke last" over a thread's turns,
+never its marks, so a reaction is neither the reader speaking nor an unanswered
+ask.
 
 ### The host supplies what leaf runs on
 
@@ -383,10 +414,25 @@ unanswered holder is withdrawn. These are relations between declarations and
 events, not special rules for suggestions.
 
 CSS is a consumer too. A selector listing every framed tag closes the vocabulary.
-A box declares `--lf-frame` where it draws its frame. Shared style queries use
+A box declares `--lf-frame` where it draws its frame, and shared style queries read
 that declaration to trim collapsed child margins and to limit the room a wide
 exhibit may take inside the box. `main` hands page-wide room back to its contents.
 The render gate checks trapped margins, clipping, and width on the composed page.
+
+A rule that draws the here ring names it the same way, in `--lf-here-ring`. Whether
+a ring is there is the outline's answer; the name says which rule drew it, so
+nothing re-runs the layer's selectors to work that out. The corpus floor holds the
+layer to naming what it draws.
+
+The reader is not always the browser. The rule that draws the readable column claims
+it in `--lf-column`, and the file lint is what reads that: `version check` measures
+every fixed pixel width against the column, so the column is the baseline the whole
+page is judged by. It used to find that rule from a list of seven container names,
+which is loose and tight at once — a rule spelled `.content` moved the baseline and
+took the overflow check quiet, while a page whose column is `.prose` was judged
+against a default. A stylesheet knows which of its rules is the measure. Declared
+where the width is set, the claim and the width are won together by the cascade and
+cannot drift apart.
 
 The declaration follows the drawn box rather than the tag. A nested task may draw
 its frame only in a child selector, and a module may generate a framed class with

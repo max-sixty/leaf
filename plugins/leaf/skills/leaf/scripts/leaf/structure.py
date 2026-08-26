@@ -103,35 +103,6 @@ SIBLING_CLOSERS = {
 # elsewhere lands here unchanged.
 LANGUAGE_CLASS = re.compile(r"(?:^|\s)language-([\w+.#-]+)(?=\s|$)")
 
-# Container selectors whose max-width defines the readable column.
-COLUMN_SELECTORS = (
-    "main",
-    "body",
-    "article",
-    ".container",
-    ".wrap",
-    ".content",
-    ".page",
-)
-
-
-def _names_column(selector: str) -> bool:
-    """Whether a rule's selector names one of the column containers — as a selector
-    component, not a substring. Matched as text, `.domain-list` contained "main" and
-    one unrelated rule redefined the column every element was measured against; a
-    component is the word standing as the compound's type selector or as a whole
-    class, with nothing of an identifier continuing it."""
-    for part in re.split(r"[,\s>+~]+", selector):
-        for sel in COLUMN_SELECTORS:
-            if sel.startswith("."):
-                if re.search(rf"{re.escape(sel)}(?![\w-])", part):
-                    return True
-            elif re.match(rf"{sel}(?![\w-])", part):
-                return True
-    return False
-
-
-COLUMN_FALLBACK = 780
 # Attribute widths only count as pixels on these elements.
 PIXEL_WIDTH_TAGS = {"img", "svg", "table", "canvas", "iframe", "video", "object"}
 
@@ -243,14 +214,15 @@ class _StructParser(HTMLParser):
         # with the nearest open ancestor carrying an id — (tag, id) or None — so
         # unpointable_blocks can judge where a user's aim would land.
         self.bare_blocks = []
-        # (tag, line, markers) per element wearing the runtime's own record:
-        # a data-lf-* attribute, or one of the classes that answer "which
-        # document is this" (.lf-chrome), "this is the live region" (.lf-live),
-        # "this is a copy" (.lf-copy). The runtime writes these and reads them
-        # back, so an authored copy makes it misread the page it stands on —
-        # authored words inside .lf-chrome leave the reading position and every
-        # quote, and data-lf-gen words become fenced cells the file's reading
-        # has no fence for.
+        # (tag, line, markers) per element wearing the runtime's own record: a
+        # data-lf-* attribute, or a class in the runtime's own lf- namespace.
+        # All three reserve by prefix, as an id does, because the runtime coins
+        # names in that namespace as it grows and a page may not author what the
+        # runtime reads back as its own record: words inside .lf-chrome leave
+        # the reading position and every quote, .lf-quiet clips them to a point
+        # nobody can see or select, and data-lf-gen words become fenced cells
+        # the file's reading has no fence for. Naming the classes it coins today
+        # is a list that goes on admitting the next one it coins.
         self.reserved_markers = []
         self._svg_depth = 0
 
@@ -354,8 +326,7 @@ class _StructParser(HTMLParser):
             self.attr_widths.append((tag, attrs_d["width"]))
         markers = sorted(name for name in attrs_d if name.startswith("data-lf-"))
         markers += sorted(
-            {"lf-chrome", "lf-live", "lf-copy", "lf-ui"}
-            & set((attrs_d.get("class") or "").split())
+            c for c in (attrs_d.get("class") or "").split() if c.startswith("lf-")
         )
         if markers:
             self.reserved_markers.append((tag, self.getpos()[0], markers))

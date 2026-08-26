@@ -850,6 +850,53 @@ AIM_PAINT_PAGE = leaf_page(
 </lf-options>
 """,
 )
+# Two items meeting at a seam the browser puts between two whole pixels, held there by a
+# fixed box rather than by flow, so the fraction is the stylesheet's number on every
+# machine instead of whatever the fonts above it came to. Here the seam falls at .31 of a
+# pixel, so a pointer just below it is over the lower item and rounds to a whole pixel
+# over the upper one, which is the disagreement AIM_SEAM below goes looking for.
+AIM_SEAM_PAGE = leaf_page(
+    "aim seam",
+    """
+<h1 id="t">Aim seam</h1>
+<div id="seam-stack">
+  <p id="seam-upper">The item above the seam.</p>
+  <p id="seam-lower">The item below the seam.</p>
+</div>
+""",
+    head="""<style>
+  #seam-stack { position: fixed; top: 300.3px; left: 40px; width: 220px; }
+  #seam-stack > p { margin: 0; height: 20px; }
+</style>""",
+)
+# Where the browser's own hit test stops answering the upper item and starts answering the
+# lower one, and a point beside that seam whose whole-pixel rounding lands on the other
+# side of it. The rounding is not this reading's invention: `mousemove` carries clientX and
+# clientY rounded to whole pixels, so a pointer record kept from one answers about a place
+# the pointer is not, while the press is dispatched against the position it was rounded
+# from. The seam is searched for rather than computed, because a box's hit region is not
+# always its border box — a neighbour's hairline border hit-tests as the cell below it.
+AIM_SEAM = """([above, below]) => {
+  const a = document.getElementById(above), b = document.getElementById(below);
+  const box = a.getBoundingClientRect();
+  const x = Math.round(box.left + box.width / 2) + 0.5;
+  const at = (y) => document.elementFromPoint(x, y)?.closest("[id]")?.id ?? null;
+  let lo = box.top + 1, hi = b.getBoundingClientRect().bottom - 1;
+  if (at(lo) !== above || at(hi) !== below) return null;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid) === above) lo = mid; else hi = mid;
+  }
+  // Halfway between the seam and the whole-pixel boundary rounding turns at, which puts
+  // the point and its rounded twin on opposite sides of the seam. Which of them is over
+  // which item follows where in the pixel the seam fell: under .5 the point is over
+  // `below` and the twin over `above`, and from .5 up the two swap. So the caller reads
+  // the item to hold the aim to off `at` rather than naming one, and requires the pair to
+  // differ — a seam that landed on a whole pixel leaves the two agreeing and proves
+  // nothing.
+  const y = (hi + Math.floor(hi) + 0.5) / 2;
+  return { x, y, at: at(y), rounded: at(Math.round(y)) };
+}"""
 MARK_PAD = 6  # CSS px of ground kept around the element in the clip
 MARK_NEAR = 12  # per channel, wide enough for the stroke's antialiased shoulder only
 
@@ -1335,90 +1382,69 @@ DEEP_FOCUS = """() => {
 }"""
 
 
-# Every rule in this page's own composed layer that draws the here ring, read out of the
-# CSSOM. The layer is where the population lives — a list kept beside it is a second
-# statement of what the theme says, and the one that was kept here in prose went stale
-# the moment a rule moved. Twelve of the twenty-three had never been stood on when this
-# was written, and nothing said so, because the gate only ever asked about rules it had
-# happened to meet.
+# Every rule in the page's composed layer that draws the here ring, under the name that
+# rule gives it (--lf-here-ring, theme.css). This is the population the corpus floor
+# divides by; the sweep below answers for what is painted.
 #
-# Nesting is resolved the way the spec defines it — `&` is `:is(parent)`, and a nested
-# selector naming no `&` is a descendant of it — because the two texts joined by hand
-# give a string no engine will take. `querySelectorAll` throws on one, and a throw
-# swallowed here reads exactly like a rule nothing on the page matches: the option
-# group's own ring was invisible to this for that reason alone.
-RING_RULES = """() => {
-  const rules = new Map();
+# Flat, because nothing re-runs a selector any more. The reading this replaced resolved
+# nesting, joined @scope roots onto their descendants and split `:host(...)` on a matched
+# paren so it could match the rules itself, and a throw in any of that came back looking
+# exactly like a rule nothing on the page matched. theme.css carries why that went.
+#
+# What it cannot see is a rule drawing the ring some other way — as longhands, or as
+# `2px solid var(--accent)` written out. "Draws the here ring" is not decidable from a
+# declaration's text, and this asks the one question that is: does the outline's value
+# name the token. The paint is where the rest is decidable, and the floor reads both, so
+# a ring the layer draws without saying so is caught there rather than excused here.
+#
+# Conditions are not read. One rule is conditional — `options-joined` sits under
+# `@media screen` — and this reading is taken on screen, in the scheme the walk uses, so
+# evaluating them would change nothing today. A ring that painted in some other medium
+# would be one the corpus never shows, and the floor saying so is the useful answer.
+RING_NAMES = """() => {
+  const rings = new Map();
   const eaten = new Set();
-  const eat = (sheet, shadow) => {
+  const eat = (sheet) => {
     if (!sheet || eaten.has(sheet)) return;
     eaten.add(sheet);
     let list;
     try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
-    const walk = (from, outer) => {
+    const walk = (from) => {
       for (const rule of from) {
-        // A rule that carries no selector of its own is one of three things, and the
-        // three are not interchangeable. A condition — @media, @supports — decides
-        // whether its contents apply at all, and one that does not hold here is left
-        // out of the population rather than passed through: this gate reads one colour
-        // scheme and no print stylesheet, and a rule it cannot make the page paint is a
-        // rule it must not then credit off a neighbour's ring. @scope is a selector
-        // constraint wearing a condition's shape — eleven of the layer's ring rules sit
-        // under `@scope (.lf-chrome)` — so its root joins the selector. Anything else
-        // (@layer) passes its parent's selector through untouched.
-        if (!rule.selectorText) {
-          if (rule.media && !matchMedia(rule.media.mediaText).matches) continue;
-          if (rule.conditionText !== undefined && !rule.media
-              && !CSS.supports(rule.conditionText)) continue;
-          const root = rule.start;  // CSSScopeRule
-          // A declaration written after a nested rule in the same block: Chrome hoists
-          // it into a CSSNestedDeclarations, which has a style and no selector, so a
-          // walk that asks for both drops it and the rule leaves the population on an
-          // ordinary reorder.
-          if (rule.style) keep(rule, outer, outer);
-          if (rule.cssRules)
-            walk(rule.cssRules, root ? `${outer ? `${outer} ` : ''}${root}` : outer);
-          continue;
+        // Every rule is asked for its style, because a declaration written after a
+        // nested rule is hoisted into a CSSNestedDeclarations, which has one and no
+        // selector. The context comes off the parent for the same reason: the layer's
+        // one nested ring says `&:has(> lf-option > .lf-pick:focus-visible)` and nothing
+        // else, which names no rule anybody can find.
+        if (rule.style
+            && rule.style.getPropertyValue('outline').includes('--here-ring)')) {
+          const name = rule.style.getPropertyValue('--lf-here-ring').trim();
+          const own = rule.selectorText;
+          const up = rule.parentRule?.selectorText;
+          const said = own && up ? `${up} { ${own}` : (own ?? up ?? '(a declaration)');
+          if (!rings.has(name)) rings.set(name, []);
+          if (!rings.get(name).includes(said)) rings.get(name).push(said);
         }
-        const own = rule.selectorText;
-        const whole = !outer
-          ? own
-          : own.includes('&')
-            ? own.replaceAll('&', `:is(${outer})`)
-            : `:is(${outer}) ${own}`;
-        keep(rule, whole, outer);
-        if (rule.cssRules?.length) walk(rule.cssRules, whole);
+        if (rule.cssRules) walk(rule.cssRules);
       }
     };
-    // Which root a rule was met in is structure, not something to infer back from its
-    // text later: the same theme file is both linked at document level and adopted into
-    // every shadow tree, and a shadow rule written without :host is a plain selector
-    // that must still be queried in its own root.
-    const keep = (rule, whole, outer) => {
-      if (!/outline\\s*:[^;}]*--here-ring/.test((rule.cssText || '').split('{')[1] || ''))
-        return;
-      rules.set(whole, [
-        outer && outer !== whole ? `${whole.slice(outer.length).trim()} (in ${outer})`
-                                 : whole,
-        (rules.get(whole)?.[1] ?? false) || shadow,
-      ]);
-    };
-    walk(list, '');
+    walk(list);
   };
-  for (const sheet of document.styleSheets) eat(sheet, false);
-  for (const sheet of document.adoptedStyleSheets) eat(sheet, false);
-  for (const el of document.querySelectorAll('*'))
-    if (el.shadowRoot) {
-      for (const sheet of el.shadowRoot.styleSheets) eat(sheet, true);
-      for (const sheet of el.shadowRoot.adoptedStyleSheets) eat(sheet, true);
-    }
-  return [...rules].map(([whole, [said, shadow]]) => [whole, said, shadow]);
+  // The same walk the sweep makes, so the two readings meet the same sheets: a root one
+  // root deeper carries rules a single pass over the document's own hosts never sees.
+  const roots = [document];
+  for (const root of roots) {
+    for (const sheet of root.styleSheets) eat(sheet);
+    for (const sheet of root.adoptedStyleSheets) eat(sheet);
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) roots.push(el.shadowRoot);
+  }
+  return [...rings].map(([name, said]) => ({ name, said }));
 }"""
 
 
 # Every here ring the page is showing right now, and what is wrong with each.
 #
-# Asked of the elements the layer's ring rules match rather than of the focused one.
+# Asked of every box painting one, rather than of the focused one.
 # The two are not the same set: four rules draw
 # the ring on something other than the control holding focus — a thread card wears it
 # for anything focused inside it, an ask wears it for whichever of its controls the
@@ -1428,7 +1454,7 @@ RING_RULES = """() => {
 # cut planted on `.lf-thread:focus-within` passed all ten examples.
 #
 # The focused element is a candidate too, whatever paints its outline, so a ring the
-# platform draws and the theme never named is still measured.
+# platform draws and the layer never named is still measured.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
   // carries why: version check --render imports it so the band a handover is refused
@@ -1443,64 +1469,69 @@ RINGS_DRAWN = f"""async () => {{
     for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
     return false;
   }};
-  // The layer's rules are the page's for its whole life, so they are read once. What
-  // matches them is asked afresh every time, because that is the part that moves.
-  const rules = (window.__lfRingRules ??= ({RING_RULES})());
-  const roots = [];
-  for (const el of document.querySelectorAll('*'))
-    if (el.shadowRoot) roots.push(el.shadowRoot);
-  // `:host(X) rest` is only meaningful inside a shadow root, and the parentheses are
-  // matched rather than split at the first `)` — `:host(:not(.x))` would otherwise be
-  // cut in half and take the rest of the selector with it.
-  const hosted = (sel) => {{
-    if (!sel.startsWith(':host')) return null;
-    if (!sel.startsWith(':host(')) return {{ host: '*', rest: sel.slice(5).trim() }};
-    let depth = 0;
-    for (let i = 5; i < sel.length; i++) {{
-      if (sel[i] === '(') depth++;
-      else if (sel[i] === ')' && !--depth)
-        return {{ host: sel.slice(6, i), rest: sel.slice(i + 1).trim() }};
-    }}
-    return null;
-  }};
-  const claimed = new Map();
-  for (const [sel, , shadow] of rules) {{
-    const host = hosted(sel);
-    const where = [
-      ...(host ? [] : [document]),
-      ...(shadow
-        ? roots.filter((root) => !host || root.host.matches(host.host))
-        : []),
-    ];
-    for (const root of where)
-      // `:host(X)` with nothing after it styles the widget's own box, so what it
-      // matches is the host and there is no selector left to run inside the root —
-      // `querySelectorAll('')` throws, and the throw takes the whole reading down
-      // naming a line of JavaScript rather than a ring.
-      for (const el of host && !host.rest
-        ? [root.host]
-        : root.querySelectorAll(host ? host.rest : sel)) {{
-        if (!claimed.has(el)) claimed.set(el, []);
-        claimed.get(el).push(sel);
-      }}
-  }}
-  const focused = ({DEEP_FOCUS})();
-  if (focused && focused !== document.body && focused !== document.documentElement
-      && !claimed.has(focused)) claimed.set(focused, []);
+  // The accent as the browser resolves it, read back through an outline so that both
+  // sides of the comparison below are the same kind of value. Read straight off an
+  // element, a custom property serializes as it was written while `outline-color`
+  // serializes as it resolved: the two agree for `#2f5480` and for nothing more exotic,
+  // and `color-mix()` or `light-dark()` in a package's accent left every rule in the
+  // layer uncredited and the gate red on a page drawing every ring correctly. Through an
+  // outline they agree for any of them.
+  //
+  // In <head>, because this must not put a node in the page's own content while the
+  // page is being read. The same span in <body> answers the same.
+  const swatch = document.createElement('span');
+  swatch.style.cssText = 'outline: 1px solid var(--accent)';
+  document.head.append(swatch);
+  const accent = getComputedStyle(swatch).outlineColor;
+  swatch.remove();
   // Whether the outline on this element is the layer's ring: `--here-ring` is
-  // `var(--here-ring-w) solid var(--accent)`, so its width and style are what the
-  // element computes them to and both sides of the comparison are computed values.
-  // The colour is not usable for this — a custom property serializes as it was
-  // written and `outline-color` as it resolved, which agree for `#2f5480` and for
-  // nothing more exotic. `color-mix()` or `light-dark()` in a package's accent turned
-  // every rule in the layer uncredited and the whole gate red on a page drawing every
-  // ring correctly. An element wearing some other outline is still measured, since a
-  // visible outline cut in half is a fault whoever drew it.
+  // `var(--here-ring-w) solid var(--accent)`, so style, width and colour are all what
+  // the element computes them to.
+  //
+  // The colour is what tells a ring from the other outlines the layer draws at exactly
+  // its weight, and the sweep below needs telling: `[data-lf-restated]` and
+  // `[data-lf-pending]` are 2px solid, and a mark under the pointer takes the ring's own
+  // width over the mark's own hue. Asking style and width alone claims all three, and
+  // then reports the page painting a ring no rule named — a complaint that cannot be
+  // answered, since naming them puts them in a population the keyboard can never light.
+  // The control the reader is standing on is measured whatever paints its outline, since
+  // a visible ring cut in half is a fault whoever drew it.
   const isHereRing = (cs) =>
     cs.outlineStyle === 'solid'
-    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim();
+    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+    && cs.outlineColor === accent;
+  // Which here ring this is, where a rule said. An unset registered property and an
+  // unregistered one both answer `none` and neither is a name, so both come back empty.
+  const ringName = (cs) => {{
+    const n = cs.getPropertyValue('--lf-here-ring').trim();
+    return n === 'none' ? '' : n;
+  }};
+  // Every box painting the ring, read off the composed page. Whether a ring is there is
+  // what the outline says, so this asks the outline: a ring a rule drew without the
+  // layer's own token is found here exactly as readily, and no reading of the rules can
+  // find one. The name answers the other question — which rule drew it — and is read
+  // only to credit, which is why nothing here depends on the declaration being made.
+  //
+  // The focused element joins them whatever paints its outline, so a ring the platform
+  // draws and the layer never named is measured too.
+  //
+  // Roots are collected as the sweep goes. Pushing onto the array being walked carries
+  // it into a shadow tree another shadow tree opened, which a pass over the document's
+  // own hosts never reached.
+  const roots = [document];
+  const claimed = new Map();
+  for (const root of roots)
+    for (const el of root.querySelectorAll('*')) {{
+      if (el.shadowRoot) roots.push(el.shadowRoot);
+      const cs = getComputedStyle(el);
+      if (isHereRing(cs)) claimed.set(el, ringName(cs));
+    }}
+  const focused = ({DEEP_FOCUS})();
+  if (focused && focused !== document.body && focused !== document.documentElement
+      && !claimed.has(focused))
+    claimed.set(focused, ringName(getComputedStyle(focused)));
   const answers = [];
-  for (const [el, matched] of claimed) {{
+  for (const [el, name] of claimed) {{
     // A ring on something the browser is not rendering is not on screen, and its box is
     // whatever the last layout left behind. An inactive lf-tab is the case: it carries
     // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
@@ -1684,7 +1715,8 @@ RINGS_DRAWN = f"""async () => {{
     }}
     answers.push({{
       who: named(el),
-      rules: isHereRing(cs) ? matched : [],
+      here: isHereRing(cs),
+      ring: name,
       focused: el === focused,
       scrolled,
       cuts,
@@ -1708,18 +1740,6 @@ COVERED_TOP = """() => {
   return `${over.textContent.trim().slice(0, 32)} covers it down to `
          + `${Math.round(o.bottom - r.top)}px in`;
 }"""
-
-
-def ring_rules(page):
-    """The layer's ring rules, as the reading itself holds them.
-
-    Through the reading's own memo rather than a second evaluation, so the
-    population a coverage floor divides by is the one the credits were counted
-    against. Two evaluations are two moments, and a stylesheet arriving between
-    them — design mode, a module loading late — makes the floor report a rule
-    that was never checkable or hide one that was.
-    """
-    return page.evaluate(f"() => (window.__lfRingRules ??= ({RING_RULES})())")
 
 
 def rings_drawn(page):

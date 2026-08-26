@@ -257,8 +257,8 @@ export function chromeStyle({
      apart out in the margin. The pill's rule was the suggestion family's, which is a
      family stating a fact about a shape the runtime owns — its own rules there are for
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
-  .lf-btn:focus-visible { outline: var(--here-ring); outline-offset: 2px; }
-  .lf-pill:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
+  .lf-btn:focus-visible { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
+  .lf-pill:focus-visible { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
   /* The keyboard address: the keys that reach this thing right now, worn as a chip
      off its holder's corner so an address arriving moves nothing. The g chord paints one
      on every member of every list it offers and an option wears the one a pick
@@ -393,6 +393,30 @@ ${MARK_RULES}
      corner radius rather than restating one, which is what the radius here used to
      override. */
   .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
+  /* A standing reaction on an element: the same hairline, dashed — a mark fainter than a
+     comment's, as the wash on a reacted passage is fainter than a comment's (--react in
+     theme.css, ::highlight below). No hand, since nothing opens on a press here: the
+     glyph in the margin is the control. */
+  .lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
+  /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
+     registry being script state no file can hold (BAKE). */
+  html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
+  /* The glyphs of the reactions standing on a block — a pill per reaction, the pill
+     being the reaction's own eraser (anchors.js seatReactions). Docked by default: a
+     float at the block's start, taking a glyph's width off its first line, which is
+     the whole answer on paper and on a narrow window. Given the room — the theme's
+     900px breakpoint, and the panel not having taken it (data-lf-cramped, the posture a
+     sidenote docks under too) — it hangs in the column's right margin instead, level
+     with the block's first line: the seat is positioned with no top, so its static
+     position is that line, and left: 100% is the margin wherever the column is the
+     containing block, 22px off it as a suggestion's controls hang. */
+  .lf-reacts { float: right; margin: 0 0 4px 8px; display: inline-flex; gap: 4px;
+    white-space: nowrap; }
+  .lf-react-mark { min-width: 26px; text-align: center; }
+  @media screen and (min-width: 900px) {
+    body:not([data-lf-cramped]) .lf-reacts:not(.lf-docked) { float: none; position: absolute;
+      left: 100%; margin: 0 0 0 22px; padding-right: var(--here-ring-room); z-index: 1; }
+  }
   /* The draft's own passage — a standing annotation like the posted mark, which is why
      it may share the hairline where the ⌥ aim's promise may not (the .lf-aim rule in
      the scope block says why). Only the colour separates it from a posted mark, and the
@@ -411,8 +435,17 @@ ${MARK_RULES}
      --mark-ink posted, 2px --mark-ink indicated, 2px --accent stood in. Inset to -2px
      for the reason the standing ring gives below — the offset is to the outer edge, so a
      doubled width at -1px pokes a pixel into the band a scrolling ancestor clips. Before
-     the standing rule, so an element that is both takes the accent. */
-  .lf-mark-el.lf-mark-hover { outline-width: var(--here-ring-w);
+     the standing rule, so an element that is both takes the accent.
+
+     The keyboard indicates the same way the pointer does, and it has to be said here
+     because the hairline above is an author's outline and the ring a focused element
+     would otherwise wear is the platform's: the hairline wins, and it is drawn whether
+     or not anything is focused, so tabbing onto a marked box changed nothing on screen.
+     One box in the corpus is both focusable and markable today — a diagram carrying an
+     element comment — and this is not a rule about diagrams: any outline an element
+     wears for a reason other than focus takes the platform's ring away from it, and the
+     walk in the suite is what says so the next time it happens. */
+  .lf-mark-el:is(.lf-mark-hover, :focus-visible) { outline-width: var(--here-ring-w);
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* The standing comment's element anchor (paintStanding). It keeps the hairline's own
      inset rather than taking the ask ring's gap, so focusing the thread changes the ring
@@ -427,7 +460,7 @@ ${MARK_RULES}
      marked boxes there is a 1px violet hairline and a 2px accent ring, which differ in
      weight as well as hue and are told apart on sight — checked on a composed page, not
      assumed. A pulse would be motion answering a question already answered. */
-  .lf-mark-el.lf-mark-here { outline: var(--here-ring);
+  .lf-mark-el.lf-mark-here { outline: var(--here-ring); --lf-here-ring: element-mark;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
      hand here is the aim's answer rather than the thread's: it stands where the aim has
@@ -459,7 +492,7 @@ ${MARK_RULES}
      runtime paints on the page's own elements: it moves nothing on arriving, and it
      keeps its place for nothing, being the element's own paint rather than a box in
      the chrome that would have to chase it down every scroll, reflow and drag. */
-  [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); outline-offset: var(--here-ring-gap); }
+  [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); --lf-here-ring: ask; outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
      the page's own words — a pick mark reading "chosen" is the only place the page
@@ -586,7 +619,7 @@ ${MARK_RULES}
       text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
       background: none; color: inherit; cursor: pointer; width: 100%; }
     .lf-version-row:hover { background: var(--chip); }
-    .lf-version-row:focus-visible { outline: var(--here-ring);
+    .lf-version-row:focus-visible { outline: var(--here-ring); --lf-here-ring: version-row;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     /* The version being read wears the accent rather than a fill, so the row the
        pointer is over stays the one that looks pressable. */
@@ -606,7 +639,7 @@ ${MARK_RULES}
       border: 1px solid var(--rule); border-radius: 4px; background: none;
       color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
     .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
-    .lf-version-diff:focus-visible { outline: var(--here-ring);
+    .lf-version-diff:focus-visible { outline: var(--here-ring); --lf-here-ring: version-diff;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
       background: var(--chip); }
@@ -641,7 +674,7 @@ ${MARK_RULES}
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
     a.lf-others-row:hover { background: var(--chip); }
-    .lf-others-row:focus-visible { outline: var(--here-ring);
+    .lf-others-row:focus-visible { outline: var(--here-ring); --lf-here-ring: others-row;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-others-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .lf-others-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
@@ -665,7 +698,7 @@ ${MARK_RULES}
        the tray lists that ask, so it wears the ask's own outset ring and lost a pixel of
        it to each edge. */
     .lf-asks-row:is(:focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
-      outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
+      outline: var(--here-ring); --lf-here-ring: asks-row; outline-offset: calc(-1 * var(--here-ring-w)); }
     /* What kind of thing is asking, in the apparatus voice, over the ask's own words in
        the page's. Two lines, because they are two claims: the kind is the runtime's word
        for the element and the words below it are the page's own. */
@@ -729,7 +762,7 @@ ${MARK_RULES}
     /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
        drag that follows it. */
     .lf-edge:hover::before, .lf-edge:focus-visible::before { opacity: 1; }
-    .lf-edge:focus-visible { outline: var(--here-ring); }
+    .lf-edge:focus-visible { outline: var(--here-ring); --lf-here-ring: edge; }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* The narrowing row, under the head and above the list it narrows. Standing rather
        than raised by a key or a count, for the reason every other control here stands:
@@ -744,7 +777,7 @@ ${MARK_RULES}
     .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: var(--t-6);
       padding: 3px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--paper); color: var(--ink); }
-    .lf-find-box:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
+    .lf-find-box:focus-visible { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
     /* contain: reaching the end of the thread list must not start scrolling the page
        behind it — one wheel gesture moves one region.
        The frame is declared because the inset is read at both ends of a scroll region:
@@ -767,7 +800,7 @@ ${MARK_RULES}
       scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
         var(--here-ring-room); }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
-    .lf-threads:focus-visible { outline: var(--here-ring);
+    .lf-threads:focus-visible { outline: var(--here-ring); --lf-here-ring: thread-list;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
     /* Which part of the page the threads under it are about — the page's own heading,
@@ -804,7 +837,7 @@ ${MARK_RULES}
        (.lf-pinned) has nothing above it at all, and a ring a pixel outside the box was
        three pixels into the strip the scroller clips. Every control packed into this
        list states its own inset for the same reason (theme.css, --here-ring). */
-    button.lf-group:focus-visible { outline: var(--here-ring);
+    button.lf-group:focus-visible { outline: var(--here-ring); --lf-here-ring: run-heading;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     /* A thread and the room a resolved one is still giving back (foldOut) are the same
        box, so the fold starts from the box the reader was looking at rather than from
@@ -848,7 +881,7 @@ ${MARK_RULES}
        that no amount of scrolling can help, since the two boxes touch in flow. A ring
        drawn inside the box it names cannot be covered by a neighbour or cut by an edge
        the box itself is within. */
-    .lf-thread:focus-within { outline: var(--here-ring);
+    .lf-thread:focus-within { outline: var(--here-ring); --lf-here-ring: thread;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
@@ -871,14 +904,16 @@ ${MARK_RULES}
     .lf-msg-head { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-6); }
     .lf-msg.claude .lf-msg-head b { color: var(--accent); }
     .lf-msg time { color: var(--muted-2); }
+    .lf-msg-head .lf-edited { color: var(--muted-2); }
     /* A message body is rendered Markdown, which is why this dresses a box and not a
        paragraph. The theme's element rules are at document level and reach in here, so a
        reply's lists, code, quotes and tables already read as the page's do; what is left
        is the panel's narrower column — tighter blocks, headings that don't shout at
        360px, and no margin where the body meets its own head. */
     .lf-msg-body { margin: 2px 0 0; overflow-wrap: anywhere; }
-    .lf-msg-body > :first-child { margin-top: 0; }
-    .lf-msg-body > :last-child { margin-bottom: 0; }
+    .lf-msg-text { display: contents; }
+    .lf-msg-text > :first-child { margin-top: 0; }
+    .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
     .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
     /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
        no wrap can help. A table is the one block in a reply with somewhere else to
@@ -931,8 +966,65 @@ ${MARK_RULES}
        pill that floats over the page's own content rather than standing in the empty
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
-    .lf-fab { position: absolute; z-index: 8950; display: none;
-      box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
+      gap: 4px; white-space: nowrap; }
+    /* Every press on the bar is the margin's pill — the token pills and the Comment
+       alike wear .lf-pill unchanged, so the bar is the same idiom as the ✓ Accept it can
+       stand level with — and each carries the shadow the floating press earns, the bar
+       itself drawing nothing. A hairline between the tokens and Comment says which
+       half is the cheap answer. */
+    .lf-fab-bar > .lf-pill { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .lf-fab-sep { width: 1px; height: 14px; margin: 0 2px; background: var(--border-2); }
+    /* A token as a press, wherever it stands: the bar, a message's strip, the page row.
+       The glyph is the whole label at rest; the word joins it once the token stands on
+       its target (aria-pressed), so a strip reads "✓ ok" where the reader pressed and a
+       bare glyph everywhere else; the digit joins it while the react press is armed
+       (.lf-armed), in the address chip the rest of the page's bindings wear. State is
+       paint — ink, border, fill — and the word arrives as a change of box, which is the
+       one exception a standing mark earns: it is the reader's own press growing into
+       its receipt, not news moving chrome under them. */
+    .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
+      justify-content: center; }
+    .lf-armed .lf-react > .lf-address { display: inline-block; }
+    .lf-react > .lf-react-word { display: none; }
+    .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
+    .lf-react[aria-pressed="true"] { border-color: var(--mark-ink); color: var(--mark-ink);
+      background: var(--mark); }
+    .lf-react[aria-busy="true"] { opacity: .55; }
+    .lf-react-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .lf-page-strip { padding: 8px 14px 0; }
+    /* Quiet in the panel, and open where the reader is. Every token is offered under
+       the latest agent message and on the page row (.lf-open), and in a thread the
+       reader is standing in — the pointer anywhere over the card, or the focus j/k puts
+       on it. A thread they are not in shows only the tokens standing on it, and a reply
+       with none takes no room. Reached by the whole card rather than by each message,
+       because the room a row takes has to arrive once on the way in: per message it
+       would move the next message out from under a pointer already travelling to it.
+
+       That is also what keeps the gestures reachable. A row that hid outright would be
+       a one-way door — taking back the last mark on an older reply would leave nothing
+       to press to put it back, and nothing for a keyboard to reach at all — and the
+       press that emptied it would go on to lose its own focus to the body. Standing in
+       the thread is exactly when the reader is doing either.
+
+       A token at rest is a muted glyph with no box; the box arrives under the pointer,
+       under focus, while the react press is armed, and for as long as a press of it is
+       in flight. The border is there all along, transparent, so the box is paint and
+       nothing moves. A standing token keeps its own fill under the pointer, which the
+       shared pill's hover would otherwise take for the mark coming off. */
+    .lf-thread:not(:hover, :focus-within) .lf-react-strip:not(.lf-open)
+      > .lf-react:not([aria-pressed="true"]) { display: none; }
+    .lf-thread:not(:hover, :focus-within)
+      .lf-react-strip:not(.lf-open):not(:has(> [aria-pressed="true"])) { margin-top: 0; }
+    .lf-react-strip > .lf-react:not([aria-pressed="true"]) { border-color: transparent;
+      background: transparent; color: var(--muted); }
+    .lf-react-strip > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, [aria-busy="true"]),
+    .lf-react-strip.lf-armed > .lf-react:not([aria-pressed="true"]) {
+      border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
+    .lf-react-strip > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
+    /* A thread whose root is a mark: the glyph and its word where the comment's words
+       would stand, in the chrome's face. */
+    .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
     /* The ⌥ aim's promise: the item a press would take, whole. Drawn here in the
        chrome's own layer rather than painted onto the element, because no band of a
        page element is reliably the runtime's to paint in — the mark comment at
@@ -984,7 +1076,7 @@ ${MARK_RULES}
     .lf-help-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
       border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
       color: var(--ink); }
-    .lf-help-search:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
+    .lf-help-search:focus-visible { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
     .lf-help-meta { min-height: 1.2em; margin: 6px 0 0; color: var(--muted);
       font-size: var(--t-6); }
     .lf-help-results { min-height: 0; overflow-y: auto; }
@@ -1033,7 +1125,7 @@ ${MARK_RULES}
        a list states its own inset (theme.css, --here-ring) — the thread cards and the
        joined option group do the same — and here the line's own border is what stands
        the whole thing off the page. */
-    .lf-key-more:focus-visible { outline: var(--here-ring);
+    .lf-key-more:focus-visible { outline: var(--here-ring); --lf-here-ring: key-more;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for

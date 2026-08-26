@@ -647,6 +647,11 @@ custom property to trim child margins and to bound wide content. A project box
 then receives the same behavior without joining a tag list. `main` hands wide
 room back to its contents explicitly because it is the outer page frame.
 
+`main` declares `--lf-column: 1` in the same rule, claiming that its `max-width`
+is the readable column. The file lint measures every fixed pixel width against
+that number, so a package or page setting a column of its own claims it in the
+rule that sets it; a width with no claim beside it is a width and nothing more.
+
 Where the fact belongs to the registry rather than to the rule that draws the
 box, `markDeclared` paints it and the selector reads the paint. The lists that
 ask whether a suggestion slot or a variant holds block content invert HTML's
@@ -966,6 +971,52 @@ a higher one supplies only the properties it states, so a standing mark under th
 pointer keeps its own wash and its own ink and takes nothing from the hover.
 Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
+
+### Reactions
+
+A bare reaction — a token comment nobody has replied to — is paint, not a
+thread. `paintAnchors` resolves its anchor like any comment's and records it in
+`reacted` rather than `marked`: a wash through the `lf-react` highlight on a
+passage, `lf-react-el` on an element's shown parts, and a glyph seated by
+`seatReactions`. The seat is one `.lf-reacts` span per block, prepended so its
+static position is the block's first line, and positioned into the right margin
+the way a suggestion's controls are; the pill inside is the reaction's own
+eraser, posting the ordinary `undo` through `withdraw`. It wears `lf-ui` and
+`data-lf-gen`, so no reading takes it for the page's words and a frame's
+first-child trim ignores it. `markAt` does not see it: a reaction takes no press
+to a card and has no hover. Export keeps the glyph with its press taken off and
+writes the wash into the words as a `<mark>` (BAKE), the highlight registry
+being script state no file can hold.
+
+The bar the selection raises is `.lf-fab-bar`: the layer's tokens in declared
+order, then `.lf-fab`, the Comment press every route into the composer still
+goes through. `showFab` shows and places the bar; `raiseOnItem` raises it on an
+element from the ⌥ press; `PAGE_WHOLE` is its target for the page itself, with
+Comment hidden because the page's comment box is the panel's general one. `r`
+arms it (`setReact`): a digit on each token in the address-chip style, the
+surface being the bar — raised on the standing item, or the page, where none
+stood — or the strip under the latest agent message when the reader is standing
+in a thread. `REACT` is the armed scope and claims everything, as the address
+chord does; a stray key disarms and keeps its meaning, and a bar the arming
+raised goes down with it.
+
+`conversation/model.js` reads the log by `isReaction`, `spoken`, `turns`, and
+`bareReaction`, the names `events.py` reads it by, and answers `reactionsOn` and
+`reactionStanding` from the fold it last built. The panel lists `conversational`
+threads only; a card shows its turns and its root, so a thread that grew out of a
+reaction opens on the mark, whose body `conversation/messages.js` writes as the
+glyph and its word. `paintReactStrips` puts the token strip under each agent
+message of an open thread and marks the latest one `lf-open`; `paintPageStrip`
+is the same strip, open, above the general box for the page whole. Which of them
+offer their tokens is the stylesheet's: the open ones always, and every strip in
+a thread the reader is standing in, so a thread at rest shows only the tokens
+standing on it, pressed and wearing their word. Standing in the thread is when
+the reader presses, so nothing they can reach by pointer is out of the keyboard's
+reach either, and a row cannot empty itself out from under the press that emptied
+it. At rest an offered token is a muted glyph with no box; the box is paint that
+arrives under the pointer, under focus, armed, or while a press is in flight.
+`awaitsReader` reads the last turn and then the one declared exception, a
+`settles` token standing on it.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
@@ -1557,6 +1608,12 @@ already, and the log's news about the content — `restated`, `pending`,
 `reported` — has no second carrier, while the band also has the washed cell and
 the address chips.
 
+Every rule that draws the ring names it in `--lf-here-ring`, in the same
+declaration (theme.css carries why). Whether a box wears a ring is the outline's
+answer; the name says which rule drew it, so nothing re-runs the layer's selectors
+to find that out. The property is registered non-inheriting, so a name means the
+box rather than each of its words.
+
 A press that acts on where the reader is standing reads it through
 `standingItem`: the unanswered ask where focus is on a control that works it — a
 pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
@@ -1796,9 +1853,9 @@ same fault one glyph smaller.
 
 `addressKeys` is the one spelling of that sequence, and `chordKeys` the one reading
 of how far the chord has come: the key line drops those keys, having said them in
-the chip that heads it, the reference drops them under a heading that names the
-mode, a chip on the page sets them back, and the placeholder that speaks a reply
-box's whole address joins the whole array.
+the chip that heads it, the reference puts them in front of each row so every entry
+shows the complete chord, a chip on the page sets them back, and the placeholder
+that speaks a reply box's whole address joins the whole array.
 
 Addresses are stable within the document. The first addressable members do not
 change identity as the reader scrolls. Chips are painted only for members whose
@@ -1947,6 +2004,12 @@ has a different door: only the CLI can write it after validating against the
 vendored registry, while the browser event schema refuses it. A widget in that
 markup is instantiated once in the panel; inline conversation seats show a
 textual projection rather than copying interactive ids.
+
+An agent message edit is a later event folded onto the original message id. The
+panel and an inline conversation update the existing message node and show
+`edited`; the text wrapper alone is replaced. The message's cached markup nodes
+stay connected because their widget state and authored baseline belong to the
+original event, not to the prose revision.
 
 Fragment links in messages use the browser's `hidden="until-found"` behavior to
 reveal authored disclosures and tabs. `paintAnchors` marks a link detached when

@@ -40,6 +40,7 @@ from leaf import files as files_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
+from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
@@ -310,6 +311,154 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     js_class = re.compile(f"[{found.group(1)}]")
     js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
     assert js_set == passages_model.COLLAPSE_CHARS
+
+
+def _runtime_modules():
+    """Every module the runtime is composed of, whichever file each fact lives in today.
+
+    Named as a set rather than as paths because the runtime is being split by owner: a
+    reading that names one file goes red on the split that moves the thing it reads,
+    which says the fact changed when what changed is where it is written."""
+    return [schema_model.ASSETS / "leaf.js"] + sorted(
+        (schema_model.ASSETS / "runtime").rglob("*.js")
+    )
+
+
+def _without_comments(js: str) -> str:
+    """A module's code with its comments taken out.
+
+    The sibling reading below strips them for the reason that applies here too: a
+    pattern simple enough to find a definition is simple enough for a comment to
+    satisfy. `re.search` takes the first match in a file, so a commented-out copy above
+    the real one is read instead of it, and the test then holds Python to a sentence
+    while the constant it names drifts — green, and about nothing. Across files the same
+    comment reads as a second module stating the fact, which is a red naming the wrong
+    one.
+
+    The line-comment pattern steps over `://` so a URL in a string keeps its second
+    half; nothing here reads a URL, and a `//` inside a string is left alone at the cost
+    of nothing this asks."""
+    return re.sub(r"(?<!:)//[^\n]*", "", re.sub(r"/\*.*?\*/", "", js, flags=re.DOTALL))
+
+
+def _sole_definition(pattern: str, what: str):
+    """The one runtime module matching `pattern`, and the match — so a fact that grows a
+    second spelling is caught here rather than by whichever side happened to be read."""
+    found = [
+        (js, m)
+        for js in _runtime_modules()
+        if (m := re.search(pattern, _without_comments(js.read_text())))
+    ]
+    assert len(found) == 1, (
+        f"{len(found)} runtime modules state {what} ({[js.name for js, _ in found]}), "
+        "and this reading asks one of them"
+    )
+    return found[0]
+
+
+def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
+    """TEXT_BLOCK_TAGS (the file side) and the passage reader's TEXT_BLOCK selector are
+    two spellings of one list, and the collapsed reading of a page rests on their
+    agreement: one space goes wherever two runs of text sit in different blocks and none
+    where they share one, so a tag one side calls a block and the other does not gives
+    the two sides different text. Every quote-shaped thing is then a quote the browser
+    captured that the file's reading cannot confirm, or the reverse.
+
+    The Python comment already said the list matches the runtime's. A comment saying so
+    is not a thing that fails when it stops being true; this is."""
+    _, found = _sole_definition(
+        r"const TEXT_BLOCK =\s*\n?\s*\"([^\"]+)\";", "TEXT_BLOCK"
+    )
+    assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
+
+
+def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
+    """CONTEXT (the file side) and the capture's own CONTEXT are how much of a passage's
+    surroundings an anchor writes down, and both sides must mean the same by it: the
+    browser writes the prefix and suffix, and `leaf comment` writes them from a version
+    file, so a file-side capture storing a different amount makes an anchor the browser
+    would never have made — and the resolver demands a full contextual match before it
+    calls two identical quotes apart.
+
+    The quote itself is uncapped on both sides. This is the neighbourhood only."""
+    _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
+    assert int(found.group(1)) == passages_model.CONTEXT
+
+
+def test_the_render_viewport_is_wide_enough_to_have_margins():
+    """The corpus is read at RENDER_VIEWPORT, and the margin strips only exist above
+    --strip-min: below that width `stateStrip` writes data-lf-cramped and the theme
+    takes the margins back. Everything the sweeps say about a margin resident — a
+    sidenote, a suggestion's controls, a wide exhibit's reach — is therefore said about
+    a page that had margins, and nothing else in the suite asks whether it did.
+
+    Nothing ties the two numbers, and they are set in different files for different
+    reasons, so either could move: raising the floor past the viewport, or narrowing the
+    viewport to the floor, would leave every one of those readings running against a
+    cramped page. They would not fail. They would stop being about the thing they name,
+    and the suite would stay green saying so."""
+    theme = (schema_model.ASSETS / "theme.css").read_text()
+    found = re.search(r"--strip-min:\s*(\d+)px", theme)
+    assert found, (
+        "the theme no longer states --strip-min, which the runtime reads by name"
+    )
+    floor = int(found.group(1))
+    # The floor's own relation: `stateStrip` writes data-lf-cramped when avail is *below*
+    # --strip-min, and the theme's query is min-width, so a page exactly at the floor
+    # still has its margins. Written as a strict `>` this went red for a viewport that
+    # was fine.
+    assert render_checks_model.RENDER_VIEWPORT["width"] >= floor, (
+        f"the corpus is read at {render_checks_model.RENDER_VIEWPORT['width']}px and the "
+        f"margins only exist above {floor}px, so every reading the sweeps make of a "
+        "sidenote, a suggestion's controls or a wide exhibit's reach is being made "
+        "against a page the theme has already taken the margins off"
+    )
+
+
+def test_the_render_gate_takes_only_names_the_runtime_entry_exports():
+    """The browser gate borrows the runtime's own readings rather than writing second
+    copies of them — `quoted`, `inChrome`, `says`, `shownBand` — by importing `/leaf.js`
+    inside the page. Nothing checks that the entry still hands them out.
+
+    It is a module boundary held together by nothing, and the runtime is being split by
+    owner right across it. A split moves a function into a module beside the entry, the
+    entry imports it to go on using it, and the re-export is the line nobody misses: the
+    name still resolves everywhere inside the runtime, so the suite is green until a
+    browser evaluates the gate's probe and gets `undefined is not a function`. That is
+    what happened to `quoted`, and it cost eleven reds in a browser run to say what this
+    says from the file in under a second.
+
+    Read off the probes rather than listed here, so a gate that starts borrowing a
+    twelfth reading is covered by having asked for it."""
+    gate = Path(render_checks_model.__file__).read_text()
+    wanted = set(re.findall(r"\bleaf\.([A-Za-z_$][\w$]*)", gate)) - {"js"}
+    for names in re.findall(r"const \{([^}]+)\} = await import\('/leaf\.js'\)", gate):
+        wanted.update(part.strip() for part in names.split(",") if part.strip())
+    assert wanted, (
+        "no name was found reaching into /leaf.js from the render gate, so this "
+        "reading is asking nothing — the probes' import spelling must have changed"
+    )
+
+    entry = (schema_model.ASSETS / "leaf.js").read_text()
+    exported = set(
+        re.findall(
+            r"^export\s+(?:const|function|class|let)\s+([A-Za-z_$][\w$]*)",
+            entry,
+            re.MULTILINE,
+        )
+    )
+    for block in re.findall(r"^export\s*\{([^}]*)\}", entry, re.MULTILINE | re.DOTALL):
+        for part in block.split(","):
+            name = part.strip().split(" as ")[-1].strip()
+            if name:
+                exported.add(name)
+
+    assert not wanted - exported, (
+        f"the render gate imports {sorted(wanted - exported)} from /leaf.js and the "
+        "entry does not export them, so every probe that reaches for one dies in the "
+        "browser with 'not a function' — a re-export dropped by a split, which the "
+        "runtime itself never notices because the name still resolves inside it"
+    )
 
 
 def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():

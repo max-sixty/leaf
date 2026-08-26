@@ -16,12 +16,14 @@ export function createConversation(dependencies) {
     ago,
     captureAuthoredFacets,
     claimState,
+    designIsOn,
     designName,
     droppedAt,
     el,
     elementById,
     findInput,
     focused,
+    generalRow,
     highlightBlocks,
     inChrome,
     isMarked,
@@ -47,6 +49,8 @@ export function createConversation(dependencies) {
     quietSince,
     reachScrollers,
     reachedForWords,
+    reactDone,
+    reactPills,
     refreshHover,
     registry,
     rememberAuthoredMarkup,
@@ -61,6 +65,7 @@ export function createConversation(dependencies) {
     scrollToThread,
     sectionOf,
     sendDraft,
+    sendReaction,
     setPanel,
     settling,
     takenBack,
@@ -69,32 +74,55 @@ export function createConversation(dependencies) {
     toggleBtn,
     updateSequence,
     wireInput,
+    withdraw,
   } = dependencies;
   let threadList = [];
-  const { awaitsAgent, awaitsReader, buildThreads, seatRoot } = createThreadModel({
+  const {
+    awaitsAgent,
+    awaitsReader,
+    bareReaction,
+    buildThreads,
+    conversational,
+    isReaction,
+    reactionStanding,
+    reactionsOn,
+    spoken,
+    seatRoot,
+    tokenEntry,
+    turns,
+  } = createThreadModel({
     elementById,
+    registry,
     retractedIds,
     retractionFloors,
     runtime,
     takenBack,
   });
-  const { anchorLabel, loadMarked, msgNode, renderMessageMarkdown } =
-    createConversationMessages({
-      MARKED_ANYWHERE,
-      ago,
-      captureAuthoredFacets,
-      designName,
-      el,
-      elementById,
-      highlightBlocks,
-      itemSays,
-      itemWord,
-      markDeclared,
-      rememberAuthoredMarkup,
-      renderQuiet,
-      renderSaid,
-      reportPageError,
-    });
+  const {
+    anchorLabel,
+    loadMarked,
+    msgNode,
+    renderMessageMarkdown,
+    syncEdited,
+    syncMsgNode,
+  } = createConversationMessages({
+    MARKED_ANYWHERE,
+    ago,
+    captureAuthoredFacets,
+    designName,
+    el,
+    elementById,
+    highlightBlocks,
+    isReaction,
+    itemSays,
+    itemWord,
+    markDeclared,
+    rememberAuthoredMarkup,
+    renderQuiet,
+    renderSaid,
+    reportPageError,
+    tokenEntry,
+  });
 
   // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
   // children rather than a record kept beside them: a thread the log settles is renamed out
@@ -151,7 +179,7 @@ export function createConversation(dependencies) {
     [
       anchorLabel(t.root.anchor, t.root.about),
       group.label,
-      ...t.msgs.map((m) => m.text),
+      ...t.msgs.map((m) => m.text ?? m.token),
     ]
       .join("\n")
       .toLowerCase();
@@ -325,6 +353,14 @@ export function createConversation(dependencies) {
       const time = node.querySelector("time");
       const when = ago(message.ts);
       if (time.textContent !== when) time.textContent = when;
+      syncEdited(node.querySelector(":scope > .lf-conversation-head"), message);
+      const body = node.querySelector(":scope > .lf-conversation-body");
+      const revision = message.edited?.id ?? "";
+      if (node.lfRevision !== revision) {
+        if (message.suggestion) body.textContent = message.text;
+        else body.innerHTML = renderMessageMarkdown(message.text);
+        node.lfRevision = revision;
+      }
       return node;
     }
     node = offer("div", `lf-conversation-msg ${message.author}`);
@@ -334,9 +370,11 @@ export function createConversation(dependencies) {
       el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
       el("time", "", ago(message.ts)),
     );
+    syncEdited(head, message);
     const body = el("div", "lf-conversation-body");
     if (message.suggestion) body.textContent = message.text;
     else body.innerHTML = renderMessageMarkdown(message.text);
+    node.lfRevision = message.edited?.id ?? "";
     node.append(head, body);
     if (message.markup) {
       const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
@@ -355,7 +393,11 @@ export function createConversation(dependencies) {
       thread.dataset.thread = t.root.id;
       thread.tabIndex = -1;
     }
-    const messages = t.msgs.map((message) => conversationMessageNode(thread, message));
+    // Turns only: a reaction on a message is the panel's strip to show, and the seat is
+    // the textual projection of the exchange.
+    const messages = turns(t).map((message) =>
+      conversationMessageNode(thread, message),
+    );
     let tail;
     if (t.resolved) {
       const compose = thread.querySelector(":scope > .lf-say");
@@ -462,18 +504,16 @@ export function createConversation(dependencies) {
         existing.querySelector(":scope > .lf-work-line") ??
         compose ??
         existing.querySelector(":scope > .lf-thread-actions");
-      for (const m of t.msgs) {
+      for (const m of turns(t)) {
         let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
         if (!msg) {
           msg = msgNode(m);
           if (grow) msg.classList.add("grow");
           existing.insertBefore(msg, tail);
         }
-        // The head's clock, not any <time> a reply's own markup might carry.
-        const time = msg.querySelector(":scope > .lf-msg-head time");
-        const when = ago(m.ts);
-        if (time.textContent !== when) time.textContent = when;
+        syncMsgNode(msg, m);
       }
+      paintReactStrips(existing, t);
       return existing;
     }
 
@@ -493,7 +533,8 @@ export function createConversation(dependencies) {
       };
       div.append(quote);
     }
-    t.msgs.forEach((m) => div.append(msgNode(m)));
+    turns(t).forEach((m) => div.append(msgNode(m)));
+    paintReactStrips(div, t);
     if (!t.resolved) {
       const row = el("div", "lf-compose");
       const input = document.createElement("textarea");
@@ -566,6 +607,97 @@ export function createConversation(dependencies) {
       div.append(actions);
     }
     return div;
+  }
+
+  // The strip under each of the agent's messages: every token the layer declares, the
+  // ones the reader has put on that message reading pressed and wearing their word.
+  // Press one to put it there — a reply carrying the token, on that message — and press it
+  // again to take it back, an ordinary undo naming the reply. Rebuilt from the thread on
+  // each reconcile rather than from the press, so a reaction arriving from another tab,
+  // and an undo, land the same way. A resolved thread offers none: resolve is the floor
+  // after which a reaction stops painting, on the page and here alike.
+  // Open — every token offered — on the latest agent message, which is the one `r`
+  // arms and the one a `settles` token answers. The rest of the thread keeps the tokens
+  // standing on it and offers its own row only while the reader is standing in the
+  // thread (the stylesheet), so a thread at rest wears one row rather than one a turn.
+  function paintReactStrips(node, t) {
+    const latest = t.msgs.findLast((x) => x.author === "claude")?.id ?? null;
+    for (const msg of node.querySelectorAll(":scope > .lf-msg")) {
+      const m = t.msgs.find((x) => x.id === msg.dataset.mid);
+      if (!m || m.author !== "claude") continue;
+      let strip = msg.querySelector(":scope > .lf-react-strip");
+      if (t.resolved) {
+        strip?.remove();
+        continue;
+      }
+      if (!strip) {
+        strip = el("div", "lf-react-strip");
+        strip.setAttribute("role", "group");
+        strip.setAttribute("aria-label", "React to this reply");
+        for (const pill of reactPills((name, pill) => pressStrip(m, name, pill)))
+          strip.append(pill);
+        msg.append(strip);
+      }
+      strip.classList.toggle("lf-open", m.id === latest);
+      paintStanding(
+        strip,
+        t.msgs.filter((x) => isReaction(x) && x.author === "user" && x.parent === m.id),
+      );
+    }
+  }
+  // Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
+  // carrying the event a second press takes back. The reaction rides the pill rather than
+  // a map beside it, so a reconcile that keeps the node keeps the fact with it.
+  function paintStanding(strip, standing) {
+    const by = new Map(standing.map((x) => [x.token, x]));
+    for (const pill of strip.querySelectorAll(":scope > .lf-react")) {
+      const on = by.get(pill.dataset.token) ?? null;
+      pill.setAttribute("aria-pressed", on ? "true" : "false");
+      pill.lfReaction = on;
+    }
+  }
+  async function pressStrip(m, name, pill) {
+    if (pill.lfReaction) await withdraw(pill.lfReaction);
+    else
+      await sendReaction(
+        { kind: "reply", parent: m.id, version: runtime.currentVersion, token: name },
+        pill,
+        `${m.agent || "the agent"}'s reply`,
+      );
+    reactDone();
+  }
+  // The page whole, from the panel: the same strip, above the general box, aimed at
+  // nothing in particular — the shape an unanchored comment already has. What stands
+  // here is every bare reaction with no anchor; a press puts one there or takes it back.
+  let pageStrip = null;
+  function paintPageStrip(threads) {
+    if (!Object.keys(registry.$reactions.tokens).length) return;
+    if (!pageStrip) {
+      pageStrip = el("div", "lf-react-strip lf-page-strip lf-open");
+      pageStrip.setAttribute("role", "group");
+      pageStrip.setAttribute("aria-label", "React to the page");
+      for (const pill of reactPills(pressPage)) pageStrip.append(pill);
+      generalRow.before(pageStrip);
+    }
+    paintStanding(
+      pageStrip,
+      threads
+        .filter((t) => bareReaction(t) && !t.resolved && !t.root.anchor)
+        .map((t) => t.root),
+    );
+  }
+  // About the layer in design mode, as the general box's own comment is: the subject is
+  // decided at the send, by the mode standing then.
+  async function pressPage(name, pill) {
+    if (pill.lfReaction) {
+      await withdraw(pill.lfReaction);
+      reactDone();
+      return;
+    }
+    const event = { kind: "comment", version: runtime.currentVersion, token: name };
+    if (designIsOn()) event.about = "layer";
+    await sendReaction(event, pill, "the page");
+    reactDone();
   }
 
   // A thread the log has resolved and the open list is still holding. Its place is not
@@ -666,7 +798,10 @@ export function createConversation(dependencies) {
   // no restore could give back was identity: nothing could animate, one send route kept
   // focus and the other dropped it, and a user's own comment landed below the fold
   // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
-  function renderThreads(threads) {
+  function renderThreads(all) {
+    // The conversations. A bare reaction is paint on the page and a pill on the page
+    // row, and counts for nothing here: no card, no address, no place in the walk.
+    const threads = all.filter(conversational);
     const open = threads.filter((t) => !t.resolved);
     // The page's outline, read once for the whole reconcile: every thread asks it where it
     // stands and which run it belongs to.
@@ -968,7 +1103,7 @@ export function createConversation(dependencies) {
     }
     const threads = buildThreads();
     renderHolds(threads);
-    threadList = threads;
+    threadList = threads.filter(conversational);
     // The marks first, because the list is ordered by where they landed: one resolution of
     // every anchor, read by the page for its paint and by the panel for its order. Resolving
     // a second time for the order would be a second answer to where a thread is, free to
@@ -976,7 +1111,8 @@ export function createConversation(dependencies) {
     // document's whole text again to say it.
     paintAnchors(threads);
     renderThreads(threads);
-    renderConversations(threads);
+    renderConversations(threadList);
+    paintPageStrip(threads);
     paintWorkLines();
   }
 
@@ -1027,6 +1163,10 @@ export function createConversation(dependencies) {
 
   return {
     buildThreads,
+    bareReaction,
+    paintStanding,
+    reactionsOn,
+    reactionStanding,
     loadMarked,
     anchorLabel,
     openThreads,
@@ -1045,6 +1185,9 @@ export function createConversation(dependencies) {
     },
     get needsYou() {
       return needsYou;
+    },
+    get pageStrip() {
+      return pageStrip;
     },
   };
 }

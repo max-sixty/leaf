@@ -1,4 +1,4 @@
-import { bindings, labelOf, live, word } from "./bindings.js";
+import { bindings, labelOf, live, spell, word } from "./bindings.js";
 
 export function createReference({
   bySentence,
@@ -37,9 +37,18 @@ export function createReference({
     const sections = new Map();
     const named = (section) =>
       scopesFor(focused()).some((s) => s.title === section.title);
+    // Carry a scope's chord down to each of its rows before sections with the same title
+    // merge. The prefix belongs only to the rows that scope contributed; putting it on the
+    // merged section would also put it in front of an unrelated widget that chose the same
+    // heading.
+    const referenceRows = (scope) =>
+      bySentence(scope.rows).map(([sentence, row]) => [
+        sentence,
+        scope.chord ? { ...row, chord: scope.chord } : row,
+      ]);
     for (const scope of SCOPES.toReversed()) {
       if (scope !== ELEMENTS) {
-        merge(sections, { ...scope, rows: bySentence(scope.rows) });
+        merge(sections, { ...scope, rows: referenceRows(scope) });
         continue;
       }
       // Where the reader is, for a widget's section, is whether the focused element declares it
@@ -60,7 +69,7 @@ export function createReference({
       );
       for (const el of held) {
         const section = elementScopes.get(el);
-        merge(declared, { ...section, rows: bySentence(section.rows) });
+        merge(declared, { ...section, rows: referenceRows(section) });
       }
       for (const section of declared.values())
         merge(sections, { ...section, at: () => named(section) });
@@ -118,13 +127,28 @@ export function createReference({
       empty.hidden = true;
       const sections = [];
       let total = 0;
+      // A chord row is reached from the standing page, so its cell shows every press. A
+      // custom label already groups the row's remaining bindings (for example `c 1–2`);
+      // an ordinary row is expanded binding by binding so `g / G` becomes the unambiguous
+      // `g g / g G` rather than `g g / G`.
+      const referenceLabel = (row) => {
+        const chord = word(row.chord);
+        if (!chord) return labelOf(row);
+        const label = word(row.label);
+        return label == null
+          ? bindings(row)
+              .map((binding) => `${chord} ${spell(binding)}`)
+              .join(" / ")
+          : `${chord} ${label}`;
+      };
       const table = (rows, scopeTitle) => {
         const t = document.createElement("table");
         const entries = [];
         for (const row of rows) {
           const tr = document.createElement("tr");
           const kbd = document.createElement("kbd");
-          kbd.textContent = labelOf(row);
+          const label = referenceLabel(row);
+          kbd.textContent = label;
           const keyCell = document.createElement("td");
           keyCell.append(kbd);
           tr.append(keyCell, el("td", "", word(row.does)));
@@ -132,7 +156,7 @@ export function createReference({
           entries.push({
             el: tr,
             words: helpWords(
-              `${scopeTitle} ${labelOf(row)} ${word(row.does)} ${word(row.line)}`,
+              `${scopeTitle} ${label} ${word(row.does)} ${word(row.line)}`,
             ),
           });
         }
@@ -152,7 +176,7 @@ export function createReference({
         // reader is in it or it is not there, so its rows answer about here whichever way the
         // reference was opened. The chord is what needs this said — its rows are the lists
         // the page has, and `?` reaches the reference only from a page nobody has armed, so
-        // listed whole it would name `l` on a page holding no link at all.
+        // listed whole it would name `g l` on a page holding no link at all.
         const inIt = readerIn(scope) || scope.claims === EVERYTHING;
         const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
         if (!rows.length) continue;

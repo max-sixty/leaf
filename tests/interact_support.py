@@ -309,8 +309,7 @@ def _balanced(css, start):
 
 
 def _marker_for(declaration):
-    """The attribute leaf.js paints for an `x-` declaration, or None if it paints
-    none.
+    """The attribute presentation.js paints for an `x-` declaration, or None.
 
     Two facts, and the second is the one a stylesheet's exclusion rests on.
     PAGE_PAINT_ATTRIBUTE is the spelling every writer in the runtime shares and the
@@ -320,11 +319,11 @@ def _marker_for(declaration):
     such entry excludes nothing anywhere. Both tables are read, because which of the
     two a declaration sits in is a question about where the fact holds, and the
     browser is what answers that."""
-    js = (schema_model.ASSETS / "leaf.js").read_text()
+    js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
     table = re.search(
         r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);", js, re.DOTALL
     )
-    assert table, "leaf.js lost the list of attributes the runtime may paint"
+    assert table, "presentation.js lost the list of attributes the runtime may paint"
     names = dict(re.findall(r'(\w+): "(data-lf-[a-z-]+)",', table.group(1)))
     assert names, "that list holds no data-lf-* name"
     tables = re.findall(
@@ -332,7 +331,7 @@ def _marker_for(declaration):
         js,
         re.DOTALL,
     )
-    assert len(tables) == 2, "leaf.js lost one of markDeclared's tables"
+    assert len(tables) == 2, "presentation.js lost one of markDeclared's tables"
     for key in re.findall(
         rf'"{re.escape(declaration)}": PAGE_PAINT_ATTRIBUTE\.(\w+)', "".join(tables)
     ):

@@ -194,8 +194,11 @@ document beside the version, with an element universe of its own: every reading
 that must answer for a widget an agent sent — the action gate at the door, and
 `page state` for a session picking the page up — builds it through
 `thread_state`, so a decision made in the panel cannot stand at one and be
-missing at the other. A fragment gets no stylesheet of its own; it has no page
-to dress. Version notes provide durable
+missing at the other. A wait batch answers for one too, and reads the log alone:
+a delivery may not raise on the registry gate a vocabulary load is, so it
+carries the conversation's gestures unfolded and leaves the fold to `page
+state`. A fragment gets no stylesheet of its own; it has no page to dress.
+Version notes provide durable
 retraction and report-absorption floors: the version after the note does not need
 to repeat them. A pinned page may therefore show its historical widget state
 while the comment panel shows a later retraction; each reading is answering its

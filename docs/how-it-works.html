@@ -230,7 +230,7 @@ $ leaf version publish ./review --version 1 --text "Two ways to shed load — wh
 
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
-{"page": "/home/you/review"}
+{"page": "/home/you/review", "threads": []}
 {"kind": "action", "author": "user", "version": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
 {"kind": "comment", "author": "user", "version": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
 
@@ -241,7 +241,10 @@ $ leaf ack ./review 3</code></pre>
           comment carries the passage it was drawn on — the reader selected
           <em>Callers get a 429 immediately</em> and wrote against it — so the objection
           reaches the agent attached to the sentence that prompted it, rather than as a
-          paraphrase of where they were looking. The agent answers by publishing v2.
+          paraphrase of where they were looking. The pick belongs to no conversation and
+          the comment opens its own, so the first line's <code>threads</code> is empty;
+          a later reply in that thread names only the message it answers, and the
+          exchange behind it comes along there. The agent answers by publishing v2.
         </p>
 
         <p id="wait-trick">

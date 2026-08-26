@@ -419,8 +419,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     help=(
         "Watch every page this session holds — plus PAGE, claimed first, when "
         "given — and print one page's unacknowledged user events and worker "
-        "reports as JSON lines under a first line naming the page.\n\n"
-        + ACK_BATCH_INSTRUCTION
+        "reports as JSON lines under a first line naming the page and carrying "
+        "the conversations those events land in.\n\n" + ACK_BATCH_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)

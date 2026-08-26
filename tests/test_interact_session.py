@@ -51,6 +51,7 @@ from leaf_interact import registry as registry_model
 from leaf_interact import schema as schema_model
 from leaf_interact import service as service_model
 from leaf_interact import session as session_model
+from leaf_interact import validation as validation_model
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -437,7 +438,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
     header, *shown = [
         json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
     ]
-    assert header == {"page": str(page_dir)}
+    assert header == {"page": str(page_dir), "threads": []}
     assert [e["kind"] for e in shown] == ["comment", "action"]
     assert shown[1]["detail"]["to"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
@@ -505,7 +506,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     first = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert first.exit_code == 0, first.output
     header, event = [json.loads(line) for line in first.output.strip().splitlines()]
-    assert header == {"page": str(page_dir)}
+    assert header == {"page": str(page_dir), "threads": []}
     assert (event["id"], event["seq"], event["text"]) == ("c1", 1, "hi")
     assert files_model.read_json(page_dir / "cursor.json") is None
 
@@ -526,6 +527,376 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     ]
     assert grown_header == header
     assert [event["seq"] for event in grown_events] == [1, 2]
+
+
+def test_a_delivered_reply_carries_the_conversation_it_lands_in(page_dir, capsys):
+    """A reply event names the message it answers and nothing else about its
+    thread, and the agent's own answers are never delivered at all — they are
+    not the user's news. So a follow-up reaches a session that has compacted, or
+    one picking the page up, as an id it cannot resolve, and the answer goes out
+    against half a conversation. The envelope carries the rest: the anchor the
+    thread hangs on and the messages the lines below it do not repeat."""
+    serving(page_dir, 1)
+    opened = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "why forty rather than four?",
+            "anchor": {"section": "s-1", "quote": "one in about 40"},
+        },
+    )
+    answered = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": opened["id"],
+            "text": "the vendor has acknowledged it without naming a date",
+        },
+    )
+    # Acknowledged, so the opening comment is off every later batch. That and
+    # the agent's own answer — which, being nobody's news, was never on one —
+    # leave the envelope as the only route to what was said.
+    session_model.cmd_ack(page_dir, 1)
+    followed = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": answered["id"],
+            "text": "and if their release slips?",
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header, *shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    assert [e["id"] for e in shown] == [followed["id"]]
+    [thread] = header["threads"]
+    assert thread["id"] == opened["id"]
+    assert thread["anchor"] == {"section": "s-1", "quote": "one in about 40"}
+    assert thread["resolved"] is None
+    assert [(m["id"], m["author"]) for m in thread["messages"]] == [
+        (opened["id"], "user"),
+        (answered["id"], "claude"),
+    ]
+    assert "without naming a date" in thread["messages"][1]["text"]
+
+    # A comment that opens a thread states its own anchor on its own line, so
+    # there is nothing behind it to carry.
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "separately — the rollout"},
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    fresh = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert fresh["threads"] == []
+
+    # The reader closing a thread from the panel posts a resolve, whose only
+    # pointer at the conversation is the message it names.
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    events_model.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": followed["id"]}
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    [closed] = json.loads(capsys.readouterr().out.splitlines()[0])["threads"]
+    assert (closed["id"], closed["resolved"]) == (opened["id"], "user")
+
+
+def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
+    page_dir, capsys
+):
+    """An action names a widget, and a widget an agent sent lives in frozen
+    thread markup rather than in any version. Neither the id nor the option it
+    chose means anything without the message that asked, so the envelope
+    resolves the widget to its conversation and brings the markup along. An undo
+    belongs to the conversation holding the gesture it takes back."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    serving(page_dir, 1)
+    # A second conversation carrying a widget of its own, so resolving the acted
+    # widget to its thread is a result and not the only answer available.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "And which region first?",
+            "markup": '<lf-options id="rg" choose>'
+            '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    asked = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "text": "Which mitigations should I carry into the patch?",
+            "markup": '<lf-options id="gm" choose multiple>'
+            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    chose = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "gm",
+            "action": "choose",
+            "detail": {"options": ["m-cap"]},
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header, *shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    assert [e["id"] for e in shown] == [chose["id"]]
+    [thread] = header["threads"]
+    assert thread["id"] == asked["id"]
+    # The markup, because `m-cap` is a word only the question spells out.
+    assert 'id="m-cap"' in thread["messages"][0]["markup"]
+
+    # Standing, so a later delivery in this thread carries what the reader
+    # settled. Without it the agent meets the question with no answer under it
+    # and replies reopening a list they have already ticked.
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": asked["id"],
+            "text": "that is the list",
+        },
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    [standing] = json.loads(capsys.readouterr().out.splitlines()[0])["threads"]
+    assert [
+        (a["author"], a["widget"], a["action"], a["detail"])
+        for a in standing["actions"]
+    ] == [("user", "gm", "choose", {"options": ["m-cap"]})]
+
+    # Taken back, and the conversation stops carrying it — the log keeps the
+    # gesture, and no reading of the log stands on it.
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    [withdrawn] = json.loads(capsys.readouterr().out.splitlines()[0])["threads"]
+    assert withdrawn["id"] == asked["id"]
+    assert withdrawn["actions"] == []
+
+
+# A page whose suggestion answers c1, which is the one shipped shape where the
+# gesture that settles a conversation is made on a widget standing outside it.
+SETTLING_PAGE = PAGE.replace(
+    "<lf-options>",
+    '<lf-suggestion id="sug-refill" resolves="c1">\n'
+    "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
+    "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
+    "</lf-suggestion>\n<lf-options>",
+)
+SETTLING_ASK = {
+    "kind": "comment",
+    "id": "c1",
+    "author": "user",
+    "version": 1,
+    "text": "the manual log is what the vet reads - are we sure?",
+}
+SETTLING_ACCEPT = {
+    "kind": "action",
+    "author": "user",
+    "version": 1,
+    "widget": "sug-refill",
+    "action": "accept",
+    "detail": {"resolves": "c1"},
+}
+
+
+def _settling_page(page_dir):
+    events_model.append_event(page_dir, dict(SETTLING_ASK))
+    (page_dir / "versions" / "v1.html").write_text(SETTLING_PAGE)
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    publish(page_dir)
+    serving(page_dir, 1)
+
+
+def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
+    page_dir, capsys
+):
+    """A gesture settles a conversation through `detail.resolves`, and the widget
+    it is made on need not stand in that conversation — for the one shipped
+    settling verb, `lf-suggestion`'s accept, it stands on the page and in no
+    thread at all. Reading the sending widget alone therefore left the gesture
+    that closes a thread as the one gesture arriving with nothing behind it."""
+    _settling_page(page_dir)
+    session_model.cmd_ack(page_dir, 1)  # c1 delivered; its words are the
+    capsys.readouterr()  # envelope's to carry from here
+    events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    # The action door accepts this event, so the shape is the product's own.
+    events = events_model.read_events(page_dir)
+    assert (
+        validation_model.action_contract_error(
+            page_dir, events[-1], events, registry_model.require_registry(page_dir)
+        )
+        is None
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert [t["resolved"] for t in state_json(page_dir)["threads"]] == ["user"]
+    assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
+    assert "the vet reads" in header["threads"][0]["messages"][0]["text"]
+
+
+def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, capsys):
+    """Withdrawing that gesture reopens the conversation, so the delivery owes
+    the same reading the accept did."""
+    _settling_page(page_dir)
+    accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    capsys.readouterr()
+    events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert [t["resolved"] for t in state_json(page_dir)["threads"]] == [None]
+    assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
+
+
+def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
+    """A delivery reprints the whole thread every time, because the agent it is
+    for may hold none of it. Unbounded, the header grows with the conversation
+    until it alone outgrows the output it prints into — and that is the one
+    shape acknowledgement cannot recover from, since the ack rule's remedy for
+    truncation is to rerun, and a rerun prints the same oversize header. So the
+    digest keeps the message that opened the thread and the most recent, and
+    says how many it dropped between."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    serving(page_dir, 1)
+    markup = (
+        '<lf-options id="{i}" choose>'
+        + "".join(
+            f'<lf-option id="{{i}}-o{n}"><strong>Option {n}</strong> '
+            + "z" * 60
+            + "</lf-option>"
+            for n in range(3)
+        )
+        + "</lf-options>"
+    )
+    root = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "y" * 188}
+    )
+    parent, headers = root["id"], []
+    for turn in range(30):
+        agent = events_model.append_event(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "parent": parent,
+                "text": "x" * 532,  # the shipped ship-review example's reply length
+                "markup": markup.format(i=f"w{turn}"),
+            },
+        )
+        parent = events_model.append_event(
+            page_dir,
+            {"kind": "reply", "author": "user", "parent": agent["id"], "text": "ok"},
+        )["id"]
+        assert session_model.cmd_wait(page_dir) == 0
+        header, *_rest = capsys.readouterr().out.strip().splitlines()
+        headers.append(len(header))
+        session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+        capsys.readouterr()
+
+    # Flat, not merely slower: twenty further exchanges add only the few
+    # characters a longer sequence number spends.
+    assert headers[-1] - headers[9] < 100, headers
+    [thread] = json.loads(header)["threads"]
+    assert len(thread["messages"]) == events_model.SHOWN
+    assert thread["elided"]["messages"] == 52
+    # The opening message survives the bound: it holds what the thread is about.
+    assert thread["messages"][0]["id"] == root["id"]
+
+
+def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
+    """A gesture names a widget, and what that widget asked lives only in the
+    message that sent it: page markup is a file read away, thread markup is
+    nowhere but the log. So a long conversation whose question sits early would
+    otherwise deliver `choose m-cap` with nothing saying what `gm` asked or what
+    `m-cap` said — the defect this reading exists to fix, surviving the bound."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    serving(page_dir, 1)
+    root = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "how?"}
+    )
+    asked = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root["id"],
+            "text": "Which mitigations?",
+            "markup": '<lf-options id="gm" choose multiple>'
+            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    chose = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "gm",
+            "action": "choose",
+            "detail": {"options": ["m-cap"]},
+        },
+    )
+    # Bury the question: enough later exchange that the bound would drop it.
+    parent = root["id"]
+    for turn in range(12):
+        parent = events_model.append_event(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "user" if turn % 2 else "claude",
+                "parent": parent,
+                "text": f"turn {turn}",
+            },
+        )["id"]
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    capsys.readouterr()
+    events_model.append_event(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": parent, "text": "so, settled?"},
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    [thread] = json.loads(capsys.readouterr().out.splitlines()[0])["threads"]
+    assert thread["elided"]["messages"] > 0, "the bound did not engage"
+    assert [a["widget"] for a in thread["actions"]] == ["gm"]
+    # The question survives the elision that took its neighbours.
+    carrying = [m for m in thread["messages"] if m.get("markup")]
+    assert [m["id"] for m in carrying] == [asked["id"]], json.dumps(thread["messages"])
+    assert 'id="m-cap"' in carrying[0]["markup"]
+    assert chose["id"] == thread["actions"][0]["id"]
 
 
 def test_ack_checks_its_target_and_advances_monotonically(page_dir):
@@ -885,7 +1256,7 @@ def test_one_wait_watches_every_page_the_session_holds(
 
     assert session_model.cmd_wait() == 0
     lines = capsys.readouterr().out.strip().splitlines()
-    assert json.loads(lines[0]) == {"page": str(second)}
+    assert json.loads(lines[0]) == {"page": str(second), "threads": []}
     assert [json.loads(line)["text"] for line in lines[1:]] == ["hi"]
     # The page that spoke picked up the handoff status; the other is untouched.
     assert files_model.read_json(second / "status.json")["state"] == "working"
@@ -922,7 +1293,10 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
 
     threading.Timer(0.2, join).start()
     assert session_model.cmd_wait() == 0
-    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {"page": str(joined)}
+    assert json.loads(capsys.readouterr().out.splitlines()[0]) == {
+        "page": str(joined),
+        "threads": [],
+    }
 
 
 def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
@@ -938,7 +1312,8 @@ def test_a_wait_holding_events_delivers_them_whatever_became_of_the_page(
     session_model.cmd_status(page_dir, "idle", "the page is done")
     assert session_model.cmd_wait(page_dir) == 0
     assert json.loads(capsys.readouterr().out.splitlines()[0]) == {
-        "page": str(page_dir)
+        "page": str(page_dir),
+        "threads": [],
     }
 
 
@@ -967,7 +1342,10 @@ def test_wait_holds_a_page_nobody_has_opened(page_dir, capsys):
 
     assert session_model.cmd_wait(page_dir) == 0
     printed = capsys.readouterr()
-    assert json.loads(printed.out.splitlines()[0]) == {"page": str(page_dir)}
+    assert json.loads(printed.out.splitlines()[0]) == {
+        "page": str(page_dir),
+        "threads": [],
+    }
     assert [json.loads(line)["id"] for line in printed.out.splitlines()[1:]] == ["c1"]
     assert printed.err == ""
 
@@ -983,7 +1361,7 @@ def test_a_named_bare_shell_wait_keeps_its_directory_without_a_claim(
 
     assert session_model.cmd_wait(page_dir) == 0
     header = json.loads(capsys.readouterr().out.splitlines()[0])
-    assert header == {"page": str(page_dir)}
+    assert header == {"page": str(page_dir), "threads": []}
     assert service_model.page_claim(page_dir) is None
 
 
@@ -1368,7 +1746,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     out, err = watcher.communicate(timeout=60)
     assert watcher.returncode == 0, f"{out}{err}"
     header, event = [json.loads(line) for line in out.splitlines()]
-    assert header == {"page": str(page)}
+    assert header == {"page": str(page), "threads": []}
     assert event["text"] == "hi"
     assert files_model.read_json(page / "cursor.json") is None
 
@@ -1428,7 +1806,7 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
 
     assert second.returncode == 0, f"{second_out}{second_err}"
     header, event = [json.loads(line) for line in second_out.splitlines()]
-    assert header == {"page": str(page)}
+    assert header == {"page": str(page), "threads": []}
     assert event["seq"] == 1
 
 
@@ -1747,6 +2125,10 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert answer["decision"] == "block"
     assert "1 acknowledged comment with no answer" in answer["reason"]
     assert asked["id"] in answer["reason"]
+    # An id is all this can name, to a session that may no longer hold a word of
+    # what was said under it, so the instruction that reaches it has to carry the
+    # reading that recovers the exchange.
+    assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
 
     # A reply clears it, and the thread stays open behind it: closing one is the
     # reader's to do, so an open thread is not an unanswered one.

@@ -56,8 +56,9 @@ inside that couple of minutes — and again whenever what it is doing changes.
 ## Host wait loops
 
 One unnamed `leaf wait` watches every page the host session owns. A batch begins
-with `{"page": …}` and contains that page's events. Name a page only to pick up a
-page this session did not serve; `leaf wait <page>` claims it.
+with `{"page": …, "threads": […]}` and continues with that page's events. Name a
+page only to pick up a page this session did not serve; `leaf wait <page>` claims
+it.
 
 - **Claude Code:** start `leaf wait` as a background task and end the turn. Its
   completion becomes host input. Start a fresh background wait after each batch.
@@ -78,9 +79,17 @@ nothing printed was stopped by the host, so start another.
 
 ## Batch delivery and acknowledgement
 
-Wait prints one page's unacknowledged events as JSON lines. Printing is not
-receipt. The wait owner acknowledges only after the complete batch reaches its
-next durable consumer.
+Wait prints one page's unacknowledged events as JSON lines. The first line names
+the page and carries `threads`: for each conversation the batch lands in, its
+anchor, who closed it if anyone has, what was said in it before this batch, and
+the reader's standing gestures on any widget sent in it. A reply event names
+only the message it answers, and an action only the widget it was made on; the
+exchange behind them is here. A long conversation arrives as its opening message
+and its most recent, with `elided` counting what was dropped between, and
+`leaf transcript <page>` prints one whole.
+
+Printing is not receipt. The wait owner acknowledges only after the complete
+batch reaches its next durable consumer.
 
 In the direct loop, the durable consumer is model context. An adapter instead
 owns its wait and acknowledgement; it acknowledges after its receiver accepts

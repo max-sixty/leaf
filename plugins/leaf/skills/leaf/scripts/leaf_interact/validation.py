@@ -5,7 +5,12 @@ import sys
 from pathlib import Path
 
 from leaf_interact.data import data_binding_errors, read_data_store
-from leaf_interact.events import build_threads, thread_roots, thread_structure
+from leaf_interact.events import (
+    build_threads,
+    thread_roots,
+    thread_structure,
+    thread_widgets,
+)
 from leaf_interact.files import list_versions, version_path
 from leaf_interact.passages import EMPTY, collapse, page_passages, spoken
 from leaf_interact.projection import (
@@ -51,15 +56,12 @@ def thread_universe(events: list, registry: dict):
     version's element universe is one file; the panel's is every fragment the log
     carries, and the two are separate documents that happen to share a page."""
     structure = thread_structure(events)
-    root = thread_roots(events)
-    byid, spk, thread_of = {}, {}, {}
+    byid, spk = {}, {}
     for e in events:
         if markup := e.get("markup"):
-            fragment = structure.fragments[e["id"]]
-            byid.update(fragment.by_id)
+            byid.update(structure.fragments[e["id"]].by_id)
             spk.update(spoken(markup, registry))
-            thread_of.update(dict.fromkeys(fragment.by_id, root[e["id"]]))
-    return byid, spk, thread_of
+    return byid, spk, thread_widgets(structure, thread_roots(events))
 
 
 def thread_state(events: list, registry: dict):

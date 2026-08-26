@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from .data import page_data_binding_inventory, read_data
-from .events import build_threads
+from .events import build_threads, thread_digest
 from .files import list_versions, published_versions, version_path
 from .http import presence
 from .passages import page_passages
@@ -168,7 +168,8 @@ def _write_page_state(page_dir: Path, events: list) -> None:
     constructions it derives them with: the published markup's elements, the
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), the open asks
-    on the page and in threads (the banner's own count), the comment threads,
+    on the page and in threads (the banner's own count), each comment thread's
+    exchange,
     and presence beside what answers for it. Computed on demand from the log,
     version, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.
@@ -204,19 +205,11 @@ def _write_page_state(page_dir: Path, events: list) -> None:
         "data": read_data(page_dir),
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "asks": [],
-        "threads": [
-            {
-                "id": t["root"]["id"],
-                "anchor": t["root"].get("anchor"),
-                "text": t["root"]["text"],
-                # Who closed it, or null for a thread still open — the reading a
-                # session picking the page up acts on, since a thread an agent
-                # closed is one the reader may never have answered.
-                "resolved": t["resolved"] and t["resolved"]["author"],
-                "messages": len(t["msgs"]),
-            }
-            for t in threads.values()
-        ],
+        # Whole, through the same digest a delivery carries: a session picking
+        # the page up is in the position this reading exists for, and a count of
+        # messages it cannot read tells it a conversation happened without
+        # letting it answer one.
+        "threads": [thread_digest(t) for t in threads.values()],
         "lag": [],
     }
     if published:

@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .events import jsonl_line
+from .events import batch_threads, jsonl_line
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
 from .service import (
@@ -205,8 +205,8 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     drops out on its own. Naming PAGE claims it first — how a session picks up
     a leaf it didn't serve — and holds it in the set, which is also the whole
     set outside a host session (a bare shell, the tests). A batch is one page's
-    events, so its first line names the page, and `leaf ack` goes back to that
-    page. The JSON envelope says nothing about what consumes it. The wait owner
+    events, so its first line names the page and carries the conversations they
+    land in, and `leaf ack` goes back to that page. The JSON envelope says nothing about what consumes it. The wait owner
     advances the cursor only after the complete batch reaches that next durable
     consumer.
 
@@ -257,8 +257,21 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                 # the wait open below.
                 if reading.batch:
                     # Whose events follow, said in-band: no event line names its
-                    # page, and the ack has to go back to the right one.
-                    print(jsonl_line({"page": str(reading.page_dir)}), flush=True)
+                    # page, and the ack has to go back to the right one. The
+                    # conversations they land in come with them, because a
+                    # delivered reply names only the message it answers and the
+                    # session that knew what that was may since have compacted.
+                    print(
+                        jsonl_line(
+                            {
+                                "page": str(reading.page_dir),
+                                "threads": batch_threads(
+                                    reading.transaction.events, reading.batch
+                                ),
+                            }
+                        ),
+                        flush=True,
+                    )
                     for event in reading.batch:
                         print(jsonl_line(event), flush=True)
                     if reading.status["state"] != "working":

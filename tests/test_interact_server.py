@@ -2232,7 +2232,12 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
-    # And the command a session picks the page up with.
+    # And the command a session picks the page up with, which carries the
+    # surviving words as the thread's own message rather than anywhere in its
+    # output — the reading that lets that session answer the reply it can see.
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
-    assert "the answer that survived it" in state.output
+    [thread] = json.loads(state.output)["threads"]
+    assert [(m["id"], m["text"]) for m in thread["messages"]] == [
+        ("r-kept", "the answer that survived it")
+    ]

@@ -12,8 +12,10 @@ ORPHAN_GRACE_SECS = 1
 # they say, rather than unsay. Nor is an undo itself, which would be a redo.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 ANSWER_ASK_INSTRUCTION = (
-    "Answer each with `leaf reply <page> --to <id> --text ...`, or close one the "
-    "work has since answered with `leaf resolve <page> --to <id>`."
+    "`leaf page state <page>` prints each thread's exchange, and "
+    "`leaf transcript <page>` prints a long one whole. Answer each with "
+    "`leaf reply <page> --to <id> --text ...`, or close one the work has since "
+    "answered with `leaf resolve <page> --to <id>`."
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "

@@ -2249,6 +2249,69 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     assert state_json(page_dir)["asks"] == []
 
 
+def test_page_state_gives_a_thread_its_exchange(page_dir):
+    """A session picking the page up is the reader this whole object exists for,
+    and answering a conversation is the first thing it owes. A count of messages
+    tells it one happened and leaves the words in a log it must fold itself,
+    which is where a standing answer gets missed. The digest is the wait
+    envelope's own, so the two readings of a thread stay one shape."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    opened = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "cameras are flaky",
+            "anchor": {"section": "s-1", "quote": "Ship dark"},
+        },
+    )
+    answered = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Indexer",
+            "parent": opened["id"],
+            "text": "two of them share a power rail",
+        },
+    )
+
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["id"] == opened["id"]
+    assert thread["anchor"] == {"section": "s-1", "quote": "Ship dark"}
+    assert thread["resolved"] is None
+    assert [(m["id"], m["author"], m["text"]) for m in thread["messages"]] == [
+        (opened["id"], "user", "cameras are flaky"),
+        (answered["id"], "claude", "two of them share a power rail"),
+    ]
+    assert thread["messages"][1]["agent"] == "Indexer"
+
+
+def test_page_state_keeps_a_readers_suggestion_flag(page_dir):
+    """`suggestion: true` is the reader proposing exact replacement words rather
+    than describing a change, and the loop owes that a different answer — taken
+    verbatim, or declined with a reason. A digest that dropped the flag rendered
+    it as ordinary prose and lost the obligation with it."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Ship dark behind the importer flag.",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+            "suggestion": True,
+        },
+    )
+
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["messages"][0]["suggestion"] is True, json.dumps(thread)
+
+
 def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     """A widget in thread markup asks like one on the page, `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""

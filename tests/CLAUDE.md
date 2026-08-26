@@ -28,7 +28,15 @@ interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 `render_support.py` reexports that surface for the test modules rather than
 owning another copy. `test_site.py` reads the built site through its served URLs.
 Product documentation tests compare the docs with the shipped vocabulary and
-command surface.
+command surface: a shown command the click tree has not got, an `x-` key the guide
+omits, a table that has drifted from the registry it was generated from.
+
+That comparison is the whole of what a test over prose can prove. An assertion that
+some sentence stands in a file a model reads — a skill, a reference, package
+guidance, a paragraph of the docs — fails only when somebody rewrites that sentence.
+So what it catches is an edit, and whether the edit was right is a question for
+review either way. Every later rewrite then arrives as a test to work around. Derive
+one side of a prose assertion from the machine, or leave the wording to review.
 
 The distinction matters most around `render_version`. A property caused by a
 particular page belongs in that gate, because `version check --render` must report
@@ -88,10 +96,22 @@ corpus. Assert a gate's reach the way its population is asserted:
 one displacement under three parents differing only in how they clip, with a
 control case that has to report nothing.
 
+`RING_FAULTS` has gone blind once more since, in what it reads rather than in
+what it walks, and silently. Its excuse for a control standing behind something
+has to step past the ring's own band to ask the question, which is `grow + w`;
+written as one pixel it cleared an outward ring and landed inside an inset one,
+so every covered inset ring answered that the control was behind the same thing —
+and the panel's list draws nothing but inset rings. A reach case for the cover
+half already stood, and it could not have caught this: it plants over a ring
+drawn outside its control, where any step in clears the band.
+`test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
+is the same plant over the other shape. A reach case answers for the shapes it
+is written over, and a ring has two.
+
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
-`interact.render_version`, not reproduce one of its probes. Test a helper directly
+`leaf_interact.rendering.render_version`, not reproduce one of its probes. Test a helper directly
 only when the helper itself carries a contract that would otherwise be hard to
 diagnose, such as the traffic wait reaching its deadline.
 
@@ -239,7 +259,7 @@ is only for a test whose subject is the interval before those stamps; it waits f
 banner module to exist and must make its later readiness explicit.
 
 `watched` must be installed before navigation. It collects console errors and
-`pageerror`, and installs `interact.WINDOW_ERRORS` so browser `error` events without
+`pageerror`, and installs `leaf_interact.rendering.WINDOW_ERRORS` so browser `error` events without
 an exception, including ResizeObserver delivery failures, reach the same error list.
 That script is shared with `render_version`; the suite and the handover gate must not
 disagree about which browser error channels count.
@@ -256,6 +276,19 @@ A reliable wait consumes a fact stated by the system. It does not infer completi
 from elapsed time, two matching samples, or a quiet network. A page that has not
 started an effect is indistinguishable from one that finished if the only evidence is
 stillness.
+
+A computed style is one of those facts and it is not always a resting one. What the
+platform reports for a property under a running transition is the animated value,
+which early in one is the value the property is leaving — so a reading taken of a
+control the gesture just changed can be a true answer about the wrong moment, and
+steady enough while it lasts that two matching samples both land inside it. Ask
+`getAnimations()` where a reading's subject may be in transit. What made this worth
+saying was a page where every subject was: under `reduced_motion="reduce"` the
+theme's guard shortened transitions rather than removing them, and
+`transition-property` is `all`, so every property that changed on any element was a
+property in transit for two frames. That is fixed in the theme, which is why no
+reading here carries such a wait — a wait in front of a reading whose subject never
+moves is a mechanism that cannot fail and cannot help.
 
 ### A state the page passes through is not a state to poll for
 
@@ -489,9 +522,9 @@ widget changes the DOM, make sure the relevant render probe can fail with that c
 reintroduced; a source-only assertion cannot cover a generated attribute or a replay
 that moves on its second application.
 
-The canonical probes are `interact.UNDECLARED_ATTRS` for attributes a module writes
+The canonical probes are `leaf_interact.render_checks.UNDECLARED_ATTRS` for attributes a module writes
 into the author's namespace without a record declaration, and
-`interact.RELATIVE_REPLAYS` for an action whose second application changes state.
+`leaf_interact.render_checks.RELATIVE_REPLAYS` for an action whose second application changes state.
 Call the product probes instead of maintaining test-side variants. Their fixtures
 must include at least one widget and verb that can trigger the finding; otherwise a
 clean result only says the probe received an empty population.

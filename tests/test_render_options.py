@@ -8,7 +8,12 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import render_checks as render_checks_model
+from leaf_interact import rendering as rendering_model
+from leaf_interact import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -309,9 +314,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # asks the same of every example and cannot reach this moment: a group arrives
     # closed, and nothing it does opens one.
     assert row.get_attribute("aria-expanded") == "true"
-    assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
-        "opening the group left an attribute on a widget its entry never declared"
-    )
+    assert (
+        page.evaluate(render_checks_model.UNDECLARED_ATTRS, page_registry(page)) == []
+    ), "opening the group left an attribute on a widget its entry never declared"
 
     row.click()  # closed again, so the reveal below has something to open
 
@@ -443,7 +448,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     base version unupgraded, where no mark exists at all, and must not read this
     one as a change nobody wrote."""
     url = serve(CARRIED_PAGE)
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
     mark = page.locator("#c-lax .lf-pick")
@@ -473,7 +478,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     (d / "versions" / "v2.html").write_text(
         CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best")
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -585,7 +590,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     (d / "versions" / "v2.html").write_text(
         SETTLED_PAGE.replace("arrives logged out", "arrives logged out every time")
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -811,7 +816,7 @@ def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
     # words into a detached body before any element connects, where the page upgrades
     # first and renders words after — so this is the reading that says the order does
     # not depend on that.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1299,7 +1304,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
         '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
     ).replace('<lf-option id="in-now">', '<lf-option id="in-now" chosen>')
     url = serve(nested_choices)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1791,7 +1796,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     expect(panel_thread.locator(".lf-msg")).to_have_count(2)
 
     agent_text = "One follow-up choice is attached."
-    agent_reply = interact.append_event(
+    agent_reply = events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1832,7 +1837,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     page.locator(f'.lf-details .lf-thread[data-id="{root["id"]}"] .lf-reopen').click()
     round_trip(page)
     expect(conversation.locator("textarea")).to_have_count(1)
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "resolve",
@@ -1849,7 +1854,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     (d / "versions" / "v2.html").write_text(
         ASK_PAGE.replace('<h1 id="h">Three jobs</h1>', '<h1 id="h">Four jobs</h1>')
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "Retitled"}
     )
     page.wait_for_url("**/versions/v2.html*")
@@ -1875,7 +1880,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
         flags=re.DOTALL,
     )
     (d / "versions" / "v3.html").write_text(without_owner)
-    interact.append_event(
+    events_model.append_event(
         d,
         {"kind": "note", "author": "claude", "version": 3, "text": "Question removed"},
     )
@@ -1905,24 +1910,26 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     conversation.locator(".lf-say textarea").fill("Which of these is cheapest?")
     conversation.locator(".lf-say [role='button']").click()
     round_trip(page)
-    held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
+    held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = conversation.locator(".lf-work-line")
     expect(work_line).to_have_count(0)
 
     def claim(claim_ts):
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "pricing the camera",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
                 "work": [
                     {
                         "subject": {"kind": "thread", "id": held},
                         "detail": "pricing the camera",
                         "ts": claim_ts,
                         "after": next(
-                            e["seq"] for e in interact.read_events(d) if e["id"] == held
+                            e["seq"]
+                            for e in events_model.read_events(d)
+                            if e["id"] == held
                         ),
                     }
                 ],
@@ -1930,14 +1937,14 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
         )
         told(page)
 
-    claim(interact.now_iso())
+    claim(events_model.now_iso())
     expect(work_line).to_have_text(
         re.compile(r"^Claude is on this — pricing the camera\s*just now$")
     )
     page.evaluate(
         "() => { window.heldWorkLine = document.querySelector('.lf-work-line') }"
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1967,7 +1974,7 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     expect(work_line.locator("time")).to_have_text("40m ago")
 
     # Answering is what ends it, here as in the panel: nothing deletes a local record.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2007,7 +2014,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
     def claim(subject, detail):
         result = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             ["status", str(d), "working", detail, "--on", subject],
         )
         assert result.exit_code == 0, result.output
@@ -2043,7 +2050,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     # An unrelated version changes neither coordinate.
     (d / "versions" / "v2.html").write_text(work_page)
     unrelated = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "Elsewhere"],
     )
     assert unrelated.exit_code == 0, unrelated.output
@@ -2065,7 +2072,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
     (d / "versions" / "v3.html").write_text(work_page)
     settled = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -2091,7 +2098,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     """A customization may deliberately give a container member a content seat.
     The runtime's generated line is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
-    option = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())[
+    option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
     ]
     option["x-work"] = {"seat": "content"}
@@ -2101,7 +2108,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
 
     page, errors = open_page(browser, serve(ASK_PAGE))
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "status",
             str(serve.page_dir),
@@ -2119,7 +2126,9 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     work_line.click()
     page.wait_for_timeout(250)
 
-    assert not any(e["kind"] == "action" for e in interact.read_events(serve.page_dir))
+    assert not any(
+        e["kind"] == "action" for e in events_model.read_events(serve.page_dir)
+    )
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
     assert errors == []
     page.close()
@@ -2142,7 +2151,7 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     d = serve.page_dir
 
     claimed = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["status", str(d), "working", "checking the shard", "--on", "shadow-card"],
     )
     assert claimed.exit_code == 0, claimed.output
@@ -2158,7 +2167,7 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
 
     (d / "versions" / "v2.html").write_text(work_page)
     settled = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -2191,7 +2200,7 @@ def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
     url = serve(work_page)
     page, errors = open_page(browser, url, pin=True)
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "status",
             str(serve.page_dir),
@@ -2229,7 +2238,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     draft = "Keep this answer even if another thread arrives first."
     first.fill(draft)
 
-    external = interact.append_event(
+    external = events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2508,7 +2517,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     nothing else in the suite renders a specimen there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2518,7 +2527,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "text": "What would the alternative look like?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2578,7 +2587,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     # a second one the exhibit had no business sending. The page's own count is the whole
     # of what it sent, so this waits out an exhibit's stray post too.
     round_trip(page)
-    actions = [e for e in interact.read_events(d) if e["kind"] == "action"]
+    actions = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
@@ -2595,7 +2604,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     same in a cell and is the actual regression to fear."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2605,7 +2614,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "text": "What are the ceilings?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",

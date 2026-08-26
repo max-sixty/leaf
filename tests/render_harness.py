@@ -39,7 +39,14 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import hosting as hosting_model
+from leaf_interact import http as http_model
+from leaf_interact import rendering as rendering_model
+from leaf_interact import service as service_model
+from leaf_interact import structure as structure_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -64,7 +71,7 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
 <head>
 <meta charset="utf-8">
 <title>{title}</title>
-<meta http-equiv="Content-Security-Policy" content="{interact.PAGE_CSP}">
+<meta http-equiv="Content-Security-Policy" content="{structure_model.PAGE_CSP}">
 <link rel="stylesheet" href="/theme.css">
 {extra_head}<script type="module" src="/leaf.js"></script>
 </head>
@@ -339,9 +346,9 @@ def record_claim(page, **fields):
         "turn_closed": None,
         **fields,
     }
-    path = interact.claim_path(page)
+    path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
-    interact.write_json(path, record)
+    files_model.write_json(path, record)
     return record
 
 
@@ -370,7 +377,7 @@ def serve(tmp_path, monkeypatch):
         selection_args = [arg for name in packages for arg in ("--package", name)]
         d = tmp_path / f"page{len(servers)}"
         initialized = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             ["page", "init", *selection_args, str(d)],
         )
         assert initialized.exit_code == 0, initialized.output
@@ -378,7 +385,7 @@ def serve(tmp_path, monkeypatch):
             example.read_text() if example else source
         )
         shutil.copytree(EXAMPLE_MEDIA, d / "media", dirs_exist_ok=True)
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
         # After the note, so v1's announcement stays the log's first line and the
@@ -390,7 +397,7 @@ def serve(tmp_path, monkeypatch):
         if example and (seed := example.with_suffix(".jsonl")).exists():
             for line in seed.read_text(encoding="utf-8").split("\n"):
                 if line.strip():
-                    interact.append_event(d, json.loads(line))
+                    events_model.append_event(d, json.loads(line))
             # A seed is history rather than news, so the page opens acknowledged
             # through it — the state every other publisher of a seeded example
             # serves. Left at nought the banner tells the reader their own comment
@@ -398,11 +405,11 @@ def serve(tmp_path, monkeypatch):
             # would have manufactured for itself. Read back for the seq rather than
             # counted, because a seq is what the log's reader assigns and an append
             # hands back no such number.
-            interact.write_json(
-                d / "cursor.json", {"seq": interact.read_events(d)[-1]["seq"]}
+            files_model.write_json(
+                d / "cursor.json", {"seq": events_model.read_events(d)[-1]["seq"]}
             )
         for i in range(comments):
-            interact.append_event(
+            events_model.append_event(
                 d,
                 {
                     "kind": "comment",
@@ -412,7 +419,7 @@ def serve(tmp_path, monkeypatch):
                 },
             )
         for section, quote in anchored:
-            interact.append_event(
+            events_model.append_event(
                 d,
                 {
                     "kind": "comment",
@@ -422,8 +429,8 @@ def serve(tmp_path, monkeypatch):
                     "anchor": {"section": section, "quote": quote},
                 },
             )
-        httpd = interact.LeafHTTPServer(
-            ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
+        httpd = hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
@@ -449,7 +456,7 @@ def page_registry(page):
     the page's own server, not this repo's tree, since what a vendored page holds is
     the whole question those readings answer.
     """
-    return interact.served(page, page.url, "/registry.json").json()
+    return rendering_model.served(page, page.url, "/registry.json").json()
 
 
 def post_event(page, url, **kwargs):
@@ -688,7 +695,7 @@ def told(page):
 def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
     """Author one small widget in the project package for browser fixtures."""
     package = root / ".leaf"
-    created = CliRunner().invoke(interact.cli, ["package", "init", str(package)])
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -879,7 +886,7 @@ def watched(page):
     one channel every reader in this file already has, and only for the events with no
     exception, since the rest arrive on `pageerror` already.
 
-    The script is `interact.WINDOW_ERRORS`, which `render_version` lays in for the same
+    The script is `rendering.WINDOW_ERRORS`, which `render_version` lays in for the same
     reason: one implementation with two callers is what keeps `version check --render`
     and this suite holding the same invariants, and a channel read on one side only is
     that drift in its quietest form.
@@ -888,7 +895,7 @@ def watched(page):
     errors = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.add_init_script(interact.WINDOW_ERRORS)
+    page.add_init_script(rendering_model.WINDOW_ERRORS)
     return errors
 
 
@@ -910,9 +917,11 @@ def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
         page.evaluate("() => new Promise(requestAnimationFrame)")
         fresh = errors[start:]
         del errors[start:]
-        notices = [error for error in fresh if interact.resize_observer_error(error)]
+        notices = [
+            error for error in fresh if rendering_model.resize_observer_error(error)
+        ]
         errors.extend(
-            error for error in fresh if not interact.resize_observer_error(error)
+            error for error in fresh if not rendering_model.resize_observer_error(error)
         )
         return notices
 
@@ -925,7 +934,7 @@ def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(interact.recurring_resize_observer_error("navigation"))
+        errors.append(rendering_model.recurring_resize_observer_error("navigation"))
 
 
 def key_line(page):

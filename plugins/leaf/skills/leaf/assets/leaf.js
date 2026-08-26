@@ -908,13 +908,26 @@ export function offer(tag, cls, label) {
 // then reached for Accept pressed a control that had gone dead — and stayed dead,
 // because a press that refuses a drag (`user-select: none`) never collapses the
 // selection that deadened it either.
+// Which is a reading rather than this listener's own business, because the same press
+// reaches things `offer` never made: the panel's quote, whose press travels the page to
+// the passage, and the list's landing, which moves the card the words are on. Each was
+// the same complaint in its own place — the reader drew across the words to take them
+// and the page went somewhere.
+// It asks only where the selection stopped, and not whether a press happened at all:
+// which presses can be a drag is each caller's own question. A click carries the answer
+// in `detail`, and a `pointerup` is a pointer by construction and carries no detail to
+// read.
+export function reachedForWords(el) {
+  const sel = getSelection();
+  return !!sel && !sel.isCollapsed && el.contains(sel.focusNode);
+}
+
 document.addEventListener(
   "click",
   (ev) => {
     if (ev.detail === 0) return;
     const control = ev.target.closest?.("[data-lf-offer]");
-    const sel = getSelection();
-    if (control && sel && !sel.isCollapsed && control.contains(sel.focusNode)) {
+    if (control && reachedForWords(control)) {
       ev.stopPropagation();
       ev.preventDefault();
     }
@@ -7686,8 +7699,13 @@ function stepThread(dir) {
           : threads.length - 1
         : Math.max(0, Math.min(threads.length - 1, at + dir))
     ];
+  // Landing the thread is the list's, off the focus it is about to take. A press at
+  // either end of the walk is the exception the list cannot answer: it names the thread
+  // the reader already stands on, so no focus moves and nothing fires, while the page
+  // half of the press still travels. Both halves therefore go where they were pointed.
+  const standing = next === document.activeElement;
   next.focus({ preventScroll: true });
-  next.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+  if (standing) next.scrollIntoView({ behavior: SCROLL, block: "nearest" });
   scrollToThread(next.dataset.id);
 }
 
@@ -9628,6 +9646,7 @@ conversationRuntime = createConversation({
   post,
   quietSince,
   reachScrollers,
+  reachedForWords,
   reactDone: () => setReact(false, { spent: true }),
   reactPills,
   sendReaction,

@@ -52,6 +52,7 @@ Each mutable fact has one writer:
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, and `revealThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -1514,12 +1515,33 @@ whether a control fits somewhere, the room is part of what has to fit; the
 suggestion row carries it as trailing padding so that the fit is still one
 measured box rather than a length read out of CSS.
 
-`test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered` and
+Reserved room only reaches a control that lands in it, and a press lands nowhere:
+the browser focuses the card under the pointer and scrolls nothing. So the thread
+list lands a thread that takes the focus, whoever moved it, and that is the row
+the ownership table carries. Without it a list nudged a dozen pixels leaves the
+first card of a run under its own stuck heading by the width of an inset ring,
+which is a card with three sides. A press lands when it is over rather than as
+focus arrives, because focus arrives on the way down and the press may be the
+start of a drag across the comment's own words; a drag that ends in the thread
+takes no landing at all. What it lands is the thread the completed gesture leaves
+the reader in, not the one the focus moved to, so a press on the thread they are
+already standing in — which moves no focus — brings it back like any other.
+
+This is an arrival rule and not a promise about the paint. Scrolling the list
+under a standing thread cuts its ring again, and nothing re-lands it: the reader
+is moving away from what they were standing in, and a control under something is
+a fact about where it was put. A thread taller than the list's own scrollport is
+the excepted case in both directions — there is no scroll that shows all of it,
+which is the same thing the ring reading declines to report.
+
+`test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered`,
+`test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading`, and
 `test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring` hold this for
-the panel's own walk and for every shipped page's tab order. They ask one
-question: where the control can be seen, so can the ring that names it. A control
-that itself stands under a fixed bar is not a finding — that is a fact about
-where it was put — and neither is a box too tall for the region it is in.
+the panel's own walk, for a press inside its list, and for every shipped page's
+tab order. They ask one question: where the control can be seen, so can the ring
+that names it. A control that itself stands under a fixed bar is not a finding —
+that is a fact about where it was put — and neither is a box too tall for the
+region it is in.
 
 `rung` and `letGo` put focus on `body` when the reader leaves chrome or releases
 an ask. `body` has a tab stop because a short page may not become focusable from
@@ -1772,7 +1794,8 @@ the narrowing it would be asking past, and a comment the reader has just written
 cannot vanish into a narrowing it does not match, so the narrowing goes instead.
 It focuses the containing thread before `revealThread` scrolls it, making the
 thread the standing result rather than a card flashed while focus remains on the
-page. `preventScroll` leaves the panel's reveal as the one writer of its position.
+page. `preventScroll` keeps that focus call out of the scroll, so the list's own
+landing and then the reveal place the thread, in that order.
 A reveal that widened for a reply would take the reader's narrowing away for
 having been used, which is how the waiting-on-you list is emptied.
 

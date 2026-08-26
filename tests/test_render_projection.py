@@ -8,8 +8,15 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import hosting as hosting_model
+from leaf_interact import http as http_model
+from leaf_interact import render_checks as render_checks_model
 from leaf_interact import rendering as rendering_model
+from leaf_interact import schema as schema_model
+from leaf_interact import service as service_model
+from leaf_interact import validation as validation_model
 from playwright.sync_api import expect
 from render_support import (
     ASKS_IN_ORDER,
@@ -100,7 +107,7 @@ def test_the_live_page_adopts_a_version_without_navigating_or_moving_the_reader(
     panel_settled(page)
 
     (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
     )
@@ -143,7 +150,7 @@ def test_the_live_page_adopts_a_version_without_navigating_or_moving_the_reader(
     page.locator(".lf-general textarea").fill("This comment belongs to the live v2.")
     page.locator(".lf-general button").click()
     round_trip(page)
-    assert interact.read_events(serve.page_dir)[-1]["version"] == 2
+    assert events_model.read_events(serve.page_dir)[-1]["version"] == 2
     assert errors == []
     page.close()
 
@@ -161,7 +168,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     general.fill("Do not replace the page under these words.")
 
     (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
     )
@@ -181,7 +188,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     general.focus()
     expect(general).to_be_focused()
     (serve.page_dir / "versions" / "v3.html").write_text(LIVE_V3)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "note", "author": "claude", "version": 3, "text": "more findings"},
     )
@@ -236,13 +243,44 @@ def test_overlapping_state_answers_share_one_live_version_activation(browser, se
 
     page.route("**/versions/v2.html", slow_version)
     (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
     )
 
     expect(page).to_have_title("Live second", timeout=10_000)
     assert page.evaluate("window.__leafTransitions") == 1
+    assert errors == []
+    page.close()
+
+
+def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
+    """A skipped view transition still runs its update, but it rejects `ready`, which
+    the activation never awaits. Unhandled, that rejection reached the page's error
+    report, and every version landing in a hidden tab wrote an `error` event into
+    the log. The harness cannot hide a document, so the skip is invoked directly; it
+    is the same algorithm a hidden document runs.
+    """
+    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
+    page.evaluate(
+        """() => {
+          const start = document.startViewTransition.bind(document);
+          document.startViewTransition = update => {
+            const transition = start(update);
+            transition.skipTransition();
+            return transition;
+          };
+        }"""
+    )
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+
+    # The rejection is dispatched before the skipped update runs as its own task, so
+    # a landed version is the edge after which the report would already be written.
+    expect(page).to_have_title("Live second", timeout=10_000)
     assert errors == []
     page.close()
 
@@ -282,7 +320,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }""")
 
     (d / "versions" / "v2.html").write_text(ASKS_PAGE)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html*")
@@ -326,7 +364,7 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     before = page.evaluate(WRAP_TOP)
 
     (d / "versions" / "v2.html").write_text(KEPT_SECTION_PAGE)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html*")
@@ -497,7 +535,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     start."""
     url = serve(TRAVEL_PAGE)
     thread = {
-        section: interact.append_event(
+        section: events_model.append_event(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -582,7 +620,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(page.locator(".lf-asks")).to_be_hidden()  # nothing waits on the reader
 
     sent = CliRunner().invoke(
-        interact.cli, ["report", str(d), "t-parser", "status", "status=review"]
+        cli_model.cli, ["report", str(d), "t-parser", "status", "status=review"]
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -599,7 +637,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
-        interact.cli, ["report", str(d), "t-parser", "status", "status=done"]
+        cli_model.cli, ["report", str(d), "t-parser", "status", "status=done"]
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -619,11 +657,11 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
         )
     )
     published = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "not done yet"],
     )
     assert published.exit_code == 0, published.output
-    assert len(interact.read_events(d)[-1]["settles"]) == 2
+    assert len(events_model.read_events(d)[-1]["settles"]) == 2
     page.wait_for_url("**/versions/v2.html")
     page.wait_for_function(BOTH_STAMPS)
     task = page.locator("#t-parser")
@@ -668,7 +706,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     assert "working" in wren.aria_snapshot()
 
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         # A state the markup does not already hold, or there is no news to paint: a
         # report saying what the page says is blessed silence, not provisional state.
         [
@@ -710,7 +748,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # last said anything does not, because no version can speak for that.
     (d / "versions" / "v2.html").write_text(ROSTER_PAGE)
     published = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "absorbing"],
     )
     assert published.exit_code == 0, published.output
@@ -734,7 +772,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     # Event ids and authored element ids belong to different identity spaces. Give
     # the thread and widget the same spelling so only the typed target can separate
     # their updates; a bare id or target lookup by store would merge them.
-    thread = interact.append_event(
+    thread = events_model.append_event(
         d,
         {
             "id": "ag-wren",
@@ -748,7 +786,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     told(page)
 
     report = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "report",
             str(d),
@@ -759,13 +797,13 @@ def test_claims_and_reports_share_one_canonical_update_feed(
         ],
     )
     assert report.exit_code == 0, report.output
-    report_event = interact.read_events(d)[-1]
+    report_event = events_model.read_events(d)[-1]
     claim_floor = report_event["seq"]
     # Force the same timestamp: causality, rather than wall-clock tie-breaking, must
     # order the two source records.
     with monkeypatch.context() as patch:
-        patch.setattr(interact, "now_iso", lambda: report_event["ts"])
-        with interact.PageTransaction(d) as transaction:
+        patch.setattr(events_model, "now_iso", lambda: report_event["ts"])
+        with service_model.PageTransaction(d) as transaction:
             transaction.set_status(
                 "working",
                 "checking the reader's question",
@@ -830,7 +868,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
 
     # Each source ends at its own authority: a reply settles thread work, while a
     # version note settles the report.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -843,7 +881,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     )
     (d / "versions" / "v2.html").write_text(ROSTER_PAGE)
     published = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "recorded"],
     )
     assert published.exit_code == 0, published.output
@@ -866,7 +904,7 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     row = page.locator("#ag-wren")
 
     first = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "report",
             str(d),
@@ -883,7 +921,7 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
 
     page.evaluate("document.body.classList.add('lf-dragging')")
     second = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "report",
             str(d),
@@ -979,7 +1017,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
         " #ag-wren .lf-branch, #ag-wren .lf-state')].map(e => e.firstChild); }"
     )
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["report", str(d), "ag-finch", "state", "state=idle", "doing=picking up"],
     )
     assert sent.exit_code == 0, sent.output
@@ -992,7 +1030,7 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     )
     # And a report for this row does rebuild it, or the row would never move at all.
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "report",
             str(d),
@@ -1070,7 +1108,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
     before = fraction.bounding_box()["width"]
 
     sent = CliRunner().invoke(
-        interact.cli, ["report", str(d), "t-parser", "status", "status=done"]
+        cli_model.cli, ["report", str(d), "t-parser", "status", "status=done"]
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -1107,16 +1145,16 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(rendering_model, "SERVED_TIMEOUT_MS", 1500)
     d = tmp_path / "page"
-    assert CliRunner().invoke(interact.cli, ["page", "init", str(d)]).exit_code == 0
+    assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for n in (1, 2):
         (d / "versions" / f"v{n}.html").write_text(REPLY_HOST_PAGE)
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": n, "text": "t"}
         )
 
     asked = threading.Event()
 
-    class Stalls(interact.handler_for(d, TOKEN)):
+    class Stalls(http_model.handler_for(d, TOKEN)):
         """Answers everything but the earlier version, which it accepts and drops."""
 
         def do_GET(self):
@@ -1126,10 +1164,10 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
                 return
             super().do_GET()
 
-    httpd = interact.LeafHTTPServer(("127.0.0.1", 0), Stalls)
+    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Stalls)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        failures = interact.render_version(
+        failures = rendering_model.render_version(
             browser,
             f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
         )
@@ -1157,7 +1195,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         ("approach", "choose", {"options": ["opt-shim"]}),
         ("work", "move", {"card": "card-importer", "to": "col-done", "index": 0}),
     ]:
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "action",
@@ -1171,25 +1209,25 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
 
     def publish(n, html):
         (d / "versions" / f"v{n}.html").write_text(html)
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": n, "text": "t"}
         )
         return url.replace("v1.html", f"v{n}.html")
 
     # v2 says nothing about either decision; both stand, and nothing is reported.
-    assert interact.render_version(browser, publish(2, REPLAYED_PAGE)) == []
+    assert rendering_model.render_version(browser, publish(2, REPLAYED_PAGE)) == []
 
     # v3 honors both: the pick authored, the card in its dragged-to column.
     honored = REPLAYED_PAGE.replace('id="opt-shim"', 'id="opt-shim" chosen')
     honored = honored.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    assert interact.render_version(browser, publish(3, honored)) == []
+    assert rendering_model.render_version(browser, publish(3, honored)) == []
 
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    failures = interact.render_version(browser, publish(4, contradicted))
+    failures = rendering_model.render_version(browser, publish(4, contradicted))
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
     assert any("id=work" in f and "card-importer" in f for f in failures), failures
@@ -1210,7 +1248,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     added without an event here fails rather than going unexercised."""
     url = serve(STANDING_PAGE)
     for widget, action, detail in STANDING_ACTIONS:
-        interact.append_event(
+        events_model.append_event(
             serve.page_dir,
             {
                 "kind": "action",
@@ -1231,7 +1269,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
     ]:
         sent = CliRunner().invoke(
-            interact.cli, ["report", str(serve.page_dir), widget, verb, *fields]
+            cli_model.cli, ["report", str(serve.page_dir), widget, verb, *fields]
         )
         assert sent.exit_code == 0, sent.output
 
@@ -1239,10 +1277,10 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()
         .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
-    registry = interact.incoming_registry(
+    registry = validation_model.incoming_registry(
         [
-            interact.ASSETS,
-            interact.DEFAULT_PACKAGE,
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
             COMMAND_HUB_PACKAGE,
         ]
     )
@@ -1264,7 +1302,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         if widget == "ab-pick"
     } == {("selection", "choose"), ("completion", "answer")}
     assert errors == []
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
@@ -1329,7 +1367,7 @@ customElements.define("lf-tally", class extends HTMLElement {
         ("report", "claude", "tally-fitted", "measure", "9"),
         ("action", "user", "tally-seen", "set", "5"),
     ]:
-        interact.append_event(
+        events_model.append_event(
             serve.page_dir,
             {
                 "kind": kind,
@@ -1477,7 +1515,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "detail": {"pinned": "yes"},
         },
     ):
-        interact.append_event(serve.page_dir, event)
+        events_model.append_event(serve.page_dir, event)
 
     page, errors = open_page(browser, url)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
@@ -1554,7 +1592,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
         ("tally-fitted", "step", {"count": "3"}),
         ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
     ]:
-        interact.append_event(
+        events_model.append_event(
             serve.page_dir,
             {
                 "kind": "action",
@@ -1566,7 +1604,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
             },
         )
 
-    failures = interact.render_version(browser, url)
+    failures = rendering_model.render_version(browser, url)
 
     tail = (
         ". The poll replays every standing action over the state they already "
@@ -1592,7 +1630,9 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     patience rather than a page that was never broken."""
     url = serve(drifting_widget(tmp_path, monkeypatch))
 
-    covered = [f for f in interact.render_version(browser, url) if "same place" in f]
+    covered = [
+        f for f in rendering_model.render_version(browser, url) if "same place" in f
+    ]
 
     assert covered and all("drift-note" in f for f in covered), covered
 
@@ -1622,7 +1662,7 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
         )
         == 0
     ), "the document tree already answers for this one, so the reading proves nothing"
-    assert page.evaluate(interact.MOVING) == ["<lf-drift id=drift-note>"]
+    assert page.evaluate(rendering_model.MOVING) == ["<lf-drift id=drift-note>"]
     assert errors == []
     page.close()
 
@@ -1641,7 +1681,9 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
     which is a bug report against leaf rather than against the module that caused it."""
     url = serve(drifting_widget(tmp_path, monkeypatch, bare=True))
-    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    page = browser.new_page(
+        viewport=render_checks_model.RENDER_VIEWPORT, color_scheme="light"
+    )
     # The first thing the page says in anger, whatever that turns out to be: waiting
     # for the wording under test would make a page that says something else read as a
     # page that says nothing, and the message is the whole subject here.
@@ -1693,7 +1735,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         "detail": {"offset": "0"},
     }
 
-    class TheLogArrivesLate(interact.handler_for(serve.page_dir, TOKEN)):
+    class TheLogArrivesLate(http_model.handler_for(serve.page_dir, TOKEN)):
         """The action reaches the log after the page's first poll has answered.
 
         A page whose first poll brings nothing is presented on the authored markup
@@ -1710,13 +1752,13 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
             )
             if page_fetch and not landed:
                 landed.append(self.headers["Referer"])
-                interact.append_event(serve.page_dir, settle)
+                events_model.append_event(serve.page_dir, settle)
 
-    httpd = interact.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
+    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
-        assert interact.render_version(browser, late) == []
+        assert rendering_model.render_version(browser, late) == []
     finally:
         httpd.shutdown()
     assert landed and "/versions/v1.html" in landed[0], (
@@ -1731,7 +1773,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     element, so the replay record must name it; data-lf-pending on the same element is
     the runtime's own annotation and must not change the signature."""
     url = serve(SUGGESTION_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1821,7 +1863,7 @@ def test_a_moved_card_wears_its_pending_state_until_honored(browser, serve):
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
     (d / "versions" / "v2.html").write_text(honored)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "t"}
     )
     third, third_errors = open_page(browser, url.replace("v1.html", "v2.html"))
@@ -1892,7 +1934,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     url = serve(
         SUGGESTION_PAGE, anchored=[("replace", "Refill every feeder each morning.")]
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1964,7 +2006,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_PAGE, anchored=[("th-next", "warmed on the first request")])
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1992,7 +2034,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     # last surviving action per facet and unit, so a widget-unit verb on the same
     # facet that settles nothing displaces the decision, and a mark left standing
     # would silence a slot the log has handed back.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -2056,7 +2098,7 @@ customElements.define("lf-trial", class extends HTMLElement {
         '<lf-trial id="th-cache">', '<lf-trial id="th-cache" decision="open">'
     )
     url = serve(page_html)
-    decision = interact.append_event(
+    decision = events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -2072,7 +2114,7 @@ customElements.define("lf-trial", class extends HTMLElement {
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": decision["id"]},
     )
@@ -2102,7 +2144,7 @@ customElements.define("lf-trial", class extends HTMLElement {
 """
     )
     url = serve(TWO_HOLDER_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -2143,7 +2185,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     trial_family(tmp_path)
 
     url = serve(TWO_HOLDER_SPARE_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -2154,14 +2196,14 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             "detail": {},
         },
     )
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
     hide = "[data-lf-retired] { display: none; }"
     vendored = serve.page_dir / "theme.css"
     css = vendored.read_text()
     assert css.count(hide) == 1
     vendored.write_text(css.replace(hide, ""))
-    failures = interact.render_version(browser, url)
+    failures = rendering_model.render_version(browser, url)
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -2179,7 +2221,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             upgrade_line + '\n      this.setAttribute("data-lf-state", "shelve");',
         )
     )
-    failures = interact.render_version(browser, url)
+    failures = rendering_model.render_version(browser, url)
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure
@@ -2194,7 +2236,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
     it anywhere else — so the rule has to stop at the slot: a marker that outranks a look
     must not outrank a decision, or a quote lands in the half the user removed."""
     url = serve(RETIRED_WIDGET_PAGE, anchored=[("sug-swap", "chosen")])
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -2228,7 +2270,7 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     outline drew nothing. Pending, the wrapper is a thing to point at; refused, the
     thread detaches like any passage the decision removed."""
     url = serve(SUGGESTION_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2270,7 +2312,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
     uses, and a bare URL arrives as the link the user will want to follow."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2280,7 +2322,7 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
             "text": "which one wins?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2321,7 +2363,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     wears and its press is refused — asserted from a real press, since that refusal
     is the whole of what the runtime does here."""
     url = serve(REF_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2432,7 +2474,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
     as typed. Rendering them would promise the user an italic where the next
     version carries the asterisks they wrote."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2462,7 +2504,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     restores that baseline without a version file for the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2472,7 +2514,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "text": "Which of these?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2483,7 +2525,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "markup": SPECIMEN_MARKUP,
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -2503,7 +2545,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     # still stands, and is still the reader's newest undoable gesture, after the page
     # advances around the conversation.
     (d / "versions" / "v2.html").write_text(REPLY_HOST_PAGE)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
     )
     page.wait_for_url("**/v2.html*")
@@ -2533,7 +2575,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        interact.append_event(serve.page_dir, event)
+        events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (2)")
@@ -2590,11 +2632,13 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # version could ever have carried a record of a thread verb — invisible to every
     # consumer but shallowSigs, which reads what no version can assert as state one
     # authored.
-    assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
-        "the Done press left an attribute on a widget its entry never declared"
-    )
+    assert (
+        page.evaluate(render_checks_model.UNDECLARED_ATTRS, page_registry(page)) == []
+    ), "the Done press left an attribute on a widget its entry never declared"
     round_trip(page)
-    actions = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    actions = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert actions[-1]["widget"] == "tq-set" and actions[-1]["action"] == "answer"
     assert actions[-1]["detail"] == {}
 
@@ -2605,9 +2649,9 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     other, other_errors = open_page(browser, url)
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(other.locator(".lf-asks")).to_be_hidden()
-    assert other.evaluate(interact.UNDECLARED_ATTRS, page_registry(other)) == [], (
-        "replaying the answer left an attribute the entry never declared"
-    )
+    assert (
+        other.evaluate(render_checks_model.UNDECLARED_ATTRS, page_registry(other)) == []
+    ), "replaying the answer left an attribute the entry never declared"
     assert other_errors == []
     other.close()
 
@@ -2626,7 +2670,9 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page.keyboard.press("c")
     page.keyboard.press("1")
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
-    sent = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    sent = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert sent[-1]["action"] == "answer", "the chord's digit must not pick"
     assert errors == []
     page.close()
@@ -2639,7 +2685,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     answer and its undo, the send continuation must not overwrite that authoritative
     authored state after replay has accounted for the action."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
     page.keyboard.press("n")
     held = []
@@ -2655,7 +2701,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -2678,7 +2724,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     their authored baseline. A definitive refusal removes the optimistic choice from
     that baseline instead of leaving a decision the log never took."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
     page.keyboard.press("n")
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -2713,7 +2759,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     Reconstructing after a later refusal must replay both the recorded selection and
     the separate completion facet, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
     page.keyboard.press("n")
     page.locator("#tq-logs").click()
@@ -2758,7 +2804,7 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
     choice is already painted, but the record-less Done press waits for acceptance;
     correcting the older choice must not paint that queued press early."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(serve.page_dir, THREAD_ASKS[1])
+    events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
     page.keyboard.press("n")
     held = []
@@ -2822,7 +2868,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     """
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        interact.append_event(serve.page_dir, event)
+        events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     page.keyboard.press("n")
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -2846,7 +2892,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     expect(done).not_to_have_attribute("aria-busy", "true")
     assert [
         (e["widget"], e["action"])
-        for e in interact.read_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [("tq-set", "answer")]
     assert errors == []
@@ -2860,11 +2906,11 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     standing ask for the life of the page and have `n` step them into a closed
     disclosure to reach it."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(serve.page_dir, THREAD_ASKS[0])
+    events_model.append_event(serve.page_dir, THREAD_ASKS[0])
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "claude", "parent": "c-which"}
     )
     told(page)
@@ -2917,7 +2963,9 @@ def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, 
     round_trip(page)
 
     expect(goal).to_have_attribute("data-lf-held")
-    roots = [event for event in interact.read_events(d) if event["kind"] == "comment"]
+    roots = [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
     assert [(event["text"], event.get("holds")) for event in roots] == [
         ("Keep parsing; this is only a note.", None),
         ("Finish the hunk, then park.", "goal-parser"),
@@ -2973,7 +3021,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     (d / "versions" / "v2.html").write_text(honoring)
     published = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "input absorbed"],
     )
     assert published.exit_code == 0, published.output
@@ -3009,7 +3057,7 @@ def test_command_hub_an_absorbed_intervention_does_not_stop_again(browser, serve
         )
     )
     published = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "recorded snooze"],
     )
     assert published.exit_code == 0, published.output
@@ -3084,7 +3132,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(worktree_head).to_be_focused()
 
     sent = CliRunner().invoke(
-        interact.cli, ["report", str(d), "api-errors", "status", "status=done"]
+        cli_model.cli, ["report", str(d), "api-errors", "status", "status=done"]
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -3173,7 +3221,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     )
     assert not [
         event
-        for event in interact.read_events(d)
+        for event in events_model.read_events(d)
         if event.get("widget") == "ledger-cargo"
     ]
     editor.fill(
@@ -3184,7 +3232,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
 
     edit = next(
         event
-        for event in reversed(interact.read_events(d))
+        for event in reversed(events_model.read_events(d))
         if event.get("widget") == "ledger-cargo"
     )
     assert "Alice" not in edit["detail"]["text"]
@@ -3231,7 +3279,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     worker = fleet.get_by_role("link", name="w-1", exact=True)
     worker.focus()
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "report",
             str(d),
@@ -3248,7 +3296,7 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
     summary = fleet.locator(":scope > summary")
     summary.focus()
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "report",
             str(d),
@@ -3291,7 +3339,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     page.get_by_role("button", name="Comment", exact=True).click()
     round_trip(page)
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["report", str(d), "goal-parser", "status", "status=review"],
     )
     assert sent.exit_code == 0, sent.output
@@ -3309,7 +3357,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
 def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
     url = serve(COMMAND_HUB_PAGE)
     threads = {
-        target: interact.append_event(
+        target: events_model.append_event(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -3365,11 +3413,11 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     )
     root = next(
         event
-        for event in interact.read_events(d)
+        for event in events_model.read_events(d)
         if event.get("holds") == "goal-parser"
     )
 
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -3396,7 +3444,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]
-        for event in interact.read_events(d)
+        for event in events_model.read_events(d)
         if event["kind"] in {"comment", "resolve", "undo"}
     ] == ["comment", "resolve", "undo"]
     assert errors == []
@@ -3409,7 +3457,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     a fresh stopped report dates the new interruption from itself."""
     url = serve(COMMAND_HUB_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "report",
@@ -3424,7 +3472,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     )
     (d / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
     v2 = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "absorbed stop"],
     )
     assert v2.exit_code == 0, v2.output
@@ -3436,11 +3484,11 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     assert active != COMMAND_HUB_PAGE
     (d / "versions" / "v3.html").write_text(active)
     v3 = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "3", "--text", "work resumed"],
     )
     assert v3.exit_code == 0, v3.output
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "report",
@@ -3473,7 +3521,7 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
     page, errors = open_page(browser, live_url(url))
     page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
     (serve.page_dir / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "note", "author": "claude", "version": 2, "text": "same plan"},
     )
@@ -3506,7 +3554,7 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
 def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
     page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
     d = serve.page_dir
-    root = interact.append_event(
+    root = events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -3517,7 +3565,7 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
             "holds": "goal-parser",
         },
     )
-    reply = interact.append_event(
+    reply = events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -3527,7 +3575,7 @@ def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, s
             "text": "The hunk is ready.",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "resolve",

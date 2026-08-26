@@ -408,10 +408,7 @@ def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
     assert result.exit_code == 0, result.output
     assert "Deploys freeze on Fridays." in result.output
     assert "# $hazards, declared by this layer." in result.output
-    # Every author-facing shipped section still stands under its curated heading,
-    # while the internal compatibility stamp remains out of the authoring catalog.
-    assert "x-state's fields — the facet, fold unit, and record forms" in result.output
-    assert "The tones this page's layer paints" in result.output
+    # The runtime contract and the vendoring record stay out of the author's catalog.
     assert '"$events"' not in result.output
 
 
@@ -969,5 +966,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert "- **User** reacted: × no — this is wrong" in result.output
 
     catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    assert "The one-press reactions a reader can put on" in catalog.output
-    assert '"settles": true' in catalog.output
+    # What the catalog teaches is the vendored vocabulary itself, entry and all.
+    vendored = json.loads((page_dir / "registry.json").read_text())["$reactions"]
+    assert json.dumps(vendored, indent=2, ensure_ascii=False) in catalog.output

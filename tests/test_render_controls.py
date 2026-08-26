@@ -13,7 +13,17 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from conftest import INTERACT_SCRIPT
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import hosting as hosting_model
+from leaf_interact import http as http_model
+from leaf_interact import registry as registry_model
+from leaf_interact import render_checks as render_checks_model
+from leaf_interact import rendering as rendering_model
+from leaf_interact import schema as schema_model
+from leaf_interact import validation as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -131,7 +141,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    event = interact.read_events(serve.page_dir)[-1]
+    event = events_model.read_events(serve.page_dir)[-1]
     assert (event["kind"], event["author"], event["version"]) == ("done", "user", 1)
     assert event["text"]
     expect(button).to_be_disabled()
@@ -299,10 +309,10 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     regress to an id-less note that renders normally but gives Alt nothing to outline.
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
-    registry = interact.incoming_registry(
+    registry = validation_model.incoming_registry(
         [
-            interact.ASSETS,
-            interact.DEFAULT_PACKAGE,
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
             COMMAND_HUB_PACKAGE,
         ]
     )
@@ -350,7 +360,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     # before this page was opened, and what an aim may not do is add one of its own —
     # so the reading below is against this rather than against nothing.
     standing = [
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
     ]
     targets = aim_targets(serve.page_dir)
     total = page.locator(targets).count()
@@ -449,7 +461,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     # the log to be read rather than still in flight.
     round_trip(page)
     assert [
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
     ] == standing, (
         f"⌥-clicking through {example.name} left a decision in the log that the aim "
         "never promised"
@@ -483,7 +497,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
     round_trip(page)
     assert [
-        e["action"] for e in interact.read_events(serve.page_dir) if "action" in e
+        e["action"] for e in events_model.read_events(serve.page_dir) if "action" in e
     ] == ["choose"]
     assert errors == []
     page.close()
@@ -531,7 +545,7 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     ], "the press re-anchored the draft, so its new anchor alone should stand marked"
     round_trip(page)
     assert [
-        e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
     assert errors == []
     page.close()
@@ -583,13 +597,13 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     project.mkdir()
     (project / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
     initialized = CliRunner().invoke(
-        interact.cli, ["page", "init", str(serve.page_dir)]
+        cli_model.cli, ["page", "init", str(serve.page_dir)]
     )
     assert initialized.exit_code == 0, initialized.output
-    new_layer = interact.layer_generation(serve.page_dir)
+    new_layer = registry_model.layer_generation(serve.page_dir)
     assert new_layer != old_layer
-    replacement = interact.LeafHTTPServer(
-        address, interact.handler_for(serve.page_dir, TOKEN)
+    replacement = hosting_model.LeafHTTPServer(
+        address, http_model.handler_for(serve.page_dir, TOKEN)
     )
     threading.Thread(target=replacement.serve_forever, daemon=True).start()
     serve.servers.append(replacement)
@@ -600,7 +614,7 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert [
         event
-        for event in interact.read_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ] == []
 
@@ -611,7 +625,7 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     round_trip(page)
     actions = [
         event
-        for event in interact.read_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
     assert [(event["widget"], event["action"]) for event in actions] == [
@@ -628,7 +642,7 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     monkeypatch.chdir(tmp_path)
     overlay = tmp_path / ".leaf"
     overlay.mkdir()
-    standard = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())
+    standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     options = standard["lf-options"]
     options["x-state"]["choose"]["requires"] = {
         "target": "self",
@@ -683,19 +697,19 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
         upgraded=False,
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
-    old_layer = interact.layer_generation(serve.page_dir)
+    old_layer = registry_model.layer_generation(serve.page_dir)
 
     old_server = serve.httpd
     address = old_server.server_address
     old_server.shutdown()
     old_server.server_close()
     initialized = CliRunner().invoke(
-        interact.cli, ["page", "init", str(serve.page_dir)]
+        cli_model.cli, ["page", "init", str(serve.page_dir)]
     )
     assert initialized.exit_code == 0, initialized.output
-    assert interact.layer_generation(serve.page_dir) != old_layer
-    replacement = interact.LeafHTTPServer(
-        address, interact.handler_for(serve.page_dir, TOKEN)
+    assert registry_model.layer_generation(serve.page_dir) != old_layer
+    replacement = hosting_model.LeafHTTPServer(
+        address, http_model.handler_for(serve.page_dir, TOKEN)
     )
     threading.Thread(target=replacement.serve_forever, daemon=True).start()
     serve.servers.append(replacement)
@@ -761,7 +775,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.locator(".lf-composer textarea").fill("the ring reads too heavy")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    events = interact.read_events(serve.page_dir)
+    events = events_model.read_events(serve.page_dir)
     posted = [e for e in events if e["kind"] == "comment"]
     assert [(e["about"], e["anchor"]) for e in posted] == [
         ("layer", {"section": "opt-shim"})
@@ -805,7 +819,9 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page.locator(".lf-composer textarea").fill("reads dim against the wash")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    posted = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"]
+    posted = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
     assert [(e["about"], e["anchor"]) for e in posted] == [
         ("layer", {"section": "lf-banner", "part": said})
     ]
@@ -1093,7 +1109,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.mouse.move(*spot)
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "card-importer")
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1226,7 +1242,7 @@ def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
     )
     url = serve(REPLAYED_PAGE)
     for ident in ("approach", "col-doing"):
-        interact.append_event(
+        events_model.append_event(
             serve.page_dir,
             {
                 "kind": "comment",
@@ -1379,7 +1395,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
 
     def publish_v2():
         (d / "versions" / "v2.html").write_text(html)
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
         )
 
@@ -1387,7 +1403,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     # user's browser hears about another's decisions.
     def decide(*widgets):
         for widget in widgets:
-            interact.append_event(
+            events_model.append_event(
                 d,
                 {
                     "kind": "action",
@@ -1402,7 +1418,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     for what, drive, arrived in [
         (
             "a tenth comment arrives",
-            lambda: interact.append_event(
+            lambda: events_model.append_event(
                 d,
                 {"kind": "comment", "author": "user", "version": 1, "text": "A tenth."},
             ),
@@ -1572,9 +1588,13 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("l")  # the key opens the panel like the button does
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    interact.write_json(
+    files_model.write_json(
         other_dir / "status.json",
-        {"state": "working", "detail": "recording the demo", "ts": interact.now_iso()},
+        {
+            "state": "working",
+            "detail": "recording the demo",
+            "ts": events_model.now_iso(),
+        },
     )
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
@@ -1583,9 +1603,9 @@ def test_a_panel_row_follows_its_pages_status_live(
     # user reading both surfaces has to work out whether they mean the same thing.
     # Its own watcher has to be live for that, which is what the neighbour's held lease
     # proves — judged from the same evidence its banner judges itself on.
-    interact.write_json(
+    files_model.write_json(
         other_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": interact.now_iso()},
+        {"state": "waiting", "detail": "", "ts": events_model.now_iso()},
     )
     with live_watcher(other_dir, page):
         expect(row.locator(".lf-others-line")).to_have_text("Awaits")
@@ -1597,12 +1617,12 @@ def test_a_panel_row_follows_its_pages_status_live(
         # winning where two overlap: a title on the line would answer the hover most
         # likely to be asking for the rest, a reader pointing at the words that ran out
         # of room, with the one part of the account they can already read.
-        interact.write_json(
+        files_model.write_json(
             other_dir / "status.json",
             {
                 "state": "waiting",
                 "detail": "pick a storage engine",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
             },
         )
         told(page)
@@ -1619,7 +1639,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         # A leaf holding words of the reader's that nobody has read is a reason to go
         # to it, and no row draws that either: the banner says this number for the page
         # it stands on, and the tray says it for every page on the machine.
-        interact.append_event(
+        events_model.append_event(
             other_dir,
             {"kind": "comment", "author": "user", "version": 1, "text": "Mine."},
         )
@@ -1653,9 +1673,9 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
-    interact.write_json(
+    files_model.write_json(
         other_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": interact.now_iso()},
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
     )
     told(page)
     expect(rows).to_have_count(0)
@@ -2029,7 +2049,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     two reconciles and hides all of that."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2042,7 +2062,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     page.wait_for_selector(".lf-thread")  # the panel is open and reconciled once
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2208,14 +2228,14 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     # The same reading with the hold defeated, taken while the page is up. The predicate
     # is turned off rather than the pass rewritten, so what runs is this reading with one
     # answer changed.
-    unheld = interact.COVERED_WORDS.replace(
+    unheld = render_checks_model.COVERED_WORDS.replace(
         "s.position === 'absolute' || s.position === 'fixed'", "false"
     )
     reported = page.evaluate(unheld)
     assert errors == []
     page.close()
-    assert interact.render_version(browser, url) == []
-    assert unheld != interact.COVERED_WORDS, (
+    assert rendering_model.render_version(browser, url) == []
+    assert unheld != render_checks_model.COVERED_WORDS, (
         "the pass no longer holds a float out by the predicate this reaches for"
     )
     assert any("1 comment" in found for found in reported), (
@@ -2249,18 +2269,21 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
     # cards kept. Then the same reading with the collapse no longer held out — named out
     # of the selector rather than cut from it, so this stays the gate's reading however
     # the things it holds out are ordered or added to.
-    unheld = interact.COVERED_WORDS.replace("[hidden]", "[lf-holds-nothing]")
-    held, reported = page.evaluate(interact.COVERED_WORDS), page.evaluate(unheld)
+    unheld = render_checks_model.COVERED_WORDS.replace("[hidden]", "[lf-holds-nothing]")
+    held, reported = (
+        page.evaluate(render_checks_model.COVERED_WORDS),
+        page.evaluate(unheld),
+    )
     assert errors == []
     assert held == []
-    assert unheld != interact.COVERED_WORDS, (
+    assert unheld != render_checks_model.COVERED_WORDS, (
         "the pass no longer holds collapsed content out by name"
     )
     assert any("opt-" in found for found in reported), (
         "the cards fell on nobody, so a gate that never looked would pass this too"
     )
     page.close()
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -2297,7 +2320,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     del undeclared["lf-suggestion"]["x-inline"]
     assert [
         box
-        for box in page.evaluate(interact.TINY_BOXES, undeclared)
+        for box in page.evaluate(render_checks_model.TINY_BOXES, undeclared)
         if box["tag"] == "lf-suggestion"
     ], (
         "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
@@ -2308,12 +2331,12 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     page.add_style_tag(
         content="lf-chip { display: block; height: 2px; overflow: hidden; }"
     )
-    flattened = page.evaluate(interact.TINY_BOXES, page_registry(page))
+    flattened = page.evaluate(render_checks_model.TINY_BOXES, page_registry(page))
     page.close()
     assert [box for box in flattened if box["tag"] == "lf-chip"], (
         "a chip with no height left reports nothing, so the floor is gone rather than declared"
     )
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):
@@ -2329,7 +2352,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
         return subprocess.run(
             [
                 sys.executable,
-                str(interact.__file__),
+                str(INTERACT_SCRIPT),
                 "version",
                 "check",
                 str(d),
@@ -2416,11 +2439,11 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
     A control declared an offer is exempt, since paper has nothing to press: the same
     page's pick mark reads "chosen" and goes unreported either way."""
-    assert interact.render_version(browser, serve(CARRIED_PAGE)) == [], (
+    assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "a page whose print rendering keeps its words has nothing to report"
     )
 
-    lost = interact.render_version(browser, serve(PRINT_LOSS_PAGE))
+    lost = rendering_model.render_version(browser, serve(PRINT_LOSS_PAGE))
     assert [f for f in lost if f.startswith("[print]")] == [
         (
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
@@ -2449,7 +2472,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     for name, data in SHOTS.items():
         (serve.page_dir / "media").mkdir(exist_ok=True)
         (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
     assert shown_frames(page) == ["before"]
@@ -2496,7 +2519,7 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
         (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
 
     standalone = tmp_path / "standalone.html"
-    standalone.write_text(interact.export_page(browser, url, serve.page_dir))
+    standalone.write_text(rendering_model.export_page(browser, url, serve.page_dir))
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
@@ -2524,7 +2547,7 @@ def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
 
     assert [
         f
-        for f in interact.render_version(browser, url)
+        for f in rendering_model.render_version(browser, url)
         if "600px" in f and "400px" in f
     ], "the gate has to hear about a mismatch, since nobody else will"
 
@@ -2541,10 +2564,10 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     form control is unselectable in every engine, so a widget that reaches for <button>
     has put its label somewhere the user cannot go. `offer` builds a press as a span
     for exactly this reason, and this is what says so when a widget doesn't use it."""
-    assert interact.render_version(browser, serve(CARRIED_PAGE)) == [], (
+    assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
-    found = interact.render_version(browser, serve(OUT_OF_REACH_PAGE))
+    found = rendering_model.render_version(browser, serve(OUT_OF_REACH_PAGE))
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
             '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
@@ -2585,7 +2608,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     the contract, and this test does not pin it."""
     found = [
         f.split("] ", 1)[1]
-        for f in interact.render_version(browser, serve(PAINTED_IN_SILENCE_PAGE))
+        for f in rendering_model.render_version(browser, serve(PAINTED_IN_SILENCE_PAGE))
     ]
     assert sorted(set(found)) == [
         (
@@ -2628,7 +2651,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
     )
 
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2638,7 +2661,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "text": "What would the alternative look like?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -2649,7 +2672,9 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "markup": SPECIMEN_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
     )
-    found = sorted({f.split("] ", 1)[1] for f in interact.render_version(browser, url)})
+    found = sorted(
+        {f.split("] ", 1)[1] for f in rendering_model.render_version(browser, url)}
+    )
     assert found == [
         (
             '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
@@ -2670,7 +2695,9 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
     the error box, which is why the gate is worth its couple of seconds."""
     serve(UNPARSABLE_DIAGRAM)
     d = serve.page_dir
-    assert CliRunner().invoke(interact.cli, ["version", "check", str(d)]).exit_code == 0
+    assert (
+        CliRunner().invoke(cli_model.cli, ["version", "check", str(d)]).exit_code == 0
+    )
 
     shim = Path(__file__).parent.parent / "plugins" / "leaf" / "bin" / "leaf"
     run = subprocess.run(
@@ -3077,7 +3104,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "report",
@@ -3095,7 +3122,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "false"
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "report",
@@ -3135,7 +3162,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         .replace('id="quota-ready" chosen', 'id="quota-ready"')
     )
     (serve.page_dir / "versions" / "v2.html").write_text(quota_v2)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "note", "author": "claude", "version": 2, "text": "same plan"},
     )
@@ -3161,7 +3188,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         "aria-disabled", "true"
     )
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -3293,6 +3320,142 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     ), (
         "a band laid over the ring's top run was not reported, so this reading answers "
         "nothing and the pages it passes are not evidence"
+    )
+
+    assert errors == []
+    page.close()
+
+
+def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
+    browser, serve
+):
+    """A duration is a way of keeping an animation and no way at all of keeping a
+    transition. An animation is declared and named, and the layer reads `animationend`
+    to know one has run, so the guard's near-zero duration keeps that event and spends
+    no time on it. A transition is declared by nobody — `transition-property` is `all`
+    until something says otherwise — so the same duration over every element made a
+    transition out of every property that changed on any of them.
+
+    None of which anybody wrote or listened for, and none of which was free: a ring is
+    `outline-width`, `outline-offset` and `outline-color` all changing at once, so a
+    reader who asked for no motion got a medium currentColor ring at offset nought
+    animating into the real one, on every focus, on every page. It is also what a
+    computed-style reading of a ring taken in those frames was told, which is how
+    `RING_FAULTS` came to invent one.
+
+    So this asks the reader's own question — is anything moving — of the control they
+    just landed on, in the one setting where the answer has to be no."""
+    url = serve(LONG_PAGE, comments=3)
+    context = browser.new_context(reduced_motion="reduce")
+    try:
+        page, errors = open_page(browser, url, context=context)
+        assert page.evaluate(
+            "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
+        ), "the context did not ask for reduced motion, so the guard under test is off"
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        page.locator(".lf-threads > .lf-thread").first.focus()
+
+        seen = page.evaluate(
+            """() => {
+          const el = document.activeElement;
+          const cs = getComputedStyle(el);
+          return {
+            moving: el.getAnimations().map(
+              (a) => a.transitionProperty || a.animationName || 'animation'),
+            ring: [cs.outlineWidth, cs.outlineStyle, cs.outlineOffset],
+            want: cs.getPropertyValue('--here-ring').trim(),
+          };
+        }"""
+        )
+        assert seen["moving"] == [], (
+            f"the ring is still arriving under reduced motion: {seen['moving']} are "
+            "running, so what the reader sees and what any reading of this control gets "
+            "is a value on its way rather than the one the rule states"
+        )
+        # Non-vacuity: a control with no ring has nothing that could have transitioned.
+        assert seen["ring"][:2] == [seen["want"].split()[0], "solid"], (
+            f"the thread reads {seen['ring']} where its ring is {seen['want']}, so "
+            "nothing here was ever going to move"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box(
+    browser, serve
+):
+    """The same half asked of the other shape of ring, and the shape it was quiet about.
+    A cover is excused where the control is under the same thing — a control put under a
+    fixed bar is where it was put, not a ring leaving its box — and how far in the
+    reading looks to ask that is the ring's own band.
+
+    Which is inside the box when the ring is. The test above plants over a ring drawn
+    outside its control, where the band is outside too and any step in clears it; asked
+    one pixel in, as it was, the same question over an inset ring lands on the ring
+    rather than past it, so every covered inset ring answered that the control was under
+    the same thing and the reading returned what it returns when nothing is wrong. The
+    panel's own threads are inset rings to the last one, so this was the half of the
+    reading that watches them.
+
+    So: a thread, which draws its ring inside itself, under a band exactly as deep as
+    that ring. The control case first, because a reading that reports over any thread
+    would pass the planted one without seeing it.
+    """
+    url = serve(LONG_PAGE, comments=6)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator(".lf-threads > .lf-thread").first.focus()
+    page.evaluate(RENDERED)
+
+    inset = page.evaluate(
+        """() => {
+      const s = getComputedStyle(document.activeElement.closest('.lf-thread'));
+      return [parseFloat(s.outlineWidth), parseFloat(s.outlineOffset)];
+    }"""
+    )
+    assert inset[1] <= -inset[0], (
+        f"the thread's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+        "inside its box, so this holds nothing about a reading of one that is"
+    )
+
+    # A band of the panel's own paper over the card's top run, and nothing else of it.
+    # Fixed and outside the card, because the reading passes over an ancestor or a
+    # descendant of the control by design — a widget painting its own edge is not a
+    # neighbour.
+    plant = """(depth) => {
+      document.querySelector('.lf-ring-plant')?.remove();
+      if (!depth) return null;
+      const card = document.activeElement.closest('.lf-thread');
+      const r = card.getBoundingClientRect();
+      const over = document.documentElement.appendChild(
+        document.createElement('div'));
+      over.className = 'lf-ring-plant';
+      Object.assign(over.style, {
+        position: 'fixed', zIndex: '9999',
+        background: getComputedStyle(card).backgroundColor === 'rgba(0, 0, 0, 0)'
+          ? '#fff' : getComputedStyle(document.body).backgroundColor || '#fff',
+        left: `${r.left}px`, top: `${r.top}px`,
+        width: `${r.width}px`, height: `${depth}px`,
+      });
+      return over.getBoundingClientRect().height;
+    }"""
+
+    page.evaluate(plant, 0)
+    assert page.evaluate(RING_FAULTS)["covers"] == [], (
+        "the thread is reported covered with nothing over it, so the planted case below "
+        "would only be repeating whatever this reading always says"
+    )
+
+    laid = page.evaluate(plant, inset[0])
+    covers = page.evaluate(RING_FAULTS)["covers"]
+    assert any("top edge" in c for c in covers), (
+        f"a {laid}px band over the whole of the card's {inset[0]}px inset ring, with the "
+        f"rest of the card in full view, and the reading said {covers}"
     )
 
     assert errors == []

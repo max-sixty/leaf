@@ -5,7 +5,9 @@ import re
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
-from conftest import interact
+from leaf_interact import events as events_model
+from leaf_interact import passages as passages_model
+from leaf_interact import registry as registry_model
 from playwright.sync_api import expect
 from render_support import (
     ASTRAL_PAGE,
@@ -198,7 +200,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     (d / "versions" / "v2.html").write_text(
         SAID_PAGE.replace("Waiting on the importer.", "Unblocked; starting Thursday.")
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -234,7 +236,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
-        expected_anchor = interact.capture_anchor(
+        expected_anchor = passages_model.capture_anchor(
             FENCED_CAPTURE_PAGE, registry, quote, section
         )
         selected = page.evaluate(
@@ -266,7 +268,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
         expect(page.locator(".lf-thread")).to_have_count(index)
         actual_anchor = [
             event["anchor"]
-            for event in interact.read_events(serve.page_dir)
+            for event in events_model.read_events(serve.page_dir)
             if event["kind"] == "comment"
         ][-1]
         assert actual_anchor == expected_anchor, (
@@ -294,12 +296,12 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     evidence = page.get_by_role("tab", name="Field evidence")
     expect(implementation).to_have_attribute("aria-selected", "true")
 
-    before = interact.read_events(serve.page_dir)
+    before = events_model.read_events(serve.page_dir)
     sent = _traffic(page).sends
     vision.click()
     implementation.click()
     assert _traffic(page).sends == sent, "switching workstreams sent an event"
-    assert interact.read_events(serve.page_dir) == before
+    assert events_model.read_events(serve.page_dir) == before
 
     page.locator(".lf-comments").click()
     # This test's own comment, plus whatever the example ships a log for. Counted
@@ -328,7 +330,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()
 
     assert _traffic(page).sends == sent
-    assert interact.read_events(serve.page_dir) == before
+    assert events_model.read_events(serve.page_dir) == before
     assert errors == []
     page.close()
 
@@ -380,7 +382,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
             "the south pair waits on brackets", "the brackets arrived"
         )
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -558,7 +560,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     read as 12."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        interact.append_event(serve.page_dir, event)
+        events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
     # `n` opens the panel on the first ask and lands on its mark, which is what paints
@@ -1029,7 +1031,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     (d / "versions" / "v2.html").write_text(
         INLINE_PAGE.replace('<h1 id="t">Inline</h1>', '<h1 id="t">Inline II</h1>')
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -1142,7 +1144,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     It is also what a version bump of the vendored bundle has to survive."""
     url = serve(CODE_PAGE)
     page, errors = open_page(browser, url)
-    langs = interact.load_registry(serve.page_dir)["$languages"]["names"]
+    langs = registry_model.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
@@ -1674,7 +1676,7 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(DRIFT_V2)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "revised"}
     )
     page.wait_for_url("**/v2.html")
@@ -1781,7 +1783,7 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
     it was written, so nothing already in a log detaches when the capture reaches
     further."""
     url = serve(EDGE_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1817,7 +1819,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
     ambiguous and detaches rather than using document order."""
     url = serve(EDGE_PAGE)
     # A suffix that fits the second copy and nothing else, stored with no prefix beside it.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1894,7 +1896,7 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
         re.compile("detached")
     )
     anchor = [
-        e["anchor"] for e in interact.read_events(serve.page_dir) if e.get("anchor")
+        e["anchor"] for e in events_model.read_events(serve.page_dir) if e.get("anchor")
     ][-1]
     assert len(anchor["quote"]) == picked, (
         f"the log holds {len(anchor['quote'])} characters of a {picked}-character "
@@ -1976,7 +1978,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(THIN_V2)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "revised"}
     )
     page.wait_for_url("**/v2.html")
@@ -2633,7 +2635,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     row = page.locator("#row")
     marked = re.compile(r"\blf-mark-el\b")
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2650,7 +2652,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
 
     # Resolved, so the next repaint has nothing to say here: the count line has to go,
     # and it can only go if the sweep that clears it enters the tree that holds it.
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "resolve", "author": "user", "parent": "c-staged"}
     )
     told(page)

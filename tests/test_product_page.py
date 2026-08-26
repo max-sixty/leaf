@@ -89,29 +89,6 @@ def test_package_guide_sits_beside_how_it_works():
         assert 'href="packages.html"' in (DOCS / source).read_text()
 
 
-def test_package_guide_uses_the_current_layer_and_cli_names():
-    packages = (DOCS / "packages.html").read_text()
-
-    assert ".claude/leaf" not in packages
-    assert "<code>.leaf/</code>" in packages
-    for stale in (
-        "leaf init ",
-        "leaf catalog ",
-        "leaf check ",
-    ):
-        assert stale not in packages
-    for current in (
-        "leaf page init ",
-        "leaf page catalog ",
-        "leaf package init ",
-        "leaf package check ",
-        "leaf version check ",
-        'actionSequence(this, "verb")',
-        'watchActions(this, "verb", render)',
-    ):
-        assert current in packages
-
-
 def test_every_command_the_docs_show_is_one_leaf_has():
     """A shown command is a promise the reader will type it.
 
@@ -119,9 +96,8 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     it, and a renamed subcommand is what quietly breaks that: the transcript is prose
     to every other gate here, so a stale `leaf ack` would go on being published
     indefinitely. The names are resolved against click's own tree rather than listed
-    in this file, because a list is the second copy that goes stale the same way —
-    which is the mistake the guide's own name check makes and this one is not
-    repeating.
+    in this file, because a list here is a second copy of the command surface and goes
+    stale the same way the page does.
     """
 
     def shown_in(text):
@@ -167,42 +143,6 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     ]
     assert not unknown, "these pages show commands leaf hasn't got:\n  " + "\n  ".join(
         unknown
-    )
-
-
-def test_tour_walks_the_interactive_and_live_workflows():
-    tour = (DOCS / "index.html").read_text()
-
-    for example in ("triage-board", "live-progress"):
-        assert f'href="../examples/{example}.html"' in tour
-        assert f"scripts/preview.py {example}" in tour
-    assert (
-        '"widget":"release-board","action":"move","detail":{"card":"card-export"'
-        in tour
-    )
-    assert 'src="demo.gif"' in tour
-
-    live = (ROOT / "examples" / "live-progress.html").read_text()
-    # Whitespace collapsed, because this asks what the page says and the source is
-    # formatted: prettier re-derives every line break in a paragraph, so a sentence
-    # asserted as source bytes is a sentence that fails the day it gets a word longer.
-    assert "browser is following the newest version" in " ".join(live.lower().split())
-    for status in ("done", "active", "planned", "blocked"):
-        assert f'status="{status}"' in live
-
-
-def test_product_pages_explain_the_codex_watcher_task_without_hiding_the_fallback():
-    tour = " ".join((DOCS / "index.html").read_text().split())
-    mechanism = " ".join((DOCS / "how-it-works.html").read_text().split())
-
-    assert "an opt-in watcher task can hold that wait" in tour
-    assert "transport-neutral JSON batch" in mechanism
-    assert "adds the receiving task's instruction" in mechanism
-    assert "transfers the page's claim to the watcher" in mechanism
-    assert "Without an explicitly authorized watcher task" in mechanism
-    assert (
-        "a detached command alone has no completion that starts a future turn"
-        in mechanism
     )
 
 

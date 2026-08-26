@@ -613,6 +613,15 @@ RING_FAULTS = f"""async () => {{
     return false;
   }};
   const named = {NAMED};
+  // Straight off the computed style, which holds because no ring in this layer moves.
+  // A ring on its way somewhere reads as wherever it has got to — mid-transition the
+  // platform reports the animated value, which early on is the value the property is
+  // leaving — and this once read every ring that way, because the theme's reduced-motion
+  // guard shortened transitions rather than removing them and `transition-property` is
+  // `all`, so a ring arriving was a ring in transit for two frames on every page. That
+  // is fixed where it was made (theme.css). A layer that deliberately animates a ring
+  // owes this reading a wait on `getAnimations()`; one written here now would wait on
+  // nothing, in front of the reading it is meant to protect.
   const cs = getComputedStyle(el);
   const w = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0;
   if (!w) return {{ who: named(el), ring: false, cuts: [], covers: [] }};
@@ -715,8 +724,19 @@ RING_FAULTS = f"""async () => {{
       // the one this was written for was the tray's edge handle running the whole height
       // of the window under the banner, which stopped being true in 3a8f16f0, the commit
       // that added this comment and the handle's top inset together.
-      const inx = x + (side === 'left' ? grow + 1 : side === 'right' ? -grow - 1 : 0);
-      const iny = y + (side === 'top' ? grow + 1 : side === 'bottom' ? -grow - 1 : 0);
+      //
+      // The step in has to clear the ring's own band, and `grow + w` from the ring's edge
+      // is what lands `w + 1` inside the box whichever side of it the ring is drawn on.
+      // Written as `grow + 1` it cleared an outward ring, where grow is already at least
+      // w, and landed inside an inset one, where grow is nought: every covered inset ring
+      // answered that the control was behind the same thing and was dropped without a
+      // word. The rings the panel's own list draws are all inset, so this went blind in
+      // the same commit that made them so — a thread lying two pixels under its stuck run
+      // heading is a card with three sides, and the gate written to catch exactly that
+      // reported nothing.
+      const step = grow + w + 1;
+      const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
+      const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
       if (document.elementsFromPoint(inx, iny).includes(over)) break;
       const o = over.getBoundingClientRect();
       const at = (r) => [r.left, r.top, r.right, r.bottom].map(Math.round).join();

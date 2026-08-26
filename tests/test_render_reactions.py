@@ -4,7 +4,9 @@ import json
 import re
 
 import pytest
-from conftest import interact
+from leaf_interact import conversation as conversation_model
+from leaf_interact import events as events_model
+from leaf_interact import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     PANEL_PAGE,
@@ -77,7 +79,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
 
     page.locator('.lf-fab-bar .lf-react[data-token="cut"]').click()
     round_trip(page)
-    sent = interact.read_events(serve.page_dir)[-1]
+    sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "cut" and "text" not in sent
     assert sent["anchor"]["section"] == "how-store"
     assert "holds every edit" in sent["anchor"]["quote"]
@@ -127,7 +129,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(bar).to_be_hidden()
     page.locator('.lf-reacts .lf-react-mark[data-token="cut"]').click()
     round_trip(page)
-    withdrawn = interact.read_events(serve.page_dir)[-1]
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
     assert errors == []
@@ -156,7 +158,7 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
     assert chips == ["1", "2", "3", "4", "5", "6"], chips
     page.keyboard.press("4")
     round_trip(page)
-    sent = interact.read_events(serve.page_dir)[-1]
+    sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["token"], sent["anchor"]["section"]) == (
         "comment",
         "cut",
@@ -187,7 +189,7 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
     panel_settled(page)
     page.keyboard.press("5")
     round_trip(page)
-    sent = interact.read_events(serve.page_dir)[-1]
+    sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "more" and "anchor" not in sent, sent
     expect(page.locator(".lf-panel")).to_be_visible()  # spent, the panel stays
     expect(
@@ -215,7 +217,7 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     expect(page.locator(".lf-composer")).to_be_hidden()
     page.locator('.lf-fab-bar .lf-react[data-token="this"]').click()
     round_trip(page)
-    sent = interact.read_events(serve.page_dir)[-1]
+    sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
     shown = painted(page, [["how-patch", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
@@ -226,7 +228,7 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
 def _thread(page_dir):
     """A thread the agent spoke in last: the reader's question and Claude's answer."""
     root = panel_comment(page_dir, "Why forty?", {"section": "how-cap"})
-    reply = interact.append_event(
+    reply = events_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -263,7 +265,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
     strip.locator('.lf-react[data-token="no"]').click()
     round_trip(page)
-    sent = interact.read_events(serve.page_dir)[-1]
+    sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["parent"], sent["token"]) == ("reply", reply, "no")
     expect(strip.locator('.lf-react[data-token="no"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -272,7 +274,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
     strip.locator('.lf-react[data-token="ok"]').click()
     round_trip(page)
-    ok = interact.read_events(serve.page_dir)[-1]
+    ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "ok" and ok["parent"] == reply
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you")  # none
     expect(page.locator(".lf-thread")).to_have_count(0)  # out of "waiting on you"
@@ -281,7 +283,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(page.locator(".lf-thread")).to_have_count(1)
     strip.locator('.lf-react[data-token="ok"]').click()
     round_trip(page)
-    withdrawn = interact.read_events(serve.page_dir)[-1]
+    withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(strip.locator('.lf-react[data-token="ok"]')).to_have_attribute(
@@ -298,7 +300,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     Resolving it — the agent's, once it has acted — is the floor: the paint clears and
     nothing new is invented to absorb it."""
     url = serve(PANEL_PAGE)
-    reaction = interact.append_event(
+    reaction = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -312,7 +314,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     painted(page, [["merge-both", "no"]])
     expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
 
-    interact.cmd_reply(
+    conversation_model.cmd_reply(
         serve.page_dir, reaction["id"], "Which part — the case, or the answer?", ""
     )
     told(page)
@@ -324,7 +326,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") > 0
 
-    interact.cmd_resolve(serve.page_dir, reaction["id"])
+    conversation_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
     expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
@@ -340,7 +342,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     stop or role, and the wash is written into the words, the highlight registry being
     script state no file can carry."""
     url = serve(PANEL_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -351,7 +353,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         },
     )
     out = tmp_path / "copy.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")

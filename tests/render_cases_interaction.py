@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
-from conftest import interact
+from leaf_interact import events as events_model
 from render_harness import (
     EXAMPLES,
     TOKEN,
@@ -61,7 +61,7 @@ def panel_comment(d, text, anchor=None, author="user"):
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
-    return interact.append_event(d, event)["id"]
+    return events_model.append_event(d, event)["id"]
 
 
 # What the list is holding, from the one query that answers both halves of the
@@ -795,7 +795,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
     quarter of an hour, so nothing that waits can reach it and nothing that sleeps
     should: the fact under test is what the row does with a timestamp, and the log
     is where a timestamp comes from."""
-    return interact.append_event(
+    return events_model.append_event(
         page_dir,
         {
             "kind": "report",

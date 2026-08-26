@@ -43,6 +43,7 @@ export function createConversation(dependencies) {
     post,
     quietSince,
     reachScrollers,
+    reachedForWords,
     reactDone,
     reactPills,
     refreshHover,
@@ -869,7 +870,13 @@ export function createConversation(dependencies) {
     const label = anchorLabel(t.root.anchor, t.root.about);
     if (label) {
       const quote = el("blockquote", "lf-quote", label);
-      quote.onclick = () => scrollToThread(t.root.id);
+      // The quote is words and a press at once: it says which passage the comment is
+      // about, and pressing it travels there. A drag across it is the reader taking the
+      // words, so the travel stands down — the reading `offer` makes of its own
+      // controls, which this is not one of.
+      quote.onclick = (ev) => {
+        if (ev.detail === 0 || !reachedForWords(quote)) scrollToThread(t.root.id);
+      };
       div.append(quote);
     }
     turns(t).forEach((m) => div.append(msgNode(m)));
@@ -1465,6 +1472,71 @@ export function createConversation(dependencies) {
     ev.target.classList.remove("grow"),
   );
 
+  // Landing belongs to the list, not to whatever moved the focus. The list already says
+  // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
+  // heading and for a ring — and every route that could reach a thread was scrolling it
+  // into that band for itself, so a route that did not scroll got nothing. A press does
+  // not: the browser focuses the card under the pointer and scrolls nothing, so a list
+  // nudged a dozen pixels leaves the first card of a run two pixels under its heading,
+  // which is the whole of an inset ring's top run and reads as a card with three sides.
+  // The routes that resolve a thread rather than press one — a page mark's comment note,
+  // the thread a resolve or a reopen hands the reader on to — landed only by chance of
+  // having remembered the line.
+  //
+  // Focus is the one fact all of them share, so the landing hangs off that and each of
+  // them gives up its copy. Three callers still write this list's scroll, and each says
+  // something focus cannot: `stepThread` for the press at either end of the walk, which
+  // moves no focus at all; `revealThread` for a deliberate centring, which runs after
+  // the focus it follows and wins; and `landIn`, which puts the reader in a thread's box
+  // and lands the thread around it, the same correction this makes and the reason a
+  // reply box reached by key was never the case that was wrong.
+  //
+  // The thread holding the focus, not the card alone: the ring is the thread's, drawn
+  // for `:focus-within`, so it is cut in the same place whether the reader is standing
+  // on the card or writing in its box. `block: "nearest"` moves the least that clears
+  // the band, so a control at the card's foot comes with it rather than going under.
+  //
+  // A press is the reader's hand, and it may be the start of a drag across the comment's
+  // own words. Focus lands on the way down, so scrolling there takes the words out from
+  // under the pointer and the selection runs on past where they stopped — measured at
+  // three times the run the reader drew. A press therefore holds its landing until the
+  // hand comes up, and gives it up altogether where the press was a drag for the
+  // thread's own words: the question `offer` already asks of a click, read the same way,
+  // since the selection's focus end is the character the button came up on.
+  //
+  // The hand comes up before the press's click, which is where a deliberate placement
+  // begins — a quote jumping to its passage, a travel centring a widget in a reply. So
+  // the order holds without a word between them: the landing is a correction under the
+  // gesture, and whatever the gesture then asks for is later and wins.
+  //
+  // What the press lands is where it left the reader, which is not the same question as
+  // which thread the focus moved to. A press on the thread the reader is already in
+  // moves no focus and so was heard as nothing at all — and that is the reader's own
+  // gesture: they are standing in a comment, the list carries a little, and they press
+  // the card to bring it back. Asking the completed gesture instead of the focus event
+  // costs a variable rather than buying one, and the walk's own end-of-clamp press is
+  // the same shape one scope out.
+  let pressing = false;
+  const standing = () => focused()?.closest?.(".lf-thread");
+  const land = (thread) => {
+    if (thread && threadsBox.contains(thread))
+      thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+  };
+  threadsBox.addEventListener("pointerdown", () => (pressing = true));
+  addEventListener(
+    "pointerup",
+    () => {
+      const began = pressing;
+      pressing = false;
+      const thread = began && standing();
+      if (thread && !reachedForWords(thread)) land(thread);
+    },
+    true,
+  );
+  threadsBox.addEventListener("focusin", () => {
+    if (!pressing) land(standing());
+  });
+
   // The panel and the page marks are two views of the same threads, and the paint pass
   // reports back to the list renderThreads just reconciled — always render them as a pair.
   function renderPanel() {
@@ -1537,8 +1609,8 @@ export function createConversation(dependencies) {
     // Showing a thread is an arrival in the panel, not a glimpse from the page. Focus is
     // the standing fact shared by the card and its mark, so the route that begins on a
     // painted passage has to end on the same focus target as j/k and the address chord.
-    // preventScroll leaves the panel's deliberate reveal below as the one writer of its
-    // position.
+    // preventScroll keeps this call out of the scroll: the list lands a thread that takes
+    // the focus, and the reveal below is the deliberate placement that follows and wins.
     listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });
     revealThread(id);
   }

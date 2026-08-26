@@ -1836,6 +1836,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
     sources = [
         layer / "assets/leaf.js",
+        *sorted((layer / "assets/runtime").rglob("*.js")),
         *sorted((layer / "packages/default/widgets").glob("*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]

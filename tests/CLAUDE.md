@@ -339,6 +339,18 @@ The main causal helpers are:
   `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
   round-trip as the press that caused it is a read of the frame before.
 
+A surface that reads the same before and after the press cannot be its own wait at all.
+`expect(...).to_have_text(...)` is satisfied by the frame the press has not reached yet,
+and a measurement taken behind it then compares a reading with itself and passes. It is
+the same coalesced frame as above, but it fails differently: not late by a poll, but
+green because nothing was ever asserted. `test_the_press_that_lights_a_key_moves_no_glyph`
+measures one address chip either side of the press that lights its next key, and the chip
+says "g a 1" at both — waiting on its text, the test passed two runs in three with the fix
+reverted. It waits on the offer narrowing instead, which is what the press actually
+writes. So a test whose subject is what a press does *within* a surface waits on some
+other fact of that press, and its bug-back is run more than once: a wait that is
+sometimes real looks exactly like a wait that is.
+
 The key line is the sharpest case of the rule above, because a second mechanism will
 supply its answer late. Every state poll repaints it, so an auto-retrying assertion on
 what it says goes green on whichever poll lands inside its budget — which is the poll's

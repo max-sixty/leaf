@@ -5026,8 +5026,11 @@ function paintAddresses() {
   }
   for (const chip of piled) chip.remove();
 }
-// Whether two boxes share any pixel. Touching edges do not: chips at exactly a chip's width
-// apart sit side by side, which is the case a run of short links used to land on exactly.
+// Whether two boxes share any pixel. Touching edges do not, so two chips laid exactly a
+// chip's width apart sit side by side rather than one of them being taken down. That
+// boundary is the chip's own width and moves with it — the face is a little wider than it
+// was — so what survives a crowded line is a fact about the face rather than a constant,
+// and a page whose members used to clear it by a pixel is not promised to now.
 const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 // A page that moves under an armed window moves the boxes the chips were placed from, so

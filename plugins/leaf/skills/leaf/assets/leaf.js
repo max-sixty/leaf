@@ -9623,6 +9623,12 @@ async function receiveState(state) {
           document.documentElement.classList.add("lf-versioning");
           try {
             const transition = document.startViewTransition(apply);
+            // A skipped transition — the document hidden at the call or
+            // mid-flight, or a second transition starting — still runs the
+            // update and settles `finished` with it, but rejects `ready`,
+            // which nothing here awaits. Unhandled, that rejection reaches
+            // the page's error report as a logged fault.
+            transition.ready.catch(() => {});
             await transition.finished;
           } finally {
             document.documentElement.classList.remove("lf-versioning");

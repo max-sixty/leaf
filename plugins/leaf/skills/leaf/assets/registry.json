@@ -373,6 +373,10 @@
     "once": "It belongs to the one version that does the rewriting. Publishing records the retraction in the log, so it holds for good — later versions leave the attribute off, and `version check` refuses one that repeats it.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
   },
+  "$series": {
+    "description": "The categorical steps this layer paints a chart's series in, and how many of them there are. It is a property of the page rather than of any widget: the colours are --series-1 through --series-N in the theme, so a project that restates the palette with a step more says so once, here and beside the tokens, and every consumer reads the same number. `steps` is what a chart refuses a series past — two series in one colour is worse than a drawing that says it will not draw — and what the palette's own check counts the tokens against. The list is short on purpose: past five, the steps stop clearing the separation a reader with colour-vision deficiency needs, and a sixth is a chart that lies to some readers and to no others.",
+    "steps": 5
+  },
   "$tones": {
     "description": "The semantic tints this layer paints, and the whole vocabulary an author may declare: what the lint refuses a word outside, and what the theme has a rule for. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `tone` — a widget declares that one of its attributes names one (x-tone) and the lint reads the list from here, so a second tag taking a tone costs a declaration and no new reader. The list is short on purpose: a page that can paint anything paints nothing, and three is what the palette already answers for. Which facts earn a tint is never the theme's to decide — `ok` on one page's chip and `danger` on another's may be the same word, because the author is the only one who knows whether the answer is good news.",
     "names": ["ok", "warn", "danger"]

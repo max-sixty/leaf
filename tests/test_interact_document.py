@@ -1,6 +1,7 @@
 """Static document, version, and page-state tests."""
 
 import json
+import math
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -2703,3 +2704,106 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
     )
     publish(page_dir, 2)
     assert state_json(page_dir)["asks"] == []
+
+
+# The colour-vision maths the series palette is stepped against, written out here because
+# nothing else in the payload needs it. Machado, Oliveira & Fernandes (2009) at severity
+# 1.0 in linear sRGB, and OKLab for the distance — the pair the field uses, so the numbers
+# below are the ones a reader of the literature would expect.
+_CVD = {
+    "protan": (
+        (0.152286, 1.052583, -0.204868),
+        (0.114503, 0.786281, 0.099216),
+        (-0.003882, -0.048116, 1.051998),
+    ),
+    "deutan": (
+        (0.367322, 0.860646, -0.227968),
+        (0.280085, 0.672501, 0.047413),
+        (-0.011820, 0.042940, 0.968881),
+    ),
+}
+
+
+def _linear(hex_colour):
+    raw = [int(hex_colour[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    return [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in raw]
+
+
+def _oklab(rgb):
+    r, g, b = rgb
+    l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (
+        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+    )
+
+
+def _contrast(a, b):
+    def luminance(colour):
+        r, g, bl = _linear(colour)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+
+    hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _apart(a, b, vision=None):
+    def seen(colour):
+        rgb = _linear(colour)
+        if vision is None:
+            return _oklab(rgb)
+        return _oklab([sum(w * c for w, c in zip(row, rgb)) for row in _CVD[vision]])
+
+    return math.dist(seen(a), seen(b)) * 100
+
+
+def _palette(theme, block):
+    """The series steps and the paper they sit on, read out of one scheme's token block."""
+    steps = dict(re.findall(r"--series-(\d+):\s*(#[0-9a-f]{6})", block))
+    paper = re.search(r"--paper:\s*(#[0-9a-f]{6})", block)[1]
+    assert steps, "no series tokens in this block"
+    return [steps[str(n)] for n in range(1, len(steps) + 1)], paper
+
+
+def test_the_series_palette_clears_the_floors_it_claims_to():
+    """The theme's comment beside these tokens tells the next editor to check them rather
+    than look at them, and until this test there was nothing to check them with — the
+    syntax roles have UNREAD_SYNTAX in the render gate and the series steps had the
+    honour system. What made the argument was the first attempt at the line, chosen by
+    eye: its blue and its plum came out 0.3 apart under simulated deuteranopia, which is
+    one colour to a reader who has no way to tell us.
+
+    Every pair rather than the neighbours, because a stacked bar puts any two of them
+    edge to edge, and both palettes, because the dark steps are stepped against a
+    brown-black rather than lightened from the light ones. The registry's $series.steps
+    is counted against the tokens in the same breath: it is what a chart refuses a series
+    past, and a palette one step longer than the number it publishes would refuse a
+    series it has a colour for."""
+    theme = (schema_model.ASSETS / "theme.css").read_text()
+    light, dark = theme.split("prefers-color-scheme: dark")
+    declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
+        "$series"
+    ]["steps"]
+
+    for scheme, block in (("light", light), ("dark", dark)):
+        steps, paper = _palette(theme, block)
+        assert len(steps) == declared, (
+            f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
+        )
+        faint = [c for c in steps if _contrast(c, paper) < 3.0]
+        assert not faint, f"{scheme}: {faint} under 3:1 against {paper}"
+        pairs = [(a, b) for i, a in enumerate(steps) for b in steps[i + 1 :]]
+        blind = min(
+            (min(_apart(a, b, "protan"), _apart(a, b, "deutan")), a, b)
+            for a, b in pairs
+        )
+        assert blind[0] >= 8.0, (
+            f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
+        )
+        seen = min((_apart(a, b), a, b) for a, b in pairs)
+        assert seen[0] >= 15.0, (
+            f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        )

@@ -513,6 +513,40 @@
     "x-wide": "drawing",
     "x-example": "<lf-diagram id=\"checkout-flow\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\ngraph LR\n  Cart --> Pay\n  Pay --> Receipt\n</pre></lf-diagram>"
   },
+  "lf-chart": {
+    "description": "A chart drawn from a comma-separated body: the header row names the x column and then one column per series, and every row after it is one x value and its numbers (blank where a series has none). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). `kind` says which picture — bars (a group of bars per x value), rows (horizontal bars, for long names or a ranking), stack (bars stacked into a total, so no negatives), line (a run over time or an ordered x), dots (two numbers against each other, x column numeric). `y` names what the numbers are. A bar's x is one slot per row whatever it says; a line or a scatter reads its column, so dates (2026-06-01, or 2026-06 for a month) get a time axis and numbers a numeric one. Two rows may not share an x value, and a series column may not be empty. At most $series.steps series — fold the small ones together or split the chart. There is no pie, because the comparison it asks for is between angles and the comparison bars ask for is between lengths. Comments anchor to the required id, not to text inside the drawing.",
+
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "kind": {
+        "enum": [
+          "bars",
+          "rows",
+          "stack",
+          "line",
+          "dots"
+        ]
+      },
+      "y": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "y"
+    ],
+    "additionalProperties": false,
+    "x-content": "data",
+    "x-upgrade": true,
+    "x-visual": true,
+    "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
+  },
   "lf-shot": {
     "description": "A before/after pair of screenshots of one view, shown one at a time in a single frame: the reader clicks the image itself to swap the two, and the change is the only thing on screen that moves. The frame is the target rather than a control beside it, so the pointer rests on the change and alternates without re-aiming — which is the whole of what a flip is worth, and what a switch under the image spends. A switch sits there anyway for the keyboard, and the caption in the corner says which state is up. `before` and `after` are served image paths — `leaf page media <page> <file>…` copies files into the page directory and prints the path to write, which is the only way an image gets onto a page (a screenshot is far too many bytes to inline). `alt` says what the pair shows, for a reader who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the reader flips it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
     "type": "object",

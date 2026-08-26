@@ -212,6 +212,27 @@
      to it too. */
   --syn-comment: #696458; --syn-keyword: #a3372c; --syn-string: #1d4f6b;
   --syn-number: #2f5480;  --syn-name: #6b4a9e;    --syn-type: #8a5a12;
+
+  /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
+     drawn: these are the most a reader can hold apart, and a palette that runs out and
+     starts again tells them two series are one. They are their own family rather than
+     --accent, --ok, --warn and --danger reused, because those four say something on this
+     page — a decision's link, a passing check, a warning — and a bar wearing one would
+     be making that claim about a number.
+     Not chosen by eye. The first attempt at this line was, and its blue and its plum
+     came out 0.3 apart under deuteranopia — the same color, to a reader who has no way
+     to tell us. So the steps are stepped to clear the measurable floors: every pair
+     (not merely the neighbors, since a stacked bar puts any two of them edge to edge)
+     at least 8 apart in OKLab ΔE×100 under simulated protanopia and deuteranopia, at
+     least 15 apart under ordinary vision, chroma above the point where a hue reads as
+     gray, and 3:1 against the paper they sit on. Worst pair here is 9.5 and 17.8, which
+     leaves a little room to move one without having to re-derive the set. The floors are
+     a test rather than a note asking to be remembered
+     (test_the_series_palette_clears_the_floors_it_claims_to), and it counts the steps
+     against $series.steps in the same breath, that being what a chart refuses a sixth
+     series against. */
+  --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
+  --series-4: #6c489a; --series-5: #8c2d2a;
 }
 
 /* The dark palette is the same page at night, not its inverse: the ground keeps
@@ -233,6 +254,12 @@
     --add-tint: #1b2a1c; --del-tint: #33201b; --hi-tint: #342d14;
     --syn-comment: #a29a8b; --syn-keyword: #e59a8c; --syn-string: #9dc4dd;
     --syn-number: #a8c4e2;  --syn-name: #c3a8de;    --syn-type: #dcb27e;
+    /* Stepped against this ground rather than lightened from the light set: the band a
+       mark has to sit in over a brown-black is a different band, and the five above
+       leave it at both ends. Same hues, same floors, checked the same way (worst pair
+       9.2 and 17.2). */
+    --series-1: #2b8ecd; --series-2: #ce7600; --series-3: #50a069;
+    --series-4: #7a4faf; --series-5: #b13d54;
   }
 }
 

@@ -184,12 +184,12 @@ it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.
 
 Give a structure its own shape rather than describing it in sentences. A flow or
-a sequence is a diagram, a comparison is a table, a measurement is a metric, a
-set of movable things is a board, and the prose beside one says only what the
-shape cannot. What is left for prose is the claim, the reason it holds, and the
-question the page is asking. A few sentences hold all three. A section that runs
-longer is carrying either a structure with a shape of its own or backing that
-belongs under `<details>`.
+a sequence is a diagram, a comparison is a table, a measurement is a metric and a
+run of them is a chart, a set of movable things is a board, and the prose beside
+one says only what the shape cannot. What is left for prose is the claim, the
+reason it holds, and the question the page is asking. A few sentences hold all
+three. A section that runs longer is carrying either a structure with a shape of
+its own or backing that belongs under `<details>`.
 
 Write for what the reader has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
@@ -201,10 +201,14 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task awaits a decision. Do not
 copy the connective sentence from another page.
 
-Use `lf-diagram` for anything mermaid draws, charts among them, and inline SVG
-only for a bespoke drawing. Use `<pre><code class="language-…">` for selectable literal
-source and `lf-code` for a line-numbered walkthrough. The catalog lists accepted
-language names. Keep logs and transcripts plain when they are not source code.
+Use `lf-diagram` for what mermaid draws — a flow, a sequence, a state machine —
+and `lf-chart` for quantities: a comparison across a few categories, a run over
+time, a ranking, a composition, two numbers against each other. A handful of numbers the sentence beside them can
+carry is prose; a chart is for when the shape of the numbers is the point. Use
+inline SVG only for a bespoke drawing. Use `<pre><code class="language-…">` for
+selectable literal source and `lf-code` for a line-numbered walkthrough. The
+catalog lists accepted language names. Keep logs and transcripts plain when they
+are not source code.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

@@ -12,11 +12,18 @@ from render_support import (
     ASK_WITH_CONTEXT_PAGE,
     ASKS_IN_ORDER,
     ASKS_PAGE,
+    BAD_CHART_PAGE,
     BOARD_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
+    CHART_COLLISIONS,
+    CHART_IN_A_MESSAGE_PAGE,
+    CHART_MARKS,
+    CHART_MARKUP,
+    CHART_PAGE,
     COLLAPSED_PAGE,
     CONVERSATION_DIFF_PAGE,
+    CROWDED_CHART_PAGE,
     HOLD_MOTION,
     LONG_PAGE,
     MESSAGE_ROOM_PAGE,
@@ -2228,5 +2235,362 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
         "LF-NEW",
     ], f"the ring reached past the page's own boxes: {marks}"
     expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+# Charts. Every reading here is of the composed drawing rather than of the body it was
+# built from: the body is the one thing that cannot be wrong, and everything between it
+# and the picture is the module.
+DREW = {
+    # kind: (series, marks each, the element each series is drawn as)
+    "c-bars": (2, 3, "rect"),
+    "c-rows": (1, 2, "rect"),
+    "c-stack": (2, 2, "rect"),
+    "c-line": (1, 1, "path"),
+    "c-dots": (1, 3, "circle"),
+}
+
+
+def test_every_number_in_a_chart_body_reaches_the_drawing(browser, serve):
+    """A chart that drew nothing still has a box, an axis and no console error, so the
+    render gate passes it: the drawing is the one part of a chart that no other reading
+    is looking at. Each kind is counted rather than merely found, because the module
+    walks a different route to each mark — a bar's height comes from a pair of bounds, a
+    stacked bar's from a running total, a line's from one path over every point — and a
+    route that dropped the last row of its body would leave a chart that still reads as
+    a chart."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+    for widget, (count, each, tag) in DREW.items():
+        drew = page.evaluate(CHART_MARKS, widget)
+        assert drew, f"{widget} drew nothing at all"
+        assert [s["n"] for s in drew["series"]] == list(range(1, count + 1)), (
+            widget,
+            drew,
+        )
+        for series in drew["series"]:
+            assert (series["shapes"], series["tag"].lower()) == (each, tag), (
+                widget,
+                series,
+            )
+    assert errors == []
+    page.close()
+
+
+def test_a_bar_s_length_is_the_number_it_stands_for(browser, serve):
+    """Counting the marks says a chart drew; it never says the drawing is the body.
+
+    Three separate defects lived in exactly that gap and every one of them kept the mark
+    count right — two rows sharing an x value drew one bar hidden behind another at a
+    width nothing else on the page was drawn to, a negative segment in a stack drew over
+    the bar below it and read as the total it was meant to reduce, and a fractional
+    series put its own axis labels outside the drawing. So this reads the painted
+    rectangles: their heights against the numbers they stand for, and their widths
+    against the cap the file states, which is the reading that would have caught all
+    three.
+
+    A ratio rather than a pixel count, because the plot's height is the widget's business
+    and the proportion is the chart's claim. Both series, because they are drawn by two
+    marks against one scale, and a scale each would be the commonest way for this to be
+    wrong and still look plausible."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+    bars = page.evaluate(
+        """(id) => {
+            const svg = document.getElementById(id).querySelector('svg');
+            return [...svg.querySelectorAll('[class^="lf-series-"]')].map((g) =>
+                [...g.querySelectorAll('rect')].map((r) => {
+                    const box = r.getBoundingClientRect();
+                    return [Math.round(box.height * 100) / 100, Math.round(box.width)];
+                }));
+        }""",
+        arg="c-bars",
+    )
+    # The body CHART_PAGE carries, so a drawing that lost a row or drew one twice cannot
+    # agree with it by accident.
+    numbers = [[12, 19, 14], [7, 11, 17]]
+    scale = bars[0][0][0] / numbers[0][0]
+    assert scale > 1, bars
+    for drew, wanted in zip(bars, numbers, strict=True):
+        assert [round(h / scale, 1) for h, _ in drew] == [float(n) for n in wanted], (
+            drew,
+            wanted,
+            scale,
+        )
+        # 48 is the file's own cap on a bar. A band holding two rows that collapsed into
+        # one measured 137 against it, which no count of marks can see.
+        assert all(w <= 49 for _, w in drew), drew
+    assert errors == []
+    page.close()
+
+
+def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
+    """An axis draws every label it has and stops there, so a column narrower than the
+    labels need gives the reader one long word: five winters at a phone's width read
+    2021-222022-232023-242024-252025-26, on a page that had already shipped. The bars are
+    all still drawn, so a count of marks says the chart is fine and so does every other
+    reading the gate has.
+
+    Every pair of words rather than the neighbours, because the pairs that go wrong are
+    not always adjacent: the value label of a row chart is anchored to the far end of its
+    own axis and lands on the last tick, which it did at every width including the one the
+    corpus is read at.
+
+    A phone first, then the column: a rule that fits a narrow window by dropping labels
+    could drop them everywhere, and the wide reading is what says it did not."""
+    for width in (320, 1200):
+        page, errors = open_page(browser, serve(CROWDED_CHART_PAGE))
+        resized(page, width, 900)
+        page.wait_for_function(
+            """() => [...document.querySelectorAll('lf-chart')].every((el) => {
+                const svg = el.querySelector('svg');
+                return svg && Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
+            })"""
+        )
+        assert page.evaluate(CHART_COLLISIONS) == [], width
+        # And the labels that survive still name the bands, rather than the axis giving up
+        # and drawing none of them.
+        assert (
+            page.evaluate(
+                """() => document.querySelectorAll(
+                 '#crowd-band [data-lf-part="x-axis tick label"] text').length"""
+            )
+            > 0
+        )
+        assert errors == []
+        page.close()
+
+
+def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):
+    """A drawing is where the body went. The module replaces the widget's own <pre> with
+    it, so after the upgrade the numbers exist on the page as geometry and nowhere else —
+    a reader on a screen reader is handed a picture and told it is a picture. The label
+    is the words back, and it carries the numbers rather than a summary of them, because
+    a summary answers a question nobody asked instead of the one the chart is about."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+    said = page.locator("#c-bars svg").get_attribute("aria-label")
+    assert "merged by quarter" in said, said
+    for series, numbers in (("apps", ("12", "19", "14")), ("infra", ("7", "11", "17"))):
+        assert f"{series}: " in said, said
+        for quarter, number in zip(("Q1", "Q2", "Q3"), numbers):
+            assert f"{quarter} {number}" in said, (quarter, number, said)
+    # And the drawing is one picture rather than a tree of unreachable tick labels.
+    assert page.locator("#c-bars svg").get_attribute("role") == "img"
+    assert errors == []
+    page.close()
+
+
+def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
+    """The colour of a series is the stylesheet's answer to a class, and nothing else.
+
+    The alternative is what a diagram has to do: resolve the tokens in JavaScript and
+    write the values into the drawing. That freezes the browser it was drawn in — a copy
+    exported from a light window opens as a light slab for a dark reader, and a scheme
+    flipped mid-read leaves the drawing behind. So this asserts both halves: that each
+    series is painted the token it names, and that no hex colour was written into the
+    drawing at all. The flip is made with no reload, so the nodes under it are the same
+    nodes; a module that had painted them would fail here and pass every static check."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+
+    def worn():
+        drew = page.evaluate(CHART_MARKS, "c-bars")
+        assert drew["painted"] == [], drew["painted"]
+        return [(s["token"], s["worn"]) for s in drew["series"]]
+
+    light = worn()
+    for token, paint in light:
+        assert token in paint, (token, paint)
+    assert light[0][0] != light[1][0], "two series wearing one colour proves nothing"
+
+    page.emulate_media(color_scheme="dark")
+    dark = worn()
+    for token, paint in dark:
+        assert token in paint, (token, paint)
+    assert [t for t, _ in dark] != [t for t, _ in light], (
+        "the dark palette must differ, or the flip proves nothing"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
+    browser, serve
+):
+    """A drawing that scales takes its labels with it. That is what a diagram does, and
+    at 63% of its natural size a five-node flowchart's labels went under legibility; a
+    chart has no natural size to keep, so it is drawn again for the width it now has and
+    its text stays the size the theme set. The room changes for reasons a reader never
+    asked about — a window narrower than the column, the comment panel taking its strip
+    out of one — so this is the ordinary case rather than a window somebody dragged."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+    before = page.evaluate(CHART_MARKS, "c-bars")
+    assert before["width"] == before["room"], before
+
+    # Narrower than the column, which is where the room actually changes: the column is
+    # capped, so a wider window leaves a chart exactly where it was.
+    resized(page, 620, 900)
+    page.wait_for_function(
+        """(id) => {
+            const el = document.getElementById(id), svg = el.querySelector('svg');
+            return svg && Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
+        }""",
+        arg="c-bars",
+    )
+    after = page.evaluate(CHART_MARKS, "c-bars")
+    assert after["room"] < before["room"], (before, after)
+    # The painted box of a tick label, not its computed font-size: a drawing scaled by its
+    # viewBox keeps the same computed size and renders smaller, so the property this test
+    # is about is invisible to the one reading and plain in the other.
+    assert after["tick"] == before["tick"], (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve):
+    """The body is the author's, and the author is the only party who can fix it, so a
+    refusal names the row rather than the exception. Two refusals, because they are
+    different claims: a cell that is not a number is a typo, and a sixth series is a
+    palette that has no step for it — the colours are stepped to stay apart under
+    colour-blind vision, and a seventh drawn in the second's colour is a chart that lies
+    to some readers and to no others."""
+    page, errors = open_page(browser, serve(BAD_CHART_PAGE))
+    cell = page.locator("#bad-cell .lf-error").inner_text()
+    assert "row 3" in cell and "twelve" in cell, cell
+    count = page.locator("#bad-count .lf-error").inner_text()
+    assert "6 series" in count and "at most 5" in count, count
+    # The three a mark count cannot see. A repeated x draws one row on top of another in
+    # the band they share, a negative segment draws over the bar it was meant to shorten
+    # and the column reads as the total without it, and a blank column takes a colour and
+    # a line in the key for a series that is never drawn.
+    assert "share the x value Q1" in page.locator("#bad-twice .lf-error").inner_text()
+    assert "cannot be negative" in page.locator("#bad-sign .lf-error").inner_text()
+    assert "infra has no numbers" in page.locator("#bad-blank .lf-error").inner_text()
+    # The source stays under the message: a refusal the reader cannot check is half a
+    # refusal.
+    expect(page.locator("#bad-cell .lf-error pre")).to_contain_text("Q2, twelve")
+    # A refusal is a box, never a console line: a body the module will not draw is the
+    # author's to fix and nobody else's to hear about, and an error on the console is a
+    # render-gate finding on every page that carries one.
+    assert errors == []
+    page.close()
+
+
+def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
+    """`new Date("2026-06-01")` is UTC midnight, and a scale that renders it in the
+    reader's own zone puts it under May 31 for everybody west of Greenwich — a chart of
+    daily totals silently one day out, in some readers' browsers and not the author's.
+    The context is pinned to a zone where that is true, and the page is asked to confirm
+    it: without that confirmation this test passes on a machine whose clock happens to
+    be UTC, which is most of them in a container."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        color_scheme="light",
+        timezone_id="America/Anchorage",
+    )
+    page, errors = open_page(browser, serve(CHART_PAGE), context=context)
+    assert page.evaluate('() => new Date("2026-06-01").getDate()') == 31, (
+        "the context must sit west of Greenwich, or the reading proves nothing"
+    )
+    ticks = page.evaluate(
+        """() => [...document.querySelectorAll(
+             '#c-line [data-lf-part="x-axis tick label"] text')].map(t => t.textContent)"""
+    )
+    assert ticks, "the line chart must draw a dated axis"
+    assert not any("May" in tick or "31" in tick for tick in ticks), ticks
+    assert any("Jun" in tick for tick in ticks), ticks
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
+    """A chart redraws for a new width, and the runtime writes inside widgets.
+
+    The line saying a comment stands on this chart is a child of the element, put there by
+    the anchor pass. Replacing the element's children to hold the new drawing took it away
+    — and took it away at the moment the reader narrowed the window or opened the panel to
+    read that very comment, for the life of the tab, since nothing puts it back. So the
+    drawing lives in a box of its own and the redraw replaces what is in that box.
+
+    The room is changed by the window rather than by the panel, because the panel's strip
+    is a layout the test would then be asserting about; what this is about is that a
+    redraw happened at all, which the drawing's own width says."""
+    page, errors = open_page(
+        browser, serve(CHART_PAGE, anchored=[("c-bars", "")]), context=None
+    )
+    read = """() => {
+        const el = document.getElementById('c-bars');
+        return { room: Math.round(el.clientWidth),
+                 notes: el.querySelectorAll('.lf-ui').length,
+                 drawn: Number(el.querySelector('svg').getAttribute('width')) };
+    }"""
+    before = page.evaluate(read)
+    assert before["notes"] > 0, "the fixture must hang a comment line on the chart"
+
+    resized(page, 620, 900)
+    page.wait_for_function(
+        """(was) => {
+            const el = document.getElementById('c-bars'), svg = el.querySelector('svg');
+            return svg && Number(svg.getAttribute('width')) !== was;
+        }""",
+        arg=before["drawn"],
+    )
+    after = page.evaluate(read)
+    assert after["drawn"] < before["drawn"], (before, after)
+    assert after["notes"] == before["notes"], (before, after)
+    assert errors == []
+    page.close()
+
+
+def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none(
+    browser, serve
+):
+    """A chart is drawn to the room it has, and a widget upgrades wherever the runtime
+    connects it — including a message body inside a comment panel nobody has opened,
+    which is `display: none` and has no room at all. Drawn there it would be a drawing
+    720 pixels of nothing wide, and `once` refuses the second upgrade that would put it
+    right, so the reader would open the panel onto an empty box for the life of the tab.
+
+    The reply is in the log before the page loads and the panel is shut, which is the
+    only arrangement that reproduces it: a reply arriving into an open panel has boxes
+    already."""
+    url = serve(CHART_IN_A_MESSAGE_PAGE)
+    d = serve.page_dir
+    events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-chart",
+            "author": "user",
+            "version": 1,
+            "text": "How did the quarter go?",
+        },
+    )
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-chart",
+            "version": 1,
+            "text": "Like this:",
+            "markup": CHART_MARKUP.format(id="msg-chart"),
+        },
+    )
+    page, errors = open_page(browser, url)
+    assert (
+        page.evaluate("() => document.getElementById('msg-chart').clientWidth") == 0
+    ), "the panel must be shut, or there was a box all along"
+
+    page.locator(".lf-comments").click()
+    expect(page.locator("#msg-chart svg")).to_be_visible()
+    page.wait_for_function(
+        """() => {
+            const el = document.getElementById('msg-chart'), svg = el.querySelector('svg');
+            return svg && Number(svg.getAttribute('width')) === Math.round(el.clientWidth);
+        }"""
+    )
+    drawn = page.evaluate(CHART_MARKS, "msg-chart")
+    assert drawn["room"] > 100, drawn
+    assert [s["shapes"] for s in drawn["series"]] == [2], drawn
     assert errors == []
     page.close()

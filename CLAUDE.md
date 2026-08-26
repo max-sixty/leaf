@@ -585,3 +585,9 @@ same languages.
 
 `scripts/vendor-marked.sh` copies the pinned, dependency-free
 `vendor/marked.esm.js` used for thread Markdown.
+
+`scripts/vendor-plot.sh` rebuilds
+`plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js`, which draws
+`lf-chart`. Observable Plot publishes no entry point a browser can load — its
+ESM imports d3 by bare specifier and its UMD build leaves d3 external — so this
+bundles the two together, the way the highlight bundle is built.

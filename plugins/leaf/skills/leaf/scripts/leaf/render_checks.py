@@ -1466,21 +1466,34 @@ BAKE = """() => {
         root.querySelectorAll('.lf-work-line').forEach(el => el.remove());
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
     // A measurement of this window is not a fact about the reader's. The live page
-    // measures two of them and states each inline on the root — the room a wide widget
-    // may take (syncLayout) and the width of the page's own box, which is what the
-    // margin strips are sized against (stateStrip) — and an inline value outranks every
-    // rule a stylesheet could write, so a copy carrying either would hold whatever width
-    // the exporter's headless window happened to have, on a file whose whole point is
-    // being opened somewhere else. Each rule that reads one falls back to the viewport,
-    // which is honest in a copy: no panel takes a strip from a file, and no session grows
-    // one. Taken off the way the chrome above is, rather than guarded against in the
-    // theme, because the stale number is the thing that is wrong here and a rule written
-    // around it would leave it there to be read by the next thing that asks.
+    // measures its own box and states the numbers inline on the root — the room a wide
+    // widget may take (syncLayout), the width the margin strips are sized against
+    // (stateStrip), the width each edge stands at, the rail a suggestion's controls
+    // hang in — and an inline value outranks every rule a stylesheet could write, so a
+    // copy carrying one holds whatever width the exporter's headless window happened to
+    // have, on a file whose whole point is being opened somewhere else. Each rule that
+    // reads one falls back to the viewport, which is honest in a copy: no panel takes a
+    // strip from a file, and no session grows one. Taken off the way the chrome above
+    // is, rather than guarded against in the theme, because the stale number is the
+    // thing that is wrong here and a rule written around it would leave it there to be
+    // read by the next thing that asks.
     //
-    // The width each edge stands at is the same kind of number and goes for the same
-    // reason rather than because anything in a copy reads it: both are stated on the
-    // root by the same hand, and each is a fact about a region this file hasn't got and
-    // about a reader who is not the one opening it.
+    // Named, and the names are the point. What goes is a measurement whose subject
+    // this file no longer has: the panel and the tray are removed with the chrome
+    // above, and the room and the available width are read off a window that is not
+    // the reader's. A copy drops what it hasn't got.
+    //
+    // It keeps what it still has, which is why `--rail` is not on this list and must
+    // not be added to it. The rail is the width of the margin a suggestion's controls
+    // stand in, and a decided change keeps that control — the record of what was
+    // decided is the whole reason the margin was reserved. Cleared, the copy reads its
+    // room off the viewport, knows nothing of the row still sitting in the margin, and
+    // spends the surplus on the free side: the exported board stood 35px outside the
+    // page's box at a laptop's width and 47px at a narrow one, off the left, where
+    // overflow scrolls nothing and the columns are not cut off with a way to reach
+    // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
+    // that, and it is what a sweep of every inline custom property on the root ran
+    // into: read as a stale number, the rail is the one that is not.
     for (const stale of ['--lf-room', '--lf-avail', '--lf-panel-w', '--lf-tray-w'])
         document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has

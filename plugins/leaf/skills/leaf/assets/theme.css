@@ -1082,6 +1082,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           font-size: var(--t-6); }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
+.lf-conversation-head .lf-edited { color: var(--muted-2); }
 .lf-conversation-body { margin-top: 2px; }
 .lf-conversation-body > :first-child { margin-top: 0; }
 .lf-conversation-body > :last-child { margin-bottom: 0; }

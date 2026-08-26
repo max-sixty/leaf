@@ -51,20 +51,28 @@ export function createConversationMessages(dependencies) {
         reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`);
       }));
 
-  // Bodies are cached per event id and re-adopted when a thread node is rebuilt — which
-  // the reconcile leaves one occasion for, a thread resolving. The log is append-only,
-  // so a message's text never changes, and re-adopting the node keeps a widget in a reply
-  // (a rendered diagram) from re-upgrading across that rebuild.
+  // Bodies are cached per message id and re-adopted when a thread node is rebuilt — which
+  // the reconcile leaves one occasion for, a thread resolving. An edit is a later log
+  // event folded onto that id, so it replaces only the text wrapper. The frozen markup
+  // beside it keeps its nodes: a widget in a reply may already hold reader state, and
+  // re-upgrading it over a prose correction would turn the edit into a second transition.
   const msgBodies = new Map();
+  function paintMsgText(text, m) {
+    if (m.suggestion) text.textContent = m.text;
+    else text.innerHTML = renderMarkdown(m.text);
+  }
+
   function buildMsgBody(m) {
     const body = el("div", "lf-msg-body");
+    const text = el("div", "lf-msg-text");
+    body.append(text);
     if (m.suggestion) {
       // Verbatim: a suggestion's characters are bound for the page as typed, and a
       // rendering would show an italic where the next version carries the asterisks.
       body.classList.add("lf-suggest-body");
-      body.textContent = m.text;
+      paintMsgText(text, m);
     } else {
-      body.innerHTML = renderMarkdown(m.text);
+      paintMsgText(text, m);
       // The widget markup beside the text, injected as the CLI gate validated it. A
       // template is deliberately inert: an already-defined custom element's constructor
       // runs even in a detached ordinary div, which would make generated state look like
@@ -97,7 +105,46 @@ export function createConversationMessages(dependencies) {
       // waits. Each block already fails soft to its own plain source.
       highlightBlocks(body);
     }
-    return body;
+    return { body, revision: m.edited?.id ?? "", text };
+  }
+
+  function msgBody(m) {
+    let rendered = msgBodies.get(m.id);
+    if (!rendered) {
+      rendered = buildMsgBody(m);
+      msgBodies.set(m.id, rendered); // the id is server-minted, on every message event
+    }
+    const revision = m.edited?.id ?? "";
+    if (rendered.revision !== revision) {
+      paintMsgText(rendered.text, m);
+      if (!m.suggestion) highlightBlocks(rendered.text);
+      rendered.revision = revision;
+    }
+    return rendered.body;
+  }
+
+  function syncEdited(head, m) {
+    let edited = head.querySelector(":scope > .lf-edited");
+    if (!m.edited) {
+      edited?.remove();
+      return;
+    }
+    if (!edited) {
+      edited = el("span", "lf-edited", "edited");
+      head.append(edited);
+    }
+    edited.title = `Edited ${ago(m.edited.ts)}`;
+  }
+
+  function syncMsgNode(div, m) {
+    const head = div.querySelector(":scope > .lf-msg-head");
+    const when = head.querySelector(":scope > time");
+    const said = ago(m.ts);
+    if (when.textContent !== said) when.textContent = said;
+    syncEdited(head, m);
+    const body = msgBody(m);
+    const standing = div.querySelector(":scope > .lf-msg-body");
+    if (standing !== body) standing?.replaceWith(body);
   }
 
   function msgNode(m) {
@@ -110,15 +157,11 @@ export function createConversationMessages(dependencies) {
     const when = el("time", "", ago(m.ts));
     when.dateTime = m.ts;
     head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
-    let body = msgBodies.get(m.id);
-    if (!body) {
-      body = buildMsgBody(m);
-      msgBodies.set(m.id, body); // the id is server-minted, on every event
-    }
     div.append(head);
     if (m.suggestion)
       div.append(el("div", "lf-suggest-label", "suggested replacement"));
-    div.append(body);
+    div.append(msgBody(m));
+    syncEdited(head, m);
     return div;
   }
 
@@ -161,5 +204,12 @@ export function createConversationMessages(dependencies) {
 
   const renderMessageMarkdown = (text) => renderMarkdown(text);
 
-  return { anchorLabel, loadMarked, msgNode, renderMessageMarkdown };
+  return {
+    anchorLabel,
+    loadMarked,
+    msgNode,
+    renderMessageMarkdown,
+    syncEdited,
+    syncMsgNode,
+  };
 }

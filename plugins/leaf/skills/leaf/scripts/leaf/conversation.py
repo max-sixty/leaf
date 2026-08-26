@@ -95,6 +95,51 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
 
 
 @contract_writer
+def cmd_edit(page_dir: Path, to: str, text) -> dict:
+    """Append a text revision to one message authored by this agent session.
+
+    The message event is immutable: the edit points back to it, so the log retains
+    every wording while thread folds project the latest one. Markup stays frozen with
+    the original message because reader actions may already rest on widgets it sent.
+    """
+    body = read_text_arg(text)
+    with PageTransaction(page_dir) as page:
+        require_registry(page_dir)
+        events = page.events
+        target = next(
+            (
+                event
+                for event in events
+                if event["kind"] in {"comment", "reply"} and event["id"] == to
+            ),
+            None,
+        )
+        if target is None:
+            known = sorted(
+                event["id"] for event in events if event["kind"] in {"comment", "reply"}
+            )
+            sys.exit(f"unknown comment id {to!r}; known: {known}")
+        if target["author"] != "claude":
+            sys.exit(f"message {to!r} is not agent-authored")
+        identity = message_identity()
+        owner = target.get("session")
+        if not owner:
+            sys.exit(f"message {to!r} has no agent session identity")
+        if owner != identity.get("session"):
+            sys.exit(f"message {to!r} belongs to agent session {owner!r}")
+        return append_event(
+            page,
+            {
+                "kind": "edit",
+                "author": "claude",
+                **identity,
+                "message": to,
+                "text": body,
+            },
+        )
+
+
+@contract_writer
 def cmd_resolve(page_dir: Path, to: str) -> None:
     """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole

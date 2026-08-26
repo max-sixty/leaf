@@ -354,6 +354,13 @@ def test_server_round_trip(server, page_dir):
             "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
             "version": 1,
         },
+        # Message revisions are agent-authored too. The browser cannot turn the
+        # reader into the recorded author of another speaker's words.
+        {
+            "kind": "edit",
+            "message": posted["id"],
+            "text": "rewritten in the browser",
+        },
         ["not", "an", "object"],
     ]:
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())

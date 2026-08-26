@@ -512,27 +512,28 @@ from urllib.parse import (  # noqa: F401 - public facade re-export
 
 import click  # noqa: F401 - public facade re-export
 from jsonschema import Draft202012Validator  # noqa: F401 - public facade re-export
+from leaf_interact.checking import cmd_check
 from leaf_interact.cli import create_cli
 from leaf_interact.document import (
     COLLAPSE_CHARS,  # noqa: F401 - public facade re-export
     COLUMN_FALLBACK,  # noqa: F401 - public facade re-export
     EMPTY,  # noqa: F401 - public facade re-export
-    LF_META,
+    LF_META,  # noqa: F401 - public facade re-export
     OPTIONAL_END,  # noqa: F401 - public facade re-export
-    PAGE_CSP,
+    PAGE_CSP,  # noqa: F401 - public facade re-export
     SECTIONING_TAGS,  # noqa: F401 - public facade re-export
-    _column_width,
-    _overwide_elements,
+    _column_width,  # noqa: F401 - public facade re-export
+    _overwide_elements,  # noqa: F401 - public facade re-export
     _StructParser,  # noqa: F401 - public facade re-export
     capture_anchor,
     collapse,  # noqa: F401 - public facade re-export
-    css_syntax_errors,
-    inline_presentation_override_errors,
+    css_syntax_errors,  # noqa: F401 - public facade re-export
+    inline_presentation_override_errors,  # noqa: F401 - public facade re-export
     page_passages,  # noqa: F401 - public facade re-export
-    parse_structure,
+    parse_structure,  # noqa: F401 - public facade re-export
     parse_version,
-    root_tokens,
-    spoken,
+    root_tokens,  # noqa: F401 - public facade re-export
+    spoken,  # noqa: F401 - public facade re-export
     version_review_mode,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.events import (
@@ -547,11 +548,11 @@ from leaf_interact.events import (
     read_cursor,  # noqa: F401 - public facade re-export
     read_events,
     require_cross_process_locking,  # noqa: F401 - public facade re-export
-    retractions,
+    retractions,  # noqa: F401 - public facade re-export
     standing_work_claims,
     taken_back,
     thread_roots,  # noqa: F401 - public facade re-export
-    thread_structure,
+    thread_structure,  # noqa: F401 - public facade re-export
     undo_error,  # noqa: F401 - public facade re-export
     work_claim_version,
 )
@@ -560,7 +561,7 @@ from leaf_interact.files import (
     _path_location,  # noqa: F401 - public facade re-export
     json_bytes,  # noqa: F401 - public facade re-export
     latest_published,
-    list_versions,
+    list_versions,  # noqa: F401 - public facade re-export
     located,  # noqa: F401 - public facade re-export
     location_is_within,  # noqa: F401 - public facade re-export
     locations_overlap,  # noqa: F401 - public facade re-export
@@ -625,10 +626,10 @@ from leaf_interact.projection import (
     record_lag,
     record_lag_entries,  # noqa: F401 - public facade re-export
     replayed_attrs,  # noqa: F401 - public facade re-export
-    retirable_ids,
-    retirement_holders,
+    retirable_ids,  # noqa: F401 - public facade re-export
+    retirement_holders,  # noqa: F401 - public facade re-export
     rewritten_bodies,
-    state_projection,
+    state_projection,  # noqa: F401 - public facade re-export
     thread_ask_projection,  # noqa: F401 - public facade re-export
     thread_asks,  # noqa: F401 - public facade re-export
 )
@@ -676,7 +677,7 @@ from leaf_interact.rendering import (
     preview_server,  # noqa: F401 - public facade re-export
     previous_version,  # noqa: F401 - public facade re-export
     recurring_resize_observer_error,  # noqa: F401 - public facade re-export
-    render_check,
+    render_check,  # noqa: F401 - public facade re-export
     render_version,  # noqa: F401 - public facade re-export
     resize_observer_error,  # noqa: F401 - public facade re-export
     served,  # noqa: F401 - public facade re-export
@@ -705,7 +706,7 @@ from leaf_interact.schema import (
     PAGE_OWNED_DIRS,  # noqa: F401 - public facade re-export
     PAGE_OWNED_FILES,  # noqa: F401 - public facade re-export
     SERVED_PATH,  # noqa: F401 - public facade re-export
-    VENDORED_FILES,
+    VENDORED_FILES,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.service import (
     PageTransaction,
@@ -740,40 +741,40 @@ from leaf_interact.service import (
 from leaf_interact.validation import (
     DECLARED_WORDS,  # noqa: F401 - public facade re-export
     action_contract_error,  # noqa: F401 - public facade re-export
-    addressable_instance_errors,
-    ask_region_errors,
+    addressable_instance_errors,  # noqa: F401 - public facade re-export
+    ask_region_errors,  # noqa: F401 - public facade re-export
     check_markup,
     declared_action_error,  # noqa: F401 - public facade re-export
     declared_event_error,  # noqa: F401 - public facade re-export
-    declared_word_errors,
+    declared_word_errors,  # noqa: F401 - public facade re-export
     detail_error,  # noqa: F401 - public facade re-export
     event_record_error,  # noqa: F401 - public facade re-export
     fragment_errors,  # noqa: F401 - public facade re-export
     fragment_style_errors,  # noqa: F401 - public facade re-export
     held_comment_error,  # noqa: F401 - public facade re-export
-    id_errors,
+    id_errors,  # noqa: F401 - public facade re-export
     incoming_registry,  # noqa: F401 - public facade re-export
-    language_class_errors,
-    line_ref_errors,
-    media_errors,
-    page_boundary_errors,
+    language_class_errors,  # noqa: F401 - public facade re-export
+    line_ref_errors,  # noqa: F401 - public facade re-export
+    media_errors,  # noqa: F401 - public facade re-export
+    page_boundary_errors,  # noqa: F401 - public facade re-export
     read_text_arg,
-    reference_errors,
+    reference_errors,  # noqa: F401 - public facade re-export
     report_contract_error,
-    report_errors,
+    report_errors,  # noqa: F401 - public facade re-export
     reserved_ids_error,  # noqa: F401 - public facade re-export
     reserved_marker_errors,  # noqa: F401 - public facade re-export
-    restatement_errors,
-    structure_errors,
-    suggestion_errors,
+    restatement_errors,  # noqa: F401 - public facade re-export
+    structure_errors,  # noqa: F401 - public facade re-export
+    suggestion_errors,  # noqa: F401 - public facade re-export
     thread_markup_contract_errors,  # noqa: F401 - public facade re-export
     thread_state,  # noqa: F401 - public facade re-export
     thread_universe,  # noqa: F401 - public facade re-export
-    unpointable_blocks,
+    unpointable_blocks,  # noqa: F401 - public facade re-export
     validate_registry_examples,  # noqa: F401 - public facade re-export
     version_ids,  # noqa: F401 - public facade re-export
     vocabulary_gaps,  # noqa: F401 - public facade re-export
-    widget_errors,
+    widget_errors,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.validation import (
     at as _validation_at,
@@ -1211,252 +1212,6 @@ from leaf_interact.page import (  # noqa: F401 - public facade re-exports
     page_guidance,
     standing_entry,
 )
-
-
-def cmd_check(
-    page_dir: Path,
-    version,
-    render: bool = False,
-    transition_held: bool = False,
-    events_override: list | None = None,
-) -> int:
-    if not transition_held:
-        with flocked(transition_lock(page_dir)):
-            return cmd_check(
-                page_dir,
-                version,
-                render,
-                transition_held=True,
-                events_override=events_override,
-            )
-    versions = list_versions(page_dir)
-    if not versions:
-        sys.exit(
-            f"no versions in {page_dir / 'versions'}; write versions/v1.html first"
-        )
-    selected = version if version is not None else versions[-1]
-    if selected not in versions:
-        sys.exit(f"no v{version}.html in {page_dir / 'versions'}")
-    name = version_name(selected)
-    html = version_path(page_dir, selected).read_text(encoding="utf-8")
-
-    errors = []
-
-    for missing in [f for f in VENDORED_FILES if not (page_dir / f).exists()]:
-        errors.append(
-            f"{missing} missing from the page directory; run `leaf page init` "
-            "to vendor the layer"
-        )
-
-    parser = parse_structure(html)
-    errors.extend(structure_errors(parser))
-    errors.extend(page_boundary_errors(parser))
-
-    scripts = parser.external_scripts
-    if len(scripts) != 1:
-        errors.append(
-            f"expected exactly one external <script src> tag, found {len(scripts)}"
-            + (f": {[s['attrs']['src'] for s in scripts]}" if scripts else "")
-        )
-    elif scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
-        attrs = scripts[0]["attrs"]
-        errors.append(
-            'the only external script must be exactly <script type="module" '
-            f'src="/leaf.js">, found attributes {attrs}'
-        )
-    elif scripts[0]["parent"] != "head" or not scripts[0]["early_head"]:
-        errors.append(
-            "the /leaf.js module must be in <head> before <body> can paint; "
-            "its <head> must be the document's direct, initial head"
-        )
-    stylesheets = parser.stylesheets
-    if len(stylesheets) != 1 or stylesheets[0]["attrs"] != {
-        "rel": "stylesheet",
-        "href": "/theme.css",
-    }:
-        errors.append(
-            "the page must link exactly one stylesheet, always-applicable and exactly "
-            '<link rel="stylesheet" href="/theme.css">, found '
-            f"{[asset['attrs'] for asset in stylesheets]}"
-        )
-    elif stylesheets[0]["parent"] != "head" or not stylesheets[0]["early_head"]:
-        errors.append(
-            "the /theme.css stylesheet must be in <head> before <body> can paint; "
-            "its <head> must be the document's direct, initial head"
-        )
-    declared_csp = [
-        m["content"]
-        for m in parser.http_equivs
-        if m["equiv"].lower() == "content-security-policy"
-    ]
-    if declared_csp != [PAGE_CSP]:
-        errors.append(
-            "the page must declare the layer's one CSP, "
-            f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'
-            + (f" — found {declared_csp}" if declared_csp else "")
-        )
-
-    for meta in parser.lf_metas:
-        where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
-        if meta["name"] not in LF_META:
-            errors.append(f"{where}: unknown lf- meta — known: {sorted(LF_META)}")
-            continue
-        allowed = LF_META[meta["name"]]
-        if allowed is not None and meta["content"] not in allowed:
-            errors.append(
-                f"{where}: content must be one of {sorted(allowed)}, found {meta['content']!r}"
-            )
-
-    errors.extend(id_errors(parser))
-
-    events = read_events(page_dir) if events_override is None else events_override
-    registry = load_registry(page_dir)
-    if registry is not None:
-        errors.extend(widget_errors(parser.lf_elements, registry))
-        errors.extend(addressable_instance_errors(parser.lf_elements, registry))
-        errors.extend(ask_region_errors(parser.lf_elements, registry))
-        errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))
-        errors.extend(language_class_errors(parser.language_blocks, registry))
-        errors.extend(declared_word_errors(parser.lf_elements, registry))
-        errors.extend(line_ref_errors(parser.lf_elements, registry))
-        # A family lint reads its own slots off the registry, so it stands with
-        # the checks that need one — a page missing registry.json has already
-        # been told to vendor the layer, and there is nothing to lint against.
-        errors.extend(
-            suggestion_errors(
-                parser.lf_elements,
-                registry,
-                {e["id"] for e in events if e["kind"] == "comment"},
-            )
-        )
-        for tag, entry in registry.items():
-            if not tag.startswith("lf-"):
-                continue
-            if (
-                entry["x-upgrade"]
-                and not (page_dir / "widgets" / f"{tag}.js").is_file()
-            ):
-                errors.append(
-                    f"registry marks <{tag}> as upgraded but widgets/{tag}.js "
-                    f"isn't vendored; run `leaf page init`"
-                )
-
-    # "Previous" is the last *published* version before this one — the page the
-    # user was actually looking at, which is what `leaf comment` anchors
-    # against and what the browser diffs against. The file before it on disk may be an
-    # abandoned draft no note ever released: ids nobody saw, words nobody could
-    # have decided on. The first published version has no predecessor, so it
-    # stands against an empty one: nothing of its can have been dropped and
-    # nothing decided, which is exactly what makes a `restated` on it an error
-    # like any other unearned one.
-    noted = {e["version"] for e in events if e["kind"] == "note"}
-    earlier = [
-        candidate
-        for candidate in versions
-        if candidate < selected and candidate in noted
-    ]
-    prev, prev_num, was = parse_structure(""), 0, {}
-    if earlier:
-        prev_num = earlier[-1]
-        prev_name = version_name(prev_num)
-        prev_html = version_path(page_dir, prev_num).read_text(encoding="utf-8")
-        prev = parse_structure(prev_html)
-        was = spoken(prev_html, registry or {})
-        # An id may retire when the log has settled what holds it; everything
-        # else must survive, or the anchors on it break.
-        gone = prev.ids - parser.ids
-        # With the family lints above, and for their reason: which ids a settled
-        # widget licenses is the holder/slot declaration's answer, so with no
-        # registry there is nothing to ask it — and every id a decision legitimately
-        # retired would read as dropped, stacked on the "vendor the layer" error the
-        # page already has.
-        if registry is not None:
-            previous_projection = state_projection(
-                events, prev.by_id, was, registry, prev_num
-            )
-            dropped = sorted(
-                gone
-                - retirable_ids(
-                    retirement_holders(prev, registry),
-                    events,
-                    gone,
-                    decisions(previous_projection.actions, registry),
-                    was,
-                )
-            )
-            if dropped:
-                errors.append(
-                    f"ids present in {prev_name} but dropped in {name} "
-                    f"(anchors on them will break): {dropped}"
-                )
-    # And the decisions recorded on the ids that stayed — the reviewer channel's
-    # gate, then its mirror for the agent channel's standing reports.
-    now = spoken(html, registry or {})
-    floors = retractions(events, prev_num)
-    projection = state_projection(
-        events, parser.by_id, now, registry or {}, prev_num, floors
-    )
-    errors.extend(
-        restatement_errors(
-            parser,
-            prev,
-            was,
-            now,
-            prev_num,
-            registry or {},
-            projection,
-            floors,
-        )
-    )
-    errors.extend(report_errors(parser, prev, was, now, registry or {}, projection))
-
-    # Thread markup is frozen in the log and rendered into the panel; a page id
-    # colliding with one would steal its action replays.
-    taken = sorted(parser.ids & thread_structure(events).ids)
-    if taken:
-        errors.append(f"ids already taken by widget markup in a reply: {taken}")
-
-    errors.extend(media_errors(parser, page_dir))
-
-    theme_css = (
-        (page_dir / "theme.css").read_text(encoding="utf-8")
-        if (page_dir / "theme.css").exists()
-        else ""
-    )
-    errors.extend(css_syntax_errors(parser.css, "page <style>"))
-    for number, style in enumerate(parser.inline_styles, 1):
-        errors.extend(css_syntax_errors(style, f"inline style #{number}", block=True))
-    errors.extend(css_syntax_errors(theme_css, "theme.css"))
-    errors.extend(inline_presentation_override_errors(parser))
-    column = _column_width(parser.css, theme_css)
-    errors.extend(_overwide_elements(parser, column, root_tokens(theme_css)))
-
-    if errors:
-        print(f"✗ {name}: {len(errors)} issue(s)", file=sys.stderr)
-        for e in errors:
-            print(f"  - {e}", file=sys.stderr)
-        return 1
-    print(
-        f"✓ {name}: parses, widgets validate, one module script + theme link, "
-        f"ids and decisions carried over, nothing overflows the {column}px column"
-    )
-    # Advice, never a gate: silence is blessed and replay resolves it, but a
-    # log-less reader (a printout, a transcript's audience) sees only the markup,
-    # so say where it lags the log. Loudest at the end of the exchange — the final
-    # version is the page that must read right without the log.
-    current_projection = state_projection(
-        events, parser.by_id, now, registry or {}, selected
-    )
-    for line in record_lag(current_projection, parser.by_id, now, registry or {}):
-        print(f"  · record behind the log — {line}")
-    # Same register, different debt: a block the id rule missed, named while the
-    # author can still cheaply mint one.
-    for line in unpointable_blocks(parser):
-        print(f"  · {line}")
-    # Render only what passed the static half: an unparsable page would drown
-    # the browser's report in consequences of what the lint already named.
-    return render_check(page_dir, selected, transition_held=True) if render else 0
-
 
 at = _validation_at
 _cli_surface = create_cli(globals())

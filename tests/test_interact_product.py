@@ -467,7 +467,8 @@ def test_reply_validates_widget_markup(page_dir):
 
 def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     version = page_dir / "versions" / "v1.html"
-    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    unchosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    version.write_text(unchosen)
     publish(page_dir)
     proposal = events_model.append_event(
         page_dir,
@@ -517,16 +518,30 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version before the agent can resolve it" in unresolved.output
+        "requires a page version that answers its Ask before the agent can resolve it"
+        in unresolved.output
     )
 
-    v2 = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+    unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    (page_dir / "versions" / "v2.html").write_text(unrelated)
+    publish(page_dir, version=2)
+    still_unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert still_unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its Ask before the agent can resolve it"
+        in still_unresolved.output
+    )
+
+    v3 = unchosen.replace(
         "</lf-options>",
         '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
         1,
     )
-    (page_dir / "versions" / "v2.html").write_text(v2)
-    publish(page_dir, version=2)
+    (page_dir / "versions" / "v3.html").write_text(v3)
+    publish(page_dir, version=3)
     resolved = CliRunner().invoke(
         cli_model.cli,
         ["resolve", str(page_dir), "--to", proposal["id"]],

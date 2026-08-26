@@ -7,17 +7,16 @@ from pathlib import Path
 from leaf.data import data_binding_errors, read_data_store
 from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
 from leaf.files import list_versions, version_path
-from leaf.passages import EMPTY, collapse, page_passages, spoken
+from leaf.passages import EMPTY, collapse, spoken
 from leaf.projection import (
     NO_RECORD,
     StateProjection,
     action_subjects,
     asking,
-    decisions,
     enclosing_widgets,
     folded_facet,
     markup_facet,
-    page_ask_projection,
+    page_awaiting_values,
     page_projection,
     projected_action_holders,
     quoted_in,
@@ -232,22 +231,11 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         projection, parser, spk = page_projection(html, events, registry, version)
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
-        passages = page_passages(
-            html, registry, decisions(projection.actions, registry)
-        )
-        _, awaiting_values = page_ask_projection(
-            parser,
-            projection,
-            byid,
-            spk,
-            registry,
-            set(passages.retired) | set(passages.gone),
-            # This door asks whether the request is answered, not whether it is the
-            # reader's to deal with: a conversation standing in the widget's seat
-            # takes it off their list without answering it, and refusing their pick
-            # over their own remark would refuse them the answer they were asked for.
-            set(),
-        )
+        # This door asks whether the request is answered, not whether it is the
+        # reader's to deal with: a conversation standing in the widget's seat
+        # takes it off their list without answering it, and refusing their pick
+        # over their own remark would refuse them the answer they were asked for.
+        awaiting_values = page_awaiting_values(html, parser, projection, spk, registry)
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.

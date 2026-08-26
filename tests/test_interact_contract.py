@@ -1138,6 +1138,23 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
     assert message in result.output
 
 
+def test_a_version_response_requires_a_standing_request(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-diagram"]["x-conversation"] = {
+        "when": {"id": ["flow"]},
+        "response": "version",
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "version response but declares no x-awaits standing request" in result.output
+
+    registry["lf-diagram"]["x-awaits"] = {}
+    assert registry_model.validate_registry(registry, "test registry") is registry
+
+
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [

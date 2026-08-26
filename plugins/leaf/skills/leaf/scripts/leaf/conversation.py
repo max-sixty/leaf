@@ -7,7 +7,12 @@ from pathlib import Path
 from leaf.events import append_event, thread_roots
 from leaf.files import latest_published, version_path
 from leaf.passages import capture_anchor
-from leaf.projection import decisions, page_projection, rewritten_bodies
+from leaf.projection import (
+    decisions,
+    page_awaiting_values,
+    page_projection,
+    rewritten_bodies,
+)
 from leaf.registry import require_registry
 from leaf.service import PageTransaction, contract_writer, message_identity
 from leaf.structure import parse_version
@@ -26,6 +31,17 @@ def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
         sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
     root_id = thread_roots(events)[to]
     return root_id, messages.get(root_id)
+
+
+def _version_response_still_awaiting(page_dir: Path, events: list, root: dict) -> bool:
+    version = latest_published(page_dir, events)
+    if version <= root["version"]:
+        return True
+    registry = require_registry(page_dir)
+    html = version_path(page_dir, version).read_text(encoding="utf-8")
+    projection, parser, spk = page_projection(html, events, registry, version)
+    awaiting = page_awaiting_values(html, parser, projection, spk, registry)
+    return awaiting.get(root["anchor"]["section"], False)
 
 
 @contract_writer
@@ -110,11 +126,11 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
         if (
             root
             and root.get("response") == "version"
-            and latest_published(page_dir, events) <= root["version"]
+            and _version_response_still_awaiting(page_dir, events, root)
         ):
             sys.exit(
-                f"thread {root_id!r} requires a page version before the agent can "
-                "resolve it"
+                f"thread {root_id!r} requires a page version that answers its Ask "
+                "before the agent can resolve it"
             )
         event = {
             "kind": "resolve",

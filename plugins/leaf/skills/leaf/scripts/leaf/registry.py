@@ -538,6 +538,11 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-conversation predicate attributes are authored "
                 f"and static, but {dynamic} are written by value records"
             )
+        if conversation.get("response") and entry.get("x-awaits") is None:
+            raise RegistryError(
+                f"{path}: <{tag}> x-conversation requires a version response but "
+                "declares no x-awaits standing request"
+            )
         data_sources = {spec["source"] for spec in entry.get("x-data", {}).values()}
         if dynamic := sorted(data_sources & mutable_values):
             raise RegistryError(

@@ -14,7 +14,7 @@ from leaf.events import (
     thread_roots,
     thread_structure,
 )
-from leaf.passages import EMPTY, collapse, spoken
+from leaf.passages import EMPTY, collapse, page_passages, spoken
 from leaf.registry import retirement_slots, state_specs
 from leaf.structure import _StructParser, parse_structure
 
@@ -784,6 +784,20 @@ def page_asks(
     return page_ask_projection(
         parser, projection, byid, spk, registry, dropped, with_agent
     )[0]
+
+
+def page_awaiting_values(html, parser, projection, spk, registry: dict) -> dict:
+    """Each current page request's declaration-driven awaiting value."""
+    passages = page_passages(html, registry, decisions(projection.actions, registry))
+    return page_ask_projection(
+        parser,
+        projection,
+        parser.by_id,
+        spk,
+        registry,
+        set(passages.retired) | set(passages.gone),
+        set(),
+    )[1]
 
 
 def thread_ask_projection(

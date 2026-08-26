@@ -13,6 +13,7 @@ export {
   layerFact,
   matchesWhen,
 } from "./registry.js";
+export { FOLD_MS, REDUCED, SCROLL, motion } from "./motion.js";
 export { quietWord } from "./presentation.js";
 export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";

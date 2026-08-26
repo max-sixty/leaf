@@ -23,12 +23,21 @@ record the sequence of implementations that led to the current one.
 helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
-`runtime/composing/` owns shared text-box and composer behavior;
+`runtime/asks/model.js` owns request discovery and folding;
+`runtime/asks/view.js` owns ask chrome, marking, and navigation;
+`runtime/composing/capture.js` owns selection capture and snapping;
+`runtime/composing/surface.js` owns floating comment geometry and page-click routing;
+`runtime/composing/aim.js` owns modifier aim and captured presses;
+`runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
+and selection-composer state;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
+`runtime/presence.js` owns claim freshness and attendance judgment;
+`runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;
+`runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;
@@ -37,7 +46,8 @@ highlight rules;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
-`runtime/anchors.js` owns anchor geometry, paint, and navigation;
+`runtime/navigation.js` owns reader travel and scroller selection;
+`runtime/anchors.js` owns anchor geometry, paint, and anchor-specific travel;
 `runtime/conversation/model.js` owns the thread fold;
 `runtime/conversation/messages.js` owns message rendering;
 `runtime/conversation/placement.js` owns document-order grouping;

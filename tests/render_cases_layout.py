@@ -253,7 +253,10 @@ WIDE_TABLE_PAGE = leaf_page(
 # name, its mechanism in words, and the test that holds it. A test name is one word to
 # the line breaker and most of the measure long, so whether it can break is the whole
 # difference between the theme's second case and a squeezed table — `held` says how
-# each name is written, and nothing else differs between the two pages below.
+# each name is written, and nothing else differs between the two pages below. The
+# names run past ninety characters so that bare they hold the table open on any font:
+# at seventy-nine the bare table scrolled by ten pixels on a Mac and fitted on CI's
+# fonts, where the gate, rightly silent, read as broken.
 def prose_beside_identifiers(held):
     rows = [
         (
@@ -263,7 +266,9 @@ def prose_beside_identifiers(held):
                 " and <code>reply</code>; a record is one or the other, and a token rides"
                 " no suggestion, hold, or markup."
             ),
-            ["test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares"],
+            [
+                "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares_and_refuses_one_it_does_not"
+            ],
         ),
         (
             "In threads",
@@ -272,8 +277,8 @@ def prose_beside_identifiers(held):
                 " agent message ends the wait as a reading of the log, undo restores it."
             ),
             [
-                "test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting",
-                "test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor",
+                "test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting_until_the_next_question",
+                "test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor_whatever_the_version",
             ],
         ),
         (
@@ -283,7 +288,7 @@ def prose_beside_identifiers(held):
                 " order; a stray key disarms and keeps its meaning."
             ),
             [
-                "test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back"
+                "test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back_when_pressed"
             ],
         ),
     ]

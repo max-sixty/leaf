@@ -5,6 +5,28 @@ description: Project-specific guidance loaded by tend workflows alongside CLAUDE
 
 # Running tend — leaf
 
+## Titles say what the problem is
+
+A PR or issue title is read by people who have not seen the diff — in a
+notification, in a run list, in the merge commit that stays on `main`. Leaf's own
+commit titles are imperative and elliptical, and matching that register on a fix
+whose subject is machinery the reader has never met produces a title only its
+author can decode. Keep the imperative voice; drop the ellipsis.
+
+Say plainly what is broken and what goes wrong with it. Name the concrete thing —
+the test, the widget, the command, the tool that failed — rather than a figure
+standing in for it, and skip an "X rather than Y" contrast when Y only means
+something after reading the body.
+
+- "Press again for the tab the driver lost, not the one Chromium never made" →
+  "Retry the click when Playwright never reports the tab it opened"
+- "Give the work-line absence a control rather than a 250ms budget" →
+  "Replace a 250ms sleep in the work-line test with a real control"
+
+Then read the finished title as someone holding only the notification. If it
+needs the body to make sense, rewrite it. The body is where the figure, the
+contrast, and the reading behind them belong.
+
 ## Landing
 
 `CLAUDE.md` says landing is `wt merge`, a direct squash merge, never a PR. That

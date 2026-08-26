@@ -331,6 +331,20 @@ def _render_version_attempt(
                 .map(([tag]) => tag)""",
             widgets,
         )
+        missing_visual_providers = page.evaluate(
+            """(widgets) => Object.entries(widgets)
+                .filter(([, entry]) => entry['x-visual']
+                    && typeof entry['x-visual'] === 'object')
+                .flatMap(([tag]) => [...document.querySelectorAll(tag)]
+                    .map(el => ({
+                        tag,
+                        id: el.id,
+                        missing: ['lfVisualPart', 'lfVisualPartAt']
+                            .filter(name => typeof el[name] !== 'function'),
+                    })))
+                .filter(instance => instance.missing.length)""",
+            widgets,
+        )
         tiny = page.evaluate(TINY_BOXES, widgets)
         unmarkable = page.evaluate(UNMARKABLE_ITEMS)
         overflow = page.evaluate(
@@ -528,6 +542,11 @@ def _render_version_attempt(
                 f"[{scheme}] upgraded widgets did not define their elements: "
                 + ", ".join(f"<{tag}>" for tag in missing_upgrades)
             )
+        found += [
+            f"[{scheme}] <{p['tag']} id={p['id']!r}> declares addressable visual "
+            f"parts but its module does not provide {', '.join(p['missing'])}"
+            for p in missing_visual_providers
+        ]
         if tiny:
             found.append(
                 f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"

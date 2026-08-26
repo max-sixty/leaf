@@ -497,7 +497,7 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     url = serve(PICTURE_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-tree"]["x-visual"] = True  # a widget the runtime has never heard of
+    registry["lf-tree"]["x-visual"] = "whole"  # a widget core has never heard of
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     page, errors = open_page(browser, url)
 

@@ -462,12 +462,17 @@
     "x-upgrade": false
   },
   "lf-diagram": {
-    "description": "A diagram rendered from a mermaid-source body (flowchart, sequence, state…). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). Comments anchor to the required id, not to text inside the SVG.",
+    "description": "A diagram rendered from a mermaid-source body (flowchart, sequence, state…). The body is data, not prose: text inside its <pre>, HTML-escaped (& first, then the angle brackets). A click comments on the whole diagram by default. Flowchart nodes listed in `parts` as `node:SOURCE_ID` take individual comments; the source id is the stable id written before a node's label in Mermaid. Unlisted nodes and diagrams authored without `parts` keep the whole-diagram behavior. `parts` is a flowchart-only contract: declaring it on another Mermaid type is a render error rather than a promise that cannot resolve.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "parts": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^node:[A-Za-z_][A-Za-z0-9_-]*(?:\\s+node:[A-Za-z_][A-Za-z0-9_-]*)*$"
       }
     },
     "required": [
@@ -476,9 +481,11 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
-    "x-visual": true,
+    "x-visual": {
+      "parts": "parts"
+    },
     "x-wide": "drawing",
-    "x-example": "<lf-diagram id=\"checkout-flow\"><pre>\ngraph LR\n  Cart --> Pay\n  Pay --> Receipt\n</pre></lf-diagram>"
+    "x-example": "<lf-diagram id=\"checkout-flow\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\ngraph LR\n  Cart --> Pay\n  Pay --> Receipt\n</pre></lf-diagram>"
   },
   "lf-shot": {
     "description": "A before/after pair of screenshots of one view, shown one at a time in a single frame: the reader clicks the image itself to swap the two, and the change is the only thing on screen that moves. The frame is the target rather than a control beside it, so the pointer rests on the change and alternates without re-aiming — which is the whole of what a flip is worth, and what a switch under the image spends. A switch sits there anyway for the keyboard, and the caption in the corner says which state is up. `before` and `after` are served image paths — `leaf page media <page> <file>…` copies files into the page directory and prints the path to write, which is the only way an image gets onto a page (a screenshot is far too many bytes to inline). `alt` says what the pair shows, for a reader who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the reader flips it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",

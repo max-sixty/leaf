@@ -69,6 +69,32 @@ feeders/
 </pre></lf-tree>
 """,
 )
+PART_DIAGRAM_PAGE = leaf_page(
+    "diagram parts",
+    """
+<h1 id="t">Request path</h1>
+<lf-diagram id="flow" parts="node:S node:H"><pre>
+graph LR
+  S[Start request] --> H[Handle request] --> U[Unlisted result]
+  click H href "https://example.com/handler" "Open handler"
+</pre></lf-diagram>
+""",
+)
+PART_DIAGRAM_V2 = leaf_page(
+    "diagram parts",
+    """
+<h1 id="t">Request path</h1>
+<lf-diagram id="flow" parts="node:S node:H"><pre>
+graph LR
+  U[Unlisted result]
+  H[Handle request]
+  S[Start request]
+  S --> H
+  H --> U
+  click H href "https://example.com/handler" "Open handler"
+</pre></lf-diagram>
+""",
+)
 # A drawing wider than the column on purpose — six nodes across lay out near 1150px
 # against 720 — and a board beside it, so what the assertions turn on is which kind each
 # widget declares rather than that both are widgets.

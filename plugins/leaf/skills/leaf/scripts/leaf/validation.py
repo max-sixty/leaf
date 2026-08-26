@@ -32,6 +32,7 @@ from leaf.registry import (
     require_registry,
     retirement_slots,
     validate_registry,
+    visual_parts,
 )
 from leaf.structure import (
     OPTIONAL_END,
@@ -173,6 +174,22 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
         return (
             "comment holds must name its exact-section anchor on a matching "
             "x-conversation hold target"
+        )
+    return None
+
+
+def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
+    """Why a semantic visual coordinate is not authored on its section."""
+    anchor = event.get("anchor") or {}
+    visual = anchor.get("visual")
+    if not visual:
+        return None
+    section = anchor["section"]
+    available = visual_parts(page_by_id.get(section) or {}, registry)
+    if visual not in available:
+        return (
+            f"visual anchor {visual!r} is not declared on section {section!r}; "
+            f"known: {list(available)}"
         )
     return None
 
@@ -546,6 +563,19 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its items isn't allowed")
+    return errors
+
+
+def visual_part_errors(lf_elements: list, registry: dict) -> list:
+    """A visual's authored part tokens each name one stable generated target."""
+    errors = []
+    for rec in lf_elements:
+        parts = visual_parts(rec, registry)
+        duplicates = sorted({part for part in parts if parts.count(part) > 1})
+        if duplicates:
+            errors.append(
+                f"{at(rec)}: visual part ids must be unique, repeated {duplicates}"
+            )
     return errors
 
 
@@ -1140,6 +1170,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
+        + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_region_errors(parser.lf_elements, registry)
         + language_class_errors(parser.language_blocks, registry)

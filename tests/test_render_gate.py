@@ -454,6 +454,35 @@ def test_the_render_gate_requires_a_declared_conversations_host(browser, serve):
     ) in failures
 
 
+def test_the_render_gate_requires_a_visual_parts_provider(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A part declaration without both browser methods cannot silently fall back.
+
+    The CLI can validate authored tokens without rendering them, so the browser gate
+    holds the other half: every matching instance must implement the generic lookup in
+    both directions before a page carrying semantic visual anchors can publish.
+    """
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"]["properties"]["parts"] = {
+        "type": "string",
+        "minLength": 1,
+    }
+    entries["lf-callout"]["x-visual"] = {"parts": "parts"}
+    registry_path.write_text(json.dumps(entries, indent=2))
+
+    failures = rendering_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+
+    assert any(
+        "declares addressable visual parts but its module does not provide "
+        "lfVisualPart, lfVisualPartAt" in failure
+        for failure in failures
+    ), failures
+
+
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     browser, serve, tmp_path, monkeypatch
 ):

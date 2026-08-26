@@ -3192,7 +3192,8 @@ function updateFab(visual) {
   const anchor = sel ? selectionAnchor(sel) : null;
   if (anchor?.quote.length >= MIN_QUOTE)
     showFab(anchor, ...beside(pageRange(sel).getBoundingClientRect()));
-  else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
+  else if (visual)
+    showFab(visual.anchor ?? { section: visual.id }, visual.x + 6, visual.y - 40);
   else if (fabAnchor?.quote) showFab(null);
 }
 // Where the pointer stopped is not the question; where the selection is, is. The guard
@@ -3260,6 +3261,14 @@ document.addEventListener("mousedown", (ev) => standDown(ev.target));
 // own pictures, and every widget that declares it renders as one.
 const visualSel = () =>
   [...tagsDeclaring((e) => e["x-visual"]), "svg", "img", "figure"].join(",");
+const outerVisualAt = (target) => {
+  const selector = visualSel();
+  let visual = target.closest?.(selector);
+  if (!visual) return null;
+  while (visual.parentElement?.closest(selector))
+    visual = visual.parentElement.closest(selector);
+  return visual;
+};
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the chord
 // answers "which" before the click rather than asking the user to press and find out.
@@ -3279,7 +3288,7 @@ const AIM = {
   modifier: "Alt",
   keys: [],
   label: `${spell("Alt")} click`,
-  does: "Comment on the item under the pointer, whole",
+  does: "Comment on the item under the pointer",
 };
 // What the pointer is over, asked of the page rather than of an event, so pressing the key
 // without moving the mouse answers too — the user holds ⌥ to find out what they would
@@ -3289,7 +3298,9 @@ const AIM = {
 function aimedItem() {
   if (pointer.x < 0) return null;
   const at = document.elementFromPoint(pointer.x, pointer.y);
-  return at && !inChrome(at) ? itemAt(at) : null;
+  if (!at || inChrome(at)) return null;
+  const visual = outerVisualAt(at);
+  return visualPartAt(visual, at)?.element ?? itemAt(at);
 }
 function setAiming(on) {
   aiming = on;
@@ -3351,8 +3362,8 @@ const PRESS_EVENTS = [
   "click",
   "dblclick",
 ];
-// The press the aim has taken — {item} for the ⌥ aim, {design} for design mode — until
-// the next one starts.
+// The press the aim has taken — {item} or {visual} for the ⌥ aim, {design} for design
+// mode — until the next one starts.
 let aimedPress = null;
 function claimPress(ev) {
   // Made and dropped at the same moment, which is the start of a press: a drag already
@@ -3361,7 +3372,15 @@ function claimPress(ev) {
   if (ev.type === "pointerdown") {
     const aim = ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
     const design = !aim && designPress(ev.target) ? designTarget(ev.target) : null;
-    aimedPress = aim ? { item: itemAt(ev.target) } : design ? { design } : null;
+    const visual = aim ? outerVisualAt(ev.target) : null;
+    const visualPart = visualPartAt(visual, ev.target);
+    aimedPress = aim
+      ? visualPart
+        ? { visual: { element: visual, part: visualPart.part } }
+        : { item: itemAt(ev.target) }
+      : design
+        ? { design }
+        : null;
     if (aimedPress) standDown(ev.target);
   }
   if (!aimedPress) return;
@@ -3378,6 +3397,13 @@ function claimPress(ev) {
   if (ev.type !== "click") return;
   const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
   if (aimedPress.item) openOnItem(aimedPress.item, from);
+  else if (aimedPress.visual)
+    openComposer(
+      { section: aimedPress.visual.element.id, visual: aimedPress.visual.part },
+      "",
+      from.left,
+      from.top,
+    );
   else if (aimedPress.design) openOnDesign(aimedPress.design, from);
 }
 for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
@@ -3419,16 +3445,19 @@ document.addEventListener("click", (ev) => {
   }
   const threadId = markAt(ev.clientX, ev.clientY);
   if (threadId) return showThread(threadId);
+  const visual = outerVisualAt(ev.target);
+  // A link keeps its ordinary navigation. The universal Alt-click aim above reaches
+  // a commentable part inside it without letting either gesture do both things.
   if (ev.target.closest?.("a")) return;
-  const sel = visualSel();
-  let visual = ev.target.closest?.(sel);
   if (!visual) return;
-  // Outermost visual: a rendered diagram's inner svg carries a generated id;
-  // the anchor belongs to the widget (or figure) that holds it.
-  while (visual.parentElement?.closest(sel)) visual = visual.parentElement.closest(sel);
   const id = visual.closest("[id]:not(.lf-ui)")?.id;
   if (!id) return;
-  updateFab({ id, x: ev.clientX, y: ev.clientY });
+  const part = visualPartAt(visual, ev.target);
+  updateFab({
+    anchor: part ? { section: id, visual: part.part } : { section: id },
+    x: ev.clientX,
+    y: ev.clientY,
+  });
 });
 
 selectionComposerRuntime = createSelectionComposer(runtime, {
@@ -7126,6 +7155,12 @@ export function itemWord(...args) {
 function itemSays(...args) {
   return anchorRuntime.itemSays(...args);
 }
+function visualPartAt(...args) {
+  return anchorRuntime.visualPartAt(...args);
+}
+function visualPartLabel(...args) {
+  return anchorRuntime.visualPartLabel(...args);
+}
 function resolveAnchor(...args) {
   return anchorRuntime.resolveAnchor(...args);
 }
@@ -7389,6 +7424,7 @@ conversationRuntime = createConversation({
   threadsBox,
   toggleBtn,
   updateSequence,
+  visualPartLabel,
   wireInput,
 });
 

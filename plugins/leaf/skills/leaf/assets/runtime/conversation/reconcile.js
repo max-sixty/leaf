@@ -68,6 +68,7 @@ export function createConversation(dependencies) {
     threadsBox,
     toggleBtn,
     updateSequence,
+    visualPartLabel,
     wireInput,
   } = dependencies;
   let threadList = [];
@@ -94,6 +95,7 @@ export function createConversation(dependencies) {
       renderQuiet,
       renderSaid,
       reportPageError,
+      visualPartLabel,
     });
 
   // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own

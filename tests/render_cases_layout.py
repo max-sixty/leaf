@@ -845,6 +845,49 @@ AIM_PAINT_PAGE = leaf_page(
 </lf-options>
 """,
 )
+# Two items meeting at a seam the browser puts between two whole pixels, held there by a
+# fixed box rather than by flow, so the fraction is the stylesheet's number on every
+# machine instead of whatever the fonts above it came to. A pointer resting in the first
+# third of that pixel is over the lower item and rounds to a whole pixel over the upper
+# one, which is the disagreement AIM_SEAM below goes looking for.
+AIM_SEAM_PAGE = leaf_page(
+    "aim seam",
+    """
+<h1 id="t">Aim seam</h1>
+<div id="seam-stack">
+  <p id="seam-upper">The item above the seam.</p>
+  <p id="seam-lower">The item below the seam.</p>
+</div>
+""",
+    head="""<style>
+  #seam-stack { position: fixed; top: 300.3px; left: 40px; width: 220px; }
+  #seam-stack > p { margin: 0; height: 20px; }
+</style>""",
+)
+# Where the browser's own hit test stops answering the upper item and starts answering the
+# lower one, and a point just past that seam whose whole-pixel rounding still lands short
+# of it. The rounding is not this reading's invention: `mousemove` carries clientX and
+# clientY rounded to whole pixels, so a pointer record kept from one answers about a place
+# the pointer is not, while the press is dispatched against the position it was rounded
+# from. The seam is searched for rather than computed, because a box's hit region is not
+# always its border box — a neighbour's hairline border hit-tests as the cell below it.
+AIM_SEAM = """([above, below]) => {
+  const a = document.getElementById(above), b = document.getElementById(below);
+  const box = a.getBoundingClientRect();
+  const x = Math.round(box.left + box.width / 2) + 0.5;
+  const at = (y) => document.elementFromPoint(x, y)?.closest("[id]")?.id ?? null;
+  let lo = box.top + 1, hi = b.getBoundingClientRect().bottom - 1;
+  if (at(lo) !== above || at(hi) !== below) return null;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid) === above) lo = mid; else hi = mid;
+  }
+  // Halfway between the seam and the point that would round up past it, so the pointer is
+  // over `below` and its rounded twin is over `above`. The caller asserts both, since a
+  // seam that landed on a whole pixel would leave the two agreeing and prove nothing.
+  const y = (hi + Math.floor(hi) + 0.5) / 2;
+  return { x, y, at: at(y), rounded: at(Math.round(y)) };
+}"""
 MARK_PAD = 6  # CSS px of ground kept around the element in the clip
 MARK_NEAR = 12  # per channel, wide enough for the stroke's antialiased shoulder only
 

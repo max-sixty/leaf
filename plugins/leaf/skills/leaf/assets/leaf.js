@@ -406,11 +406,11 @@ window.addEventListener("unhandledrejection", (e) => {
   );
 });
 
-export const { measure } = createMeasurements({ shownBox });
+createMeasurements({ shownBox });
 
 installReachedForWordsGuard();
 
-export const { projectData } = createDataProjection({
+createDataProjection({
   paintAnchors,
   setChildren,
 });

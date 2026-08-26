@@ -1,3 +1,6 @@
+let publishedProjectData;
+export { publishedProjectData as projectData };
+
 export function createDataProjection({ paintAnchors, setChildren }) {
   // Runtime-supplied data is a third kind of page word: it is neither prose the author
   // put in the version nor apparatus the runtime asks the reader to operate. It belongs
@@ -90,5 +93,6 @@ export function createDataProjection({ paintAnchors, setChildren }) {
     return wanted;
   }
 
+  publishedProjectData = projectData;
   return { projectData };
 }

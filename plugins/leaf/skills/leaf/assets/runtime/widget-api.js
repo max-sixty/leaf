@@ -23,11 +23,9 @@ export {
   itemWord,
   keys,
   labelOf,
-  measure,
   movedWords,
   openAsks,
   paintKeys,
-  projectData,
   publishedAt,
   quietSince,
   renderRetired,
@@ -63,11 +61,13 @@ export {
 } from "./registry.js";
 export { FOLD_MS, REDUCED, SCROLL, motion } from "./motion.js";
 export { quietWord } from "./presentation.js";
+export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";
 export { dataBody, failSoft, once, settle } from "./widget-upgrade.js";
 export {
   HIDDEN,
+  measure,
   offer,
   quoted,
   reachedForWords,

@@ -209,7 +209,7 @@ export function createSelectionSurface({
   // that click and the update queued behind its mouseup never matters: no selection speaks
   // for an element anchor, so the selection's absence takes down only a quote, and the
   // queued re-decide lands on the same outcome.
-  function updateFab(visual) {
+  function updateFab(found) {
     if (!anchoringIsReady()) {
       showFab(null);
       return;
@@ -218,8 +218,7 @@ export function createSelectionSurface({
     const anchor = sel ? selectionAnchor(sel) : null;
     if (anchor?.quote.length >= MIN_QUOTE)
       showFab(anchor, ...beside(pageRange(sel).getBoundingClientRect()));
-    else if (visual)
-      showFab(visual.anchor ?? { section: visual.id }, visual.x + 6, visual.y - 40);
+    else if (found) showFab(found.anchor, found.x + 6, found.y - 40);
     else if (fabAnchor?.quote) showFab(null);
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
@@ -310,10 +309,10 @@ export function createSelectionSurface({
     }
     const threadId = markAt(ev.clientX, ev.clientY);
     if (threadId) return showThread(threadId);
-    const visual = visualAt(ev.target);
     // A link keeps its ordinary navigation. The universal Alt-click aim reaches a
     // commentable part inside it without letting either gesture do both things.
     if (ev.target.closest?.("a")) return;
+    const visual = visualAt(ev.target);
     if (!visual) return;
     updateFab({
       anchor: visual.part

@@ -55,6 +55,50 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_the_banner_stands_where_it_says_it_does(browser, serve):
+    """`blocksOnScreen` decides which blocks count as the ones being read, and it draws
+    the line at the banner's lower edge — captureView stores the first of them as the
+    reader's landmark, and the ask walk starts from it. It reads that edge off
+    --lf-banner-h, the one place the height is stated and the term seven rules place
+    themselves against.
+
+    Two ways that could quietly stop being a reading. The token could go — renamed,
+    moved off body, put behind a query — and `parseFloat` of nothing is NaN, which the
+    fallback turns into a line at zero: every block on the page counts as read, the
+    landmark becomes whatever is at the top of the document, and nothing raises. Or the
+    banner could come to be drawn to some other height, and the declaration would answer
+    for a bar that is not there.
+
+    So the number is asked of both ends: what the stylesheet says, and where the bar the
+    reader is looking at actually ends. The second is narrower than it looks, and worth
+    saying so — `.lf-banner` takes its height from this very token, so changing the token
+    moves both ends together and the comparison holds. What it catches is the bar coming
+    to a different size than its height: a padding or a border added to the banner, or a
+    package theme setting the height directly. The first assertion is the one that
+    catches the token itself going away."""
+    url = serve(LONG_PAGE)
+    page, errors = open_page(browser, url)
+    stated, drawn = page.evaluate(
+        """() => [
+        parseFloat(
+          getComputedStyle(document.body).getPropertyValue('--lf-banner-h')),
+        document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
+    ]"""
+    )
+    page.close()
+
+    assert stated > 0, (
+        "--lf-banner-h no longer resolves on body, so the anchor pass reads its "
+        f"on-screen line as {stated} and every block on the page counts as one the "
+        "reader is looking at"
+    )
+    assert drawn == stated, (
+        f"the banner is drawn to {drawn}px and states {stated}px, so the line the "
+        "anchor pass draws between read and unread is in neither place"
+    )
+    assert errors == [], errors
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     """Anchoring has to work on the pages people actually write, not on a fixture built

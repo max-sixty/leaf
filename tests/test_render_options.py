@@ -2128,7 +2128,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     picks = [
         (e["widget"], e["detail"])
         for e in sent_events(serve.page_dir)
-        if e.get("action") == "choose"
+        if e["kind"] == "action"
     ]
     assert picks == [("jobs", {"options": ["job-heater"]})], picks
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")

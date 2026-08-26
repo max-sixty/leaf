@@ -44,6 +44,7 @@ Options:
 Commands:
   ack         Acknowledge one complete, untruncated wait batch.
   comment     Open an agent thread — on a passage, or on the page whole.
+  data        Set or clear page-bound external data.
   events      Print the event log as JSON lines.
   package     Create and check packages.
   page        Create pages and add media.
@@ -57,6 +58,21 @@ Commands:
   wait        Print one page's unacknowledged events and reports, then exit.
 """,
             id="root",
+        ),
+        pytest.param(
+            ["data", "--help"],
+            """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
+
+  Manage replaceable external or derived page data.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  clear  Remove one source snapshot.
+  set    Replace one bound source value.
+""",
+            id="data",
         ),
         pytest.param(
             ["package", "--help"],
@@ -84,7 +100,7 @@ Options:
 
 Commands:
   catalog   Print the widget and theme vocabulary.
-  guidance  List or print package guidance by audience.
+  guidance  List or print composed guidance by audience.
   init      Create or re-vendor a page directory.
   media     Add images and print their page paths.
   state     Print where the page stands, as JSON.
@@ -2127,9 +2143,14 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert packaged_catalog.exit_code == 0, packaged_catalog.output
     assert '"lf-worktree"' not in plain_catalog.output
     assert '"lf-worktree"' in packaged_catalog.output
-    assert "Package guidance for authors" not in plain_catalog.output
+    assert "# Widget `<lf-worktree>`" in packaged_catalog.output
+    assert (
+        packaged_registry["lf-worktree"]["x-guidance"]["author"]
+        in packaged_catalog.output
+    )
+    assert "# Guidance for authors" not in plain_catalog.output
     assert "# $command, declared by this layer." in packaged_catalog.output
-    assert "# Package guidance for authors" in packaged_catalog.output
+    assert "# Guidance for authors" in packaged_catalog.output
     assert "# Command Hub package" in packaged_catalog.output
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
@@ -2139,6 +2160,13 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
     assert "# Command Hub coordinator" in coordinator.output
+    assert "# Data contract `lf-worktree`" in coordinator.output
+    assert (
+        packaged_registry["$data"]["contracts"]["lf-worktree"]["guidance"][
+            "coordinator"
+        ]
+        in coordinator.output
+    )
 
     revendor = CliRunner().invoke(cli_model.cli, ["page", "init", str(command)])
     assert revendor.exit_code == 0, revendor.output

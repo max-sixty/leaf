@@ -1,8 +1,8 @@
 /* lf-roster / lf-agent: who is working, and where each of them stands. The rows and
  * the state pill's tints are CSS; everything on the live line — the state word, the
- * `doing` clause, the branch, the § reference and the elapsed line — is built by the
- * lf-agent upgrade, because all but the reference are attributes a worker moves
- * between versions and the elapsed line is computed from the log.
+ * `doing` clause, the § reference and the elapsed line — is built by the lf-agent
+ * upgrade, because all but the reference move between versions and the elapsed line
+ * is computed from the log. Branch evidence comes from the worktree data source.
  *
  * A row and not a card. The reader's question is comparative — which of these five is
  * stuck, which has gone quiet — and a card puts a border between every pair of things
@@ -41,8 +41,6 @@ lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--
 /* The clause is the row's content, so it is set in the page's own voice: the reader
  * reads it as a sentence, where everything else on the line is apparatus about it. */
 .lf-doing { color: var(--ink-2); }
-.lf-branch { font-family: var(--mono); font-size: var(--t-6); padding: 0 6px;
-             border-radius: var(--r); background: var(--code-bg); color: var(--ink-2); }
 .lf-heard { color: var(--muted); white-space: nowrap; font-size: var(--t-6); }
 /* Silence against a claim of work. The word is the module's and says the whole of it;
  * the tint is the bonus, on the same amber the vocabulary already spends on "this one
@@ -133,17 +131,28 @@ html.lf-copy lf-command [data-lf-command-goal] > [data-lf-command-worker] { disp
 
 lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   border-left: 2px solid var(--rule); }
+.lf-worktree-snapshot { display: block; }
 .lf-worktree-head { display: block; width: 100%; border: 0; padding: var(--sp-1) 0;
   background: none; color: var(--ink-2); font: var(--t-6) var(--mono); text-align: left;
   cursor: pointer; }
+.lf-worktree-source { margin: 1px 0 var(--sp-2); color: var(--muted);
+  font: var(--t-7) var(--sans); letter-spacing: .055em; text-transform: uppercase; }
+.lf-worktree-evidence { margin: var(--sp-2) 0; }
+.lf-worktree-evidence > strong { display: block; margin-bottom: var(--sp-1);
+  color: var(--muted); font: var(--t-7) var(--sans); letter-spacing: .055em;
+  text-transform: uppercase; }
+.lf-worktree-evidence > pre { margin: 0; }
 html.lf-copy .lf-worktree-head { cursor: default; }
-lf-worktree:not([data-lf-open]) > :not(.lf-worktree-head) { display: none; }
-html.lf-copy lf-worktree:not([data-lf-open]) > :not(.lf-worktree-head) { display: block; }
+lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) {
+  display: none; }
+html.lf-copy lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) {
+  display: block; }
 
 @media print {
   .lf-worktree-head { cursor: default; }
   lf-command [data-lf-command-goal] > [data-lf-command-worker],
-  lf-worktree:not([data-lf-open]) > :not(.lf-worktree-head) { display: block; }
+  lf-worktree:not([data-lf-open]) .lf-worktree-snapshot > :not(.lf-worktree-head) {
+    display: block; }
 }
 
 lf-record { display: block; margin: var(--sp-3) 0; }

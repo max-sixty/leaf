@@ -26,6 +26,7 @@ from interact_support import (
 )
 from leaf_interact import checking as checking_model
 from leaf_interact import cli as cli_model
+from leaf_interact import data as data_model
 from leaf_interact import events as events_model
 from leaf_interact import files as files_model
 from leaf_interact import layer as layer_model
@@ -255,6 +256,12 @@ def test_examples_pass_check(tmp_path, monkeypatch):
         seed = example.with_suffix(".jsonl")
         if seed.exists():
             (d / "comments.jsonl").write_text(seed.read_text(encoding="utf-8"))
+        data_seed = example.with_suffix(".data.json")
+        if data_seed.exists():
+            for name, value in json.loads(
+                data_seed.read_text(encoding="utf-8")
+            ).items():
+                data_model.cmd_data_set(d, name, value)
         result = check(d)
         assert result.exit_code == 0, f"{example.name}: {result.output}"
 
@@ -296,6 +303,12 @@ def test_gallery_is_generated_from_the_examples():
     spec.loader.exec_module(gallery)
     committed = (Path(__file__).parent.parent / "examples" / "gallery.html").read_text()
     assert gallery.build() == committed, "examples changed — rerun scripts/gallery.py"
+    committed_data = json.loads(
+        (Path(__file__).parent.parent / "examples" / "gallery.data.json").read_text()
+    )
+    assert gallery.build_data() == committed_data, (
+        "example data changed — rerun scripts/gallery.py"
+    )
 
 
 def test_the_key_table_is_generated_from_the_registry():

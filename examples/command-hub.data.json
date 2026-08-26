@@ -1,0 +1,69 @@
+{
+  "atlas-worktrees": {
+    "tree-w-1": {
+      "branch": "atlas/xml-declarations",
+      "base": "9d35f25",
+      "head": "b781f0c",
+      "ahead": 3,
+      "behind": 0,
+      "additions": 214,
+      "deletions": 61,
+      "commits": 3,
+      "tests": "running",
+      "observedAt": "2026-08-21T11:42:00-07:00",
+      "files": "atlas/parse/\n  declarations.py  +126 -22\n  entities.py  +63 -31\ntests/\n  test_declarations.py  +25 -8",
+      "diff": "diff --git a/atlas/parse/declarations.py b/atlas/parse/declarations.py\n--- a/atlas/parse/declarations.py\n+++ b/atlas/parse/declarations.py\n@@ -41,3 +41,5 @@ def declaration(token):\n-    return token.split(\" \", 1)[0]\n+    name, _, payload = token.partition(\" \")\n+    return Declaration(name=name, payload=payload)"
+    },
+    "tree-w-2": {
+      "branch": "atlas/xml-cdata",
+      "base": "9d35f25",
+      "head": "12c4a91",
+      "ahead": 2,
+      "behind": 0,
+      "additions": 88,
+      "deletions": 17,
+      "commits": 2,
+      "tests": "failing",
+      "observedAt": "2026-08-21T11:31:00-07:00",
+      "diff": "diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py\n--- a/atlas/parse/cdata.py\n+++ b/atlas/parse/cdata.py\n@@ -19,2 +19,3 @@ def read_cdata(stream):\n-    return stream.read_until(\"]]>\")\n+    body = stream.read_until(\"]]>\")\n+    return html.unescape(body)"
+    },
+    "tree-w-5": {
+      "branch": "atlas/dedupe-attempt",
+      "base": "9d35f25",
+      "head": "9d35f25",
+      "ahead": 0,
+      "behind": 0,
+      "additions": 0,
+      "deletions": 0,
+      "commits": 0,
+      "tests": "not-run",
+      "observedAt": "2026-08-21T08:12:00-07:00"
+    },
+    "tree-w-8": {
+      "branch": "atlas/schema",
+      "base": "9d35f25",
+      "head": "4e0bd62",
+      "ahead": 4,
+      "behind": 0,
+      "additions": 99,
+      "deletions": 14,
+      "commits": 4,
+      "tests": "passing",
+      "observedAt": "2026-08-21T08:10:00-07:00",
+      "diff": "diff --git a/schema/atlas.sql b/schema/atlas.sql\n--- a/schema/atlas.sql\n+++ b/schema/atlas.sql\n@@ -18,2 +18,4 @@ CREATE TABLE ledger_entry (\n   booked_at TIMESTAMPTZ NOT NULL,\n+  refunded_minor BIGINT NULL,\n+  reconciled_at TIMESTAMPTZ NULL,"
+    },
+    "tree-w-3": {
+      "branch": "atlas/public-api",
+      "base": "9d35f25",
+      "head": "a9132fd",
+      "ahead": 2,
+      "behind": 1,
+      "additions": 74,
+      "deletions": 28,
+      "commits": 2,
+      "tests": "passing",
+      "observedAt": "2026-08-21T10:20:00-07:00",
+      "diff": "diff --git a/atlas/api.py b/atlas/api.py\n--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -7,3 +7,3 @@ class ImportResult:\n-    errors: list[str]\n+    failures: tuple[ImportFailure, ...]\n     rows: int"
+    }
+  }
+}

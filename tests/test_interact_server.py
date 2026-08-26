@@ -22,12 +22,14 @@ from interact_support import (
     PAGE,
     TOKEN,
     check,
+    declare_data_input,
     fetch,
     neighbour_page,
     publish,
     record_claim,
 )
 from leaf_interact import cli as cli_model
+from leaf_interact import data as data_model
 from leaf_interact import events as event_model
 from leaf_interact import files as files_model
 from leaf_interact import hosting as hosting_model
@@ -52,6 +54,27 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
     assert status == 200
     assert json.loads(body) == {"layer": current}
     assert event_model.read_events(page_dir) == before
+
+
+def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
+    declare_data_input(
+        page_dir,
+        "builds",
+        {
+            "type": "object",
+            "additionalProperties": {"type": "string"},
+        },
+        contract="build-map",
+    )
+    data_model.cmd_data_set(page_dir, "builds", {"main": "green"})
+
+    status, body = fetch(f"{server}/api/state")
+
+    assert status == 200
+    snapshot = json.loads(body)["data"]
+    assert snapshot["revision"] == 1
+    assert snapshot["sources"]["builds"]["contract"] == "build-map"
+    assert snapshot["sources"]["builds"]["value"] == {"main": "green"}
 
 
 def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
@@ -141,7 +164,13 @@ def test_server_round_trip(server, page_dir):
     # Vendored files serve; the log and directory paths don't.
     for path in ["/leaf.js", "/theme.css", "/registry.json", "/widgets/lf-tabs.js"]:
         assert fetch(server + path)[0] == 200, path
-    for path in ["/comments.jsonl", "/vendor/..", "/status.json", "/../secret"]:
+    for path in [
+        "/comments.jsonl",
+        "/data.json",
+        "/vendor/..",
+        "/status.json",
+        "/../secret",
+    ]:
         assert fetch(server + path)[0] == 404, path
     # A browser-posted comment lands stamped author=user, with a server-minted id
     # (client ids are dropped — a reused one would re-root an existing thread).

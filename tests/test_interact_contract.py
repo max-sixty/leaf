@@ -37,6 +37,7 @@ from interact_support import (
     check,
     comment,
     decide,
+    declare_data_input,
     fetch,
     live_versions,
     logged,
@@ -48,6 +49,7 @@ from interact_support import (
 )
 from leaf_interact import cli as cli_model
 from leaf_interact import conversation as conversation_model
+from leaf_interact import data as data_model
 from leaf_interact import events as events_model
 from leaf_interact import http as http_model
 from leaf_interact import layer as layer_model
@@ -761,6 +763,177 @@ def test_check_refuses_a_malformed_registry(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "invalid JSON" in result.output
+
+
+@pytest.mark.parametrize(
+    ("contracts", "message"),
+    [
+        ({"Bad Name": {"description": "x", "schema": {}}}, "invalid contract name"),
+        ({"builds": {"schema": {}}}, "description and schema"),
+        (
+            {"builds": {"description": "Build facts.", "schema": {"type": "nope"}}},
+            "invalid JSON Schema",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {"$ref": "https://schemas.example/build.json"},
+                }
+            },
+            "must be self-contained",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {"$defs": {}, "$ref": "#/$defs/missing"},
+                }
+            },
+            "must be self-contained",
+        ),
+    ],
+)
+def test_the_registry_door_validates_data_contracts(page_dir, contracts, message):
+    """A contract is executable widget vocabulary: its name carries meaning and its
+    schema admits bytes to the browser, so package checking refuses an ambiguous name,
+    an undocumented contract, or a schema no boundary can run."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$data"]["contracts"] = contracts
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "$data" in result.output and message in result.output
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"const": {"$ref": "https://example.invalid/literal-value"}},
+        {
+            "$defs": {"row": {"type": "string"}},
+            "type": "array",
+            "items": {"$ref": "#/$defs/row"},
+        },
+    ],
+)
+def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
+    page_dir, schema
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$data"]["contracts"]["builds"] = {
+        "description": "Build facts.",
+        "schema": schema,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            lambda entry: entry["x-data"]["data"].update(
+                {"contract": "missing-contract"}
+            ),
+            "names unknown contract",
+        ),
+        (
+            lambda entry: entry["properties"].pop("source"),
+            "must be a canonical data source string",
+        ),
+        (
+            lambda entry: entry["properties"]["source"].update(
+                {"pattern": "^anything$"}
+            ),
+            "must be a canonical data source string",
+        ),
+        (
+            lambda entry: entry.update({"x-guidance": {"author": ""}}),
+            "should be non-empty",
+        ),
+    ],
+)
+def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message):
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = json.loads((page_dir / "registry.json").read_text())
+    change(registry["lf-test-data"])
+
+    with pytest.raises(registry_model.RegistryError, match=message):
+        registry_model.validate_registry(registry, "test registry")
+
+
+def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
+    """x-data requires the canonical string contract, not one byte-for-byte schema;
+    packages remain free to document or further constrain the attribute."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-test-data"]["properties"]["source"]["description"] = (
+        "The page-owned feed id."
+    )
+    registry["lf-test-data"]["required"].remove("source")
+
+    assert registry_model.validate_registry(registry, "test registry") is registry
+
+
+def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
+    """The authored document owns a widget's binding for that element lifetime. A
+    value record on the same attribute would make replay paint a source that the
+    already-mounted watcher correctly does not consume."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = json.loads((page_dir / "registry.json").read_text())
+    widget = registry["lf-test-data"]
+    widget["x-state"] = {
+        "rebind": {
+            "detail": {
+                "type": "object",
+                "properties": {"source": widget["properties"]["source"]},
+                "required": ["source"],
+                "additionalProperties": False,
+            },
+            "facet": "binding",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "source", "value": "source"},
+        }
+    }
+
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="x-data source attributes are authored bindings",
+    ):
+        registry_model.validate_registry(registry, "test registry")
+
+
+def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
+    """Clearing a replaceable value does not erase the meaning an immutable version
+    gave its source id. An incoming layer must still understand that binding because a
+    pinned reader can keep consuming the page's current data store."""
+    declare_data_input(
+        page_dir,
+        "builds",
+        {"type": "array"},
+        contract="builds",
+    )
+    data_model.cmd_data_set(page_dir, "builds", [])
+
+    refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert refused.exit_code != 0
+    assert "immutable documents" in refused.output
+    assert "source 'builds' loses its contract 'builds'" in refused.output
+    assert "use a new source id" in refused.output
+    cleared = CliRunner().invoke(
+        cli_model.cli, ["data", "clear", str(page_dir), "builds"]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    still_refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert still_refused.exit_code != 0
+    assert "source 'builds' loses its contract 'builds'" in still_refused.output
 
 
 @pytest.mark.parametrize(

@@ -9,12 +9,18 @@ from pathlib import Path
 import click
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
+from referencing import Registry
+from referencing.exceptions import Unresolvable
+from referencing.jsonschema import DRAFT202012
 
 from leaf_interact.files import file_stamp, read_json
 from leaf_interact.schema import (
     ASSETS,
     ATTRIBUTE_KEYS,
+    DATA_CONTRACT_NAME,
+    DATA_SOURCE_NAME,
     EXTENSION_SCHEMA,
+    GUIDANCE_SCHEMA,
     WIDGET_NAME,
 )
 
@@ -39,9 +45,53 @@ def is_aware_datetime(value) -> bool:
     return parsed.utcoffset() is not None
 
 
+def schema_resource_registry(schema: dict):
+    """One self-contained resource graph for a vendored JSON Schema."""
+    resource = DRAFT202012.create_resource(schema)
+    registry = Registry().with_resource("", resource).crawl()
+    return resource, registry
+
+
 def json_validator(schema: dict) -> Draft202012Validator:
-    """One schema reader for every authored/event ingress, including formats."""
-    return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
+    """One offline schema reader for every authored/event ingress, including formats."""
+    _, registry = schema_resource_registry(schema)
+    return Draft202012Validator(
+        schema,
+        format_checker=FORMAT_CHECKER,
+        registry=registry,
+    )
+
+
+def unresolved_schema_reference(schema: dict) -> str | None:
+    """Return the first operative ref not supplied by this schema resource graph.
+
+    Draft 2020-12 decides which members contain subschemas. Walking those resources
+    avoids mistaking literal instance data under `const`, `enum`, or `default` for a
+    reference while still checking refs behind properties, combinators, and $defs.
+    """
+    resource, registry = schema_resource_registry(schema)
+
+    def visit(current, resolver) -> str | None:
+        contents = current.contents
+        if isinstance(contents, dict):
+            for keyword in ("$ref", "$dynamicRef"):
+                reference = contents.get(keyword)
+                if not isinstance(reference, str):
+                    continue
+                try:
+                    resolver.lookup(reference)
+                except Unresolvable:
+                    return reference
+        for subcontents in DRAFT202012.subresources_of(contents):
+            subresource = DRAFT202012.create_resource(subcontents)
+            if reference := visit(
+                subresource,
+                resolver.in_subresource(subresource),
+            ):
+                return reference
+        return None
+
+    return visit(resource, registry.resolver_with_root(resource))
 
 
 class RegistryError(click.ClickException):
@@ -103,10 +153,11 @@ def validate_registry(registry: dict, source) -> dict:
         names = registry["$languages"]["names"]
         paths = registry["$languages"]["paths"]
         tones = registry["$tones"]["names"]
+        data = registry["$data"]
     except (KeyError, TypeError):
         raise RegistryError(
             f"{path}: registry must declare $events.kinds, $languages.names/paths "
-            "and $tones.names"
+            "$tones.names, and $data"
         )
     if not isinstance(kinds, dict):
         raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
@@ -224,6 +275,58 @@ def validate_registry(registry: dict, source) -> dict:
         or len(tones) != len(set(tones))
     ):
         raise RegistryError(f"{path}: $tones.names must be a unique list of strings")
+    if (
+        not isinstance(data, dict)
+        or set(data) != {"description", "contracts"}
+        or not isinstance(data.get("description"), str)
+        or not data["description"]
+        or not isinstance(data.get("contracts"), dict)
+    ):
+        raise RegistryError(
+            f"{path}: $data must carry a description and a contracts object"
+        )
+    for contract, declaration in data["contracts"].items():
+        if (
+            not isinstance(contract, str)
+            or re.fullmatch(DATA_CONTRACT_NAME, contract) is None
+        ):
+            raise RegistryError(f"{path}: $data has invalid contract name {contract!r}")
+        if (
+            not isinstance(declaration, dict)
+            or not {"description", "schema"} <= set(declaration)
+            or set(declaration) - {"description", "schema", "guidance"}
+            or not isinstance(declaration.get("description"), str)
+            or not declaration["description"]
+            or not isinstance(declaration.get("schema"), dict)
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} must carry a description and "
+                "schema, with optional guidance"
+            )
+        guidance_errors = sorted(
+            json_validator(GUIDANCE_SCHEMA).iter_errors(
+                declaration.get("guidance", {})
+            ),
+            key=str,
+        )
+        if guidance_errors:
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} guidance is invalid: "
+                f"{guidance_errors[0].message}"
+            )
+        try:
+            Draft202012Validator.check_schema(declaration["schema"])
+        except SchemaError as error:
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
+                f"{error.message}"
+            )
+        if reference := unresolved_schema_reference(declaration["schema"]):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} schema reference {reference!r} "
+                "does not resolve within the package; data contracts must be "
+                "self-contained"
+            )
     invalid_names = [
         tag
         for tag in registry
@@ -307,6 +410,24 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-parent names unknown widgets {unknown}"
             )
         properties = entry.get("properties", {})
+        for input_name, spec in entry.get("x-data", {}).items():
+            contract = spec["contract"]
+            source_attr = spec["source"]
+            if contract not in data["contracts"]:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-data input `{input_name}` names unknown "
+                    f"contract {contract!r}"
+                )
+            source_schema = properties.get(source_attr, {})
+            if (
+                not isinstance(source_schema, dict)
+                or source_schema.get("type") != "string"
+                or source_schema.get("pattern") != f"^{DATA_SOURCE_NAME}$"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-data input `{input_name}` source attribute "
+                    f"`{source_attr}` must be a canonical data source string"
+                )
         said = set(entry.get("x-says", {}))
         for role in ("x-awaits", "x-conversation"):
             if entry.get(role) is not None and (
@@ -416,6 +537,12 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> x-conversation predicate attributes are authored "
                 f"and static, but {dynamic} are written by value records"
+            )
+        data_sources = {spec["source"] for spec in entry.get("x-data", {}).values()}
+        if dynamic := sorted(data_sources & mutable_values):
+            raise RegistryError(
+                f"{path}: <{tag}> x-data source attributes are authored bindings, "
+                f"but {dynamic} are written by value records"
             )
         work = entry.get("x-work")
         if work and work["seat"] == "content":

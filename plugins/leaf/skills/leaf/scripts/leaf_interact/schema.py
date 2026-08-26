@@ -23,6 +23,8 @@ ACK_BATCH_INSTRUCTION = (
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
+DATA_SOURCE_NAME = HTML_NAME
+DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # The record forms one vocabulary of declared state draws on ($state in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -192,6 +194,29 @@ WORK_SCHEMA = {
     "additionalProperties": False,
 }
 
+GUIDANCE_SCHEMA = {
+    "type": "object",
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {"type": "string", "minLength": 1},
+}
+DATA_INPUTS_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {
+        "type": "object",
+        "properties": {
+            "contract": {
+                "type": "string",
+                "pattern": f"^{DATA_CONTRACT_NAME}$",
+            },
+            "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        },
+        "required": ["contract", "source"],
+        "additionalProperties": False,
+    },
+}
+
 _ATTRIBUTE_LIST = {
     "type": "array",
     "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -213,8 +238,10 @@ EXTENSION_SCHEMA = {
             "additionalProperties": False,
         },
         "x-content": {"enum": ["prose", "items", "data", "none"]},
+        "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
+        "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         # Attributes holding 1-based line references into the nearest data body —
@@ -261,8 +288,8 @@ EXTENSION_SCHEMA = {
 # error anywhere (validate_registry holds every key here to the entry's `properties`).
 # The verb keys of the same shape (x-retired-when, x-withdrawn-as) are not in it: they
 # name an outcome rather than an attribute, and sharing a spelling is no reason to share
-# a check. x-awaits names attributes too and keeps its own loop, having more to say about
-# each than that it exists.
+# a check. x-awaits and x-data name attributes too and keep their own loops, having more
+# to say about each than that it exists.
 ATTRIBUTE_KEYS = ("x-language", "x-lines", "x-paints", "x-refers", "x-says", "x-tone")
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -291,6 +318,7 @@ MEDIA_TYPES = {
     ".svg": "image/svg+xml",
 }
 NO_KEY = "open the link leaf printed; it carries the key"
+DATA_FILE = "data.json"
 # One name, because there is one key (`host_key`). Cookies are scoped by host and
 # blind to the port, so every page this machine serves shares a jar — on 127.0.0.1,
 # with every other server the user has running, which is what the prefix is for.
@@ -298,6 +326,7 @@ KEY_COOKIE = "lf_key"
 PAGE_STATE_FILES = (
     "comments.jsonl",
     "status.json",
+    DATA_FILE,
     "waiter.lock",
     "cursor.json",
     "service.json",

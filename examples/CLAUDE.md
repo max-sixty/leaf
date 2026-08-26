@@ -70,7 +70,7 @@ theme. When a sweep finds something here, ask which of the two let it through
 before adding a page: a page that only re-renders a shape nobody judges buys
 nothing.
 
-## An example is one version, and the log it ships beside it
+## An example is one version, plus any log and data it ships beside it
 
 `examples/layer.json` names the package paths shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
@@ -99,6 +99,14 @@ those, so a seeded thread's mark would read there as text the page never named.
 `scripts/preview.py ship-review` — the published pages are served rather than
 exported, so the log reaches the browser there through the session running in the
 reader's own tab.
+
+External data is the other companion state. An example that binds a widget input to a
+source ships `<stem>.data.json`, mapping each page-owned source id to its complete
+value. Every page builder named above sets those values through `leaf data
+set`, so binding, contract validation, revisioning, live preview, browser sweeps, and the
+static site all exercise the same door. `scripts/gallery.py` composes those companions
+into `gallery.data.json`; edit the individual example's file and regenerate rather than
+patching the gallery copy.
 
 Wherever the page is served, the cursor is set to the end of the seeded log. A
 seed is history, not news. Leave the cursor at zero and every preview hands the

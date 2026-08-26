@@ -5,13 +5,16 @@ import itertools
 import json
 import os
 import re
+import time
 from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
 from leaf_interact import cli as cli_model
+from leaf_interact import data as data_model
 from leaf_interact import events as events_model
 from leaf_interact import files as files_model
+from leaf_interact import http as http_model
 from leaf_interact import render_checks as render_checks_model
 from leaf_interact import rendering as rendering_model
 from leaf_interact import service as service_model
@@ -37,6 +40,7 @@ from render_support import (
     _publish,
     compare_with,
     data_projection_page,
+    live_url,
     live_watcher,
     open_page,
     panel_settled,
@@ -1938,20 +1942,30 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
         "quote": "Ready",
     }
 
-    page.evaluate("""() => document.querySelector('#deployments').show([
-      {key: 'worker', value: 'Ready'},
-      {key: 'api', value: 'Ready'},
-    ])""")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "worker", "value": "Ready"},
+            {"key": "api", "value": "Ready"},
+        ],
+    )
     page.wait_for_function("""() => {
       const mark = [...(CSS.highlights.get('lf-mark') ?? [])][0];
       return mark?.startContainer?.isConnected
-        && mark.startContainer.parentElement.dataset.lfDatum === 'api';
+        && mark.startContainer.parentElement.dataset.lfDatum === 'api'
+        && document.querySelector('#deployments').firstElementChild.dataset.lfDatum
+          === 'worker';
     }""")
 
-    page.evaluate("""() => document.querySelector('#deployments').show([
-      {key: 'worker', value: 'Ready'},
-      {key: 'api', value: 'Running'},
-    ])""")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "worker", "value": "Ready"},
+            {"key": "api", "value": "Running"},
+        ],
+    )
     expect(page.locator('[data-lf-datum="api"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
@@ -1972,7 +1986,7 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
 
 
 def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, monkeypatch
 ):
     """Export cannot refresh data after its scripts leave, so it preserves the rendered
     snapshot and the projection/key labels that say what kind of words these are. Dropping
@@ -1980,6 +1994,26 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     make it pretend the dead snapshot was still live.
     """
     url = data_projection_page(serve)
+    module = serve.page_dir / "widgets" / "lf-feed.js"
+    module.write_text(
+        module.read_text()
+        .replace(
+            "import {offer, projectData, watchData}",
+            "import {offer, projectData, settle, watchData}",
+        )
+        .replace(
+            "  connectedCallback() {",
+            "  connectedCallback() {\n"
+            "    settle(new Promise(resolve => setTimeout(resolve, 750)));",
+        )
+    )
+    native_page_state = http_model.Handler.page_state
+
+    def delayed_page_state(handler):
+        time.sleep(0.5)
+        return native_page_state(handler)
+
+    monkeypatch.setattr(http_model.Handler, "page_state", delayed_page_state)
     out = tmp_path / "data-copy.html"
     out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
@@ -1994,5 +2028,234 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     assert page.locator("script").count() == 0, (
         "the snapshot still claims it can refresh"
     )
+    assert errors == []
+    page.close()
+
+
+def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
+    """Overlapping polls order data by its own revision, not by arrival time."""
+    delay_second_state = """
+      const nativeFetch = window.fetch.bind(window);
+      let stateCalls = 0;
+      window.fetch = async (...args) => {
+        const input = args[0];
+        const url = typeof input === 'string' ? input : input.url;
+        const response = await nativeFetch(...args);
+        if (new URL(url, location.href).pathname !== '/api/state') return response;
+        stateCalls += 1;
+        if (stateCalls !== 2) return response;
+        const body = await response.text();
+        window.lfOldDataCaptured = true;
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        window.lfOldDataReleased = true;
+        return new Response(body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      };
+    """
+    page, errors = open_page(
+        browser, data_projection_page(serve), init_script=delay_second_state
+    )
+    page.wait_for_function("() => window.lfOldDataCaptured === true")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    page.wait_for_function("() => window.lfOldDataReleased === true")
+    told(page)
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    assert errors == []
+    page.close()
+
+
+def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
+    """Event sequence and source revision are independent coordinates.
+
+    A crossed response may be behind the rendered log while carrying the latest source.
+    Dropping the whole response at the event gate would make live data depend on an
+    unrelated comment arriving first.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "newer-event",
+            "author": "user",
+            "version": 1,
+            "text": "This event must not disappear.",
+        },
+    )
+    told(page)
+    expect(
+        page.locator(".lf-thread", has_text="This event must not disappear")
+    ).to_have_count(1)
+
+    crossed = []
+
+    def older_events_with_new_data(route):
+        response = route.fetch()
+        state = response.json()
+        if state["data"]["revision"] < 2:
+            route.fulfill(status=response.status, json=state)
+            return
+        state["events"] = state["events"][:-1]
+        crossed.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", older_events_with_new_data)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    assert crossed, "the data revision never arrived beside the stale event tail"
+    expect(
+        page.locator(".lf-thread", has_text="This event must not disappear")
+    ).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
+    browser, serve
+):
+    """Source names are data, including names inherited by a plain JS object.
+
+    A subscriber is also a package mount boundary: if its first render fails, later
+    polls must not keep calling a listener whose widget never finished connecting.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/leaf.js');
+          const widget = document.querySelector('lf-feed');
+          widget.removeAttribute('source');
+          let unbound = 'not-called';
+          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
+          stopUnbound();
+          widget.setAttribute('source', 'constructor');
+          let absent = 'not-called';
+          const stop = watchData(widget, 'rows', snapshot => { absent = snapshot; });
+          stop();
+
+          const captured = [];
+          const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
+          widget.setAttribute('source', 'deployments');
+          document.dispatchEvent(new Event('lf-data'));
+          stopCaptured();
+
+          let failedCalls = 0;
+          let message = null;
+          try {
+            watchData(widget, 'rows', () => {
+              failedCalls += 1;
+              throw new Error('mount failed');
+            });
+          } catch (error) {
+            message = error.message;
+          }
+          document.dispatchEvent(new Event('lf-data'));
+          return {unbound, absent, captured, failedCalls, message};
+        }"""
+    )
+    assert result == {
+        "unbound": None,
+        "absent": None,
+        "captured": [None, None],
+        "failedCalls": 1,
+        "message": "mount failed",
+    }
+    assert errors == []
+    page.close()
+
+
+def test_data_notification_waits_for_a_version_activation(browser, serve):
+    """A crossed data response may advance its revision during activation, but its
+    subscribers cannot paint the old or half-upgraded document.
+
+    Hold the view transition after the replacement document has mounted. A newer source
+    response arrives while that activation still owns the page. Its value should render
+    only after the activation releases.
+    """
+    activation_probe = """
+      window.__lfTransitionHeld = false;
+      window.__lfDataDuringActivation = false;
+      window.__lfSawDataRevisionTwo = false;
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = async (...args) => {
+        const response = await nativeFetch(...args);
+        const input = args[0];
+        const url = typeof input === 'string' ? input : input.url;
+        if (new URL(url, location.href).pathname === '/api/state') {
+          response.clone().json().then(state => {
+            if (state.data?.revision >= 2) window.__lfSawDataRevisionTwo = true;
+          });
+        }
+        return response;
+      };
+      document.addEventListener('lf-data', () => {
+        const datum = document.querySelector('[data-lf-datum="api"]');
+        if (window.__lfTransitionHeld && datum?.textContent.includes('Running'))
+          window.__lfDataDuringActivation = true;
+      });
+      document.startViewTransition = update => {
+        const ready = Promise.resolve();
+        const finished = Promise.resolve()
+          .then(update)
+          .then(() => {
+            window.__lfTransitionHeld = true;
+            return new Promise(resolve => {
+              window.__lfReleaseTransition = () => {
+                window.__lfTransitionHeld = false;
+                resolve();
+              };
+            });
+          });
+        return {ready, finished};
+      };
+    """
+    page, errors = open_page(
+        browser, live_url(data_projection_page(serve)), init_script=activation_probe
+    )
+    d = serve.page_dir
+    current = (d / "versions" / "v1.html").read_text()
+    _publish(
+        d,
+        2,
+        current.replace("Live status follows.", "Live status follows now."),
+        "refreshed the page",
+    )
+    page.wait_for_function("() => window.__lfTransitionHeld === true")
+
+    data_model.cmd_data_set(
+        d,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    page.wait_for_function("() => window.__lfSawDataRevisionTwo === true")
+    page.wait_for_timeout(100)
+    assert not page.evaluate("() => window.__lfDataDuringActivation"), (
+        "a source subscriber painted while version activation still owned the document"
+    )
+
+    page.evaluate("() => window.__lfReleaseTransition()")
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
     page.close()

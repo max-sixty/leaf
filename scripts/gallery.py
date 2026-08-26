@@ -8,6 +8,7 @@ examples to keep their ids disjoint across files, which this script enforces.
 Usage: gallery.py  (no arguments; writes examples/gallery.html)
 """
 
+import json
 import re
 import sys
 from html.parser import HTMLParser
@@ -15,6 +16,7 @@ from pathlib import Path
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 GALLERY = EXAMPLES_DIR / "gallery.html"
+GALLERY_DATA = EXAMPLES_DIR / "gallery.data.json"
 # Order is editorial: the first tab is the one a reader lands on, and
 # parallel-workstreams reads best last (it's tabs inside a tab).
 TABS = [
@@ -108,9 +110,30 @@ def build() -> str:
     return HEAD + "\n" + "\n".join(tabs) + "\n" + FOOT
 
 
+def build_data() -> dict:
+    """Compose the package sources needed by the examples embedded in the gallery."""
+    sources = {}
+    for stem, _ in TABS:
+        companion = EXAMPLES_DIR / f"{stem}.data.json"
+        if not companion.exists():
+            continue
+        for name, value in json.loads(companion.read_text(encoding="utf-8")).items():
+            if name in sources and sources[name] != value:
+                sys.exit(
+                    f"gallery examples contribute conflicting data source {name!r}"
+                )
+            sources[name] = value
+    return sources
+
+
 def main() -> None:
     GALLERY.write_text(build(), encoding="utf-8")
+    GALLERY_DATA.write_text(
+        json.dumps(build_data(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     print(GALLERY)
+    print(GALLERY_DATA)
 
 
 if __name__ == "__main__":

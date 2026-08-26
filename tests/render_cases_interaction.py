@@ -563,7 +563,7 @@ ROOM_WIDGETS = """<lf-options id="{id}-q" choose label="Which extras go in?">
   </lf-column>
 </lf-board>
 <lf-roster id="{id}-r">
-  <lf-agent id="{id}-wren" state="working" branch="north-pair">
+  <lf-agent id="{id}-wren" state="working">
     <strong>wren</strong> Fitting the brackets.
   </lf-agent>
 </lf-roster>"""
@@ -771,9 +771,10 @@ REPORT_PAGE = leaf_page(
 </lf-tasks>
 """,
 )
-COMMAND_HUB_PAGE = next(
+COMMAND_HUB_EXAMPLE = next(
     example for example in EXAMPLES if example.stem == "command-hub"
-).read_text()
+)
+COMMAND_HUB_PAGE = COMMAND_HUB_EXAMPLE.read_text()
 # Two workers, one claiming work and one idle, because silence is only news against a
 # claim: the elapsed line is about what a row said it was doing, not about the clock.
 ROSTER_PAGE = leaf_page(
@@ -781,7 +782,7 @@ ROSTER_PAGE = leaf_page(
     """
 <h1 id="h">The aviary crew</h1>
 <lf-roster id="crew">
-  <lf-agent id="ag-wren" state="working" branch="mounts">
+  <lf-agent id="ag-wren" state="working">
     <strong>wren</strong> The feeders.</lf-agent>
   <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
   <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>

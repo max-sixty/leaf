@@ -1,4 +1,89 @@
 {
+  "$data": {
+    "description": "Reusable contracts for observed Command Hub facts supplied by the host rather than authored into a version.",
+    "contracts": {
+      "lf-worktree": {
+        "description": "Current worktree evidence keyed by the id of its authored lf-worktree seat.",
+        "guidance": {
+          "coordinator": "After worktree evidence changes, replace the complete page-bound source snapshot rather than republishing it as prose or appending an event:\n\n```bash\nleaf data set \"$PAGE\" <source-id> --file worktrees.json\n```\n\nRead `data_bindings` from `leaf page state \"$PAGE\"` to find source ids using the `lf-worktree` contract and their consuming widget ids. `worktrees.json` is an object keyed by authored worktree widget id. Each value carries `branch`, `base`, `head`, non-negative `ahead`, `behind`, `additions`, `deletions`, and `commits`, a `tests` value of `passing`, `failing`, `running`, or `not-run`, an RFC 3339 `observedAt` timestamp with a timezone, and optional `files` and `diff` strings. Keep a key stable for the same worktree. Gather these facts with host tools; Leaf validates, transports, and presents them but does not run git or inspect worker directories."
+        },
+        "schema": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base": {
+                "type": "string",
+                "minLength": 1
+              },
+              "head": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ahead": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "behind": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "additions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "deletions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tests": {
+                "enum": [
+                  "passing",
+                  "failing",
+                  "running",
+                  "not-run"
+                ]
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "files": {
+                "type": "string"
+              },
+              "diff": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "branch",
+              "base",
+              "head",
+              "ahead",
+              "behind",
+              "additions",
+              "deletions",
+              "commits",
+              "tests",
+              "observedAt"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  },
   "$command": {
     "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
@@ -57,10 +142,10 @@
     "x-content": "items",
     "x-upgrade": false,
     "x-wide": "box",
-    "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\" branch=\"feeder-mounts\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\" branch=\"baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the branch is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
+    "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the work is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
   },
   "lf-agent": {
-    "description": "One worker: a session, an agent, a person. Lead with a <strong> name — the identity it reports under — and prose saying its durable remit. On a command surface, placement gives that remit: directly under lf-command means the whole project; directly under an lf-task means that goal and its descendants. This admits coordinators, area owners, and leaf specialists without closing them into a role enum.\n\nThe version carries `state`, optional `on`, and `branch`. `state` says where the worker stands: working, waiting, blocked, idle, reaped, or done. `on` is only the current focus and, inside a command, must remain within the structural remit; a broad coordinator or idle worker need not invent one. `branch` says where work is landing. A report adds the finer-grained `doing` clause and moves the row live until a version absorbs or overrules it. One report verb carries state and doing together so an activity sentence cannot split across fold coordinates; only state creates record debt because a version can adjudicate an enum but not a clause that was true for one minute.\n\nThe row computes when the log last heard from this worker, even past an absorbed report. A working claim silent for the shared quarter-hour grace is called out, so the banner and fleet mean the same thing by quiet. The row is a view rather than an ask: blocked work asks once at its task, while the worker remains somewhere the reader can point a comment.",
+    "description": "One worker: a session, an agent, a person. Lead with a <strong> name — the identity it reports under — and prose saying its durable remit. On a command surface, placement gives that remit: directly under lf-command means the whole project; directly under an lf-task means that goal and its descendants. This admits coordinators, area owners, and leaf specialists without closing them into a role enum.\n\nThe version carries `state` and optional `on`. `state` says where the worker stands: working, waiting, blocked, idle, reaped, or done. `on` is only the current focus and, inside a command, must remain within the structural remit; a broad coordinator or idle worker need not invent one. A report adds the finer-grained `doing` clause and moves the row live until a version absorbs or overrules it. One report verb carries state and doing together so an activity sentence cannot split across fold coordinates; only state creates record debt because a version can adjudicate an enum but not a clause that was true for one minute. Branch and worktree evidence belong to a page-bound external source rather than to authored worker prose.\n\nThe row computes when the log last heard from this worker, even past an absorbed report. A working claim silent for the shared quarter-hour grace is called out, so the banner and fleet mean the same thing by quiet. The row is a view rather than an ask: blocked work asks once at its task, while the worker remains somewhere the reader can point a comment.",
     "type": "object",
     "properties": {
       "id": {
@@ -80,9 +165,6 @@
       "on": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "branch": {
-        "type": "string"
       },
       "overruled": {
         "type": "boolean"
@@ -283,77 +365,39 @@
     }
   },
   "lf-worktree": {
-    "description": "One disposable worker's inspectable worktree. The attributes are the last pushed snapshot: branch and base/head identity, divergence, diffstat, commit count, and test result. Its body carries the evidence, usually a real lf-diff. The generated summary toggles the evidence without duplicating it; comments may anchor on the worker, this worktree, or an individual diff line.",
+    "description": "One stable address for a disposable worker's inspectable evidence. Author an empty element with an id and bind its `worktrees` input through the `source` attribute. The widget projects the matching record into the element and keeps datum comments attached when a later snapshot replaces it. Branch, divergence, diffstat, test result, file tree, and diff are observed data rather than authored version state.",
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
-      "branch": {
-        "type": "string"
-      },
-      "base": {
-        "type": "string"
-      },
-      "head": {
-        "type": "string"
-      },
-      "ahead": {
+      "source": {
         "type": "string",
-        "pattern": "^[0-9]+$"
-      },
-      "behind": {
-        "type": "string",
-        "pattern": "^[0-9]+$"
-      },
-      "additions": {
-        "type": "string",
-        "pattern": "^[0-9]+$"
-      },
-      "deletions": {
-        "type": "string",
-        "pattern": "^[0-9]+$"
-      },
-      "commits": {
-        "type": "string",
-        "pattern": "^[0-9]+$"
-      },
-      "tests": {
-        "enum": [
-          "passing",
-          "failing",
-          "running",
-          "not-run"
-        ]
-      },
-      "tested-at": {
-        "type": "string"
-      },
-      "committed-at": {
-        "type": "string",
-        "format": "date-time"
+        "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
     "required": [
       "id",
-      "branch",
-      "base",
-      "head",
-      "ahead",
-      "behind",
-      "additions",
-      "deletions",
-      "commits",
-      "tests"
+      "source"
     ],
     "additionalProperties": false,
     "x-parent": [
       "lf-agent"
     ],
-    "x-content": "prose",
+    "x-content": "none",
+    "x-data": {
+      "worktrees": {
+        "contract": "lf-worktree",
+        "source": "source"
+      }
+    },
+    "x-guidance": {
+      "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one id for widgets that read the same snapshot, or use different ids when a page has independent worktree feeds. Do not author branch, diffstat, tests, file tree, or diff into the version; the host supplies those observed facts through the bound source, and comments stay attached by worktree and datum keys when the snapshot changes."
+    },
     "x-upgrade": true,
-    "x-wide": "box"
+    "x-wide": "box",
+    "x-example": "<lf-command id=\"project-command\">\n  <lf-agent id=\"wren\" state=\"working\">\n    <strong>wren</strong> Owns the feed rebuild.\n    <lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n  </lf-agent>\n</lf-command>"
   },
   "lf-record": {
     "description": "The page's consequential action receipts, projected in log order. It renders reader actions, held comments, resolutions, reports, and publications with their targets and payload summaries. Folds and read-only disclosures do not enter because the log never recorded them. This is evidence, not another state store.",

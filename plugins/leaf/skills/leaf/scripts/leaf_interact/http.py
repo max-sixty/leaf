@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from .data import read_data
 from .events import (
     AttemptConflict,
     AttemptExecution,
@@ -175,7 +176,10 @@ def presence(page_dir: Path, events: list) -> dict:
 
 
 def full_state(
-    page_dir: Path, events: list, versions: list, layer: str | None = None
+    page_dir: Path,
+    events: list,
+    versions: list,
+    layer: str | None = None,
 ) -> dict:
     return {
         "layer": layer or layer_generation(page_dir),
@@ -186,6 +190,7 @@ def full_state(
         # against the writer's clock rather than the reader's.
         "now": now_iso(),
         "versions": versions,
+        "data": read_data(page_dir),
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
         # and its markup is the fragment the CLI gate validated. The wire adds nothing,

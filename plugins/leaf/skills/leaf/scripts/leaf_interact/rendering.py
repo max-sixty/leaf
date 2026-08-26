@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
+from leaf_interact.data import read_data
 from leaf_interact.document import EMPTY, parse_structure, spoken
 from leaf_interact.events import flocked, read_events
 from leaf_interact.files import published_versions, version_name, version_num
@@ -85,6 +86,9 @@ RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 # The page's own word for "I have finished becoming myself", which every pass here
 # waits on before reading anything (the stamp's reasons are at the foot of leaf.js).
 UPGRADED = "() => document.body.dataset.lfUpgraded === '1'"
+DATA_APPLIED = (
+    "(revision) => Number(document.body.dataset.lfDataRevision ?? -1) >= revision"
+)
 
 
 def resize_observer_error(text: str) -> bool:
@@ -285,7 +289,17 @@ def _render_version_attempt(
         # twice", in the layer's own CLAUDE.md).
         unsettled = []
         replayed = True
-        if touched:
+        try:
+            page.wait_for_function(DATA_APPLIED, arg=state["data"]["revision"])
+        except PlaywrightTimeout:
+            replayed = False
+            unsettled = [
+                (
+                    "the runtime never presented external data revision "
+                    f"{state['data']['revision']}"
+                )
+            ]
+        if replayed and touched:
             applied = len(touched)
             try:
                 page.wait_for_function(
@@ -788,6 +802,10 @@ def export_page(browser, url: str, page_dir: Path) -> str:
         page.goto(url, wait_until="networkidle")
         try:
             page.wait_for_function(UPGRADED)
+            page.wait_for_function(
+                DATA_APPLIED,
+                arg=read_data(page_dir)["revision"],
+            )
             # Both replayed kinds, as the render gate counts them: the caught-up
             # stamp counts reports beside actions, and a page whose only recorded
             # state is a worker's report would otherwise copy before it painted.
@@ -800,9 +818,9 @@ def export_page(browser, url: str, page_dir: Path) -> str:
                 )
         except PlaywrightTimeout:
             sys.exit(
-                f"{url.rsplit('/', 1)[-1]} never finished upgrading in the browser, so a copy "
-                "would be half-drawn. `leaf version check <page> --render` says what "
-                "is wrong with it."
+                f"{url.rsplit('/', 1)[-1]} never finished applying its live state in "
+                "the browser, so a copy would be half-drawn. `leaf version check "
+                "<page> --render` says what is wrong with it."
             )
         return inline_assets(page.evaluate(BAKE), page_dir)
     finally:

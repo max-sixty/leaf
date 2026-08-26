@@ -192,6 +192,7 @@ const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   replayWrote: "data-lf-replay-wrote",
   reportWrote: "data-lf-report-wrote",
   applied: "data-lf-applied",
+  dataRevision: "data-lf-data-revision",
   pending: "data-lf-pending",
   presented: "data-lf-presented",
   reported: "data-lf-reported",
@@ -1052,6 +1053,52 @@ export function projectData(root, records, keyOf, render) {
   setChildren(root, wanted);
   projectionChanged();
   return wanted;
+}
+
+// A source value remains the server snapshot's to own. Subscribers name one input on
+// their own widget; the declaration supplies its contract and the attribute where this
+// page bound a concrete source. They receive a fresh JSON clone immediately, then
+// whenever state asks subscribers to restate their reading, so a module cannot mutate
+// the private accepted snapshot and a newly activated seat need not wait for the next
+// poll.
+// `projectData` remains the rendering boundary: this helper delivers records but writes no
+// DOM and keeps no widget-specific cache.
+export function watchData(element, input, callback) {
+  if (!(element instanceof Element))
+    throw new TypeError("watchData element must be a widget element");
+  if (typeof input !== "string" || !input)
+    throw new TypeError("watchData input must be a non-empty string");
+  if (typeof callback !== "function")
+    throw new TypeError(
+      `watchData(${element.localName}, ${input}) callback must be a function`,
+    );
+  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  if (!declaration)
+    throw new Error(
+      `watchData(${element.localName}, ${input}) input is not declared by this widget`,
+    );
+  // Markup owns the binding. Capture it at mount so module code cannot turn a live
+  // attribute mutation into an unvalidated rebind. Version activation mounts a new
+  // element and therefore establishes a new subscription when authored markup changes.
+  const source = element.getAttribute(declaration.source);
+  const update = () => {
+    if (!source) {
+      callback(null);
+      return;
+    }
+    const present = Object.hasOwn(runtime.data.sources, source);
+    if (present && runtime.data.sources[source].contract !== declaration.contract)
+      throw new Error(
+        `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
+          `but source ${source} carries ${runtime.data.sources[source].contract}`,
+      );
+    callback(present ? structuredClone(runtime.data.sources[source]) : null);
+  };
+  // Establish the subscription only after its first delivery succeeds. A package that
+  // throws while mounting must not leave a listener behind to fail every later poll.
+  update();
+  document.addEventListener("lf-data", update);
+  return () => document.removeEventListener("lf-data", update);
 }
 
 // A word for a reader listening, silent on screen: real text — the one thing every
@@ -9518,10 +9565,41 @@ async function poll() {
     )
       paintKeys();
     document.dispatchEvent(new Event("lf-actions"));
+    notifyDataSubscribers();
     return;
   }
   return receiveState(state);
 }
+
+function acceptData(candidate) {
+  if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    Array.isArray(candidate) ||
+    !Number.isInteger(candidate.revision) ||
+    candidate.revision < 0 ||
+    !candidate.sources ||
+    typeof candidate.sources !== "object" ||
+    Array.isArray(candidate.sources)
+  )
+    throw new TypeError("state data must carry a non-negative revision and sources");
+  if (candidate.revision <= runtime.data.revision) return false;
+  runtime.data = structuredClone(candidate);
+  return true;
+}
+
+function notifyDataSubscribers() {
+  document.dispatchEvent(new Event("lf-data"));
+  // The revision becomes a readiness fact only after synchronous subscribers have
+  // rendered it. Render checks and export compare this stamp with the server snapshot,
+  // so a data-only page cannot be read between acceptance and projection.
+  if (runtime.data.revision >= 0)
+    document.body.setAttribute(
+      PAGE_PAINT_ATTRIBUTE.dataRevision,
+      String(runtime.data.revision),
+    );
+}
+
 async function receiveState(state) {
   // Every state this page reads passes here — the poll's, and the one an accepted
   // event response carries — so the generation is checked once for both rather than
@@ -9531,18 +9609,33 @@ async function receiveState(state) {
   // that arrives out of order still says what time it is where the timestamps are
   // written, and that is the one thing in it that cannot be stale.
   if (state.now) clockSkew = Date.parse(state.now) - Date.now();
+  // Events and source snapshots are independent authorities serialized by the same page
+  // transaction but observed through overlapping responses. Their revisions form a pair,
+  // not one total order: a response with an older event tail may still carry the newest
+  // data. Accept that component before the event gate, and never move either one backward.
+  const dataChanged = acceptData(state.data);
+  const notifyChangedData = () => {
+    if (dataChanged) notifyDataSubscribers();
+  };
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
   // post() and the timer can poll together. The log is append-only, so a response
   // behind one already rendered is unambiguously stale; accepting it would move
   // every event-derived view backwards until the next poll.
-  if (eventSeq < runtime.lastEventSeq) return;
+  if (eventSeq < runtime.lastEventSeq) {
+    if (activatingState) await activatingState;
+    notifyChangedData();
+    return;
+  }
   // Polls and POST answers may overlap. A document activation is the one state read
   // that cannot safely interleave: a second one would capture or replace the halfway
   // upgraded main. Let it commit, then judge this response against its resulting
   // version and sequence.
   if (activatingState) await activatingState;
-  if (eventSeq < runtime.lastEventSeq) return;
+  if (eventSeq < runtime.lastEventSeq) {
+    notifyChangedData();
+    return;
+  }
   const targetVersion = state.versions.at(-1) ?? null;
   const wantsActivation =
     LIVE_ROOT &&
@@ -9575,13 +9668,19 @@ async function receiveState(state) {
         }),
     );
   await Promise.all(preparations);
-  if (wantsActivation && incoming === null && !incomingFailed) return;
+  if (wantsActivation && incoming === null && !incomingFailed) {
+    notifyChangedData();
+    return;
+  }
   // The preparation above yields. A newer response may have completed while this one was
   // waiting, and two responses may have joined the same version-file promise before
   // either had an activation to await. Serialize again at the commit boundary, then
   // judge this candidate against the version and sequence the winner installed.
   if (activatingState) await activatingState;
-  if (eventSeq < runtime.lastEventSeq) return;
+  if (eventSeq < runtime.lastEventSeq) {
+    notifyChangedData();
+    return;
+  }
   const willActivate =
     Boolean(incoming) &&
     targetVersion > runtime.currentVersion &&
@@ -9656,6 +9755,7 @@ async function receiveState(state) {
     // not grow: applyAction may have deferred while a user was typing, then become
     // applicable on the next poll after they close the editor.
     document.dispatchEvent(new Event("lf-actions"));
+    notifyDataSubscribers();
   };
   try {
     if (willActivate) {

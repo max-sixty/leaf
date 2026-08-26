@@ -133,6 +133,48 @@ def check(d, version=None):
     return CliRunner().invoke(cli_model.cli, args)
 
 
+def declare_data_input(
+    page_dir,
+    source,
+    schema,
+    *,
+    contract="test-data",
+    tag="lf-test-data",
+    input_name="data",
+    guidance=None,
+):
+    """Add one typed widget input and bind it in the latest fixture version."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    declaration = {"description": "Test data contract.", "schema": schema}
+    if guidance:
+        declaration["guidance"] = guidance
+    registry["$data"]["contracts"][contract] = declaration
+    registry[tag] = {
+        "description": "A test widget with one external-data input.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-data": {input_name: {"contract": contract, "source": "source"}},
+        "x-upgrade": False,
+    }
+    registry_path.write_text(json.dumps(registry))
+    versions = files_model.list_versions(page_dir)
+    version_path = files_model.version_path(page_dir, versions[-1])
+    html = version_path.read_text()
+    version_path.write_text(
+        html.replace(
+            "</main>",
+            f'<{tag} id="test-data" source="{source}"></{tag}>\n</main>',
+        )
+    )
+
+
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
     `version check` compares against the last *published* version, and an action

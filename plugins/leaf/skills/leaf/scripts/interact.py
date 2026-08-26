@@ -520,6 +520,21 @@ from leaf_interact.conversation import (  # noqa: F401 - public facade re-export
     cmd_report,
     cmd_resolve,
 )
+from leaf_interact.data import (  # noqa: F401 - public facade re-exports
+    DataError,
+    cmd_data_clear,
+    cmd_data_set,
+    data_binding_errors,
+    data_binding_inventory,
+    data_contract_errors,
+    declared_data_bindings,
+    empty_data,
+    page_data_binding_inventory,
+    page_data_bindings,
+    payload_error,
+    read_data,
+    read_data_store,
+)
 from leaf_interact.document import (
     COLLAPSE_CHARS,  # noqa: F401 - public facade re-export
     COLUMN_FALLBACK,  # noqa: F401 - public facade re-export

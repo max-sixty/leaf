@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+from .data import data_contract_errors, page_data_bindings, read_data_store
 from .events import flocked, now_iso, read_events
 from .files import (
     _path_location,
@@ -386,6 +387,44 @@ def _vendor_page(
             + "\n".join(f"  - {g}" for g in gaps)
             + "\nre-vendoring would silently stop these replaying — the user's"
             " recorded decisions among them."
+        )
+    stored_data = read_data_store(page_dir)
+    # The outgoing registry is historical input, not a contract arriving at the
+    # current code's boundary. It may legitimately predate a new kernel invariant;
+    # validating it with today's rules would prevent `page init` from replacing the
+    # exact older layer it exists to migrate. Binding discovery only reads x-data.
+    if current := read_json(page_dir / "registry.json"):
+        standing_bindings, standing_errors = page_data_bindings(
+            page_dir, current, events
+        )
+        incoming_bindings, incoming_errors = page_data_bindings(
+            page_dir, incoming, events
+        )
+        binding_errors = list(dict.fromkeys(standing_errors + incoming_errors))
+        binding_changes = [
+            (
+                f"source {source!r} loses its contract {contract!r}"
+                if source not in incoming_bindings
+                else f"source {source!r} changes from contract {contract!r} to "
+                f"{incoming_bindings[source]!r}"
+            )
+            for source, contract in standing_bindings.items()
+            if incoming_bindings.get(source) != contract
+        ]
+        if binding_errors or binding_changes:
+            sys.exit(
+                "this page's immutable documents do not keep one meaning for each "
+                "data source:\n"
+                + "\n".join(
+                    f"  - {error}" for error in binding_errors + binding_changes
+                )
+                + "\nuse a new source id for a new contract before re-vendoring."
+            )
+    if data_errors := data_contract_errors(stored_data, incoming):
+        sys.exit(
+            "this page holds external data the incoming layer no longer speaks:\n"
+            + "\n".join(f"  - {error}" for error in data_errors)
+            + "\nclear those sources with `leaf data clear` before re-vendoring."
         )
     published = published_versions(page_dir, events)
     if published:

@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from .data import page_data_binding_inventory, read_data
 from .document import page_passages, parse_version
 from .events import build_threads
 from .files import list_versions, published_versions, version_path
@@ -60,10 +61,34 @@ CATALOG_FACTS = (
 CATALOG_INTERNAL_FACTS = {"$events", "$layer"}
 
 
-def page_guidance(page_dir: Path) -> dict[str, Path]:
-    """The vendored guidance files indexed by their package-defined audience."""
+def page_guidance(page_dir: Path, registry: dict | None = None) -> dict[str, str]:
+    """Compose package-wide, contract, and widget guidance by audience."""
+    parts = {}
     directory = page_dir / GUIDANCE_DIR
-    return {path.stem: path for path in sorted(directory.iterdir())}
+    if directory.is_dir():
+        for path in sorted(directory.iterdir()):
+            text = path.read_text(encoding="utf-8").strip()
+            if text:
+                parts.setdefault(path.stem, []).append(text)
+    registry = registry if registry is not None else require_registry(page_dir)
+    for contract, declaration in sorted(
+        registry.get("$data", {}).get("contracts", {}).items()
+    ):
+        for audience, text in sorted(declaration.get("guidance", {}).items()):
+            parts.setdefault(audience, []).append(
+                f"# Data contract `{contract}`\n\n{text.strip()}"
+            )
+    for tag, entry in sorted(registry.items()):
+        if not tag.startswith("lf-"):
+            continue
+        for audience, text in sorted(entry.get("x-guidance", {}).items()):
+            parts.setdefault(audience, []).append(
+                f"# Widget `<{tag}>`\n\n{text.strip()}"
+            )
+    return {
+        audience: "\n\n".join(sections).rstrip() + "\n"
+        for audience, sections in sorted(parts.items())
+    }
 
 
 def cmd_guidance(page_dir: Path, audience: str | None) -> None:
@@ -73,8 +98,7 @@ def cmd_guidance(page_dir: Path, audience: str | None) -> None:
         if guides:
             print("\n".join(guides))
         return
-    if path := guides.get(audience):
-        text = path.read_text(encoding="utf-8")
+    if text := guides.get(audience):
         print(text, end="" if text.endswith("\n") else "\n")
         return
     available = ", ".join(guides) or "none"
@@ -101,9 +125,9 @@ def cmd_catalog(page_dir: Path) -> None:
         if key.startswith("$"):
             print(f"\n# {key}, declared by this layer.\n")
             print(json.dumps(reg[key], indent=2, ensure_ascii=False))
-    guidance = page_guidance(page_dir).get("author")
-    if guidance and (text := guidance.read_text(encoding="utf-8").strip()):
-        print("\n# Package guidance for authors\n")
+    guidance = page_guidance(page_dir, reg).get("author")
+    if guidance and (text := guidance.strip()):
+        print("\n# Guidance for authors\n")
         print(text)
 
 
@@ -145,8 +169,8 @@ def _write_page_state(page_dir: Path, events: list) -> None:
     channel, where the record lags either (`record_lag_entries`), the open asks
     on the page and in threads (the banner's own count), the comment threads,
     and presence beside what answers for it. Computed on demand from the log,
-    the version, and the registry — nothing here is stored, so there is no
-    second copy of the truth to reconcile.
+    version, registry, and source store — no derived reading is stored, so there
+    is no second copy of the truth to reconcile.
 
     Every markup-derived reading is of the latest *published* version, because
     that is the page the user sees and acts on; a written draft shows up in
@@ -176,6 +200,8 @@ def _write_page_state(page_dir: Path, events: list) -> None:
         "elements": [],
         "state": [],
         "updates": [],
+        "data": read_data(page_dir),
+        "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "asks": [],
         "threads": [
             {

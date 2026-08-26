@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import pytest
 from click.testing import CliRunner
 from leaf_interact import cli as cli_model
+from leaf_interact import data as data_model
 from leaf_interact import events as events_model
 from leaf_interact import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -1052,18 +1053,24 @@ DATA_PROJECTION_PAGE = leaf_page(
     """
 <h1 id="title">Deployments</h1>
 <p id="lede">Live status follows.</p>
-<lf-feed id="deployments"></lf-feed>
+<lf-feed id="deployments" source="deployments"></lf-feed>
 """,
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, projectData} from '/leaf.js';
+import {offer, projectData, watchData} from '/leaf.js';
 customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
-    this.show([
-      {key: 'api', value: 'Ready'},
-      {key: 'worker', value: 'Ready'},
-    ]);
+    if (!this.stopWatching)
+      this.stopWatching = watchData(
+        this,
+        'rows',
+        snapshot => this.show(snapshot?.value ?? []),
+      );
+  }
+  disconnectedCallback() {
+    this.stopWatching?.();
+    this.stopWatching = null;
   }
   show(rows) {
     projectData(this, rows, row => row.key, ({value}) => {
@@ -1084,13 +1091,40 @@ def data_projection_page(serve):
     registry["lf-feed"] = {
         "description": "A project-supplied live feed.",
         "type": "object",
-        "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
-        "required": ["id"],
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
         "additionalProperties": False,
         "x-content": "none",
+        "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
         "x-upgrade": True,
-        "x-example": '<lf-feed id="feed-example"></lf-feed>',
+        "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
+    }
+    registry["$data"]["contracts"]["deployment-rows"] = {
+        "description": "Current deployment status rows.",
+        "schema": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "key": {"type": "string", "minLength": 1},
+                    "value": {"type": "string"},
+                },
+                "required": ["key", "value"],
+                "additionalProperties": False,
+            },
+        },
     }
     registry_path.write_text(json.dumps(registry))
     (d / "widgets" / "lf-feed.js").write_text(DATA_PROJECTION_MODULE)
+    data_model.cmd_data_set(
+        d,
+        "deployments",
+        [
+            {"key": "api", "value": "Ready"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
     return url

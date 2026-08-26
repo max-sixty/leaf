@@ -39,7 +39,8 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
-| projected data | the records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
+| external data | the latest accepted page data revision | `receiveState` replaces the source snapshot; `watchData` delivers clones to widget modules |
+| projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
@@ -628,6 +629,13 @@ inside a module. Every module has these minimum obligations:
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place.
+- Declare each external input through the widget's `x-data`, then subscribe with
+  `watchData(widget, input, callback)`. The authored source attribute is the page's
+  binding; the named contract is the input's meaning. Treat `{contract, updated, value}`
+  as one complete replaceable snapshot, render `null` as absence, and dispose the
+  watcher when the element disconnects. The watcher captures the source at subscription;
+  mutating the live attribute cannot rebind it. A module does not fetch or retain a
+  second copy.
 - Keep durable standalone state in serializable HTML attributes. Export removes
   scripts and handlers.
 - Remove hoisted chrome in `disconnectedCallback` when a reconstruction replaces
@@ -692,7 +700,25 @@ The last kind is a projection, not another source of truth. An id-bearing elemen
 the version is its seat. `projectData(seat, records, keyOf, render)` owns that seat's
 children, labels each rendered element with the seat id (`data-lf-projection`) and its
 record's stable key (`data-lf-datum`), and marks it generated. Records remain the
-caller's input; Leaf stores no current-data map beside the DOM or in the event log.
+caller's input; the DOM never becomes another record store.
+
+Where records come from outside the document, their authority is `data.json`: a
+page-owned replace-in-place store. `$data.contracts` declares reusable meanings and
+schemas. A widget's `x-data` names the contract of each input and the declared attribute
+that carries this page's concrete source id. `leaf data set` resolves that binding,
+validates against its contract, and atomically replaces one complete source value; it
+does not append an event or run package code. The stored snapshot retains its contract,
+so re-vendoring never has to infer meaning from a source's spelling. A source id keeps
+that contract across every immutable version and widget frozen into a thread. Those
+documents all read the current page store: clearing a value therefore does not release
+its id for a new meaning, and re-vendoring must preserve the page-lifetime binding.
+`page state` exposes those bindings and their consumers to producers. The browser keeps
+the latest accepted data revision independently from `lastEventSeq`, because overlapping
+poll and POST responses can order those two authorities differently.
+`watchData(widget, input, callback)` delivers a clone of
+`{contract, updated, value}`, or `null` before the bound source has a value, immediately
+and after state application. Modules project that value into the authored seat; they do
+not fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.
 
 Keys identify facts, not renderings or display strings. They are non-empty strings,
 unique within one projection, and must remain with the same logical datum across

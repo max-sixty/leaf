@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from leaf_interact.data import data_binding_errors, read_data_store
 from leaf_interact.document import (
     LF_META,
     PAGE_CSP,
@@ -146,6 +147,14 @@ def cmd_check(
     registry = load_registry(page_dir)
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
+        errors.extend(
+            data_binding_errors(
+                page_dir,
+                registry,
+                read_data_store(page_dir),
+                events,
+            )
+        )
         errors.extend(addressable_instance_errors(parser.lf_elements, registry))
         errors.extend(ask_region_errors(parser.lf_elements, registry))
         errors.extend(reference_errors(parser.lf_elements, registry, parser.ids))

@@ -58,8 +58,8 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
 - `packages/default/` supplies the bundled content vocabulary. It enters the
   composer through the same package contract as an explicit package, `.leaf/`,
   or `~/.config/leaf/`. A package may carry a theme, zero or more widgets,
-  helper modules, vendor files, named guidance audiences, or top-level layer
-  files.
+  helper modules, vendor files, typed external-data contracts, contribution or
+  package-wide guidance, or top-level layer files.
 
 The seventh product part is repo-root `examples/`: complete pages that form the
 render corpus. `examples/gallery.html` is generated from them.
@@ -91,17 +91,27 @@ package, explicit package paths in command order, `~/.config/leaf/`, then
 `.leaf/`. The vendored registry records explicit paths under `$layer.packages`
 so a plain re-init resolves the same packages. Theme files concatenate.
 Runtime, icon, widget, and vendor files replace by path. Registry tag entries
-replace whole, while members of shared `$` entries compose. Guidance files with
-the same audience name concatenate in package order. Each initialization
+replace whole, while members of shared `$` entries compose. Package-wide guidance
+files with the same audience name concatenate in package order; contract guidance and
+widget `x-guidance` stay attached to the contribution that owns them. Each initialization
 validates the merged vocabulary and writes the same fresh layer epoch into the
 runtime and registry. An open tab carrying an older contract reloads before its
 next poll or event reaches the replacement server.
 
 The page directory is both durable record and deployment unit. It contains
-immutable version files, the append-only log, vendored assets, service state, and
-status. Do not add a database, daemon, build output, or hidden current-state file
-between those parts. A static export derives from the same version and log, then
-removes live handlers and replaces controls with their answers.
+immutable version files, the append-only log, the explicit replace-in-place
+`data.json` authority for page-bound sources validated against named contracts,
+vendored assets, service
+state, and status. Do not add a database, daemon, build output, or hidden derived
+current-state file between those parts. A static export derives from the same
+version, log, and data snapshot, then removes live handlers and replaces controls
+with their answers.
+
+A concrete data source id has one contract for the page's lifetime. Every immutable
+version and every widget frozen into thread markup can keep consuming the current
+replace-in-place snapshot, so clearing a value does not free its id for reuse. The
+binding is derived from those documents, exposed by `page state`, and preserved across
+re-vendoring; a new meaning requires a new source id.
 
 ## Ownership rules
 

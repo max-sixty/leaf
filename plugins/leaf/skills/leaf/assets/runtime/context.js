@@ -5,6 +5,7 @@
 export const runtime = {
   agent: "Claude",
   currentVersion: null,
+  data: { revision: -1, sources: {} },
   events: [],
   lastEventSeq: -1,
   latestVersion: null,

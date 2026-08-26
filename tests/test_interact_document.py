@@ -25,12 +25,14 @@ from interact_support import (
     _tasks_version,
     check,
     decide,
+    declare_data_input,
     publish,
     state_json,
     suggest,
 )
 from leaf_interact import cli as cli_model
 from leaf_interact import conversation as conversation_model
+from leaf_interact import data as data_model
 from leaf_interact import events as events_model
 from leaf_interact import files as files_model
 from leaf_interact import layer as layer_model
@@ -1749,6 +1751,332 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         ("completion", "answer"),
         ("selection", "choose"),
     ]
+
+
+def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
+    """One CLI boundary writes complete source values. A rejected replacement leaves
+    the accepted revision untouched, while `page state` exposes the same envelope a
+    browser receives so a session never has to infer external facts from markup."""
+    declare_data_input(
+        page_dir,
+        "deployments",
+        {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        contract="deployment-rows",
+    )
+    runner = CliRunner()
+
+    written = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "deployments"],
+        input='["api", "worker"]',
+    )
+
+    assert written.exit_code == 0, written.output
+    standing = state_json(page_dir)
+    first = standing["data"]
+    assert first["revision"] == 1
+    assert first["sources"]["deployments"]["contract"] == "deployment-rows"
+    assert first["sources"]["deployments"]["value"] == ["api", "worker"]
+    assert standing["data_bindings"] == {
+        "deployments": {
+            "contract": "deployment-rows",
+            "consumers": [
+                {
+                    "widget": "test-data",
+                    "input": "data",
+                    "document": "v1.html",
+                }
+            ],
+        }
+    }
+
+    rejected = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "deployments"],
+        input='{"api": "ready"}',
+    )
+    assert rejected.exit_code != 0
+    assert "source 'deployments' value is invalid" in rejected.output
+    assert state_json(page_dir)["data"] == first
+
+    non_json = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "deployments"],
+        input="NaN",
+    )
+    assert non_json.exit_code != 0
+    assert "value is not JSON" in non_json.output
+    assert state_json(page_dir)["data"] == first
+
+    cleared = runner.invoke(
+        cli_model.cli, ["data", "clear", str(page_dir), "deployments"]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    assert state_json(page_dir)["data"] == {"revision": 2, "sources": {}}
+
+    unbound = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "package-guessed-name"],
+        input="[]",
+    )
+    assert unbound.exit_code != 0
+    assert "not bound by any page or thread widget" in unbound.output
+
+
+def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_dir):
+    """The page owns concrete source identity. Seats may share one typed feed, while
+    binding that id to a different meaning is refused before either the browser or a
+    producer can reinterpret its standing value."""
+    declare_data_input(
+        page_dir,
+        "project-feed",
+        {"type": "array"},
+        contract="rows",
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</main>",
+            '<lf-test-data id="test-data-two" source="project-feed"></lf-test-data>\n'
+            "</main>",
+        )
+    )
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+
+    shared = check(page_dir)
+    assert shared.exit_code == 0, shared.output
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    version.write_text(
+        version.read_text().replace(
+            "</main>",
+            '<lf-other-data id="other-data" source="project-feed"></lf-other-data>\n'
+            "</main>",
+        )
+    )
+
+    conflict = check(page_dir)
+    assert conflict.exit_code != 0
+    assert "bound to both contract 'rows'" in conflict.output
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert state.exit_code != 0
+    assert "page history has conflicting data bindings" in state.output
+
+
+def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir):
+    """Pinned versions share the page's current data store. Clearing removes a value,
+    not the meaning of the source id that an immutable version still consumes."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    publish(page_dir)
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+    data_model.cmd_data_clear(page_dir, "project-feed")
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    first = (page_dir / "versions" / "v1.html").read_text()
+    (page_dir / "versions" / "v2.html").write_text(
+        first.replace("lf-test-data", "lf-other-data")
+    )
+
+    result = check(page_dir, 2)
+    assert result.exit_code != 0
+    assert "use a new source id for the new meaning" in result.output
+
+
+def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
+    """A widget sent by an agent is still a data consumer. Its binding enters the
+    page-lifetime index even though no authored version contains its seat."""
+    declare_data_input(page_dir, "reply-feed", {"type": "array"}, contract="rows")
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        re.sub(r"<lf-test-data[^>]*></lf-test-data>\n?", "", version.read_text())
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "data-question",
+            "author": "user",
+            "version": 1,
+            "text": "Show the feed here.",
+        },
+    )
+    reply = conversation_model.cmd_reply(
+        page_dir,
+        "data-question",
+        "Here it is.",
+        '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
+    )
+
+    data_model.cmd_data_set(page_dir, "reply-feed", [])
+    standing = state_json(page_dir)
+    assert standing["data"]["sources"]["reply-feed"]["contract"] == "rows"
+    assert standing["data_bindings"]["reply-feed"]["consumers"] == [
+        {
+            "widget": "reply-data",
+            "input": "data",
+            "document": f"event {reply['id']!r} markup",
+        }
+    ]
+
+
+def test_thread_markup_cannot_rebind_a_page_source(page_dir):
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "data-question",
+            "author": "user",
+            "version": 1,
+            "text": "Show another feed here.",
+        },
+    )
+
+    with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
+        conversation_model.cmd_reply(
+            page_dir,
+            "data-question",
+            "Here it is.",
+            '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        )
+
+
+def test_data_set_validates_the_json_value_it_writes(page_dir):
+    """The Python facade and CLI share one boundary. A caller may hand the facade a
+    mapping key that json.dumps coerces, but the schema must judge the resulting JSON,
+    not a Python-only shape that can never reach the browser."""
+    declare_data_input(
+        page_dir,
+        "builds",
+        {
+            "type": "object",
+            "propertyNames": {"pattern": "^[a-z]+$"},
+        },
+        contract="build-map",
+    )
+
+    with pytest.raises(data_model.DataError, match="value is invalid"):
+        data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
+
+    assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
+
+
+def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
+    """Recursive schemas can describe trees, but a reference cycle that never moves
+    into a child instance cannot answer for any value. It is a package-contract error,
+    not a recursion failure the producer or re-vendor should have to catch."""
+    declare_data_input(
+        page_dir,
+        "loop",
+        {
+            "$id": "https://example.invalid/loop",
+            "$ref": "https://example.invalid/loop",
+        },
+        contract="loop",
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+
+    with pytest.raises(
+        data_model.DataError, match="recursive reference did not terminate"
+    ):
+        data_model.cmd_data_set(page_dir, "loop", {})
+
+    assert data_model.data_contract_errors(
+        {
+            "revision": 1,
+            "sources": {
+                "loop": {
+                    "contract": "loop",
+                    "updated": "2026-08-25T12:00:00-07:00",
+                    "value": {},
+                }
+            },
+        },
+        registry,
+    ) == [
+        (
+            "source 'loop' contract 'loop' could not validate its value: "
+            "a recursive reference did not terminate"
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("stored", "message"),
+    [
+        ("null", "object with only revision and sources"),
+        (
+            (
+                '{"revision":1,"sources":{"builds":{"contract":"build-map",'
+                '"updated":"2026-08-25T12:00:00-07:00","value":NaN}}}'
+            ),
+            "value is not JSON",
+        ),
+        (
+            (
+                '{"revision":1,"sources":{"builds":{"contract":"Bad Contract",'
+                '"updated":"2026-08-25T12:00:00-07:00","value":[]}}}'
+            ),
+            "must contain only contract, updated, and value",
+        ),
+    ],
+)
+def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
+    """A file on disk still crosses a structural boundary before it reaches the wire.
+
+    Python's JSON reader admits `NaN`, and a JSON `null` is easy to confuse with a
+    missing file. Neither can become a browser snapshot.
+    """
+    (page_dir / "data.json").write_text(stored)
+
+    with pytest.raises(data_model.DataError, match=message):
+        data_model.read_data_store(page_dir)
+
+
+def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
+    (page_dir / "data.json").write_bytes(b"\xff")
+
+    with pytest.raises(data_model.DataError, match="invalid JSON"):
+        data_model.read_data_store(page_dir)
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):

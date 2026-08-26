@@ -8,6 +8,7 @@ import click
 
 from leaf_interact.checking import cmd_check
 from leaf_interact.conversation import cmd_comment, cmd_reply, cmd_report, cmd_resolve
+from leaf_interact.data import cmd_data_clear, cmd_data_set
 from leaf_interact.hooks import cmd_hook, unanswered_asks
 from leaf_interact.hosting import cmd_serve, cmd_stop, start_server
 from leaf_interact.layer import cmd_init, cmd_package_check, cmd_package_init
@@ -133,7 +134,7 @@ def catalog(dir: str) -> None:
     cmd_catalog(resolve_dir(dir))
 
 
-@page.command(short_help="List or print package guidance by audience.")
+@page.command(short_help="List or print composed guidance by audience.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("audience", required=False, metavar="AUDIENCE")
 def guidance(dir: str, audience: str | None) -> None:
@@ -146,8 +147,42 @@ def guidance(dir: str, audience: str | None) -> None:
 def state(dir: str) -> None:
     """Fold the log onto the published page and print the result as one JSON
     object: elements, standing state and reports, record lag, open asks,
-    threads, versions, presence."""
+    threads, versions, presence, external data and its page bindings."""
     cmd_page_state(resolve_dir(dir))
+
+
+@cli.group(short_help="Set or clear page-bound external data.")
+def data() -> None:
+    """Manage replaceable external or derived page data."""
+
+
+@data.command("set", short_help="Replace one bound source value.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("source", metavar="SOURCE")
+@click.option(
+    "--file",
+    "input_file",
+    type=click.File("r", encoding="utf-8"),
+    default="-",
+    help="JSON value to read (default: stdin)",
+)
+def data_set(dir: str, source: str, input_file) -> None:
+    """Validate and replace SOURCE with one complete JSON value."""
+    try:
+        value = json.load(input_file)
+    except json.JSONDecodeError as error:
+        raise click.ClickException(
+            f"invalid JSON ({error.msg}, line {error.lineno})"
+        ) from error
+    cmd_data_set(resolve_dir(dir), source, value)
+
+
+@data.command("clear", short_help="Remove one source snapshot.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("source", metavar="SOURCE")
+def data_clear(dir: str, source: str) -> None:
+    """Remove SOURCE, including a value its current schema rejects."""
+    cmd_data_clear(resolve_dir(dir), source)
 
 
 @cli.group(short_help="Check, publish, and export versions.")

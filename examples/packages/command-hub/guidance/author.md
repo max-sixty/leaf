@@ -13,8 +13,7 @@ project-wide coordinator sits directly under the command, an area owner under an
 intermediate goal, and a specialist under a leaf. The optional `on` attribute is
 only the worker's current focus.
 
-Keep a worker's worktree and diff beside it as evidence. Put each decision or
-input beside the goal it blocks. The package derives the header, stopped-work
+Put each decision or input beside the goal it blocks. The package derives the header, stopped-work
 reading, live-worker view, and action record from the tree and log. A
 project-specific goal or worker widget can join the projection through
 `$command.widgets`. Do not author a role enum, second roster, asks list, progress

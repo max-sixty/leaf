@@ -4,6 +4,7 @@ import re
 import sys
 from pathlib import Path
 
+from leaf_interact.data import data_binding_errors, read_data_store
 from leaf_interact.document import (
     EMPTY,
     OPTIONAL_END,
@@ -350,6 +351,13 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         thread_markup_contract_errors(frag, registry)
         + fragment_style_errors(frag)
         + media_errors(frag, page_dir)
+        + data_binding_errors(
+            page_dir,
+            registry,
+            read_data_store(page_dir),
+            events,
+            [(frag.lf_elements, f"incoming {kind} markup")],
+        )
     )
     if errs:
         sys.exit(

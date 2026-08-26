@@ -353,6 +353,25 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
         page.close()
 
 
+def test_a_shipped_data_snapshot_opens_in_its_package_projection(site, hosted, browser):
+    """The static session delivers package data through the live state contract."""
+    stored = json.loads((site / "examples" / "command-hub" / "data.json").read_text())
+    assert (
+        stored["sources"]["atlas-worktrees"]["value"]["tree-w-1"]["branch"]
+        == "atlas/xml-declarations"
+    )
+
+    page, errors = open_page(browser, example_url(hosted, "command-hub"))
+    try:
+        snapshot = page.locator('#tree-w-1 [data-lf-datum="tree-w-1"]')
+        expect(snapshot).to_have_count(1)
+        expect(snapshot).to_contain_text("atlas/xml-declarations")
+        expect(snapshot).to_contain_text("tests running")
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
     """The whole loop a static host could not hold before: the reader selects a passage,
     the comment goes into a log, the page renders it back with the passage quoted, and

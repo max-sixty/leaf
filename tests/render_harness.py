@@ -40,6 +40,7 @@ from types import SimpleNamespace
 import pytest
 from click.testing import CliRunner
 from leaf_interact import cli as cli_model
+from leaf_interact import data as data_model
 from leaf_interact import events as events_model
 from leaf_interact import files as files_model
 from leaf_interact import hosting as hosting_model
@@ -357,9 +358,9 @@ def serve(tmp_path, monkeypatch):
     """Publish HTML as v1 of a fresh page directory and serve it, as the real
     server does — vendoring included, so the assets under test are this repo's.
 
-    Handed an example's path rather than its markup, it also lays in the two
-    things that example ships beside itself: the media it names, and the event
-    log, where it has one. The log for the same reason `test_examples_pass_check`
+    Handed an example's path rather than its markup, it also lays in the three
+    things that example ships beside itself: the media it names, external data,
+    and the event log, where it has one. The log for the same reason `test_examples_pass_check`
     reads one — a page is what its markup and its standing log make together, and
     a corpus that reads only the markup is reading half of it. A thread and any
     widget a message carries exist nowhere else, so without this every sweep is
@@ -388,6 +389,11 @@ def serve(tmp_path, monkeypatch):
         events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
+        if example and (data_seed := example.with_suffix(".data.json")).exists():
+            for name, value in json.loads(
+                data_seed.read_text(encoding="utf-8")
+            ).items():
+                data_model.cmd_data_set(d, name, value)
         # After the note, so v1's announcement stays the log's first line and the
         # exchange reads in the order it happened, which is preview.py's ordering.
         # (The site build writes the seed alone and announces its versions

@@ -23,6 +23,7 @@ from render_support import (
     ASKS_PAGE,
     BOTH_STAMPS,
     BOXLESS_SECTION_PAGE,
+    COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PACKAGE,
     COMMAND_HUB_PAGE,
     IMPORTER_CARD,
@@ -2927,10 +2928,7 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
         """
 <lf-roster id="team">
   <lf-agent id="worker" state="working"><strong>worker</strong> Owns the remit.
-    <lf-worktree id="proof" branch="custom/head" base="abc1234" head="def5678"
-      ahead="1" behind="0" additions="4" deletions="1" commits="1" tests="passing">
-      <pre>Custom evidence.</pre>
-    </lf-worktree>
+    <lf-worktree id="proof"></lf-worktree>
   </lf-agent>
 </lf-roster>
 """,
@@ -2948,7 +2946,7 @@ def test_agent_places_its_live_line_before_command_evidence(browser, serve):
 def test_command_goal_can_pause_after_an_ordinary_conversation_started(browser, serve):
     """A normal note does not consume the goal's stronger pause door. The reader
     can start a later held thread, whose root remains the one atomic hold fact."""
-    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     goal = page.locator("#goal-parser")
     conversation = goal.locator(":scope > .lf-conversation")
@@ -3002,7 +3000,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     """An input action discharges the request live; the honoring version removes its
     authored `needed` condition, so clearing record debt cannot turn the input back into
     an ask."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
@@ -3041,7 +3039,7 @@ def test_command_hub_an_absorbed_intervention_does_not_stop_again(browser, serve
     """Pending paint is record debt, not whether an intervention is answered. Once a
     version carries the standing choice, the goal stays dispositioned even though its
     provisional mark correctly leaves."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
     page.locator("#dedupe-snooze").get_by_role(
@@ -3079,7 +3077,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     """G's primary contract: one plan supplies progress, stopped work, live
     workers, and worktree evidence. A worker report moves that reading rather than
     updating a second dashboard copy."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     stale_report(d, "w-2", "stalled without a new commit", 3)
     page, errors = open_page(browser, url)
@@ -3119,16 +3117,18 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(page.locator("#w-5")).to_have_attribute("state", "reaped")
     expect(workers.first).to_be_visible()
     worktree = page.locator("#tree-w-1")
-    expect(worktree.locator("#diff-w-1")).to_be_hidden()
-    worktree_head = worktree.locator(":scope > .lf-worktree-head")
+    expect(worktree.locator("#lf-tree-w-1-diff")).to_be_hidden()
+    worktree_head = worktree.locator(
+        ":scope > .lf-worktree-snapshot > .lf-worktree-head"
+    )
     worktree_head.click()
-    expect(worktree.locator("#diff-w-1")).to_be_visible()
+    expect(worktree.locator("#lf-tree-w-1-diff")).to_be_visible()
     worktree_head.focus()
     page.keyboard.press("Enter")
-    expect(worktree.locator("#diff-w-1")).to_be_hidden()
+    expect(worktree.locator("#lf-tree-w-1-diff")).to_be_hidden()
     expect(worktree_head).to_be_focused()
     page.keyboard.press("Enter")
-    expect(worktree.locator("#diff-w-1")).to_be_visible()
+    expect(worktree.locator("#lf-tree-w-1-diff")).to_be_visible()
     expect(worktree_head).to_be_focused()
 
     sent = CliRunner().invoke(
@@ -3143,7 +3143,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(workers.first).to_be_hidden()
     page.emulate_media(media="print")
     expect(workers.first).to_be_visible()
-    expect(worktree.locator("#diff-w-1")).to_be_visible()
+    expect(worktree.locator("#lf-tree-w-1-diff")).to_be_visible()
     expect(worktree_head).to_contain_text("atlas/xml-declarations")
     page.emulate_media(media="screen")
 
@@ -3159,7 +3159,7 @@ def test_command_hub_disposition_refolds_stopped_work(browser, serve):
     """The stopped reading is derived, not a second list to maintain. Recording a stall
     disposition removes that goal from the oldest-first reading; undo restores the
     same goal, order, and blast-radius evidence from the standing log."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, url)
     stopped = page.locator("#hub-plan > .lf-stopped-view")
     stopped.locator("summary").click()
@@ -3210,7 +3210,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     """The replica cargo is visible in the real editor before Save. Trimming it
     changes the one payload that enters the log, leaves a receipt naming the input,
     and releases that input row without claiming the dependent work completed."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
@@ -3272,7 +3272,7 @@ def test_command_hub_keeps_a_real_goal_ask_outside_a_quoted_decision(browser, se
 
 
 def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser, serve):
-    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     fleet = page.locator("#hub-plan > .lf-fleet-view")
     fleet.locator(":scope > summary").click()
@@ -3316,13 +3316,13 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
 def test_command_hub_repaints_anchors_after_generated_projections_change(
     browser, serve
 ):
-    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     # The worktree head is a generated passage. Its disclosure arrow and the Command
     # projection can change without invalidating the branch fact the comment named.
     expect(page.locator("#goal-parser > .lf-task-meta .lf-task-crew")).to_be_visible()
     page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
-    head = page.locator("#tree-w-1 > .lf-worktree-head")
+    head = page.locator("#tree-w-1 > .lf-worktree-snapshot > .lf-worktree-head")
     head.evaluate(
         """(el) => {
           const quote = 'atlas/xml-declarations';
@@ -3355,7 +3355,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
 
 
 def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, serve):
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     threads = {
         target: events_model.append_event(
             serve.page_dir,
@@ -3367,7 +3367,7 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
                 "anchor": {"section": target},
             },
         )["id"]
-        for target in ("w-1", "diff-w-1")
+        for target in ("w-1", "lf-tree-w-1-diff")
     }
     page, errors = open_page(browser, url)
     # Initial anchor painting already reveals its evidence. Close both disclosures
@@ -3383,12 +3383,14 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     page.locator(".lf-comments").click()
     page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-quote').click()
     expect(page.locator("#w-1")).to_be_visible()
-    expect(page.locator("#diff-w-1")).to_be_hidden()
-    page.locator(f'.lf-thread[data-id="{threads["diff-w-1"]}"] .lf-quote').click()
-    expect(page.locator("#diff-w-1")).to_be_visible()
-    expect(page.locator("#tree-w-1 > .lf-worktree-head")).to_have_attribute(
-        "aria-expanded", "true"
-    )
+    expect(page.locator("#lf-tree-w-1-diff")).to_be_hidden()
+    page.locator(
+        f'.lf-thread[data-id="{threads["lf-tree-w-1-diff"]}"] .lf-quote'
+    ).click()
+    expect(page.locator("#lf-tree-w-1-diff")).to_be_visible()
+    expect(
+        page.locator("#tree-w-1 > .lf-worktree-snapshot > .lf-worktree-head")
+    ).to_have_attribute("aria-expanded", "true")
     assert errors == []
     page.close()
 
@@ -3397,7 +3399,7 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     """The stronger send has no companion pause action. Its unresolved thread is
     the hold, so a reply preserves it, resolution releases it, and undoing that
     resolution restores it with the same evidence and comment id."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
     goal = page.locator("#goal-parser")
@@ -3455,7 +3457,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
     """Two stopped reports are not proof of one continuous stop. An honoring
     publication can absorb the first, and a later version can author active work;
     a fresh stopped report dates the new interruption from itself."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
     events_model.append_event(
         d,
@@ -3517,7 +3519,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
 
 def test_command_hub_stops_listening_after_live_version_replacement(browser, serve):
     """A command removed with the old main cannot emit another projection."""
-    url = serve(COMMAND_HUB_PAGE)
+    url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, live_url(url))
     page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
     (serve.page_dir / "versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
@@ -3552,7 +3554,7 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
 
 
 def test_command_record_resolves_a_thread_through_any_of_its_messages(browser, serve):
-    page, errors = open_page(browser, serve(COMMAND_HUB_PAGE))
+    page, errors = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
     d = serve.page_dir
     root = events_model.append_event(
         d,

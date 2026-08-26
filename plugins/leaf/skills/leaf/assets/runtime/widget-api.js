@@ -16,3 +16,4 @@ export {
 export { quietWord } from "./presentation.js";
 export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";
+export { dataBody, failSoft, once, settle } from "./widget-upgrade.js";

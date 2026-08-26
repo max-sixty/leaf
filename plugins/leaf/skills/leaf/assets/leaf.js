@@ -174,7 +174,6 @@ import {
   PAGE_PAINT_ATTRIBUTES,
   dress,
   markDeclared,
-  quietWord,
   renderQuiet,
   renderSaid,
 } from "./runtime/presentation.js";
@@ -200,8 +199,6 @@ import {
   versionUrl,
 } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
-
-export { quietWord };
 
 // ---------- widget layer ----------
 

@@ -57,7 +57,7 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
-def test_widget_api_selects_registry_helpers_from_their_owner(browser, serve):
+def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     exports = page.evaluate(
         """async () => {
@@ -69,6 +69,7 @@ def test_widget_api_selects_registry_helpers_from_their_owner(browser, serve):
             'elementsDeclaring',
             'layerFact',
             'matchesWhen',
+            'quietWord',
           ];
           return Object.fromEntries(names.map((name) => [name, {
             api: typeof api[name],
@@ -84,6 +85,7 @@ def test_widget_api_selects_registry_helpers_from_their_owner(browser, serve):
             "elementsDeclaring",
             "layerFact",
             "matchesWhen",
+            "quietWord",
         ]
     }
     assert errors == []

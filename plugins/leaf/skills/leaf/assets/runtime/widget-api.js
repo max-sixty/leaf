@@ -12,5 +12,6 @@ export {
   layerFact,
   matchesWhen,
 } from "./registry.js";
+export { quietWord } from "./presentation.js";
 export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";

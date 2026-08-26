@@ -236,6 +236,30 @@ events. The runtime's detailed contract lives in its own `CLAUDE.md`.
 
 Registry declarations choose these routes. Core does not branch on widget names.
 
+### A reaction is a comment that starts as a mark
+
+A `comment` or `reply` carrying `token` in place of `text` is a reaction: one
+word from `$reactions`, aimed where the comment's anchor or the reply's parent
+points, or with neither at the page whole. It opens no thread. It paints — a
+glyph in the margin and a wash fainter than a comment's on the words — and the
+reader takes it back with the ordinary `undo` naming it, which is what makes it
+cheap. Someone replying to it is what turns it into a conversation; from then on
+it is a thread whose root is a mark, and the reaction can no longer be withdrawn.
+`resolve` is its floor: after it the reaction stops painting. No note member
+absorbs one, and no version is gated by one — its anchor re-resolves or
+detaches like a comment's.
+
+The vocabulary is configuration, not contract. The kernel declares the
+`$reactions` namespace and no token; the default package ships the working set,
+and layers reshape it merge-patch style. Behavior rides the entry: a token's
+`glyph` is what the page paints, its `means` is what `leaf wait` prints beside
+the event, and `settles` says a reaction of that kind on the latest agent
+message of a thread takes the thread out of "waiting on you" — a reading of the
+log, never a second event. Core never names a token; POST refuses one the merged
+vocabulary lacks. Both runtimes read "who spoke last" over a thread's turns,
+never its marks, so a reaction is neither the reader speaking nor an unanswered
+ask.
+
 ### The host supplies what leaf runs on
 
 Leaf installs onto a host whose software supply chain is not ours. Every

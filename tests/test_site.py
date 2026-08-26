@@ -330,8 +330,10 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
     try:
         # Counted off the log rather than typed, so a seed that grows a thread does
         # not red this on a number nobody meant to assert.
+        # The comments that opened a thread: a reaction is a comment carrying a token
+        # in place of words, and it opens none until somebody replies to it.
         threads = sum(
-            json.loads(line)["kind"] == "comment"
+            json.loads(line)["kind"] == "comment" and "token" not in json.loads(line)
             for line in (ROOT / "examples" / "ship-review.jsonl")
             .read_text(encoding="utf-8")
             .split("\n")

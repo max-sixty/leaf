@@ -17,6 +17,11 @@ export let designOn = false;
 // for them. Working state of this tab, so the tab's store rather than the reader's.
 export const DESIGN_KEY = "lf-design";
 
+// How long a name may run where the chrome writes one on a line of its own: the word
+// design mode shows for the control under the pointer, and the passage the key line
+// names in what `z` would take back. One cut, because it is one line's worth of room.
+export const CONTROL_WORD_CAP = 24;
+
 export function createDesign(dependencies) {
   const {
     ITEM,
@@ -212,7 +217,7 @@ export function createDesign(dependencies) {
   // control the press landed on where it landed on one, since "the grip" and "the card"
   // are different remarks. Nothing where the press is the mode's own machinery: the
   // composer being typed into, the 💬 that opens it, the name floating under the pointer.
-  const DESIGN_OWN = ".lf-composer, .lf-fab, .lf-inspect";
+  const DESIGN_OWN = ".lf-composer, .lf-fab-bar, .lf-inspect";
   // The platform's own words for a thing the user works, which is what design mode names a
   // press by. A separator is on the list because a focusable one is a window splitter — the
   // panel's edge is the case — and a press that lands on it has landed on something the
@@ -243,7 +248,6 @@ export function createDesign(dependencies) {
 
   // A control's word for the label: what it says to a screen reader, else what it shows,
   // else what it is.
-  const CONTROL_WORD_CAP = 24;
   function controlWord(control) {
     const said =
       control.getAttribute("aria-label") ||

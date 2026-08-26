@@ -425,14 +425,16 @@ def incoming_registry(packages: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    events its $events record schemas reject; held comments whose conversation
-    contract changed; or actions and reports whose sending tag, verb, or detail
-    the incoming x-state or x-report contract rejects. Empty for a fresh page.
+    events its $events record schemas reject; reactions on a token its
+    $reactions drops; held comments whose conversation contract changed; or
+    actions and reports whose sending tag, verb, or detail the incoming x-state
+    or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
         return []
     contracts = incoming["$events"]["kinds"]
+    tokens = incoming.get("$reactions", {}).get("tokens", {})
     thread = thread_structure(events)
     versions = {}
 
@@ -448,6 +450,11 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"kind `{kind}`"
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
+        elif e.get("token") and e["token"] not in tokens:
+            # A token the layer drops has no glyph to paint and no pill to withdraw
+            # it by, so a standing reaction on it would fall silent — the verb rule
+            # (`declared_action_error`) read for the reaction vocabulary.
+            key = f"reaction token `{e['token']}` no longer declared by $reactions"
         elif (
             kind == "comment"
             and e.get("holds")

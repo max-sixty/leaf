@@ -6,12 +6,14 @@ export function createDispatch({
   ELEMENTS,
   focused,
   isChordArmed,
+  isReactArmed,
   keepShown,
   paintHere,
   panel,
   SCOPES,
   scopesFor,
   setChord,
+  setReact,
   takesLetters,
 }) {
   // The two questions a scope answers, named apart because the surfaces ask them apart: the
@@ -69,8 +71,9 @@ export function createDispatch({
     // gives it. A modifier alone is half a press rather than a key: the Shift that
     // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
     // took the window down before the G it was armed for.
-    if (isChordArmed() && !MODIFIER_KEYS.includes(ev.key)) {
+    if ((isChordArmed() || isReactArmed()) && !MODIFIER_KEYS.includes(ev.key)) {
       setChord(false);
+      setReact(false);
       run(ev);
     }
   });
@@ -111,6 +114,7 @@ export function createDispatch({
     // readings of where the reader is standing would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
+    if (isReactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (isChordArmed() && (takesLetters(active) || claimsEsc(active))) {
       // Focus arriving inside what the aim revealed is the reader landing in it, the same
       // arrival the digit makes, so the reveal is theirs to keep rather than the aim's to

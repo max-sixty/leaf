@@ -29,11 +29,17 @@ from .files import (
     version_num,
     write_json,
 )
-from .registry import RegistryError, layer_generation, load_registry
+from .registry import (
+    RegistryError,
+    layer_generation,
+    load_registry,
+    reaction_tokens,
+)
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
     KEY_COOKIE,
+    MESSAGE_KINDS,
     NO_KEY,
     SERVED_PATH,
 )
@@ -572,18 +578,29 @@ class Handler(BaseHTTPRequestHandler):
                             '<meta name="lf-review" content="sign-off">, so it has no '
                             "approval to record",
                         )
+                # Not the static admission read in `_post`: re-vendoring and this
+                # transaction have now chosen an order, so only this registry can
+                # authorize what will be appended under the same lease. Read once, by
+                # the three checks that ask for it.
+                vendored = None
+
+                def registry_or_rejection():
+                    nonlocal vendored
+                    if vendored is None:
+                        try:
+                            vendored = load_registry(self.page_dir)
+                        except RegistryError as error:
+                            return None, self.event_rejection(event, str(error))
+                        if vendored is None:
+                            return None, self.event_rejection(
+                                event, "the page has no registry.json"
+                            )
+                    return vendored, None
+
                 if kind == "action":
-                    # This is not the static admission read in `_post`: re-vendoring and
-                    # this transaction have now chosen an order, so only this registry
-                    # can authorize an action that will be appended under the same lease.
-                    try:
-                        registry = load_registry(self.page_dir)
-                    except RegistryError as error:
-                        return self.event_rejection(event, str(error))
-                    if registry is None:
-                        return self.event_rejection(
-                            event, "the page has no registry.json"
-                        )
+                    registry, rejection = registry_or_rejection()
+                    if rejection:
+                        return rejection
                     if error := action_contract_error(
                         self.page_dir,
                         event,
@@ -591,15 +608,24 @@ class Handler(BaseHTTPRequestHandler):
                         registry,
                     ):
                         return self.event_rejection(event, error)
-                if kind == "comment" and event.get("holds"):
-                    try:
-                        registry = load_registry(self.page_dir)
-                    except RegistryError as error:
-                        return self.event_rejection(event, str(error))
-                    if registry is None:
+                if event.get("token"):
+                    # Against the vocabulary vendored under this lease, the way
+                    # an action's verb is: a token the layer does not declare has
+                    # no glyph to paint and no meaning for `leaf wait` to print.
+                    registry, rejection = registry_or_rejection()
+                    if rejection:
+                        return rejection
+                    tokens = reaction_tokens(registry)
+                    if event["token"] not in tokens:
                         return self.event_rejection(
-                            event, "the page has no registry.json"
+                            event,
+                            f"unknown reaction token {event['token']!r}; this "
+                            f"layer declares {sorted(tokens)}",
                         )
+                if kind == "comment" and event.get("holds"):
+                    registry, rejection = registry_or_rejection()
+                    if rejection:
+                        return rejection
                     if error := held_comment_error(
                         event,
                         parse_version(self.page_dir, event["version"]).by_id,
@@ -607,7 +633,7 @@ class Handler(BaseHTTPRequestHandler):
                     ):
                         return self.event_rejection(event, error)
                 if "parent" in event and event["parent"] not in {
-                    e["id"] for e in events if e["kind"] in {"comment", "reply"}
+                    e["id"] for e in events if e["kind"] in MESSAGE_KINDS
                 }:
                     return self.event_rejection(
                         event, f"unknown parent {event['parent']!r}"

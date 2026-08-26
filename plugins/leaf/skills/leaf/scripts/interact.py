@@ -530,7 +530,7 @@ from leaf_interact.document import (
     collapse,  # noqa: F401 - public facade re-export
     css_syntax_errors,
     inline_presentation_override_errors,
-    page_passages,
+    page_passages,  # noqa: F401 - public facade re-export
     parse_structure,
     parse_version,
     root_tokens,
@@ -548,7 +548,7 @@ from leaf_interact.events import (
     now_iso,  # noqa: F401 - public facade re-export
     read_cursor,  # noqa: F401 - public facade re-export
     read_events,
-    require_cross_process_locking,
+    require_cross_process_locking,  # noqa: F401 - public facade re-export
     retractions,
     standing_work_claims,
     taken_back,
@@ -569,19 +569,19 @@ from leaf_interact.files import (
     path_is_within,  # noqa: F401 - public facade re-export
     paths_same,  # noqa: F401 - public facade re-export
     published_versions,
-    read_json,
+    read_json,  # noqa: F401 - public facade re-export
     replace_files,  # noqa: F401 - public facade re-export
     version_name,
     version_num,  # noqa: F401 - public facade re-export
     version_path,
-    write_json,
+    write_json,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.http import (
     Handler,  # noqa: F401 - public facade re-export
-    full_state,
+    full_state,  # noqa: F401 - public facade re-export
     handler_for,
     other_leaves,  # noqa: F401 - public facade re-export
-    presence,
+    presence,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.layer import (  # noqa: F401 - public facade re-exports
     LayerComposition,
@@ -614,25 +614,25 @@ from leaf_interact.projection import (
     StateProjection,  # noqa: F401 - public facade re-export
     action_subjects,  # noqa: F401 - public facade re-export
     asking,  # noqa: F401 - public facade re-export
-    canonical_updates,
+    canonical_updates,  # noqa: F401 - public facade re-export
     decisions,
     enclosing_widgets,  # noqa: F401 - public facade re-export
     folded_facet,
     markup_facet,
     page_ask_projection,  # noqa: F401 - public facade re-export
-    page_asks,
+    page_asks,  # noqa: F401 - public facade re-export
     page_projection,
     projected_action_holders,  # noqa: F401 - public facade re-export
     quoted_in,  # noqa: F401 - public facade re-export
     record_lag,
-    record_lag_entries,
+    record_lag_entries,  # noqa: F401 - public facade re-export
     replayed_attrs,  # noqa: F401 - public facade re-export
     retirable_ids,
     retirement_holders,
     rewritten_bodies,
     state_projection,
     thread_ask_projection,  # noqa: F401 - public facade re-export
-    thread_asks,
+    thread_asks,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.registry import (
     RegistryError,  # noqa: F401 - public facade re-export
@@ -677,15 +677,15 @@ from leaf_interact.rendering import (
 )
 from leaf_interact.schema import (
     _DIR_FILES,  # noqa: F401 - public facade re-export
-    ACK_BATCH_INSTRUCTION,
-    ANSWER_ASK_INSTRUCTION,
+    ACK_BATCH_INSTRUCTION,  # noqa: F401 - public facade re-export
+    ANSWER_ASK_INSTRUCTION,  # noqa: F401 - public facade re-export
     ASSETS,  # noqa: F401 - public facade re-export
     BINARY_TYPES,  # noqa: F401 - public facade re-export
     BROWSER_DIRS,  # noqa: F401 - public facade re-export
     CONTENT_TYPES,  # noqa: F401 - public facade re-export
     DEFAULT_PACKAGE,  # noqa: F401 - public facade re-export
     EXTENSION_SCHEMA,  # noqa: F401 - public facade re-export
-    GUIDANCE_DIR,
+    GUIDANCE_DIR,  # noqa: F401 - public facade re-export
     GUIDANCE_FILE,  # noqa: F401 - public facade re-export
     KERNEL,  # noqa: F401 - public facade re-export
     KEY_COOKIE,  # noqa: F401 - public facade re-export
@@ -714,20 +714,20 @@ from leaf_interact.service import (
     host_key,  # noqa: F401 - public facade re-export
     init_lock_path,  # noqa: F401 - public facade re-export
     lifetime_note,  # noqa: F401 - public facade re-export
-    lock_is_held,
+    lock_is_held,  # noqa: F401 - public facade re-export
     message_identity,
-    owned_pages,
+    owned_pages,  # noqa: F401 - public facade re-export
     page_access,  # noqa: F401 - public facade re-export
     page_claim,  # noqa: F401 - public facade re-export
     page_url,  # noqa: F401 - public facade re-export
     restore_page_claim,  # noqa: F401 - CLI facade dependency and public re-export
-    running_server,
+    running_server,  # noqa: F401 - public facade re-export
     state_home,  # noqa: F401 - public facade re-export
     stop_when_service_ends,  # noqa: F401 - public facade re-export
     take_page_claim,  # noqa: F401 - CLI facade dependency and public re-export
     take_waiter_lease,  # noqa: F401 - public facade re-export
     transition_lock,
-    unacknowledged,
+    unacknowledged,  # noqa: F401 - public facade re-export
     wait_is_live,  # noqa: F401 - public facade re-export
     waiter_lease_path,  # noqa: F401 - public facade re-export
 )
@@ -761,7 +761,7 @@ from leaf_interact.validation import (
     structure_errors,
     suggestion_errors,
     thread_markup_contract_errors,  # noqa: F401 - public facade re-export
-    thread_state,
+    thread_state,  # noqa: F401 - public facade re-export
     thread_universe,  # noqa: F401 - public facade re-export
     unpointable_blocks,
     validate_registry_examples,  # noqa: F401 - public facade re-export
@@ -815,6 +815,7 @@ from leaf_interact.hosting import (  # noqa: F401 - public facade re-exports
     DualStackHTTPServer,
     LeafHTTPServer,
     cmd_serve,
+    cmd_stop,
     server_at,
     start_server,
 )
@@ -1187,464 +1188,23 @@ def cmd_transcript(page_dir: Path) -> None:
             print(f"record behind the log — {line}", file=sys.stderr)
 
 
-CATALOG_PREAMBLE = """\
-# Widget vocabulary, vendored for this page — `version check` validates against it.
-#
-# Widgets are lf-* elements in the authored HTML; attributes carry scalars
-# (enums, flags), children carry prose, and an item's title is a leading
-# <strong> child. Every lf-* element takes an explicit end tag — never
-# <lf-foo/>. Ids are authored (lowercase kebab), unique, stable across
-# versions. Each entry is JSON Schema over the attributes, plus the x- keys
-# that say how the layer treats the tag — what each of those means is printed
-# after the entries ($keys).
-"""
-
-
-# Familiar layer-wide facts get a sentence saying what an author reads them for.
-# Package-defined `$` facts print afterward under their own names, so extending the
-# vocabulary needs no catalog branch. `$events` and `$layer` stay absent: they are the
-# runtime contract and vendoring record, not declarations an author writes markup from.
-CATALOG_FACTS = (
-    ("$keys", "The x- keys an entry may declare, and what each one means."),
-    (
-        "$restated",
-        "`restated` — the one attribute that spans widgets; read it before revising one.",
-    ),
-    ("$state", "x-state's fields — the facet, fold unit, and record forms."),
-    ("$report", "x-report's fields — how a version answers a standing report."),
-    ("$awaits", "x-awaits' fields — when an instance asks, and what answers it."),
-    (
-        "$languages",
-        "The languages this page colors, in a code block's class or an x-language attribute.",
-    ),
-    ("$tones", "The tones this page's layer paints, on any x-tone attribute."),
-    (
-        "$idioms",
-        "Theme idioms — shapes the theme styles directly; no registry entry, no JS.",
-    ),
-)
-CATALOG_INTERNAL_FACTS = {"$events", "$layer"}
-
-
-def page_guidance(page_dir: Path) -> dict[str, Path]:
-    """The vendored guidance files indexed by their package-defined audience."""
-    directory = page_dir / GUIDANCE_DIR
-    return {path.stem: path for path in sorted(directory.iterdir())}
-
-
-def cmd_guidance(page_dir: Path, audience: str | None) -> None:
-    require_registry(page_dir)
-    guides = page_guidance(page_dir)
-    if audience is None:
-        if guides:
-            print("\n".join(guides))
-        return
-    if path := guides.get(audience):
-        text = path.read_text(encoding="utf-8")
-        print(text, end="" if text.endswith("\n") else "\n")
-        return
-    available = ", ".join(guides) or "none"
-    sys.exit(f"guidance audience {audience!r} is not available; available: {available}")
-
-
-def cmd_catalog(page_dir: Path) -> None:
-    reg = require_registry(page_dir)
-    print(CATALOG_PREAMBLE)
-    print(
-        json.dumps(
-            {k: v for k, v in reg.items() if not k.startswith("$")},
-            indent=2,
-            ensure_ascii=False,
-        )
-    )
-    printed = set()
-    for key, heading in CATALOG_FACTS:
-        if fact := reg.get(key):
-            print(f"\n# {heading}\n")
-            print(json.dumps(fact, indent=2, ensure_ascii=False))
-            printed.add(key)
-    for key in sorted(set(reg) - printed - CATALOG_INTERNAL_FACTS):
-        if key.startswith("$"):
-            print(f"\n# {key}, declared by this layer.\n")
-            print(json.dumps(reg[key], indent=2, ensure_ascii=False))
-    guidance = page_guidance(page_dir).get("author")
-    if guidance and (text := guidance.read_text(encoding="utf-8").strip()):
-        print("\n# Package guidance for authors\n")
-        print(text)
-
-
-def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
-    """One standing action, in the shape `page state` reports every one of them.
-
-    `version` is the version the action was taken on, which for a widget an agent
-    sent is a fact about the gesture and none about the widget: thread markup is
-    frozen in the log, so no version bounds one of these and none can ever record
-    it, which is why `lag` says nothing about them.
-    """
-    widget, unit, facet = coordinate
-    return {
-        "widget": widget,
-        "unit": unit,
-        "facet": facet,
-        "action": e["action"],
-        "detail": e["detail"],
-        "version": e["version"],
-        "seq": e["seq"],
-        "thread": thread,
-    }
-
-
-def cmd_page_state(page_dir: Path) -> None:
-    """Print the agent-side state from one transaction-consistent snapshot."""
-    with PageTransaction(page_dir) as page:
-        _write_page_state(page_dir, page.events)
-
-
-def _write_page_state(page_dir: Path, events: list) -> None:
-    """Where the page stands, as one JSON object — the agent-side twin of the
-    browser's /api/state, folded rather than raw. /api/state ships the log and
-    lets the runtime replay it; a session picking a page up owes the same
-    reading, and doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this prints the readings the runtime derives, from the same
-    constructions it derives them with: the published markup's elements, the
-    projection of the user's standing state and the reports standing on the agent
-    channel, where the record lags either (`record_lag_entries`), the open asks
-    on the page and in threads (the banner's own count), the comment threads,
-    and presence beside what answers for it. Computed on demand from the log,
-    the version, and the registry — nothing here is stored, so there is no
-    second copy of the truth to reconcile.
-
-    Every markup-derived reading is of the latest *published* version, because
-    that is the page the user sees and acts on; a written draft shows up in
-    `versions.written` and nowhere else."""
-    registry = require_registry(page_dir)
-    published = published_versions(page_dir, events)
-    written = list_versions(page_dir)
-    pres = presence(page_dir, events)
-    claims = pres.pop("claims")
-    # The published page's readings, up front and through the one construction
-    # (page_projection) every consumer of declared state reads, so the threads
-    # settle against the same page the projection was built over rather than no page.
-    parser, projection, spk = None, None, {}
-    if published:
-        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        projection, parser, spk = page_projection(html, events, registry, published[-1])
-    threads = build_threads(events, spk)
-    state = {
-        "page": str(page_dir),
-        "title": "",
-        "versions": {"published": published, "written": written},
-        **pres,
-        # The watcher's number where `pending` is the reader's: everything a
-        # wait would still print, workers' reports included.
-        "unacked": len(unacknowledged(events, pres["cursor"])),
-        "server": running_server(page_dir),
-        "elements": [],
-        "state": [],
-        "updates": [],
-        "asks": [],
-        "threads": [
-            {
-                "id": t["root"]["id"],
-                "anchor": t["root"].get("anchor"),
-                "text": t["root"]["text"],
-                # Who closed it, or null for a thread still open — the reading a
-                # session picking the page up acts on, since a thread an agent
-                # closed is one the reader may never have answered.
-                "resolved": t["resolved"] and t["resolved"]["author"],
-                "messages": len(t["msgs"]),
-            }
-            for t in threads.values()
-        ],
-        "lag": [],
-    }
-    if published:
-        byid = parser.by_id
-        state["title"] = parser.title.strip()
-        state["elements"] = [
-            {
-                "tag": r["tag"],
-                "id": r["attrs"].get("id"),
-                "line": r["line"],
-                "thread": None,
-            }
-            for r in parser.lf_elements
-        ]
-        state["state"] = [
-            standing_entry(coordinate, e)
-            for coordinate, (e, _) in projection.actions.items()
-        ]
-        # An ask standing in a slot the log has retired — a group inside the lf-new
-        # of a rejected suggestion — left the page with the slot, so it is nobody's
-        # to answer; the passage reading already knows which ids a decision dropped.
-        passages = page_passages(
-            html, registry, decisions(projection.actions, registry)
-        )
-        state["asks"] = page_asks(
-            parser,
-            projection,
-            byid,
-            spk,
-            registry,
-            set(passages.retired) | set(passages.gone),
-        )
-        state["lag"] = record_lag_entries(projection, byid, spk, registry)
-    elif written:
-        state["title"] = parse_version(page_dir, written[-1]).title.strip()
-    state["asks"] += thread_asks(
-        events, registry, {rid for rid, t in threads.items() if t["resolved"]}
-    )
-    state["updates"] = canonical_updates(
-        projection,
-        claims,
-        threads,
-        events,
-    )
-    # The panel's own document, listed and projected the way the version's is, and
-    # for the same reason: a widget an agent sent is a widget, and the reader
-    # answering one is answering the page. The projection above is of the published
-    # version's elements alone, so a press on an AskUserQuestion resolved no
-    # declaration and stood nowhere — a session picking the page up read the reader's
-    # answer to its own question as an answer nobody had given, with `asks` reporting
-    # the same question answered.
-    #
-    # `thread` is the one key that separates them, present on every entry so a reader
-    # of this can take the two halves the same way, and the elements come along so
-    # nothing here names a widget the same object never lists. Both lists are then in
-    # one order rather than two sorted halves.
-    thread_actions, thread_byid, thread_of = thread_state(events, registry)
-    state["elements"] += [
-        {
-            "tag": rec["tag"],
-            "id": wid,
-            "line": rec["line"],
-            "thread": thread_of[wid],
-        }
-        for wid, rec in thread_byid.items()
-    ]
-    state["elements"].sort(key=lambda e: (e["thread"] or "", e["line"]))
-    state["state"] += [
-        standing_entry(coordinate, e, thread_of[coordinate[0]])
-        for coordinate, (e, _) in thread_actions.actions.items()
-    ]
-    state["state"].sort(key=lambda s: (s["widget"], s["unit"], s["facet"]))
-    print(json.dumps(state, indent=2, ensure_ascii=False))
-
-
-def cmd_stop(page_dir: Path) -> str:
-    """Disable the desired service and wait until its process lease is released."""
-    require_cross_process_locking()
-    with flocked(transition_lock(page_dir)):
-        service = read_json(page_dir / "service.json")
-        live = lock_is_held(page_dir / "server.lock")
-        if service and service["enabled"]:
-            write_json(page_dir / "service.json", {**service, "enabled": False})
-        if live:
-            # The serving process observes disabled desired state and exits.
-            # Taking its lease is the barrier proving every socket is closed.
-            with open(page_dir / "server.lock", "a+b") as lease:
-                fcntl.flock(lease, fcntl.LOCK_EX)
-            return "stopped server"
-    return "no server running"
-
-
 # ---------- hook: the loop, enforced rather than remembered ----------
-
-
-def unanswered_asks(events: list, cursor: int) -> list:
-    """The comments this session took delivery of and left with no answer under
-    them.
-
-    Acknowledging is what takes a comment off the batch, so an acknowledged one
-    nobody answered has passed the last gate that could have caught it: the
-    watcher keeps no memory of it, and re-delivery reads the same cursor. The
-    reader is left looking at a question with nothing under it, and the agent
-    believes the batch is dealt with.
-
-    What it looks for is a thread whose last word is the reader's. Not a thread
-    nobody but the reader has ever spoken in: the browser posts the reader's
-    follow-ups as `reply` events of their own, so under that reading one agent
-    message anywhere in a thread answers it forever, and a follow-up — "but why
-    not C?" — acknowledged and answered in the terminal is this very bug played
-    again one level down, with the gate reading green. The agent's own ask needs
-    no case of its own either way round: the last word there is the agent's
-    until the reader answers, and once they answer in-thread it is theirs.
-
-    Reading the last speaker rather than the whole cast means a thread that
-    needs no answer — "great, ship it" — holds a turn until the agent replies or
-    runs `leaf resolve`. That is the direction to err in. Both failures are
-    invisible from the browser, so the question is who can see each: a thread
-    left standing over a reader's last word is visible to nobody, while "does
-    this one need an answer" is a question the agent is holding the context to
-    settle, and settling it costs one command.
-
-    The log alone, with no reading of the page: `build_threads` is told there is
-    no published page to settle against, which is the one thing this reader may
-    not ask for. Reading the page means loading the page's vendored registry,
-    and that load is a gate — a page vendored before the layer last changed
-    fails it by design. Every other caller may raise on that; this one is
-    reached from the Stop hook, which fails open, so a raise here would stand
-    the whole guard down on any page a little older than the code, watch clause
-    included, and say nothing. What the log alone costs is that a pick retracted
-    by a floor on one of its parts, rather than on the widget it named, still
-    reads as settling its thread — an ask that goes unmentioned, never a turn
-    blocked over an answer the reader already gave.
-    """
-    return [
-        t["root"]
-        for t in build_threads(events, {}).values()
-        # The cursor is read against the last word, not the root: a follow-up
-        # past it is a delivery the agent has yet to take, which is the
-        # unacknowledged clause's to report and not this one's.
-        if t["msgs"][-1]["author"] == "user"
-        and t["msgs"][-1]["seq"] <= cursor
-        and not t["resolved"]
-    ]
-
-
-def unattended_pages(session_id: str) -> list:
-    """The pages this session owes something, each with what to do about it.
-    Two invariants hold between turns. A page is watched or idle, so anything
-    else has quietly stopped listening. And every comment the session has taken
-    delivery of has an answer under it, since acknowledging is what takes one
-    off the batch and nothing delivers it again."""
-    reasons = []
-    for page_dir in owned_pages(session_id):
-        page_reasons = []
-        try:
-            events = read_events(page_dir)
-            state = full_state(page_dir, events, published_versions(page_dir, events))
-        except FileNotFoundError:
-            continue
-        codex = state["host"] == "codex"
-        # Asked of every page, watched or not, and ahead of the watch question
-        # below: a watcher cannot deliver a comment the cursor has already
-        # passed, so a live wait is no answer to this one.
-        stale = unanswered_asks(events, state["cursor"])
-        if stale:
-            ids = ", ".join(t["id"] for t in stale)
-            page_reasons.append(
-                f"{page_dir}: {len(stale)} acknowledged "
-                f"comment{'s' if len(stale) != 1 else ''} with no answer "
-                f"({ids}). " + ANSWER_ASK_INSTRUCTION
-            )
-        # A live Claude `leaf wait` is the watch, and it prints what's pending on
-        # its own. Reporting the page here would start a second waiter and print
-        # the same unacknowledged events twice.
-        if not (state["listening"] and not codex):
-            # The watcher's whole batch — user events and workers' reports — not the
-            # reader-facing count, which deliberately leaves reports out.
-            n = len(unacknowledged(events, state["cursor"]))
-            if n:
-                if codex and state["listening"]:
-                    remedy = (
-                        "Poll the existing `leaf wait` unified-exec session with "
-                        "`write_stdin`."
-                    )
-                elif codex:
-                    remedy = (
-                        "Start `leaf wait` in unified exec, retain its session id, "
-                        "and poll it with `write_stdin`."
-                    )
-                else:
-                    remedy = "`leaf wait` prints them."
-                remedy += (
-                    f" {ACK_BATCH_INSTRUCTION} If this task is the consumer, then address "
-                    "every event."
-                )
-                page_reasons.append(
-                    f"{page_dir}: {n} update{'s' if n != 1 else ''} you haven't picked up. "
-                    + remedy
-                )
-            elif state["status"]["state"] != "idle":
-                if codex and state["listening"]:
-                    page_reasons.append(
-                        f"{page_dir}: the Codex page is still live. Keep this turn "
-                        "active and poll the existing `leaf wait` unified-exec "
-                        "session with `write_stdin`."
-                    )
-                elif codex:
-                    page_reasons.append(
-                        f"{page_dir}: no watcher. Start `leaf wait` in unified exec, "
-                        "retain its session id, and keep this turn active while polling it with "
-                        "`write_stdin`; or run `leaf status <page> idle` if the page "
-                        "is done."
-                    )
-                else:
-                    page_reasons.append(
-                        f"{page_dir}: no watcher. Start `leaf wait` as a background "
-                        "task — one wait covers every page this session holds — or "
-                        "run `leaf status <page> idle` if the page is done."
-                    )
-        # Discovery is only a candidate read. Transfer can happen while the
-        # hook reads status, so decide against current ownership at the end.
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if claim and claim["id"] == session_id:
-                    reasons.extend(page_reasons)
-        except FileNotFoundError:
-            continue
-    return reasons
-
-
-def cmd_hook(payload: dict) -> None:
-    event, sid = payload.get("hook_event_name"), payload.get("session_id") or ""
-    if event == "SessionEnd":
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    claim = page.claim
-                    # A successor that arrived after discovery remains current.
-                    # SessionEnd releases only ownership provenance: status is
-                    # authored work state, while service.json and the service
-                    # reaper own process lifetime.
-                    if claim and claim["released"] is None and claim["id"] == sid:
-                        page.release_claim()
-            except FileNotFoundError:
-                continue
-        return
-    if event == "Stop":
-        # Ahead of both early returns below. The stamp is not a nudge and does not
-        # depend on there being one: the turn that ends with nothing outstanding is
-        # exactly the turn that leaves a `working` claim behind with nobody on it.
-        for page_dir in owned_pages(sid):
-            try:
-                with PageTransaction(page_dir) as page:
-                    page.close_turn(sid)
-            except FileNotFoundError:
-                continue
-    # stop_hook_active means this hook already blocked once and Claude is running
-    # again on the strength of it; blocking a second time is how a hook loops.
-    # A block naming two debts and answered on one therefore ends the turn with
-    # the other standing — the guard is a nudge per stop, not a barrier. What
-    # carries the rest is UserPromptSubmit, which reads the same reasons, so the
-    # debt opens the next turn rather than waiting for its end.
-    if event == "Stop" and payload.get("stop_hook_active"):
-        return
-    reasons = unattended_pages(sid)
-    if not reasons:
-        return
-    # The message avoids "unattended": a page can be watched and still be owed
-    # an answer, and the runtime spends that word on a different fact — a page
-    # served to nobody at all.
-    message = (
-        "leaf — a page of this session's has something outstanding:\n"
-        + "\n".join(f"- {r}" for r in reasons)
-    )
-    if event == "Stop":
-        print(json.dumps({"decision": "block", "reason": message}))
-    else:
-        print(
-            json.dumps(
-                {
-                    "hookSpecificOutput": {
-                        "hookEventName": "UserPromptSubmit",
-                        "additionalContext": message,
-                    }
-                }
-            )
-        )
+from leaf_interact.hooks import (  # noqa: F401 - public facade re-exports
+    cmd_hook,
+    unanswered_asks,
+    unattended_pages,
+)
+from leaf_interact.page import (  # noqa: F401 - public facade re-exports
+    CATALOG_FACTS,
+    CATALOG_INTERNAL_FACTS,
+    CATALOG_PREAMBLE,
+    _write_page_state,
+    cmd_catalog,
+    cmd_guidance,
+    cmd_page_state,
+    page_guidance,
+    standing_entry,
+)
 
 
 def cmd_check(

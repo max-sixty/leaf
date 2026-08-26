@@ -18,6 +18,7 @@ from .service import (
     host_identity,
     host_key,
     lifetime_note,
+    lock_is_held,
     page_access,
     page_url,
     running_server,
@@ -268,3 +269,20 @@ def start_server(
     # handler logs nothing (`log_message`) — so there is nothing left to write
     # into pipes this process closes on its way out.
     return url, lifetime_note(page_dir)
+
+
+def cmd_stop(page_dir: Path) -> str:
+    """Disable the desired service and wait until its process lease is released."""
+    require_cross_process_locking()
+    with flocked(transition_lock(page_dir)):
+        service = read_json(page_dir / "service.json")
+        live = lock_is_held(page_dir / "server.lock")
+        if service and service["enabled"]:
+            write_json(page_dir / "service.json", {**service, "enabled": False})
+        if live:
+            # The serving process observes disabled desired state and exits.
+            # Taking its lease is the barrier proving every socket is closed.
+            with open(page_dir / "server.lock", "a+b") as lease:
+                fcntl.flock(lease, fcntl.LOCK_EX)
+            return "stopped server"
+    return "no server running"

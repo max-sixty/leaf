@@ -40,6 +40,7 @@ from interact_support import (
     start_through_the_launcher,
     state_json,
 )
+from leaf_interact import hooks as hooks_model
 from leaf_interact import layer as layer_model
 from leaf_interact import session as session_model
 
@@ -2395,7 +2396,7 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(
     serving(page_dir, 41000, "session")
     record_claim(page_dir, id="successor")
     interact.cmd_status(page_dir, "waiting", "successor is reviewing")
-    monkeypatch.setattr(interact, "owned_pages", lambda _session_id: [page_dir])
+    monkeypatch.setattr(hooks_model, "owned_pages", lambda _session_id: [page_dir])
 
     interact.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "predecessor"})
 

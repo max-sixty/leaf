@@ -143,9 +143,10 @@ markup is frozen in the log; versions neither carry nor revise it. Use a page
 widget instead when the question and its answer belong in the final record.
 
 Answer in as few words as the question takes; one sentence is a complete reply.
-The panel is a narrow column, so an answer past a few sentences goes in as
-separate Markdown paragraphs or a list with one point each. `--text` takes a
-one-line answer; longer text comes in on stdin:
+An answer the size of a page section goes into the next version instead, and the
+reply is a line pointing at it. The panel is a narrow column, so an answer past a
+few sentences goes in as separate Markdown paragraphs or a list with one point
+each. `--text` takes a one-line answer; longer text comes in on stdin:
 
 ```bash
 leaf reply <page> --to <thread-id> --text "Yes, and v3 already has it."

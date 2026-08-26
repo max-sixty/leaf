@@ -18,11 +18,17 @@ in chat, including interim updates, questions, and the final handoff.
 
 ## Page contract
 
+Using Leaf should feel like playing a game. Sometimes the game is Snap, where
+the reader sees the match at once and picks it; sometimes it is Factorio, where
+the whole system is laid out and the reader moves its pieces. It is never a chore, so a
+reader can see what the page wants of them without reading it first.
+
 The subject decides the shape. Use options for decisions, boards for movable
 work, milestones for stages, metrics for measurements, and prose where no other
-shape fits. What stands open in the column is what the reader has to take from
-the page, and its backing sits under `<details>`. `leaf page catalog
-<page>` is the authority for the vendored vocabulary and theme.
+shape fits. Prose connects the shapes, so keep it short. What stands open in the
+column is what the reader has to take from the page, and its backing sits under
+`<details>`. `leaf page catalog <page>` is the authority for the vendored
+vocabulary and theme.
 
 The stakes decide the ceremony. A quick page — one that exists to get a
 reaction now and will be revised or dropped on it, whatever shape it takes —

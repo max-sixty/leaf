@@ -247,6 +247,37 @@ def test_overlapping_state_answers_share_one_live_version_activation(browser, se
     page.close()
 
 
+def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
+    """A skipped view transition still runs its update, but it rejects `ready`, which
+    the activation never awaits. Unhandled, that rejection reached the page's error
+    report, and every version landing in a hidden tab wrote an `error` event into
+    the log. The harness cannot hide a document, so the skip is invoked directly; it
+    is the same algorithm a hidden document runs.
+    """
+    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
+    page.evaluate(
+        """() => {
+          const start = document.startViewTransition.bind(document);
+          document.startViewTransition = update => {
+            const transition = start(update);
+            transition.skipTransition();
+            return transition;
+          };
+        }"""
+    )
+    (serve.page_dir / "versions" / "v2.html").write_text(LIVE_V2)
+    interact.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "new findings"},
+    )
+
+    # The rejection is dispatched before the skipped update runs as its own task, so
+    # a landed version is the edge after which the report would already be written.
+    expect(page).to_have_title("Live second", timeout=10_000)
+    assert errors == []
+    page.close()
+
+
 def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     """An immutable version follows by navigation, and the reader's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a

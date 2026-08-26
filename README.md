@@ -11,9 +11,9 @@ dashboard that keeps up while a long job runs. When the project needs a widget t
 doesn't exist, the agent writes one, and the same theme and checks cover it.
 
 Underneath is a messaging and collaboration bus. Select any line and comment on it
-like a shared doc, or drag a card, or rewrite a draft in your own words: it all
-reaches the session as structured events, and the agent answers in the margin and
-ships a revised version. The browser follows along on its own. Leaf is a plugin —
+like a shared doc — or answer it with one press, `ok` `no` `lost` `cut` `more` —
+or drag a card, or rewrite a draft in your own words: it all reaches the session as
+structured events, and the agent answers in the margin and ships a revised version. The browser follows along on its own. Leaf is a plugin —
 Claude Code and Codex so far.
 
 ![leaf demo](docs/demo.gif)

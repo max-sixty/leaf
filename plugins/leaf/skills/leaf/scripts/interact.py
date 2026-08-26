@@ -513,7 +513,7 @@ from urllib.parse import (  # noqa: F401 - public facade re-export
 import click  # noqa: F401 - public facade re-export
 from jsonschema import Draft202012Validator  # noqa: F401 - public facade re-export
 from leaf_interact.checking import cmd_check  # noqa: F401 - public facade re-export
-from leaf_interact.cli import create_cli
+from leaf_interact.cli import cli
 from leaf_interact.conversation import (  # noqa: F401 - public facade re-exports
     cmd_comment,
     cmd_reply,
@@ -843,9 +843,6 @@ from leaf_interact.session import (  # noqa: F401 - public facade re-exports
 )
 
 at = _validation_at
-_cli_surface = create_cli()
-globals().update(_cli_surface)
-cli = _cli_surface["cli"]
 
 
 if __name__ == "__main__":

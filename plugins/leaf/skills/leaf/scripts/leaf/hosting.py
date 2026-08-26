@@ -52,6 +52,25 @@ class LeafHTTPServer(ThreadingHTTPServer):
 
     request_queue_size = socket.SOMAXCONN
 
+    def serve_forever(self, poll_interval=0.01):
+        """How long `shutdown` may take to be noticed.
+
+        `socketserver` waits half a second in `select` between checks of the
+        shutdown flag, so a server told to stop keeps its caller for as long as
+        that select still has to run: 489ms measured against 3.2ms at a
+        hundredth. Nothing here waits on the interval for its own sake — the
+        loop wakes on a connection either way — so shortening it buys the stop
+        alone, which the suite pays for once per served fixture and around 580
+        times a run.
+
+        What it costs is wakeups. An idle server spends 0.15% of a core here
+        rather than 0.006%: 1.6ms of CPU for every second it stands, against
+        0.06ms at half a second. The suite's servers are seconds old and the
+        trade is one-sided, but a page server outlives the session that started
+        it, so that is the side to weigh if this number moves again.
+        """
+        super().serve_forever(poll_interval)
+
 
 class DualStackHTTPServer(LeafHTTPServer):
     """For a bind with ":" in it. The stated-host wildcard is "::" with V6ONLY

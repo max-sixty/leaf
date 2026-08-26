@@ -230,6 +230,7 @@ import {
   reserve,
   worksInside,
 } from "./runtime/widget-elements.js";
+// The browser render gate imports /leaf.js directly and reads this public helper.
 export { quoted };
 import {
   MARKED_ANYWHERE,

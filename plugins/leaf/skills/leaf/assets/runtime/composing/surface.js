@@ -192,9 +192,9 @@ export function createSelectionSurface({
     showFab(null);
     openComposer({ section: item.id }, "", from.left, from.top);
   }
-  function openOnVisual({ element, part }, from) {
+  function openOnVisual({ id, part }, from) {
     showFab(null);
-    openComposer({ section: element.id, visual: part.part }, "", from.left, from.top);
+    openComposer({ section: id, visual: part.part }, "", from.left, from.top);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on

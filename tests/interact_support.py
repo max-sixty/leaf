@@ -320,7 +320,10 @@ def _runtime_function(name):
 
     Exactly one module may define the name: none is a writer that left the layer
     under a reading that would otherwise report on a file it no longer paints in,
-    and two is a reading answered by whichever file the walk reached first.
+    and two is a reading answered by whichever file the walk reached first. The walk
+    reads a `function` declaration and no other form, so none also covers a writer
+    rewritten into the `const … = () =>` its own neighbours use; the message says so,
+    because that red is about the shape of a declaration and not about behaviour.
 
     The source ends at the closing brace standing at the declaration's own
     indentation, which prettier guarantees and a brace count over strings, comments,
@@ -343,8 +346,10 @@ def _runtime_function(name):
             found.append(js[start.start() : close.end()])
     assert len(found) == 1, (
         f"the runtime defines {name}() {len(found)} times, and every reading of one "
-        "wants the single writer: none is a function that has left the layer, and "
-        "two is a question answered by whichever file the walk reached first"
+        "wants the single writer: none is no `function` declaration of that name "
+        "under leaf.js or runtime/ — it left the layer, or it was rewritten into a "
+        "form this walk does not read — and two is a question answered by whichever "
+        "file the walk reached first"
     )
     return found[0]
 

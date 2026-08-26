@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from leaf import events as events_model
+from leaf import render_checks as render_checks_model
 from leaf import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
@@ -2447,6 +2448,51 @@ def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
         )
         assert errors == []
         page.close()
+
+
+def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
+    browser, serve
+):
+    """A dated axis names the month where one begins, on a line under the day: the tick
+    for the first week of June reads 1 over Jun. Those two lines are two tspans of one
+    <text>, offset by the dy the drawing asked for, and each reports a line box carrying
+    the font's own leading — a couple of pixels taller than the step between them. So the
+    pass hunting words drawn on other words read every such tick as a collision, on a
+    drawing where no glyph comes near another, and the corpus's own heat-loss page failed
+    the gate for drawing a perfectly ordinary axis.
+
+    The reading is taken twice, as the float and the collapse are: once as the gate runs
+    it, where the label's lines are held out, and once with that hold defeated, where it
+    has to report. Otherwise a pass here would also be what a gate that never looked at
+    the drawing returns."""
+    url = serve(CHART_PAGE)
+    page, errors = open_page(browser, url)
+    # Vacuous otherwise: the page has to be carrying a tick that takes two lines.
+    stacked = page.evaluate(
+        """() => [...document.querySelectorAll('#c-line text')]
+             .filter((t) => t.querySelectorAll('tspan').length > 1)
+             .map((t) => t.textContent)"""
+    )
+    assert stacked, "no tick names its month on a second line, so nothing is held out"
+    # The hold defeated by its own predicate rather than the pass rewritten, so what runs
+    # is this reading with one answer changed.
+    unheld = render_checks_model.COVERED_WORDS.replace(
+        "a.label && a.label === b.label", "false"
+    )
+    held, reported = (
+        page.evaluate(render_checks_model.COVERED_WORDS),
+        page.evaluate(unheld),
+    )
+    assert errors == []
+    assert held == []
+    assert unheld != render_checks_model.COVERED_WORDS, (
+        "the pass no longer holds a label's own lines out by the predicate this reaches for"
+    )
+    assert any("c-line" in found for found in reported), (
+        "the lines land on nothing, so a gate that never looked would pass this too"
+    )
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):

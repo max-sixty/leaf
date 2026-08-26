@@ -110,11 +110,18 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
                 continue
             if not directory.is_dir():
                 sys.exit(f"{directory} must be a directory")
-            for path in directory.iterdir():
+            if sub == GUIDANCE_DIR:
+                for path in directory.iterdir():
+                    if not path.is_file():
+                        sys.exit(f"{path} must be a file")
+                    if not GUIDANCE_FILE.fullmatch(path.name):
+                        sys.exit(f"{path} must be named <audience>.md")
+                continue
+            for path in directory.rglob("*"):
+                if path.is_dir() and not path.is_symlink():
+                    continue
                 if not path.is_file():
-                    sys.exit(f"{path} must be a file")
-                if sub == GUIDANCE_DIR and not GUIDANCE_FILE.fullmatch(path.name):
-                    sys.exit(f"{path} must be named <audience>.md")
+                    sys.exit(f"{path} must be a file or real directory")
         roots.append(root)
     return roots
 
@@ -135,7 +142,10 @@ def input_paths(inputs: list[Path]) -> list[Path]:
                 continue
             paths.append(directory.resolve())
             if directory.is_dir():
-                paths.extend(path.resolve() for path in directory.iterdir())
+                entries = (
+                    directory.iterdir() if sub == GUIDANCE_DIR else directory.rglob("*")
+                )
+                paths.extend(path.resolve() for path in entries)
     return paths
 
 
@@ -162,9 +172,9 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
         source_dir = root / sub
         if not source_dir.is_dir():
             continue
-        for path in sorted(source_dir.iterdir()):
+        for path in sorted(source_dir.rglob("*")):
             if path.is_file():
-                winners[path.name] = path
+                winners[path.relative_to(source_dir).as_posix()] = path
     return winners
 
 
@@ -470,14 +480,6 @@ def _vendor_page(
     # than its modules.
     if (page_dir.exists() or page_dir.is_symlink()) and not page_dir.is_dir():
         sys.exit(f"{page_dir} must be a directory")
-    directories = [page_dir / "versions"] + [page_dir / sub for sub in PACKAGE_DIRS]
-    for destination in directories:
-        if destination.is_symlink():
-            sys.exit(f"{destination} must be a real directory, not a symlink")
-        if (
-            destination.exists() or destination.is_symlink()
-        ) and not destination.is_dir():
-            sys.exit(f"{destination} must be a directory")
     file_targets = [
         *(page_dir / name for name in top_files),
         *(
@@ -486,6 +488,50 @@ def _vendor_page(
             for name in directory_files[sub]
         ),
     ]
+    directories = {
+        page_dir / "versions",
+        *(page_dir / sub for sub in PACKAGE_DIRS),
+    }
+    for target in file_targets:
+        for parent in target.parents:
+            if parent == page_dir:
+                break
+            directories.add(parent)
+    located_files = [(target, _path_location(target)) for target in file_targets]
+    located_directories = [
+        (directory, _path_location(directory)) for directory in directories
+    ]
+    if collision := next(
+        (
+            (left, right)
+            for index, (left, left_at) in enumerate(located_files)
+            for right, right_at in located_files[index + 1 :]
+            if left_at == right_at
+        ),
+        None,
+    ):
+        left, right = collision
+        sys.exit(f"the incoming layer maps both {left} and {right} to one file")
+    if collision := next(
+        (
+            (file, directory)
+            for file, file_at in located_files
+            for directory, directory_at in located_directories
+            if file_at == directory_at
+        ),
+        None,
+    ):
+        file, directory = collision
+        sys.exit(
+            f"the incoming layer maps {file} as a file and {directory} as a directory"
+        )
+    for destination in sorted(directories, key=lambda path: len(path.parts)):
+        if destination.is_symlink():
+            sys.exit(f"{destination} must be a real directory, not a symlink")
+        if (
+            destination.exists() or destination.is_symlink()
+        ) and not destination.is_dir():
+            sys.exit(f"{destination} must be a directory")
     for target in file_targets:
         if (target.exists() or target.is_symlink()) and not target.is_file():
             sys.exit(f"{target} must be a file")
@@ -499,9 +545,8 @@ def _vendor_page(
         # Re-vendoring an existing page preserves that page and its claim.
         claim_path(page_dir).unlink(missing_ok=True)
     page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    (page_dir / "versions").mkdir(exist_ok=True)
-    for sub in PACKAGE_DIRS:
-        (page_dir / sub).mkdir(exist_ok=True)
+    for directory in sorted(directories, key=lambda path: len(path.parts)):
+        directory.mkdir(exist_ok=True)
     # Stage the whole layer together. The registry is the declaration that
     # makes every other file live, so it is the final replacement.
     writes = [
@@ -519,11 +564,18 @@ def _vendor_page(
 
     for sub in PACKAGE_DIRS:
         destination = page_dir / sub
-        for stale in destination.iterdir():
-            if stale.name not in directory_files[sub] and (
-                stale.is_symlink() or stale.is_file()
-            ):
+        wanted = set(directory_files[sub])
+        for stale in sorted(
+            destination.rglob("*"), key=lambda path: len(path.parts), reverse=True
+        ):
+            relative = stale.relative_to(destination).as_posix()
+            if relative not in wanted and (stale.is_symlink() or stale.is_file()):
                 stale.unlink()
+            elif stale.is_dir():
+                try:
+                    stale.rmdir()
+                except OSError:
+                    pass
     if not (page_dir / "status.json").exists():
         # Fresh creation holds the init lease; re-vendoring holds both it and
         # the page transaction. Calling cmd_status would try to re-enter the

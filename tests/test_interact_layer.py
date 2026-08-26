@@ -428,6 +428,154 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
 
 
+def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+    module = package / "runtime" / "conversation" / "fold" / "model.js"
+    module.parent.mkdir(parents=True)
+    module.write_text("export const model = 'package';\n")
+    page = tmp_path / "page"
+    runner = CliRunner()
+
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "package", str(page)]
+    )
+
+    assert initialized.exit_code == 0, initialized.output
+    assert (page / "runtime" / "conversation" / "fold" / "model.js").read_text() == (
+        "export const model = 'package';\n"
+    )
+    assert schema_model.SERVED_PATH.fullmatch("/runtime/conversation/fold/model.js")
+    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../status.json")
+    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../leaf.js")
+
+    module.unlink()
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+
+    assert initialized.exit_code == 0, initialized.output
+    assert not (page / "runtime" / "conversation").exists()
+
+
+@pytest.mark.parametrize("nested_first", [False, True])
+def test_init_refuses_composed_file_directory_collisions_before_writing(
+    tmp_path, monkeypatch, nested_first
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    before = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    flat = tmp_path / "flat" / "vendor" / "cache"
+    flat.parent.mkdir(parents=True)
+    flat.write_text("flat")
+    nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("nested")
+    packages = ["nested", "flat"] if nested_first else ["flat", "nested"]
+
+    result = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *(arg for package in packages for arg in ("--package", package)),
+            str(page),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "as a file and" in result.output
+    assert "vendor/cache" in result.output
+    after = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+
+
+def test_init_refuses_an_intermediate_symlink_before_writing_nested_modules(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    package_module = (
+        tmp_path / "package" / "runtime" / "conversation" / "fold" / "model.js"
+    )
+    package_module.parent.mkdir(parents=True)
+    package_module.write_text("export const model = true;\n")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (page / "runtime" / "conversation").symlink_to(outside, target_is_directory=True)
+
+    result = runner.invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "package", str(page)],
+    )
+
+    assert result.exit_code != 0
+    assert "must be a real directory, not a symlink" in result.output
+    assert list(outside.iterdir()) == []
+
+
+def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    before = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    flat = tmp_path / "flat" / "vendor" / "Cache"
+    flat.parent.mkdir(parents=True)
+    flat.write_text("flat")
+    nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("nested")
+    location = layer_model._path_location
+
+    def case_insensitive(path):
+        found = location(path)
+        return found._replace(tail=tuple(part.casefold() for part in found.tail))
+
+    monkeypatch.setattr(layer_model, "_path_location", case_insensitive)
+
+    result = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "flat",
+            "--package",
+            "nested",
+            str(page),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "as a file and" in result.output
+    after = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+
+
 def test_behavior_modules_use_the_widget_api_boundary():
     modules = [
         *(PLUGIN_ROOT / "assets" / "widgets").glob("*.js"),

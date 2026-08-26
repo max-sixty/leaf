@@ -172,6 +172,18 @@ def test_server_round_trip(server, page_dir):
         "/../secret",
     ]:
         assert fetch(server + path)[0] == 404, path
+    outside = page_dir.parent / "outside.js"
+    outside.write_text("not part of the page")
+    (page_dir / "vendor" / "escape.js").symlink_to(outside)
+    for path in ["/vendor/../../outside.js", "/vendor/escape.js"]:
+        peer = http.client.HTTPConnection(
+            urllib.parse.urlsplit(server).netloc, timeout=10
+        )
+        peer.request("GET", f"{path}?t={TOKEN}")
+        refused = peer.getresponse()
+        refused.read()
+        assert refused.status == 404, path
+        peer.close()
     # A browser-posted comment lands stamped author=user, with a server-minted id
     # (client ids are dropped — a reused one would re-root an existing thread).
     status, body = fetch(

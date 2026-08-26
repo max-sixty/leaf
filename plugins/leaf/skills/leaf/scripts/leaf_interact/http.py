@@ -22,6 +22,7 @@ from .events import (
 )
 from .files import (
     list_versions,
+    path_is_within,
     published_versions,
     read_json,
     version_name,
@@ -460,9 +461,9 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     return
             file = self.page_dir / path.lstrip("/")
-            # is_file, not exists: the vendor pattern admits "." and "..", which
-            # resolve to directories.
-            if file.is_file():
+            # The allowlist rejects traversal spellings; containment is the second
+            # boundary for a page directory edited or symlinked after vendoring.
+            if file.is_file() and path_is_within(file, self.page_dir):
                 ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
                 # charset describes an encoding, so it rides on the types that
                 # have one. On a PNG it is noise.

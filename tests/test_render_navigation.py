@@ -2235,7 +2235,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     and the dispatcher, the line, and the overlay all ask it. The chord's lists are
     where that division earns its keep twice over: a list the page hasn't got is a
     row the reference must not name, and the section holds only what this page can
-    answer — the edges always among them, every page having a top."""
+    answer — the edges always among them, every page having a top. Its rows carry the
+    complete chord, so no heading has to supply a key the row itself omits."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, url)
@@ -2251,9 +2252,14 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # row and says nothing about the page's.
     expect(help_el).to_contain_text("Go to the comments")
     # The chord's section stands on every page — the edges need no list — but holds
-    # no row for a list this page hasn't got.
-    expect(help_el).to_contain_text("With g armed")
-    expect(help_el).to_contain_text("top / bottom")
+    # no row for a list this page hasn't got. Each row says the whole press from the
+    # standing page rather than asking its heading to supply the first g.
+    expect(
+        help_el.get_by_role("heading", name="Go by address", exact=True)
+    ).to_be_visible()
+    expect(help_el.locator("tr", has_text="top / bottom").locator("kbd")).to_have_text(
+        "g g / g G"
+    )
     expect(help_el).not_to_contain_text("open comment's reply box")
     # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.
@@ -2295,8 +2301,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # change to lean on, so the repaint is the thread render's own.
     expect(line).to_contain_text("threads")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("With g armed")
-    expect(help_el).to_contain_text("c 1–2")
+    expect(
+        help_el.locator("tr", has_text="open comment's reply box").locator("kbd")
+    ).to_have_text("g c 1–2")
     expect(help_el).not_to_contain_text("link on screen")
     expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next / previous open thread")

@@ -645,6 +645,11 @@ custom property to trim child margins and to bound wide content. A project box
 then receives the same behavior without joining a tag list. `main` hands wide
 room back to its contents explicitly because it is the outer page frame.
 
+`main` declares `--lf-column: 1` in the same rule, claiming that its `max-width`
+is the readable column. The file lint measures every fixed pixel width against
+that number, so a package or page setting a column of its own claims it in the
+rule that sets it; a width with no claim beside it is a width and nothing more.
+
 Where the fact belongs to the registry rather than to the rule that draws the
 box, `markDeclared` paints it and the selector reads the paint. The lists that
 ask whether a suggestion slot or a variant holds block content invert HTML's
@@ -1555,6 +1560,12 @@ already, and the log's news about the content — `restated`, `pending`,
 `reported` — has no second carrier, while the band also has the washed cell and
 the address chips.
 
+Every rule that draws the ring names it in `--lf-here-ring`, in the same
+declaration (theme.css carries why). Whether a box wears a ring is the outline's
+answer; the name says which rule drew it, so nothing re-runs the layer's selectors
+to find that out. The property is registered non-inheriting, so a name means the
+box rather than each of its words.
+
 A press that acts on where the reader is standing reads it through
 `standingItem`: the unanswered ask where focus is on a control that works it — a
 pick, a ✓, a mark — and the innermost item everywhere else, which is the ⌥ aim's
@@ -1789,9 +1800,9 @@ same fault one glyph smaller.
 
 `addressKeys` is the one spelling of that sequence, and `chordKeys` the one reading
 of how far the chord has come: the key line drops those keys, having said them in
-the chip that heads it, the reference drops them under a heading that names the
-mode, a chip on the page sets them back, and the placeholder that speaks a reply
-box's whole address joins the whole array.
+the chip that heads it, the reference puts them in front of each row so every entry
+shows the complete chord, a chip on the page sets them back, and the placeholder
+that speaks a reply box's whole address joins the whole array.
 
 Addresses are stable within the document. The first addressable members do not
 change identity as the reader scrolls. Chips are painted only for members whose

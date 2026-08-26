@@ -10,6 +10,8 @@ from leaf import passages as passages_model
 from leaf import registry as registry_model
 from playwright.sync_api import expect
 from render_support import (
+    AIM_SEAM,
+    AIM_SEAM_PAGE,
     ASTRAL_PAGE,
     CEILING_PAGE,
     CHIPS,
@@ -51,6 +53,50 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_the_banner_stands_where_it_says_it_does(browser, serve):
+    """`blocksOnScreen` decides which blocks count as the ones being read, and it draws
+    the line at the banner's lower edge — captureView stores the first of them as the
+    reader's landmark, and the ask walk starts from it. It reads that edge off
+    --lf-banner-h, the one place the height is stated and the term seven rules place
+    themselves against.
+
+    Two ways that could quietly stop being a reading. The token could go — renamed,
+    moved off body, put behind a query — and `parseFloat` of nothing is NaN, which the
+    fallback turns into a line at zero: every block on the page counts as read, the
+    landmark becomes whatever is at the top of the document, and nothing raises. Or the
+    banner could come to be drawn to some other height, and the declaration would answer
+    for a bar that is not there.
+
+    So the number is asked of both ends: what the stylesheet says, and where the bar the
+    reader is looking at actually ends. The second is narrower than it looks, and worth
+    saying so — `.lf-banner` takes its height from this very token, so changing the token
+    moves both ends together and the comparison holds. What it catches is the bar coming
+    to a different size than its height: a padding or a border added to the banner, or a
+    package theme setting the height directly. The first assertion is the one that
+    catches the token itself going away."""
+    url = serve(LONG_PAGE)
+    page, errors = open_page(browser, url)
+    stated, drawn = page.evaluate(
+        """() => [
+        parseFloat(
+          getComputedStyle(document.body).getPropertyValue('--lf-banner-h')),
+        document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
+    ]"""
+    )
+    page.close()
+
+    assert stated > 0, (
+        "--lf-banner-h no longer resolves on body, so the anchor pass reads its "
+        f"on-screen line as {stated} and every block on the page counts as one the "
+        "reader is looking at"
+    )
+    assert drawn == stated, (
+        f"the banner is drawn to {drawn}px and states {stated}px, so the line the "
+        "anchor pass draws between read and unread is in neither place"
+    )
+    assert errors == [], errors
 
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
@@ -1572,6 +1618,114 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     assert errors == []
     page.close()
+
+
+def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
+    """The card the pointer lights and the card a press opens are one reading of one point.
+
+    They came from two doors, though. The hover hit-tests the pointer record the runtime
+    keeps, and the click read its own clientX and clientY — a `click` is a legacy mouse
+    event, so those arrive rounded to a whole pixel, while markAt measures against
+    getClientRects, whose edges are floats. Within a pixel of a mark's edge the two
+    answer different threads: a quote lights up under the hand and the press on it opens
+    the neighbour's conversation, which is the same disagreement the aim carried and this
+    is the surface it was left on.
+
+    The seam fixture puts the pointer where the true point and its rounded twin are over
+    different items, and a comment on each makes the disagreement a pair of cards rather
+    than a hit and a miss — so what is asserted is which thread opened, not whether one
+    did. Which item the true point is over follows where in the pixel the seam fell, so
+    the expected card is read off the point rather than named here."""
+    url = serve(AIM_SEAM_PAGE)
+    for ident in ("seam-upper", "seam-lower"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": f"About {ident}.",
+                "anchor": {"section": ident},
+            },
+        )
+    page, errors = open_page(browser, url)
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+        "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
+        "to are not on the two marked items either side of it, so a press that read either "
+        f"of them would pass this: {seam}"
+    )
+
+    page.mouse.move(seam["x"], seam["y"])
+    promised = page.locator(".lf-thread.lf-mark-hover")
+    expect(promised).to_have_count(1)
+    expect(promised).to_contain_text(f"About {seam['at']}.")
+
+    page.mouse.click(seam["x"], seam["y"])
+    opened = page.evaluate(
+        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+    )
+    assert opened and f"About {seam['at']}." in opened, (
+        f"the hover promised the thread on {seam['at']}, and the press at the same point "
+        f"opened: {opened}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
+    """A finger is a pointer that arrives already down, and the click it ends on has to
+    answer for a position it never moved through.
+
+    A tap dispatches no `pointermove` at all — `pointerdown`, then the compatibility
+    mouse events and a `click` carrying `detail=1`. So the record a mouse keeps as it
+    travels is still its start value under a finger, and a click reading it asks
+    elementFromPoint at a point off the page: the quote under the finger opens nothing,
+    which is a wider silence than the pixel the mouse door was about. The record is taken
+    from `pointerdown` as well for that reason, and a tap's `pointerdown` carries the true
+    fractional point, so the finger gets the same reading the mouse does rather than the
+    rounded one its own click would have given.
+
+    The context has a touchscreen because that is the only way to get a gesture with no
+    pointermove in it: driving the same point with `page.mouse` records the position on
+    the way in and passes whatever the click reads. The seam fixture is reused so the
+    tap's own rounded twin is a different item, and a comment on each makes a wrong
+    reading a visible thread rather than a miss."""
+    url = serve(AIM_SEAM_PAGE)
+    for ident in ("seam-upper", "seam-lower"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": f"About {ident}.",
+                "anchor": {"section": ident},
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light", has_touch=True
+    )
+    page, errors = open_page(browser, url, context=context)
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+        "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
+        "to are not on the two marked items either side of it, so a tap that read either "
+        f"of them would pass this: {seam}"
+    )
+
+    page.touchscreen.tap(seam["x"], seam["y"])
+    opened = page.evaluate(
+        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+    )
+    assert opened and f"About {seam['at']}." in opened, (
+        f"a tap on the quote for {seam['at']} opened: {opened}"
+    )
+    assert errors == []
+    page.close()
+    context.close()
 
 
 def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):

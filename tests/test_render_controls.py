@@ -70,6 +70,7 @@ from render_support import (
     SHOT_SRC,
     SHOTS,
     SPECIMEN_MARKUP,
+    SPECIMEN_PAGE,
     SPECIMEN_TEXT,
     SUGGESTION_PAGE,
     TOKEN,
@@ -471,6 +472,53 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     ] == standing, (
         f"⌥-clicking through {example.name} left a decision in the log that the aim "
         "never promised"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_an_aim_on_a_seam_promises_and_takes_the_same_item(browser, serve):
+    """One reading, at the one place the pointer is.
+
+    The cells of a joined group butt, so two of them share an edge with no gap between,
+    and a pointer resting on it is inside both by the width of a rounding. The outline
+    and the press each used to hit-test that point for themselves — elementFromPoint
+    against the browser's own dispatch — and nothing makes two hit tests tie-break a
+    shared edge alike. What a reader got was one option outlined and the next one
+    commented on.
+
+    The sweep over the corpus reaches this case only where the page happens to put a
+    seam under the point it picks, which is a fact about font metrics: the same aim was
+    a cell's interior on one platform and a seam on another, and the corpus said the
+    promise was kept for a year on the machine where it was. So the seam is aimed at
+    here rather than waited for, and the assertion is the platform-independent half —
+    whichever way each reading rounds, both answer the same item."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    edge = page.evaluate(
+        """() => {
+            const above = document.querySelector('#l-shim').getBoundingClientRect();
+            const below = document.querySelector('#l-stage').getBoundingClientRect();
+            return {y: above.bottom, apart: Math.abs(below.top - above.bottom),
+                    x: above.left + above.width / 2};
+        }"""
+    )
+    assert edge["apart"] < 0.5, (
+        f"the cells stand {edge['apart']}px apart, so this aims at a gap and not at the "
+        "seam the two readings can differ over"
+    )
+    page.mouse.move(edge["x"], edge["y"])
+    page.keyboard.down("Alt")
+    promised = page.evaluate(AIMED)
+    assert promised in ("l-shim", "l-stage"), (
+        f"the aim promised {promised} on the seam between the two cells, so the reading "
+        "under test never happened"
+    )
+    page.mouse.click(edge["x"], edge["y"])
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(DRAFT_MARK) == promised, (
+        f"the outline promised {promised} on the seam and the press commented on "
+        f"{page.evaluate(DRAFT_MARK)}"
     )
     assert errors == []
     page.close()

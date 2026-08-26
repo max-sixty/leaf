@@ -3211,7 +3211,14 @@ function claimPress(ev) {
   if (ev.type === "pointerdown") {
     const aim = ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
     const design = !aim && designPress(ev.target) ? designTarget(ev.target) : null;
-    aimedPress = aim ? { item: itemAt(ev.target) } : design ? { design } : null;
+    // The item the outline is naming, through the reading that named it (aimedItem, which
+    // aimTarget and so the box itself go through) rather than through this event's own
+    // target. Both are hit tests at the one place the pointer is, and asking twice is what
+    // let them differ: the browser resolves a press from its own dispatch, elementFromPoint
+    // builds its own, and where two boxes share an edge — every cell of a joined group,
+    // which butt with no gap between them — nothing makes the two tie-break the same way.
+    // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
+    aimedPress = aim ? { item: aimedItem() } : design ? { design } : null;
     if (aimedPress) standDown(ev.target);
   }
   if (!aimedPress) return;

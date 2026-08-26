@@ -172,7 +172,7 @@ import {
   pendingAnchor,
 } from "./runtime/composing/selection.js";
 import { createSelectionSurface } from "./runtime/composing/surface.js";
-import { runtime } from "./runtime/context.js";
+import { agentName, runtime } from "./runtime/context.js";
 import { DESIGN_KEY, createDesign, designOn } from "./runtime/design.js";
 import {
   clearDraft,
@@ -245,6 +245,7 @@ import {
   renderSaid,
 } from "./runtime/presentation.js";
 import { reachScrollers } from "./runtime/reach.js";
+import { pageScroller } from "./runtime/scrolling.js";
 import {
   matchesWhen,
   registry,
@@ -263,8 +264,6 @@ import { highlightBlocks } from "./runtime/syntax.js";
 export { PRESS, labelOf };
 
 // ---------- widget layer ----------
-
-export const agentName = () => runtime.agent;
 
 async function undoLast(...args) {
   return runtimeProjection.undoLast(...args);
@@ -417,15 +416,6 @@ export const { projectData } = createDataProjection({
   paintAnchors,
   setChildren,
 });
-
-// The element the document scrolls: body, not the viewport (see the stylesheet below,
-// and Scrolling in the module header). Anything that reads a reading position, sets
-// one, or hands a scroll container to a library uses this — window.scrollY is always 0
-// here, and document.scrollingElement still names the html element, which no longer
-// scrolls. Vendored libraries that resolve the scroller themselves are the trap:
-// SortableJS walks up from the dragged card and, on reaching body, hands back
-// document.scrollingElement, so lf-board passes this in rather than letting it guess.
-export const pageScroller = document.body;
 
 let outboxRuntime;
 export const actionAvailable = (...args) => outboxRuntime.actionAvailable(...args);
@@ -632,16 +622,6 @@ function paintHere() {
     renderLine();
   });
 }
-
-// How a widget collapses content it may need to show again (lf-tabs' inactive
-// panels, a settled lf-options' cards): hidden="until-found", so find-in-page
-// and fragment navigation still reach it — `beforematch` fires and the widget
-// reopens what it owns. It is only a hide where the UA supports it (it rides
-// content-visibility, and the theme's display:block outranks the boolean
-// [hidden] rule) — without beforematch, fall back to plain boolean hidden,
-// which the theme hides itself; the widget still collapses and reopens, ⌘F
-// just can't see in.
-export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container

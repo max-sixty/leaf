@@ -5,6 +5,7 @@
    contains most helper implementations; its reexport is temporary until those
    implementations move to their owners. */
 export * from "../leaf.js";
+export { agentName } from "./context.js";
 export { watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
@@ -20,6 +21,7 @@ export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";
 export { dataBody, failSoft, once, settle } from "./widget-upgrade.js";
 export {
+  HIDDEN,
   offer,
   quoted,
   reachedForWords,

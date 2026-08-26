@@ -22,7 +22,8 @@ record the sequence of implementations that led to the current one.
 `leaf.js` is the browser entry module. `runtime/widget-api.js` is the one public
 helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
-`runtime/context.js` owns the mutable facts shared across the browser layers;
+`runtime/context.js` owns the mutable facts shared across the browser layers and
+their direct readers;
 `runtime/asks/model.js` owns request discovery and folding;
 `runtime/asks/view.js` owns ask chrome, marking, and the ask walk;
 `runtime/composing/capture.js` owns selection capture and snapping;
@@ -50,6 +51,7 @@ rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
 guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
+`runtime/scrolling.js` owns the document scroller identity;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared

@@ -34,6 +34,8 @@ and selection-composer state;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
+`runtime/presence.js` owns claim freshness and attendance judgment;
+`runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/registry.js` owns vocabulary queries;

@@ -208,8 +208,10 @@ import { createNavigation } from "./runtime/navigation.js";
 import { createOutbox, outbox } from "./runtime/outbox.js";
 import { createProjection } from "./runtime/projection.js";
 import { createAnchors } from "./runtime/anchors.js";
+import { createBanner } from "./runtime/banner.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
 import { createPassages } from "./runtime/passages.js";
+import { createPresence } from "./runtime/presence.js";
 import { createUpdates } from "./runtime/updates.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
 import {
@@ -1795,15 +1797,6 @@ keys(
 // A row's whole account of a page: the dot's tone and one line of words, from the
 // same judgment the banner's sentences come from — the judgment is shared, the
 // wording is the seat's.
-const TONE = {
-  working: "working",
-  listening: "listening",
-  stalled: "away",
-  away: "away",
-  unheld: "",
-  unattended: "",
-  closed: "",
-};
 function rowPresence(entry) {
   const { kind, quiet, dropped, detail } = presented(entry);
   // The same join for both kinds that have words of their own. The reader opens this
@@ -1832,7 +1825,7 @@ function rowPresence(entry) {
               : kind === "unattended"
                 ? "Unattended"
                 : "Closed";
-  return { tone: TONE[kind], line };
+  return { tone: toneFor(kind), line };
 }
 // The whole of what the tray knows about one page, for its hover. Everything drawn
 // on a row is cut to the panel's fixed width — the title ellipsizes, the line
@@ -4143,325 +4136,17 @@ const {
   versionMenu,
   wrote: (...args) => wrote(...args),
 });
-// ---------- banner ----------
-// "Claude is working" is a claim in status.json, and nothing revises a claim once the
-// session behind it walks away — so a page nobody is watching reads exactly like a page
-// whose user has said nothing yet. The banner asks whether anyone is attending, and
-// only two things answer yes: Claude is credibly busy, or a `leaf wait` is live.
-// Everything else is absence, where the reason and the remedy are all that vary.
-//
-// One of those absences is not a fault, and reading it as one was the bug. A page served
-// across sessions — a command hub, a dashboard left open for a fortnight — is unheld for
-// most of its life, and a night of it is Tuesday. So the banner separates "somebody is
-// behind this page and isn't keeping up", which is worth an amber dot and a nudge, from
-// "nobody is behind it", which is the standing page at rest: grey, and the plain fact
-// that it picks up again when a session does.
-//
-// Every one of those answers is about a session that exists or existed, and a page can be
-// served with none — the whole of leaf.page is, each example a working page on a static
-// host where the log is the reader's own browser and no agent will ever read it. The
-// banner had no way to say that, so the page said the nearest thing it could and claimed
-// to be listening: green dot, "awaits", over a page waiting for nobody. Whoever answers
-// the poll declares it instead (`unattended`), and it is judged ahead of the rest because
-// it is not a state the evidence below could reach — there is no claim to weigh, no
-// lifetime to look for, and nothing coming that would change the answer.
-const HANDOFF_GRACE_MS = 2 * 60 * 1000;
-const WORKING_GRACE_MS = 15 * 60 * 1000;
-// How long a claim of work may go unrefreshed before the page stops taking its word for
-// it. Exported, because the banner is not the only thing that judges one: a page running
-// a fleet says the same sentence per row, and a second threshold spelled in a widget
-// would be a second answer to "how long is too long" — free to disagree with the banner
-// directly above it about the very same silence. The caller supplies the rope where its
-// claim has a shorter one; the constant is the default because that is the case there is
-// only one of.
-export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
-  Boolean(ts) && serverNow() - new Date(ts).getTime() > grace;
-// How long after a turn closes a claim it left behind is still believed. The grace
-// above asks how long a claim has gone unrenewed; this one exists because the answer
-// to "is anything still behind it" arrives before the answer to "has it gone stale",
-// and it needs a margin: the agent claims the work, hands it to a delegate and ends
-// the turn in the same second, and the delegate's first note is a minute or so behind
-// that. Shorter than the grace by an order of magnitude, because it is measured from
-// an observed event rather than from the absence of one.
-const PICKUP_GRACE_MS = 2 * 60 * 1000;
-// The second question the page asks of a claim, beside how long it has gone
-// unrenewed: did the turn behind it end with nothing picking it up. This one has an
-// answer the moment it becomes true, because the Stop hook watches the ending rather
-// than inferring it from silence. Written no later than the ending counts as written
-// by the turn that ended — both stamps carry seconds, and an agent's last word about
-// its work and the end of the turn that wrote it land in the same one all the time.
-// Shared, because a page claim and a note on a thread are written by one command and
-// a seat answering this differently for one of them is the two of them arguing about
-// a single silence.
-const droppedAt = (ts, turnClosed) =>
-  Boolean(turnClosed) &&
-  Date.parse(ts) <= Date.parse(turnClosed) &&
-  quietSince(turnClosed, PICKUP_GRACE_MS);
-// Which claim each kind reads out, and so whose detail it may speak. The question
-// sits here rather than at each seat, for the reason `kind` does: two seats answering
-// it separately is two answers to what the page may say it is waiting for. A kind
-// absent here is a judgment against the claim — nobody is behind the page, or the page
-// is closed — and the claim's words about the work are not the news there.
-//
-// `stalled` reads a `working` claim's detail like `working` does, and that is the whole
-// difference between the two: same words, a sentence that dates them. They were one
-// judgment once, folded into `listening` because a watcher was live, and the detail was
-// dropped on the way — so a page whose agent had said "revising the plan" and then
-// spent twenty minutes in a delegate's hands read "Claude awaits — select text to
-// comment", inviting the reader to start something over a page already mid-answer. The
-// dropping was right for the sentence it was under: what the agent was doing is the
-// wrong half of the loop to read out after "awaits". The sentence was the mistake.
-const DETAIL_FROM = { working: "working", listening: "waiting", stalled: "working" };
-// The claim-against-proof judgment, one function for every surface that shows a
-// status: the banner's sentence about this page and a panel row about a neighbour
-// read the same fields the server gathers in one place (`presence`), so the two can
-// never disagree about what "working" means. `kind` is the judged state and `detail`
-// the claim's own words where that state licenses them; the caller words it for its
-// seat.
-function presented(state) {
-  const { status, listening, session_alive, unattended, turn_closed } = state;
-  // How long the claim has gone unrefreshed. The rope is short for the status
-  // `leaf wait` writes as it prints a batch, because the agent writes its own
-  // `leaf status` after acknowledgement — that mark outliving minutes is a dropped
-  // pickup, not a long turn.
-  const aged = quietSince(
-    status.ts,
-    status.handoff ? HANDOFF_GRACE_MS : WORKING_GRACE_MS,
-  );
-  // The same silence reached by evidence instead of by a clock. A claim is written by
-  // a model's turn, and when that turn ends nothing runs — so the page could only ever
-  // find an abandoned claim by waiting out the grace, saying "Claude is working" over
-  // nobody for most of a quarter of an hour. The Stop hook records the ending, and a
-  // claim older than it is one that neither a next turn nor a delegate renewed across
-  // the boundary. A delegate that does check in writes a `ts` past the stamp and
-  // carries the claim on its own from then on, which is the same one command that
-  // writes its note — so this costs the delegate case nothing and closes the window
-  // on the case it was hiding.
-  const dropped = droppedAt(status.ts, turn_closed);
-  const quiet = aged || dropped;
-  // Nothing is behind the claim. The claimant's lifetime settles it where there is
-  // one: over is over, whatever the claim says and whether a stray `leaf wait` still
-  // holds a lease for a session that can no longer read it. Where nothing claimed the
-  // page — a server started outside an agent host — there is no lifetime to read, so a
-  // live watcher or a claim still inside its grace is the whole of the evidence, and
-  // once both are spent the page is unheld too.
-  const unheld =
-    session_alive === false || (session_alive === null && !listening && quiet);
-  const kind = unattended
-    ? "unattended"
-    : status.state === "idle"
-      ? "closed"
-      : unheld
-        ? "unheld"
-        : status.state === "working"
-          ? // A claim of work outranks the watcher under it, fresh or stale: what the
-            // agent said it was doing is the news either way, and going quiet on it is
-            // the news the reader is least able to work out for themselves. The rope is
-            // the same one a roster row holds a worker to, so "gone quiet" means one
-            // thing on the page whoever is being judged — and a note on a thread
-            // (`leaf status … --on`) renews the claim, which is how work handed to a
-            // delegate stays true across a turn boundary the session cannot write over.
-            !quiet
-            ? "working"
-            : listening
-              ? "stalled"
-              : "away"
-          : listening
-            ? "listening"
-            : "away";
-  return {
-    kind,
-    quiet,
-    // Which of the two silences this is, for the seat that has to date it. Not a kind
-    // of its own: whether the reader's next word still reaches anyone is the question
-    // `stalled` and `away` already split on, and this is orthogonal to it.
-    dropped,
-    // Whether anything at all answers for the claim. The banner drops a claim
-    // nothing is behind rather than repeating it, and every other seat reading
-    // the same claim has to drop it on the same evidence: a note left on a
-    // thread by a session that has since died would sit under a line saying no
-    // session holds the page, each half arguing with the other about the same
-    // fact. Not the same question as `quiet`, which is about a claim going
-    // unrenewed by somebody who is still there.
-    held: kind !== "unheld" && kind !== "unattended",
-    detail: status.state === DETAIL_FROM[kind] ? status.detail : "",
-  };
-}
-// The judgment's third seat. A reader keeps a leaf in a tab for days and looks at
-// six of them; the tab strip is the whole of what the browser shows about a page nobody
-// has open, so the state that decides whether to go there belongs in it. Same judgment
-// (presented), same writer as the dot and the line, and the tone is taken off the dot
-// itself rather than mapped from kind to token again — one answer to what a tone looks
-// like, so a project overriding --ok overrides the tab with it and the two cannot come
-// apart. It is a read of the theme, not of the rendering: what colour this tone paints
-// as is a question nothing else can answer, where what state the page is in is already
-// in hand.
-//
-// The mark is the vendored icon.svg — the page's own asset like the theme, so a project
-// can put its own there — and all the runtime does to it is paint the one element it
-// declares. Refused rather than defaulted, as the theme's shadow block is: a mark with
-// no lf-tone leaves a tab that never changes, which is a status readout that silently
-// isn't one.
-const tabLink = Object.assign(document.createElement("link"), {
-  rel: "icon",
-  type: "image/svg+xml",
-  href: "/icon.svg",
+const { droppedAt, presented, quietSince } = createPresence({ serverNow });
+export { quietSince };
+
+const { loadIcon, renderStatus, toneFor } = createBanner({
+  agentName,
+  ago,
+  dot,
+  el,
+  presented,
+  statusText,
 });
-document.head.append(tabLink);
-let iconMark = null;
-const iconUrls = new Map();
-// The mark with one colour written over it, or — for "" — the mark as authored. A style
-// element appended last outranks the file's own rules, the dark-scheme block included,
-// since a media query carries no specificity of its own. So this knows nothing about the
-// icon beyond the class it promises, and a project's own mark is painted on the same
-// terms.
-function iconUrl(color) {
-  let url = iconUrls.get(color);
-  if (url === undefined) {
-    const svg = iconMark.cloneNode(true);
-    if (color) {
-      const style = svg.ownerDocument.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "style",
-      );
-      style.textContent = `.lf-tone { fill: ${color} }`;
-      svg.append(style);
-    }
-    url =
-      "data:image/svg+xml," +
-      encodeURIComponent(new XMLSerializer().serializeToString(svg));
-    iconUrls.set(color, url);
-  }
-  return url;
-}
-async function loadIcon() {
-  const response = await fetch("/icon.svg");
-  if (!response.ok)
-    throw new Error(`leaf: the tab icon failed to load (${response.status})`);
-  const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
-  // Two failures, and the same symptom: no element to paint. A parse error is reported
-  // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
-  // check and fails it — sending whoever overrode the file to look for a class that is
-  // sitting right there in it.
-  const broken = doc.querySelector("parsererror");
-  if (broken)
-    throw new Error(
-      // Collapsed, because the browser's report is laid out as a page and reads as
-      // several lines of it; what matters is the line and column it names.
-      `leaf: icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
-    );
-  if (!doc.querySelector(".lf-tone"))
-    throw new Error(
-      "leaf: icon.svg carries no lf-tone element, which is where the page's " +
-        "status is painted",
-    );
-  iconMark = doc.documentElement;
-  // Left where `version export` can find it: a file has no session behind it, so a copy
-  // wears the mark saying nothing rather than the tone it was exported under.
-  tabLink.dataset.lfRest = iconUrl("");
-  paintTab();
-}
-// A declaration, and called from two places, because the fetch above can land after the
-// first poll has already judged the page.
-function paintTab() {
-  if (!iconMark) return;
-  const url = iconUrl(getComputedStyle(dot).backgroundColor);
-  // Written only on change: an unchanged poll must not hand the browser its icon again
-  // every two seconds.
-  if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
-}
-// One writer for the dot, the line and the tab, offline included: null is the poll saying
-// it couldn't reach the server, not a second function's own rendering. The line is one of
-// the two things on the row that give up width when it runs out (see the theme), so what
-// a narrow window clips is a hover away, the way the version chooser's label is — worth
-// more now that the line carries the ask and not only the state. Written every time
-// rather than only when the box clips, because whether it does is a fact about the
-// rendering and nothing here reads that back.
-const showStatus = (tone, ...parts) => {
-  dot.className = "lf-dot" + (tone ? " " + tone : "");
-  statusText.textContent = "";
-  statusText.append(...parts);
-  statusText.title = statusText.textContent;
-  paintTab();
-};
-function renderStatus(state) {
-  if (state instanceof Error) {
-    showStatus("offline", "Page couldn't apply current state — reload");
-    return;
-  }
-  if (state === null) {
-    showStatus("offline", "Server offline — comments won't send");
-    return;
-  }
-  const { status, pending } = state;
-  const { kind, quiet, dropped, detail } = presented(state);
-  // What the user's words do meanwhile. The log takes them with nobody on the other
-  // end; the only thing attendance changes is when they are read.
-  const saved = pending
-    ? `${pending} update${pending === 1 ? "" : "s"} waiting.`
-    : "Your comments are saved.";
-  // Dated by whichever fact ended the belief. A dropped claim is dated by the ending
-  // and not by its own last word, because "last checked in just now" under an amber
-  // dot is the line arguing with the dot beside it.
-  const dated = dropped
-    ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
-    : `${agentName()} last checked in ${ago(status.ts)}`;
-  let text = "",
-    showAge = false;
-  if (kind === "closed") text = "Leaf closed";
-  else if (kind === "unattended")
-    // No agent named and no pickup promised, which is the whole difference from
-    // `unheld` below: there is nobody to name and nothing coming. What the reader can
-    // still do is everything — the page works, it just works alone — so the line says
-    // where their gestures go rather than that they are saved for someone.
-    text = "Nobody is behind this page. What you do here stays in this browser.";
-  else if (kind === "unheld")
-    // No agent is named, because which one picks the page up next is not a fact this
-    // page holds — only that the log is there for whichever does.
-    text = `No session holds this page. ${saved} It picks up again when a session does.`;
-  else if (kind === "working") {
-    showAge = Boolean(status.ts);
-    text = `${agentName()} is working${detail ? " — " + detail : ""}`;
-  } else if (kind === "listening") {
-    // Attendance is half the news; the other half is what the page wants back. The
-    // Asks count beside it says how many things are unanswered and nothing about what
-    // any of them is, so the claim's detail says that here in the agent's own words,
-    // the way a `working` claim's says what it is doing. With nothing declared it is
-    // the standing instruction, which is what a page asking nothing wanted anyway.
-    //
-    // "awaits" while the judged kind stays `listening`: they name different things.
-    // The kind and the server field behind it are the evidence — a watcher live on the
-    // other end — and the words are the stance it supports, which is the registry's
-    // own word for a standing request to the reader (x-awaits). Wording is the seat's,
-    // per `presented`, so a row in the leaves panel leads with the bare word and
-    // carries the same ask behind it.
-    text = `${agentName()} awaits — ${detail || "select text to comment"}`;
-  } else if (kind === "stalled") {
-    // The claim stands, dated, with no remedy attached: a watcher is live, so the
-    // reader's next word reaches the agent without anyone touching a terminal. What
-    // they are owed is the age, which is the one thing they cannot see for themselves
-    // and the whole of what separates a delegate mid-answer from a dropped thread. It
-    // is spoken in the same words the branch below uses for the same silence, rather
-    // than in the muted parenthesis a live `working` claim wears: there the age is a
-    // footnote to news, and here it is the news.
-    text = `${dated}${detail ? ": " + detail : ""}. ${saved}`;
-  } else {
-    // Somebody is behind the page and isn't attending: say which and what to do. A
-    // long silence means Claude lost the thread; a recent check-in means it is
-    // mid-turn and the next one collects.
-    const [why, how] = quiet
-      ? [`${dated}.`, "Nudge it in the terminal."]
-      : [`${agentName()} isn't watching right now.`, "It picks them up next turn."];
-    text = `${why} ${saved} ${how}`;
-  }
-  const line = [text];
-  if (showAge)
-    line.push(
-      " ",
-      Object.assign(el("span", "lf-age"), { textContent: `(${ago(status.ts)})` }),
-    );
-  showStatus(TONE[kind], ...line);
-}
 
 // ---------- live version activation ----------
 const versionDocuments = new Map();

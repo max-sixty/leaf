@@ -2481,11 +2481,15 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     # boxes have to land on each other whatever step the drawing asked for. `held` does
     # not move, because the hold asks which label a line belongs to and not how far apart
     # a label's lines are.
-    page.evaluate(
-        """() => [...document.querySelectorAll('#c-line text')]
-             .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1))
-             .forEach((line) => line.setAttribute('dy', '0'))"""
+    moved = page.evaluate(
+        """() => {
+             const lines = [...document.querySelectorAll('#c-line text')]
+                 .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1));
+             lines.forEach((line) => line.setAttribute('dy', '0'));
+             return lines.length;
+           }"""
     )
+    assert moved, "the controlled reading did not move any second label line"
     # The hold defeated by its own predicate rather than the pass rewritten, so what runs
     # is this reading with one answer changed.
     unheld = render_checks_model.COVERED_WORDS.replace(

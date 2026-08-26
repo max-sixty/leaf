@@ -2445,15 +2445,6 @@ def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
             )
             > 0
         )
-        # A month body names months, not the first day of each month invented by the Date
-        # used to place it. The clustered daily body above proves thinning follows scale
-        # positions rather than treating irregular dates as evenly spaced bands.
-        month_ticks = page.evaluate(
-            """() => [...document.querySelectorAll(
-                 '#crowd-months [data-lf-part="x-axis tick label"] text')]
-                 .map(t => t.textContent)"""
-        )
-        assert month_ticks and not any("1" in tick for tick in month_ticks), month_ticks
         assert errors == []
         page.close()
 

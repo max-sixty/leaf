@@ -1284,7 +1284,7 @@ lf-diagram svg { display: block; margin: 0 auto; max-width: none; }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
 :host(.lf-rendered) pre:focus-visible { outline: var(--here-ring);
-                          outline-offset: -2px; }
+                          outline-offset: calc(-1 * var(--here-ring-w)); }
 /* A child selector, because a line's own span is not the only one in here any more:
    syntax colour puts one around each token, and as a descendant rule this laid every
    token out on a line of its own.
@@ -1345,7 +1345,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 /* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
 lf-code.lf-rendered pre:focus-visible { outline: var(--here-ring);
-             outline-offset: -2px; }
+             outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The same max-content floor as the shadow slice's line spans: an hi range's tint has
    to run the whole scrolled line, not stop at the fold. */
 lf-code .lf-code-line { display: block; padding: 0 14px 0 0;

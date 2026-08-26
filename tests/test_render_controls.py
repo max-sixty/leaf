@@ -61,7 +61,6 @@ from render_support import (
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
-    RING_FAULTS,
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
     SCROLLED,
@@ -78,6 +77,7 @@ from render_support import (
     UNPARSABLE_DIAGRAM,
     WIDE_DIFF_PAGE,
     CutOff,
+    _publish,
     _traffic,
     _until,
     actions,
@@ -99,12 +99,15 @@ from render_support import (
     panel_settled,
     record_claim,
     resized,
-    ring_fault,
+    ring_faults,
+    ring_rules,
+    rings_drawn,
     round_trip,
     select,
     serious_axe_violations,
     shown_frames,
     solid_png,
+    standing_ring,
     token_colour,
     told,
     watched,
@@ -408,9 +411,18 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
             expect(composer).to_be_hidden()
         else:
             expect(composer).to_be_visible()
-            assert page.evaluate(DRAFT_MARK) == promised, (
-                f"⌥-clicking {label} in {example.name} promised {promised} and commented "
-                f"on {page.evaluate(DRAFT_MARK)}"
+            mark = page.evaluate(DRAFT_MARK)
+            # A box a standing thread already outlines keeps the posted colour and takes
+            # no pending class of its own: the draft claims whichever boxes are still
+            # free (paintAnchors), so aiming at an element the log already marks keeps
+            # the promise and paints nothing new. The other half of the press is read
+            # either way — where the composer opened on something else, that element
+            # wears the pending mark and this reads it there.
+            if mark is None and page.locator(f"#{promised}.lf-mark-el").count():
+                mark = promised
+            assert mark == promised, (
+                f"⌥-clicking {label} in {example.name} promised {promised} and "
+                f"commented on {mark}"
             )
             # And the promise is kept where the reader can see it kept. An outline needs
             # a box, and an item that draws none — every suggestion is display: contents —
@@ -3214,9 +3226,9 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     have told anyone. `shownBand` is the product's own reading and names all three; this
     holds the probe to it rather than to a copy free to drift from it again.
 
-    One control, one displacement, three parents differing only in how they clip. The
-    first case is the control: without it a reading that reported at every stop would
-    pass the other three and prove nothing.
+    One control, one ring pushed out past its box, three parents differing only in how
+    they clip. The first case is the control: without it a reading that reported at every
+    stop would pass the other three and prove nothing.
     """
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example.read_text(), comments=2)
@@ -3227,9 +3239,11 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
       const el = document.activeElement;
       const p = el.parentElement;
       p.style.overflow = p.style.contain = p.style.contentVisibility = '';
-      // Pull the control out of its parent so the ring runs past the parent's left edge.
-      el.style.position = 'relative';
-      el.style.left = '-6px';
+      // The ring past the parent's edge with the control still inside it. Moving the
+      // control out instead takes its own edge out of the box too, and a box is held to
+      // a ring only on the sides where it is showing the control's own edge — so all
+      // three cases below would be declined for the reason the control case is.
+      el.style.outlineOffset = '8px';
       if (how === 'overflow') p.style.overflow = 'hidden';
       if (how === 'contain') p.style.contain = 'paint';
       if (how === 'content-visibility') p.style.contentVisibility = 'auto';
@@ -3238,13 +3252,13 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     }"""
 
     clean = page.evaluate(plant, "none")
-    assert page.evaluate(RING_FAULTS)["cuts"] == [], (
+    assert standing_ring(page)["cuts"] == [], (
         f"the displaced ring is reported cut with nothing clipping it ({clean}), so the "
         "cases below would only be repeating whatever this reading always says"
     )
     for how in ("overflow", "contain", "content-visibility"):
         style = page.evaluate(plant, how)
-        cuts = page.evaluate(RING_FAULTS)["cuts"]
+        cuts = standing_ring(page)["cuts"]
         assert any("left edge" in c for c in cuts), (
             f"a parent clipping by {how} ({style}) drew the ring away and the reading "
             f"said {cuts}"
@@ -3282,9 +3296,9 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     page.locator(".lf-threads .lf-btn").first.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
-    assert page.evaluate(RING_FAULTS)["ring"], "no ring is drawn, so nothing is covered"
+    assert standing_ring(page), "no ring is drawn, so nothing is covered"
 
-    assert page.evaluate(RING_FAULTS)["covers"] == [], (
+    assert standing_ring(page)["covers"] == [], (
         "the control is reported covered before anything is put over it"
     )
     page.evaluate(
@@ -3298,9 +3312,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
           document.body.append(d);
         }"""
     )
-    assert any(
-        "top edge is under" in c for c in page.evaluate(RING_FAULTS)["covers"]
-    ), (
+    assert any("top edge is under" in c for c in standing_ring(page)["covers"]), (
         "a band laid over the ring's top run was not reported, so this reading answers "
         "nothing and the pages it passes are not evidence"
     )
@@ -3324,7 +3336,7 @@ def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     reader who asked for no motion got a medium currentColor ring at offset nought
     animating into the real one, on every focus, on every page. It is also what a
     computed-style reading of a ring taken in those frames was told, which is how
-    `RING_FAULTS` came to invent one.
+    `RINGS_DRAWN` came to invent one.
 
     So this asks the reader's own question — is anything moving — of the control they
     just landed on, in the one setting where the answer has to be no."""
@@ -3429,13 +3441,13 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     }"""
 
     page.evaluate(plant, 0)
-    assert page.evaluate(RING_FAULTS)["covers"] == [], (
+    assert standing_ring(page)["covers"] == [], (
         "the thread is reported covered with nothing over it, so the planted case below "
         "would only be repeating whatever this reading always says"
     )
 
     laid = page.evaluate(plant, inset[0])
-    covers = page.evaluate(RING_FAULTS)["covers"]
+    covers = standing_ring(page)["covers"]
     assert any("top edge" in c for c in covers), (
         f"a {laid}px band over the whole of the card's {inset[0]}px inset ring, with the "
         f"rest of the card in full view, and the reading said {covers}"
@@ -3445,55 +3457,200 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
-    browser, serve, example
-):
-    """The same invariant asked of the whole corpus, so it is a property of the layer
-    rather than a fact about the one list that was wrong. Tab, because that is the walk
-    every page has and it reaches the page's own controls and the runtime's chrome in
-    one order; the panel is opened first so its head, its find row and its foot are in
-    it. A page's own scroll region is the document, whose top the banner stands over —
-    the same shape of collision the panel had, one layer out."""
-    # The path, not the markup: the fixture lays in the log the example ships, and a
-    # thread and the widgets a message carries are controls this walk has to stand on.
-    url = serve(example, comments=2)
-    page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
-    panel_settled(page)
-    page.locator("body").click()
+# Where a here ring can be drawn, and the keys the register already declares for
+# reaching each. Scopes rather than rooms because this layer spends "room" on space —
+# `--here-ring-room` is the band a scroller reserves — and these are places the reader
+# stands. A tray, the versions menu and the reference hold controls that do not exist
+# until a key opens them, so the Tab order alone never reaches one: twelve of the
+# layer's ring rules stood in that position when this was written.
+RING_SCOPES = (
+    ("the page", ()),
+    ("the comments", ("c",)),
+    ("the asks tray", ("a",)),
+    ("the leaves tray", ("l",)),
+    # The menu's own walk after the key that opens it: an open lands on the version being
+    # read, which is the last row, and the comparison press beside a row is a Tab forward
+    # from the row above it. The walk is clamped, so a second press at the top moves
+    # nothing and the pair covers a menu of any length this corpus can hold.
+    ("the versions menu", ("v", "ArrowUp", "ArrowUp")),
+    ("the reference", ("?",)),
+    ("design mode", ("i",)),
+)
+# What each scope has to have opened before its walk means anything, and what the page
+# shows while the key that opens it is live. A key with nothing to show is dead by
+# declaration — `a` on a page waiting on nobody, `l` where the machine has one leaf — so
+# the surface is asked for only where the page is offering it, and the corpus answers for
+# the rest. Without this a key that stops working leaves the walk re-walking the page and
+# contributing nothing, which the coverage floor catches only where that scope is a
+# rule's sole home: one guard over seven setup steps. The page and the comments raise no
+# surface of their own; `c` lands on the list, which the walk's own first stop reads.
+RING_SCOPE_SURFACE = {
+    "the asks tray": (".lf-asks-panel.open", ".lf-asks"),
+    "the leaves tray": (".lf-others-panel.open", ".lf-others"),
+    "the versions menu": (".lf-version-menu.open", None),
+    "the reference": (".lf-help.open", None),
+    "design mode": ("body.lf-design", None),
+}
+# Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
+# leaves the sequential focus navigation starting point where the blurred control stood,
+# so the next Tab carries on from the chrome, runs off the end of the order and never
+# enters the page. Twelve stops instead of thirty-three, with every ring the page's own
+# widgets draw unread and the walk reporting itself complete.
+RING_WALK_START = "() => document.body.focus()"
+# A new stop, read on a rendered frame. Held by identity, since two buttons in a row can
+# say the same words at the same scroll and are still two stops.
+RING_NEW_STOP = f"""async () => {{
+  await ({RENDERED})();
+  const e = ({DEEP_FOCUS})();
+  if (!e || e === document.body || e === document.documentElement) return false;
+  if (window.__lfSeen.has(e)) return false;
+  window.__lfSeen.add(e);
+  return true;
+}}"""
 
-    # The tab order comes back round, so the walk ends when it reaches a control it has
-    # already stood on — held by identity, since two buttons in a row can say the same
-    # words at the same scroll and are still two stops. The cap is a backstop against a
-    # page whose order never repeats; the ring count below is what would notice a walk
-    # that stopped short of one.
-    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
-    NEW_STOP = f"""() => {{
-      const e = ({DEEP_FOCUS})();
-      if (!e || e === document.body || e === document.documentElement) return false;
-      if (window.__lfSeen.has(e)) return false;
-      window.__lfSeen.add(e);
-      return true;
-    }}"""
-    stops, ringed, faults = 0, 0, []
-    for _ in range(400):
-        page.keyboard.press("Tab")
-        page.evaluate(RENDERED)
-        if not page.evaluate(NEW_STOP):
-            break
-        stops += 1
-        if page.evaluate(RING_FAULTS)["ring"]:
-            ringed += 1
-        fault = ring_fault(page, f"tabbing to stop {stops}")
-        if fault:
-            faults.append(fault)
-    assert not faults, f"{example.name}: " + "\n  ".join(
-        [f"{len(faults)} of {stops}:"] + faults
+
+def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
+    browser, serve, live_leaf
+):
+    """The invariant asked of the whole layer and the whole corpus at once. Neither half
+    is evidence without the other: a clean walk says nothing about a rule it never met,
+    and a rule the walk met says nothing if the reading excused every side of it.
+
+    The population is read out of the page's own composed stylesheets (`RING_RULES`)
+    rather than kept in a list beside them, for the reason `page catalog` reads the
+    merged registry: a twelfth widget must not need a handwritten list updated, and the
+    list that was here in prose was already wrong.
+
+    Tab, because that is the walk every page has and it reaches the page's own controls
+    and the runtime's chrome in one order. The scopes are what Tab alone cannot reach. A
+    settled group is opened for the same reason — its options are behind a disclosure,
+    and the pick's own ring is the one the joined group form takes away, so it is only
+    ever drawn in a group that has been settled.
+
+    Two things this walk cannot take from an example, each set up the way the product
+    makes it: a second version, so the versions menu has a comparison to offer, and a
+    neighbouring leaf, so the leaves tray has a row. Neither can live in the corpus — an
+    example's markup is v1 and nothing revises it, and a live leaf is state under the
+    state home rather than page content.
+    """
+    live_leaf("other", "The other leaf")
+    # The reader's default motion. No ring in this layer moves under either setting —
+    # the reduced-motion guard removes transitions rather than shortening them
+    # (theme.css), which is what `test_a_reader_who_asked_for_no_motion_gets_a_ring_
+    # that_does_not_arrive` holds — so a walk that reads two frames after a press reads
+    # the ring the rule states.
+    rules, lit, faults, seen_faults = {}, set(), [], set()
+    opened, walked_in, errors = set(), set(), []
+    stops = 0
+    for example in EXAMPLES:
+        # The path, not the markup: the fixture lays in the log the example ships, and a
+        # thread and the widgets a message carries are controls this walk has to stand
+        # on. One of those threads is anchored to an element rather than a passage,
+        # which is the only way a ring is painted on the page for a focus held in the
+        # panel.
+        url = serve(example, comments=2)
+        # A version to compare against, published the way a page gets one. Serving v2
+        # rather than letting the open page follow keeps the walk out of an activation.
+        _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
+        page, console = open_page(browser, url.replace("/v1.html", "/v2.html"))
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        # Opened, not pressed for a decision: a settled group's disclosure is this
+        # reader's view state and no version carries it. One in an exhibit is quoted,
+        # so its marks are spans with nothing to focus, and one in a shut panel has no
+        # box — neither is a place a ring can be drawn, and neither can be clicked.
+        for row in page.locator("lf-options[settled] > .lf-settled").all():
+            if row.is_visible():
+                row.click()
+        page_at_rest(page)
+
+        for scope, keys in RING_SCOPES:
+            # Three rungs, because a scope can be three deep: a tray or a menu over the
+            # panel over the page. The last one closes the panel, which is reopened
+            # below, so every scope starts from the same page.
+            for _ in range(3):
+                page.keyboard.press("Escape")
+            page.evaluate(RING_WALK_START)
+            if not page.locator(".lf-panel.open").count():
+                page.locator(".lf-comments").click()
+                panel_settled(page)
+                page.evaluate(RING_WALK_START)
+            for key in keys:
+                page.keyboard.press(key)
+            page_at_rest(page)
+            surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
+            if surface and (offers is None or page.locator(offers).is_visible()):
+                assert page.locator(surface).count() == 1, (
+                    f"{' '.join(keys)} did not open {scope} on {example.stem}, which "
+                    "offers it, so this walk is the page's over again"
+                )
+                opened.add(scope)
+
+            # The tab order comes back round, so the walk ends when it reaches a control
+            # it has already stood on. The cap is a backstop against a page whose order
+            # never repeats.
+            page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+            where = f"in {scope} of {example.stem}"
+            walked, empty, came_round = 0, 0, False
+            for _ in range(400):
+                if walked or empty:
+                    page.keyboard.press("Tab")
+                if not page.evaluate(RING_NEW_STOP):
+                    # The key that opened the scope may have landed focus on nothing, so
+                    # the first read is allowed to come back empty; a repeat after the
+                    # walk has started is the order having come round. Two, not the cap:
+                    # a walk that never starts otherwise spends four hundred frames
+                    # saying so and reads as a slow test rather than a broken one.
+                    empty += 1
+                    if walked or empty > 2:
+                        came_round = True
+                        break
+                    continue
+                walked, stops = walked + 1, stops + 1
+                drawn = rings_drawn(page)
+                for ring in drawn:
+                    lit.update(ring["rules"])
+                # One standing defect is one finding, not one per stop: a ring worn by
+                # something the walk is not moving — an ask's mark, a thread's element
+                # mark — is read again at every stop it survives.
+                for fault in ring_faults(drawn, where):
+                    if fault not in seen_faults:
+                        seen_faults.add(fault)
+                        faults.append(fault)
+            # A control the runtime replaces on repaint is a new element at every Tab, so
+            # the walk never meets a repeat and runs the cap out: sixteen times the work
+            # and no message, which reads as a hang rather than as the fault it is.
+            assert came_round, (
+                f"the walk {where} never came back round to a control it had already "
+                f"stood on, so it ran its cap out at {walked} stops"
+            )
+            if walked:
+                walked_in.add(scope)
+            elif surface and scope in opened:
+                raise AssertionError(
+                    f"{scope} opened on {example.stem} and the walk stood on nothing "
+                    "in it"
+                )
+
+        for sel, said, _ in ring_rules(page):
+            rules[sel] = said
+        errors += [f"{example.stem}: {e}" for e in console]
+        page.close()
+
+    assert not errors, errors
+    # Corpus-wide, because a scope can be dead on a page with nothing to put in it. What
+    # cannot happen is a scope no example in the corpus ever opens or walks: then its
+    # keys are unread and everything below is silent about the controls behind them.
+    missing = [s for s in RING_SCOPE_SURFACE if s not in opened] + [
+        f"{s} (walked nothing)" for s, _ in RING_SCOPES if s not in walked_in
+    ]
+    assert not missing, "no example in the corpus reached " + ", ".join(sorted(missing))
+    assert not faults, "\n  ".join(
+        [f"{len(faults)} faults over {stops} stops:"] + faults
     )
-    assert ringed >= 3, (
-        f"{example.name} tabbed to {stops} stops and only {ringed} drew a ring, "
-        "so this asserts almost nothing"
+    unlit = [said for sel, said in sorted(rules.items()) if sel not in lit]
+    assert not unlit, (
+        f"{len(unlit)} of the layer's {len(rules)} ring rules are painted nowhere the "
+        f"corpus can be walked to, so nothing above is evidence about them:\n  "
+        + "\n  ".join(unlit)
     )
-    assert errors == []
-    page.close()

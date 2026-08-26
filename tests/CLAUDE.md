@@ -76,7 +76,7 @@ of the band a box shows, and it names all three ways a box draws nothing past it
 edge: overflow, paint containment, and `content-visibility`. `version check
 --render` imports it so the band a handover is refused against and the band the
 page paints to are one reading, and its comment records that the two copies before
-it disagreed twice. `RING_FAULTS` is a third consumer of it rather than a third
+it disagreed twice. `RINGS_DRAWN` is a third consumer of it rather than a third
 copy of it, and it asks the window on the same terms as any other box: a fixed
 subtree is laid out against the window, and everything else reaches it through
 `body`, which is this page's scroller.
@@ -88,13 +88,36 @@ perfectly fine comes back with. Reach it with a real `Tab`, or focus it and pres
 `Tab` then `Shift+Tab` back onto it, and asserting the ring is there comes before
 asserting anything about its shape.
 
+Which control wears the ring is a separate question from which one holds the focus,
+and four of the layer's rules answer it differently: a thread card wears the ring
+for anything focused inside it, an ask for whichever of its controls the reader
+reached, a joined option group for the one its picks give up, and an element a
+focused thread is anchored to wears one with no focus of its own.
+`getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
+words it uses for a control whose ring is fine — a 2px cut planted on
+`.lf-thread:focus-within` passed all ten examples. So the reading asks the elements
+the layer's ring rules match, and reads those rules out of the page's own composed
+stylesheets rather than from a list kept beside them.
+
 The failure that makes this worth stating is a quiet one. A reading blind to one
 mechanism does not report that it is blind — it returns the same clean result it
 returns when nothing is wrong — so a green corpus is not evidence of a clean
 corpus. Assert a gate's reach the way its population is asserted:
 `test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge` puts
-one displacement under three parents differing only in how they clip, with a
-control case that has to report nothing.
+one outset ring under three parents differing only in how they clip, with a control
+case that has to report nothing, and
+`test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails on
+any rule in the layer that nothing in the corpus paints, and on any scope of its
+walk that no example opens. A rule is credited when something matching it paints
+an outline of the layer's own width and style, so a rule under a condition this
+gate cannot make hold — a print stylesheet, the other colour scheme — is left out
+of the population rather than credited off a neighbour's ring.
+
+A Tab walk needs its starting point said as well as its end. `blur()` does not
+supply one: the sequential focus navigation starting point stays where the blurred
+control stood, so the next Tab carries on from there, runs off the end of the order
+and never enters the page. `document.body.focus()` resets it, and the walk that had
+been reporting twelve stops reports thirty-three.
 
 `RING_FAULTS` has gone blind once more since, in what it reads rather than in
 what it walks, and silently. Its excuse for a control standing behind something

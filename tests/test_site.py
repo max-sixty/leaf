@@ -328,10 +328,24 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
     with no error anywhere."""
     page, errors = open_page(browser, example_url(hosted, "ship-review"))
     try:
-        expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+        # Counted off the log rather than typed, so a seed that grows a thread does
+        # not red this on a number nobody meant to assert.
+        threads = sum(
+            json.loads(line)["kind"] == "comment"
+            for line in (ROOT / "examples" / "ship-review.jsonl")
+            .read_text(encoding="utf-8")
+            .split("\n")
+            if line.strip()
+        )
+        expect(page.locator(".lf-comments")).to_have_text(f"Comments ({threads})")
         page.locator(".lf-comments").click()
-        thread = page.locator(".lf-panel .lf-thread").first
-        expect(thread).to_contain_text("One reconnect in forty is worse")
+        # Named rather than taken first: the panel orders threads by where on the
+        # page they point, so the seed's other thread — a question about the diagram,
+        # which stands higher up — heads the list.
+        thread = page.locator(".lf-panel .lf-thread").filter(
+            has_text="One reconnect in forty is worse"
+        )
+        expect(thread).to_have_count(1)
         expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
         assert page.locator(".lf-panel .lf-quote.detached").count() == 0, (
             "the shipped anchor found nothing on the page it was captured from"
@@ -450,6 +464,8 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
         page.locator(".lf-comments").click()  # the box lives in the panel
         page.locator(".lf-general textarea").fill("Where does this go?")
         page.locator(".lf-general .lf-btn.primary").click()
+        # One, and typed: this example ships no log, so the count is the comment
+        # just written and nothing else.
         expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
         # The page's own scroller (the runtime's `pageScroller`), moved the way a
         # reader moves it far enough down that the landmark is worth restoring.

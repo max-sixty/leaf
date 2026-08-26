@@ -1501,10 +1501,12 @@ which one applies is the same question theme.css already answers about the ring'
 gap. A box that stands on its own draws its ring outside itself, and every scroll
 region that box can land in reserves `--here-ring-room` at its edges through
 `scroll-padding` — the document does this for its foot, the thread list for both
-of its own, where the outward rings are its run-heading buttons and the controls
-inside a card. A box whose own edge touches something that paints draws its ring
-inset instead, because nothing outside it is free: a thread touches the heading
-above it in flow, and no scroll position separates them. Where a module decides
+of its own, where the outward rings are the controls inside a card. A box whose
+own edge touches something that paints draws its ring inset instead, because
+nothing outside it is free: a thread touches the heading above it in flow, and no
+scroll position separates them. A box a sticky offset holds against its
+scroller's own edge is that case with the scroll taken out of it, which is why a
+run heading insets too. Where a module decides
 whether a control fits somewhere, the room is part of what has to fit; the
 suggestion row carries it as trailing padding so that the fit is still one
 measured box rather than a length read out of CSS.
@@ -1528,11 +1530,11 @@ a fact about where it was put. A thread taller than the list's own scrollport is
 the excepted case in both directions — there is no scroll that shows all of it,
 which is the same thing the ring reading declines to report.
 
-`test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered`,
+`test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered`,
 `test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading`, and
-`test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring` hold this for
-the panel's own walk, for a press inside its list, and for every shipped page's
-tab order. They ask one question: where the control can be seen, so can the ring
+`test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` hold
+this for the panel's own walk, for a press inside its list, and for every shipped
+page's tab order. They ask one question: where the control can be seen, so can the ring
 that names it. A control that itself stands under a fixed bar is not a finding —
 that is a fact about where it was put — and neither is a box too tall for the
 region it is in.

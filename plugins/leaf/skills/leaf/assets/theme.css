@@ -180,8 +180,9 @@
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
      read back in a calc, and the number was therefore being retyped wherever the
-     room was worked out. --here-ring is composed from it, so there is still one
-     place the band's thickness is decided. */
+     room was worked out. --here-ring is composed from it, --here-ring-room adds
+     the gap to it, and every control that insets its ring by one width negates
+     it, so there is still one place the band's thickness is decided. */
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));

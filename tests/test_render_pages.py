@@ -140,12 +140,23 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # a mark spends the whole timeout on such a seed and then reports it as
         # "wait_for_function timed out", which is the failure the count's own note
         # says this gate must not produce.
-        if anchored:
+        quoted = [e for e in anchored if e["anchor"].get("quote")]
+        if quoted:
             page.wait_for_function(
                 "() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0"
             )
-        # The exchange is both voices, and the mark is on the words the log named.
+        # An anchor that names an element and quotes nothing marks the box rather
+        # than the words, so it makes no range and no highlight: a diagram or a
+        # board has no sentence to point at, and a comment on the whole of one is a
+        # shape the corpus otherwise never shows. The class is what the reader
+        # follows and what the ring is drawn on, so it is what is read here.
         for event in anchored:
+            if event in quoted:
+                continue
+            section = event["anchor"]["section"]
+            expect(page.locator(f"#{section}.lf-mark-el")).to_have_count(1)
+        # The exchange is both voices, and the mark is on the words the log named.
+        for event in quoted:
             quote = event["anchor"]["quote"]
             painted = re.sub(
                 r"\s",

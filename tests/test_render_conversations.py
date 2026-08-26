@@ -16,7 +16,6 @@ from render_support import (
     LONG_PAGE,
     PANEL_PAGE,
     RENDERED,
-    RING_FAULTS,
     draw_edge,
     edge_settled,
     in_threads_scrollport,
@@ -25,8 +24,10 @@ from render_support import (
     panel_comment,
     panel_settled,
     resized,
-    ring_fault,
+    ring_faults,
+    rings_drawn,
     round_trip,
+    standing_ring,
     told,
     undo,
 )
@@ -1725,7 +1726,9 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     page.close()
 
 
-def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
+def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
+    browser, serve
+):
     """Where the reader is standing has to be visible from wherever they walked to it,
     and the two ways it stops being visible are geometry rather than anything about the
     control: a scroll region that never said how much of its own edge it cannot land on,
@@ -1785,9 +1788,9 @@ def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
             page.keyboard.press(key)
             page.evaluate(RENDERED)
             walked += 1
-            fault = ring_fault(page, f"after {walked} presses of the walk")
-            if fault:
-                faults.append(fault)
+            faults += ring_faults(
+                rings_drawn(page), f"after {walked} presses of the walk"
+            )
             under = page.evaluate(COVERED_TOP)
             if under:
                 faults.append(
@@ -1800,10 +1803,8 @@ def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
 
         # Non-vacuity: the walk has to have been on threads inside the scrolling list,
         # drawing rings, or the loop above asserted nothing at every step.
-        assert page.evaluate(RING_FAULTS)["ring"], (
-            "the walk ends on nothing wearing a ring"
-        )
-        assert page.evaluate(RING_FAULTS)["scrolled"], (
+        assert standing_ring(page), "the walk ends on nothing wearing a ring"
+        assert standing_ring(page)["scrolled"], (
             "the walk ends outside a scroll region, so the cut half proved nothing"
         )
 
@@ -1814,8 +1815,17 @@ def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
         # half of that scroll-padding is unheld. Tab scrolls each stop into view itself,
         # which is the gesture that puts one against an edge.
         page.locator(".lf-threads").focus()
+        # Counted off the list rather than floored at a number somebody picked: a
+        # walk that reaches eight of thirty-five controls passes a floor of eight
+        # while three quarters of the room this list reserves goes unheld, and says
+        # nothing about which quarter.
+        tabbable = page.eval_on_selector_all(
+            ".lf-threads *",
+            "els => els.filter((e) => e.tabIndex >= 0).length",
+        )
+        assert tabbable, "the list holds no control to tab to"
         stops = 0
-        for _ in range(40):
+        for _ in range(tabbable + 5):
             page.keyboard.press("Tab")
             page.evaluate(RENDERED)
             if not page.evaluate(
@@ -1824,12 +1834,12 @@ def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
             ):
                 break
             stops += 1
-            fault = ring_fault(page, f"tabbing to stop {stops} inside the list")
-            if fault:
-                faults.append(fault)
-        assert stops >= 8, (
-            f"only {stops} of the list's own controls were tabbed to, so the room it "
-            "reserves at its edges is not held by this"
+            faults += ring_faults(
+                rings_drawn(page), f"tabbing to stop {stops} inside the list"
+            )
+        assert stops == tabbable, (
+            f"the walk stood on {stops} of the list's {tabbable} controls, so the room "
+            "it reserves at its edges is only partly held by this"
         )
         assert not faults, "\n  ".join([f"{len(faults)} faults:"] + faults)
 
@@ -1924,10 +1934,10 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
         assert page.evaluate(
             "() => document.activeElement?.classList.contains('lf-thread')"
         ), "the press did not land the reader on a thread, so nothing wore a ring"
-        assert page.evaluate(RING_FAULTS)["ring"], (
-            "the thread it landed on draws no ring"
+        assert standing_ring(page), "the thread it landed on draws no ring"
+        assert not ring_faults(
+            rings_drawn(page), "after a press on a card under the run heading"
         )
-        assert not ring_fault(page, "after a press on a card under the run heading")
         # The panel's own reading of the same question, and the stronger form of it: a
         # hit test at the card's top edge rather than two rectangles subtracted, and it
         # declines outright if the press left the list.
@@ -2015,7 +2025,9 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
             "a press on the card the reader was already standing in left it under the "
             f"heading: {page.evaluate(COVERED_TOP)}"
         )
-        assert not ring_fault(page, "after a press on the card already standing in")
+        assert not ring_faults(
+            rings_drawn(page), "after a press on the card already standing in"
+        )
 
         assert errors == []
         page.close()

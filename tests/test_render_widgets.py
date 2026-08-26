@@ -2532,7 +2532,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     moved = page.evaluate(
         """() => {
             const ticks = [...document.querySelectorAll('#c-line text')]
-                .filter((t) => t.hasAttribute('transform'));
+                .filter((t) => t.hasAttribute('transform') && !t.querySelector('tspan'));
             if (ticks.length < 2) return null;
             ticks[1].setAttribute('transform', ticks[0].getAttribute('transform'));
             return [ticks[0].textContent, ticks[1].textContent];

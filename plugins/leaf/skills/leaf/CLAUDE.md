@@ -24,6 +24,7 @@ helper surface for behavior modules and selects capabilities from their runtime
 owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/context.js` owns the mutable facts shared across the browser layers;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
+`runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;

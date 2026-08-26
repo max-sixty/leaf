@@ -65,7 +65,8 @@ highlight rules;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore
-statements; `runtime/projection/fold.js` owns canonical action and report state;
+statements; `runtime/projection/data.js` owns keyed runtime-data DOM
+reconciliation; `runtime/projection/fold.js` owns canonical action and report state;
 `runtime/projection.js` owns projection reconciliation and undo. The entry module
 composes their mutually dependent callbacks.
 TODO: Move the remaining helper implementations to their runtime owners so

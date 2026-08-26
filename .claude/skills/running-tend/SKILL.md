@@ -40,20 +40,43 @@ pulls next. Treat it as live.
 ## Reading a red suite
 
 Nearly every test drives a real browser, so a red run has more ways to be
-uninteresting here than in a repo of unit tests. Classify before writing a fix:
+uninteresting here than in a repo of unit tests. Classify before writing a fix —
+but not by whether the failures move between runs. `main` reddens on a different
+test most days, and each of those failures reproduced on its own commit, most of
+them deterministically, so movement across runs says nothing about which class
+you have. Sort on what the failure is.
 
-- **Contention.** Concurrent suites starve each other, and the failures surface
-  as `Page.goto` timeouts and slow-read assertion failures scattered across
-  unrelated tests — a shape that reads as "the browser layer is broken" when it
-  means "the machine was busy". A run whose failures move between runs is this.
-  Re-run before diagnosing.
+- **A read or press that ran before the page said it was ready.** The dominant
+  class here, and the one a re-run hides. The test measures a point, presses it,
+  or asserts on it while the page is still arriving at the state the gesture
+  needs — a panel still widening the document, a scroll still settling, a
+  response landed but not yet reconciled. It surfaces at a wait far from the
+  read that caused it, so the traceback names the symptom rather than the cause.
+  `tests/CLAUDE.md` already owns the fix under **State races are arrangements,
+  not probabilities** and **A state the page passes through is not a state to
+  poll for**: state the ordering, do not repeat the gesture until it happens to
+  hold.
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
+- **Contention.** Concurrent suites starve each other, and the failures surface
+  as `Page.goto` timeouts and slow-read assertion failures scattered across
+  unrelated tests — a shape that reads as "the browser layer is broken" when it
+  means "the machine was busy". Confirm it from the run rather than from the
+  spread: unrelated tests failing on waits none of them owns, and every job on
+  the commit slow against its usual wall time. It is the rarest of the four.
 - **The network.** Tests marked `nightly` shell out to `bin/leaf`, which resolves
   everything it needs — Playwright included — through the host's index. CI passes
   `--run-nightly` deliberately (it holds a network). If only those tests fail
   while the rest of the suite is green, suspect the index rather than the code.
+
+Reproducing at `-n0` keeps the evidence, but it classifies in one direction
+only: a failure that reproduces is real, while one that does not is still
+unclassified — `-n0` also drops the load some races need, so repeat it to
+measure a rate before falling through to contention. A re-run discards the
+evidence instead: the second attempt replaces the run's reported conclusion
+while both stay separately true, so a diagnosis written against attempt 1 does
+not describe attempt 2. If you re-run anyway, cite the attempt you read.
 
 `scripts/linux-suite.sh` exists to reproduce a Linux-only failure from a Mac.
 From CI you are already on Linux, so run the suite directly — the container adds

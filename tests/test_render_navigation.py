@@ -1912,6 +1912,74 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
     page.close()
 
 
+def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser, serve):
+    """A frame passes between one Tab and the next for every reader, and none for a test.
+
+    `renderLine` runs under `paintHere`'s frame, so it repaints the key line just after
+    focus lands somewhere — including on More, the line's own button. Clearing the line
+    with `textContent = ""` took More out of the document, and removing a focused element
+    blurs it; it came straight back as the same node, connected, with the reader dropped
+    to `body`. The button was never gone to look at and never gone from the DOM to assert
+    on, so nothing but standing on it one frame later could see it.
+
+    That is why the frame is the whole of this test. Pressed back to back the walk is
+    whole, because the repaint has not run yet between the presses — the failure hid
+    behind the one habit every browser test has. So each press waits two frames, and the
+    contrast is against the same walk pressed fast: they have to agree.
+
+    Reaching More is the claim, and going on past it is the other half — a walk that
+    loses focus to `body` does not stop, it silently restarts, and a reader tabbing
+    through their own page never gets past the banner."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
+    frame = (
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    who = """() => {
+      let e = document.activeElement;
+      while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
+      return e === document.body ? 'body' : (e?.className || e?.tagName || 'null');
+    }"""
+
+    walks = {}
+    for settled in (False, True):
+        page.evaluate("() => document.activeElement?.blur()")
+        trail = []
+        for _ in range(24):
+            page.keyboard.press("Tab")
+            if settled:
+                page.evaluate(frame)
+            trail.append(page.evaluate(who))
+        walks["frame" if settled else "fast"] = trail
+
+    # The two walks have to be the same walk. A count of lost stops would need a
+    # threshold, and there is no honest one: this page's order is three controls and a
+    # wrap, so a `body` every fourth press is the walk working. What says focus was lost
+    # is that waiting changed where the presses went.
+    assert walks["fast"] == walks["frame"], (
+        "a frame between presses changed the tab order:\n"
+        f"  fast  {walks['fast']}\n  frame {walks['frame']}"
+    )
+    for how, trail in walks.items():
+        assert any("lf-key-more" in at for at in trail), (
+            f"tabbing {how}, the walk never stood on More in 24 presses: {trail}"
+        )
+
+    # Standing on More, the repaint must leave the reader on it.
+    page.evaluate("() => document.activeElement?.blur()")
+    for _ in range(24):
+        page.keyboard.press("Tab")
+        if page.evaluate(
+            "() => document.activeElement?.classList?.contains('lf-key-more')"
+        ):
+            break
+    expect(page.locator(".lf-key-more")).to_be_focused()
+    page.evaluate(frame)
+    expect(page.locator(".lf-key-more")).to_be_focused()
+
+    assert errors == []
+    page.close()
+
+
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     """A scope takes the keys it uses, so a control that has no Escape of its own
     leaves the rung standing behind it. The banner's version chooser swallowed it,

@@ -7292,7 +7292,15 @@ function renderLine() {
   // Read where it is painted, like every other cell: the chord's chip says which stage the
   // reader is at (`g`, then `g c`), and a string fixed at declaration could only say one.
   const chord = word(scopes.find((s) => s.chord)?.chord);
-  keylineEl.textContent = "";
+  // Everything but More, which the reader may be standing on. `textContent = ""` takes
+  // it out of the document, and removing a focused element blurs it: it returns on the
+  // same line as the same node, connected again, with the reader dropped to `body`. That
+  // lands one frame after they tabbed to it, because this runs under paintHere's frame —
+  // so the walk is whole at synthetic speed and broken at every human one, which is the
+  // way round that hides from a suite. The line is cleared around it instead, and the
+  // chips are drawn in front of it.
+  for (const node of [...keylineEl.childNodes]) if (node !== keylineMore) node.remove();
+  const seated = keylineMore.parentElement === keylineEl;
   const chip = (key, said, armed) => {
     const span = el("span", "lf-key");
     span.setAttribute("aria-hidden", "true");
@@ -7301,7 +7309,7 @@ function renderLine() {
     kbd.textContent = key;
     span.append(kbd);
     if (said) span.append(el("span", "", said));
-    keylineEl.append(span);
+    keylineEl.insertBefore(span, seated ? keylineMore : null);
     return span;
   };
   if (chord) chip(chord, "", true);
@@ -7311,8 +7319,11 @@ function renderLine() {
     return span;
   });
   // The door is not useful behind the room it opens. While the reference stands, its
-  // own Escape row is the short line and More leaves the focus order with the page.
-  if (!helpOpen) keylineEl.append(keylineMore);
+  // own Escape row is the short line and More leaves the focus order with the page. This
+  // is the one removal that is meant: a reader standing on the door when the room opens
+  // is a state change rather than a repaint, and the help takes the focus anyway.
+  if (helpOpen) keylineMore.remove();
+  else if (!seated) keylineEl.append(keylineMore);
 
   // Two is a ceiling, not permission to clip them. On a window narrower than those two
   // computed sentences, yield the lower-ranked hint and then the first; More is the one

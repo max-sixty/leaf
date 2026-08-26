@@ -681,12 +681,28 @@ RING_FAULTS = f"""async () => {{
   }};
   const mid = (a, b) => (a + b) / 2;
   const covers = [];
-  for (const [side, x, y] of [
+  // Whether this reading has an order to read at all. It works by hit-testing the ring's
+  // own pixels and taking whatever comes back as standing over them — but an outline is
+  // painted by its control, at its control's level, and an outline's pixels are not
+  // hit-testable. A pixel of ring outside the control's box therefore returns whatever
+  // is beneath, and beneath is where the answer would have to come from.
+  //
+  // That is sound while the control's own surface takes hits, because then the ring's
+  // sample either lands on the control's line or lands somewhere the line does not
+  // reach. It stops being sound inside a surface declaring `pointer-events: none`: the
+  // key line stands over the page at z-index 8940 and takes no hits, so its More button
+  // is topmost where it lives and every line of code under the ring's top run read as
+  // standing over it. `cuts` is geometry and still answers for these; this half says
+  // nothing rather than saying the opposite of what the page shows.
+  let ordered = true;
+  for (let a = el; a; a = above(a))
+    if (getComputedStyle(a).pointerEvents === 'none') {{ ordered = false; break; }}
+  for (const [side, x, y] of ordered ? [
     ['top', mid(ring.left, ring.right), ring.top + 0.5],
     ['bottom', mid(ring.left, ring.right), ring.bottom - 0.5],
     ['left', ring.left + 0.5, mid(ring.top, ring.bottom)],
     ['right', ring.right - 0.5, mid(ring.top, ring.bottom)],
-  ]) {{
+  ] : []) {{
     if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
     for (const over of document.elementsFromPoint(x, y)) {{
       if (over === el || holds(el, over) || holds(over, el)) break;

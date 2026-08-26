@@ -523,6 +523,14 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * used to stand here called it a float that "does not fill the row" when the grid
      * had been filling it all along. */
     & > *, &::before { margin-block: 0; }
+    /* A control packed into this group states its own inset (theme.css, --here-ring).
+     * The group clips to the frame it draws, so a ring drawn outside a cell's box is
+     * drawn into the pixels the frame cuts away: the Done press sits flush on the
+     * group's bottom edge and lost the bottom run of its ring there, and the cells lose
+     * their side runs the same way. Inset, the ring is inside the box it names and the
+     * clip has nothing of it to take. The group's own frame is what stands off the
+     * page, which is the gap's job on a box that stands alone. */
+    & .lf-btn:focus-visible { outline-offset: calc(-1 * var(--here-ring-w)); }
     /* The hairline between neighbours: one line, stated once, on the upper of the
      * two, so a child no rule here names arrives already separated. `:not(:last-child)`
      * outranks the cell reset below (a pseudo-class counts above a tag), which is

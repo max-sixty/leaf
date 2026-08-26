@@ -3228,6 +3228,61 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     page.close()
 
 
+def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve):
+    """The half that answers by hit test, held to firing where it can and not where it
+
+    cannot. It takes whatever the ring's own pixels hit as standing over them, and an
+    outline is painted by its control at its control's level while an outline's pixels
+    are not hit-testable — so a sample outside the control's box returns whatever is
+    beneath. That is sound while the control's surface takes hits and unsound inside one
+    that does not, where the answer comes back inverted: the key line stands over the
+    page at z-index 8940 with `pointer-events: none`, and the code under its More button
+    read as standing over it.
+
+    So the reading declines inside such a surface, and that is a way for it to go quiet
+    everywhere by accident. The plant is the population assertion: thin enough to lie
+    over the ring and not over the control, because a cover across the control's own body
+    is excused on purpose — a control put where something stands over it is a fact about
+    where it was put, not about its ring leaving its box.
+    """
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example, comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator("body").click()
+    # A real press, because `.focus()` alone never raises `:focus-visible` and a control
+    # with no ring is a control with nothing to report about one.
+    page.locator(".lf-threads .lf-btn").first.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(RING_FAULTS)["ring"], "no ring is drawn, so nothing is covered"
+
+    assert page.evaluate(RING_FAULTS)["covers"] == [], (
+        "the control is reported covered before anything is put over it"
+    )
+    page.evaluate(
+        """() => {
+          const b = document.activeElement.getBoundingClientRect();
+          const d = document.createElement('div');
+          // Over the ring's top run and clear of the control's own box.
+          d.style.cssText = `position: fixed; z-index: 99999; background: red;
+            left: ${b.left - 8}px; top: ${b.top - 5}px;
+            width: ${b.width + 16}px; height: 4px;`;
+          document.body.append(d);
+        }"""
+    )
+    assert any(
+        "top edge is under" in c for c in page.evaluate(RING_FAULTS)["covers"]
+    ), (
+        "a band laid over the ring's top run was not reported, so this reading answers "
+        "nothing and the pages it passes are not evidence"
+    )
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
     browser, serve, example
@@ -3238,7 +3293,9 @@ def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
     one order; the panel is opened first so its head, its find row and its foot are in
     it. A page's own scroll region is the document, whose top the banner stands over —
     the same shape of collision the panel had, one layer out."""
-    url = serve(example.read_text(), comments=2)
+    # The path, not the markup: the fixture lays in the log the example ships, and a
+    # thread and the widgets a message carries are controls this walk has to stand on.
+    url = serve(example, comments=2)
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     panel_settled(page)

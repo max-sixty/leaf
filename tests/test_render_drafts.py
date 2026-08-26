@@ -2270,8 +2270,10 @@ def test_the_half_page_keys_follow_the_reader_into_the_panel(browser, serve):
         "t => (t.clientHeight - parseFloat(getComputedStyle(t).scrollPaddingTop)) / 2"
     )
     page.wait_for_function(
-        "e => Math.abs(document.querySelector('.lf-threads').scrollTop - e) < 1",
-        arg=thread_half,
+        "w => { const t = document.querySelector('.lf-threads');"
+        " return Math.abs(t.scrollTop - w[0]) < 1"
+        " || Math.abs(document.body.scrollTop - w[1]) >= 1; }",
+        arg=[thread_half, page_was],
         timeout=5000,
     )
     page_now, threads_now = offsets()

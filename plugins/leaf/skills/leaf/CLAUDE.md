@@ -1170,6 +1170,17 @@ wrap is the theme's honest third case.
 `MISPLACED_BOXES` asks each container's actual overflow behavior. Do not exempt
 a box merely because an ancestor declares `overflow`.
 
+A box that scrolls contains what it scrolls. Out-of-flow content inside a scroll
+container that is not a containing block is positioned against the page instead:
+the scroller neither carries it nor clips it, and the page grows a scrollbar
+reaching for a box that belongs to the scroller. The runtime hangs a word clipped
+to nothing inside the block each comment lands on, so a comment on the far column
+of a table wider than the window scrolled the whole page sideways. Every box the
+layer declares scrollable therefore declares `position: relative` in the same
+rule, the way a box declares `--lf-frame` where it draws its frame — a package
+adding a scroller owes the same declaration, and no selector can ask a box
+whether it scrolls.
+
 ### Forms follow authored content
 
 A widget derives its visual form from content when the content already states

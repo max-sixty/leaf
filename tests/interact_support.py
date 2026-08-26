@@ -295,17 +295,21 @@ PHRASING_CONTENT = frozenset(
 )
 
 
-def _balanced(css, start):
-    """What is inside a parenthesis already open at `start`, nesting included.
+def _balanced(text, start):
+    """What is inside a bracket already open at `start`, nesting included.
 
     A selector list carrying a :where() no longer ends at the first `)`, and reading
     it with one is how a marker arrives here missing its last bracket and passes for
-    a name the list never held."""
+    a name the list never held. The bracket is whichever one opens it, so a function
+    body is read the same way a selector list is: `(?:.|\n)*?` from a function's name
+    to the token being looked for runs straight past the closing brace, and a writer
+    somewhere else in the file then answers for a line that function no longer has."""
+    closing = {"(": ")", "{": "}", "[": "]"}[opening := text[start - 1]]
     depth, at = 1, start
     while depth:
-        depth += {"(": 1, ")": -1}.get(css[at], 0)
+        depth += {opening: 1, closing: -1}.get(text[at], 0)
         at += 1
-    return css[start : at - 1]
+    return text[start : at - 1]
 
 
 def _paint_names():

@@ -770,11 +770,91 @@ def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
     """The mark pass puts a comment badge in the cell it marks, and the badge is
     two words in `.lf-ui` that wrap in a 33px cell. Read as the cell's words it
     turned this table — single tokens, the theme's honest third case — red the
-    moment a reader commented on it. The runtime's words are not the page's."""
-    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
-    failures = rendering_model.render_version(browser, url)
+    moment a reader commented on it. The runtime's words are not the page's.
 
-    assert not [f for f in failures if "<table id=sessions> scrolls" in f], failures
+    The whole gate, rather than this one reading of it: the badge also stood the
+    page three hundred pixels wide of itself until the scroller was made to
+    contain what it scrolls, and a commented page has nothing left to report."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
+    browser, serve
+):
+    """The runtime hangs a word clipped to nothing inside the block a comment lands
+    on, out of flow so it holds no room. Out of flow with no positioned ancestor is
+    positioned against the page, though, and a table scrolling inside itself holds
+    its far column three hundred pixels past the window: the cell was there, the
+    word was laid out there with it, and the page grew a sideways scrollbar
+    carrying the reader to a box nobody can see. The scroller answers for it — a
+    box that scrolls contains what it scrolls — so the word keeps the place on its
+    own cell that every reading of it expects and the table carries it.
+
+    Asked at both of the table's scroll positions, since the word travels with the
+    cell now rather than standing still while the cell moves; and the cell has to
+    be off the table's own edge at the first of them, or nothing here could have
+    escaped. Then the two things the place is for: the reader who takes the skip
+    link, and the gate."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+    page, errors = open_page(browser, url)
+    note = page.locator(".lf-mark-note")
+    expect(note).to_have_count(1)
+    expect(note).to_have_text("1 comment")
+
+    measured = note.evaluate(
+        """(n) => {
+        const table = document.querySelector('#sessions');
+        const read = () => {
+            const word = n.getBoundingClientRect();
+            const cell = n.parentElement.getBoundingClientRect();
+            const shown = table.getBoundingClientRect();
+            return {
+                onItsCell: word.left >= Math.floor(cell.left)
+                           && word.right <= Math.ceil(cell.right),
+                cellShown: cell.left >= Math.floor(shown.left)
+                           && cell.right <= Math.ceil(shown.right),
+                sideways: document.body.scrollWidth - document.body.clientWidth,
+            };
+        };
+        const out = { holder: n.parentElement.firstChild.data,
+                      scrolls: Math.round(table.scrollWidth - table.clientWidth),
+                      rest: read() };
+        table.scrollLeft = table.scrollWidth;
+        out.scrolled = read();
+        return out;
+    }"""
+    )
+    assert measured["holder"] == "value_number_7", "the word is on the marked cell"
+    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+    assert not measured["rest"]["cellShown"], (
+        "the cell is on screen already, so nothing here could have escaped"
+    )
+    assert measured["scrolled"]["cellShown"], "the table did not scroll to the cell"
+    assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
+        f"the word left the cell it belongs to: {measured}"
+    )
+
+    # Reached the way a reader reaches it. `focus()` alone sets :focus and leaves
+    # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
+    # — the skip link would then be asked for its resting form and the failure would
+    # talk about `position` (tests/CLAUDE.md).
+    note.evaluate("(n) => n.focus()")
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    reached = note.evaluate(
+        """(n) => {
+        const r = n.getBoundingClientRect();
+        return { held: document.activeElement === n, said: n.textContent,
+                 inTheWindow: r.width > 1 && r.left >= 0 && r.right <= innerWidth
+                              && r.top >= 0 && r.bottom <= innerHeight };
+    }"""
+    )
+    assert reached == {"held": True, "said": "1 comment", "inTheWindow": True}
+    assert errors == []
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):

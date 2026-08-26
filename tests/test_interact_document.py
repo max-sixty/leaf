@@ -365,15 +365,30 @@ def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
     )
-    ask_view = (schema_model.ASSETS / "runtime" / "asks" / "view.js").read_text()
     assert _paint_names().get("ask") == "data-lf-ask", (
         "the theme excludes data-lf-ask and PAGE_PAINT_ATTRIBUTE spells the standing "
         f"ask's mark {_paint_names().get('ask')!r}, so nothing puts that mark on a "
         "page and a group inside an open ask draws the reader's band a second time"
     )
-    assert re.search(
-        r"function markHere\(\)(?:.|\n)*?PAGE_PAINT_ATTRIBUTE\.ask", ask_view
-    ), (
+    # Asked of the file that defines markHere rather than of a path: the runtime is
+    # composed from leaf.js and the modules beside it, and which one owns a function
+    # moves as those split — this read leaf.js, and the day the ask runtime moved out
+    # of it the reading went missing rather than red about the mark.
+    defines = [
+        f
+        for f in [
+            schema_model.ASSETS / "leaf.js",
+            *sorted((schema_model.ASSETS / "runtime").rglob("*.js")),
+        ]
+        if re.search(r"function markHere\(\)", f.read_text())
+    ]
+    assert len(defines) == 1, (
+        f"the runtime defines markHere in {[f.name for f in defines]}, and this asks "
+        "one file what it writes"
+    )
+    owner = defines[0].read_text()
+    body = _balanced(owner, owner.index("{", owner.index("function markHere()")) + 1)
+    assert "PAGE_PAINT_ATTRIBUTE.ask" in body, (
         "markHere is what paints the standing ask, and it no longer writes "
         "PAGE_PAINT_ATTRIBUTE.ask — the exclusion in the theme then answers for a "
         "mark nothing leaves on the page"

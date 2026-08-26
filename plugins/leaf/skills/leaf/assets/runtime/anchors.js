@@ -1075,9 +1075,11 @@ export function createAnchors(dependencies) {
   // compatibility mouse events — no `pointermove` anywhere in it — so a record kept from
   // movement alone is still its start value when the click asks, and a consumer with no
   // guard asks elementFromPoint about a point off the page: the quote under the finger
-  // opened nothing. The press is the pointer's place too, and on touch it is the only
-  // statement of it. No hover refresh with it: a mouse has already moved to this point
-  // and refreshed there, and there is no hover to paint under a finger.
+  // opened nothing. The press is the pointer's place too, and for a tap it is the only
+  // statement of it: a drag still dispatches `pointermove` until the browser cancels it.
+  // No hover refresh with it — a mouse has already moved to this point and refreshed
+  // there — which is not a claim that the record paints no hover on touch. pageShifted
+  // reads it too, and a drag reached that paint before this recorder existed.
   document.addEventListener("pointerdown", (ev) => {
     pointer.x = ev.clientX;
     pointer.y = ev.clientY;

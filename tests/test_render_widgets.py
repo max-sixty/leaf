@@ -2507,6 +2507,46 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     assert rendering_model.render_version(browser, url) == []
 
 
+def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_other(
+    browser, serve
+):
+    """The other half of the exemption above, put back as a bug: a label's own lines are
+    one run of words the drawing lays out together, and two labels landing on each other
+    is the fault this pass exists to report. Arranged by standing one whole <text> on
+    another rather than by spreading a label's lines, because the hold asks which <text>
+    drew a line and not how far a line was moved.
+
+    `<text>` is the case it is written for, being the near-miss that reads as one label
+    and is not: every tick of an axis is a <text> inside one <g> inside one <svg>, so a
+    hold reaching for either of those carries the whole drawing with it — every word of a
+    chart stops being read against every other word of that chart — and nothing else in
+    the suite would say so. The corpus sweeps and the copy assert this pass returns
+    nothing, which a wider hold only makes more true; the chart's own collision test reads
+    CHART_COLLISIONS, which compares whole <text> boxes and never sees this pass; and the
+    exemption above defeats the predicate wholesale, so it reports the same either way.
+    The only standing bug-back on this pass reporting is the float's, and that is an HTML
+    page whose runs never get an SVG label at all."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+    # Two ticks the drawing places by transform, one stood on the other. The labels stay
+    # whole, so what lands is two <text> elements rather than two lines of one.
+    moved = page.evaluate(
+        """() => {
+            const ticks = [...document.querySelectorAll('#c-line text')]
+                .filter((t) => t.hasAttribute('transform'));
+            if (ticks.length < 2) return null;
+            ticks[1].setAttribute('transform', ticks[0].getAttribute('transform'));
+            return [ticks[0].textContent, ticks[1].textContent];
+        }"""
+    )
+    assert moved, "no two ticks the drawing places by transform, so nothing was stacked"
+    covered = page.evaluate(render_checks_model.COVERED_WORDS)
+    assert errors == []
+    assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
+        f"two of a chart's labels stood on each other unreported: {covered}"
+    )
+    page.close()
+
+
 def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):
     """A drawing is where the body went. The module replaces the widget's own <pre> with
     it, so after the upgrade the numbers exist on the page as geometry and nowhere else —

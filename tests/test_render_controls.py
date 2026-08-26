@@ -354,7 +354,7 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     press commented on the one below it, which is the composer opening on an item the
     reader was never shown.
 
-    So the aim is put a third of a pixel from a seam, where the true point and its
+    So the aim is put within a quarter pixel of a seam, where the true point and its
     rounded twin name different items. Which of the two the true point is over depends on
     where in the pixel the seam fell, so the item the aim is held to is read off the point
     rather than named here; what is asserted first is that the two readings differ at all,

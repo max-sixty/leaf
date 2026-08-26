@@ -847,9 +847,9 @@ AIM_PAINT_PAGE = leaf_page(
 )
 # Two items meeting at a seam the browser puts between two whole pixels, held there by a
 # fixed box rather than by flow, so the fraction is the stylesheet's number on every
-# machine instead of whatever the fonts above it came to. A pointer resting in the first
-# third of that pixel is over the lower item and rounds to a whole pixel over the upper
-# one, which is the disagreement AIM_SEAM below goes looking for.
+# machine instead of whatever the fonts above it came to. Here the seam falls at .31 of a
+# pixel, so a pointer just below it is over the lower item and rounds to a whole pixel
+# over the upper one, which is the disagreement AIM_SEAM below goes looking for.
 AIM_SEAM_PAGE = leaf_page(
     "aim seam",
     """

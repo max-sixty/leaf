@@ -13,20 +13,20 @@ from conftest import interact
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
-BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
+DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 
 
 def test_docs_pages_link_the_shipped_theme():
-    # Both shipped layers, in cascade order — a docs page renders the whole
-    # vocabulary script-free, and the bundled widgets' rules are the second file.
+    # Kernel and default package, in cascade order: a docs page renders the whole
+    # vocabulary script-free, and the default widgets' rules are the second file.
     targets = (
         "../plugins/leaf/skills/leaf/assets/theme.css",
-        "../plugins/leaf/skills/leaf/bundled/theme.css",
+        "../plugins/leaf/skills/leaf/packages/default/theme.css",
     )
-    for layer in (ASSETS, BUNDLED):
+    for layer in (ASSETS, DEFAULT_PACKAGE):
         assert (layer / "theme.css").is_file()
-    # The <link> around the href, not the whole tag spelled out: customizing.html also
+    # The <link> around the href, not the whole tag spelled out: packages.html also
     # links that same file as source to read, so the path alone would pass on a page
     # that had dropped its stylesheet. Attributes in any order and on any number of
     # lines, because a formatter decides that — prettier puts this one on four.
@@ -42,7 +42,7 @@ def test_docs_pages_link_the_shipped_theme():
 
 def test_docs_pages_use_only_registered_widgets():
     registry = json.loads((ASSETS / "registry.json").read_text()) | json.loads(
-        (BUNDLED / "registry.json").read_text()
+        (DEFAULT_PACKAGE / "registry.json").read_text()
     )
     used = {
         tag
@@ -52,7 +52,7 @@ def test_docs_pages_use_only_registered_widgets():
     assert used and used <= set(registry)
 
 
-def test_customizing_guide_documents_every_key_a_registry_entry_may_declare():
+def test_package_guide_documents_every_key_a_registry_entry_may_declare():
     """The guide's table of `x-` keys is written by hand, and the vocabulary it
     describes is not closed — a widget declaring a behaviour the layer didn't have
     adds a key, and the table is the only place an author meets it. Nothing held the
@@ -67,7 +67,7 @@ def test_customizing_guide_documents_every_key_a_registry_entry_may_declare():
     unused, which is exactly the stretch in which someone reads the guide to find out
     what is available."""
     documented = " ".join(
-        (DOCS / "customizing.html").read_text().split()
+        (DOCS / "packages.html").read_text().split()
     )  # collapsed: prettier decides where the lines in a table cell fall
     keys = sorted(k for k in interact.EXTENSION_SCHEMA["properties"] if k[:2] == "x-")
     assert keys, "no extension keys read — an empty vocabulary demonstrates itself"
@@ -75,36 +75,38 @@ def test_customizing_guide_documents_every_key_a_registry_entry_may_declare():
         k for k in keys if not re.search(rf"\b{re.escape(k)}\b", documented)
     ]
     assert not undocumented, (
-        f"docs/customizing.html documents no {', '.join(undocumented)}"
+        f"docs/packages.html documents no {', '.join(undocumented)}"
     )
 
 
-def test_customizing_guide_sits_beside_how_it_works():
-    customizing = (DOCS / "customizing.html").read_text()
-    assert 'href="how-it-works.html"' in customizing
+def test_package_guide_sits_beside_how_it_works():
+    packages = (DOCS / "packages.html").read_text()
+    assert 'href="how-it-works.html"' in packages
     for source in ("index.html", "how-it-works.html"):
-        assert 'href="customizing.html"' in (DOCS / source).read_text()
+        assert 'href="packages.html"' in (DOCS / source).read_text()
 
 
-def test_customizing_guide_uses_the_current_layer_and_cli_names():
-    customizing = (DOCS / "customizing.html").read_text()
+def test_package_guide_uses_the_current_layer_and_cli_names():
+    packages = (DOCS / "packages.html").read_text()
 
-    assert ".claude/leaf" not in customizing
-    assert "<code>.leaf/</code>" in customizing
+    assert ".claude/leaf" not in packages
+    assert "<code>.leaf/</code>" in packages
     for stale in (
         "leaf init ",
         "leaf catalog ",
         "leaf check ",
     ):
-        assert stale not in customizing
+        assert stale not in packages
     for current in (
         "leaf page init ",
         "leaf page catalog ",
+        "leaf package init ",
+        "leaf package check ",
         "leaf version check ",
         'actionSequence(this, "verb")',
         'watchActions(this, "verb", render)',
     ):
-        assert current in customizing
+        assert current in packages
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

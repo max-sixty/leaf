@@ -14,10 +14,11 @@ that use: drive, judge, fix, pin.
 
 ## Drive
 
-Serve pages the way tests/test_render.py does (`serve`, `open_page`, or the same
-pattern in a scratch script) and drive them with real input. Tour the gallery and
-one prose-heavy example, at 1200×900 and 1440×900, in both color schemes. At each
-station take a screenshot and record the geometry it claims:
+Serve pages the way the browser suite does (`serve` and `open_page`, which
+tests/render_harness.py owns, or the same pattern in a scratch script) and drive
+them with real input. Tour the gallery and one prose-heavy example, at 1200×900
+and 1440×900, in both color schemes. At each station take a screenshot and record
+the geometry it claims:
 
 1. Select mid-paragraph, raise the 💬, open the composer, type twenty lines.
 2. Scroll ±300px with the composer open.
@@ -40,7 +41,7 @@ number or screenshot, not an impression.
 
 Fix each finding, then pin it where the gate and the suite share it: a fact about
 a rendered page goes in render_version, a fact about a gesture becomes a test in
-test_render.py. Put the bug back once and watch the new check fail. A judgment
-call — removing a control, redesigning a flow — goes in the report with its
-screenshot, not in the diff. The run ends as a green branch and a report, and
-landing waits for the go-ahead.
+whichever test_render_*.py module owns it. Put the bug back once and watch the new
+check fail. A judgment call — removing a control, redesigning a flow — goes in the
+report with its screenshot, not in the diff. The run ends as a green branch and a
+report, and landing waits for the go-ahead.

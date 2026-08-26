@@ -14,7 +14,7 @@
 # whitespace hook reads as too small to break anything, which is exactly why the
 # per-hook form kept missing one. The right order for a change to the corpus is the
 # hooks first, gallery.py last.
-exclude: ^(plugins/leaf/skills/leaf/(assets|bundled)/vendor/|examples/gallery\.html$)
+exclude: ^(plugins/leaf/skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/gallery\.html$)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

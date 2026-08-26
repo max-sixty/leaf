@@ -12,19 +12,23 @@ rules there; state here only what a test must observe or control.
 
 ## Run the narrowest useful surface
 
-The repository guide owns setup and the everyday and complete-suite commands.
-During development, select the owning file or one named case. Both browser modules
-are marked at module scope, so include `--run-nightly`; use `-n 0` while debugging
-so the trace and process tree stay local. Before landing a browser-facing change,
-run its complete browser file and the repository's normal suite.
+The repository guide's "The suite" section owns setup and test commands. During
+development, select the owning file or one named case and use `-n 0` so the trace
+and process tree stay local. Before landing a browser-facing change, run its
+complete browser file and the repository's normal suite.
 
 ## Put each assertion at the boundary that owns it
 
-`test_interact.py` exercises authored markup, the registry, the event log, CLI
-commands, vendoring, publishing, export, and server lifetime. `test_render.py`
-drives the browser runtime and the render gate. `test_site.py` reads the built site
-through its served URLs. Product documentation tests compare the docs with the
-shipped vocabulary and command surface.
+The `test_interact_*.py` modules exercise authored markup, the registry, the event
+log, CLI commands, vendoring, publishing, export, and server lifetime. The
+`test_render_*.py` modules drive the browser runtime and the render gate.
+File-side fixtures live in `interact_support.py`. Browser process and page
+fixtures live in `render_harness.py`; reusable browser cases are grouped by
+interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
+`render_support.py` reexports that surface for the test modules rather than
+owning another copy. `test_site.py` reads the built site through its served URLs.
+Product documentation tests compare the docs with the shipped vocabulary and
+command surface.
 
 The distinction matters most around `render_version`. A property caused by a
 particular page belongs in that gate, because `version check --render` must report
@@ -32,6 +36,50 @@ it to the page's author. A property that is identical for every valid page belon
 in the suite instead. `arrival_findings`, for example, tests the layer's behavior
 when a reader returns with browser state already present; changing the authored
 page cannot repair that behavior.
+
+The same line runs through the render gate's own readings, and what decides it is
+whether a reading needs a box.
+
+A reading of text or attributes may cross into the comment panel, and several do:
+a widget an agent sent in a reply is a widget, and `UNREACHABLE_WORDS`,
+`SILENT_WORDS` and `UNDECLARED_ATTRS` answer for it. A reading of geometry may not,
+because the gate never opens the panel and a shut one has no boxes at all. Most
+stop there by construction — at `.lf-chrome`, or by starting from `main` — and
+`TINY_BOXES` and `CLIPPED_CONTROLS` stop at `checkVisibility()`.
+
+`TRAPPED_MARGINS` is the exception, and it is a box reading wearing a computed
+style reading's clothes: inside `display: none` an element's own `display` is still
+`block` and its padding and margins still resolve, so it reads the panel and gets
+plausible numbers. They are not the panel's numbers. A size container query does
+not match in there, so a rule that switches a slot between two forms is stuck on
+one of them, and a percentage margin comes back unresolved. It therefore tags each
+finding with which document it is in, and the gate takes the page's half.
+
+What the layer does with a box is the suite's — `TRAPPED_MARGINS` states why at
+the line that splits it. So the suite opens the panel, where such a widget has a
+box at last, and puts the product's own readings to it: `TINY_BOXES` and
+`CLIPPED_CONTROLS` over the open panel, and `TRAPPED_MARGINS`'s layer half. Each
+asserts its population first, and a planted fault is scoped to `.lf-chrome`, so a
+clean result cannot come from a reading that never arrived.
+
+A reading that asks what keeps a box from being seen should not be a second answer
+to a question the product already answers. `shownBand` is the layer's own reading
+of the band a box shows, and it names all three ways a box draws nothing past its
+edge: overflow, paint containment, and `content-visibility`. `version check
+--render` imports it so the band a handover is refused against and the band the
+page paints to are one reading, and its comment records that the two copies before
+it disagreed twice. `RING_FAULTS` is a third consumer of it rather than a third
+copy of it, and it asks the window on the same terms as any other box: a fixed
+subtree is laid out against the window, and everything else reaches it through
+`body`, which is this page's scroller.
+
+The failure that makes this worth stating is a quiet one. A reading blind to one
+mechanism does not report that it is blind — it returns the same clean result it
+returns when nothing is wrong — so a green corpus is not evidence of a clean
+corpus. Assert a gate's reach the way its population is asserted:
+`test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge` puts
+one displacement under three parents differing only in how they clip, with a
+control case that has to report nothing.
 
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
@@ -88,6 +136,18 @@ definition, and tests of standing lifetime must stop it themselves. Keep that
 exception narrow and short-lived. If the test does not need standing lifetime, use
 the ordinary served-page fixtures.
 
+The sweep's roots are the run's own: the test's `tmp_path` and the state home
+`isolated_session` returns. An autouse fixture that needs the isolated home takes it
+from that fixture; the environment is wrong at both of its ends. Autouse fixtures set
+up outermost first — a `pytest_plugins` module's before the conftest's — and tear
+down in reverse, so a sweep with no dependency on the isolation reads `state_home()`
+before it is applied at setup and after `monkeypatch` has undone it at teardown. Read
+at setup, it answered with the developer's `~/.local/state/leaf`, and every page
+server they had standing there was stopped half a second after each start whenever
+any suite ran on the machine, with no run reporting it.
+`test_a_run_ends_only_the_servers_it_started` runs a nested suite against a planted
+home and requires the planted page untouched and the run's own leftover stopped.
+
 ### Reloading is not resetting
 
 Fixtures also own browser storage boundaries. Reloading a page is not resetting it:
@@ -114,7 +174,7 @@ message carries — exists nowhere else. Pass the markup where the log would be
 noise for the subject, and say which in a comment. Reach its page directory through `serve.page_dir`
 when a test needs to publish v2 or inspect the log; do not construct a parallel
 directory whose relationship to the served URL is implicit. `page_dir` in
-`test_interact.py` owns command-level files without starting a browser. Keeping
+`interact_support.py` owns command-level files without starting a browser. Keeping
 those roles separate makes it clear whether a failure belongs to the file/CLI
 boundary or to the served runtime.
 
@@ -129,6 +189,14 @@ Use `select` for selection drags. It floors the starting coordinates to a whole
 pixel because a fractional point can straddle a glyph's caret boundary and leave an
 otherwise valid drag with an empty selection. Preserve the end coordinate: changing
 its precision can move the selected character.
+
+`locator.click()` scrolls its target into view first, so a baseline read before one
+is a reading of the page the test arranged and not of the page the press finds. A
+test that scrolls a region away and then presses something in it measures the
+driver's scroll, not the product's: it reported a panel moving 2455px to 0 for a
+press that moved nothing. Where the subject is what a press does to a scroll
+position, put the element on screen first — `scroll_into_view_if_needed()` says so
+out loud — and read the baseline after that.
 
 Nothing should be injected into the page merely to make ordinary observation easier.
 Traffic comes from Playwright's request, response, and request-failure events. Network
@@ -204,12 +272,26 @@ The main causal helpers are:
 - `undo(page)` first waits until the key line offers undo, presses `z`, observes the
   new send enter the wire, and waits for its round trip. A visible changed widget is
   not enough: undo can be refused while the preceding gesture is still unresolved.
+- `key_line(page)` reads what the key line says, once, after the repaint's own frame.
+  `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
+  round-trip as the press that caused it is a read of the frame before.
+
+The key line is the sharpest case of the rule above, because a second mechanism will
+supply its answer late. Every state poll repaints it, so an auto-retrying assertion on
+what it says goes green on whichever poll lands inside its budget — which is the poll's
+answer, not the writer's. A word that is supposed to turn over within the press is
+therefore read once, through `key_line`, and never waited for. The bug-back is what
+says which one a test has: with the runtime's disclosure watch removed, an
+`expect(...).to_contain_text(..., timeout=1500)` on the word still passed, and the
+same assertion read once failed.
 
 Read the event log only after `round_trip`. Polling the file until one expected event
 appears can miss an extra send, and it cannot distinguish an unresolved request from
 a settled one. Read browser state after the trip when the returned state is part of
 the assertion. `round_trip` proves delivery; it does not claim every rendered effect
-of the response has completed.
+of the response has completed. When applying the response is itself the subject, wait
+for `data-lf-applied` to cover the expected events before reading the resulting surface
+or making a gesture whose liveness depends on that projection.
 
 After changing a file behind a live page, call `told` before reading the page. Letting
 `expect` absorb the next polling interval hides which mechanism supplied the wait and
@@ -219,6 +301,9 @@ For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's finite
 animations to empty. `resized` waits for the resize event to reach listeners; a new
 viewport size says only that the browser resized, not that page layout handled it.
+An observer or protocol record that outlives a motion is read after `MOVING` says finite
+motion has ended; a fixed number of animation frames only guesses when that record will
+be delivered under load.
 When clicking a quote causes an instant scroll followed by a smooth scroll, the first
 `scrollend` is a real edge but not the destination. Wait for the mark to reach the
 computed position or for the final scroll to stop, then assert where it stopped.

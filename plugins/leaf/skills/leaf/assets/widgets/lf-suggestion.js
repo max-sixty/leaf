@@ -68,6 +68,8 @@ import {
   actionStands,
   agentName,
   FOLD_MS,
+  inChrome,
+  measure,
   motion,
   movedWords,
   offer,
@@ -269,22 +271,33 @@ customElements.define(
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
       this.#row.append(this.#button("accept"), this.#button("reject"));
       this.#hang();
-      // In the document now, so each control measures its decided word in the face it
-      // actually renders in and floors itself there — the line the press is made on
-      // holds still when the word changes (see the module header).
-      for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
-        reserve(btn, WORDS[verb(btn)]);
-      // The rail is the row it holds: measured off the first row once its controls
-      // hold their decided words' room, and stated on the root element — the page's
-      // own inline style, so an exported copy keeps the value it was rendered with.
-      // theme.css spends it (body's padding-right) and deliberately states no number.
-      if (!railStated) {
+      // Off the row's own box, so it waits for one: this change may be one an agent sent
+      // in a reply, and the panel holding it opens later. Measured before, both numbers
+      // came off a row of no width at all — each control floored at nothing, so the
+      // press moved the line it was made on, and the page's rail was stated as bare
+      // margin. Neither reads as a missing measurement; they read as small numbers.
+      measure(this.#row, () => {
+        // In the document now, so each control measures its decided word in the face it
+        // actually renders in and floors itself there — the line the press is made on
+        // holds still when the word changes (see the module header).
+        for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
+          reserve(btn, WORDS[verb(btn)]);
+        // The rail is the row it holds: measured off the first row once its controls
+        // hold their decided words' room, and stated on the root element — the page's
+        // own inline style, so an exported copy keeps the value it was rendered with.
+        // theme.css spends it (body's padding-right) and deliberately states no number.
+        //
+        // The page's own row states it, and a row standing in the panel is not in the
+        // page's margin — it is beside a message, in a column of its own. A page whose
+        // only changes arrive in replies wants no rail at all, and taking one from that
+        // row would move the document's right edge when the reader opened the panel.
+        if (railStated || inChrome(this)) return;
         railStated = true;
         const width =
           this.#row.getBoundingClientRect().width +
           parseFloat(getComputedStyle(this.#row).marginLeft);
         document.documentElement.style.setProperty("--rail", Math.ceil(width) + "px");
-      }
+      });
       // The body's box carries the horizontal question (viewport, comment panel);
       // the current main's carries the vertical one, since anything that moves content
       // down the page changes its height. A live version replaces that main, so the one

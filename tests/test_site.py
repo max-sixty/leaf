@@ -28,11 +28,12 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from test_render import BOTH_STAMPS, navigate, open_page, select
+from render_support import BOTH_STAMPS, navigate, open_page, select
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
-BUNDLED = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "bundled"
+DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
+COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -96,28 +97,32 @@ def opened(page, errors, url):
 def test_the_pages_link_the_theme_the_site_serves(site):
     """One stylesheet on the site, and it is the one a page directory vendors: a docs
     page names both halves in a checkout because there is no merged file there to name,
-    and linking both here would restate the bundled half over the top of itself."""
+    and linking both here would restate the default package over the top of itself."""
     for page in pages_under(DOCS):
         published = (site / page.name).read_text()
         assert published.count('href="theme.css"') == 1, page.name
-        assert "bundled/theme.css" not in published, (
-            f"{page.name} still links the bundled theme beside the merged one"
+        assert "packages/default/theme.css" not in published, (
+            f"{page.name} still links the default theme beside the merged one"
         )
         for attribute in ('href="../', 'src="../'):
             assert attribute not in published, f"{page.name} kept a checkout path"
     served = (site / "theme.css").read_text()
-    for source in (ASSETS / "theme.css", BUNDLED / "theme.css"):
+    for source in (
+        ASSETS / "theme.css",
+        DEFAULT_PACKAGE / "theme.css",
+        COMMAND_HUB_PACKAGE / "theme.css",
+    ):
         assert source.read_text().rstrip() in served, (
             f"the theme the site serves is missing {source.parent.name}'s half"
         )
 
 
 def test_only_the_stylesheet_link_becomes_the_served_copy(site):
-    """customizing.html links the theme twice — once as the page's stylesheet, once as
+    """packages.html links the theme twice — once as the page's stylesheet, once as
     source to read — and the two have to land in different places. Rewriting on the path
     alone sends a reader after the token block to the CSS the site serves, which is a
     resolving link the dead-link check has nothing to say about and the wrong file."""
-    published = (site / "customizing.html").read_text()
+    published = (site / "packages.html").read_text()
     source = f"{site_build.REPO}/blob/main/plugins/leaf/skills/leaf/assets/theme.css"
     assert f'href="{source}"' in published
     assert published.count('href="theme.css"') == 1
@@ -137,7 +142,7 @@ def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
     assert (site / "runtime.js").read_text() == source.replace(
         '"__LEAF_LAYER_GENERATION__"', json.dumps(generation)
     ), "the runtime the site serves is not the shipped file"
-    for sub in ("widgets", "vendor", "media"):
+    for sub in ("runtime", "widgets", "vendor", "media"):
         assert list((site / sub).iterdir()), f"{sub}/ is empty at the site root"
     for source in pages_under(EXAMPLES):
         version = site / "examples" / source.stem / "versions" / "v1.html"
@@ -209,7 +214,7 @@ def test_the_banner_says_nobody_rather_than_claiming_a_watcher(site, hosted, bro
         )
         # No tone at all — not the green of a watcher, nor the amber of one falling
         # behind. The banner's own dot: the leaves panel mirrors this page as a row, so
-        # a bare .lf-dot would resolve to that copy too (test_render.py says the same).
+        # a bare .lf-dot would resolve to that copy too (the browser suite says the same).
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )
@@ -298,7 +303,10 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
 
         label = drag_across(page, "main > .sitenote p")
         assert "live example" in label["text"]
-        assert "comment on the page" in label["says"], (
+        # The word `c` carries with nothing in hand — it goes to the comments rather
+        # than opening a box on anything, and "comment on the selection" does not
+        # contain it, so the two readings still tell each other apart.
+        assert "comments" in label["says"], (
             "the site's own label was offered as a passage to quote"
         )
         assert not errors, errors[:3]

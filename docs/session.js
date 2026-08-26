@@ -135,8 +135,10 @@ const state = () => ({
   // the same question, waiting for whatever reads these next.
   unattended: true,
   status: { state: "idle", detail: "", ts: null },
+  claims: [],
   listening: false,
   session_alive: null,
+  claim_session: null,
   // The name a reply wears in the panel. The banner asks for none under `unattended`.
   agent: AGENT,
   host: null,

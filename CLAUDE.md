@@ -10,8 +10,8 @@ Leaf exists to give the agent and user a high-fidelity shared surface. A page ca
 use prose, diagrams, movable boards, comparisons, and other structures suited to
 the subject. Comments stay attached to the words or element that prompted them.
 The page can also change while work proceeds, so it is the work surface rather
-than a report written after the fact. Theme, registry, and widget overlays let a
-project add a shape the shipped vocabulary lacks.
+than a report written after the fact. Packages let a project add themes, widgets,
+modules, and other contributions without changing Leaf's kernel.
 
 The project has no users, deployment, database, or persisted state that constrains
 new code. Delete and regenerate stale state. Rename or reshape interfaces whenever
@@ -22,8 +22,11 @@ Make improvements that follow from the code and these rules. Ask the user only
 when the decision depends on purpose or intent that the repository cannot supply.
 
 Validate data once at its boundary: browser events at `POST /api/event`, authored
-markup at `version check`, and replayed action detail in the widget's
-`applyAction`. Downstream code reads validated fields directly.
+markup at `version check`, a message's `markup` at `check_markup`, and replayed
+action detail in the widget's `applyAction`. Downstream code reads validated
+fields directly. The two markup doors read one parser and share what a fragment
+can fail in its own right; `check_markup` says which checks those are and why
+they sit where they do.
 
 ## Repository shape
 
@@ -32,20 +35,31 @@ repo-root pointers are `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json`; the payload carries one manifest for each
 host. Six parts live under `plugins/leaf/skills/leaf/`:
 
-- `scripts/interact.py` is one `uv` script containing the server, event log,
-  `version check`, vendoring, and export. The payload's `bin/leaf` shim invokes
-  it. There is no daemon or database.
-- `assets/leaf.js` is the page runtime and comment layer. Its private styles live
-  in the module. There is no build step.
-- `assets/registry.json` is the integrated widget vocabulary and the layer-wide
-  `$` declarations read by the runtime, linter, renderer, catalog, and docs.
-- `assets/theme.css` owns tokens, element styles, class idioms, integrated widget
-  rules, and the shared look of runtime chrome.
+- `scripts/interact.py` is the `uv` script and public CLI facade for the server,
+  event log, `version check`, vendoring, and export. Pure implementation domains
+  live beside it under `scripts/leaf_interact/`: `files` owns atomic file
+  operations, `events` the append-only model, `service` host and process
+  lifetime, `registry` the merged vocabulary, and `projection` the standing
+  state derived from events. `validation` owns event, markup, and authored-page
+  checks; `rendering` owns the browser gate and standalone export; `cli` declares
+  the Click surface. Schema, document, and browser-probe modules sit below those
+  owners on the same dependency path. The payload's `bin/leaf` shim invokes the
+  facade. There is no daemon or database.
+- `assets/leaf.js` is the public page runtime and comment layer. Its private
+  context, state projector, passage reader, anchor painter, conversation
+  reconciler, and chrome stylesheet live under `assets/runtime/` and are
+  composed by that stable module. There is no build step.
+- `assets/registry.json` is the kernel vocabulary and the layer-wide `$`
+  declarations read by the runtime, linter, renderer, catalog, and docs.
+- `assets/theme.css` owns tokens, elements, class idioms, and the shared look of
+  runtime chrome.
 - `assets/icon.svg` is the page and site mark. The runtime paints its `lf-tone`
   element with page status.
-- `bundled/` is an overlay layer containing shipped content widgets, their
-  registry entries, modules, theme rules, and vendored libraries. It enters a
-  page through the same merge as user and project customizations.
+- `packages/default/` supplies the bundled content vocabulary. It enters the
+  composer through the same package contract as an explicit package, `.leaf/`,
+  or `~/.config/leaf/`. A package may carry a theme, zero or more widgets,
+  helper modules, vendor files, named guidance audiences, or top-level layer
+  files.
 
 The seventh product part is repo-root `examples/`: complete pages that form the
 render corpus. `examples/gallery.html` is generated from them.
@@ -72,10 +86,13 @@ the page while the session still stands.
 page therefore keeps the assets it was reviewed with. `interact.py`'s module
 docstring defines every file in a page directory.
 
-Layers merge from shipped integrated assets, through bundled widgets, then the
-user's `~/.config/leaf/` and the project's `.leaf/`. Theme files concatenate.
+The kernel and packages merge in this order: `assets/`, the bundled default
+package, explicit package paths in command order, `~/.config/leaf/`, then
+`.leaf/`. The vendored registry records explicit paths under `$layer.packages`
+so a plain re-init resolves the same packages. Theme files concatenate.
 Runtime, icon, widget, and vendor files replace by path. Registry tag entries
-replace whole, while members of shared `$` entries compose. Each initialization
+replace whole, while members of shared `$` entries compose. Guidance files with
+the same audience name concatenate in package order. Each initialization
 validates the merged vocabulary and writes the same fresh layer epoch into the
 runtime and registry. An open tab carrying an older contract reloads before its
 next poll or event reaches the replacement server.
@@ -89,9 +106,10 @@ removes live handlers and replaces controls with their answers.
 ## Ownership rules
 
 Detailed browser, widget, and theme rules live in
-`plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the code
-in `interact.py`; test rules live in `tests/CLAUDE.md`; corpus rules live in
-`examples/CLAUDE.md`. The rules below cross those boundaries.
+`plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the
+facade and its `leaf_interact` domains; test rules live in `tests/CLAUDE.md`;
+corpus rules live in `examples/CLAUDE.md`. The rules below cross those
+boundaries.
 
 ### The document is the initial state; the log owns transitions
 
@@ -128,16 +146,27 @@ event order. Reports remain live until a version note absorbs or overrules them.
 Actions remain live until undo or a later retraction floor ends them. Both Python
 and JavaScript derive those answers from the same registry declarations.
 
-Work claims are transient rather than event history, but they follow the same
-one-coordinate rule. `status.json` stores a typed subject (`thread` or `widget`)
-and the log sequence after which the claim began. Presence derives a widget
-claim's origin version from that sequence and projects the record against the log
-before any consumer receives it. A later agent reply permanently answers thread
-work; a resolution hides it and an unresolve reveals it again. Widget work survives
+News about an item has one canonical projection even though its sources keep the
+stores their lifetimes require. Logged widget reports and replace-in-place work
+claims share a typed envelope and deterministic order. A target is always
+`{kind, id}` because a widget id and a thread id are different identities even if
+their spelling matches. `source` keeps authority visible. The closed `disposition`
+is `effective` when an entry contributes to current state on its semantic
+coordinate, `standing` when it still awaits settlement but is presently
+outranked, and `settled` once its authority answers it. Do not infer disposition
+from presence in the feed. A report is settled by a version note. A thread work
+claim is effective while the thread is open and no later agent reply has answered
+it; resolving hides it and reopening reveals it again. Widget work survives
 unrelated versions and ends only when a later version note carries a `work`
-settlement for the widget. A version may not silently remove an active claim's
-local seat, and neither may a layer re-vendor: settle the work in a later version
-first. Pinned pages do not show widget work claimed on a later version.
+settlement for the widget. A new claim on either subject starts after a later log
+sequence. Registry
+`x-report.update` names the required non-empty string detail field exposed as an
+update's human-readable text; consumers do not guess it from widget vocabulary.
+
+Presence derives a widget claim's origin version from its sequence boundary
+before any consumer receives it. A version may not silently remove an active
+claim's local seat, and neither may a layer re-vendor: settle the work in a later
+version first. Pinned pages do not show widget work claimed on a later version.
 
 A widget's local seat also stays declaration-driven. `x-work` explicitly admits
 the transient line either as a generated child of block prose (`content`) or at
@@ -335,11 +364,11 @@ record fields such as `chosen` or `status`. Transient tab state belongs on the
 control that carries it or under `data-`; mirroring it onto the authored element
 creates a second state representation that `shallowSigs` will treat as authored.
 
-The same open-list rule binds documentation and scaffolding. `page catalog`
-reads the merged registry and theme idioms. `leaf customize widget` scaffolds a
-complete entry, a framed theme rule, and optionally an upgrade module that uses
-the exported helper surface. Adding a twelfth widget must not require updating a
-handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
+The same open-list rule binds documentation and package validation. `page catalog`
+reads the merged registry and theme idioms. `leaf package check PACKAGE` validates
+the package through the same composition gate as `page init`. Adding a twelfth widget
+must not require updating a handwritten catalog, renderer branch, CSS tag list, or
+prose enumeration.
 
 ## Working on the repository
 
@@ -382,11 +411,16 @@ handwritten catalog, renderer branch, CSS tag list, or prose enumeration.
 
 ### The suite
 
-`test_interact.py` covers lint, vendoring, publishing, catalog, export, thread
-markup, and file-side anchors. `test_render.py` covers the browser runtime and
-examples. `test_product_page.py` covers `docs/`. `test_site.py` builds and reads
-the published site. The journey test selects a passage, comments, moves a card,
-follows a version, and checks the surviving anchor and log.
+The `test_interact_*.py` modules cover lint, vendoring, publishing, catalog,
+export, thread markup, and file-side anchors. The `test_render_*.py` modules
+cover the browser runtime and examples. Shared file-side fixtures live in
+`interact_support.py`. `render_support.py` is the browser-test compatibility
+facade: the Playwright harness lives in `render_harness.py`, while the reusable
+case corpus is grouped by interaction, layout, navigation, and widget behavior
+in `render_cases_*.py`. `test_product_page.py` covers `docs/`. `test_site.py`
+builds and reads the published site. The journey test selects a passage,
+comments, moves a card, follows a version, and checks the surviving anchor and
+log.
 
 The browser corpus is read in both color schemes, and each example is read under
 the log it ships, so a thread and any widget a message carries are part of what
@@ -408,23 +442,25 @@ the browser gate:
 uv run pytest tests
 ```
 
-`test_render.py` and `test_site.py` are marked nightly. A focused browser run must
-include `--run-nightly`; without it pytest deselects the module and exits 5. Turn
-xdist off while iterating:
+The `test_render_*.py` modules and `test_site.py` are marked nightly. Broad
+discovery leaves them out; an explicit file, node id, `-k`, `-m`, or `--lf`
+selection runs what it names. Turn xdist off while iterating:
 
 ```sh
-uv run pytest tests/test_render.py -q -n0 --run-nightly -k board
+uv run pytest tests/test_render_widgets.py -q -n0 -k board
 ```
 
-Run the complete suite before handoff. It needs a network because the installed
-launcher's browser path may resolve Playwright outside `uv.lock`:
+After a failure, rerun only the failed cases while debugging:
 
 ```sh
-uv run pytest tests --run-nightly
+uv run pytest --lf --lfnf=none -x -n0
 ```
 
-Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` runs them and
-the suite through `.config/wt.toml`; CI repeats both on main and pull requests.
+Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` is the complete
+suite gate: `.config/wt.toml` runs them and `uv run pytest tests --run-nightly`
+once against the rebased tree. The nightly run needs a network because the
+installed launcher's browser path may resolve Playwright outside `uv.lock`. CI
+repeats both on main and pull requests.
 
 ```sh
 pre-commit run --all-files

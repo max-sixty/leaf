@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>leaf packages</title>
+    <meta
+      name="description"
+      content="Create Leaf packages that carry themes, widgets, modules, libraries, and guidance for named audiences."
+    />
+    <link
+      rel="icon"
+      href="../plugins/leaf/skills/leaf/assets/icon.svg"
+      type="image/svg+xml"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="leaf packages" />
+    <meta
+      property="og:description"
+      content="One package contract for themes, one widget, or a related widget family."
+    />
+    <meta property="og:url" content="https://leaf.page/packages.html" />
+    <meta property="og:image" content="https://leaf.page/session-light.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/assets/theme.css" />
+    <link
+      rel="stylesheet"
+      href="../plugins/leaf/skills/leaf/packages/default/theme.css"
+    />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <main>
+      <nav class="sitenav" aria-label="Site">
+        <a class="brand" href="index.html">leaf</a>
+        <a href="examples.html">Examples</a>
+        <a href="how-it-works.html">How it works</a>
+        <a href="packages.html" aria-current="page">Packages</a>
+        <a href="https://github.com/max-sixty/leaf">GitHub</a>
+      </nav>
+
+      <header id="top">
+        <p class="eyebrow">packages</p>
+        <h1>Package what a page needs</h1>
+        <p class="lede" id="lede">
+          A package may change the theme, add one <code>lf-*</code> element, carry a
+          related widget family, supply browser behavior and libraries, or carry
+          guidance for the roles using the page. <code>page init</code> combines the
+          kernel and packages, checks the result, and vendors one layer into the page.
+          Leaf's content defaults use the same contract. The bundled
+          <a
+            href="https://github.com/max-sixty/leaf/tree/main/plugins/leaf/skills/leaf/packages/default"
+            ><code>default/</code></a
+          >
+          package is a worked example of the directory described here.
+        </p>
+      </header>
+
+      <section id="scope">
+        <h2>One contract, several roles</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Directory</th>
+              <th>Initialize</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Selected independently</td>
+              <td><code>packages/&lt;name&gt;/</code>, or any directory</td>
+              <td><code>leaf package init PACKAGE</code></td>
+            </tr>
+            <tr>
+              <td>Current project</td>
+              <td><code>.leaf/</code></td>
+              <td><code>leaf package init .leaf</code></td>
+            </tr>
+            <tr>
+              <td>Every project for this user</td>
+              <td>
+                <code>$XDG_CONFIG_HOME/leaf/</code>, or
+                <code>~/.config/leaf/</code>
+              </td>
+              <td><code>leaf package init ~/.config/leaf</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          A package may contain any subset of this layout. One widget and a theme-only
+          package use the same contract:
+        </p>
+        <pre><code>package/
+├── registry.json       widget entries and shared $ declarations
+├── theme.css           rules appended to the cascade
+├── guidance/           Markdown guides named for their audiences
+├── runtime/            private modules and replacements
+├── widgets/            entry modules and private helpers
+├── vendor/             third-party libraries or data
+├── icon.svg            optional replacement
+└── leaf.js             optional runtime replacement</code></pre>
+        <p>
+          <code>package init</code> creates the registry, theme, and contribution
+          directories without replacing existing contents. After editing any part,
+          <code>package check</code> validates the directory through the same
+          composition gate that <code>page init</code> uses.
+        </p>
+        <pre><code>leaf package init packages/callout
+leaf package check packages/callout</code></pre>
+        <p>
+          Run project commands from the project root. During <code>page init</code>, the
+          kernel and bundled default package load first, followed by explicit packages
+          in command order, the user package, and the project package. Theme files and
+          same-audience guidance join in that order. A later registry entry or
+          same-named runtime, widget, or vendor file replaces the earlier one; members
+          of a shared <code>$</code> entry compose individually. Files may be symlinked,
+          but package and page-owned paths must resolve separately so one scope can
+          never overwrite another.
+        </p>
+        <p>
+          Files directly under <code>guidance/</code> are named for their audience. A
+          filename matches <code>[a-z][a-z0-9-]*\.md</code>; examples include
+          <code>author.md</code>, <code>reviewer.md</code>, and <code>worker.md</code>.
+          Packages define the audience names; Leaf does not keep a role list.
+          <code>leaf page guidance PAGE</code> lists the vendored audiences, and
+          <code>leaf page guidance PAGE AUDIENCE</code> prints one. The
+          <code>author</code> guide also follows the merged vocabulary in
+          <code>page catalog</code>.
+        </p>
+        <p>
+          <code>--package</code> accepts a project-relative or <code>~</code> package
+          path. It says nothing about widget count. Leaf records explicit paths under
+          <code>$layer.packages</code>, so a plain re-init preserves their order.
+          Absolute paths are refused because the vendored registry is public.
+          <code>page init --no-packages</code> clears all explicit packages.
+        </p>
+      </section>
+
+      <section id="theme">
+        <h2>Adjust the theme</h2>
+        <p>
+          A package's <code>theme.css</code> loads after the kernel and default package
+          rules. The bundled file remains intact, so a package can state only what it
+          changes.
+        </p>
+        <p>
+          Token overrides change every surface that consumes them. Ordinary selectors
+          can tune one element or widget.
+        </p>
+        <pre><code>:root {
+  --accent: #7c3aed;
+  --r: 3px;
+  --serif: "Iowan Old Style", Georgia, serif;
+}
+
+lf-chip {
+  border-radius: var(--r);
+}</code></pre>
+        <p>
+          A rule that draws an inset — padding, a border, a tinted field — says
+          <code>--lf-frame: 1</code> in the same declaration. Without it the box shows
+          the inset it stated <em>plus</em> whatever room its first and last blocks
+          reserved for neighbours they haven't got, so a card stating 16px comes out 16
+          above its title and 29 below its last paragraph, and the difference moves with
+          what the author wrote inside. The declaration also decides what holds a wide
+          widget: an <code>x-wide</code> element takes the page's room standing in the
+          page's own flow, and the width of the box it stands in where that box declares
+          the frame. The shipped theme states both once for every layer; a box opts in
+          where it draws the frame, and <code>version check --render</code>
+          reports one that hasn't.
+        </p>
+        <pre><code>lf-note {
+  padding: var(--sp-3);
+  background: var(--field);
+  --lf-frame: 1;
+}</code></pre>
+        <p>
+          An answerable <code>lf-options</code> group is cells sharing hairlines rather
+          than boxes standing apart, so the line between two cells is the whole of what
+          separates them, and each cell holds its own words off the frame. A
+          <code>gap</code> or a margin added between them is a second way to say what
+          the line already says, and what it draws is a rule floating in a band of
+          nothing. Tune what a cell holds — its inset, its fill, its type — rather than
+          the room between cells.
+        </p>
+        <p>
+          Three facts a rule cannot read off the element in front of it are declared in
+          the registry instead, and the runtime paints each onto the page where a
+          selector reaches it. <code>data-lf-exhibit</code> marks quoted material — an
+          element whose entry declares <code>x-exhibit</code> — and
+          <code>data-lf-inline</code> marks a widget set among the words around it; both
+          travel wherever the widget renders, a reply included.
+          <code>data-lf-wide</code> holds the width kind an <code>x-wide</code> entry
+          declared, and only in the document, the room it hands out being the
+          document's. Which medium reads which differs: an exported copy still lays a
+          wide widget out and still asks whether a change's slots hold blocks, while the
+          rules answering <code>data-lf-exhibit</code> are the live page's alone — a
+          copy can take no pick, so it is handed no offer to withhold in the first
+          place.
+        </p>
+        <p>
+          The rules that draw a shipped question as something to answer read the first,
+          so a group quoted inside an exhibit is drawn as one that was never offered.
+          Anything your own package draws as pressable stands down there by asking the
+          same thing — for a widget you have given a module to, since a hand over
+          something that answers nothing is the lie these rules exist to prevent. A
+          widget from any layer joins that answer by declaring, which is the part a tag
+          name in the selector could never do.
+        </p>
+        <pre><code>lf-callout:not(:where([data-lf-exhibit]) *) {
+  cursor: pointer;
+}</code></pre>
+        <p>
+          Type is three tokens. <code>--serif</code> sets what the page says,
+          <code>--sans</code> what it labels — and what the comment panel, banner, and
+          every injected control are set in, so the chrome follows the page.
+          <code>--mono</code> sets code, diffs, and timestamps. Name families the
+          reader's machine already has: the stylesheet is inlined into each
+          <code>version export</code>, and a font fetched by URL is one a standalone
+          copy opens without.
+        </p>
+        <p>
+          The default stylesheet remains intact, so changing one token needs no copied
+          theme. Its opening
+          <a href="../plugins/leaf/skills/leaf/assets/theme.css">token block</a>
+          is the reference. Presentation unique to one page still belongs in that
+          version's own <code>&lt;style&gt;</code>; the layer is for a look reused
+          across pages.
+        </p>
+        <p>
+          The tab carries a mark too. A package may drop in its own
+          <code>icon.svg</code>, replacing
+          <a href="../plugins/leaf/skills/leaf/assets/icon.svg">the shipped mark</a>. It
+          has to keep one promise: an element marked <code>class="lf-tone"</code>, which
+          the page paints in the color the banner's status dot is wearing. A row of tabs
+          then says which leaf is working, which is waiting on you, and which has nobody
+          behind it, without opening any of them.
+        </p>
+      </section>
+
+      <section id="widget">
+        <h2>Add a CSS-only widget</h2>
+        <p>
+          Most new document shapes need a schema and CSS, with no browser code. Add the
+          tag's complete entry to <code>registry.json</code> and its rules to
+          <code>theme.css</code> in the package that owns it.
+        </p>
+        <p>
+          The entry's example appears in <code>catalog</code>, so an agent working in
+          the project can discover and use it:
+        </p>
+        <pre><code>&lt;lf-callout id="migration-warning"&gt;
+  &lt;strong&gt;Migration window&lt;/strong&gt;
+  Writes pause for about two minutes.
+&lt;/lf-callout&gt;</code></pre>
+        <p>
+          Edit the package's <code>registry.json</code> to declare attributes, child
+          relationships, or a different content model. The entry is JSON Schema over the
+          element's attributes. Leaf's <code>x-*</code> keys connect that schema to the
+          rest of the page — the registry documents each under <code>$keys</code>, which
+          <code>page catalog</code> prints and this table is written from:
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>What it declares</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- $keys: generated by scripts/keydocs.py from the registry; edit that -->
+            <tr>
+              <td><code>x-ask</code></td>
+              <td>
+                What x-ask declares: an instance is the complete reading and arrival
+                region for exactly one non-quoted nested x-awaits widget. The region
+                carries the heading, context, and evidence the reader needs before the
+                control; the nested widget still owns the answer and its fold. The
+                banner, Asks tray, <code>n</code>/<code>p</code> walk, address chord,
+                standing ring, and <code>page state</code> name the region while action
+                eligibility and replay name the nested widget. An arrival focuses that
+                widget's answering control but scrolls to the region's start.
+                <code>version check</code> requires one non-quoted nested x-awaits
+                source so the two identities cannot be ambiguous.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-awaits</code></td>
+              <td>
+                What x-awaits declares: an instance of this tag is a standing request to
+                the reader — a question with no pick, a change nobody has decided, a
+                piece of work the page says is waiting on them. One declaration is the
+                whole of it. The banner's count, the <code>n</code>/<code>p</code> walk
+                that steps them, the <code>?</code> overlay's row, and conditional
+                x-state actions are readings of one projection, so nothing names a tag
+                and the twelfth widget joins by declaring. Quoted material asks nothing
+                — an exhibited decision is a mention (x-exhibit). A widget inside a
+                thread asks like one on the page, with one bound set by frozen thread
+                markup: only an action can answer it there. <code>when</code> selects
+                asking instances, <code>answers</code> names exactly the x-state verbs
+                that settle one, <code>rollup</code> derives a nested request from
+                ordinary interventions and child roll-ups, <code>until</code> can
+                require a distinct completion verb for a matching thread ask, and
+                <code>all</code> names a blanket answer offered by the banner.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-content</code></td>
+              <td>
+                The content model: <code>prose</code> (children are the author's
+                markup), <code>items</code> (children are this widget's own item
+                elements and nothing else), <code>data</code> (one &lt;pre&gt; holding
+                text in the notation the description names, &lt; &gt; escaped —
+                &lt;pre&gt; because it is the only thing in HTML that says whitespace is
+                load-bearing without a stylesheet to read), or <code>none</code>.
+                Required.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-conversation</code></td>
+              <td>
+                The module places a conversationBox in each page instance matching
+                authored, static <code>when</code> attributes (an attribute written by
+                an x-state or x-report value record cannot drive this predicate). It
+                projects exact-section threads textually from the whole log; Comments
+                keeps the complete view and is the only place interactive reply markup
+                renders. Both views share the reply draft. Thread markup and quoted
+                material take no second view. <code>hold</code> labels a stronger send
+                route whose comment carries <code>holds</code> naming this widget: that
+                route remains available after ordinary roots, the unresolved held thread
+                is the hold, resolution releases it, and undoing resolution restores it
+                atomically. Dropping the widget drops only the inline view.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-example</code></td>
+              <td>
+                Authored markup exhibiting the widget, valid against the merged
+                registry: <code>page catalog</code> shows it, it is what an agent writes
+                from, and the lint refuses one that does not validate.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-exhibit</code></td>
+              <td>
+                The element quotes what it holds rather than speaking it — a mention,
+                not a use: interactive widgets inside take no input (a choose group no
+                clicks, a board no drags, a suggestion no decision), and an ask inside
+                it counts for nothing. A module asks <code>quoted(el)</code> before
+                wiring any input, and the theme's affordance rules — the hand, the lift,
+                the joined shape — stand down inside it on their own.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-inline</code></td>
+              <td>
+                The element is set among the words around it, so the render gate holds
+                its box to no width of its own and the rule that a block widget stands
+                in a block slot passes over it.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-language</code></td>
+              <td>
+                The attribute that names a code language, held to
+                <code>$languages.names</code> — the one list this page colors from — so
+                a second tag taking a language costs a declaration and no new reader.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-lines</code></td>
+              <td>
+                Attributes holding 1-based line references into the nearest data body —
+                the element's own &lt;pre&gt;, or its holder's (a note's
+                <code>at</code> names a line of its code block) — which
+                <code>version check</code> refuses outside the body.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-paints</code></td>
+              <td>
+                Attributes the theme renders as paint alone — a status marker's tint, an
+                event's kind, the ring on the recommended option. The runtime speaks
+                each to a reader listening (the value, or a flag attribute's own name),
+                silently on screen and out of every selection, so a fact stated in ink
+                is not silent to whoever cannot see it.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-parent</code></td>
+              <td>
+                The widgets an instance may be a direct child of — an item's holder —
+                and, read the other way, what a container is made of: a gesture a
+                container takes on its whole box stops at what it holds, and this is
+                where it reads which children are its own rather than things it merely
+                contains.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-refers</code></td>
+              <td>
+                Attributes whose values name another element on the page (an option's
+                <code>for</code>), which <code>version check</code> holds to an id the
+                version carries and the runtime renders as a reference the reader can
+                follow.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-report</code></td>
+              <td>
+                What x-report declares, once per widget with an agent channel: report
+                verbs a worker folds onto the page through <code>leaf report</code>,
+                each with a detail schema (the payload half of the log's
+                forever-contract, exactly as x-state's), a semantic facet, a fold unit,
+                and a required record form drawn from $state's vocabulary minus
+                <code>body</code>. An optional <code>update</code> names the required
+                non-empty string detail field that is the report's short human-readable
+                news; naming it lets the canonical update feed expose those words
+                without guessing from a widget, verb, or field name. The owning widget
+                instance, unit, and facet together name one independently standing fact;
+                verbs on the same tag and facet share their unit and record form, and an
+                action outranks a report at that coordinate. A report moves declared
+                state only, never the page's words, which is what keeps the passage
+                reading untouched by it. The runtime paints a standing report live
+                (data-lf-reported); it is provisional news, standing only until a
+                version answers it. How a version answers a standing report is
+                $report's.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-retired-when</code></td>
+              <td>
+                On a slot: the holder's action outcome that takes this element off the
+                page (a suggestion's <code>lf-old</code> under <code>accept</code>).
+                Requires x-parent. Every outcome named by one holder's slots belongs to
+                the same facet, so only one settlement can stand. The layer renders the
+                settlement whole, following the log's standing state both ways —
+                reconciliation paints data-lf-state="&lt;outcome&gt;" on the holder and
+                data-lf-retired on the slots that outcome retires, takes both off when a
+                later widget-unit verb on that facet displaces the decision in the fold,
+                and one theme rule hides the marked slots — so no module owes any of it,
+                though one may paint the same sooner as its own gesture (renderRetired).
+                The file's reading takes the fact from the log, and
+                <code>version check</code> licenses dropping the slot's ids on it;
+                <code>version check --render</code> reports a settled slot still showing
+                words, or a mark the log never decided.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-says</code></td>
+              <td>
+                Attributes whose values the reader sees as words, and where each
+                renders. <code>after</code> goes inside the element's own content, ahead
+                of the apparatus that ends it, so a word does not land on the far side
+                of a control that closes the row. <code>before</code> goes at the
+                element's start, ahead of chrome as well: leading chrome is not
+                something the words stand beside, it is a module speaking for the whole
+                element, so an element's opening words go above it; where an entry
+                declares two at that edge they render in the order the entry lists them.
+                The runtime writes them as selectable text the user can quote and
+                comment on, where <code>content: attr()</code> would paint glyphs into
+                no text node.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-shadow</code></td>
+              <td>
+                The module renders the page's words into an open shadow tree, which the
+                passage walk, the selection capture and every question asked by id
+                cross; a shadow root on a host whose entry lacks it is a render-gate
+                finding.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-state</code></td>
+              <td>
+                What x-state declares, once per widget with an action channel: each
+                verb's detail schema (the payload half of the log's forever-contract),
+                its semantic facet, fold unit, optional current-state
+                <code>requires</code>, and the record form its state takes in markup.
+                The owning widget instance, unit, and facet together name one
+                independently standing fact: verbs on the same tag and facet share their
+                unit and record form, competing verbs there supersede one another, and
+                distinct facets coexist. Every applyAction is absolute, so the user's
+                standing state is the last surviving action per coordinate, and one
+                declaration drives the POST and re-vendor contract gates,
+                <code>version check</code>'s state gate (a version whose markup actively
+                contradicts the fold without <code>restated</code> is refused; writing
+                the folded state is honoring; re-emitting the previous version's state
+                is blessed silence), the record-lag report, the runtime's
+                decided-but-unhonored mark, and the version diff's state half. The
+                browser uses <code>requires</code> for its controls and common send
+                door; POST interprets the same prerequisite against the authoritative
+                fold under the append lock. One detail field name is reserved across
+                every verb: <code>resolves</code> means the comment thread this action
+                answers, thread settlement reads it on any action, and the lint holds a
+                verb declaring the name to a plain string on a widget-absolute unit — a
+                thread is answered by the ask, and an ask is a widget instance
+                ($awaits). Because thread history can outlive its markup, every action
+                verb on a resolves-bearing tag shares one answer facet. A report verb
+                spelling the name is refused outright: settlement reads actions, so the
+                field there would declare an answer nothing gives. What settles the
+                thread is the widget's standing answer rather than the fact an answer
+                was once given, so an answer that a later action at that coordinate
+                supersedes, or that a <code>restated</code> takes back, leaves the
+                thread open again. The facet, unit, requires, and record forms are
+                $state's.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-tone</code></td>
+              <td>
+                The attribute that names one of the layer's semantic tints, held to
+                <code>$tones.names</code>, which the theme has a rule for.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-upgrade</code></td>
+              <td>
+                A module at widgets/&lt;tag&gt;.js enhances the element in the browser.
+                <code>page init</code> refuses a layer declaring it with no module
+                beside it, and the render gate a module that defines no element.
+                Required.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-verbatim</code></td>
+              <td>
+                An upgraded element whose body reaches the reader as its own words — the
+                module leaves it in place — which is what makes it quotable; a body
+                without it is source the widget renders (a diagram's notation). The
+                render gate refuses an x-verbatim whose rendered words differ from the
+                file's.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-visual</code></td>
+              <td>
+                The rendered element takes a whole-widget comment by click, there being
+                no text in it to select, and the click's anchor is the widget rather
+                than a generated part inside it.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-wide</code></td>
+              <td>
+                The width model, for evidence set to its content rather than to the
+                measure prose is read at: <code>box</code> (the widget lays its content
+                out into whatever width it is given, a board's columns, so it stands at
+                the one width the whole vocabulary shares) or <code>drawing</code> (the
+                widget renders one thing drawn at a size of its own, a diagram's graph,
+                so its box is the clip around it — the room the page has, with the
+                drawing as near the column's axis as the claimed margins allow, and
+                scrolling where even the room is short). A drawing declares no
+                <code>x-says</code>: that box is laid out as a row holding what was
+                drawn, so a word the layer writes into it would stand beside the drawing
+                rather than over it, and the registry refuses the pair. Nothing is
+                authored for it and no page asks: the theme grows the element out of the
+                column into whichever margins are free. A margin holding something of
+                the page's gives nothing where it holds it, and only there: an exhibit
+                level with a note drops below it and then takes the whole width; one
+                level with a suggestion's controls keeps its place and declines their
+                side, a positioned row being nothing an exhibit can drop below; and one
+                that nothing reaches keeps its place and grows both ways.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-withdrawn-as</code></td>
+              <td>
+                On a holder with retirable slots: the outcome an undecided instance
+                stands as when a later version takes it back unanswered — a withdrawn
+                suggestion leaves the page where a <code>reject</code> would — which is
+                what lets that version drop the ids inside the slots the outcome
+                retires. Hedged, because there the author asserts a state the user never
+                gave: only whole, and never while a thread is anchored in it.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-word</code></td>
+              <td>
+                What x-word declares: this tag's own word for what it is comes from its
+                module, which answers <code>lfWord()</code> on the element, rather than
+                from the tag's name. Almost no widget declares it, and none needs to
+                while one tag is one kind of thing: a name away from the page is then
+                the tag with its prefix dropped. It is wrong where a tag holds several
+                kinds. Every shape of lf-suggestion came out as "suggestion", so a row
+                on the asks tray named a deletion by the words it proposed to remove and
+                read exactly like the insertion above it. The word is asked for wherever
+                the page names an element away from itself — a tray row, a comment's
+                anchor label — and an element that has not upgraded yet, or answers
+                nothing, falls back to the tag.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-work</code></td>
+              <td>
+                Where this widget can show a transient local line for
+                <code>leaf status --on</code>: <code>content</code> appends it to a
+                block prose widget; <code>conversation</code> places it at the start of
+                the widget's declared x-conversation box and therefore inherits that
+                box's own predicate. An optional <code>when</code> narrows the instances
+                that have the seat under their replayed attributes. The declaration is
+                permission for runtime chrome, not a consequence of x-content: prose may
+                itself be a holder gesture or sit in a hidden panel.
+              </td>
+            </tr>
+            <!-- /$keys -->
+          </tbody>
+        </table>
+        <p>
+          Each package entry is complete. Replacing a shipped widget means copying and
+          editing that widget's whole entry; new widgets only add their own entries.
+        </p>
+      </section>
+
+      <section id="upgrade">
+        <h2>Add browser behavior</h2>
+        <p>
+          Set the registry entry's <code>x-upgrade</code> to <code>true</code> and add
+          <code>widgets/lf-callout.js</code>. Inside a repository dedicated to that
+          package, <code>.</code> is its path.
+        </p>
+        <p>
+          The module starts with the same one-shot upgrade guard used by shipped
+          widgets:
+        </p>
+        <pre><code>import { once } from "/leaf.js";
+
+customElements.define(
+  "lf-callout",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+    }
+  },
+);</code></pre>
+        <p>
+          The widget owns its supporting code. Put relative imports beside the entry
+          module under <code>widgets/</code>, and third-party or data files under
+          <code>vendor/</code>; <code>page init</code> carries both directories into the
+          page. <code>/leaf.js</code> is the whole Leaf API, not a limit on a widget's
+          own modules.
+        </p>
+        <p>
+          The authored element should remain readable before the module runs. Set
+          <code>x-verbatim</code> when the module preserves its body; omit it if the
+          module renders different words. Runtime helpers cover fail-soft rendering,
+          asynchronous settling, controls, announcements, and actions.
+          <code>actionSequence(this, "verb")</code> reads one widget's version-bounded
+          action history, and <code>watchActions(this, "verb", render)</code> reruns a
+          renderer after replay; use them when a widget needs to explain how its folded
+          state was reached rather than copying or retaining the event log itself.
+          <code>updateSequence(this)</code> and
+          <code>watchUpdates(this, render)</code> read the shared update feed about an
+          item. A report and a thread work claim have the same typed envelope but keep
+          their own source and settlement rule. Their closed <code>disposition</code> is
+          <code>effective</code> when the update contributes to current state on its
+          semantic coordinate, <code>standing</code> while it still needs settlement but
+          is presently outranked, and <code>settled</code> once its authority answers
+          it. Settled report history remains available, so a row can still say
+          <em>when</em> the log last heard something after a version answered it. Pass
+          an explicit <code>{kind, id}</code> target for a thread; bare ids are rejected
+          because they are not canonical identities. <code>ago(ts)</code> is the page's
+          one wording for elapsed time and <code>quietSince(ts)</code> its one judgment
+          about a claim gone unrefreshed; use both rather than spelling either again, or
+          one page ends up with two clocks on it. The shipped
+          <a href="../plugins/leaf/skills/leaf/packages/default/widgets/lf-options.js"
+            >options module</a
+          >
+          and its
+          <a href="../plugins/leaf/skills/leaf/packages/default/registry.json"
+            >registry entry</a
+          >
+          form a complete action-backed example: the registry validates each action and
+          records its absolute state, while <code>applyAction</code> makes replay
+          idempotent.
+        </p>
+        <p>
+          Export keeps the DOM produced by an upgrade and removes its scripts. Durable
+          state therefore belongs in attributes, and the resulting markup must still
+          make sense after its event handlers are gone.
+        </p>
+      </section>
+
+      <section id="vendor">
+        <h2>Vendor and check the result</h2>
+        <pre><code>leaf package check .leaf
+leaf page init &lt;page-dir&gt;
+leaf page catalog &lt;page-dir&gt;
+leaf page guidance &lt;page-dir&gt;</code></pre>
+        <p>
+          Then use the custom element in the page's next
+          <code>versions/vN.html</code> file and run the same gate as any other version:
+        </p>
+        <pre><code>leaf version check --render &lt;page-dir&gt;</code></pre>
+        <p>
+          Re-running <code>page init</code> is the explicit update for an existing page.
+          It composes the current packages, checks the full registry, requires a module
+          for every upgraded tag, and refuses a vocabulary change that would strand
+          actions already recorded in the page's log. Pages that are not re-initialized
+          keep their vendored theme and widgets unchanged.
+        </p>
+      </section>
+
+      <footer id="colophon">
+        <p id="links">
+          <a href="index.html">Tour</a> · <a href="examples.html">Examples</a> ·
+          <a href="how-it-works.html">How it works</a> ·
+          <a href="packages.html">Packages</a> ·
+          <a href="https://github.com/max-sixty/leaf">GitHub</a> ·
+          <a href="https://github.com/max-sixty/leaf/blob/main/LICENSE">MIT license</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -10,18 +10,28 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 
-_spec = importlib.util.spec_from_file_location(
-    "interact",
+INTERACT_SCRIPT = (
     Path(__file__).parent.parent
     / "plugins"
     / "leaf"
     / "skills"
     / "leaf"
     / "scripts"
-    / "interact.py",
+    / "interact.py"
 )
-interact = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(interact)
+# Executing the script normally puts its directory on sys.path. Loading it by path for
+# the suite must preserve that import boundary for the implementation package beside it.
+sys.path.insert(0, str(INTERACT_SCRIPT.parent))
+try:
+    _spec = importlib.util.spec_from_file_location("interact", INTERACT_SCRIPT)
+    interact = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(interact)
+finally:
+    sys.path.pop(0)
+
+# Domain test modules import their assertions explicitly; these two support modules
+# own the shared fixtures and register them once for the complete suite.
+pytest_plugins = ("interact_support", "render_support")
 
 
 def pytest_addoption(parser):
@@ -34,9 +44,14 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    """Leave browser integration out of the everyday worker queues. What earns the
-    mark, and what still runs it, is in CLAUDE.md beside this file."""
-    if config.getoption("--run-nightly"):
+    """Broad discovery stays cheap; explicit selections run what they name."""
+    selected = (
+        config.getoption("keyword")
+        or config.getoption("markexpr")
+        or config.getoption("lf")
+        or any(Path(arg.split("::", 1)[0]).is_file() for arg in config.args)
+    )
+    if config.getoption("--run-nightly") or selected:
         return
     nightly = [item for item in items if "nightly" in item.keywords]
     items[:] = [item for item in items if "nightly" not in item.keywords]
@@ -79,7 +94,12 @@ def isolated_session(tmp_path_factory, monkeypatch):
     run started from a background job leaves that job's directory behind too, as
     it would any other fact about the developer's session. A test about a
     command run from outside a host session strips the identity:
-    `sessionless`."""
+    `sessionless`.
+
+    The state home is the fixture's value, for `_no_page_outlives_its_test`:
+    the sweep takes its root from here rather than from the environment, which
+    it would read before this fixture sets it and after `monkeypatch` unsets it
+    (tests/CLAUDE.md, "A process the suite starts ends with the run")."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("config")))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", f"pytest-{os.getpid()}")
@@ -87,6 +107,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
+    return interact.state_home()
 
 
 @pytest.fixture

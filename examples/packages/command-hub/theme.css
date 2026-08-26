@@ -1,0 +1,163 @@
+/* lf-roster / lf-agent: who is working, and where each of them stands. The rows and
+ * the state pill's tints are CSS; everything on the live line — the state word, the
+ * `doing` clause, the branch, the § reference and the elapsed line — is built by the
+ * lf-agent upgrade, because all but the reference are attributes a worker moves
+ * between versions and the elapsed line is computed from the log.
+ *
+ * A row and not a card. The reader's question is comparative — which of these five is
+ * stuck, which has gone quiet — and a card puts a border between every pair of things
+ * being compared, so the eye has to cross one to make each comparison. Hairlines
+ * between rows and one shape per row is what a set read across wants, which is the
+ * same argument the row form of a choose group makes and the reason a roster stands
+ * wide (x-wide): the live line's parts land in the same order at the same place on
+ * every row, and an eye runs down any one of them. */
+lf-roster { display: block; margin: 14px 0; border-top: 1px solid var(--rule); }
+/* The state's column, and then the row's own text beside it. The width is the module's
+ * (--lf-state-room, measured from the five words in the face this page is set in); the
+ * gap is the theme's. The pill is out of flow so that a row of one line and a row of
+ * three both hang their state at the same place — in flow it would be the first word of
+ * a paragraph and would sit where that paragraph's first line happened to start. */
+lf-agent { display: block; position: relative; padding: 10px 2px 10px
+           calc(var(--lf-state-room, 60px) + var(--sp-3));
+           border-bottom: 1px solid var(--rule); }
+lf-agent > .lf-state { position: absolute; left: 0; top: 12px; }
+lf-agent > strong { margin-right: var(--sp-2); }
+lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--muted); }
+/* The live line: what this worker is doing now, and what the log knows about when it
+ * last said so. Wrapping, because `doing` is a free clause and a narrow window is not
+ * a reason to lose the rest of the row; the elapsed line takes the free width to its
+ * left (margin-left: auto) so it ends every row at the same column and grows leftward
+ * into space nothing else has claimed — a fact that gains a character every minute
+ * must not be able to move anything, and there is nothing to its right to move. */
+.lf-agent-line { display: flex; flex-wrap: wrap; align-items: baseline;
+                 gap: var(--sp-1) var(--sp-2); margin-top: 3px; }
+/* The elapsed line and the call-out beside it are one statement about freshness, so the
+ * free width opens before whichever of them comes first rather than between the two —
+ * two auto margins would have split it and stood "quiet" in the middle of the row,
+ * apart from the words it qualifies. */
+.lf-agent-line .lf-cold, .lf-agent-line .lf-heard { margin-left: auto; }
+.lf-agent-line:has(.lf-cold) .lf-heard { margin-left: var(--sp-2); }
+.lf-agent-line .lf-heard { padding-left: var(--sp-3); }
+/* The clause is the row's content, so it is set in the page's own voice: the reader
+ * reads it as a sentence, where everything else on the line is apparatus about it. */
+.lf-doing { color: var(--ink-2); }
+.lf-branch { font-family: var(--mono); font-size: var(--t-6); padding: 0 6px;
+             border-radius: var(--r); background: var(--code-bg); color: var(--ink-2); }
+.lf-heard { color: var(--muted); white-space: nowrap; font-size: var(--t-6); }
+/* Silence against a claim of work. The word is the module's and says the whole of it;
+ * the tint is the bonus, on the same amber the vocabulary already spends on "this one
+ * is the reader's to deal with". */
+.lf-cold { color: var(--warn-ink); background: var(--warn-tint);
+           padding: 0 8px; border-radius: 999px; font-size: var(--t-6); }
+/* The state, in the vocabulary's own semantics: green for finished, accent for the one
+ * in flight, amber for what has come back to the reader, red for stuck, and neutral for
+ * a worker with nothing to do — which is not a fault and is not tinted as one. */
+.lf-state { padding: 0 8px; border-radius: 999px; font-size: var(--t-6);
+            white-space: nowrap; background: var(--chip); color: var(--ink-2); }
+.lf-state-working { background: color-mix(in srgb, var(--accent) 14%, transparent);
+                    color: var(--accent); }
+.lf-state-waiting { background: var(--warn-tint); color: var(--warn-ink); }
+.lf-state-blocked { background: var(--danger-tint); color: var(--danger-ink); }
+.lf-state-done    { background: var(--ok-tint); color: var(--ok-ink); }
+.lf-state-reaped  { background: var(--chip); color: var(--ink-2); text-decoration: line-through; }
+lf-agent[state="reaped"] > strong { color: var(--ink-2); }
+
+/* lf-tasks / lf-task: a hierarchy of work. The indent guides and status
+ * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's
+ * done-fraction) is built by the lf-task upgrade. The marker vocabulary is
+ * the milestone's, plus `review` in the warn tint: finished by its holder,
+ * awaiting the reader — the amber is the reader's own work showing. */
+lf-tasks, lf-command { display: block; margin: 14px 0; }
+lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
+lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
+                  width: 10px; height: 10px; border-radius: 50%;
+                  background: var(--paper); border: 2px solid var(--muted); }
+lf-task[status="done"]::before    { background: var(--ok); border-color: var(--ok); }
+lf-task[status="active"]::before  { border-color: var(--accent);
+                                    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+lf-task[status="blocked"]::before,
+lf-task[status="stalled"]::before { background: var(--danger); border-color: var(--danger); }
+lf-task[status="review"]::before  { background: var(--warn); border-color: var(--warn); }
+lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
+                    --lf-frame: 1; }
+lf-task > strong { margin-right: 6px; }
+lf-task[status="done"] > strong { color: var(--muted); }
+
+/* Command tree: the plan is canonical; these are projections generated around it. */
+lf-command > .lf-command-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-3); align-items: end; margin: 0 0 var(--sp-4); padding: var(--sp-4);
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper); }
+.lf-command-outcome { display: grid; gap: 2px; }
+.lf-command-outcome > strong { font-size: var(--t-3); }
+.lf-command-outcome > span { color: var(--muted); font-size: var(--t-6); }
+.lf-command-facts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
+.lf-command-facts > a, .lf-command-facts > span,
+.lf-stopped-view a, .lf-fleet-view a { border: 0; border-radius: 999px;
+  padding: 3px 8px; background: var(--chip); color: var(--ink-2); font: inherit;
+  font-size: var(--t-6); cursor: pointer; text-decoration: none; }
+.lf-command-facts > span { cursor: default; }
+.lf-command-facts > .warn { background: var(--warn-tint); color: var(--warn-ink); }
+.lf-command-facts > .danger { background: var(--danger-tint); color: var(--danger-ink); }
+.lf-stopped-view, .lf-fleet-view { margin: var(--sp-3) 0; padding: 0 var(--sp-3);
+  border-left: 2px solid var(--rule); }
+.lf-stopped-view > summary, .lf-fleet-view > summary { color: var(--ink-2); }
+.lf-stopped-view ol, .lf-fleet-view ul { margin: var(--sp-2) 0; }
+.lf-stopped-view li, .lf-fleet-view li { margin: var(--sp-1) 0; color: var(--muted); }
+.lf-stopped-view a, .lf-fleet-view a { padding: 0; background: none;
+  color: var(--accent); font-size: inherit; text-align: left; }
+
+lf-command [data-lf-command-goal] { display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto auto;
+  column-gap: var(--sp-3); align-items: baseline; }
+lf-command [data-lf-command-goal] > strong { grid-column: 1; }
+lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
+  display: flex; align-items: center;
+  justify-content: flex-end; gap: var(--sp-1); min-width: max-content; }
+.lf-task-meta > span, .lf-task-crew { border: 0; border-radius: 999px; padding: 1px 7px;
+  background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6); }
+.lf-task-crew { cursor: pointer; color: var(--accent); }
+.lf-task-held { color: var(--warn-ink) !important; background: var(--warn-tint) !important; }
+.lf-task-ask { color: var(--accent) !important; }
+lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-conversation) {
+  grid-column: 1 / -1; }
+lf-command [data-lf-command-goal] > [data-lf-command-goal],
+lf-command [data-lf-command-goal] > [data-lf-command-worker],
+lf-command [data-lf-command-goal] > .lf-conversation {
+  grid-column: 1 / -1; }
+lf-command [data-lf-command-goal] > [data-lf-command-worker] {
+  display: none; margin: var(--sp-2) 0 0 12px; }
+lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { display: block; }
+lf-command [data-lf-command-goal][data-lf-held] {
+  background: linear-gradient(90deg, var(--warn-tint), transparent 72%); }
+html.lf-copy lf-command [data-lf-command-goal] > [data-lf-command-worker] { display: block; }
+
+lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
+  border-left: 2px solid var(--rule); }
+.lf-worktree-head { display: block; width: 100%; border: 0; padding: var(--sp-1) 0;
+  background: none; color: var(--ink-2); font: var(--t-6) var(--mono); text-align: left;
+  cursor: pointer; }
+html.lf-copy .lf-worktree-head { cursor: default; }
+lf-worktree:not([data-lf-open]) > :not(.lf-worktree-head) { display: none; }
+html.lf-copy lf-worktree:not([data-lf-open]) > :not(.lf-worktree-head) { display: block; }
+
+@media print {
+  .lf-worktree-head { cursor: default; }
+  lf-command [data-lf-command-goal] > [data-lf-command-worker],
+  lf-worktree:not([data-lf-open]) > :not(.lf-worktree-head) { display: block; }
+}
+
+lf-record { display: block; margin: var(--sp-3) 0; }
+lf-record > ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+lf-record > ol > li { padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule);
+  color: var(--muted); font: var(--t-6) var(--mono); overflow-wrap: anywhere; }
+
+@media (max-width: 520px) {
+  lf-command > .lf-command-head { grid-template-columns: 1fr; align-items: start; }
+  .lf-command-facts { justify-content: flex-start; }
+  lf-command [data-lf-command-goal] { grid-template-columns: minmax(0, 1fr); }
+  lf-command [data-lf-command-goal] > .lf-task-meta {
+    grid-column: 1; justify-content: flex-start; flex-wrap: wrap;
+    min-width: 0; margin-top: 2px; }
+  lf-command [data-lf-command-goal] > .lf-task-meta > span {
+    max-width: 100%; overflow-wrap: anywhere; }
+}

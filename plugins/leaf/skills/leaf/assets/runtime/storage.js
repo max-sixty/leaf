@@ -43,10 +43,10 @@ export const PAGE_SCOPE =
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
-const stored = (backing, scope = "") => ({
+const stored = (open, name, scope = "") => ({
   read(key) {
     try {
-      return { available: true, value: backing.getItem(scope + key) };
+      return { available: true, value: open().getItem(scope + key) };
     } catch {
       return { available: false, value: null };
     }
@@ -56,8 +56,8 @@ const stored = (backing, scope = "") => ({
   },
   set(key, value) {
     try {
-      if (value === null) backing.removeItem(scope + key);
-      else backing.setItem(scope + key, value);
+      if (value === null) open().removeItem(scope + key);
+      else open().setItem(scope + key, value);
       return true;
     } catch {
       /* a page that cannot remember still renders */
@@ -70,7 +70,7 @@ const stored = (backing, scope = "") => ({
   // alternative is a second copy of the scope rule kept over there to go stale.
   where(key) {
     return {
-      store: backing === sessionStorage ? "session" : "local",
+      store: name,
       key: scope + key,
     };
   },
@@ -79,7 +79,7 @@ const stored = (backing, scope = "") => ({
   // question about the set rather than about a key someone already knows.
   keys() {
     try {
-      return Object.keys(backing)
+      return Object.keys(open())
         .filter((key) => key.startsWith(scope))
         .map((key) => key.slice(scope.length));
     } catch {
@@ -94,8 +94,6 @@ const stored = (backing, scope = "") => ({
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the reader arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for.
-// TODO: Resolve each browser backing inside the guarded store operations too; acquiring
-// sessionStorage or localStorage can itself throw before the current fail-soft boundary.
-export const tabStore = stored(sessionStorage, PAGE_SCOPE);
-export const draftStore = stored(localStorage, PAGE_SCOPE);
-export const readerStore = stored(localStorage);
+export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
+export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+export const readerStore = stored(() => localStorage, "local");

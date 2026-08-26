@@ -57,6 +57,45 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
+    """Acquiring web storage can itself throw before any method is called.
+
+    The stores' unavailable answer covers that outer browser boundary too, so a
+    locked-down page loses only remembered view state and drafts, not the page.
+    """
+    page, errors = open_page(
+        browser,
+        serve(SHORT_SUGGESTION),
+        init_script="""
+          for (const name of ['localStorage', 'sessionStorage'])
+            Object.defineProperty(window, name, {
+              configurable: true,
+              get() { throw new DOMException('blocked', 'SecurityError'); },
+            });
+        """,
+    )
+    expect(page.locator("main")).to_be_visible()
+    tab_store = page.evaluate(
+        """async () => {
+          const { tabStore } = await import('/runtime/widget-api.js');
+          return {
+            read: tabStore.read('refused'),
+            wrote: tabStore.set('refused', '1'),
+            keys: tabStore.keys(),
+            where: tabStore.where('refused'),
+          };
+        }"""
+    )
+    assert tab_store == {
+        "read": {"available": False, "value": None},
+        "wrote": False,
+        "keys": [],
+        "where": {"store": "session", "key": "refused"},
+    }
+    assert errors == []
+    page.close()
+
+
 def test_first_replay_is_the_pages_first_presentation(browser, serve):
     """A version is not the page the reader left when the log already changed it.
 

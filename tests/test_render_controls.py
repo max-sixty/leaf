@@ -2797,6 +2797,13 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
+    native_link = CARRIED_PAGE.replace(
+        '<lf-option id="c-lax" chosen>',
+        '<lf-option id="c-lax" chosen><a class="lf-ui" href="#h">Read context</a>',
+    )
+    assert rendering_model.render_version(browser, serve(native_link)) == [], (
+        "a native link's words label its browser-owned control rather than the page"
+    )
     found = rendering_model.render_version(browser, serve(OUT_OF_REACH_PAGE))
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
@@ -3469,6 +3476,9 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     url = serve(example.read_text(), comments=2)
     page, errors = open_page(browser, url)
     page.locator(".lf-sug-accept").first.focus()
+    # The probe's control must begin clear of the viewport edge. Its subject is each
+    # ancestor's clipping behavior, not where the corpus happened to place this button.
+    page.evaluate("document.activeElement.scrollIntoView({block: 'center'})")
 
     plant = """(how) => {
       const el = document.activeElement;

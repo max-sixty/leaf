@@ -414,7 +414,7 @@ def _render_version_attempt(
             # its own words with nothing saying so, which is the one thing the
             # declaration promises and the reason a quote may rest on it.
             shown = page.evaluate(
-                """({widgets, touched}) => import('/leaf.js').then(leaf =>
+                """({widgets, touched}) => import('/runtime/widget-api.js').then(leaf =>
                     Object.entries(widgets)
                         .filter(([tag, entry]) => entry['x-verbatim'])
                         .flatMap(([tag]) => [...document.querySelectorAll(tag)]

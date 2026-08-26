@@ -10,6 +10,9 @@ import { tagsDeclaring } from "./registry.js";
 // just can't see in.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
+let publishedMeasure;
+export { publishedMeasure as measure };
+
 export function createMeasurements({ shownBox }) {
   // A number a widget can only read off a box the browser has laid out. Three ship: the
   // room a pick mark's word will need, the room a card keeps clear of its grip, the width
@@ -68,6 +71,7 @@ export function createMeasurements({ shownBox }) {
     unmeasured.observe(el);
   }
 
+  publishedMeasure = measure;
   return { measure };
 }
 

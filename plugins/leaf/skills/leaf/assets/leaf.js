@@ -408,11 +408,11 @@ window.addEventListener("unhandledrejection", (e) => {
   );
 });
 
-export const { measure } = createMeasurements({ shownBox });
+createMeasurements({ shownBox });
 
 installReachedForWordsGuard();
 
-export const { projectData } = createDataProjection({
+createDataProjection({
   paintAnchors,
   setChildren,
 });
@@ -1658,17 +1658,7 @@ let panelOpen = false;
 let selectionComposerRuntime;
 
 let updateRuntime;
-export const actionSequence = (widget, action) =>
-  updateRuntime.actionSequence(widget, action);
-export const updateSequence = (target = null) => updateRuntime.updateSequence(target);
-export const publishedAt = () => updateRuntime.publishedAt();
-export const saidAt = (el) => updateRuntime.saidAt(el);
-export const watchActions = (widget, action, callback) =>
-  updateRuntime.watchActions(widget, action, callback);
-export const watchUpdates = (target, callback) =>
-  updateRuntime.watchUpdates(target, callback);
-export const watchHistory = (owner, callback) =>
-  updateRuntime.watchHistory(owner, callback);
+const updateSequence = (target = null) => updateRuntime.updateSequence(target);
 const claimUpdateSources = () => updateRuntime.claimUpdateSources();
 const setClaimUpdateSources = (...args) => updateRuntime.setClaimUpdateSources(...args);
 

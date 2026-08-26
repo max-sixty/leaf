@@ -26,6 +26,40 @@ pytestmark = pytest.mark.nightly
 # ---------- export: the page as one file ----------
 
 
+def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
+    browser, serve, tmp_path
+):
+    """A table of contents is navigation rather than a live decision. Its generated
+    links and targets stay in a standalone copy, where the browser can follow them
+    without the runtime that supplied the smoother live-page journey."""
+    source = leaf_page(
+        "contents export",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<h2>Prepare</h2><p>Take a snapshot.</p>
+<h2 style="margin-top: 110vh">Verify</h2><p>Compare the totals.</p>
+""",
+    )
+    url = serve(source)
+    out = tmp_path / "contents-copy.html"
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    href = links.nth(1).get_attribute("href")
+    assert href and href.startswith("#lf-contents-section-")
+
+    links.nth(1).click()
+    expect(page.locator(":target")).to_have_attribute("id", href[1:])
+    assert page.locator("script").count() == 0
+    assert errors == []
+    page.close()
+
+
 def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
     """Hover is only the live page's presentation. Print and a standalone export have
     no script or pointer contract, so the author-written x-says tip becomes visible

@@ -1,6 +1,7 @@
 """Shared widgets browser-integration cases and readings."""
 
-from conftest import interact
+from leaf_interact import passages as passages_model
+from leaf_interact import registry as registry_model
 from render_harness import (
     leaf_page,
 )
@@ -18,8 +19,8 @@ def written_anchors(page_dir, html, limit=40):
     window the page says twice, or one crossing a fence, is refused on purpose —
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
-    registry = interact.load_registry(page_dir)
-    text = interact.page_passages(html, registry).text
+    registry = registry_model.load_registry(page_dir)
+    text = passages_model.page_passages(html, registry).text
     words = text.split(" ")
     anchors = []
     for start in range(0, len(words), 3):
@@ -28,7 +29,7 @@ def written_anchors(page_dir, html, limit=40):
             continue
         try:
             anchors.append(
-                (quote, interact.capture_anchor(html, registry, quote, None))
+                (quote, passages_model.capture_anchor(html, registry, quote, None))
             )
         except ValueError:
             continue

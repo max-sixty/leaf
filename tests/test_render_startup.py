@@ -9,7 +9,12 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import render_checks as render_checks_model
+from leaf_interact import rendering as rendering_model
+from leaf_interact import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -83,7 +88,7 @@ main, main * {
         )
         .replace("</main>", SHADOWED_DIFF)
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -281,7 +286,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
     Once replay presents the page, the restored tray paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -334,7 +339,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     """Receiving state is not readiness while its message renderer is still loading."""
     url = serve(SHORT_SUGGESTION)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -641,7 +646,7 @@ def test_a_startup_failure_never_presents_unapplied_authored_state(browser, serv
     fixed explanation rather than the authored alternatives underneath it: those words
     predate the decision, and showing them as the live page would be a false answer."""
     url = serve(SHORT_SUGGESTION)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -696,7 +701,7 @@ def test_a_malformed_first_state_never_presents_unapplied_authored_state(
             "</title>", '</title><meta name="lf-review" content="sign-off">', 1
         )
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -823,7 +828,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     saying out loud."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -867,7 +872,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     on it and every later version inherits it for free."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -895,7 +900,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
         _draft_says(JOURNEY_V2, corrected, " restated")
     )
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "4", "--text", "again"],
     )
     assert result.exit_code != 0
@@ -971,7 +976,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
     expect(page.locator(".lf-dragging")).to_have_count(1)
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1033,7 +1038,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
     )
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1075,7 +1080,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
     )
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1093,7 +1098,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # What the other tab's press leaves in the log, made against the same version:
     # its own accept and reject controls are still standing, because it has not
     # heard about this one's decision yet.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1122,7 +1127,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # it was reopened and closed again by that log being read.
     assert [
         e.get("action", e["kind"])
-        for e in interact.read_events(d)
+        for e in events_model.read_events(d)
         if e["kind"] in ("action", "undo", "resolve", "unresolve")
     ] == ["accept", "reject", "undo"]
     assert errors == []
@@ -1246,7 +1251,7 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     page.locator(".lf-general button").click()
     page.wait_for_function("() => window.lfDelayedPollCaptured === true")
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1289,7 +1294,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         older.append(route)
 
     page.route("**/api/state*", hold_older_state)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1421,8 +1426,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                 ).isoformat(timespec="seconds"),
             )
         else:
-            interact.claim_path(d).unlink(missing_ok=True)
-        interact.write_json(d / "status.json", status)
+            service_model.claim_path(d).unlink(missing_ok=True)
+        files_model.write_json(d / "status.json", status)
         told(page)
 
     declare("working", "revising the plan")
@@ -1572,9 +1577,9 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d)
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
-            {"state": "working", "detail": detail, "ts": interact.now_iso()},
+            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
         )
         told(page)
 
@@ -1616,7 +1621,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     again."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
     d = serve.page_dir
-    comments = [e for e in interact.read_events(d) if e["kind"] == "comment"]
+    comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -1625,7 +1630,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     def status(*args):
         assert (
-            CliRunner().invoke(interact.cli, ["status", str(d), *args]).exit_code == 0
+            CliRunner().invoke(cli_model.cli, ["status", str(d), *args]).exit_code == 0
         )
         told(page)
 
@@ -1663,7 +1668,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(work_line).to_contain_text("reading the reconnect traces")
 
     # The answer is what ends it.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1686,7 +1691,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(work_line).to_have_count(0)
@@ -1694,7 +1699,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
     # claiming work under a banner that says the opposite.
-    interact.append_event(d, {"kind": "unresolve", "author": "user", "parent": held})
+    events_model.append_event(
+        d, {"kind": "unresolve", "author": "user", "parent": held}
+    )
     told(page)
     expect(work_line).to_have_count(1)
     record_claim(d, pid=dead_pid)
@@ -1724,19 +1731,19 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     it, so one elapsed line reads the same wherever it appears."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     d = serve.page_dir
-    held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
+    held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-work-line")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "rerunning the failing shard",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
                 "work": [
                     {
                         "id": "trace-check",
@@ -1744,7 +1751,9 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
                         "detail": "reading the reconnect traces",
                         "ts": claim_ts,
                         "after": next(
-                            e["seq"] for e in interact.read_events(d) if e["id"] == held
+                            e["seq"]
+                            for e in events_model.read_events(d)
+                            if e["id"] == held
                         ),
                         "agent": "Claude",
                         "session": session,
@@ -1754,7 +1763,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         )
         told(page)
 
-    claim(interact.now_iso())
+    claim(events_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
     expect(work_line).not_to_contain_text("quiet")
@@ -1813,7 +1822,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d)
-    claim(interact.now_iso())
+    claim(events_model.now_iso())
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line).to_have_count(1)
     assert errors == []
@@ -1845,9 +1854,9 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             )
 
     def declare(state, **status):
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
-            {"state": state, "ts": interact.now_iso(), **status},
+            {"state": state, "ts": events_model.now_iso(), **status},
         )
         told(page)
 
@@ -1954,9 +1963,9 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
         re.compile(r"\bdetached\b")
     )
 
-    screen = page.evaluate(interact.PAPER_WORDS)
+    screen = page.evaluate(render_checks_model.PAPER_WORDS)
     page.emulate_media(media="print")
-    paper = page.evaluate(interact.PAPER_WORDS)
+    paper = page.evaluate(render_checks_model.PAPER_WORDS)
     assert paper == screen, "paper dropped or rewrote projected data"
     assert errors == []
     page.close()
@@ -1972,7 +1981,7 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     """
     url = data_projection_page(serve)
     out = tmp_path / "data-copy.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page()
     errors = watched(page)

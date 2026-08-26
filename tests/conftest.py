@@ -1,13 +1,12 @@
-"""Shared fixtures. interact.py is loaded by path because it is a `uv` script,
-not an installed module."""
+"""Shared fixtures for payload modules exposed through pytest's source root."""
 
-import importlib.util
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from leaf_interact import service as service_model
 from playwright.sync_api import sync_playwright
 
 INTERACT_SCRIPT = (
@@ -19,16 +18,6 @@ INTERACT_SCRIPT = (
     / "scripts"
     / "interact.py"
 )
-# Executing the script normally puts its directory on sys.path. Loading it by path for
-# the suite must preserve that import boundary for the implementation package beside it.
-sys.path.insert(0, str(INTERACT_SCRIPT.parent))
-try:
-    _spec = importlib.util.spec_from_file_location("interact", INTERACT_SCRIPT)
-    interact = importlib.util.module_from_spec(_spec)
-    _spec.loader.exec_module(interact)
-finally:
-    sys.path.pop(0)
-
 # Domain test modules import their assertions explicitly; these two support modules
 # own the shared fixtures and register them once for the complete suite.
 pytest_plugins = ("interact_support", "render_support")
@@ -107,7 +96,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
-    return interact.state_home()
+    return service_model.state_home()
 
 
 @pytest.fixture

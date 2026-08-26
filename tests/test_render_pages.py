@@ -5,7 +5,13 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import registry as registry_model
+from leaf_interact import render_checks as render_checks_model
+from leaf_interact import rendering as rendering_model
+from leaf_interact import schema as schema_model
+from leaf_interact import structure as structure_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -164,10 +170,12 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # the DOM with no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
         page.locator(".lf-comments").click()
-        registry = interact.load_registry(serve.page_dir)
+        registry = registry_model.load_registry(serve.page_dir)
         carried_ids = set()
         for carried in [e for e in events if e.get("markup")]:
-            for wid, rec in interact.parse_structure(carried["markup"]).by_id.items():
+            for wid, rec in structure_model.parse_structure(
+                carried["markup"]
+            ).by_id.items():
                 drawn.append(wid)
                 carried_ids.add(wid)
                 shown = page.locator(f"#{wid}")
@@ -212,8 +220,16 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             "readings below were handed nothing of the panel's to look at"
         )
         for name, reading, arg in (
-            ("draws a box of no size", interact.TINY_BOXES, page_registry(page)),
-            ("has a control clipped out of its box", interact.CLIPPED_CONTROLS, None),
+            (
+                "draws a box of no size",
+                render_checks_model.TINY_BOXES,
+                page_registry(page),
+            ),
+            (
+                "has a control clipped out of its box",
+                render_checks_model.CLIPPED_CONTROLS,
+                None,
+            ),
         ):
             found = page.evaluate(reading, arg) if arg else page.evaluate(reading)
             assert found == [], (
@@ -256,7 +272,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         if decided_here:
             plain = serve(example.read_text())
             for event in [e for e in events if e["kind"] != "action"]:
-                interact.append_event(serve.page_dir, event)
+                events_model.append_event(serve.page_dir, event)
             undecided, errors = open_page(browser, plain)
             undecided.locator(".lf-comments").click()
             for wid in decided_here:
@@ -302,7 +318,7 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
         f"only {len(anchors)} anchors over {example.stem}; sweep too thin"
     )
     for i, (_, anchor) in enumerate(anchors):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -347,7 +363,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
     url = serve(TWIN_V1)
     d = serve.page_dir
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "comment",
             str(d),
@@ -366,7 +382,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     (d / "versions" / "v2.html").write_text(TWIN_V2)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "a twin"}
     )
     page.wait_for_url("**/v2.html")
@@ -391,7 +407,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     assert (
         CliRunner()
         .invoke(
-            interact.cli,
+            cli_model.cli,
             [
                 "comment",
                 str(d),
@@ -422,7 +438,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page.locator(".lf-thread").first.get_by_role("button", name="Resolve").click()
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
 
-    kinds = [(e["kind"], e.get("author")) for e in interact.read_events(d)]
+    kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "claude") in kinds
     assert ("reply", "user") in kinds and ("resolve", "user") in kinds
     assert errors == []
@@ -432,7 +448,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
 def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
     url = serve(TWIN_V1)
     d = serve.page_dir
-    root = interact.append_event(
+    root = events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -445,7 +461,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -878,7 +894,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
     rather than on a file, and on the live page the room is measured rather than guessed.
     The question has to be asked of the copy directly, which is what this does."""
     url = serve(RAIL_AND_WIDE_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -891,7 +907,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
         },
     )
     out = tmp_path / "decided.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -1138,7 +1154,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
     measured is still real in the file, while the exhibit 600px further down carries no
     mark and takes the room the copy's own reading grants it."""
     url = serve(RAIL_BAND_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1151,7 +1167,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
         },
     )
     out = tmp_path / "banded.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     errors = []
     copy = browser.new_page(viewport={"width": 1600, "height": 900})
@@ -1215,7 +1231,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         f"the page had {fit['room']:.0f}px of room and no note or row beside the "
         f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
     )
-    assert page.evaluate(interact.WITHHELD_ROOM) == []
+    assert page.evaluate(render_checks_model.WITHHELD_ROOM) == []
     assert errors == []
     page.close()
 
@@ -1223,7 +1239,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         '<h1 id="t">Flow</h1>',
         '<style>#flow { max-width: 640px }</style>\n<h1 id="t">Flow</h1>',
     )
-    failures = interact.render_version(browser, serve(capped))
+    failures = rendering_model.render_version(browser, serve(capped))
     assert [f for f in failures if "<lf-diagram id=flow> scrolls" in f], (
         f"a drawing held under its own graph beside an empty margin must be named at "
         f"handover, and the gate said: {failures or 'nothing'}"
@@ -1244,7 +1260,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     and nothing has to be declared to it. That is what keeps the two theme rules honest:
     the next claimant that forgets one is a refusal with a name on it rather than a page
     somebody eventually notices is drawn over its own controls."""
-    failures = interact.render_version(browser, serve(OWN_MARGIN_FURNITURE))
+    failures = rendering_model.render_version(browser, serve(OWN_MARGIN_FURNITURE))
 
     assert [
         f
@@ -1270,7 +1286,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     says so, which is why this asks: the widget is in the panel, and the panel's width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1280,7 +1296,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "text": "How does the fallback read?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1330,7 +1346,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
     420px panel has no room for two columns either way: the stacking rule is what
     replaces the grid, and it is visible whatever the reader has drawn the panel to."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1340,7 +1356,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "text": "What did the two stores cost us?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1531,7 +1547,7 @@ def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
 
     The frame here is the page's own, because a project's box is what no theme rule can
     reach — the same place the margin-furniture gate above stands."""
-    failures = interact.render_version(browser, serve(FRAMED_SCROLLER_PAGE))
+    failures = rendering_model.render_version(browser, serve(FRAMED_SCROLLER_PAGE))
 
     assert [
         f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
@@ -1620,7 +1636,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     what says the floor is still there."""
     url = serve(WIDE_AND_NARROW_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     errors = watched(page)
@@ -1676,7 +1692,7 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     answer in both, being layout rather than measurement."""
     url = serve(NOTE_AND_WIDE_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page, errors = open_page(browser, url)
     resized(page, NOTE_BAND, 900)
@@ -1812,5 +1828,5 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     page = browser.new_page()
     page.goto(url.rsplit("?", 1)[0], wait_until="load")
 
-    assert interact.NO_KEY in page.locator("body").inner_text()
+    assert schema_model.NO_KEY in page.locator("body").inner_text()
     page.close()

@@ -5,7 +5,9 @@ from contextlib import contextmanager
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -398,7 +400,7 @@ Second paragraph of the note.
 
 
 def actions(page_dir):
-    return [e for e in interact.read_events(page_dir) if e["kind"] == "action"]
+    return [e for e in events_model.read_events(page_dir) if e["kind"] == "action"]
 
 
 NESTED_SUGGESTION = SUGGESTION_PAGE.replace(
@@ -804,7 +806,7 @@ def _publish(page_dir, version, html, note):
     and records a `note` event with what it says about the user's decisions."""
     (page_dir / "versions" / f"v{version}.html").write_text(html)
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -942,8 +944,10 @@ SUGGEST_BLOCK = (
 @contextmanager
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
-    session = interact.page_claim(page_dir)
-    lease = interact.take_waiter_lease(interact.waiter_lease_path(page_dir, session))
+    session = service_model.page_claim(page_dir)
+    lease = service_model.take_waiter_lease(
+        service_model.waiter_lease_path(page_dir, session)
+    )
     assert lease
     told(page)
     try:

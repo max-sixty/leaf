@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
-from conftest import interact
+from leaf_interact import events as events_model
 from playwright.sync_api import expect
 from render_support import (
     ADDRESS_PAGE,
@@ -77,7 +77,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
     round_trip(page)
-    acts = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    acts = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert acts[-1]["widget"] == "live-question"
     assert acts[-1]["detail"] == {"options": ["lq-keep"]}
     assert errors == []
@@ -297,7 +299,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     )
     comments = [
         event
-        for event in interact.read_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
     first_id, second_id = (comment["id"] for comment in comments)
@@ -378,9 +380,10 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator("#fig.lf-mark-el").wait_for()
 
-    assert standing_mark(page) == {"text": "", "elements": []}, (
-        "a page nobody has opened a comment on is already saying the reader is in one"
-    )
+    assert standing_mark(page) == {
+        "text": "",
+        "elements": [],
+    }, "a page nobody has opened a comment on is already saying the reader is in one"
 
     page.keyboard.press("j")
     wait_standing(page, "bold text")
@@ -689,7 +692,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     d = serve.page_dir
 
     def comment(anchor, text):
-        return interact.append_event(
+        return events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -728,7 +731,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # Once the first thread resolves, the same control enters the next one.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
     told(page)
     expect(note).to_have_text("1 comment")
     note.press("Enter")
@@ -774,10 +777,12 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.locator(".lf-composer textarea").fill("Too short.")
     page.get_by_role("button", name="Comment", exact=True).click()
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
-    c4 = [e for e in interact.read_events(d) if e.get("kind") == "comment"][-1]["id"]
+    c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
+        "id"
+    ]
 
     # A resolved thread takes its line with it: the pass owns what it wrote.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c4})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c4})
     told(page)
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(0)
     assert "1 comment" in page.locator("#p1").aria_snapshot()
@@ -930,7 +935,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     d = serve.page_dir
 
     def comment(anchor, text):
-        return interact.append_event(
+        return events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -1130,7 +1135,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # the chrome's. A list is what the document holds, so it is not addressed: read of the
     # document at large, `d` would offer a digit for a disclosure the author never wrote
     # and the reader never sees on the page.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c3})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c3})
     told(page)
     expect(page.locator("details.lf-details")).to_have_count(1)
     page.keyboard.press("g")
@@ -1373,7 +1378,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     passes over exactly the entry that can break."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1556,7 +1561,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     # stands as well as which way it is standing, so the row cannot offer a key that
     # nothing there runs. The platform's pair still works it, so what differs is the
     # offer rather than the capability.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1612,7 +1617,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     And the armed chord is on screen with the panel closed — where the old corner
     badges, display:none inside it, said nothing at all."""
     url = serve(NOTED_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -2204,7 +2209,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # comments row counting the two there are, not the nine there could be, and no
     # row for the lists this page hasn't got.
     for text in ["A thread.", "Another."]:
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
         )
     told(page)
@@ -2227,7 +2232,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # A v2 lands and the unpinned page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
     (d / "versions" / "v2.html").write_text(NOTED_PAGE)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/versions/v2.html*")
@@ -2280,7 +2285,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     d = serve.page_dir
 
     def comment(text):
-        return interact.append_event(
+        return events_model.append_event(
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
         )["id"]
 
@@ -2339,7 +2344,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
     url = serve(html)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "version": 1, "text": "A thread."},
     )
@@ -2510,7 +2515,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     d = serve.page_dir
     live = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
     gone = panel_comment(d, "Settled already.", {"section": "how-cap"})
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": gone})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": gone})
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")
@@ -2583,7 +2588,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     d = serve.page_dir
     said = []
     for text in ("First remark.", "Second remark."):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -2593,7 +2598,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
                 "anchor": {"section": "shape"},
             },
         )
-        said.append(interact.read_events(d)[-1]["id"])
+        said.append(events_model.read_events(d)[-1]["id"])
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")

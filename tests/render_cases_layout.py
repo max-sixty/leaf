@@ -12,7 +12,15 @@ from types import SimpleNamespace
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import hosting as hosting_model
+from leaf_interact import http as http_model
+from leaf_interact import registry as registry_model
+from leaf_interact import render_checks as render_checks_model
+from leaf_interact import rendering as rendering_model
+from leaf_interact import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -47,7 +55,7 @@ def resize_notice_after_last_probe(page):
 
     def with_notice(expression, *args, **kwargs):
         result = evaluate(expression, *args, **kwargs)
-        if expression == interact.RELATIVE_REPLAYS:
+        if expression == render_checks_model.RELATIVE_REPLAYS:
             evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
         return result
 
@@ -98,14 +106,18 @@ def arrival_findings(browser, url):
     a box that a first visit didn't.
     """
 
-    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    page = browser.new_page(
+        viewport=render_checks_model.RENDER_VIEWPORT, color_scheme="light"
+    )
     errors = []
     notices = []
 
     def console_message(message):
         if message.type != "error":
             return
-        target = notices if interact.resize_observer_error(message.text) else errors
+        target = (
+            notices if rendering_model.resize_observer_error(message.text) else errors
+        )
         target.append(message.text)
 
     page.on("console", console_message)
@@ -114,7 +126,7 @@ def arrival_findings(browser, url):
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
-    page.add_init_script(interact.WINDOW_ERRORS)
+    page.add_init_script(rendering_model.WINDOW_ERRORS)
     found = []
     try:
         # A first visit, to be arranged from and to read the arrangements off. Reported
@@ -130,7 +142,7 @@ def arrival_findings(browser, url):
             # event does over the five navigations here, measured on
             # design-decision.html, and buys this nothing.
             page.goto(url, wait_until="load")
-            page.wait_for_function(interact.UPGRADED)
+            page.wait_for_function(rendering_model.UPGRADED)
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
@@ -144,7 +156,7 @@ def arrival_findings(browser, url):
             notices.clear()
             try:
                 page.reload(wait_until="load")
-                page.wait_for_function(interact.UPGRADED)
+                page.wait_for_function(rendering_model.UPGRADED)
             except PlaywrightTimeout:
                 found.append(
                     f"[{arrangement['name']}] the page never finished coming up — "
@@ -165,7 +177,7 @@ def arrival_findings(browser, url):
 def motions(events):
     """The settling motions the browser reported, keyed by the motion, not by its target.
 
-    Settling and not living, which is `interact.MOVING`'s distinction and is here for
+    Settling and not living, which is `rendering.MOVING`'s distinction and is here for
     its reason: the banner's dot pulses for as long as the tab is open, and something
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
@@ -601,7 +613,7 @@ RENDERED = "() => new Promise(done => requestAnimationFrame(() => requestAnimati
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
     page.evaluate(RENDERED)
-    page.wait_for_function(f"() => ({interact.MOVING})().length === 0")
+    page.wait_for_function(f"() => ({rendering_model.MOVING})().length === 0")
     page.evaluate(RENDERED)
 
 
@@ -627,7 +639,7 @@ def aim_targets(page_dir):
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
     tags = ", ".join(
-        t for t in interact.load_registry(page_dir) if not t.startswith("$")
+        t for t in registry_model.load_registry(page_dir) if not t.startswith("$")
     )
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
@@ -874,21 +886,21 @@ def live_leaf(tmp_path, monkeypatch):
     held = []
 
     def go(name, title):
-        d = interact.state_home() / "pages" / name
-        result = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        d = service_model.state_home() / "pages" / name
+        result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         (d / "versions" / "v1.html").write_text(
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
         )
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "running the suite",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
             },
         )
         # A live leaf has a session behind it, and what the tray's hover says about a
@@ -899,15 +911,15 @@ def live_leaf(tmp_path, monkeypatch):
             id=f"s-{name}",
             cwd=str(tmp_path / f"{name}-work"),
         )
-        httpd = interact.LeafHTTPServer(
-            ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
+        httpd = hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         port = httpd.server_address[1]
         # Desired address and a held, contentless lease are the two facts a real
         # server exposes to neighbouring pages.
-        interact.write_json(
+        files_model.write_json(
             d / "service.json",
             {
                 "host": "127.0.0.1",

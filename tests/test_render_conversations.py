@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from conftest import interact
+from leaf_interact import events as events_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -53,7 +53,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     box.fill("Where did my words go?")
     page.locator(".lf-general button").click()  # the route that used to drop focus
     round_trip(page)
-    sent = interact.read_events(serve.page_dir)[-1]
+    sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
@@ -65,7 +65,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     box.fill("And the second thought lands the same way.")
     page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
     round_trip(page)
-    second = interact.read_events(serve.page_dir)[-1]
+    second = events_model.read_events(serve.page_dir)[-1]
     in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
     expect(box).to_be_focused()
     assert errors == []
@@ -94,9 +94,9 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
     assert held["scrolled"], "the list doesn't scroll, so nothing here can move"
 
     first = next(
-        e for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     )
-    reply = interact.append_event(
+    reply = events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -139,9 +139,9 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     }""")
 
     first = next(
-        e for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     )
-    reply = interact.append_event(
+    reply = events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -258,7 +258,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     c1, c2, c3 = [
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     ]
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
         "placeholder", "Reply · g c 2"
@@ -297,7 +299,7 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     ta3.click()
     ta3.type("held mid-sentence")
     page.evaluate("() => document.activeElement.setSelectionRange(4, 4)")
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": c2}
     )
     told(page)
@@ -377,9 +379,10 @@ def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve)
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     panel_settled(page)
-    assert page.evaluate(LIST_RUNS) == [first, second], (
-        "a page with no outline did not get the page's order, or was given a landmark"
-    )
+    assert page.evaluate(LIST_RUNS) == [
+        first,
+        second,
+    ], "a page with no outline did not get the page's order, or was given a landmark"
     expect(page.locator(".lf-group")).to_have_count(0)
     assert errors == []
     page.close()
@@ -474,9 +477,11 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
                       scrolledPast: first.top < box.top,
                       opaque: !/rgba\\(.*, 0\\)$/.test(paint) };
            }"""
-    ) == {"pinned": True, "scrolledPast": True, "opaque": True}, (
-        "the run's heading did not stay over the run"
-    )
+    ) == {
+        "pinned": True,
+        "scrolledPast": True,
+        "opaque": True,
+    }, "the run's heading did not stay over the run"
 
     heading.click()
     page.wait_for_function(
@@ -646,10 +651,12 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     c1, c2 = [
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     ]
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "resolve", "author": "claude", "agent": "Indexer", "parent": c1},
     )
@@ -678,7 +685,9 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     comment = next(
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     )
 
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
@@ -698,7 +707,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
     expect(page.locator(".lf-details")).to_have_count(0)
     expect(page.locator(".lf-comments")).to_have_text("Comments (18)")
-    assert interact.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
     assert errors == []
     page.close()
 
@@ -710,16 +719,16 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     url = serve(LONG_PAGE, comments=1)
     root = next(
         event
-        for event in interact.read_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     page.locator(".lf-details summary").click()
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -768,7 +777,9 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     c1, c2, c3 = [
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     ]
     first = page.locator(f'.lf-thread[data-id="{c1}"]').bounding_box()
     stood = page.locator(f'.lf-thread[data-id="{c2}"]').bounding_box()
@@ -870,7 +881,9 @@ def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     c1 = next(
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     )
     # Watching from before the press, so the frames it holds still are in the record
     # alongside the ones that move.
@@ -925,7 +938,7 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
         panel_settled(page)
         c1, c2 = [
             e["id"]
-            for e in interact.read_events(serve.page_dir)
+            for e in events_model.read_events(serve.page_dir)
             if e["kind"] == "comment"
         ]
         page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
@@ -961,7 +974,9 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     c1 = next(
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     )
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
     going = page.locator(f'.lf-threads > .lf-going[data-id="{c1}"]')
@@ -978,7 +993,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     expect(going).to_have_count(0)
     # News the thread takes while it is open again, which the node the first fold was
     # carrying away has never held — so what folds the second time says which node it is.
-    reply = interact.append_event(
+    reply = events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1130,7 +1145,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
     reaches on its own, so a centring assertion over one asserts nothing.
     """
     for n in range(chatter):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -1140,7 +1155,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
                 "text": f"Aside {n}. " + "Long enough to wrap in the panel. " * 4,
             },
         )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1150,7 +1165,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "text": "Which store?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1161,7 +1176,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "markup": markup,
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1173,7 +1188,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
         },
     )
     for n in range(after):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -1216,7 +1231,7 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     )
     # A second thread, on the document, whose travel is the one that must still move
     # the page. Written after the first so the panel holds both.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1318,7 +1333,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     url = serve(REPLY_TRAVEL_PAGE)
     d = serve.page_dir
     for n in range(14):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -1330,7 +1345,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
         )
     # The shape design mode writes about the layer: `about` says which, and the anchor
     # names the part the runtime gave an id.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1342,7 +1357,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
             "anchor": {"section": "lf-keyline"},
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1424,7 +1439,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
         if wid.startswith("tv-msg"):
             seed_reply(d, REPLY_CHANGE, wid)
         else:
-            interact.append_event(
+            events_model.append_event(
                 d,
                 {
                     "kind": "comment",
@@ -1435,7 +1450,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                     "anchor": {"section": wid},
                 },
             )
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "action",
@@ -1493,7 +1508,7 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
         "</lf-options>",
         "tv-ask",
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1673,7 +1688,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     had already been read successfully by the side that wrote it."""
     url = serve(REPLY_TRAVEL_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1683,7 +1698,7 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "text": "the question nobody can read any more",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1933,7 +1948,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     d = serve.page_dir
     for i in range(3):
         panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",

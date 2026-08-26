@@ -91,7 +91,7 @@ control case that has to report nothing.
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
-`interact.render_version`, not reproduce one of its probes. Test a helper directly
+`leaf_interact.rendering.render_version`, not reproduce one of its probes. Test a helper directly
 only when the helper itself carries a contract that would otherwise be hard to
 diagnose, such as the traffic wait reaching its deadline.
 
@@ -239,7 +239,7 @@ is only for a test whose subject is the interval before those stamps; it waits f
 banner module to exist and must make its later readiness explicit.
 
 `watched` must be installed before navigation. It collects console errors and
-`pageerror`, and installs `interact.WINDOW_ERRORS` so browser `error` events without
+`pageerror`, and installs `leaf_interact.rendering.WINDOW_ERRORS` so browser `error` events without
 an exception, including ResizeObserver delivery failures, reach the same error list.
 That script is shared with `render_version`; the suite and the handover gate must not
 disagree about which browser error channels count.
@@ -485,9 +485,9 @@ widget changes the DOM, make sure the relevant render probe can fail with that c
 reintroduced; a source-only assertion cannot cover a generated attribute or a replay
 that moves on its second application.
 
-The canonical probes are `interact.UNDECLARED_ATTRS` for attributes a module writes
+The canonical probes are `leaf_interact.render_checks.UNDECLARED_ATTRS` for attributes a module writes
 into the author's namespace without a record declaration, and
-`interact.RELATIVE_REPLAYS` for an action whose second application changes state.
+`leaf_interact.render_checks.RELATIVE_REPLAYS` for an action whose second application changes state.
 Call the product probes instead of maintaining test-side variants. Their fixtures
 must include at least one widget and verb that can trigger the finding; otherwise a
 clean result only says the probe received an empty population.

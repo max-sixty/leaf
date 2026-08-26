@@ -4,7 +4,8 @@ import re
 from pathlib import Path
 
 import pytest
-from conftest import interact
+from leaf_interact import events as events_model
+from leaf_interact import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_ROW_SAYS,
@@ -265,7 +266,7 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     page.close()
 
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
     copy.goto(out.as_uri(), wait_until="load")
     assert copy.locator(".lf-sug-actions").count() == 0, (
@@ -291,7 +292,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     only way to decide a change that is still plainly pending on the page. Replayed
     rather than dragged, because that is the same move with no gesture in the way."""
     url = serve(SUGGESTION_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -557,7 +558,9 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
         "() => fetch('/api/state').then(r => r.json())"
         ".then(s => s.events.some(e => e.kind === 'action' && e.action === 'accept'))"
     )
-    logged = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    logged = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert [(e["widget"], e["action"], e["author"]) for e in logged] == [
         ("sug-refill", "accept", "user")
     ]
@@ -745,7 +748,9 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     # whole outbox as well: the rows are asserted one at a time above, while this is
     # the boundary before reading the shared log as a sequence.
     round_trip(page)
-    logged = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    logged = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert [(e["widget"], e["action"]) for e in logged] == [
         ("sug-refill", "accept"),
         ("sug-thistle", "accept"),
@@ -814,7 +819,9 @@ def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
     expect(help_el).not_to_contain_text("Accept all")
 
     round_trip(page)
-    logged = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    logged = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert [(e["widget"], e["action"]) for e in logged] == [
         ("sug-refill", "accept"),
         ("sug-thistle", "accept"),
@@ -873,7 +880,7 @@ def test_a_decision_the_server_never_took_never_shows_as_taken(browser, serve):
     expect(page.get_by_role("button", name="Accept all (3)")).to_be_visible()
     expect(page.locator(".lf-toast")).to_contain_text("Couldn't send")
     assert [
-        e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ] == []
 
     # The retry is a second click, not a reload: a definitive refusal made the widget
@@ -964,7 +971,7 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
     expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
     assert [
         (e["widget"], e["action"])
-        for e in interact.read_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [("sug-refill", "accept")]
     assert errors == []
@@ -1323,7 +1330,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     ask now, so the layer above it is nobody's apparatus and the words underneath are
     the widget's own."""
     url = serve(REPLY_HOST_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1333,7 +1340,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
             "text": "Either would do. Which are you leaning towards?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "reply",
@@ -1388,7 +1395,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     one coming out."""
     url = serve(MESSAGE_ROOM_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1398,7 +1405,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "text": "Anything else worth adding?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1461,7 +1468,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     decision and passes whatever the decision would have been."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1471,7 +1478,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
             "text": "Which store?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1540,7 +1547,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     inside its widget, so the box is between the words and their frame either way."""
     url = serve(CONVERSATION_DIFF_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1551,7 +1558,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
             "anchor": {"section": "cd-q"},
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1574,7 +1581,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
             '<p id="cd-new">The north pair waits on brackets.</p>',
         )
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -1610,7 +1617,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     the reconcile has just written."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1620,7 +1627,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "text": "Which store?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1637,7 +1644,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
         },
     )
     # The shape design mode writes: an element anchor naming a widget no version holds.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2093,7 +2100,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
             "</head>", "<style>#sug-refill { display: contents; }</style>\n</head>"
         )
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",

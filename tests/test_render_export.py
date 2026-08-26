@@ -4,7 +4,9 @@ import itertools
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import render_checks as render_checks_model
+from leaf_interact import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     EXAMPLES,
@@ -39,7 +41,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     )
     url = serve(work_page)
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "status",
             str(serve.page_dir),
@@ -52,7 +54,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     assert result.exit_code == 0, result.output
 
     out = tmp_path / "work-copy.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
@@ -82,7 +84,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     rather than to any widget."""
     url = serve(example)
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -164,7 +166,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     # The gate's own reading, on the medium that most needs it: a copy is laid out by
     # rules no other medium runs, and the last two ways one went out wrong were both a
     # widget's words landing on the page's.
-    covered = page.evaluate(interact.COVERED_WORDS)
+    covered = page.evaluate(render_checks_model.COVERED_WORDS)
     # The other direction of every question above: not what the copy still offers,
     # but what it under-delivers. BAKE is a remover, and until this ran the only
     # gates on it asked whether it removed enough — a wide diagram lost its scroll
@@ -226,7 +228,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     stand-in `primed` supplies."""
     url = serve(REPORT_PAGE)
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["report", str(serve.page_dir), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
@@ -240,7 +242,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
 
     out = tmp_path / "standalone.html"
     out.write_text(
-        interact.export_page(
+        rendering_model.export_page(
             primed(browser, refuse_the_first_poll), url, serve.page_dir
         )
     )
@@ -262,7 +264,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     link here still points at a server)."""
     url = serve(LONG_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")

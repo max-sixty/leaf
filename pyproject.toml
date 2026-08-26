@@ -6,8 +6,8 @@
 # `uv.lock` pins below is the developer's reproducibility; the payload carries
 # floors and no lock of its own, per the root `CLAUDE.md`.
 #
-# What is here is what the *suite* needs: that same set, because the tests load
-# `interact.py` by path and so import its dependencies into their own process,
+# What is here is what the *suite* needs: that same set, because the tests import
+# the payload modules into their own process,
 # plus the browser driver, pytest, and what `scripts/` imports. The scripts are
 # stdlib-only bar the demo recorder, and that one runs here rather than carrying
 # a header and a lock of its own: it is a developer's tool like the suite, not
@@ -56,6 +56,7 @@ package = false
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup"
+pythonpath = ["plugins/leaf/skills/leaf/scripts"]
 markers = ["nightly: complete browser or site integration; `--run-nightly` runs it"]
 # A stuck test prints every thread's stack, then exits its test process. This is a hang
 # guard, not a performance assertion; ordinary slow tests still have three minutes.

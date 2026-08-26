@@ -635,10 +635,10 @@ RING_FAULTS = f"""async () => {{
     // would be noise standing where the findings are — so the claim is the one that can
     // be met: a ring that fits in the box is a ring the box has to show all of.
     const fits = {{
-      top: ring.bottom - ring.top <= room.h,
-      bottom: ring.bottom - ring.top <= room.h,
-      left: ring.right - ring.left <= room.w,
-      right: ring.right - ring.left <= room.w,
+      top: b.bottom - b.top <= room.h,
+      bottom: b.bottom - b.top <= room.h,
+      left: b.right - b.left <= room.w,
+      right: b.right - b.left <= room.w,
     }};
     for (const [side, by] of Object.entries({{
       top: band.top - ring.top,

@@ -921,6 +921,19 @@ ${MARK_RULES}
     .lf-react[aria-busy="true"] { opacity: .55; }
     .lf-react-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .lf-page-strip { padding: 8px 14px 0; }
+    /* Quiet in the panel. A strip is open — every token offered — on the latest agent
+       message and the page row only (.lf-open); an older reply shows just the tokens
+       standing on it, and one with nothing to show takes no room. A token at rest is a
+       muted glyph with no box; the box arrives under the pointer, under focus, or when
+       the react press is armed. The border is there all along, transparent, so the box
+       is paint and nothing moves. */
+    .lf-react-strip:not(.lf-open) > .lf-react:not([aria-pressed="true"]) { display: none; }
+    .lf-react-strip:not(.lf-open):not(:has(> [aria-pressed="true"])) { display: none; }
+    .lf-react-strip > .lf-react:not([aria-pressed="true"]) { border-color: transparent;
+      background: transparent; color: var(--muted); }
+    .lf-react-strip > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible),
+    .lf-react-strip.lf-armed > .lf-react:not([aria-pressed="true"]) {
+      border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
     /* A thread whose root is a mark: the glyph and its word where the comment's words
        would stand, in the chrome's face. */
     .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }

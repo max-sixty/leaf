@@ -962,7 +962,11 @@ export function createConversation(dependencies) {
   // each reconcile rather than from the press, so a reaction arriving from another tab,
   // and an undo, land the same way. A resolved thread offers none: resolve is the floor
   // after which a reaction stops painting, on the page and here alike.
+  // Open — every token offered — on the latest agent message only: the one whose
+  // `settles` counts and the one `r` arms. An older reply keeps the tokens standing on
+  // it and offers nothing, so a thread wears one row of offers rather than one a turn.
   function paintReactStrips(node, t) {
+    const latest = t.msgs.findLast((x) => x.author === "claude")?.id ?? null;
     for (const msg of node.querySelectorAll(":scope > .lf-msg")) {
       const m = t.msgs.find((x) => x.id === msg.dataset.mid);
       if (!m || m.author !== "claude") continue;
@@ -979,6 +983,7 @@ export function createConversation(dependencies) {
           strip.append(pill);
         msg.append(strip);
       }
+      strip.classList.toggle("lf-open", m.id === latest);
       paintStanding(
         strip,
         t.msgs.filter((x) => isReaction(x) && x.author === "user" && x.parent === m.id),
@@ -1013,7 +1018,7 @@ export function createConversation(dependencies) {
   function paintPageStrip(threads) {
     if (!Object.keys(registry.$reactions.tokens).length) return;
     if (!pageStrip) {
-      pageStrip = el("div", "lf-react-strip lf-page-strip");
+      pageStrip = el("div", "lf-react-strip lf-page-strip lf-open");
       pageStrip.setAttribute("role", "group");
       pageStrip.setAttribute("aria-label", "React to the page");
       for (const pill of reactPills(pressPage)) pageStrip.append(pill);

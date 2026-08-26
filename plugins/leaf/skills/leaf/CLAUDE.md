@@ -915,9 +915,12 @@ raised goes down with it.
 `bareReaction`, the names `events.py` reads it by. The panel lists
 `conversational` threads only; a card shows its turns and its root, so a thread
 that grew out of a reaction opens on the mark. `paintReactStrips` puts the token
-strip under each agent message of an open thread, the standing tokens pressed
-and wearing their word; `paintPageStrip` is the same strip above the general
-box for the page whole. `awaitsReader` reads the last turn and then the one
+strip under each agent message of an open thread, open — every token offered —
+on the latest one only, an older reply showing just the tokens standing on it,
+pressed and wearing their word; `paintPageStrip` is the same strip, open, above
+the general box for the page whole. At rest an offered token is a muted glyph
+with no box; the box is paint that arrives under the pointer, under focus, or
+armed. `awaitsReader` reads the last turn and then the one
 declared exception, a `settles` token standing on it.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends

@@ -225,6 +225,75 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     page.close()
 
 
+def test_only_the_latest_agent_reply_offers_the_strip(browser, serve):
+    """A thread wears one row of offers. The strip is open on the latest agent message —
+    the one whose `settles` counts and the one `r` arms. An older reply keeps the tokens
+    standing on it as receipts and offers nothing; with none standing it takes no room.
+    At rest an offered token is a muted glyph with no box, and the box is paint that
+    arrives under the pointer: the pill's own box does not move."""
+    url = serve(PANEL_PAGE)
+    root, first = _thread(serve.page_dir)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": first, "token": "lost"},
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "reply", "author": "user", "parent": root, "text": "Which device?"},
+    )
+    latest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "parent": root,
+            "text": "The one we ship to schools.",
+        },
+    )["id"]
+    quiet_root, quiet_first = _thread(serve.page_dir)
+    quiet_latest = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "parent": quiet_root,
+            "text": "And nothing stands on the earlier answer here.",
+        },
+    )["id"]
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+
+    def strip(mid):
+        return page.locator(f'.lf-msg[data-mid="{mid}"] .lf-react-strip')
+
+    expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
+    expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
+    expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
+        "data-token", "lost"
+    )
+    expect(strip(quiet_latest).locator(".lf-react:visible")).to_have_count(6)
+    expect(strip(quiet_first)).to_be_hidden()
+
+    pill = strip(latest).locator('.lf-react[data-token="cut"]')
+    box = lambda: pill.evaluate(
+        """(p) => {
+          const r = p.getBoundingClientRect();
+          return [r.width, r.height, getComputedStyle(p).borderColor];
+        }"""
+    )
+    at_rest = box()
+    assert at_rest[2] == "rgba(0, 0, 0, 0)", at_rest
+    pill.hover()
+    hovered = box()
+    assert hovered[2] != "rgba(0, 0, 0, 0)", hovered
+    assert hovered[:2] == at_rest[:2], (at_rest, hovered)
+    assert errors == []
+    page.close()
+
+
 def _thread(page_dir):
     """A thread the agent spoke in last: the reader's question and Claude's answer."""
     root = panel_comment(page_dir, "Why forty?", {"section": "how-cap"})

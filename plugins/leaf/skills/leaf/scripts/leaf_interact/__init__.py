@@ -1,8 +1,8 @@
-"""Implementation domains behind the public interact.py facade.
+"""Leaf's interaction, service, rendering, and command domains.
 
 Dependencies point from atomic files through the event model into service,
 registry, projection, validation, rendering, and command-declaration domains.
-The facade composes those owners into the CLI and HTTP boundary.
+The CLI module composes those owners at the executable boundary.
 """
 
 __all__ = ()

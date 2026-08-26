@@ -35,7 +35,7 @@ repo-root pointers are `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json`; the payload carries one manifest for each
 host. Six parts live under `plugins/leaf/skills/leaf/`:
 
-- `scripts/interact.py` is the `uv` script and public CLI facade for the server,
+- `scripts/interact.py` is the `uv` script and public CLI entrypoint for the server,
   event log, `version check`, vendoring, and export. Pure implementation domains
   live beside it under `scripts/leaf_interact/`: `files` owns atomic file
   operations, `events` the append-only model, `service` host and process
@@ -474,8 +474,10 @@ Every other corpus reading is a first visit, so restoration cannot hide an
 arrival regression.
 
 The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own
-runtime dependencies remain in `interact.py`'s PEP 723 header. Tests load that
-script by path and therefore need the same packages.
+runtime dependencies remain in `interact.py`'s PEP 723 header. Pytest adds
+`plugins/leaf/skills/leaf/scripts` to its import path, and tests import the
+`leaf_interact` owner modules directly, so the developer environment needs the
+same packages.
 
 The everyday suite needs no network after setup and runs one shipped page through
 the browser gate:
@@ -525,7 +527,8 @@ worker so browser timing and output remain readable.
 
 `scripts/preview.py [example]` freshly vendors and serves a shipped example;
 `examples/CLAUDE.md` defines its fixtures. For another page, run `page init` and
-serve it in-process with `interact.handler_for(page_dir, token)`, then open the
+serve it in-process with `leaf_interact.http.handler_for(page_dir, token)` after
+adding `plugins/leaf/skills/leaf/scripts` to the Python import path, then open the
 key as `?t=…`. `server start` instead attaches a live page to the session and its
 hooks.
 

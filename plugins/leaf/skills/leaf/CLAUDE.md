@@ -46,6 +46,8 @@ replacement, and activation serialization;
 its key scope, and forced live activation;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
+`runtime/widget-elements.js` owns widget-element construction, labels, gesture
+guards, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;
@@ -676,11 +678,6 @@ minimum obligations:
 - Register keys with `keys(el, title, rows)` during upgrade, not at module load.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
-- A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
-  return one token from ATTR and `lfVisualPart(part)` to return its current
-  `{element, label}`. The authored widget remains the comment seat, the token is
-  recorded as `anchor.visual`, and the returned element supplies only mark and
-  travel geometry. The render gate refuses either missing method.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place.

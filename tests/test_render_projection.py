@@ -2590,6 +2590,12 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose textarea")
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+    expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
 
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
     # own frame whole. Drawn by the lower neighbour instead, the divider recolored the

@@ -41,6 +41,7 @@ from render_support import (
     compare_with,
     composer_quote,
     flip_point,
+    key_line,
     leaf_page,
     open_page,
     page_registry,
@@ -579,7 +580,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
         f"{strict.evaluate(box)}"
     )
     page.locator("#opt-bearer .lf-pick").focus()
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
 
     # And the pair the quotable half always comes with. This mark is the one element on
@@ -609,6 +610,45 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["opt-strict"], "the diff read a pick mark as text the base version lacked"
+    assert errors == []
+    page.close()
+
+
+def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, serve):
+    """Ask arrival leaves both answer paths one press away.
+
+    The walk lands on an option mark so the group's own scope can answer the next key.
+    A digit chooses its listed option; Enter steps into the field for the option the
+    author did not list. Without that second binding, reaching the field costs one Tab
+    per listed option even though the Ask is already selected.
+    """
+    url = serve(ASK_WITH_CONTEXT_PAGE)
+    page, errors = open_page(browser, url)
+
+    page.keyboard.press("n")
+    expect(page.locator("#storage-evict .lf-pick")).to_be_focused()
+    line = key_line(page)
+    assert "write another option" in line, (
+        f"the selected Ask hides its text-entry binding behind More: {line}"
+    )
+    expect(page.locator("#storage-options .lf-address")).to_have_text(["1", "2"])
+    expect(page.locator("#storage-options .lf-address").first).to_be_visible()
+    page.keyboard.press("Enter")
+    box = page.locator("#storage-options > .lf-conversation > .lf-say > textarea")
+    expect(box).to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    assert "back to question" in key_line(page)
+    page.keyboard.press("Escape")
+    expect(page.locator("#storage-evict .lf-pick")).to_be_focused()
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    page.keyboard.press("2")
+    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
+    expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
+    expect(page.locator("#storage-options textarea")).not_to_be_focused()
     assert errors == []
     page.close()
 
@@ -1274,7 +1314,7 @@ def test_a_pick_does_not_bury_the_news_that_it_is_unrecorded(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#live-group[data-lf-pending]")).to_have_count(1)
     assert page.locator("#l-stage").evaluate(
         "el => el.matches(':has(> .lf-pick:focus-visible)')"

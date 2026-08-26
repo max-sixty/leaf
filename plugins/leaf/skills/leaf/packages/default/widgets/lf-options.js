@@ -40,11 +40,11 @@
  *
  * The keyboard walk below stops at the authored options, and that is deliberate rather
  * than an oversight: ↑/↓ inside a textarea are the caret's, so a walk that stepped into
- * this cell would have no step back out. Tab is the platform's own way to a box for
- * words and is the way here.
+ * this cell would have no step back out. Enter from an option mark steps into the box;
+ * Tab remains the platform's own path through every control.
  *
- * In a thread the existing reply box already owns those words, so a `multiple`
- * group grows a Done press instead: every toggle reaches
+ * In a thread the existing reply box already owns those words, so Enter reaches that
+ * box and a `multiple` group grows a Done press instead: every toggle reaches
  * the agent as it lands, so the press is the one statement that the set is whole,
  * posted as an `answer` action and held as the thread ask's closing condition
  * (x-awaits.until). Answered is paint on the press, never a wider word, and the set can
@@ -66,11 +66,12 @@
  * `shallowSigs` excludes exactly what no version can assert, and read both of these
  * as state a version had written.
  *
- * The keyboard path: every mark is a press, so Tab reaches it and ⏎ toggles. From a
- * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap) and 1–9 pick outright —
- * each option wears its digit in a column of its own, painted only while a mark holds
- * keyboard focus, so nothing appears on a page nobody is answering. The column is held
- * whether or not a digit is in it, which is the theme's half of this. The rows are
+ * The keyboard path: every mark is a press, so Tab reaches it and Space toggles. From a
+ * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap), 1–9 pick outright, and
+ * Enter reaches the page's box for another option — each option wears its digit in a
+ * column of its own, painted only while a mark holds keyboard focus, so nothing appears
+ * on a page nobody is answering. The column is held whether or not a digit is in it,
+ * which is the theme's half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise "toggle the nth" with
  * focus on a link inside one. An armed `g` chord keeps its own digits without this module
@@ -102,12 +103,13 @@ import {
   actionStands,
   agentName,
   conversationBox,
+  conversationInput,
   inChrome,
   keys,
+  landInConversation,
   measure,
   offer,
   once,
-  PRESS,
   quoted,
   relabel,
   reserve,
@@ -246,6 +248,13 @@ customElements.define(
       return [...this.querySelectorAll(':scope > lf-option > .lf-pick[role="button"]')];
     }
 
+    // The words this question does not already list. On the page the group owns the
+    // first-message box it appended; in a thread the surrounding conversation owns its
+    // reply box. One reading for the Enter row, across the shadow boundary between them.
+    #words() {
+      return this.#another?.querySelector("textarea") ?? conversationInput(this);
+    }
+
     // The one statement a live channel can't derive: the set is whole. One press,
     // one `answer` action, and the ask this group stands as is discharged
     // (x-awaits.until). One-way — a later toggle still reaches the agent, so there
@@ -299,13 +308,13 @@ customElements.define(
       document.dispatchEvent(new CustomEvent("lf-answered"));
     }
 
-    // The keyboard path past Tab-and-⏎: from a mark, ↑/↓ walk the options and a
-    // digit picks outright. Declared on the mark, so a digit typed in the box for
-    // words stays text and a nested group's marks stay its own, and an armed g
-    // chord keeps its own digits without this module asking — its scopes suspend
-    // every scope inside them. Each option shows its digit only while a mark
-    // holds keyboard focus (the theme's :focus-visible rule), so the address
-    // appears exactly when a key could use it.
+    // The keyboard path past Tab: from a mark, ↑/↓ walk the options, a digit picks
+    // outright, and Enter reaches the box for the option the author did not list.
+    // Declared on the mark, so those keys typed in the box stay text and a nested
+    // group's marks stay its own, and an armed g chord keeps its own digits without
+    // this module asking — its scopes suspend every scope inside them. Each option
+    // shows its digit only while a mark holds keyboard focus (the theme's
+    // :focus-visible rule), so the address appears exactly when a key could use it.
     #keys() {
       const marks = this.#marks();
       // The addressable options: at most nine, since the digits are the addresses.
@@ -331,10 +340,17 @@ customElements.define(
         // Every mark says the same sentences, so the reference gathers them into one
         // section however many options the page holds.
         //
-        // "toggle", the ⏎ row's word, because it is what the press does: the nth digit on
+        // "toggle", the digit row's word, because it is what the press does: the nth digit on
         // an already-picked option clears it, and a word that said "pick" was false on the
         // branch the reader could see.
         keys(mark, SECTION, [
+          {
+            keys: ["Enter"],
+            does: "Write another option",
+            line: "write another option",
+            when: () => Boolean(this.#words()),
+            run: () => landInConversation(this.#words(), mark),
+          },
           {
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
@@ -363,7 +379,7 @@ customElements.define(
               ]?.focus(),
           },
           {
-            keys: PRESS,
+            keys: [" "],
             does: "Toggle the focused option",
             line: "toggle",
             run: () => mark.click(),

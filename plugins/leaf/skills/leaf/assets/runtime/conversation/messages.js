@@ -8,6 +8,7 @@ export function createConversationMessages(dependencies) {
     el,
     elementById,
     highlightBlocks,
+    isReaction,
     itemSays,
     itemWord,
     markDeclared,
@@ -16,6 +17,7 @@ export function createConversationMessages(dependencies) {
     renderSaid,
     reportPageError,
     visualPartLabel,
+    tokenEntry,
   } = dependencies;
 
   const escapeHtml = (s) =>
@@ -66,7 +68,18 @@ export function createConversationMessages(dependencies) {
     const body = el("div", "lf-msg-body");
     const text = el("div", "lf-msg-text");
     body.append(text);
-    if (m.suggestion) {
+    if (isReaction(m)) {
+      // A thread whose root is a mark: the glyph and its word, in the chrome's own
+      // face, where a comment's words would be. What it meant is the entry's `means`,
+      // said on hover the way the bar says it.
+      const said = el(
+        "span",
+        "lf-react-said",
+        `${tokenEntry(m.token)?.glyph ?? ""} ${m.token}`.trim(),
+      );
+      said.title = tokenEntry(m.token)?.means ?? "";
+      text.append(said);
+    } else if (m.suggestion) {
       // Verbatim: a suggestion's characters are bound for the page as typed, and a
       // rendering would show an italic where the next version carries the asterisks.
       body.classList.add("lf-suggest-body");

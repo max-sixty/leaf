@@ -115,18 +115,49 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
 
         page, errors = open_page(browser, url)
-        anchored = [e for e in events if e.get("anchor")]
+        # A reaction nobody has answered is a mark and not a thread: its anchor paints
+        # through its own registry entry and a glyph seated at its block, and it takes
+        # no card. Split here so each half is read against the paint it owes.
+        answered = {e["parent"] for e in events if e.get("parent")}
+        reacted = [
+            e
+            for e in events
+            if e["kind"] == "comment" and e.get("token") and e["id"] not in answered
+        ]
+        anchored = [e for e in events if e.get("anchor") and e not in reacted]
         # The thread node first, because it arrives whether or not the quote found a
         # home — a stranded one renders wearing `detached`. Waiting on the mark here
         # instead spends the whole timeout on exactly the failure this gate is for
         # and then reports it as "wait_for_function timed out", which says nothing
         # about the anchor.
-        # Every comment opens a thread; an anchor only decides whether it also paints
-        # a mark. Counting threads against the anchored ones would red this gate the
-        # day a seed carries a general comment, which is a thing a page may hold.
+        # Every comment with words opens a thread; an anchor only decides whether it
+        # also paints a mark. Counting threads against the anchored ones would red
+        # this gate the day a seed carries a general comment, which is a thing a page
+        # may hold.
         expect(page.locator(".lf-thread")).to_have_count(
-            len([e for e in events if e["kind"] == "comment"])
+            len([e for e in events if e["kind"] == "comment" and not e.get("token")])
         )
+        for reaction in reacted:
+            glyph = page.locator(
+                f'.lf-reacts > .lf-react-mark[data-event="{reaction["id"]}"]'
+            )
+            expect(glyph).to_be_visible()
+            expect(glyph.locator("..")).to_have_attribute(
+                "data-lf-for", reaction["anchor"]["section"]
+            )
+            if reaction["anchor"].get("quote"):
+                painted = re.sub(
+                    r"\s",
+                    "",
+                    page.evaluate(
+                        "() => [...CSS.highlights.get('lf-react')]"
+                        ".map(r => r.toString()).join('')"
+                    ),
+                )
+                assert re.sub(r"\s", "", reaction["anchor"]["quote"]) in painted, (
+                    f"{example.stem}: the reaction's passage is painted nowhere; the "
+                    f"wash reads {painted[:120]!r}"
+                )
         detached = page.eval_on_selector_all(
             ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
         )

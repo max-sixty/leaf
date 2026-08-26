@@ -146,7 +146,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             {"kind": "undo", "undoes": agent_closed["id"]},
             "not the reader's own gesture",
         ),
-        ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
+        ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
         ({"kind": "undo"}, "'undoes' is a required property"),
         (
@@ -350,6 +350,32 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "decide" in result.output
+
+
+def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
+    page_dir, monkeypatch
+):
+    """A layer may take a token off its bar (merge-patch `null`), and a page whose log
+    already holds a reaction on it is refused a re-vendor the way one holding a
+    retired verb is: the standing mark would have no glyph and no pill to take it
+    back by. A token the layer keeps re-vendors as before."""
+    publish(page_dir)
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+    )
+    assert (
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        == 0
+    )
+    layer = page_dir.parent / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(
+        json.dumps({"$reactions": {"tokens": {"cut": None}}})
+    )
+    monkeypatch.chdir(page_dir.parent)
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output and "`cut`" in result.output
 
 
 def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
@@ -2619,3 +2645,87 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     )
     assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
+
+
+def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
+    server, page_dir
+):
+    """A reaction is a comment or reply carrying `token` in place of `text`: one of
+    the two and never both, a word the merged vocabulary declares, and no
+    suggestion, hold, or markup riding beside it. What the door lets through it
+    also lets the reader take back — while it is still a mark. An answer under it
+    makes it a conversation, and a message with words in it was never a mark."""
+    publish(page_dir)
+    root = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "version": 1, "text": "why?"}).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    for bad, says in [
+        (
+            {"kind": "comment", "version": 1, "token": "shrug"},
+            "unknown reaction token 'shrug'",
+        ),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "text": "and"},
+            "valid under each of",
+        ),
+        ({"kind": "comment", "version": 1}, "not valid under any"),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "suggestion": True},
+            "suggestion",
+        ),
+        (
+            {"kind": "reply", "version": 1, "parent": root["id"], "token": "nope"},
+            "unknown",
+        ),
+    ]:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400, (bad, body)
+        assert says in json.loads(body)["error"], (bad, body)
+
+    reaction = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "version": 1,
+                    "token": "cut",
+                    "anchor": {"section": "plan", "quote": "Ship dark"},
+                }
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert reaction["author"] == "user" and "text" not in reaction
+    nod = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "reply", "version": 1, "parent": root["id"], "token": "ok"}
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert nod["token"] == "ok" and nod["parent"] == root["id"]
+
+    # A message with words in it is said rather than unsaid.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
+    )
+    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    # The mark on the thread comes off with one press.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
+    )
+    assert status == 200, body
+    # Answered, the page reaction is a conversation, and the withdrawal would orphan
+    # the answer; the reader's move is in the thread it opened.
+    conversation_model.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
+    )
+    assert status == 400 and "has been answered" in json.loads(body)["error"]

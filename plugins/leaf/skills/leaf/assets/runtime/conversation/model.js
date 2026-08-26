@@ -1,9 +1,29 @@
 /* The conversation log's version-independent thread fold. */
 export function createThreadModel(dependencies) {
-  const { elementById, retractedIds, retractionFloors, runtime, takenBack } =
+  const { elementById, registry, retractedIds, retractionFloors, runtime, takenBack } =
     dependencies;
 
+  // A reaction is a message carrying a token in place of words ($events): a mark on its
+  // target rather than a turn in the conversation. `spoken` is a thread's turns; one with
+  // none is a bare reaction — paint on the page, no card in the panel — until somebody
+  // replies to it, from which point it is a conversation whose root happens to be a mark.
+  // interact.py reads the log by the same three names (events.py), so the panel and
+  // `page state` cannot come to list different threads.
+  const isReaction = (m) => Boolean(m.token);
+  const spoken = (t) => t.msgs.filter((m) => !isReaction(m));
+  // What a card shows: the turns, and the root whatever it is — a thread that grew out
+  // of a reaction opens on the mark that started it, which is what the agent answered.
+  const turns = (t) => t.msgs.filter((m) => m === t.root || !isReaction(m));
+  const bareReaction = (t) => isReaction(t.root) && !spoken(t).length;
+  const conversational = (t) => !bareReaction(t);
+  const tokenEntry = (name) => registry.$reactions.tokens[name];
+
   // ---------- threads ----------
+  // The fold this module last produced, which is what the reaction readings below
+  // answer from: they are asked on every key-line paint and on every press of the bar,
+  // and folding the whole log again for each would be a second answer to a question
+  // the panel has just answered.
+  let lastThreads = [];
   function buildThreads() {
     const threads = new Map();
     const threadFor = new Map();
@@ -119,8 +139,32 @@ export function createThreadModel(dependencies) {
         if (thread) thread.resolved = null;
       }
     }
-    return [...threads.values()];
+    lastThreads = [...threads.values()];
+    return lastThreads;
   }
+
+  // The bare reactions standing on exactly this anchor — the bar's own question, asked
+  // so its pills can say which tokens are already there. Anchors are compared as
+  // records, the way the file compares them.
+  const sameAnchor = (a, b) =>
+    JSON.stringify(a, Object.keys(a ?? {}).sort()) ===
+    JSON.stringify(b, Object.keys(b ?? {}).sort());
+  const reactionsOn = (anchor) =>
+    lastThreads
+      .filter(
+        (t) => bareReaction(t) && !t.resolved && sameAnchor(t.root.anchor, anchor),
+      )
+      .map((t) => t.root);
+  // Whether a reaction still paints, and so can still be taken back: in an unresolved
+  // thread, and answered by no turn — the same three the door refuses (`undo_error`).
+  const reactionStanding = (e) => {
+    const thread = lastThreads.find((t) => t.msgs.some((m) => m.id === e.id));
+    return (
+      Boolean(thread) &&
+      !thread.resolved &&
+      !thread.msgs.some((m) => m.parent === e.id && !isReaction(m))
+    );
+  };
 
   // ---------- whose turn a thread is ----------
   // The agent spoke last and the thread waits on the reader; anyone else spoke last and it
@@ -132,8 +176,28 @@ export function createThreadModel(dependencies) {
   // reads as owed an answer, which is the direction to err in — an unanswered word is
   // invisible to everyone, while one answer too many costs a reply. interact.py's
   // `awaits_agent` is the same sentence for the same reason.
-  const awaitsReader = (t) => !t.resolved && t.msgs.at(-1).author === "claude";
-  const awaitsAgent = (t) => !t.resolved && t.msgs.at(-1).author !== "claude";
+  //
+  // Turns, not marks: a reaction on a message is not the reader speaking, and a thread
+  // whose last word is the agent's still waits on the reader however many marks they
+  // have left on it. The one declared exception runs the other way — a token whose entry
+  // says `settles`, standing on the agent's latest message, is the reader saying "seen,
+  // go on" and takes the thread out of the waiting list without a second event. Take the
+  // ok back and the wait comes back, this being a reading of the log rather than a state
+  // anything wrote; core reads the flag and never the token's name.
+  const awaitsReader = (t) => {
+    if (t.resolved) return false;
+    const last = spoken(t).at(-1);
+    if (last?.author !== "claude") return false;
+    return !t.msgs.some(
+      (m) =>
+        isReaction(m) &&
+        m.author === "user" &&
+        m.parent === last.id &&
+        tokenEntry(m.token)?.settles,
+    );
+  };
+  const awaitsAgent = (t) =>
+    !t.resolved && spoken(t).length > 0 && spoken(t).at(-1).author !== "claude";
 
   // The widget whose seat a root stands in: an element anchor naming that widget and
   // carrying nothing else. `renderConversations` collects the seat's own view from this,
@@ -148,5 +212,18 @@ export function createThreadModel(dependencies) {
       ? (t.root.anchor.section ?? null)
       : null;
 
-  return { awaitsAgent, awaitsReader, buildThreads, seatRoot };
+  return {
+    awaitsAgent,
+    awaitsReader,
+    bareReaction,
+    buildThreads,
+    conversational,
+    isReaction,
+    reactionStanding,
+    reactionsOn,
+    seatRoot,
+    spoken,
+    tokenEntry,
+    turns,
+  };
 }

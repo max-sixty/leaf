@@ -11,7 +11,7 @@ from typing import NamedTuple, Protocol
 
 from leaf.files import read_json
 from leaf.passages import EMPTY
-from leaf.schema import UNDOABLE_KINDS
+from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 from leaf.structure import parse_structure
 
 try:
@@ -210,6 +210,24 @@ def taken_back(events: list) -> set:
     return {e["undoes"] for e in events if e.get("undoes")}
 
 
+def is_reaction(event: dict) -> bool:
+    """A message carrying a token in place of words ($events, $reactions)."""
+    return bool(event.get("token"))
+
+
+def spoken_turns(thread: dict) -> list:
+    """The thread's messages with words in them. A reaction is a mark on a
+    message rather than a turn in the conversation, so every reading of who
+    spoke last — the panel's "waiting on you", the hook's unanswered asks —
+    walks this list rather than `msgs`."""
+    return [m for m in thread["msgs"] if not is_reaction(m)]
+
+
+def bare_reaction(thread: dict) -> bool:
+    """A reaction nobody has replied to: paint on the page, and no thread yet."""
+    return is_reaction(thread["root"]) and not spoken_turns(thread)
+
+
 def undo_error(event: dict, events: list) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
@@ -218,16 +236,41 @@ def undo_error(event: dict, events: list) -> str | None:
     Two tabs racing to take back the same event are the one case this refuses
     that nothing is wrong with: the second is a no-op, and refusing it costs a
     toast where accepting it would leave two withdrawals of one gesture in a log
-    whose every other line is something the reader did."""
+    whose every other line is something the reader did.
+
+    A reaction is the one message a reader takes back rather than answers,
+    and only while it still paints: once a turn answers it the withdrawal
+    would orphan those words, and the reader's move is in the thread that
+    turn opened; once its thread is resolved, resolve being its floor, there
+    is nothing left to take back. The browser offers exactly the same
+    (conversation.js `reactionStanding`)."""
     target = next((e for e in events if e["id"] == event["undoes"]), None)
     if target is None:
         return f"unknown undoes {event['undoes']!r}"
     if target["author"] != "user":
         return f"{target['kind']} {target['id']} is not the reader's own gesture"
-    if target["kind"] not in UNDOABLE_KINDS:
+    if target["kind"] in MESSAGE_KINDS:
+        if not is_reaction(target):
+            return (
+                f"{target['kind']} {target['id']} is not a reaction; a message "
+                "with words in it is said rather than unsaid"
+            )
+        thread = next(
+            t
+            for t in build_threads(events, {}).values()
+            if any(m["id"] == target["id"] for m in t["msgs"])
+        )
+        if any(m.get("parent") == target["id"] for m in spoken_turns(thread)):
+            return (
+                f"reaction {target['id']} has been answered; withdraw it in the "
+                "thread the answer opened"
+            )
+        if thread["resolved"]:
+            return f"reaction {target['id']} stands on a resolved thread"
+    elif target["kind"] not in UNDOABLE_KINDS:
         return (
             f"{target['kind']} events cannot be taken back (the kinds that can "
-            f"are {', '.join(sorted(UNDOABLE_KINDS))})"
+            f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
         )
     if target["id"] in taken_back(events):
         return f"{target['id']} has already been taken back"
@@ -371,11 +414,13 @@ def build_threads(events: list, spk: dict) -> dict:
 
 
 def anchored_ids(events: list, spk: dict) -> set:
-    """Element ids an unresolved thread still points at."""
+    """Element ids an unresolved thread still points at. A reaction nobody has
+    answered is a mark and not a thread, so it holds no id: a reaction never
+    gates a version, and its anchor re-resolves or detaches like a comment's."""
     return {
         (t["root"].get("anchor") or {}).get("section")
         for t in build_threads(events, spk).values()
-        if not t["resolved"]
+        if not t["resolved"] and not bare_reaction(t)
     } - {None}
 
 
@@ -391,8 +436,14 @@ def awaits_agent(thread: dict) -> bool:
     Not the agent, rather than the reader: `author` is an open string on every message
     contract, and the two the code writes are `user` and `claude`. A line from anywhere
     else therefore reads as owed an answer, which is the direction to err in — an
-    unanswered word is invisible to everyone, while one answer too many costs a reply."""
-    return not thread["resolved"] and thread["msgs"][-1]["author"] != "claude"
+    unanswered word is invisible to everyone, while one answer too many costs a reply.
+
+    Turns, not marks: a reaction is a mark on a message rather than a word in the
+    conversation, so an `ok` the reader puts on the agent's answer does not hand the
+    thread back, and a reaction nobody has replied to is no conversation at all. The
+    runtime's `awaitsAgent` reads the same list for the same reason."""
+    said = spoken_turns(thread)
+    return not thread["resolved"] and bool(said) and said[-1]["author"] != "claude"
 
 
 def seat_root(thread: dict) -> str | None:
@@ -600,6 +651,10 @@ MESSAGE_FIELDS = (
     "author",
     "agent",
     "text",
+    # A reaction says its word where a comment says its text, so a thread that
+    # grew out of a mark reads as the mark it started from rather than as a
+    # message with nothing in it.
+    "token",
     "markup",
     "suggestion",
     "edited",

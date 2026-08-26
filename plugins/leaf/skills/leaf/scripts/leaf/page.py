@@ -5,7 +5,13 @@ import sys
 from pathlib import Path
 
 from .data import page_data_binding_inventory, read_data
-from .events import build_threads, seats_with_agent, thread_digest
+from .events import (
+    bare_reaction,
+    build_threads,
+    is_reaction,
+    seats_with_agent,
+    thread_digest,
+)
 from .files import list_versions, published_versions, version_path
 from .http import presence
 from .passages import page_passages
@@ -17,7 +23,7 @@ from .projection import (
     record_lag_entries,
     thread_asks,
 )
-from .registry import require_registry
+from .registry import described, require_registry
 from .schema import GUIDANCE_DIR
 from .service import PageTransaction, running_server, unacknowledged
 from .structure import parse_version
@@ -57,6 +63,13 @@ CATALOG_FACTS = (
     (
         "$series",
         "The categorical steps a chart's series are painted in, and how many there are.",
+    ),
+    (
+        "$reactions",
+        (
+            "The one-press reactions a reader can put on a passage, an element, a "
+            "message, or the page — each `token`'s glyph, meaning, and effect."
+        ),
     ),
     (
         "$idioms",
@@ -213,7 +226,32 @@ def _write_page_state(page_dir: Path, events: list) -> None:
         # the page up is in the position this reading exists for, and a count of
         # messages it cannot read tells it a conversation happened without
         # letting it answer one.
-        "threads": [thread_digest(t) for t in threads.values()],
+        # A reaction nobody has replied to opened no conversation: it is
+        # paint on the page, and stands under `reactions` below.
+        "threads": [thread_digest(t) for t in threads.values() if not bare_reaction(t)],
+        # Every reaction still standing — the agent-side reading of the marks
+        # the page paints, each explained (`means`) off this page's vocabulary.
+        # On the page (`anchor`, or none for the page whole) while its thread is
+        # unresolved; in a thread (`parent`) while that thread is open.
+        "reactions": [
+            described(
+                {
+                    "id": m["id"],
+                    "token": m["token"],
+                    "anchor": m.get("anchor"),
+                    "about": m.get("about"),
+                    "parent": m.get("parent"),
+                    "thread": root,
+                    "version": m.get("version"),
+                    "seq": m["seq"],
+                },
+                registry,
+            )
+            for root, t in threads.items()
+            if not t["resolved"]
+            for m in t["msgs"]
+            if is_reaction(m)
+        ],
         "lag": [],
     }
     if published:

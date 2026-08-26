@@ -4,8 +4,8 @@ export function createAim({
   inChrome,
   itemAt,
   openOnDesign,
-  openOnItem,
   openOnVisual,
+  raiseOnItem,
   pointerAt,
   refreshAim,
   spell,
@@ -146,7 +146,7 @@ export function createAim({
     ev.stopPropagation();
     if (ev.type !== "click") return;
     const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
-    if (aimedPress.item) openOnItem(aimedPress.item, from);
+    if (aimedPress.item) raiseOnItem(aimedPress.item, from);
     else if (aimedPress.visual) openOnVisual(aimedPress.visual, from);
     else if (aimedPress.design) openOnDesign(aimedPress.design, from);
   }

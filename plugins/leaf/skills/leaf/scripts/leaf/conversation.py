@@ -9,6 +9,7 @@ from leaf.files import latest_published, version_path
 from leaf.passages import capture_anchor
 from leaf.projection import decisions, page_projection, rewritten_bodies
 from leaf.registry import require_registry
+from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, contract_writer, message_identity
 from leaf.structure import parse_version
 from leaf.validation import (
@@ -77,7 +78,7 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+        known = {e["id"] for e in events if e["kind"] in MESSAGE_KINDS}
         if to not in known:
             sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
         if markup:
@@ -146,7 +147,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+        known = {e["id"] for e in events if e["kind"] in MESSAGE_KINDS}
         if to not in known:
             sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
         event = {

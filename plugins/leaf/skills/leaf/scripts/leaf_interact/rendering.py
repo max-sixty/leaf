@@ -365,7 +365,7 @@ def _render_version_attempt(
             # deliberately returns none there. Everywhere else, ask the merged registry
             # for the instances and the module's own marker for the host it placed.
             missing_conversations = page.evaluate(
-                """(widgets) => import('/leaf.js').then(leaf =>
+                """(widgets) => import('/runtime/widget-api.js').then(leaf =>
                     Object.entries(widgets)
                         .filter(([, entry]) => entry['x-conversation'])
                         .flatMap(([tag, entry]) => [...document.querySelectorAll(tag)]

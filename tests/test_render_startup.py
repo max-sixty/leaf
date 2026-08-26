@@ -57,6 +57,39 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_widget_api_selects_registry_helpers_from_their_owner(browser, serve):
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    exports = page.evaluate(
+        """async () => {
+          const api = await import('/runtime/widget-api.js');
+          const entry = await import('/leaf.js');
+          const names = [
+            'closestDeclaring',
+            'declarationFor',
+            'elementsDeclaring',
+            'layerFact',
+            'matchesWhen',
+          ];
+          return Object.fromEntries(names.map((name) => [name, {
+            api: typeof api[name],
+            entry: name in entry,
+          }]));
+        }"""
+    )
+    assert exports == {
+        name: {"api": "function", "entry": False}
+        for name in [
+            "closestDeclaring",
+            "declarationFor",
+            "elementsDeclaring",
+            "layerFact",
+            "matchesWhen",
+        ]
+    }
+    assert errors == []
+    page.close()
+
+
 def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     """Acquiring web storage can itself throw before any method is called.
 

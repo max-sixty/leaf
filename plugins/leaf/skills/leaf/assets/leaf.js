@@ -168,10 +168,6 @@ import { createAnchors } from "./runtime/anchors.js";
 import { createConversation } from "./runtime/conversation.js";
 import { createPassages } from "./runtime/passages.js";
 import {
-  closestDeclaring,
-  declarationFor,
-  elementsDeclaring,
-  layerFact,
   matchesWhen,
   registry,
   tagsDeclaring,
@@ -193,8 +189,6 @@ import {
   versionUrl,
 } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
-
-export { closestDeclaring, declarationFor, elementsDeclaring, layerFact, matchesWhen };
 
 // ---------- widget layer ----------
 

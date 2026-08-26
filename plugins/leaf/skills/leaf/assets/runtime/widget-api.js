@@ -5,5 +5,12 @@
    contains most helper implementations; its reexport is temporary until those
    implementations move to their owners. */
 export * from "../leaf.js";
+export {
+  closestDeclaring,
+  declarationFor,
+  elementsDeclaring,
+  layerFact,
+  matchesWhen,
+} from "./registry.js";
 export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";

@@ -1,4 +1,4 @@
-"""Click declarations for the public ``interact.py`` command facade."""
+"""Click declarations and production command wiring."""
 
 import json
 import sys
@@ -6,51 +6,29 @@ from pathlib import Path
 
 import click
 
+from leaf_interact.checking import cmd_check
+from leaf_interact.conversation import cmd_comment, cmd_reply, cmd_report, cmd_resolve
+from leaf_interact.hooks import cmd_hook, unanswered_asks
+from leaf_interact.hosting import cmd_serve, cmd_stop, start_server
+from leaf_interact.layer import cmd_init, cmd_package_check, cmd_package_init
+from leaf_interact.media import cmd_media
+from leaf_interact.page import cmd_catalog, cmd_guidance, cmd_page_state
+from leaf_interact.publishing import cmd_publish
+from leaf_interact.rendering import cmd_export
+from leaf_interact.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
+from leaf_interact.service import (
+    PageTransaction,
+    host_identity,
+    restore_page_claim,
+    take_page_claim,
+    unacknowledged,
+)
+from leaf_interact.session import cmd_ack, cmd_status, cmd_wait
+from leaf_interact.transcript import cmd_events, cmd_transcript
 
-def create_cli(api):
-    """Build commands against a live facade namespace.
 
-    Looking each implementation up at invocation time preserves the executable
-    facade as the integration seam for hosts and tests.
-    """
-
-    def relay(name):
-        def call(*args, **kwargs):
-            return api[name](*args, **kwargs)
-
-        return call
-
-    ACK_BATCH_INSTRUCTION = api["ACK_BATCH_INSTRUCTION"]
-    ANSWER_ASK_INSTRUCTION = api["ANSWER_ASK_INSTRUCTION"]
-    PageTransaction = relay("PageTransaction")
-    cmd_ack = relay("cmd_ack")
-    cmd_catalog = relay("cmd_catalog")
-    cmd_check = relay("cmd_check")
-    cmd_comment = relay("cmd_comment")
-    cmd_events = relay("cmd_events")
-    cmd_export = relay("cmd_export")
-    cmd_guidance = relay("cmd_guidance")
-    cmd_hook = relay("cmd_hook")
-    cmd_init = relay("cmd_init")
-    cmd_media = relay("cmd_media")
-    cmd_package_check = relay("cmd_package_check")
-    cmd_package_init = relay("cmd_package_init")
-    cmd_page_state = relay("cmd_page_state")
-    cmd_publish = relay("cmd_publish")
-    cmd_reply = relay("cmd_reply")
-    cmd_report = relay("cmd_report")
-    cmd_resolve = relay("cmd_resolve")
-    cmd_serve = relay("cmd_serve")
-    cmd_status = relay("cmd_status")
-    cmd_stop = relay("cmd_stop")
-    cmd_transcript = relay("cmd_transcript")
-    cmd_wait = relay("cmd_wait")
-    host_identity = relay("host_identity")
-    restore_page_claim = relay("restore_page_claim")
-    start_server = relay("start_server")
-    take_page_claim = relay("take_page_claim")
-    unacknowledged = relay("unacknowledged")
-    unanswered_asks = relay("unanswered_asks")
+def create_cli():
+    """Build the command tree from the concrete application owners."""
 
     def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
         page_dir = Path(dir_arg).expanduser().resolve()

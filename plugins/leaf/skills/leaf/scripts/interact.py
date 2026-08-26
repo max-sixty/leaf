@@ -843,7 +843,7 @@ from leaf_interact.session import (  # noqa: F401 - public facade re-exports
 )
 
 at = _validation_at
-_cli_surface = create_cli(globals())
+_cli_surface = create_cli()
 globals().update(_cli_surface)
 cli = _cli_surface["cli"]
 

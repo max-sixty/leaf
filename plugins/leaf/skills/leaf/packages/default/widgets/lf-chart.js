@@ -131,6 +131,12 @@ function readAxis(labels) {
   return { type: "band", values: labels };
 }
 
+/* The room one line of the drawing's own words takes, as a multiple of its font size. It
+ * reserves the margins a label stands in and sets the leading between the two tiers of a
+ * dated tick, so a line the axis writes and a line the margin was measured for are the
+ * same height. */
+const LEADING = 1.35;
+
 const ruler = document.createElement("canvas").getContext("2d");
 function textWidth(strings, font) {
   ruler.font = font;
@@ -446,6 +452,28 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
   throw new Error(`no such chart kind: ${kind}`);
 }
 
+/* A tick label written on more than one line, set at the leading the rest of the widget
+ * reserves its lines at. A dated axis comes out in two tiers — the day, and under it the
+ * month it opens — and Plot sets those solid: a bare `1em` between the baselines, which is
+ * less room than a line of that font takes. The month's ascenders therefore stand inside
+ * the day's descender space, which is a smudge to the reader and words drawn over each
+ * other to the render gate. Plot has a `lineHeight` for this, and the implicit axis cannot
+ * be given one: an axis inferred from the scale takes a fixed list of options, and text
+ * options are not on it. Stating an explicit axis mark instead means restating every tick
+ * and label option beside it, which is a second place for the two to disagree — so the
+ * offsets are restated on the drawing, where there is only ever one of them.
+ *
+ * Only the lines under the first move. Plot's own `lineHeight` would push the first line
+ * down too, on every label including the single-line ones, so the whole axis would sit
+ * lower for the sake of the three ticks that carry a month; leaving it alone keeps a
+ * tiered tick's day on the baseline its plain neighbours are written on. */
+function setLeading(svg) {
+  for (const line of svg.querySelectorAll("tspan[dy]")) {
+    const dy = parseFloat(line.getAttribute("dy")); // Plot writes these in em
+    if (Number.isFinite(dy)) line.setAttribute("dy", `${dy * LEADING}em`);
+  }
+}
+
 /* How far the drawing's own words fall outside it, which is a question only the browser can
  * answer. The margins above are an estimate from the data, and the ticks are not the data:
  * Plot rounds a domain outwards, groups thousands, and for a domain with no extent at all
@@ -583,7 +611,7 @@ customElements.define(
         axis,
         width: Math.round(this.clientWidth),
         font,
-        line: Math.round(parseFloat(font) * 1.35),
+        line: Math.round(parseFloat(font) * LEADING),
         held: this.held,
       };
       let built = this.show(Plot, spec, { left: 0, right: 0, top: 0, bottom: 0 });
@@ -621,6 +649,9 @@ customElements.define(
 
     show(Plot, spec, grow) {
       const built = build(Plot, { ...spec, grow });
+      // Before the drawing is read: the leading decides how far a tiered label falls below
+      // the frame, and the overhang correction that follows measures exactly that.
+      setLeading(built);
       this.drawing.replaceChildren(built);
       return built;
     }

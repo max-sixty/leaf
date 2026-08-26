@@ -31,6 +31,7 @@ owners. It temporarily reexports helpers still implemented by the entry module.
 `runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
 and selection-composer state;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
+`runtime/data.js` owns widget source-contract subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;

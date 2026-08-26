@@ -1,0 +1,48 @@
+import { runtime } from "./context.js";
+import { registry } from "./registry.js";
+
+// A source value remains the server snapshot's to own. Subscribers name one input on
+// their own widget; the declaration supplies its contract and the attribute where this
+// page bound a concrete source. They receive a fresh JSON clone immediately, then
+// whenever state asks subscribers to restate their reading, so a module cannot mutate
+// the private accepted snapshot and a newly activated seat need not wait for the next
+// poll.
+// `projectData` remains the rendering boundary: this helper delivers records but writes no
+// DOM and keeps no widget-specific cache.
+export function watchData(element, input, callback) {
+  if (!(element instanceof Element))
+    throw new TypeError("watchData element must be a widget element");
+  if (typeof input !== "string" || !input)
+    throw new TypeError("watchData input must be a non-empty string");
+  if (typeof callback !== "function")
+    throw new TypeError(
+      `watchData(${element.localName}, ${input}) callback must be a function`,
+    );
+  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  if (!declaration)
+    throw new Error(
+      `watchData(${element.localName}, ${input}) input is not declared by this widget`,
+    );
+  // Markup owns the binding. Capture it at mount so module code cannot turn a live
+  // attribute mutation into an unvalidated rebind. Version activation mounts a new
+  // element and therefore establishes a new subscription when authored markup changes.
+  const source = element.getAttribute(declaration.source);
+  const update = () => {
+    if (!source) {
+      callback(null);
+      return;
+    }
+    const present = Object.hasOwn(runtime.data.sources, source);
+    if (present && runtime.data.sources[source].contract !== declaration.contract)
+      throw new Error(
+        `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
+          `but source ${source} carries ${runtime.data.sources[source].contract}`,
+      );
+    callback(present ? structuredClone(runtime.data.sources[source]) : null);
+  };
+  // Establish the subscription only after its first delivery succeeds. A package that
+  // throws while mounting must not leave a listener behind to fail every later poll.
+  update();
+  document.addEventListener("lf-data", update);
+  return () => document.removeEventListener("lf-data", update);
+}

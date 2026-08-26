@@ -38,7 +38,8 @@ highlight rules;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
-`runtime/projection.js` owns declaration-driven state folding and
+`runtime/projection/authored.js` owns captured authored state and restore
+statements; `runtime/projection.js` owns declaration-driven state folding and
 reconciliation. The entry module composes their mutually dependent callbacks.
 TODO: Move the remaining helper implementations to their runtime owners so
 `widget-api.js` no longer reexports the entry module and `leaf.js` becomes

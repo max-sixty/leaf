@@ -446,7 +446,9 @@ prose enumeration.
   about as long as main's landing cadence, so re-running it forfeits the race as
   often as it wins, and it is the branch being tested rather than the merge. CI
   runs the same suite on every push to main, which is where a skipped hook is
-  recovered.
+  recovered. Finish with `git push origin main:main`: `wt merge` fast-forwards
+  the local branch and stops there, and its `✗ Can't push to local main branch`
+  names that fast-forward failing rather than a remote refusing.
 - Sessions load host caches, not the checkout. Both marketplaces install from
   GitHub main. Claude Code keys an unversioned manifest by commit and updates on
   its marketplace sweep. Codex requires

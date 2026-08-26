@@ -64,6 +64,7 @@ from render_support import (
     leaf_page,
     live_url,
     open_page,
+    opened_tab,
     page_registry,
     painted,
     panel_settled,
@@ -2397,9 +2398,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve):
     # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
     # gesture and lets Playwright spell it. Named outright, the Linux press opened
     # nothing at all and the wait for the tab ran its full 30s before saying so.
-    with page.context.expect_page() as opened:
-        live.click(modifiers=["ControlOrMeta"])
-    tab = opened.value
+    tab = opened_tab(page, lambda: live.click(modifiers=["ControlOrMeta"]))
     tab.wait_for_function(BOTH_STAMPS)
     tab.wait_for_function(
         """() => { const r = document.getElementById('p-bath').getBoundingClientRect();

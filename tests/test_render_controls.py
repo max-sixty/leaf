@@ -93,6 +93,7 @@ from render_support import (
     live_watcher,
     mark_edges,
     open_page,
+    opened_tab,
     page_at_rest,
     page_registry,
     panel_settled,
@@ -1527,12 +1528,11 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
         f"The other leaf\n{tmp_path / 'other-work'}\nWorking — running the suite",
     )
     destination = link.get_attribute("href")
-    with page.context.expect_page() as opened:
-        link.click()
+    tab = opened_tab(page, link.click)
     # The new tab keeps the other page's live root, authorized by the key its link
     # carried, rather than being redirected onto one immutable version.
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
-    expect(opened.value).to_have_url(destination)
+    expect(tab).to_have_url(destination)
     # The press left this tab alone, tray still standing.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
@@ -1706,10 +1706,9 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     # Enter is the browser's own on a link, which is why the row is one.
     page.keyboard.press("ArrowDown")
     destination = rows.nth(1).get_attribute("href")
-    with page.context.expect_page() as opened:
-        page.keyboard.press("Enter")
+    tab = opened_tab(page, lambda: page.keyboard.press("Enter"))
     assert destination is not None and destination.startswith(f"{other_url}/?t=")
-    expect(opened.value).to_have_url(destination)
+    expect(tab).to_have_url(destination)
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
     # Closing while focus is inside would drop the reader on the body; it lands on

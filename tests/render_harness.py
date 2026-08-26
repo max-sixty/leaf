@@ -1026,6 +1026,56 @@ def open_page(
     return page, errors
 
 
+def opened_tab(page, press, tries=3, each=10_000):
+    """The tab a press opens, pressed again when the harness loses the one Chromium made.
+
+    Chromium makes the tab every time. After a press whose tab never arrives,
+    `Target.getTargets` holds a second page target in this browser context — attached,
+    loaded, titled, sitting at the href the press named — while `context.pages` still
+    holds one, and it stays that way for the life of the page: the targets pile up press
+    after press and Playwright reports none of them. So `expect_page` spends its whole
+    timeout waiting on a tab that already exists, and the test reads as though the press
+    had opened nothing.
+
+    A driver that loses the handle is not a page state a route can arrange, and there is
+    no second channel to reach an unreported tab through, so the press is made again
+    rather than waited on longer. This is instrument repair, not tolerance for a flaky
+    subject: the press itself is deterministic — the loss reaches every chord, though not
+    at one rate: 3, 10 and 1 of 60 presses lost for ⌃-click, ⌃⇧-click and ⇧-click on a
+    loaded machine — so a runtime that stopped leaving a real href for the platform to act
+    on opens no tab for any of the tries, and the last one says which wait went unanswered.
+
+    A press whose tab is lost still leaves that tab loaded and polling its server, and no
+    caller can close what it was never handed. A test that closes the tab it receives is
+    closing only the try that was reported; the rest stand until context teardown. That is
+    the standing cost of the repeat, not a leak to chase.
+
+    A press that refuses outright — an anchor hidden, covered, or disabled, the shape a
+    runtime regression takes — raises its own timeout from inside the wait, and Playwright's
+    `EventContextManager.__exit__` cancels the wait and lets it through. Repeating that
+    press would be exactly the tolerance this helper is not, so it is caught where it is
+    raised and named as the subject's refusal.
+    """
+    for attempt in range(tries):
+        try:
+            with page.context.expect_page(timeout=each) as opened:
+                try:
+                    press()
+                except PlaywrightTimeout as refused:
+                    raise AssertionError(
+                        "the press timed out before any tab could open: the subject "
+                        "refused the gesture, which is not the loss this repeats for"
+                    ) from refused
+            return opened.value
+        except PlaywrightTimeout as lost:
+            if attempt == tries - 1:
+                raise AssertionError(
+                    f"no tab after {tries} presses waiting {each}ms each: either the "
+                    "press stopped leaving a real href, or Chromium holds a target "
+                    "Playwright never reported"
+                ) from lost
+
+
 def primed(browser, prepare):
     """A browser whose pages reach the product with the suite's hands already on them.
 

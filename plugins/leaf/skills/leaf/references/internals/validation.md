@@ -53,5 +53,5 @@ parser for that language: _StructParser for what the markup declares,
 page_passages for what it says, tinycss2 for the CSS a <style> block holds. A
 new question about a version becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something
-adjacent to the question asked — `leaf_interact.styles._overwide_elements`
+adjacent to the question asked — `leaf.styles._overwide_elements`
 carries the evidence of that cost.

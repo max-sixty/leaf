@@ -5,11 +5,11 @@ import json
 import time
 
 import pytest
-from leaf_interact import events as events_model
-from leaf_interact import render_checks as render_checks_model
-from leaf_interact import rendering as rendering_model
-from leaf_interact import schema as schema_model
-from leaf_interact import validation as validation_model
+from leaf import events as events_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
+from leaf import validation as validation_model
 from playwright.sync_api import expect
 from render_support import (
     ARRANGE,

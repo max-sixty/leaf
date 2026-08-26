@@ -5,9 +5,9 @@ import re
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
-from leaf_interact import events as events_model
-from leaf_interact import passages as passages_model
-from leaf_interact import registry as registry_model
+from leaf import events as events_model
+from leaf import passages as passages_model
+from leaf import registry as registry_model
 from playwright.sync_api import expect
 from render_support import (
     ASTRAL_PAGE,

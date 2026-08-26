@@ -13,8 +13,8 @@ from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
-from leaf_interact.files import file_stamp, read_json
-from leaf_interact.schema import (
+from leaf.files import file_stamp, read_json
+from leaf.schema import (
     ASSETS,
     ATTRIBUTE_KEYS,
     DATA_CONTRACT_NAME,

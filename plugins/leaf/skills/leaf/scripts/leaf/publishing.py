@@ -4,14 +4,14 @@ import json
 import sys
 from pathlib import Path
 
-from leaf_interact.checking import cmd_check
-from leaf_interact.events import append_event, standing_work_claims, work_claim_version
-from leaf_interact.files import version_name, version_path
-from leaf_interact.projection import folded_facet, markup_facet, page_projection
-from leaf_interact.registry import load_registry
-from leaf_interact.service import PageTransaction, contract_writer, message_identity
-from leaf_interact.validation import read_text_arg
-from leaf_interact.work import widget_work_without_seats
+from leaf.checking import cmd_check
+from leaf.events import append_event, standing_work_claims, work_claim_version
+from leaf.files import version_name, version_path
+from leaf.projection import folded_facet, markup_facet, page_projection
+from leaf.registry import load_registry
+from leaf.service import PageTransaction, contract_writer, message_identity
+from leaf.validation import read_text_arg
+from leaf.work import widget_work_without_seats
 
 
 @contract_writer

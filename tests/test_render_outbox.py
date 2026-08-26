@@ -5,8 +5,8 @@ import math
 import re
 
 import pytest
-from leaf_interact import events as events_model
-from leaf_interact import schema as schema_model
+from leaf import events as events_model
+from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     BOARD_PAGE,

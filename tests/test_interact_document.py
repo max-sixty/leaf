@@ -31,18 +31,18 @@ from interact_support import (
     state_json,
     suggest,
 )
-from leaf_interact import cli as cli_model
-from leaf_interact import conversation as conversation_model
-from leaf_interact import data as data_model
-from leaf_interact import events as events_model
-from leaf_interact import files as files_model
-from leaf_interact import layer as layer_model
-from leaf_interact import passages as passages_model
-from leaf_interact import publishing as publishing_model
-from leaf_interact import schema as schema_model
-from leaf_interact import service as service_model
-from leaf_interact import structure as structure_model
-from leaf_interact import validation as validation_model
+from leaf import cli as cli_model
+from leaf import conversation as conversation_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import layer as layer_model
+from leaf import passages as passages_model
+from leaf import publishing as publishing_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf import validation as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):

@@ -18,10 +18,10 @@ from interact_support import (
     state_json,
     suggested,
 )
-from leaf_interact import checking as checking_model
-from leaf_interact import cli as cli_model
-from leaf_interact import events as events_model
-from leaf_interact import hooks as hooks_model
+from leaf import checking as checking_model
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import hooks as hooks_model
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):

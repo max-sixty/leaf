@@ -9,10 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
-from leaf_interact.files import read_json
-from leaf_interact.passages import EMPTY
-from leaf_interact.schema import UNDOABLE_KINDS
-from leaf_interact.structure import parse_structure
+from leaf.files import read_json
+from leaf.passages import EMPTY
+from leaf.schema import UNDOABLE_KINDS
+from leaf.structure import parse_structure
 
 try:
     import fcntl

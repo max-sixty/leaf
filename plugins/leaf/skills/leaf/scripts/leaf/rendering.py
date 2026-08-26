@@ -10,15 +10,15 @@ import threading
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
-from leaf_interact.data import read_data
-from leaf_interact.events import flocked, read_events
-from leaf_interact.files import published_versions, version_name, version_num
-from leaf_interact.hosting import LeafHTTPServer
-from leaf_interact.http import handler_for
-from leaf_interact.passages import EMPTY, spoken
-from leaf_interact.projection import decisions, page_projection, retirement_holders
-from leaf_interact.registry import retirement_slots
-from leaf_interact.render_checks import (
+from leaf.data import read_data
+from leaf.events import flocked, read_events
+from leaf.files import published_versions, version_name, version_num
+from leaf.hosting import LeafHTTPServer
+from leaf.http import handler_for
+from leaf.passages import EMPTY, spoken
+from leaf.projection import decisions, page_projection, retirement_holders
+from leaf.registry import retirement_slots
+from leaf.render_checks import (
     BAKE,
     CLIPPED_CONTROLS,
     COVERED_WORDS,
@@ -39,10 +39,10 @@ from leaf_interact.render_checks import (
     UNREAD_SYNTAX,
     WITHHELD_ROOM,
 )
-from leaf_interact.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
-from leaf_interact.service import transition_lock
-from leaf_interact.structure import parse_structure
-from leaf_interact.validation import thread_universe
+from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
+from leaf.service import transition_lock
+from leaf.structure import parse_structure
+from leaf.validation import thread_universe
 
 # ---------- check --render: the browser half of the gate ----------
 

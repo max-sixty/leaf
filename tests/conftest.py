@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from leaf_interact import service as service_model
+from leaf import service as service_model
 from playwright.sync_api import sync_playwright
 
 INTERACT_SCRIPT = (

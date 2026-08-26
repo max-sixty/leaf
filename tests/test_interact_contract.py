@@ -47,20 +47,20 @@ from interact_support import (
     trial_version,
     widget_entry,
 )
-from leaf_interact import cli as cli_model
-from leaf_interact import conversation as conversation_model
-from leaf_interact import data as data_model
-from leaf_interact import events as events_model
-from leaf_interact import http as http_model
-from leaf_interact import layer as layer_model
-from leaf_interact import media as media_model
-from leaf_interact import passages as passages_model
-from leaf_interact import registry as registry_model
-from leaf_interact import rendering as rendering_model
-from leaf_interact import schema as schema_model
-from leaf_interact import service as service_model
-from leaf_interact import structure as structure_model
-from leaf_interact import styles as styles_model
+from leaf import cli as cli_model
+from leaf import conversation as conversation_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import http as http_model
+from leaf import layer as layer_model
+from leaf import media as media_model
+from leaf import passages as passages_model
+from leaf import registry as registry_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf import styles as styles_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):

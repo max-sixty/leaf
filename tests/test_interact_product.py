@@ -24,16 +24,16 @@ from interact_support import (
     publish,
     published,
 )
-from leaf_interact import checking as checking_model
-from leaf_interact import cli as cli_model
-from leaf_interact import data as data_model
-from leaf_interact import events as events_model
-from leaf_interact import files as files_model
-from leaf_interact import layer as layer_model
-from leaf_interact import registry as registry_model
-from leaf_interact import schema as schema_model
-from leaf_interact import service as service_model
-from leaf_interact import validation as validation_model
+from leaf import checking as checking_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import layer as layer_model
+from leaf import registry as registry_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import validation as validation_model
 
 
 def test_versions_publish_only_once_noted(page_dir):

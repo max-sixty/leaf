@@ -39,19 +39,19 @@ from interact_support import (
     start_through_the_launcher,
     state_json,
 )
-from leaf_interact import cli as cli_model
-from leaf_interact import conversation as conversation_model
-from leaf_interact import events as events_model
-from leaf_interact import files as files_model
-from leaf_interact import hooks as hooks_model
-from leaf_interact import hosting as hosting_model
-from leaf_interact import http as http_model
-from leaf_interact import layer as layer_model
-from leaf_interact import registry as registry_model
-from leaf_interact import schema as schema_model
-from leaf_interact import service as service_model
-from leaf_interact import session as session_model
-from leaf_interact import validation as validation_model
+from leaf import cli as cli_model
+from leaf import conversation as conversation_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import hooks as hooks_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import layer as layer_model
+from leaf import registry as registry_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
+from leaf import validation as validation_model
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -2485,7 +2485,7 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     )
     fcntl.flock(comments, fcntl.LOCK_EX)
     probe = """\
-from leaf_interact import service as service_model
+from leaf import service as service_model
 
 original_flocked = service_model.flocked
 comments = Path(os.environ["COMMENTS"]).resolve()
@@ -2705,8 +2705,8 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     old_script.parent.mkdir(parents=True)
     old_script.write_text(Path(INTERACT_SCRIPT).read_text())
     shutil.copytree(
-        Path(INTERACT_SCRIPT).parent / "leaf_interact",
-        old_script.parent / "leaf_interact",
+        Path(INTERACT_SCRIPT).parent / "leaf",
+        old_script.parent / "leaf",
     )
     shutil.copytree(schema_model.ASSETS, old_skill / "assets")
     old_registry = files_model.read_json(page_dir / "registry.json")

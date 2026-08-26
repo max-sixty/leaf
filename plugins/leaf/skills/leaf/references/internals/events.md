@@ -63,7 +63,7 @@ under that name has been through the gate.
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes
 the anchor from the selection; `leaf comment` writes its file-confirmable form
-from a quote by reading authored HTML through `leaf_interact.passages`. The
+from a quote by reading authored HTML through `leaf.passages`. The
 browser's anchor pass applies the matching rules to the DOM. Projected data has
 no file-side value to quote: its browser anchor
 adds the projection's section and datum key, and a CLI comment can still name the

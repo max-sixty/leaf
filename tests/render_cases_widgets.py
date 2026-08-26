@@ -1,7 +1,7 @@
 """Shared widgets browser-integration cases and readings."""
 
-from leaf_interact import passages as passages_model
-from leaf_interact import registry as registry_model
+from leaf import passages as passages_model
+from leaf import registry as registry_model
 from render_harness import (
     leaf_page,
 )

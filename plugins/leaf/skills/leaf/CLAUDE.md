@@ -1968,8 +1968,8 @@ and finite motion boundary, reads screen and print, and reapplies standing state
 A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
-The JavaScript readings owned by `leaf_interact/render_checks.py` and composed
-by `leaf_interact/rendering.py` each answer one failure class:
+The JavaScript readings owned by `leaf/render_checks.py` and composed
+by `leaf/rendering.py` each answer one failure class:
 
 | Reading | Contract |
 | --- | --- |

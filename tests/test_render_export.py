@@ -4,9 +4,9 @@ import itertools
 
 import pytest
 from click.testing import CliRunner
-from leaf_interact import cli as cli_model
-from leaf_interact import render_checks as render_checks_model
-from leaf_interact import rendering as rendering_model
+from leaf import cli as cli_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     EXAMPLES,

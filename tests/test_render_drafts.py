@@ -6,9 +6,9 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from leaf_interact import cli as cli_model
-from leaf_interact import events as events_model
-from leaf_interact import session as session_model
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (

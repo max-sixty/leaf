@@ -8,12 +8,12 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from leaf_interact import cli as cli_model
-from leaf_interact import events as events_model
-from leaf_interact import files as files_model
-from leaf_interact import render_checks as render_checks_model
-from leaf_interact import rendering as rendering_model
-from leaf_interact import schema as schema_model
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,

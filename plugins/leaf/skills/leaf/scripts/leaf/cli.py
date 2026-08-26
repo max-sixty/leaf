@@ -6,26 +6,26 @@ from pathlib import Path
 
 import click
 
-from leaf_interact.checking import cmd_check
-from leaf_interact.conversation import cmd_comment, cmd_reply, cmd_report, cmd_resolve
-from leaf_interact.data import cmd_data_clear, cmd_data_set
-from leaf_interact.hooks import cmd_hook, unanswered_asks
-from leaf_interact.hosting import cmd_serve, cmd_stop, start_server
-from leaf_interact.layer import cmd_init, cmd_package_check, cmd_package_init
-from leaf_interact.media import cmd_media
-from leaf_interact.page import cmd_catalog, cmd_guidance, cmd_page_state
-from leaf_interact.publishing import cmd_publish
-from leaf_interact.rendering import cmd_export
-from leaf_interact.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
-from leaf_interact.service import (
+from leaf.checking import cmd_check
+from leaf.conversation import cmd_comment, cmd_reply, cmd_report, cmd_resolve
+from leaf.data import cmd_data_clear, cmd_data_set
+from leaf.hooks import cmd_hook, unanswered_asks
+from leaf.hosting import cmd_serve, cmd_stop, start_server
+from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
+from leaf.media import cmd_media
+from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
+from leaf.publishing import cmd_publish
+from leaf.rendering import cmd_export
+from leaf.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
+from leaf.service import (
     PageTransaction,
     host_identity,
     restore_page_claim,
     take_page_claim,
     unacknowledged,
 )
-from leaf_interact.session import cmd_ack, cmd_status, cmd_wait
-from leaf_interact.transcript import cmd_events, cmd_transcript
+from leaf.session import cmd_ack, cmd_status, cmd_wait
+from leaf.transcript import cmd_events, cmd_transcript
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:

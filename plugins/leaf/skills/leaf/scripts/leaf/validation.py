@@ -4,16 +4,11 @@ import re
 import sys
 from pathlib import Path
 
-from leaf_interact.data import data_binding_errors, read_data_store
-from leaf_interact.events import (
-    build_threads,
-    thread_roots,
-    thread_structure,
-    thread_widgets,
-)
-from leaf_interact.files import list_versions, version_path
-from leaf_interact.passages import EMPTY, collapse, page_passages, spoken
-from leaf_interact.projection import (
+from leaf.data import data_binding_errors, read_data_store
+from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
+from leaf.files import list_versions, version_path
+from leaf.passages import EMPTY, collapse, page_passages, spoken
+from leaf.projection import (
     NO_RECORD,
     StateProjection,
     action_subjects,
@@ -29,7 +24,7 @@ from leaf_interact.projection import (
     state_projection,
     thread_ask_projection,
 )
-from leaf_interact.registry import (
+from leaf.registry import (
     RegistryError,
     json_validator,
     merge_layer_entries,
@@ -38,14 +33,14 @@ from leaf_interact.registry import (
     retirement_slots,
     validate_registry,
 )
-from leaf_interact.structure import (
+from leaf.structure import (
     OPTIONAL_END,
     SECTIONING_TAGS,
     _StructParser,
     parse_structure,
     parse_version,
 )
-from leaf_interact.styles import inline_presentation_override_errors
+from leaf.styles import inline_presentation_override_errors
 
 
 def thread_universe(events: list, registry: dict):

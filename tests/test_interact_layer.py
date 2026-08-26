@@ -20,13 +20,13 @@ from interact_support import (
     record_claim,
     widget_entry,
 )
-from leaf_interact import cli as cli_model
-from leaf_interact import events as events_model
-from leaf_interact import files as interact_files
-from leaf_interact import hooks as hooks_model
-from leaf_interact import layer as layer_model
-from leaf_interact import schema as schema_model
-from leaf_interact import service as service_model
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import files as interact_files
+from leaf import hooks as hooks_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf import service as service_model
 
 
 @pytest.mark.parametrize(

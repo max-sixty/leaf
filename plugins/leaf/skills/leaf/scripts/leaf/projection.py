@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import NamedTuple
 
-from leaf_interact.events import (
+from leaf.events import (
     action_rests_on,
     action_retracted,
     anchored_ids,
@@ -14,9 +14,9 @@ from leaf_interact.events import (
     thread_roots,
     thread_structure,
 )
-from leaf_interact.passages import EMPTY, collapse, spoken
-from leaf_interact.registry import retirement_slots, state_specs
-from leaf_interact.structure import _StructParser, parse_structure
+from leaf.passages import EMPTY, collapse, spoken
+from leaf.registry import retirement_slots, state_specs
+from leaf.structure import _StructParser, parse_structure
 
 
 def canonical_updates(

@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
-from leaf_interact import events as events_model
+from leaf import events as events_model
 from render_harness import (
     EXAMPLES,
     TOKEN,

@@ -14,16 +14,16 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from conftest import INTERACT_SCRIPT
-from leaf_interact import cli as cli_model
-from leaf_interact import events as events_model
-from leaf_interact import files as files_model
-from leaf_interact import hosting as hosting_model
-from leaf_interact import http as http_model
-from leaf_interact import registry as registry_model
-from leaf_interact import render_checks as render_checks_model
-from leaf_interact import rendering as rendering_model
-from leaf_interact import schema as schema_model
-from leaf_interact import validation as validation_model
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import registry as registry_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
+from leaf import validation as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (

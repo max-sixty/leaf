@@ -28,16 +28,16 @@ from interact_support import (
     publish,
     record_claim,
 )
-from leaf_interact import cli as cli_model
-from leaf_interact import data as data_model
-from leaf_interact import events as event_model
-from leaf_interact import files as files_model
-from leaf_interact import hosting as hosting_model
-from leaf_interact import http as http_model
-from leaf_interact import publishing as publishing_model
-from leaf_interact import registry as registry_model
-from leaf_interact import schema as schema_model
-from leaf_interact import service as service_model
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import events as event_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import publishing as publishing_model
+from leaf import registry as registry_model
+from leaf import schema as schema_model
+from leaf import service as service_model
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):

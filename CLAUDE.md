@@ -37,7 +37,7 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
 
 - `scripts/interact.py` is the `uv` script and public CLI entrypoint for the server,
   event log, `version check`, vendoring, and export. Pure implementation domains
-  live beside it under `scripts/leaf_interact/`: `files` owns atomic file
+  live beside it under `scripts/leaf/`: `files` owns atomic file
   operations, `events` the append-only model, `service` host and process
   lifetime, `registry` the merged vocabulary, and `projection` the standing
   state derived from events. `validation` owns event, markup, and authored-page
@@ -119,7 +119,7 @@ re-vendoring; a new meaning requires a new source id.
 
 Detailed browser, widget, and theme rules live in
 `plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the
-facade and its `leaf_interact` domains; test rules live in `tests/CLAUDE.md`;
+facade and its `leaf` domains; test rules live in `tests/CLAUDE.md`;
 corpus rules live in `examples/CLAUDE.md`. The rules below cross those
 boundaries.
 
@@ -483,7 +483,7 @@ arrival regression.
 The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own
 runtime dependencies remain in `interact.py`'s PEP 723 header. Pytest adds
 `plugins/leaf/skills/leaf/scripts` to its import path, and tests import the
-`leaf_interact` owner modules directly, so the developer environment needs the
+`leaf` owner modules directly, so the developer environment needs the
 same packages.
 
 The everyday suite needs no network after setup and runs one shipped page through
@@ -534,7 +534,7 @@ worker so browser timing and output remain readable.
 
 `scripts/preview.py [example]` freshly vendors and serves a shipped example;
 `examples/CLAUDE.md` defines its fixtures. For another page, run `page init` and
-serve it in-process with `leaf_interact.http.handler_for(page_dir, token)` after
+serve it in-process with `leaf.http.handler_for(page_dir, token)` after
 adding `plugins/leaf/skills/leaf/scripts` to the Python import path, then open the
 key as `?t=…`. `server start` instead attaches a live page to the session and its
 hooks.

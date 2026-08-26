@@ -9,8 +9,8 @@ from pathlib import Path
 
 import click
 import pytest
-from leaf_interact import cli as cli_model
-from leaf_interact import schema as schema_model
+from leaf import cli as cli_model
+from leaf import schema as schema_model
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"

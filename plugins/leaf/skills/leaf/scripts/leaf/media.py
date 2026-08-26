@@ -4,7 +4,7 @@ import hashlib
 import sys
 from pathlib import Path
 
-from leaf_interact.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 
 
 def cmd_media(page_dir: Path, files: list) -> list:

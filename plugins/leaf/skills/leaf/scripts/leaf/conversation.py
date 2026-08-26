@@ -4,14 +4,14 @@ import json
 import sys
 from pathlib import Path
 
-from leaf_interact.events import append_event
-from leaf_interact.files import latest_published, version_path
-from leaf_interact.passages import capture_anchor
-from leaf_interact.projection import decisions, page_projection, rewritten_bodies
-from leaf_interact.registry import require_registry
-from leaf_interact.service import PageTransaction, contract_writer, message_identity
-from leaf_interact.structure import parse_version
-from leaf_interact.validation import (
+from leaf.events import append_event
+from leaf.files import latest_published, version_path
+from leaf.passages import capture_anchor
+from leaf.projection import decisions, page_projection, rewritten_bodies
+from leaf.registry import require_registry
+from leaf.service import PageTransaction, contract_writer, message_identity
+from leaf.structure import parse_version
+from leaf.validation import (
     check_markup,
     read_text_arg,
     report_contract_error,

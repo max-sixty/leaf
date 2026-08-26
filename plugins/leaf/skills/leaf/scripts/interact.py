@@ -4,7 +4,7 @@
 # dependencies = ["click>=8", "jsonschema>=4", "tinycss2>=1.4"]
 # ///
 
-from leaf_interact.cli import cli
+from leaf.cli import cli
 
 if __name__ == "__main__":
     # `leaf` is the name the skill hands an agent and the name on PATH, so it is

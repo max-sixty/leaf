@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import render_support
-from leaf_interact import rendering as rendering_model
+from leaf import rendering as rendering_model
 
 serve = render_support.serve
 

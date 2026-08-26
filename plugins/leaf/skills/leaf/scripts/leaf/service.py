@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from leaf_interact.events import (
+from leaf.events import (
     _append_event_unlocked,
     _matching_attempt,
     flocked,
@@ -21,8 +21,8 @@ from leaf_interact.events import (
     require_cross_process_locking,
     work_claim_version,
 )
-from leaf_interact.files import json_bytes, read_json, write_json
-from leaf_interact.schema import ORPHAN_GRACE_SECS
+from leaf.files import json_bytes, read_json, write_json
+from leaf.schema import ORPHAN_GRACE_SECS
 
 try:
     import fcntl

@@ -1210,6 +1210,37 @@ lf-shot .lf-shotpick input:focus-visible { outline: var(--here-ring);
   lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
 }
 
+/* lf-toc: the page's route, set as a quiet apparatus spine rather than another framed
+ * box in the argument. The links repeat headings as controls and stay under .lf-ui, so
+ * this rule gives that apparatus its deliberate compact voice. Depth is capped in the
+ * module because h6 is the deepest heading it reads; enumerating those five values keeps
+ * the indentation in the stylesheet rather than writing presentation into generated
+ * markup.
+ *
+ * The one-pixel sibling target is what leaves native fragment navigation behind in a
+ * standalone copy. Its negative end margin gives it no net height, while the real box
+ * lets the shared arrival pass align a copied link precisely rather than stopping as
+ * soon as a zero-height point enters the viewport. */
+lf-toc { display: block; margin: var(--sp-4) 0 30px; }
+lf-toc:empty { display: none; }
+lf-toc .lf-toc-nav { border-left: 1px solid var(--border-2);
+                     padding-left: var(--sp-3); color: var(--muted);
+                     font: var(--t-5)/1.4 var(--sans); }
+lf-toc .lf-toc-title { margin: 0 0 7px; color: var(--ink-2);
+                       font-size: var(--t-6); font-weight: 650;
+                       letter-spacing: .08em; text-transform: uppercase; }
+lf-toc ol { list-style: none; margin: 0; padding: 0; }
+lf-toc li { margin: 0; }
+lf-toc li[data-lf-depth="1"] { margin-left: 14px; }
+lf-toc li[data-lf-depth="2"] { margin-left: 28px; }
+lf-toc li[data-lf-depth="3"] { margin-left: 42px; }
+lf-toc li[data-lf-depth="4"] { margin-left: 56px; }
+lf-toc a { display: inline-block; padding: 3px 0; color: inherit;
+           text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+           text-underline-offset: 3px; }
+lf-toc a:hover { color: var(--accent); }
+.lf-toc-target { display: block; width: 1px; height: 1px; margin-bottom: -1px; }
+
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says

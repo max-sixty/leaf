@@ -234,7 +234,7 @@ UNREACHABLE_WORDS = """() => {
     // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
     // whose script is gone. The line counting a passage's comments is one of these too —
     // the runtime builds it through `offer`, as a widget builds its own.
-    const CONTROL = `${FORM}, label, [data-lf-offer]`;
+    const CONTROL = `${FORM}, label, a[href], [data-lf-offer]`;
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;

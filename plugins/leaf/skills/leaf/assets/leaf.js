@@ -213,6 +213,10 @@ import { createConversation } from "./runtime/conversation/reconcile.js";
 import { createPassages } from "./runtime/passages.js";
 import { createPresence } from "./runtime/presence.js";
 import { createUpdates } from "./runtime/updates.js";
+import {
+  captureVersionRoots,
+  createVersionActivation,
+} from "./runtime/version-activation.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
 import {
   MARKED_ANYWHERE,
@@ -250,32 +254,8 @@ async function undoLast(...args) {
   return runtimeProjection.undoLast(...args);
 }
 
-// The document roots may carry authored classes, data attributes, and inline custom
-// properties that page-local styles read. The live document also paints its own facts
-// onto those same two elements. Remember exactly the authored share before the runtime
-// writes anything so a version activation can replace that share without erasing the
-// presentation, layout, and mode facts the surviving runtime owns.
-const authoredAttributes = (root) =>
-  new Map([...root.attributes].map(({ name, value }) => [name, value]));
-let authoredHtmlAttributes = authoredAttributes(document.documentElement);
-let authoredBodyAttributes = authoredAttributes(document.body);
-const versionedHeadNode = (node) =>
-  !(
-    node.localName === "meta" &&
-    node.getAttribute("name") === "lf-version" &&
-    node.hasAttribute("data-lf-runtime")
-  ) &&
-  (node.localName === "title" ||
-    node.localName === "style" ||
-    node.localName === "base" ||
-    (node.localName === "meta" &&
-      (node.hasAttribute("name") || node.hasAttribute("property"))) ||
-    (node.localName === "link" &&
-      !(
-        node.rel === "stylesheet" &&
-        new URL(node.href, document.baseURI).pathname === "/theme.css"
-      )));
-let authoredHeadNodes = new Set([...document.head.children].filter(versionedHeadNode));
+// Capture the authored share before the runtime paints roots or appends head chrome.
+const versionRoots = captureVersionRoots();
 
 // A modal is promoted into the top layer and makes the rest of the document inert. Both
 // facts escape an ancestor paint gate: hiding it with CSS alone would still disable the
@@ -4148,134 +4128,26 @@ const { loadIcon, renderStatus, toneFor } = createBanner({
   statusText,
 });
 
-// ---------- live version activation ----------
-const versionDocuments = new Map();
-let activatingState = null;
-function versionDocument(version) {
-  if (versionDocuments.has(version)) return versionDocuments.get(version);
-  const name = versionUrl(version);
-  const loading = fetch(name)
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`couldn't load ${name} (${response.status})`);
-      const generation = response.headers.get("Leaf-Layer");
-      if (generation && !sameLayer(generation)) return null;
-      const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-      if (
-        !doc.querySelector("body > main") ||
-        doc.querySelectorAll("body > main").length !== 1
-      )
-        throw new Error(`${name} has no single authored main`);
-      return doc;
-    })
-    .catch((error) => {
-      versionDocuments.delete(version);
-      throw error;
-    });
-  versionDocuments.set(version, loading);
-  return loading;
-}
-
-function replaceAuthoredAttributes(target, source, prior) {
-  const scratch = document.createElement(target.localName);
-  for (const [name, value] of prior) scratch.setAttribute(name, value);
-  for (const name of prior.keys()) {
-    if (name === "class")
-      for (const token of scratch.classList) target.classList.remove(token);
-    else if (name === "style")
-      for (const property of scratch.style) target.style.removeProperty(property);
-    else target.removeAttribute(name);
-  }
-  const next = authoredAttributes(source);
-  for (const [name, value] of next) {
-    if (name === "class")
-      for (const token of source.classList) target.classList.add(token);
-    else if (name === "style")
-      for (const property of source.style)
-        target.style.setProperty(
-          property,
-          source.style.getPropertyValue(property),
-          source.style.getPropertyPriority(property),
-        );
-    else target.setAttribute(name, value);
-  }
-  return next;
-}
-
-function activateHead(doc, version) {
-  for (const node of authoredHeadNodes) node.remove();
-  const runtimeStyle = style;
-  const next = new Set();
-  for (const node of doc.head.children) {
-    if (!versionedHeadNode(node)) continue;
-    const imported = document.importNode(node, true);
-    document.head.insertBefore(imported, runtimeStyle);
-    next.add(imported);
-  }
-  authoredHeadNodes = next;
-  let marker = document.querySelector('meta[name="lf-version"][data-lf-runtime]');
-  if (!marker) {
-    marker = document.createElement("meta");
-    marker.name = "lf-version";
-    marker.dataset.lfRuntime = "1";
-    document.head.insertBefore(marker, runtimeStyle);
-  }
-  marker.content = String(version);
-  stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
-}
-
-function resetAuthoredPage() {
-  authoredFacets.clear();
-  authoredDetails.clear();
-  authoredStatements.clear();
-  authoredMarkup.clear();
-  authoredWidgets.clear();
-  committedProjection.clear();
-  for (const attr of [
-    PAGE_PAINT_ATTRIBUTE.applied,
-    PAGE_PAINT_ATTRIBUTE.replayWrote,
-    PAGE_PAINT_ATTRIBUTE.reportWrote,
-  ])
-    document.body.removeAttribute(attr);
-}
-
-async function activateVersion(doc, version) {
-  const view = captureView();
-  const source = doc.querySelector("body > main");
-  const fresh = document.importNode(source, true);
-  versionDocuments.delete(version);
-  const settlingFrom = settling.length;
-  const comparedFrom = comparisonBase();
-  if (comparedFrom !== null) setDiff(false);
-
-  resetAuthoredPage();
-  rememberAuthoredMarkup(source);
-  rememberAuthoredMarkup(fresh);
-  rememberPassageParts(fresh);
-  markDeclared(fresh, MARKED_IN_PAGE);
-  authoredHtmlAttributes = replaceAuthoredAttributes(
-    document.documentElement,
-    doc.documentElement,
-    authoredHtmlAttributes,
-  );
-  authoredBodyAttributes = replaceAuthoredAttributes(
-    document.body,
-    doc.body,
-    authoredBodyAttributes,
-  );
-  runtime.currentVersion = version;
-  activateHead(doc, version);
-  document.querySelector("body > main").replaceWith(fresh);
-  pruneScopedElements();
-  settle(dress(fresh));
-  await Promise.allSettled(settling.slice(settlingFrom));
-  reachScrollers(fresh);
-  captureAuthoredFacets(fresh);
-  stateStrip();
-  syncLayout();
-  if (designOn) paintLegend();
-  return { view, comparedFrom };
-}
-
+const { activateVersion, currentActivation, trackActivation, versionDocument } =
+  createVersionActivation(versionRoots, {
+    captureAuthoredFacets: (...args) => captureAuthoredFacets(...args),
+    captureView,
+    comparisonBase,
+    designIsOn: () => designOn,
+    paintLegend,
+    pruneScopedElements,
+    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+    rememberPassageParts,
+    resetAuthoredPage: (...args) => resetAuthoredPage(...args),
+    sameLayer,
+    setDiff,
+    settle,
+    settling,
+    stateSignoff,
+    stateStrip,
+    style,
+    syncLayout,
+  });
 // Navigate to a version with the pin semantics every chooser shares: an older
 // version pins the view, the newest unpins it.
 let forceActivation = false;
@@ -4679,6 +4551,7 @@ const {
   reconcileState,
   releaseProjectedOutbox,
   rememberAuthoredMarkup,
+  resetAuthoredPage,
   requirementMatches,
   retractedIds,
   retractionFloors,
@@ -4967,7 +4840,8 @@ async function receiveState(state) {
   // behind one already rendered is unambiguously stale; accepting it would move
   // every event-derived view backwards until the next poll.
   if (eventSeq < runtime.lastEventSeq) {
-    if (activatingState) await activatingState;
+    const activation = currentActivation();
+    if (activation) await activation;
     notifyChangedData();
     return;
   }
@@ -4975,7 +4849,8 @@ async function receiveState(state) {
   // that cannot safely interleave: a second one would capture or replace the halfway
   // upgraded main. Let it commit, then judge this response against its resulting
   // version and sequence.
-  if (activatingState) await activatingState;
+  let activationInFlight = currentActivation();
+  if (activationInFlight) await activationInFlight;
   if (eventSeq < runtime.lastEventSeq) {
     notifyChangedData();
     return;
@@ -5020,7 +4895,8 @@ async function receiveState(state) {
   // waiting, and two responses may have joined the same version-file promise before
   // either had an activation to await. Serialize again at the commit boundary, then
   // judge this candidate against the version and sequence the winner installed.
-  if (activatingState) await activatingState;
+  activationInFlight = currentActivation();
+  if (activationInFlight) await activationInFlight;
   if (eventSeq < runtime.lastEventSeq) {
     notifyChangedData();
     return;
@@ -5124,11 +5000,11 @@ async function receiveState(state) {
           }
         } else await apply();
       })();
-      activatingState = running;
+      const clearActivation = trackActivation(running);
       try {
         await running;
       } finally {
-        if (activatingState === running) activatingState = null;
+        clearActivation();
       }
     } else await apply();
   } catch (error) {

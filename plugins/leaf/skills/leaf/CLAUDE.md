@@ -38,6 +38,8 @@ and selection-composer state;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
+`runtime/version-activation.js` owns version document loading, authored-root
+replacement, and activation serialization;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;

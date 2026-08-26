@@ -270,7 +270,9 @@ Read the event log only after `round_trip`. Polling the file until one expected 
 appears can miss an extra send, and it cannot distinguish an unresolved request from
 a settled one. Read browser state after the trip when the returned state is part of
 the assertion. `round_trip` proves delivery; it does not claim every rendered effect
-of the response has completed.
+of the response has completed. When applying the response is itself the subject, wait
+for `data-lf-applied` to cover the expected events before reading the resulting surface
+or making a gesture whose liveness depends on that projection.
 
 After changing a file behind a live page, call `told` before reading the page. Letting
 `expect` absorb the next polling interval hides which mechanism supplied the wait and
@@ -280,6 +282,9 @@ For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's finite
 animations to empty. `resized` waits for the resize event to reach listeners; a new
 viewport size says only that the browser resized, not that page layout handled it.
+An observer or protocol record that outlives a motion is read after `MOVING` says finite
+motion has ended; a fixed number of animation frames only guesses when that record will
+be delivered under load.
 When clicking a quote causes an instant scroll followed by a smooth scroll, the first
 `scrollend` is a real edge but not the destination. Wait for the mark to reach the
 computed position or for the final scroll to stop, then assert where it stopped.

@@ -49,6 +49,7 @@ from render_support import (
     motions,
     moved_at,
     open_page,
+    page_at_rest,
     panel_settled,
     primed,
     resize_notice_after_last_probe,
@@ -229,16 +230,12 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     cdp.send("Animation.enable")
 
     def moved():
-        # One frame, then the flush. The report is made by the rendering update that
-        # starts the animation and not by the script call that created it — measured,
-        # thirty out of thirty on this browser — so a read taken between the two sees
-        # a still page and says so. It rarely does, which is the trouble: a read after
-        # a load has crossed a frame several times over, and the press below had not,
-        # so that was the one that came back empty, once in eighteen under contention.
-        # The flush is the command after it: replies and events travel one connection
-        # in order, so a reply that has arrived says every event the browser had
-        # already sent has too.
-        page.evaluate("() => new Promise(requestAnimationFrame)")
+        # The inspector's report outlives the motion, so consume it only after the
+        # page's own finite-motion reading says the transition has ended. One rendering
+        # frame was merely a guess at when Chrome would emit animationStarted; under
+        # contention the gesture could be visible while its report was still queued.
+        page_at_rest(page)
+        # Flush protocol events sent before this command's reply.
         cdp.send("Animation.getPlaybackRate")
         found = motions(started)
         started.clear()

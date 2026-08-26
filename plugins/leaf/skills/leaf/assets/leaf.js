@@ -5822,16 +5822,38 @@ const addressLabel = (entry, n) => addressKeys(entry, n).join(" ");
 // it to carry the leader, and it is drawn only while the window is up, so its two questions
 // — how far in, and how much the surroundings already say — have one answer.
 const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
-// An address as the page wears it: the whole of it, the keys already pressed dimmed and the
-// ones still to come in the chip's own colour. The whole of it, because a chip is the
-// address — the same one its reply box's placeholder speaks while nothing is armed at all,
-// and a chip saying `c 2` two pixels from a placeholder saying `g c 2` was a second
-// spelling of one motion, the shorter of which reaches nothing from a standing start. The
-// dimming carries what the letter's disappearance used to say: this much is behind you,
-// and what is lit is the press that finishes it. Built only inside the armed window, which
-// is where the chord's own keys are never none — and, past the letter, only for the list
-// the chord has named (paintAddresses narrows to `aimedList` there), which is what makes
-// those keys a prefix of this address rather than a different list's.
+// An address as the page wears it: the whole of it, the keys already pressed standing back
+// and the ones still to come lit. The whole of it, because a chip is the address — the same
+// one its reply box's placeholder speaks while nothing is armed at all, and a chip saying
+// `c 2` two pixels from a placeholder saying `g c 2` was a second spelling of one motion,
+// the shorter of which reaches nothing from a standing start.
+//
+// Both halves are set at the chip's one size, and the split is carried by ground: the spent
+// keys sit on the chip's own, the live ones on a lit block. Size was the channel once — the
+// spent keys two points smaller — and it cost more than it bought. One box held two type
+// sizes, which reads as a fault rather than a hierarchy; and because the split moves a key
+// from one size to the other, naming a list re-set every chip on screen, each one narrowing
+// 2.4px and sliding 1.2px under the eye that was reading them. Ground carries the same
+// distinction and takes no advance, so a press lights one more key and moves no glyph.
+// That last part is the stylesheet's doing and not this function's: the lit block's padding
+// is cancelled by an equal negative margin. Paid for in advance instead, the key crossing
+// between the halves stepped 3px on the press — measured, and larger than the 1.2px slide
+// this replaced, so the fault would have survived one glyph smaller.
+//
+// The space between the two halves is the address's own, the one `addressLabel` joins on,
+// so what the chip reads is what every other surface spells. It is a text node and the box
+// is block rather than flex for exactly that reason: flex drops a whitespace-only child, and
+// the chip came out `ga 1`.
+//
+// `lf-lit` and not `lf-live`, which this layer already spends on the visually-hidden live
+// region: a span wearing that name is clipped to a pixel by the stylesheet's own rule, so
+// the half of the address still to be pressed would have been drawn nowhere at all.
+//
+// Built only inside the armed window, which is where the chord's own keys are never none —
+// and, past the letter, only for the list the chord has named (paintAddresses narrows to
+// `aimedList` there), which is what makes those keys a prefix of this address rather than a
+// different list's. So `.lf-spent` is always present on a chord chip and never on the bare
+// digit an options group wears, which is how one stylesheet dresses both.
 const addressChip = (entry, n) => {
   const keys = addressKeys(entry, n);
   const made = chordKeys().length;
@@ -5839,7 +5861,7 @@ const addressChip = (entry, n) => {
   chip.append(
     el("span", "lf-spent", keys.slice(0, made).join(" ")),
     " ",
-    keys.slice(made).join(" "),
+    el("span", "lf-lit", keys.slice(made).join(" ")),
   );
   return chip;
 };

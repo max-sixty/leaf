@@ -1616,15 +1616,25 @@ ranges belong to the list rows inside it.
 
 Arming the mode paints the whole offer: every list contributes chips at once, and
 a letter narrows them to its own list. A chip carries the whole address — leader,
-letter and digit — and sets the keys already pressed smaller and quieter, so it
-states which member this is and what is left to type at once. Two channels, since
-muted against accent is a difference in hue and barely one in lightness: on an
-11px key a colour-only split reads as one word. `addressKeys` is the one spelling of
-that sequence, and `chordKeys` the one reading of how far the chord has come: the
-key line drops those keys, having said them in the chip that heads it, the
-reference drops them under a heading that names the mode, a chip on the page dims
-them, and the placeholder that speaks a reply box's whole address joins the whole
-array.
+letter and digit — so it states which member this is and what is left to type at
+once. Every key on it is set at the chip's one size, and the split between what is
+behind the reader and what is still to press is carried by ground: the spent keys
+sit on the chip's own, the live ones on a lit block (`.lf-spent`, `.lf-lit`). Colour
+alone will not carry it — muted against accent is a difference in hue and barely one
+in lightness, and on a key that small the two halves read as one word — but size was
+the wrong second channel. One box holding two type sizes reads as a fault, and
+because a press moves a key from one size to the other it re-set every chip on
+screen, each narrowing 2.4px and sliding 1.2px as the reader was reading it. A lit
+ground says the same thing while taking no advance — the block's padding is cancelled
+by an equal negative margin — so a press lights one more key and moves no glyph. Paid for
+in advance instead, the key crossing between the halves steps by that padding, which is the
+same fault one glyph smaller.
+
+`addressKeys` is the one spelling of that sequence, and `chordKeys` the one reading
+of how far the chord has come: the key line drops those keys, having said them in
+the chip that heads it, the reference drops them under a heading that names the
+mode, a chip on the page sets them back, and the placeholder that speaks a reply
+box's whole address joins the whole array.
 
 Addresses are stable within the document. The first addressable members do not
 change identity as the reader scrolls. Chips are painted only for members whose

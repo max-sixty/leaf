@@ -17,6 +17,7 @@ from render_support import (
     CROWDED_PAGE,
     DISCLOSED_PAGE,
     FOOTED_PAGE,
+    GLYPH_OFFSETS,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
     LONG_PAGE,
@@ -927,7 +928,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     are the lists the page has, the digits are the members the named one holds, each member
     on screen wears its whole address as a chip from the moment the chord is armed — the
     same address a reply box's placeholder speaks, key for key, with the keys already
-    pressed dimmed. What is asserted
+    pressed set back on the chip's own paper. What is asserted
     here is that the lists behave as one mechanism — a comment, an ask, a link and a
     disclosure reached the same way — rather than that any of them works, which is each
     list's own business elsewhere."""
@@ -984,11 +985,18 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # member's own visible box, and a shut panel gives none.
     expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
     # Whole, and saying how much of it is still to press: the leader is behind the reader
-    # here, so it stands back and the two keys that finish the motion keep the chip's own
-    # size and colour. A chip set evenly would state an address and leave the reader to
-    # work out for themselves which part of it they had already made.
+    # here, so it stands back on the chip's own paper and the two keys that finish the
+    # motion are lit on a ground of their own. A chip set evenly would state an address and
+    # leave the reader to work out for themselves which part of it they had already made —
+    # and one that said it in type sizes would hold two of them in one box, and re-set every
+    # chip on screen the moment the next press moved a key across.
     assert page.evaluate(SPENT, CHIPS) == ["g", "g", "g", "g"]
-    assert page.evaluate(STANDS_BACK, CHIPS) == {"quieter": True, "smaller": True}, (
+    assert page.evaluate(STANDS_BACK, CHIPS) == {
+        "quieter": True,
+        "lit": True,
+        "flat": True,
+        "sized": True,
+    }, (
         "the keys already pressed do not stand back from the ones still to come: "
         f"{page.evaluate(STANDS_BACK, CHIPS)}"
     )
@@ -1219,6 +1227,74 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.type("gc1")
     expect(ta1).to_have_value("gc1")
     expect(ta1).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_press_that_lights_a_key_moves_no_glyph(browser, serve):
+    """A chip holds still while the chord advances through it — the box and every glyph in
+    it.
+
+    This is the whole claim of the split. A chip carries the address it does because the
+    reader is meant to read it once and press it, and the old chip broke that by saying how
+    far in they were with type size: the key crossing from the live half to the spent one
+    shrank, so every chip on screen re-laid-out under the eye at the moment it was being
+    read. The ground that replaced it is a fixed-width channel and was supposed to end that.
+
+    It did not, quite, and the first version of this fix shipped the same fault one glyph
+    smaller. The lit block took its padding as advance, so the crossing key stepped by that
+    padding — 3px, against the 1.2px slide being fixed — while the chip's width, its left
+    edge, the leader and the digit all held perfectly still. Every reading the suite had
+    said the chip was fine, because every one of them was of the box.
+
+    So the reading here is of the glyphs, through a Range: the spans are the thing that
+    moves, and an element rect answers about a different element at each stage. The negative
+    margin on .lf-lit is what this covers — remove it and the letter steps."""
+    url = serve(ADDRESSED_PAGE)
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 800)
+
+    # The asks list, whose letter narrows the offer without revealing anything, so the chip
+    # under measurement is the same chip before and after and is drawn from the same box.
+    # Its chip leads the layer, the table's order being the order they are painted in.
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    before = page.evaluate(GLYPH_OFFSETS, CHIPS)
+
+    # The letter the chip itself names. What says the repaint has landed is the count and
+    # not the text: this chip reads "g a 1" at both stages, so an assertion on what it says
+    # is satisfied by the frame before the press as readily as the one after it, and the
+    # measurement below then compares a reading with itself. It passed that way two runs in
+    # three with the fix reverted. The narrowing is the fact the press actually writes —
+    # every other list's chips go — and the paint is coalesced into one frame with it.
+    page.keyboard.press("a")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1"])
+    after = page.evaluate(GLYPH_OFFSETS, CHIPS)
+
+    assert before and after, "the chord painted no chip to measure"
+    # Half a pixel of tolerance, which is subpixel rounding rather than a step: the halves
+    # are separate inline boxes, so a glyph's edge can land either side of a device pixel
+    # depending on which of them carries it. The fault this covers was three pixels, and
+    # paying the lit block's padding in advance is the smallest way to bring it back.
+    assert before["glyphs"].keys() == after["glyphs"].keys(), (
+        "the chip's keys changed with the press: "
+        f"{sorted(before['glyphs'])} -> {sorted(after['glyphs'])}"
+    )
+    moved = {
+        k: (v, after["glyphs"][k])
+        for k, v in before["glyphs"].items()
+        if abs(v - after["glyphs"][k]) > 0.5
+    }
+    assert not moved, "a key moved when the press lit it: " + ", ".join(
+        f"{k!r} {a} -> {b}" for k, (a, b) in moved.items()
+    )
+    # And the box the glyphs sit in, which is the reading that passed while they moved.
+    assert abs(before["width"] - after["width"]) <= 0.5, (
+        f"the chip resized: {before['width']} -> {after['width']}"
+    )
+    assert abs(before["left"] - after["left"]) <= 0.5, (
+        f"the chip slid: {before['left']} -> {after['left']}"
+    )
     assert errors == []
     page.close()
 

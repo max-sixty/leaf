@@ -257,14 +257,29 @@ export function chromeStyle({
      stand in a layer of their own, placed on each member's visible corner, an option's in
      a column that option holds for it. This rule dresses; theirs place and paint.
 
-     Its numbers are off the ladder because they are the box rather than the type: a 17px
-     floor with a 1px ring leaves 15px of interior, which is the line the keys are centred
-     on; 11px is a glyph that sits in that interior with room around it; 4px is what holds
-     a second glyph off the ring. Set at the apparatus rung the type would crowd the ring
-     it is drawn inside, the way the pick mark's ✓ would. Border-box is what makes those
-     numbers true on both sides of the scope line: the page sets none, so the copy in an
-     option came out 19px across while the chord's was 17 — the drift this one rule was
-     written to make impossible.
+     The box follows the type rather than standing beside it, and --lf-key-box is the one
+     expression that says how: the line box, which is a ratio of the font, plus the ring
+     drawn around it. Height and the square floor are both that, so the ring keeps its
+     clearance and a one-key address comes out square whatever the type is set at. At --t-6
+     it lands on the 17px interior and 19px box this chip has always been drawn to, so
+     nothing moves today — but a package may redeclare the ladder, theme files being
+     concatenated, and a fixed interior beside a token font is a box its own glyphs grow out
+     of. They painted over the ring at about 14.6px, and the reference's keys (.lf-help kbd)
+     have no fixed height at all, so the two would have parted at the first override.
+
+     Stated as a height and not left to the content, because one wearer does not size itself
+     from its content at all: an option's digit in the row form is absolutely positioned
+     against top and bottom together and centred with auto margins, so a box with no height
+     of its own stretches to the whole row — 30px against the chord's 19 — and the auto
+     margins have nothing left to centre. 4px of side padding is what holds a glyph off the
+     ring, and it is the same 4 for both wearers: a pick's address is one digit, so its whole
+     width is the square floor, and two more pixels a side put it past that floor and drew a
+     rectangle. Nothing here is a chip's own to restate — the render suite holds the two
+     faces to being one declaration, padding included.
+
+     Border-box is what makes those numbers true on both sides of the scope line: the page
+     sets none, so the copy in an option came out two pixels wider than the chord's — the
+     drift this one rule was written to make impossible.
 
      Mono and a 4px radius because this is a key chip, dressed as the line and the
      reference dress theirs (.lf-help kbd, .lf-keyline kbd; the render suite compares the
@@ -278,8 +293,20 @@ export function chromeStyle({
      would have needed a rule of its own in the chord's layer, and the family would have
      been dressed in two places. The keys hold one line, the box being shrink-to-fit and
      placed from a corner — one near the window's right edge would otherwise break in
-     two. */
-  .lf-address { display: none; box-sizing: border-box; min-width: 17px; height: 17px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: 11px; line-height: 15px; text-align: center; white-space: nowrap; z-index: 1; }
+     two.
+
+     --t-6 and not a number of its own: that is what the line and the reference already
+     set their keys at, and a key chip is one thing wherever the reader meets it. The 11px
+     it held was half a pixel under the surfaces it is meant to match.
+
+     The interior is two pixels deeper than the 15 it stood at, which is room for the lit
+     block a chord chip carries: an inline background paints the font's own box and not the
+     line's, so the block comes out inset from the chip's edge by itself, and the spare
+     height is what makes that inset visible rather than a hairline. A flex box would centre
+     it as surely and cost the space between the keys — flex drops a whitespace-only text
+     node, so the address rendered as "ga 1", correct in every rule here and wrong in the
+     one place a reader looks. */
+  .lf-address { --lf-key-box: calc(round(var(--t-6) * 1.478 + 2px, 1px)); display: none; box-sizing: border-box; min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: var(--t-6); line-height: 1.478; text-align: center; white-space: nowrap; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -1004,25 +1031,44 @@ ${MARK_RULES}
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
-    /* The half of an address already pressed. A chip carries the whole of it, so how far
-       in the reader is has to be said by how the keys are set: what is behind them stands
-       back and the press that finishes the motion keeps the chip's own accent. Muted
-       rather than dropped, which is what the chip used to do — the address it drew was
-       then shorter than the one its own reply box speaks, and the short one reaches
-       nothing from a standing start.
+    /* The two halves of an address: the keys already pressed, and the press that finishes
+       the motion. A chip carries the whole of it, so how far in the reader is has to be
+       said by how the keys are set. Muted rather than dropped, which is what the chip used
+       to do — the address it drew was then shorter than the one its own reply box speaks,
+       and the short one reaches nothing from a standing start.
 
-       Two channels and not one. Muted against accent is 1.45:1 in the light palette and
-       1.28:1 in the dark, which is a difference in hue and barely one in lightness: on an
-       11px key at arm's length the two halves read as one word, and to a reader who does
-       not separate those hues they are one word. The size is the channel that survives
-       both, and it gives back a third of the width the leader cost — which is room this
-       layer spends on telling two neighbouring addresses apart. It rides the same
-       baseline, and the chip's line-height is fixed, so nothing moves.
+       Ground and not size. Muted against accent is 1.45:1 in the light palette and 1.28:1
+       in the dark, which is a difference in hue and barely one in lightness: on a key this
+       small the two halves read as one word, and to a reader who does not separate those
+       hues they are one word. Size was the second channel for exactly that reason, and it
+       cost more than it bought — one box holding two type sizes reads as a fault rather
+       than a hierarchy, and because a press moves a key from one size to the other, naming
+       a list re-set every chip on screen: 2.4px narrower and, being centred on its corner,
+       1.2px further right, under the eye that was reading them. A lit ground says the same
+       thing and takes no advance at all.
 
-       In here rather than beside the shared face, because only the chord's chips have a
-       half behind them: an option's digit is one key, whole whenever it is drawn, and a
-       name a page could coin belongs to no document-level vocabulary. */
-    .lf-addresses > .lf-address .lf-spent { color: var(--muted); font-size: 9px; }
+       Which is what the negative margin buys, and the whole of why it is here. The ground
+       the block paints is not room it occupies: the margin cancels the padding that would
+       have been advance, so the keys sit exactly where they would with no block at all and
+       the key crossing from one half to the other on a press does not move. Without it that
+       key stepped 3px — measured, and larger than the 1.2px slide this rule replaced, which
+       would have been the same fault rewritten one glyph smaller.
+
+       The leading edge alone, because that is the only side a glyph sits after. Nothing
+       follows the lit half — it ends the address — so its trailing padding costs no glyph a
+       pixel and is left to take its room, which is what stands the ground off the ring
+       without the chip having to widen its own inset and lose the square a one-key address
+       comes out as.
+
+       Keyed off .lf-spent's presence, the one question both halves turn on: a chord chip
+       always has a half behind it (the leader is pressed before any chip is drawn) and an
+       option's digit never does — it is one key, whole whenever it is drawn, and it wants
+       neither a muted half nor a block inside its own box. Both rules take the same selector
+       shape for that reason. Keyed differently, a chip could take the ground without the
+       muting and come out half dressed. */
+    .lf-address .lf-spent { color: var(--muted); }
+    .lf-address .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
+      border-radius: 3px; background: var(--accent); color: var(--card); }
     /* Under the banner there is no room to straddle the corner, so the chip hangs below
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */

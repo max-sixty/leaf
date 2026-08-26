@@ -12,13 +12,16 @@ from interact_support import (
     decide,
     drafted,
     edit,
-    interact,
     page_state,
     publish,
     published,
     state_json,
     suggested,
 )
+from leaf_interact import checking as checking_model
+from leaf_interact import cli as cli_model
+from leaf_interact import events as events_model
+from leaf_interact import hooks as hooks_model
 
 
 def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):
@@ -275,7 +278,7 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     )
     (page_dir / "versions" / "v2.html").write_text(revised)
     noted = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -302,7 +305,7 @@ def test_a_verb_the_registry_no_longer_speaks_moves_nothing(page_dir):
     retired — folds to nothing, so the reading stays the version as authored
     rather than trusting whatever text the event carried."""
     drafted(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -328,7 +331,7 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     (page_dir / "versions" / "v2.html").write_text(DRAFTED)
     noted = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -478,7 +481,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
     )
     (page_dir / "versions" / "v2.html").write_text(revised)
     noted = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -507,8 +510,10 @@ def test_a_decision_the_reader_took_back_hands_its_slot_back(page_dir):
     retired = ["--quote", "Refill every feeder each morning.", "--text", "x"]
     assert comment(page_dir, *retired).exit_code != 0
 
-    accepted = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
-    interact.append_event(
+    accepted = next(
+        e for e in events_model.read_events(page_dir) if e["kind"] == "action"
+    )
+    events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
     result = comment(page_dir, *retired)
@@ -533,13 +538,15 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
     )
     assert "sug-refill" not in honored and "refill-rule" not in honored
     (page_dir / "versions" / "v2.html").write_text(honored)
-    assert interact.cmd_check(page_dir, 2) == 0
+    assert checking_model.cmd_check(page_dir, 2) == 0
 
-    accepted = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
-    interact.append_event(
+    accepted = next(
+        e for e in events_model.read_events(page_dir) if e["kind"] == "action"
+    )
+    events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    assert interact.cmd_check(page_dir, 2) == 1
+    assert checking_model.cmd_check(page_dir, 2) == 1
 
 
 def test_what_the_reader_never_sees_is_not_quotable(page_dir):
@@ -577,7 +584,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
-    assert interact.unattended_pages("") == []
+    assert hooks_model.unattended_pages("") == []
 
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
@@ -588,7 +595,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s-7")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     published(page_dir)
-    root = interact.append_event(
+    root = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -600,14 +607,14 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     answer = json.loads(
         CliRunner()
         .invoke(
-            interact.cli,
+            cli_model.cli,
             ["reply", str(page_dir), "--to", root["id"], "--text", "fixed in v2"],
         )
         .output
     )
 
     result = CliRunner().invoke(
-        interact.cli, ["resolve", str(page_dir), "--to", answer["id"]]
+        cli_model.cli, ["resolve", str(page_dir), "--to", answer["id"]]
     )
     assert result.exit_code == 0, result.output
     event = json.loads(result.output)
@@ -618,14 +625,14 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     threads = state_json(page_dir)["threads"]
     assert [t["resolved"] for t in threads] == ["claude"]
 
-    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "resolved by Indexer" in transcript.output
 
 
 def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     """The parent rule is the reply door's, so a thread can't be closed by naming
     something outside the conversation."""
-    result = CliRunner().invoke(interact.cli, ["resolve", str(page_dir), "--to", "c9"])
+    result = CliRunner().invoke(cli_model.cli, ["resolve", str(page_dir), "--to", "c9"])
     assert result.exit_code != 0
     assert "unknown comment id" in result.output
 
@@ -634,7 +641,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
     """The agent-side fold reads the inverse transition from the same log as the
     browser, so page state and the transcript both show the thread open again."""
     published(page_dir)
-    root = interact.append_event(
+    root = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -643,15 +650,15 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
             "text": "Still relevant?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
 
     assert state_json(page_dir)["threads"][0]["resolved"] is None
-    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "— resolved" not in transcript.output
 
 
@@ -662,7 +669,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     closed threads live in."""
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
-    root = interact.append_event(
+    root = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -678,7 +685,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "gm-ask", "tag": "lf-ask", "thread": root["id"]}
     ]
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}
     )
     assert state_json(page_dir)["asks"] == []
@@ -690,7 +697,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     roots = []
     for suffix in ("a", "b"):
         roots.append(
-            interact.append_event(
+            events_model.append_event(
                 page_dir,
                 {
                     "kind": "comment",
@@ -710,7 +717,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
         {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]},
     ]
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -800,8 +807,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
         ).exit_code
         == 0
     )
-    thread = interact.read_events(page_dir)[-1]["id"]
-    interact.append_event(
+    thread = events_model.read_events(page_dir)[-1]["id"]
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -812,7 +819,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "detail": {"options": ["ps-cookie"]},
         },
     )
-    out = CliRunner().invoke(interact.cli, ["page", "state", str(page_dir)])
+    out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert out.exit_code == 0, out.output
     state = json.loads(out.stdout)
     assert [
@@ -840,11 +847,11 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         ).exit_code
         == 0
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     clash = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -859,7 +866,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     assert clash.exit_code != 0 and "q1" in clash.output
 
     plain_clash = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),

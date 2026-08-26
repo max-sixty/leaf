@@ -2,7 +2,7 @@
 
 import tinycss2
 
-from .structure import COLUMN_FALLBACK, OVERFLOW_PROPS, _names_column, _StructParser
+from .structure import OVERFLOW_PROPS, _StructParser
 
 # ---------- the readable column ----------
 # A rule, a style="" and a width="" are the three places a document states a width.
@@ -217,8 +217,39 @@ def _px_widths(declarations, props: tuple, tokens: dict | None = None):
                 yield declaration.lower_name, px
 
 
+# What a page is measured against when no rule claims the column. A default, not a
+# reading: it is the width every other check's number comes from, so a page that says
+# nothing still gets measured rather than silently passing.
+COLUMN_FALLBACK = 780
+
+
+def _declares_column(block) -> bool:
+    """Whether a rule says it draws the readable column, in the block that draws it.
+
+    A stylesheet knows which of its rules is the column, and this asks it. The rule
+    setting the column's max-width sets `--lf-column: 1` beside it, so the cascade wins
+    the two together and the claim cannot drift from the width — the same shape as
+    `--lf-frame`, which a box declares where it draws its frame.
+
+    Before this, seven container names stood in for the answer: `main`, `body`,
+    `article`, `.container`, `.wrap`, `.content`, `.page`. A name list is wrong in both
+    directions at once. Too wide, because the column is the baseline every other width
+    on the page is measured against, and any rule that happened to be spelled `.content`
+    moved it — `.content { max-width: 1400px }` doubles the number and takes the
+    overflow check quiet, which reads as a page with nothing wrong in it. Too narrow,
+    because a page whose column is `.prose` was measured against the fallback instead
+    and failed for widths that fit. Neither shows up as an error; both show up as a
+    check that has stopped asking."""
+    return any(
+        declaration.type == "declaration"
+        and declaration.name == "--lf-column"
+        and tinycss2.serialize(declaration.value).strip() == "1"
+        for declaration in block
+    )
+
+
 def _column_width(page_css: str, theme_css: str) -> int:
-    """Best-effort readable-column width from the max-width of a container rule.
+    """The readable-column width, from the max-width of the rule claiming the column.
     A page's own <style> wins over the vendored theme, which wins over the fallback.
 
     Only what a stylesheet states outright counts: a column is the baseline everything
@@ -230,8 +261,8 @@ def _column_width(page_css: str, theme_css: str) -> int:
         tokens = root_tokens(css)
         widths = [
             px
-            for selector, block, conditional in css_rules(css)
-            if not conditional and _names_column(selector)
+            for _, block, conditional in css_rules(css)
+            if not conditional and _declares_column(block)
             for _, px in _px_widths(block, ("max-width",), tokens)
         ]
         if widths:

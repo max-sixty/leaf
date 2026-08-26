@@ -326,6 +326,63 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     page.close()
 
 
+def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_path):
+    """A live page measures the window it is in and states the numbers inline on the
+    root: the room a wide widget may take, the width the margin strips are sized
+    against, where each edge stands. An inline value outranks every rule a stylesheet
+    could write, so a copy keeping one is laid out against the width the exporter's
+    headless window happened to have, on a file whose whole point is being opened
+    somewhere else.
+
+    What separates those from the rail is not where they are written but whether the
+    copy still has the thing they measure. The panel and the tray leave with the chrome;
+    the room is a reading of a window nobody will open this file in. A suggestion's rail
+    is the width of a control a decided change keeps, and
+    `test_a_copy_keeps_the_rail_a_decided_change_left` is what says so — a sweep of every
+    inline custom property on the root takes it and puts the exported board off the left
+    of the page. So this asks for the named ones and asks the rail's own test for the
+    rail.
+
+    The live half is the non-vacuity: unless this page really states them, a copy that
+    carries none says nothing at all."""
+    url = serve(LONG_PAGE, comments=2)
+
+    inline_custom = """() => {
+        const inline = document.documentElement.style;
+        const found = {};
+        for (let i = 0; i < inline.length; i++)
+            if (inline[i].startsWith('--'))
+                found[inline[i]] = inline.getPropertyValue(inline[i]);
+        return found;
+    }"""
+    session = ("--lf-room", "--lf-avail", "--lf-panel-w", "--lf-tray-w")
+
+    live = browser.new_page(viewport={"width": 1200, "height": 900})
+    live.goto(url, wait_until="load")
+    live.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    live.locator(".lf-comments").click()
+    live.wait_for_timeout(600)
+    measured = live.evaluate(inline_custom)
+    live.close()
+    stated = [name for name in session if name in measured]
+    assert stated, (
+        "the live page states none of the window measurements this is about "
+        f"({measured}), so a copy carrying none of them proves nothing"
+    )
+
+    out = tmp_path / "standalone.html"
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    copy = browser.new_page()
+    copy.goto(out.as_uri(), wait_until="load")
+    carried = copy.evaluate(inline_custom)
+    copy.close()
+
+    assert not [name for name in session if name in carried], (
+        "the copy is laid out against the exporter's own window rather than the "
+        f"reader's: {carried}"
+    )
+
+
 def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     """A copy keeps the mark and drops the status painted on it. The live page was
     exported under a working claim — `page init` leaves one — so the tone it was wearing

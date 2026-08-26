@@ -3707,6 +3707,7 @@ export {
   inChrome,
   inUi,
   movedWords,
+  quoted,
   renderRetired,
   says,
   textNodesUnder,

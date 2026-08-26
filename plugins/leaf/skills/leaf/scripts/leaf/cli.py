@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 
 from leaf.checking import cmd_check
-from leaf.conversation import cmd_comment, cmd_reply, cmd_report, cmd_resolve
+from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
 from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.hooks import cmd_hook, unanswered_asks
 from leaf.hosting import cmd_serve, cmd_stop, start_server
@@ -465,6 +465,19 @@ def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
 def reply(dir: str, to: str, text: str, markup: str) -> None:
     """Post a threaded reply as the agent (--text or stdin)."""
     print(json.dumps(cmd_reply(resolve_dir(dir), to, text, markup), ensure_ascii=False))
+
+
+@cli.command(short_help="Edit one of this agent session's messages.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--to", required=True, metavar="ID", help="comment or reply ID to edit")
+@click.option("--text", help="replacement text (default: stdin)")
+def edit(dir: str, to: str, text: str) -> None:
+    """Replace the visible text of an agent-authored comment or reply.
+
+    The original and every revision remain in the append-only event log. Frozen
+    widget markup is not editable.
+    """
+    print(json.dumps(cmd_edit(resolve_dir(dir), to, text), ensure_ascii=False))
 
 
 @cli.command(short_help="Close a thread as the agent.")

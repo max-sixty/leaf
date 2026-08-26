@@ -303,13 +303,16 @@ def build_threads(events: list, spk: dict) -> dict:
                 settling_actions.add(e["id"])
     threads = {}
     thread_for = {}
+    messages = {}
     for e in events:
         # A gesture the reader took back settles nothing, whichever way it settled:
         # the log holds it and no reading of the log stands on it.
         if e["id"] in withdrawn:
             continue
         if e["kind"] == "comment":
-            thread = {"root": e, "msgs": [e], "resolved": None}
+            message = dict(e)
+            messages[e["id"]] = message
+            thread = {"root": message, "msgs": [message], "resolved": None}
             threads[e["id"]] = thread
             thread_for[e["id"]] = thread
             continue
@@ -331,6 +334,11 @@ def build_threads(events: list, spk: dict) -> dict:
             ):
                 answered["resolved"] = e
             continue
+        if e["kind"] == "edit":
+            if message := messages.get(e["message"]):
+                message["text"] = e["text"]
+                message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
+            continue
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would
             # have opened, under the id it was known by, which is the id an action
@@ -349,7 +357,9 @@ def build_threads(events: list, spk: dict) -> dict:
                 thread = {"root": e, "msgs": [], "resolved": None}
                 threads[e["parent"]] = thread
                 thread_for[e["parent"]] = thread
-            thread["msgs"].append(e)
+            message = dict(e)
+            messages[e["id"]] = message
+            thread["msgs"].append(message)
             thread_for[e["id"]] = thread
         # A resolve names a message rather than opening one, so a conversation the log
         # lost whole — no reply of its own survived either — leaves it nothing to close.
@@ -566,6 +576,8 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     kind = event["kind"]
     if kind in {"comment", "reply"}:
         named = [roots.get(event["id"])]
+    elif kind == "edit":
+        named = [roots.get(event["message"])]
     elif kind in {"resolve", "unresolve"}:
         named = [roots.get(event["parent"])]
     elif kind == "action":
@@ -590,6 +602,7 @@ MESSAGE_FIELDS = (
     "text",
     "markup",
     "suggestion",
+    "edited",
 )
 
 # How much of one conversation a digest carries: the message that opened it,

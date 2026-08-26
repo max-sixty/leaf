@@ -144,6 +144,24 @@
           "not": {"required": ["markup"]}
         }
       },
+      "edit": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "claude"},
+            "kind": {"const": "edit"},
+            "seq": {"type": "integer", "minimum": 1},
+            "message": {"type": "string", "minLength": 1},
+            "text": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "message", "text", "agent", "session"],
+          "additionalProperties": false
+        }
+      },
       "resolve": {
         "record": {
           "type": "object",

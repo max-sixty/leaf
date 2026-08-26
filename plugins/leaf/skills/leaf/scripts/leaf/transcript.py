@@ -123,8 +123,9 @@ def cmd_transcript(page_dir: Path) -> None:
         print(head)
         for m in t["msgs"]:
             who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
+            edited = " *(edited)*" if m.get("edited") else ""
             body = m["text"] + (f"\n{m['markup']}" if m.get("markup") else "")
-            print(f"- **{who}**: " + body.replace("\n", "\n  "))
+            print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
         print()
     for e in events:
         if e["kind"] == "done":

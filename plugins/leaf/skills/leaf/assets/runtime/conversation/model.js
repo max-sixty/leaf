@@ -35,6 +35,7 @@ export function createThreadModel(dependencies) {
         answers.set(e.widget, e);
         if (e.detail.resolves) settlingActions.add(e.id);
       }
+    const messages = new Map();
     for (const e of runtime.events) {
       // A gesture the reader took back settles nothing, whichever way it settled: the
       // log holds it and no reading of the log stands on it. The same sentence
@@ -44,7 +45,9 @@ export function createThreadModel(dependencies) {
         // `resolved` is the event that currently closes the thread, or null. Either
         // side can close one, so a flag beside a second field naming who would be two
         // readings of one fact; the event answers both and carries its own author.
-        const thread = { root: e, msgs: [e], resolved: null };
+        const message = { ...e };
+        messages.set(e.id, message);
+        const thread = { root: message, msgs: [message], resolved: null };
         threads.set(e.id, thread);
         threadFor.set(e.id, thread);
         continue;
@@ -82,6 +85,14 @@ export function createThreadModel(dependencies) {
         }
         continue;
       }
+      if (e.kind === "edit") {
+        const message = messages.get(e.message);
+        if (message) {
+          message.text = e.text;
+          message.edited = { id: e.id, seq: e.seq, ts: e.ts };
+        }
+        continue;
+      }
       // A reply whose message the log lost opens the thread that message would have
       // opened, under the id it was known by — the same answer interact.py's
       // build_threads gives, because it is the same reading. The log is read line by
@@ -94,7 +105,9 @@ export function createThreadModel(dependencies) {
           threads.set(e.parent, thread);
           threadFor.set(e.parent, thread);
         }
-        thread.msgs.push(e);
+        const message = { ...e };
+        messages.set(e.id, message);
+        thread.msgs.push(message);
         threadFor.set(e.id, thread);
       } else if (e.kind === "resolve") {
         // A resolve names a message rather than opening one, so a conversation the log

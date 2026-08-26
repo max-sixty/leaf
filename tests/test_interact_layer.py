@@ -45,6 +45,7 @@ Commands:
   ack         Acknowledge one complete, untruncated wait batch.
   comment     Open an agent thread — on a passage, or on the page whole.
   data        Set or clear page-bound external data.
+  edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   package     Create and check packages.
   page        Create pages and add media.

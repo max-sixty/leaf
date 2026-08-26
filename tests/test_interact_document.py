@@ -30,6 +30,7 @@ from interact_support import (
     state_json,
     suggest,
 )
+from leaf_interact import publishing as publishing_model
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -1182,7 +1183,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
             assert resume.wait(timeout=10), "the report did not enter the publish gap"
         return original_append_event(directory, event)
 
-    monkeypatch.setattr(interact, "append_event", held_append_event)
+    monkeypatch.setattr(publishing_model, "append_event", held_append_event)
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(interact.cmd_publish, page_dir, 2, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"

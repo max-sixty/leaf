@@ -1,6 +1,7 @@
 """Host identity, process lifetime, page claims, and serialized transitions."""
 
 import ctypes
+import functools
 import hashlib
 import ipaddress
 import os
@@ -153,6 +154,17 @@ def page_lock(page_dir: Path, purpose: str) -> Path:
 def transition_lock(page_dir: Path) -> Path:
     """Serialize service changes, re-vendoring, and contract-bearing writes."""
     return page_lock(page_dir, "transition")
+
+
+def contract_writer(function):
+    """Keep a CLI event's validation and append on one vendored contract."""
+
+    @functools.wraps(function)
+    def locked(page_dir: Path, *args, **kwargs):
+        with flocked(transition_lock(page_dir)):
+            return function(page_dir, *args, **kwargs)
+
+    return locked
 
 
 def running_server(page_dir: Path):

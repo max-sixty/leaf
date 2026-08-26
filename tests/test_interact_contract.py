@@ -47,6 +47,7 @@ from interact_support import (
     trial_version,
     widget_entry,
 )
+from leaf_interact import conversation as conversation_model
 from leaf_interact import http as http_model
 from leaf_interact import layer as layer_model
 
@@ -563,7 +564,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(interact, "append_event", paused_append)
+    monkeypatch.setattr(conversation_model, "append_event", paused_append)
     monkeypatch.setattr(layer_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 

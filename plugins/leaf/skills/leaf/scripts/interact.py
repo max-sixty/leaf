@@ -489,20 +489,20 @@ that cost.
 
 import base64  # noqa: F401 - public facade re-export
 import errno  # noqa: F401 - public facade re-export
-import functools
-import hashlib
-import json
+import functools  # noqa: F401 - public facade re-export
+import hashlib  # noqa: F401 - public facade re-export
+import json  # noqa: F401 - public facade re-export
 import os  # noqa: F401 - public facade re-export
 import re  # noqa: F401 - public facade re-export
 import secrets  # noqa: F401 - public facade re-export
 import socket  # noqa: F401 - public facade re-export
 import subprocess  # noqa: F401 - public facade re-export
-import sys
+import sys  # noqa: F401 - public facade re-export
 import threading  # noqa: F401 - public facade re-export
 import time  # noqa: F401 - public facade re-export
 import zlib  # noqa: F401 - public facade re-export
 from http.server import ThreadingHTTPServer  # noqa: F401 - public facade re-export
-from pathlib import Path
+from pathlib import Path  # noqa: F401 - public facade re-export
 from typing import NamedTuple  # noqa: F401 - public facade re-export
 from urllib.parse import (  # noqa: F401 - public facade re-export
     parse_qs,
@@ -512,8 +512,14 @@ from urllib.parse import (  # noqa: F401 - public facade re-export
 
 import click  # noqa: F401 - public facade re-export
 from jsonschema import Draft202012Validator  # noqa: F401 - public facade re-export
-from leaf_interact.checking import cmd_check
+from leaf_interact.checking import cmd_check  # noqa: F401 - public facade re-export
 from leaf_interact.cli import create_cli
+from leaf_interact.conversation import (  # noqa: F401 - public facade re-exports
+    cmd_comment,
+    cmd_reply,
+    cmd_report,
+    cmd_resolve,
+)
 from leaf_interact.document import (
     COLLAPSE_CHARS,  # noqa: F401 - public facade re-export
     COLUMN_FALLBACK,  # noqa: F401 - public facade re-export
@@ -525,13 +531,13 @@ from leaf_interact.document import (
     _column_width,  # noqa: F401 - public facade re-export
     _overwide_elements,  # noqa: F401 - public facade re-export
     _StructParser,  # noqa: F401 - public facade re-export
-    capture_anchor,
+    capture_anchor,  # noqa: F401 - public facade re-export
     collapse,  # noqa: F401 - public facade re-export
     css_syntax_errors,  # noqa: F401 - public facade re-export
     inline_presentation_override_errors,  # noqa: F401 - public facade re-export
     page_passages,  # noqa: F401 - public facade re-export
     parse_structure,  # noqa: F401 - public facade re-export
-    parse_version,
+    parse_version,  # noqa: F401 - public facade re-export
     root_tokens,  # noqa: F401 - public facade re-export
     spoken,  # noqa: F401 - public facade re-export
     version_review_mode,  # noqa: F401 - public facade re-export
@@ -540,39 +546,39 @@ from leaf_interact.events import (
     AttemptConflict,  # noqa: F401 - public facade re-export
     AttemptExecution,  # noqa: F401 - public facade re-export
     _attempt_payload,  # noqa: F401 - public facade re-export
-    append_event,
-    build_threads,
-    flocked,
-    jsonl_line,
+    append_event,  # noqa: F401 - public facade re-export
+    build_threads,  # noqa: F401 - public facade re-export
+    flocked,  # noqa: F401 - public facade re-export
+    jsonl_line,  # noqa: F401 - public facade re-export
     now_iso,  # noqa: F401 - public facade re-export
     read_cursor,  # noqa: F401 - public facade re-export
-    read_events,
+    read_events,  # noqa: F401 - public facade re-export
     require_cross_process_locking,  # noqa: F401 - public facade re-export
     retractions,  # noqa: F401 - public facade re-export
-    standing_work_claims,
-    taken_back,
+    standing_work_claims,  # noqa: F401 - public facade re-export
+    taken_back,  # noqa: F401 - public facade re-export
     thread_roots,  # noqa: F401 - public facade re-export
     thread_structure,  # noqa: F401 - public facade re-export
     undo_error,  # noqa: F401 - public facade re-export
-    work_claim_version,
+    work_claim_version,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.files import (
     _filesystem_case_sensitive,  # noqa: F401 - public facade re-export
     _path_location,  # noqa: F401 - public facade re-export
     json_bytes,  # noqa: F401 - public facade re-export
-    latest_published,
+    latest_published,  # noqa: F401 - public facade re-export
     list_versions,  # noqa: F401 - public facade re-export
     located,  # noqa: F401 - public facade re-export
     location_is_within,  # noqa: F401 - public facade re-export
     locations_overlap,  # noqa: F401 - public facade re-export
     path_is_within,  # noqa: F401 - public facade re-export
     paths_same,  # noqa: F401 - public facade re-export
-    published_versions,
+    published_versions,  # noqa: F401 - public facade re-export
     read_json,  # noqa: F401 - public facade re-export
     replace_files,  # noqa: F401 - public facade re-export
-    version_name,
+    version_name,  # noqa: F401 - public facade re-export
     version_num,  # noqa: F401 - public facade re-export
-    version_path,
+    version_path,  # noqa: F401 - public facade re-export
     write_json,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.http import (
@@ -608,39 +614,41 @@ from leaf_interact.layer import (  # noqa: F401 - public facade re-exports
     resolve_packages,
     validate_package_dir,
 )
+from leaf_interact.media import cmd_media  # noqa: F401 - public facade re-export
 from leaf_interact.projection import (
     NO_RECORD,  # noqa: F401 - public facade re-export
     StateProjection,  # noqa: F401 - public facade re-export
     action_subjects,  # noqa: F401 - public facade re-export
     asking,  # noqa: F401 - public facade re-export
     canonical_updates,  # noqa: F401 - public facade re-export
-    decisions,
+    decisions,  # noqa: F401 - public facade re-export
     enclosing_widgets,  # noqa: F401 - public facade re-export
-    folded_facet,
-    markup_facet,
+    folded_facet,  # noqa: F401 - public facade re-export
+    markup_facet,  # noqa: F401 - public facade re-export
     page_ask_projection,  # noqa: F401 - public facade re-export
     page_asks,  # noqa: F401 - public facade re-export
-    page_projection,
+    page_projection,  # noqa: F401 - public facade re-export
     projected_action_holders,  # noqa: F401 - public facade re-export
     quoted_in,  # noqa: F401 - public facade re-export
-    record_lag,
+    record_lag,  # noqa: F401 - public facade re-export
     record_lag_entries,  # noqa: F401 - public facade re-export
     replayed_attrs,  # noqa: F401 - public facade re-export
     retirable_ids,  # noqa: F401 - public facade re-export
     retirement_holders,  # noqa: F401 - public facade re-export
-    rewritten_bodies,
+    rewritten_bodies,  # noqa: F401 - public facade re-export
     state_projection,  # noqa: F401 - public facade re-export
     thread_ask_projection,  # noqa: F401 - public facade re-export
     thread_asks,  # noqa: F401 - public facade re-export
 )
+from leaf_interact.publishing import cmd_publish  # noqa: F401 - public facade re-export
 from leaf_interact.registry import (
     RegistryError,  # noqa: F401 - public facade re-export
     json_validator,  # noqa: F401 - public facade re-export
     layer_generation,  # noqa: F401 - public facade re-export
-    load_registry,
+    load_registry,  # noqa: F401 - public facade re-export
     merge_layer_entries,  # noqa: F401 - public facade re-export
     read_registry_entries,  # noqa: F401 - public facade re-export
-    require_registry,
+    require_registry,  # noqa: F401 - public facade re-export
     retirement_slots,  # noqa: F401 - public facade re-export
     validate_registry,  # noqa: F401 - public facade re-export
 )
@@ -697,8 +705,8 @@ from leaf_interact.schema import (
     KERNEL,  # noqa: F401 - public facade re-export
     KEY_COOKIE,  # noqa: F401 - public facade re-export
     LAYER_PLACEHOLDER,  # noqa: F401 - public facade re-export
-    MEDIA_DIR,
-    MEDIA_TYPES,
+    MEDIA_DIR,  # noqa: F401 - public facade re-export
+    MEDIA_TYPES,  # noqa: F401 - public facade re-export
     NO_KEY,  # noqa: F401 - public facade re-export
     ORPHAN_GRACE_SECS,  # noqa: F401 - public facade re-export
     PACKAGE_DIRS,  # noqa: F401 - public facade re-export
@@ -709,7 +717,7 @@ from leaf_interact.schema import (
     VENDORED_FILES,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.service import (
-    PageTransaction,
+    PageTransaction,  # noqa: F401 - public facade re-export
     ancestry,  # noqa: F401 - public facade re-export
     claim_is_active,  # noqa: F401 - public facade re-export
     claim_page,  # noqa: F401 - public facade re-export
@@ -717,12 +725,13 @@ from leaf_interact.service import (
     claim_records,  # noqa: F401 - public facade re-export
     claim_update_sources,  # noqa: F401 - public facade re-export
     config_home,  # noqa: F401 - public facade re-export
+    contract_writer,  # noqa: F401 - public facade re-export
     host_identity,  # noqa: F401 - public facade re-export
     host_key,  # noqa: F401 - public facade re-export
     init_lock_path,  # noqa: F401 - public facade re-export
     lifetime_note,  # noqa: F401 - public facade re-export
     lock_is_held,  # noqa: F401 - public facade re-export
-    message_identity,
+    message_identity,  # noqa: F401 - public facade re-export
     owned_pages,  # noqa: F401 - public facade re-export
     page_access,  # noqa: F401 - public facade re-export
     page_claim,  # noqa: F401 - public facade re-export
@@ -733,17 +742,23 @@ from leaf_interact.service import (
     stop_when_service_ends,  # noqa: F401 - public facade re-export
     take_page_claim,  # noqa: F401 - CLI facade dependency and public re-export
     take_waiter_lease,  # noqa: F401 - public facade re-export
-    transition_lock,
+    transition_lock,  # noqa: F401 - public facade re-export
     unacknowledged,  # noqa: F401 - public facade re-export
     wait_is_live,  # noqa: F401 - public facade re-export
     waiter_lease_path,  # noqa: F401 - public facade re-export
+)
+from leaf_interact.transcript import (
+    QUOTE_SHOWN,  # noqa: F401 - public facade re-export
+    cmd_events,  # noqa: F401 - public facade re-export
+    cmd_transcript,  # noqa: F401 - public facade re-export
+    shown,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.validation import (
     DECLARED_WORDS,  # noqa: F401 - public facade re-export
     action_contract_error,  # noqa: F401 - public facade re-export
     addressable_instance_errors,  # noqa: F401 - public facade re-export
     ask_region_errors,  # noqa: F401 - public facade re-export
-    check_markup,
+    check_markup,  # noqa: F401 - public facade re-export
     declared_action_error,  # noqa: F401 - public facade re-export
     declared_event_error,  # noqa: F401 - public facade re-export
     declared_word_errors,  # noqa: F401 - public facade re-export
@@ -758,9 +773,9 @@ from leaf_interact.validation import (
     line_ref_errors,  # noqa: F401 - public facade re-export
     media_errors,  # noqa: F401 - public facade re-export
     page_boundary_errors,  # noqa: F401 - public facade re-export
-    read_text_arg,
+    read_text_arg,  # noqa: F401 - public facade re-export
     reference_errors,  # noqa: F401 - public facade re-export
-    report_contract_error,
+    report_contract_error,  # noqa: F401 - public facade re-export
     report_errors,  # noqa: F401 - public facade re-export
     reserved_ids_error,  # noqa: F401 - public facade re-export
     reserved_marker_errors,  # noqa: F401 - public facade re-export
@@ -781,7 +796,7 @@ from leaf_interact.validation import (
 )
 from leaf_interact.work import (
     widget_work_seat,  # noqa: F401 - public facade re-export
-    widget_work_without_seats,
+    widget_work_without_seats,  # noqa: F401 - public facade re-export
     work_subject,  # noqa: F401 - public facade re-export
 )
 
@@ -794,30 +809,12 @@ except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
 
 
-def cmd_media(page_dir: Path, files: list) -> list:
-    """Copy images into the page's media directory, named by the hash of their
-    bytes; returns (source, served path) per file, in the order given.
-
-    Content-addressing is doing two jobs. It keeps the directory's promise —
-    a name can only ever mean one set of bytes, so a version the user
-    approved shows them the same picture forever, which is the same guarantee
-    vendoring gives the layer. And it de-duplicates for free: a version that
-    re-shows last version's screenshot re-uses the file rather than a second
-    copy of it, which is what makes the version history cheap to keep."""
-    out = []
-    (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
-    for src in files:
-        if src.suffix.lower() not in MEDIA_TYPES:
-            sys.exit(
-                f"{src}: not an image leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
-            )
-        data = src.read_bytes()
-        name = hashlib.sha256(data).hexdigest()[:16] + src.suffix.lower()
-        (page_dir / MEDIA_DIR / name).write_bytes(data)
-        out.append((str(src), f"/{MEDIA_DIR}/{name}"))
-    return out
-
-
+# ---------- hook: the loop, enforced rather than remembered ----------
+from leaf_interact.hooks import (  # noqa: F401 - public facade re-exports
+    cmd_hook,
+    unanswered_asks,
+    unattended_pages,
+)
 from leaf_interact.hosting import (  # noqa: F401 - public facade re-exports
     DualStackHTTPServer,
     LeafHTTPServer,
@@ -825,381 +822,6 @@ from leaf_interact.hosting import (  # noqa: F401 - public facade re-exports
     cmd_stop,
     server_at,
     start_server,
-)
-from leaf_interact.session import (  # noqa: F401 - public facade re-exports
-    PageTick,
-    Watch,
-    cmd_ack,
-    cmd_status,
-    cmd_wait,
-)
-
-
-def contract_writer(function):
-    """Keep a CLI event's validation and append on one vendored contract."""
-
-    @functools.wraps(function)
-    def locked(page_dir: Path, *args, **kwargs):
-        with flocked(transition_lock(page_dir)):
-            return function(page_dir, *args, **kwargs)
-
-    return locked
-
-
-@contract_writer
-def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> None:
-    """Open a thread, as the user's own gestures do: on a passage where --quote or
-    --section points at one, and on the page as a whole where neither does — the same
-    anchorless shape the browser's general box posts, which is where a question about
-    the work rather than a passage belongs. An anchor is captured against the version
-    they are looking at — the newest published one, since a version no `note` has
-    released is a passage nobody can be pointed at — and read as they see it: a slot
-    their decision retired is off the page, and a draft they edited holds their words,
-    so a quote is met here the way it would land there."""
-    # Reading a body may wait on stdin; do that before taking the page lease.
-    body = read_text_arg(text)
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        version = latest_published(page_dir, events)
-        anchor = None
-        if quote or section:
-            html = version_path(page_dir, version).read_text(encoding="utf-8")
-            registry = require_registry(page_dir)
-            projection, _, _ = page_projection(html, events, registry, version)
-            decided = decisions(projection.actions, registry)
-            edited = rewritten_bodies(projection.actions)
-            try:
-                anchor = capture_anchor(html, registry, quote, section, decided, edited)
-            except ValueError as err:
-                sys.exit(f"can't anchor in v{version}: {err}")
-        if markup:
-            check_markup(page_dir, "comment", markup, events)
-        event = {
-            "kind": "comment",
-            "author": "claude",
-            **message_identity(),
-            "version": version,
-            "text": body,
-        }
-        if anchor:
-            event["anchor"] = anchor
-        if markup:
-            event["markup"] = markup
-        accepted = append_event(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
-
-
-@contract_writer
-def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
-    """Post one complete threaded reply."""
-    body = read_text_arg(text)
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
-        if to not in known:
-            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
-        if markup:
-            check_markup(page_dir, "reply", markup, events)
-        event = {
-            "kind": "reply",
-            "author": "claude",
-            **message_identity(),
-            "parent": to,
-            "text": body,
-        }
-        if markup:
-            event["markup"] = markup
-        return append_event(page, event)
-
-
-@contract_writer
-def cmd_resolve(page_dir: Path, to: str) -> None:
-    """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
-    `parent` — any message in the thread names it — and `author` the whole
-    difference, which is how the panel can say who closed it."""
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
-        if to not in known:
-            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
-        event = {
-            "kind": "resolve",
-            "author": "claude",
-            **message_identity(),
-            "parent": to,
-        }
-        accepted = append_event(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
-
-
-@contract_writer
-def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
-    """A worker's provisional news: a declared state change folded onto a page
-    widget, validated at this door the way the POST door validates an action,
-    stamped with the posting session's voice, and made against the newest
-    published version — the page the reader is looking at. The runtime paints it
-    live; it stands until a version absorbs or overrules it by id (see
-    `version publish`), and the page's watcher wakes to fold it in. Field values
-    are strings — the declared detail schemas for reports speak in attribute
-    values, which is all a report may move."""
-    detail = {}
-    for field in fields:
-        name, eq, value = field.partition("=")
-        if not eq or not name:
-            sys.exit(f"detail fields are name=value, got {field!r}")
-        detail[name] = value
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        version = latest_published(page_dir, events)
-        registry = require_registry(page_dir)
-        event = {
-            "kind": "report",
-            "author": "claude",
-            **message_identity(),
-            "widget": widget,
-            "action": verb,
-            "detail": detail,
-            "version": version,
-        }
-        if error := report_contract_error(
-            event, parse_version(page_dir, version).by_id, registry
-        ):
-            sys.exit(error)
-        accepted = append_event(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
-
-
-@contract_writer
-def cmd_publish(
-    page_dir: Path, version: int, text, completes: tuple[str, ...] = ()
-) -> None:
-    name = version_name(version)
-    path = version_path(page_dir, version)
-    if not path.is_file():
-        sys.exit(
-            f"no v{version}.html in {page_dir / 'versions'}; write the version file first"
-        )
-    body = read_text_arg(text)
-    # Validation, projection, and append share the contract transition held by
-    # the decorator and this page transaction. A report therefore lands either
-    # before the note and may be answered by it, or after it on the new version.
-    with PageTransaction(page_dir) as page:
-        events = page.events
-        if (
-            cmd_check(
-                page_dir,
-                version,
-                transition_held=True,
-                events_override=events,
-            )
-            != 0
-        ):
-            sys.exit(
-                f"refusing to publish {name}: leaf version check failed (issues above)"
-            )
-        html = path.read_text(encoding="utf-8")
-        registry = load_registry(page_dir)
-        projection, parser, spk = page_projection(html, events, registry, version)
-        retracts = sorted(parser.restated)
-        byid = parser.by_id
-        if len(set(completes)) != len(completes):
-            sys.exit("--completes names each widget at most once")
-        completed = set(completes)
-        widget_work = {
-            claim["subject"]["id"]: claim
-            for claim in standing_work_claims(
-                page.status, events, include_resolved=True
-            )
-            if claim["subject"]["kind"] == "widget"
-        }
-        unearned = sorted(completed - widget_work.keys())
-        if unearned:
-            sys.exit(
-                "no active widget work claim for "
-                + ", ".join(repr(widget) for widget in unearned)
-            )
-        not_later = sorted(
-            widget
-            for widget in completed
-            if version <= work_claim_version(widget_work[widget], events)
-        )
-        if not_later:
-            sys.exit(
-                f"v{version} is not later than the active widget work claim for "
-                + ", ".join(repr(widget) for widget in not_later)
-            )
-        unseated = widget_work_without_seats(
-            html, parser, projection, events, page.status, registry, completed
-        )
-        if unseated:
-            widgets = ", ".join(repr(widget) for widget in unseated)
-            sys.exit(
-                f"refusing to publish {name}: it would remove the local seat "
-                f"for active work on {widgets}; pass --completes for each widget "
-                "this version completes"
-            )
-        settled_reports = []
-        for (_widget, unit, _facet), reports in projection.reports.items():
-            last, spec = reports[-1]
-            if unit in parser.overruled or markup_facet(
-                unit, spec, byid, spk, registry
-            ) == folded_facet(last, spec):
-                settled_reports.extend(report["id"] for report, _ in reports)
-        event = {
-            "kind": "note",
-            "author": "claude",
-            **message_identity(),
-            "version": version,
-            "text": body,
-        }
-        if retracts:
-            event["restated"] = retracts
-        settlements = [
-            *(
-                {"kind": "report", "id": identity}
-                for identity in sorted(settled_reports)
-            ),
-            *({"kind": "work", "id": identity} for identity in sorted(completed)),
-        ]
-        if settlements:
-            event["settles"] = settlements
-        accepted = append_event(page, event)
-    print(json.dumps(accepted, ensure_ascii=False))
-
-
-def cmd_events(page_dir: Path, after: int) -> None:
-    for event in read_events(page_dir):
-        if event["seq"] > after:
-            print(jsonl_line(event))
-
-
-# A quote as a transcript names it. The anchor stores the passage whole, because that
-# is the extent the page marks; a transcript is prose someone pastes into an MR, where
-# a paragraph of quoted page inside every thread head buries the exchange it is there
-# to carry. Both ends rather than the opening alone: a passage is identified by where
-# it starts and where it stops, and an elision that keeps only the head reads as a
-# short quote rather than as a long one shown briefly.
-QUOTE_SHOWN = 240
-
-
-def shown(quote: str) -> str:
-    if len(quote) <= QUOTE_SHOWN:
-        return quote
-    half = QUOTE_SHOWN // 2
-    return f"{quote[:half].rstrip()} … {quote[-half:].lstrip()}"
-
-
-def cmd_transcript(page_dir: Path) -> None:
-    """The page's exchange as Markdown, for reuse in a PR description."""
-    events = read_events(page_dir)
-    published = published_versions(page_dir, events)
-    registry = load_registry(page_dir) or {}
-    title = ""
-    if published:
-        title = parse_version(page_dir, published[-1]).title.strip()
-    print(f"## Leaf: {title or page_dir.name}")
-
-    notes = [e for e in events if e["kind"] == "note"]
-    if notes:
-        print("\n### Versions\n")
-        for e in notes:
-            print(f"- v{e['version']}: {e['text']}")
-
-    # The user's direct edits are outcomes of the exchange; without them the transcript
-    # understates it whenever a changelog note doesn't restate them. So
-    # is a version taking one back, which is the same understatement the other
-    # way round — an edit shown as final that a later version overruled.
-    # Widget-agnostic rendering: verb + detail pairs, against the version edited.
-    withdrawn = taken_back(events)
-    edits = [
-        e
-        for e in events
-        if e["kind"] in {"action", "report"}
-        or (e["kind"] == "note" and e.get("restated"))
-    ]
-    if edits:
-        print("\n### Edits\n")
-        for e in edits:
-            if e["kind"] == "note":
-                for wid in e["restated"]:
-                    print(
-                        f"- `{wid}`: rewritten by v{e['version']}, retracting what was decided on it"
-                    )
-                continue
-            detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
-            verb = f"{e['action']} {detail}".strip()  # a bare reject carries no detail
-            if e["kind"] == "report":
-                # A worker's provisional news is an outcome too, under its own name.
-                print(
-                    f"- `{e['widget']}`: {e.get('agent', 'a worker')} reported "
-                    f"{verb} (on v{e['version']})"
-                )
-            else:
-                # An edit the reader took back is an outcome too, and the same
-                # understatement the other way round: shown as it stands it reads
-                # as final, and left out it reads as never made.
-                took = " — taken back" if e["id"] in withdrawn else ""
-                print(f"- `{e['widget']}`: {verb} (on v{e['version']}){took}")
-
-    # Against the newest published version — the page as it now stands, which is
-    # what a transcript is an account of. A page with nothing published yet has no
-    # reading to give, and no action can have been made against one either.
-    latest = (
-        version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        if published
-        else ""
-    )
-    projection = parser = None
-    spk = {}
-    if published:
-        projection, parser, spk = page_projection(
-            latest, events, registry, published[-1]
-        )
-    threads = build_threads(events, spk)
-    if threads:
-        print("\n### Threads\n")
-    for t in threads.values():
-        anchor = t["root"].get("anchor") or {}
-        if anchor.get("quote"):
-            head = f"> “{shown(anchor['quote'])}”"
-        elif anchor.get("section"):
-            head = f"> § {anchor['section']}"
-            if anchor.get("part"):
-                head += f" · {anchor['part']}"
-        else:
-            head = "> (page-level)"
-        if t["root"].get("about") == "layer":
-            head += "  — about the layer"
-        closed = t["resolved"]
-        if closed and closed["author"] == "claude":
-            # Named where the reader was not the one who closed it. A transcript is
-            # read away from the page, so the panel's own line saying so is not in it.
-            head += "  — resolved by " + closed.get("agent", "Agent")
-        elif closed:
-            head += "  — resolved"
-        print(head)
-        for m in t["msgs"]:
-            who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
-            body = m["text"] + (f"\n{m['markup']}" if m.get("markup") else "")
-            print(f"- **{who}**: " + body.replace("\n", "\n  "))
-        print()
-    for e in events:
-        if e["kind"] == "done":
-            print(f"Approved at {e['ts']}.")
-            break
-
-    # To stderr — stdout is the artifact. A transcript is a page's closing act,
-    # and the record debt it reports here is about to stop being fixable.
-    if projection and registry:
-        for line in record_lag(projection, parser.by_id, spk, registry):
-            print(f"record behind the log — {line}", file=sys.stderr)
-
-
-# ---------- hook: the loop, enforced rather than remembered ----------
-from leaf_interact.hooks import (  # noqa: F401 - public facade re-exports
-    cmd_hook,
-    unanswered_asks,
-    unattended_pages,
 )
 from leaf_interact.page import (  # noqa: F401 - public facade re-exports
     CATALOG_FACTS,
@@ -1211,6 +833,13 @@ from leaf_interact.page import (  # noqa: F401 - public facade re-exports
     cmd_page_state,
     page_guidance,
     standing_entry,
+)
+from leaf_interact.session import (  # noqa: F401 - public facade re-exports
+    PageTick,
+    Watch,
+    cmd_ack,
+    cmd_status,
+    cmd_wait,
 )
 
 at = _validation_at

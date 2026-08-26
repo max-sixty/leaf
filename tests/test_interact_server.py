@@ -31,6 +31,7 @@ from interact_support import (
 from leaf_interact import events as event_model
 from leaf_interact import hosting as hosting_model
 from leaf_interact import http as http_model
+from leaf_interact import publishing as publishing_model
 from leaf_interact import service as service_model
 
 
@@ -2065,14 +2066,14 @@ def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page
     (page_dir / "versions" / "v2.html").write_text(html)
     entered = threading.Event()
     release = threading.Event()
-    original = interact.cmd_check
+    original = publishing_model.cmd_check
 
     def paused_check(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(interact, "cmd_check", paused_check)
+    monkeypatch.setattr(publishing_model, "cmd_check", paused_check)
     failures = []
 
     def run_publish():

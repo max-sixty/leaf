@@ -64,9 +64,11 @@ export function createAim({
   // press on the new page was claimed while nothing could paint the promise. Mouse events
   // carry that same live state, so the move re-derives the arm from the freshest carrier,
   // through the one setter, rather than trusting the latch.
-  document.addEventListener("mousemove", (ev) => {
+  document.addEventListener("pointermove", (ev) => {
     // This listener used to follow the pointer recorder in the monolith. Keep that
-    // ordering explicit now that the recorder is installed by the anchor module.
+    // ordering explicit now that the recorder is installed by the anchor module. On the
+    // pointer event for the reason the recorder is (anchors.js): `mousemove` carries the
+    // pointer's place rounded to a whole pixel, and this record answers hit tests.
     pointerAt().x = ev.clientX;
     pointerAt().y = ev.clientY;
     const held = ev.getModifierState(AIM.modifier);

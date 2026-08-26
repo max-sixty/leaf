@@ -1222,6 +1222,63 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     page.close()
 
 
+def test_a_marked_card_keeps_the_shadow_its_status_is_drawn_in(browser, serve):
+    """A card says its status in a box-shadow channel and the runtime paints its marks
+    in an outline, so a card the reader has anchored a comment to says both at once.
+
+    They collided over a name. The channel is `--lf-ring`; a rule naming which here ring
+    it draws reached for the same word, and `.lf-mark-el.lf-mark-here` outranks the
+    card's own rule by a class column — so the moment a mark landed on a card, the name
+    it wrote was what `box-shadow: var(--lf-ring), var(--lf-lift)` resolved to. An
+    identifier is no shadow, the whole declaration went invalid at computed-value time,
+    and the card lost its recommendation ring and its lift together while the reader was
+    pointing at it. Nothing was wrong on screen anywhere else, and no reading asked.
+
+    So the two are spelled apart (`--lf-here-ring`), and this is what says they still
+    are. The mark classes are applied directly because they are the mechanism: they are
+    what `markHere` paints on an element a focused thread is anchored to.
+
+    Read on all three card rules, since each states the ring it layers over and a
+    rename that missed one would leave the other two clean."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    page.locator("#live-settled .lf-settled").click()
+    page.wait_for_function(
+        """() => document.querySelector('#live-settled')
+                 .getAnimations({subtree: true}).length === 0"""
+    )
+    read = """el => {
+        const cs = getComputedStyle(el);
+        return [cs.boxShadow,
+                cs.getPropertyValue('--lf-ring').trim(),
+                cs.getPropertyValue('--lf-here-ring').trim()];
+    }"""
+    mark = "el => el.classList.add('lf-mark-el', 'lf-mark-here')"
+    for card, which in (
+        ("#l-bearer", "plain"),
+        ("#l-signed", "recommended"),
+        ("#l-lax", "chosen"),
+    ):
+        rest, channel, _ = page.locator(card).evaluate(read)
+        assert rest != "none", (
+            f"a {which} card draws no shadow at rest, so this reads nothing about one"
+        )
+        page.locator(card).evaluate(mark)
+        marked, channel_now, name = page.locator(card).evaluate(read)
+        # Non-vacuity: the mark rule has to have reached this box, or the comparison
+        # below is one box against itself.
+        assert name == "element-mark", (
+            f"the mark left {name!r} on the {which} card rather than its ring's name, "
+            "so the rule this is written against never applied and the shadow was "
+            "never at risk"
+        )
+        assert (marked, channel_now) == (rest, channel), (
+            f"marking the {which} card moved its shadow: {marked} in channel "
+            f"{channel_now!r}, against {rest} in {channel!r} before"
+        )
+    assert errors == []
+    page.close()
+
+
 def test_one_band_says_where_the_reader_is_standing(browser, serve):
     """The reader's band is drawn once, on the outermost box that claims it.
 

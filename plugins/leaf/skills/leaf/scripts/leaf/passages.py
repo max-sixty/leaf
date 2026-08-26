@@ -74,9 +74,12 @@ def collapse(text: str) -> str:
     return COLLAPSE.sub(" ", text).strip(" ")
 
 
-# What a text node's "block" resolves to, matching the runtime's TEXT_BLOCK: one space
-# goes wherever two runs of text sit in different blocks, and none where they share one,
-# so `<p>a</p><p>b</p>` reads "a b" and `set<em>up</em>` reads "setup".
+# What a text node's "block" resolves to: one space goes wherever two runs of text sit in
+# different blocks, and none where they share one, so `<p>a</p><p>b</p>` reads "a b" and
+# `set<em>up</em>` reads "setup". The runtime spells the same list as a selector
+# (TEXT_BLOCK), and the two are held equal by a test rather than by this sentence — a
+# tag one side calls a block and the other does not gives the two readings different
+# text, which is every quote-shaped thing at once.
 TEXT_BLOCK_TAGS = {
     "p",
     "li",
@@ -100,9 +103,11 @@ TEXT_BLOCK_TAGS = {
 # document.body — without it a page's <title> would be quotable and land nowhere.
 UNQUOTABLE_TAGS = {"script", "style", "head"}
 # How much of the surrounding text an anchor stores to tell two identical passages
-# apart, as leaf.js captures it. The quote itself is stored whole, however long the
-# passage: it is the extent the page marks, and a cap on it was a comment quietly made
-# on less than was quoted (leaf.js, above selectionAnchor).
+# apart. The browser's capture states the same number and a test holds the two equal,
+# so this side cannot come to store a neighbourhood the browser would never have
+# written. The quote itself is stored whole, however long the passage: it is the extent
+# the page marks, and a cap on it was a comment quietly made on less than was quoted
+# (see selectionAnchor, wherever the capture lives).
 CONTEXT = 24
 
 

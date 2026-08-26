@@ -309,15 +309,15 @@ def reserved_ids_error(ids: list) -> str:
 
 
 def reserved_marker_errors(parser) -> list:
-    """The same trespass as a reserved id, for the runtime's other markers: it
-    writes data-lf-* and the .lf-chrome/.lf-live/.lf-copy classes as its own
-    record and reads them back, so an authored copy makes it misread the page —
-    words inside .lf-chrome leave every reading, data-lf-gen words become cells
-    the file-side reading has no fence for."""
+    """The same trespass as a reserved id, and reserved the same way one is: the
+    runtime writes data-lf-* attributes and lf- classes as its own record and
+    reads them back, so an authored copy makes it misread the page — words
+    inside .lf-chrome leave every reading, .lf-quiet clips them to a point, and
+    data-lf-gen words become cells the file-side reading has no fence for."""
     return [
         f"<{tag}> at line {line} wears the runtime's own markers "
-        f"({', '.join(markers)}); the page may not author what the runtime "
-        "reads back as its own record"
+        f"({', '.join(markers)}); the lf- and data-lf- namespaces are the "
+        "runtime's to write, whether or not it writes this name today"
         for tag, line, markers in parser.reserved_markers
     ]
 

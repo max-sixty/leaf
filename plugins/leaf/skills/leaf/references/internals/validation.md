@@ -14,7 +14,8 @@ declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
 comment); ids are unique and every id from the previous version survives
 unless the log settled the widget holding it; no fixed-pixel-width element
-is wider than the readable column. Near-free and deterministic is what makes
+is wider than the readable column (the rule that draws that column claims it with
+`--lf-column: 1`, so the width and the claim come from one block). Near-free and deterministic is what makes
 running it on every version affordable, so keep a new check that way; anything
 needing a browser belongs in `--render`.
 

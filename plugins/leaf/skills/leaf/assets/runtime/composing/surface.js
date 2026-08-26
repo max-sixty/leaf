@@ -21,6 +21,7 @@ export function createSelectionSurface({
   panel,
   panelCovers,
   pendingMarks,
+  pointerAt,
   referenceIsOpen,
   selectionAnchor,
   showThread,
@@ -311,7 +312,19 @@ export function createSelectionSurface({
       if (target) openOnDesign(target, { left: ev.clientX + 6, top: ev.clientY - 40 });
       return;
     }
-    const threadId = markAt(ev.clientX, ev.clientY);
+    // The record rather than this event's own coordinates, for the reason the record is
+    // kept from a pointer event at all (anchors.js): `click` is a legacy mouse event and
+    // carries the pointer's place rounded to a whole pixel, while markAt measures against
+    // getClientRects, whose edges are floats. Asked at the rounded point this answered a
+    // different thread than refreshHover had just promised at the true one — a quote lit
+    // up under the hand and a press on it opening nothing.
+    //
+    // A click with no press behind it carries 0,0 rather than a position — `offer` calls
+    // click() to supply the keys a span doesn't come with — and the record would answer
+    // for wherever the pointer is parked, so that one keeps reading the event.
+    const threadId = ev.detail
+      ? markAt(pointerAt().x, pointerAt().y)
+      : markAt(ev.clientX, ev.clientY);
     if (threadId) return showThread(threadId);
     // A link keeps its ordinary navigation. The universal Alt-click aim reaches a
     // commentable part inside it without letting either gesture do both things.

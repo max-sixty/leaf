@@ -2014,6 +2014,7 @@ const {
   panel,
   panelCovers,
   pendingMarks: () => anchorRuntime.pendingMarks,
+  pointerAt: () => pointer,
   referenceIsOpen: () => reference.open,
   selectionAnchor,
   showThread,
@@ -3717,6 +3718,7 @@ export {
   inChrome,
   inUi,
   movedWords,
+  quoted,
   renderRetired,
   says,
   textNodesUnder,
@@ -4231,7 +4233,7 @@ async function receiveState(state) {
             document.documentElement.classList.remove("lf-versioning");
             // The transition's snapshots temporarily replace what is under a parked
             // pointer. Ask again once the live page owns those pixels, even when no
-            // mousemove reports the change.
+            // pointer move reports the change.
             refreshHover();
           }
         } else await apply();

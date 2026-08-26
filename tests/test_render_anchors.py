@@ -1630,6 +1630,60 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     page.close()
 
 
+def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
+    """A finger is a pointer that arrives already down, and the click it ends on has to
+    answer for a position it never moved through.
+
+    A tap dispatches no `pointermove` at all — `pointerdown`, then the compatibility
+    mouse events and a `click` carrying `detail=1`. So the record a mouse keeps as it
+    travels is still its start value under a finger, and a click reading it asks
+    elementFromPoint at a point off the page: the quote under the finger opens nothing,
+    which is a wider silence than the pixel the mouse door was about. The record is taken
+    from `pointerdown` as well for that reason, and a tap's `pointerdown` carries the true
+    fractional point, so the finger gets the same reading the mouse does rather than the
+    rounded one its own click would have given.
+
+    The context has a touchscreen because that is the only way to get a gesture with no
+    pointermove in it: driving the same point with `page.mouse` records the position on
+    the way in and passes whatever the click reads. The seam fixture is reused so the
+    tap's own rounded twin is a different item, and a comment on each makes a wrong
+    reading a visible thread rather than a miss."""
+    url = serve(AIM_SEAM_PAGE)
+    for ident in ("seam-upper", "seam-lower"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": f"About {ident}.",
+                "anchor": {"section": ident},
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light", has_touch=True
+    )
+    page, errors = open_page(browser, url, context=context)
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+        "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
+        "to are not on the two marked items either side of it, so a tap that read either "
+        f"of them would pass this: {seam}"
+    )
+
+    page.touchscreen.tap(seam["x"], seam["y"])
+    opened = page.evaluate(
+        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+    )
+    assert opened and f"About {seam['at']}." in opened, (
+        f"a tap on the quote for {seam['at']} opened: {opened}"
+    )
+    assert errors == []
+    page.close()
+    context.close()
+
+
 def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
     """The hover is a function of where the pointer is and where the text is, and scrolling
     moves the second without touching the first. A wrapped <mark> got this from :hover; a

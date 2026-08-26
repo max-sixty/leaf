@@ -1071,6 +1071,17 @@ export function createAnchors(dependencies) {
     pointer.y = ev.clientY;
     refreshHover();
   });
+  // A finger arrives already down. A tap dispatches `pointerdown` and then the
+  // compatibility mouse events — no `pointermove` anywhere in it — so a record kept from
+  // movement alone is still its start value when the click asks, and a consumer with no
+  // guard asks elementFromPoint about a point off the page: the quote under the finger
+  // opened nothing. The press is the pointer's place too, and on touch it is the only
+  // statement of it. No hover refresh with it: a mouse has already moved to this point
+  // and refreshed there, and there is no hover to paint under a finger.
+  document.addEventListener("pointerdown", (ev) => {
+    pointer.x = ev.clientX;
+    pointer.y = ev.clientY;
+  });
   // The page moving under a parked pointer is the pointer moving over the page: what a
   // press would take, whether a mark is under the hand, and where every legend box
   // stands can all change with no mouse event to say so, and a box left over the old

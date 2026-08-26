@@ -677,20 +677,28 @@ export function createAnchors(dependencies) {
       // glyph is a real control that says what it is. Answered, it is a thread and takes
       // a thread's mark below; resolved, nothing, resolve being its floor.
       if (bareReaction(t)) {
+        // The seat: the block a passage starts in, entered at its start; or, for a
+        // whole element, the element itself, stood before — an element may render into
+        // a shadow tree or rebuild its own children, and a seat before it is level with
+        // its top either way.
         let seat;
         if (found.element) {
           const parts = shownParts(found.element);
           for (const part of parts) part.classList.add("lf-react-el");
           reacted.set(t.root.id, parts);
-          seat = found.element;
+          seat = { at: found.element, before: true };
         } else {
           const ranges = found.segments.map((seg) => rangeOf([seg]));
           reacted.set(t.root.id, ranges);
           reactions.push(...ranges);
-          seat = blockAt(found.segments[0].node) ?? sectionOf(t.root.anchor);
+          const block = blockAt(found.segments[0].node) ?? sectionOf(t.root.anchor);
+          seat = block && { at: block, before: false };
         }
-        if (seat && !inChrome(seat))
-          seats.set(seat, [...(seats.get(seat) ?? []), t.root]);
+        if (seat && !inChrome(seat.at)) {
+          const held = seats.get(seat.at) ?? { ...seat, roots: [] };
+          held.roots.push(t.root);
+          seats.set(seat.at, held);
+        }
         continue;
       }
       if (found.element) {
@@ -850,14 +858,25 @@ export function createAnchors(dependencies) {
   // reader pressed; stale seats are swept the way note lines are. The seat wears lf-ui
   // and data-lf-gen: an account of the passage, not words of the page, so selection,
   // quote capture and the diff readings skip it, and a frame's first-child trim does.
+  const seatOf = (at, before) =>
+    before
+      ? at.previousElementSibling?.classList.contains(SEAT)
+        ? at.previousElementSibling
+        : null
+      : at.querySelector(`:scope > .${SEAT}`);
   function seatReactions(seats) {
-    for (const [holder, roots] of seats) {
-      let seat = holder.querySelector(`:scope > .${SEAT}`);
+    for (const [at, { before, roots }] of seats) {
+      let seat = seatOf(at, before);
       if (!seat) {
         seat = el("span", `lf-ui ${SEAT}`);
         seat.dataset.lfGen = "1";
-        holder.prepend(seat);
+        if (before) at.before(seat);
+        else at.prepend(seat);
       }
+      // What it stands for, for anyone reading the page: the element's id where it
+      // has one, the way a suggestion's row names the change it decides.
+      if (at.id) seat.dataset.lfFor = at.id;
+      else seat.removeAttribute("data-lf-for");
       const wanted = roots.map((root) => {
         let mark = seat.querySelector(`:scope > [data-event="${root.id}"]`);
         if (!mark) {
@@ -878,8 +897,12 @@ export function createAnchors(dependencies) {
           seat.insertBefore(mark, seat.children[i] ?? null);
       });
     }
-    for (const seat of pageQueryAll(`.${SEAT}`))
-      if (!seats.has(seat.parentElement)) seat.remove();
+    for (const seat of pageQueryAll(`.${SEAT}`)) {
+      const inside = seats.get(seat.parentElement);
+      const beside = seats.get(seat.nextElementSibling);
+      const kept = (inside && !inside.before) || (beside && beside.before);
+      if (!kept) seat.remove();
+    }
   }
 
   // Re-resolve marks after a package replaces derived passage nodes during replay.

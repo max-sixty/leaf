@@ -359,7 +359,6 @@ ${MARK_RULES}
      theme.css, ::highlight below). No hand, since nothing opens on a press here: the
      glyph in the margin is the control. */
   .lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
-  ::highlight(lf-react) { background-color: var(--react); }
   /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
      registry being script state no file can hold (BAKE). */
   html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
@@ -374,10 +373,12 @@ ${MARK_RULES}
   .lf-reacts { position: absolute; left: 100%; margin-left: 22px; display: inline-flex;
     gap: 4px; white-space: nowrap; padding-right: var(--here-ring-room); z-index: 1; }
   .lf-react-mark { min-width: 26px; text-align: center; }
-  @media screen and (max-width: 899px) {
-    .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
-  }
-  @media print {
+  /* Docked: a float at the block's start, taking a glyph's width off its first line,
+     wherever the margin is not there to hang in — a narrow window, the panel having
+     taken the room (data-lf-cramped, the same posture a sidenote docks under), and paper,
+     which has no margin at all. */
+  body[data-lf-cramped] .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
+  @media screen and (max-width: 899px), print {
     .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
   }
   /* The draft's own passage — a standing annotation like the posted mark, which is why
@@ -897,16 +898,14 @@ ${MARK_RULES}
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
     .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
-      gap: 4px; padding: 3px 4px; background: var(--card); border: 1px solid var(--border-2);
-      border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,.14); white-space: nowrap; }
-    /* The tokens and the Comment are one bar: each token is a pill of its own, and the
-       Comment stands last behind a hairline, so the bar reads as the six cheap answers
-       and then the composed one. Hidden for the page whole, whose comment box is the
-       panel's general one. */
-    .lf-fab-bar > .lf-fab { margin-left: 4px; padding-left: 10px;
-      border-left: 1px solid var(--border-2); border-radius: 0 999px 999px 0;
-      border-top: 0; border-right: 0; border-bottom: 0; background: none; }
-    .lf-fab-bar > .lf-fab[hidden] { display: none; }
+      gap: 4px; white-space: nowrap; }
+    /* Every press on the bar is the margin's pill — the token pills and the Comment
+       alike wear .lf-pill unchanged, so the bar is the same idiom as the ✓ Accept it can
+       stand level with — and each carries the shadow the floating press earns, the bar
+       itself drawing nothing. A hairline between the tokens and Comment says which
+       half is the cheap answer. */
+    .lf-fab-bar > .lf-pill { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .lf-fab-sep { width: 1px; height: 14px; margin: 0 2px; background: var(--border-2); }
     /* A token as a press, wherever it stands: the bar, a message's strip, the page row.
        The glyph is the whole label at rest; the word joins it once the token stands on
        its target (aria-pressed), so a strip reads "✓ ok" where the reader pressed and a

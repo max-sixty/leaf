@@ -319,6 +319,10 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     note.click()
     page.keyboard.up("Alt")
 
+    # The press raises the bar on the note — the tokens, then Comment — and Comment is
+    # the composer, on the whole note.
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
     assert errors == []
@@ -386,14 +390,19 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         page.mouse.click(*point)
         page.keyboard.up("Alt")
         composer = page.locator(".lf-composer")
+        bar = page.locator(".lf-fab-bar")
         if promised is None:
             # Nothing outlined is nothing to aim at — no item encloses this point — and an
             # armed press then acts on nothing rather than falling back to the page. A
             # suggestion's ✓ Accept is where that matters: its row hangs in the page's own
             # column, outside the element it decides, so nothing is above it to aim at and
             # a press let through would send Claude a decision.
+            expect(bar).to_be_hidden()
             expect(composer).to_be_hidden()
         else:
+            # The press raises the bar on the item; Comment on it is the composer.
+            expect(bar).to_be_visible()
+            page.locator(".lf-fab").click()
             expect(composer).to_be_visible()
             assert page.evaluate(DRAFT_MARK) == promised, (
                 f"⌥-clicking {label} in {example.name} promised {promised} and commented "
@@ -462,8 +471,10 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()  # the press was the aim's
+    page.locator(".lf-fab").click()
     composer = page.locator(".lf-composer")
-    expect(composer).to_be_visible()  # the press was the aim's, so its claim now stands
+    expect(composer).to_be_visible()
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
@@ -493,6 +504,8 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     page.keyboard.down("Alt")
     heading.click()
     page.keyboard.up("Alt")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     composer.locator("textarea").fill("carried words")
@@ -507,6 +520,9 @@ def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
     )
     card.click()
     page.keyboard.up("Alt")
+    # The bar comes up on the card over the open box; its Comment moves the box.
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
     expect(composer).to_be_visible()
     expect(composer.locator("textarea")).to_have_value("carried words")
     assert [page.evaluate(AIMED), page.evaluate(DRAFT_MARK)] == [

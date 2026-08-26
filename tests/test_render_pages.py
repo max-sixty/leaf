@@ -136,6 +136,9 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 f'.lf-reacts > .lf-react-mark[data-event="{reaction["id"]}"]'
             )
             expect(glyph).to_be_visible()
+            expect(glyph.locator("..")).to_have_attribute(
+                "data-lf-for", reaction["anchor"]["section"]
+            )
             if reaction["anchor"].get("quote"):
                 painted = re.sub(
                     r"\s",

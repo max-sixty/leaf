@@ -2367,7 +2367,8 @@ const MARK_RULES = `
     background-color: var(--mark-strong);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
-    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
+    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
+  ::highlight(lf-react) { background-color: var(--react); }`;
 const style = document.createElement("style");
 style.dataset.lfRuntime = "1";
 // The chrome's whole stylesheet, and a template literal, so a backtick anywhere in
@@ -3225,7 +3226,9 @@ const fabBar = el("div", "lf-ui lf-fab-bar");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "React or comment");
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
-fabBar.append(fab);
+const fabSep = el("span", "lf-ui lf-fab-sep");
+fabSep.setAttribute("aria-hidden", "true");
+fabBar.append(fabSep, fab);
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
@@ -4682,11 +4685,30 @@ let fabAnchor = null;
 // unanchored comment already has. The bar raised on it offers the tokens and no Comment,
 // the page's own comment box being the panel's general one.
 const PAGE_WHOLE = Object.freeze({ page: true });
-function showFab(anchor, left, top) {
+// `avoid` is the box the bar was raised for — a selection's — and the bar stands off
+// it: beside it where the column has the room, and above its first line where it has
+// not, because a bar clamped back from the edge landed on the very words the reader
+// had just picked out, and the next press there was the bar's rather than the page's.
+function showFab(anchor, left, top, avoid = null) {
   fabAnchor = anchor;
   fabBar.style.display = anchor ? "inline-flex" : "none";
-  fab.hidden = anchor === PAGE_WHOLE;
-  if (anchor) placeClear(fabBar, left, top);
+  // Comment's own display is stated as well as the bar's: the page whole has no box to
+  // compose in but the panel's general one, so the bar raised on it is the tokens alone.
+  const commenting = anchor && anchor !== PAGE_WHOLE;
+  fab.style.display = commenting ? "block" : "none";
+  fabSep.style.display = commenting ? "block" : "none";
+  if (anchor) {
+    placeClear(fabBar, left, top);
+    const box = fabBar.getBoundingClientRect();
+    if (
+      avoid &&
+      box.left < avoid.right &&
+      box.right > avoid.left &&
+      box.top < avoid.bottom &&
+      box.bottom > avoid.top
+    )
+      placeClear(fabBar, avoid.right - box.width, avoid.top - box.height - 6);
+  }
   paintHere(); // the c row names this anchor, so the line is one more rendering of it
 }
 // The one way an item under a gesture becomes the composer's anchor, so no two routes
@@ -4992,9 +5014,10 @@ function updateFab(visual) {
   }
   const sel = pageSelection();
   const anchor = sel ? selectionAnchor(sel) : null;
-  if (anchor?.quote.length >= MIN_QUOTE)
-    showFab(anchor, ...beside(pageRange(sel).getBoundingClientRect()));
-  else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
+  if (anchor?.quote.length >= MIN_QUOTE) {
+    const picked = pageRange(sel).getBoundingClientRect();
+    showFab(anchor, ...beside(picked), picked);
+  } else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
   else if (fabAnchor?.quote) showFab(null);
 }
 // Where the pointer stopped is not the question; where the selection is, is. The guard

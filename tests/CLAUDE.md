@@ -290,7 +290,11 @@ a settled one. Read browser state after the trip when the returned state is part
 the assertion. `round_trip` proves delivery; it does not claim every rendered effect
 of the response has completed. When applying the response is itself the subject, wait
 for `data-lf-applied` to cover the expected events before reading the resulting surface
-or making a gesture whose liveness depends on that projection.
+or making a gesture whose liveness depends on that projection. That stamp counts
+replayed actions, reports, and undos, and no comment: a comment, a reply, or a
+reaction never moves it, so a wait on it for one of those spends the whole timeout.
+The fact such an event states is its paint or its card — wait on that
+(`test_render_reactions.py`'s `painted` reads the highlight and the seated glyphs).
 
 After changing a file behind a live page, call `told` before reading the page. Letting
 `expect` absorb the next polling interval hides which mechanism supplied the wait and

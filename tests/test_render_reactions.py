@@ -26,7 +26,7 @@ pytestmark = pytest.mark.nightly
 PAINTED = """() => ({
   washed: [...(CSS.highlights.get('lf-react') ?? [])].map(r => r.toString().replace(/\\s/g, '')).join(''),
   glyphs: [...document.querySelectorAll('.lf-reacts > .lf-react-mark')]
-    .map(m => [m.parentElement.parentElement.id, m.dataset.token]),
+    .map(m => [m.parentElement.dataset.lfFor, m.dataset.token]),
   outlined: [...document.querySelectorAll('.lf-react-el')].map(el => el.id),
 })"""
 

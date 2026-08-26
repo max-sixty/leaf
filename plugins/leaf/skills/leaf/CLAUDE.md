@@ -40,8 +40,8 @@ and selection-composer state;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/version-activation.js` owns version document loading, authored-root
 replacement, and activation serialization;
-`runtime/version-navigation.js` owns version travel, chooser-list rendering, and
-forced live activation;
+`runtime/version-navigation.js` owns version travel, the chooser control and menu,
+its key scope, and forced live activation;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;

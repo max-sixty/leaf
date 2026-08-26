@@ -1847,15 +1847,22 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
             "agent": "Indexer",
             "session": "worker-1",
             "message": message["id"],
-            "text": "The north bracket fits.",
+            "text": (
+                "The north bracket fits.\n\n"
+                "```python\n"
+                "def fitted():\n"
+                "    return True\n"
+                "```"
+            ),
         },
     )
     told(page)
 
-    expect(inline.locator(".lf-conversation-body")).to_have_text(
+    expect(inline.locator(".lf-conversation-body")).to_contain_text(
         "The north bracket fits."
     )
-    expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fits.")
+    expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
+    expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
     expect(inline.locator(".lf-edited")).to_have_text("edited")
     expect(panel.locator(".lf-edited")).to_have_text("edited")
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)

@@ -58,10 +58,7 @@ export function createConversationMessages(dependencies) {
   const msgBodies = new Map();
   function paintMsgText(text, m) {
     if (m.suggestion) text.textContent = m.text;
-    else {
-      text.innerHTML = renderMarkdown(m.text);
-      highlightBlocks(text);
-    }
+    else text.innerHTML = renderMarkdown(m.text);
   }
 
   function buildMsgBody(m) {
@@ -119,6 +116,7 @@ export function createConversationMessages(dependencies) {
     const revision = m.edited?.id ?? "";
     if (rendered.revision !== revision) {
       paintMsgText(rendered.text, m);
+      if (!m.suggestion) highlightBlocks(rendered.text);
       rendered.revision = revision;
     }
     return rendered.body;

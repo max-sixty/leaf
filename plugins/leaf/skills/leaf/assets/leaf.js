@@ -1688,6 +1688,12 @@ const PANEL_KEY = "lf-panel-open";
 // reader's own scrolling moves. Asked of the edge's query rather than stored, so no reader
 // of it can hold an answer from a window that has gone.
 const panelCovers = () => panelOpen && commentsEdge.over.matches;
+// Whether the reader is standing in the panel rather than merely looking at it — focus,
+// not visibility, the same line PANEL draws for its own scope and the one every surface
+// here reads. A press that acts on where the reader is standing has to ask it of the
+// focus: beside the page the panel is a column of its own, and a reader working down the
+// list is in it whatever the window is wide enough to show behind them.
+const inPanel = () => panelOpen && containsAcross(panel, focused());
 // The strip each side of the page yields, which is that edge's width until the window is
 // too narrow to give one up — one expression each, because the margin the rule takes and
 // the room measured against it have to mean the same thing by it. The tray panel yields
@@ -2680,6 +2686,7 @@ const { commentOnItem, glideTo, scrollerFor, seenScroller, stepPage, stepThread 
     SCROLL,
     beside,
     inChrome: (node) => inChrome(node),
+    inPanel,
     openOnItem,
     openThreads,
     pageScroller,
@@ -3075,7 +3082,7 @@ const TYPING = {
 
 const PANEL = {
   title: "In the comment panel",
-  at: () => panelOpen && containsAcross(panel, focused()),
+  at: inPanel,
   rows: [
     {
       // `w` for the words the control says, the way `l` spells the leaves and `a` the

@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     PAGE,
     PLUGIN_ROOT,
     ROOT,
@@ -153,157 +152,19 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
     )
 
 
-def test_ack_batch_instruction_preserves_scalar_cursor_safety():
-    assert schema_model.ACK_BATCH_INSTRUCTION == (
-        "If wait output is truncated, acknowledge nothing and rerun with enough output "
-        "capacity for the whole batch. After the complete batch reaches its next durable "
-        "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
-        "batch's first line names."
-    )
+def test_the_skill_routes_every_reference_it_ships():
+    """A reference SKILL.md never links is a file no session opens.
 
-
-def test_skill_assigns_acknowledgement_to_the_wait_owner():
-    root = PLUGIN_ROOT / "skills" / "leaf"
-    conversation = (root / "references" / "conversation-loop.md").read_text()
-    watcher = (root / "references" / "codex-watcher.md").read_text()
-
-    assert " ".join(schema_model.ACK_BATCH_INSTRUCTION.split()) in " ".join(
-        conversation.split()
-    )
-    assert "Process every event" in conversation
-    assert "`send_message_to_thread` is available" in watcher
-    assert "Run `leaf wait <page>`" in watcher
-    assert "do not run\n   `leaf wait` or `leaf ack`" in watcher
-    assert "page and event seq already handled is a retry" in watcher
-    assert "After the host accepts the follow-up" in watcher
-
-
-def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
-    """A reply is written into a shell argument and never read where it lands.
-
-    The panel renders a reply through `marked` and the theme dresses its lists,
-    code, quotes and tables for a column that is narrow by default, so the shape
-    is available and nothing in the loop shows the author what they chose. The
-    guidance said "brief Markdown" over a single-line `--text "<answer>"`, and
-    brevity read as one paragraph: an answer carrying three independent reasons
-    arrived as four sentences of prose with the reasons buried in clauses.
-
-    So the rule states the short case as complete and the example carries the
-    long one, because a documented call is copied where a description is not.
-    The two assertions hold each half: brevity first, and a worked long answer
-    to copy from when brevity does not fit.
+    The set comes from the directory rather than a list here, because a list is the
+    second copy: adding a reference and forgetting to route it would leave it green.
     """
-    root = PLUGIN_ROOT / "skills" / "leaf" / "references"
-    conversation = (root / "conversation-loop.md").read_text()
-
-    assert "one sentence is a complete reply" in " ".join(conversation.split())
-    reply_block = conversation.split("leaf reply <page> --to <thread-id>")
-    assert any(part.startswith(" <<'EOF'") for part in reply_block[1:])
-    assert any(part.startswith(' --text "') for part in reply_block[1:])
-
-    # The Command Hub package carries its own worker protocol, so its reply example
-    # must keep the long-answer shape when the package leaves Leaf's kernel.
-    worker = (COMMAND_HUB_PACKAGE / "guidance" / "worker.md").read_text()
-    assert 'reply "$PAGE" --to "$THREAD" <<' in worker
-
-
-def test_leaf_skill_routes_its_complete_reference_set():
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()
     references = sorted((root / "references").glob("*.md"))
-    expected = {
-        "codex-watcher.md",
-        "conversation-loop.md",
-        "packages.md",
-        "page-authoring.md",
-        "serving-pages.md",
-    }
 
-    assert len(skill.splitlines()) < 500
-    assert {path.name for path in references} == expected
-    assert "--forward" not in "\n".join(
-        [skill, *(path.read_text() for path in references)]
-    )
-    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
-    conversation = " ".join(
-        (root / "references/conversation-loop.md").read_text().split()
-    )
-    assert "Escape `&` first, then `<` and `>`" in authoring
-    assert "status banner, comment sidebar, version picker" in authoring
-    assert "live-leaves tray, and open-asks tray" in authoring
-    assert "informational page with no concrete ask" in " ".join(skill.split())
-    assert "informational page with no concrete ask" in conversation
+    assert references, "no references read — an empty set routes itself"
     for path in references:
-        assert f"references/{path.name}" in skill
-
-
-def test_a_correction_is_written_straight_rather_than_offered_as_a_choice():
-    """A suggestion asks the reader to decide, so it needs a live alternative.
-
-    The revision rule keys on who owns the words and whether the reader has already
-    seen them, and had no test for whether there was anything to decide. So a page
-    that reported a latency in the wrong unit put the corrected sentence in an
-    `lf-suggestion`, and the reader got a check and a cross over a fact whose only
-    other answer restores the error — counted, until pressed, among the things the
-    banner and the ask walk say the page is waiting on them for.
-
-    The carve-out is asserted inside its own section because that paragraph is what
-    an author reads before writing the revision; stated anywhere else it is guidance
-    nobody reaches at the moment it applies. Both halves are pinned, so dropping the
-    suggestion rule to satisfy the carve-out fails here too."""
-    authoring = " ".join(
-        (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text().split()
-    )
-    start = authoring.index("## Revisions and reader-owned words")
-    revisions = authoring[start : authoring.index("## Honoring reader state", start)]
-
-    assert (
-        "Rewrite prose the reader has already seen as an `lf-suggestion`" in revisions
-    )
-    assert "A correction is not a proposal" in revisions
-    assert "write the true thing straight" in revisions
-    assert "wording the reader could reasonably prefer as it stands" in revisions
-
-
-def test_the_page_is_named_by_its_findings_and_collapsed_around_them():
-    """What a page costs to review is stated where it is composed and checked
-    where it is handed over.
-
-    A version can pass every gate and still be unreadable: the finding three
-    paragraphs down, the section called "What we learned", the transcript that
-    supports it standing open in the column. Neither the markup check nor the
-    render gate can see any of that — both answer whether a page renders, not
-    whether it is worth the reading — so this is prose or it is nothing.
-
-    Two places, because they answer at different moments. "Reading cost" is what
-    an author reads while deciding what goes on the page. The pre-handover review
-    is the last point it can still change, and a heading that withholds its own
-    finding is invisible to whoever just wrote it and plain to anyone who reads
-    the headings alone. Pinned in one place only, the rule would be stated and
-    never asked after."""
-    root = PLUGIN_ROOT / "skills" / "leaf"
-    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
-    start = authoring.index("## Reading cost")
-    cost = authoring[start : authoring.index("## Interactivity", start)]
-
-    assert "what the reader has to take from the page" in cost
-    assert "its backing goes under `<details>`" in cost
-    assert "A section that reaches a finding says it in the heading" in cost
-    # The other half of the same rule. Without it the sentence above reads as a
-    # demand that every section name be a claim, which turns an honest label over
-    # a list or a control into a sentence; with it alone, every label is excused.
-    assert "where there is no finding to state" in cost
-    # The one thing a reading-cost rule must never license. A collapsed ask still
-    # counts in the banner and the asks tray, and `checkVisibility()` is false
-    # inside a closed disclosure, so no gate refuses the page whose decision is
-    # behind a click.
-    assert "An ask never collapses" in cost
-
-    review = authoring[authoring.index("## Pre-handover review") :]
-    assert "Take the headings on their own first" in review
-
-    contract = " ".join((root / "SKILL.md").read_text().split())
-    assert "its backing sits under `<details>`" in contract
+        assert f"references/{path.name}" in skill, path.name
 
 
 def test_hidden_hook_remains_callable():
@@ -2277,7 +2138,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
-    assert "Keep each host task handle" in coordinator.output
+    assert "# Command Hub coordinator" in coordinator.output
 
     revendor = CliRunner().invoke(cli_model.cli, ["page", "init", str(command)])
     assert revendor.exit_code == 0, revendor.output

@@ -28,7 +28,15 @@ interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 `render_support.py` reexports that surface for the test modules rather than
 owning another copy. `test_site.py` reads the built site through its served URLs.
 Product documentation tests compare the docs with the shipped vocabulary and
-command surface.
+command surface: a shown command the click tree has not got, an `x-` key the guide
+omits, a table that has drifted from the registry it was generated from.
+
+That comparison is the whole of what a test over prose can prove. An assertion that
+some sentence stands in a file a model reads — a skill, a reference, package
+guidance, a paragraph of the docs — fails only when somebody rewrites that sentence.
+So what it catches is an edit, and whether the edit was right is a question for
+review either way. Every later rewrite then arrives as a test to work around. Derive
+one side of a prose assertion from the machine, or leave the wording to review.
 
 The distinction matters most around `render_version`. A property caused by a
 particular page belongs in that gate, because `version check --render` must report

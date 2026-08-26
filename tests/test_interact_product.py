@@ -406,10 +406,7 @@ def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
     assert result.exit_code == 0, result.output
     assert "Deploys freeze on Fridays." in result.output
     assert "# $hazards, declared by this layer." in result.output
-    # Every author-facing shipped section still stands under its curated heading,
-    # while the internal compatibility stamp remains out of the authoring catalog.
-    assert "x-state's fields — the facet, fold unit, and record forms" in result.output
-    assert "The tones this page's layer paints" in result.output
+    # The runtime contract and the vendoring record stay out of the author's catalog.
     assert '"$events"' not in result.output
 
 

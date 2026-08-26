@@ -26,6 +26,44 @@ pytestmark = pytest.mark.nightly
 # ---------- export: the page as one file ----------
 
 
+def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
+    """Hover is only the live page's presentation. Print and a standalone export have
+    no script or pointer contract, so the author-written x-says tip becomes visible
+    inline and its now-inert raised mark leaves with the rest of the offers."""
+    source = leaf_page(
+        "gloss export",
+        """
+<h1>Rollout</h1>
+<p>Start with a <lf-gloss tip="A thin path through the real system."
+  >walking skeleton</lf-gloss> before parallelizing.</p>
+""",
+    )
+    url = serve(source)
+
+    live = browser.new_page(viewport={"width": 1200, "height": 900})
+    live.goto(url, wait_until="load")
+    live.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    tip = live.locator(".lf-gloss-popover")
+    expect(tip).to_be_hidden()
+    live.emulate_media(media="print")
+    expect(tip).to_be_visible()
+    assert tip.evaluate("el => getComputedStyle(el).position") == "static"
+    live.close()
+
+    out = tmp_path / "gloss-copy.html"
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    copy = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.locator(".lf-gloss-popover")).to_be_visible()
+    expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
+    expect(copy.locator("lf-gloss")).to_contain_text(
+        "walking skeletonA thin path through the real system."
+    )
+    assert errors == []
+    copy.close()
+
+
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     """A local work line is live runtime chrome even though its seat is in the page.
     A standalone copy has no agent behind it, so preserving the rendered sentence

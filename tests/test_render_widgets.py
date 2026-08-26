@@ -36,6 +36,7 @@ from render_support import (
     _until,
     actions,
     compare_with,
+    leaf_page,
     open_page,
     panel_settled,
     refuse,
@@ -47,6 +48,102 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
+    """The explanation is a glance, not a mouse-only tooltip: the phrase opens it on
+    hover, Tab reaches its raised mark, and a click pins it for touch. In every form the
+    top-layer card remains inside the viewport, and both the phrase and explanation
+    remain the page's authored words."""
+    source = leaf_page(
+        "gloss",
+        """
+<h1>Rollout</h1>
+<p style="margin-top: 110vh; text-align: right">
+  Start with a
+  <lf-gloss id="gloss-path" tip="A thin, end-to-end path through the real system."
+    >walking skeleton</lf-gloss
+  >.
+</p>
+""",
+    )
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    gloss = page.locator("#gloss-path")
+    mark = gloss.get_by_role("button", name="Explain “walking skeleton”")
+    bubble = page.locator("#lf-gloss-tip-1")
+
+    expect(bubble).to_be_hidden()
+    gloss.hover()
+    expect(bubble).to_be_visible()
+    expect(bubble).to_have_text("A thin, end-to-end path through the real system.")
+
+    rect = bubble.evaluate("el => el.getBoundingClientRect()")
+    viewport = page.evaluate("() => ({ width: innerWidth, height: innerHeight })")
+    assert rect["left"] >= 0 and rect["right"] <= viewport["width"]
+    assert rect["top"] >= 0 and rect["bottom"] <= viewport["height"]
+    bubble.hover()
+    expect(bubble).to_be_visible()
+
+    # WCAG's hover-content route: Escape dismisses the card without requiring the
+    # pointer to move away or transferring focus to a control the reader never used.
+    page.keyboard.press("Escape")
+    expect(bubble).to_be_hidden()
+
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_hidden()
+    page.locator("body").focus()
+    page.keyboard.press("Tab")
+    expect(mark).to_be_focused()
+    expect(bubble).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(bubble).to_be_hidden()
+
+    assert gloss.evaluate("el => el.childNodes[0].textContent.trim()") == (
+        "walking skeleton"
+    )
+    assert errors == []
+    page.close()
+
+    # A real touch context, not a mouse click standing in for one: the tap pins the
+    # explanation without a hover state, and a tap elsewhere light-dismisses it.
+    context = browser.new_context(
+        viewport={"width": 420, "height": 900}, has_touch=True
+    )
+    touch, touch_errors = open_page(browser, url, context=context)
+    touch_gloss = touch.locator("#gloss-path")
+    touch_bubble = touch.locator("#lf-gloss-tip-1")
+    touch_gloss.tap(position={"x": 20, "y": 8})
+    expect(touch_bubble).to_be_visible()
+    touch.locator("h1").tap()
+    expect(touch_bubble).to_be_hidden()
+    assert touch_errors == []
+    touch.close()
+    context.close()
+
+
+def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
+    """The tip is x-says page text, so a comment can rest on it like a tab's rendered
+    label. Following that comment must reveal the otherwise hidden popover before the
+    anchor scrolls; a durable thread cannot point to words the page then keeps closed."""
+    tip = "A thin, end-to-end path through the real system."
+    source = leaf_page(
+        "gloss comment",
+        f"""
+<h1>Rollout</h1>
+<p>Start with a <lf-gloss id="gloss-path" tip="{tip}">walking skeleton</lf-gloss>.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(source, anchored=[("gloss-path", tip)]))
+    bubble = page.locator("#lf-gloss-tip-1")
+
+    expect(bubble).to_be_hidden()
+    page.locator(".lf-comments").click()
+    page.locator(".lf-thread .lf-quote").click()
+    expect(bubble).to_be_visible()
+
+    assert errors == []
+    page.close()
 
 
 def test_a_board_says_which_column_each_card_is_in(browser, serve):

@@ -1805,9 +1805,9 @@ same fault one glyph smaller.
 
 `addressKeys` is the one spelling of that sequence, and `chordKeys` the one reading
 of how far the chord has come: the key line drops those keys, having said them in
-the chip that heads it, the reference drops them under a heading that names the
-mode, a chip on the page sets them back, and the placeholder that speaks a reply
-box's whole address joins the whole array.
+the chip that heads it, the reference puts them in front of each row so every entry
+shows the complete chord, a chip on the page sets them back, and the placeholder
+that speaks a reply box's whole address joins the whole array.
 
 Addresses are stable within the document. The first addressable members do not
 change identity as the reader scrolls. Chips are painted only for members whose

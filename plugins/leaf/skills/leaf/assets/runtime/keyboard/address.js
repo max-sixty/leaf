@@ -186,16 +186,16 @@ export function createAddress({
   const addressLabel = (entry, n) => addressKeys(entry, n).join(" ");
   // How far the chord has come: `g`, and the list's letter once one has named a list. Every
   // surface that shows an address asks it — the chip that heads the key line, the ranges
-  // beside it, the reference's rows and the dimmed half of a chip on the page — so none of
-  // them can disagree about which press comes next.
+  // beside it, the reference's full chords and the dimmed half of a chip on the page — so
+  // none of them can disagree about which press comes next.
   //
   // The chord's stage and not the reader's presses, which is the reading the reference needs:
   // `?` reaches it from a page nobody has armed (declaredStack walks every scope, live or
-  // not), and its rows belong under a heading that says "With g armed". So `g` is spoken for
-  // there by the section, exactly as the key line's own chip speaks for it, and the rows say
-  // what remains inside the mode either way. A chip is the one surface with nothing around
-  // it to carry the leader, and it is drawn only while the window is up, so its two questions
-  // — how far in, and how much the surroundings already say — have one answer.
+  // not), where the reference puts that prefix in front of each row to show the complete
+  // chord. The key line instead speaks the prefix in its own armed chip and lets the rows say
+  // what remains inside the mode. A chip is the one surface with nothing around it to carry
+  // the leader, and it is drawn only while the window is up, so its two questions — how far
+  // in, and how much the surroundings already say — have one answer.
   const chordKeys = () => [labelOf(GOTO), aimedList?.key].filter(Boolean);
   // An address as the page wears it: the whole of it, the keys already pressed standing back
   // and the ones still to come lit. The whole of it, because a chip is the address — the same
@@ -421,7 +421,7 @@ export function createAddress({
   // gathered them in the order it walks the stack — backwards, so it named the lists in the
   // opposite order to the line that had just offered them.
   const GO = {
-    title: "With g armed",
+    title: "Go by address",
     chord: () => chordKeys().join(" "),
     at: () => chordArmed,
     claims: EVERYTHING,
@@ -432,8 +432,8 @@ export function createAddress({
             ? addressed(entry).map((_, i) => String(i + 1))
             : [entry.key],
         // The range the list actually holds, so the label cannot offer an address no member
-        // wears; the keys already pressed drop off the front of it, the chip heading the
-        // line having taken them (`g c`).
+        // wears. The keys already pressed drop off the front for the armed key line; the
+        // reference puts the scope's chord back in front to show the motion from rest.
         label: () =>
           addressKeys(entry, range(addressed(entry).length))
             .slice(chordKeys().length)

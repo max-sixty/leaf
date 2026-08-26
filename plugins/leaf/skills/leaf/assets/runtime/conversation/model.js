@@ -109,5 +109,31 @@ export function createThreadModel(dependencies) {
     return [...threads.values()];
   }
 
-  return { buildThreads };
+  // ---------- whose turn a thread is ----------
+  // The agent spoke last and the thread waits on the reader; anyone else spoke last and it
+  // waits on the agent. A resolved thread waits on nobody, so neither reading is the
+  // other's negation and both have to say so.
+  //
+  // Not the agent, rather than the reader: `author` is an open string on every message
+  // contract, and the two written today are `user` and `claude`. A line from anywhere else
+  // reads as owed an answer, which is the direction to err in — an unanswered word is
+  // invisible to everyone, while one answer too many costs a reply. interact.py's
+  // `awaits_agent` is the same sentence for the same reason.
+  const awaitsReader = (t) => !t.resolved && t.msgs.at(-1).author === "claude";
+  const awaitsAgent = (t) => !t.resolved && t.msgs.at(-1).author !== "claude";
+
+  // The widget whose seat a root stands in: an element anchor naming that widget and
+  // carrying nothing else. `renderConversations` collects the seat's own view from this,
+  // and the ask projection asks it of the same anchor — so the conversation the reader
+  // can see standing in the cell is the one that takes the request off their list, and
+  // the two surfaces cannot come to disagree about which conversation is the widget's.
+  //
+  // A reply whose root the log lost is its own root and carries no anchor, so it seats
+  // nowhere. That is the honest answer: no cell on the page shows it either.
+  const seatRoot = (t) =>
+    !t.root.about && t.root.anchor && Object.keys(t.root.anchor).length === 1
+      ? (t.root.anchor.section ?? null)
+      : null;
+
+  return { awaitsAgent, awaitsReader, buildThreads, seatRoot };
 }

@@ -119,7 +119,7 @@ Startup order is load-bearing:
 3. Import modules declared by `x-upgrade`.
 4. Wait for module settlement, then run the shared dressing passes.
 5. Capture authored record facets from the upgraded, authored state.
-6. Mark the document `data-lf-upgraded="1"`.
+6. Mark `body` `data-lf-upgraded="1"`.
 7. Read the first state, reconcile it, and present the page.
 
 `rememberAuthoredMarkup` runs before imports because a clone taken after upgrade
@@ -145,7 +145,11 @@ without animation. If activation fails after advancing the document, reload the
 stable root rather than leaving a mixed version. A layer-generation change always
 reloads: soft activation is only valid within one vendored contract.
 
-The page has three readiness facts:
+The page has three readiness facts, all three written on `body` rather than on the
+root element. A reader waiting on the root sees an empty `dataset` forever, with
+every module loaded, nothing logged and nothing failed — which reads exactly like
+a page that never started, and sends the search to the server, the page key and
+the vendored layer in turn:
 
 - `data-lf-upgraded` means widget imports, asynchronous upgrades, geometry, and
   drawings have finished.
@@ -312,7 +316,10 @@ declared parent, and `awaiting` states whether that request must be open or clos
 browser door, and POST evaluates the same declaration from the authoritative log
 under the append lock. No eligibility cache sits beside the ordinary ask and state
 projections. `x-awaits.answers` says which actions actually close the request;
-orthogonal actions do not. `x-awaits.rollup` derives a nested request from direct
+orthogonal actions do not, and neither does a conversation standing in the widget's
+declared `x-conversation` seat — that takes the request off the reader's list without
+answering it, which is why this gate reads the projection with no seats in
+it. `x-awaits.rollup` derives a nested request from direct
 interventions and child roll-ups, using the same reducer in the browser and file
 projection.
 
@@ -1649,8 +1656,25 @@ row travels through the same ask-arrival function as `n` and `p`, so numbered
 and directional navigation agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
-An ask is answered only through a verb listed in `x-awaits.answers`; do not infer
-that every state change is an answer. A `rollup` instance evaluates its own `when`,
+An ask is answered by a verb listed in `x-awaits.answers`; do not infer that every
+state change is an answer. Two things take a request off the reader's list, and only
+that one is an answer. The other is a conversation standing in the widget's own
+declared seat (`x-conversation`) while it waits on the agent: `seatRoot` finds a root
+anchored on the widget and nothing else, which is the anchor `renderConversations`
+collects into that seat, and `awaitsAgent` says the next word there is the agent's.
+So the banner's count and the panel's reading of the same thread cannot disagree
+about whose turn it is. Whose thread it is does not enter into it — the agent may
+open one in the seat too, and once the reader has answered there the question is
+with the agent either way. Finishing with the conversation hands it back, by reply
+or by resolve, and the version that marks the pick `chosen` ends it.
+
+`asksTheReader` is that combined reading and is what `openAsks` returns, so the
+banner, the tray, the `n`/`p` walk and the standing ring all follow it. An action's
+`requires` asks the other question — whether the request is answered — and says so
+by building its `askContext` with no seats in it: a conversation does not answer a
+question the widget holds no state for, and refusing a pick over the reader's own
+remark would refuse them the answer they were asked for. Frozen thread markup seats
+no conversation of its own, so only an action answers there. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the

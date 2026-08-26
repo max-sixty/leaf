@@ -332,6 +332,23 @@ Declarations describe general behavior:
   banner count, asks tray, keyboard walk, help, and conditional actions. Its
   answer verbs are explicit; `rollup` derives a nested plan from ordinary
   interventions and child roll-ups without naming either family.
+- `x-conversation` and `x-awaits` on one widget is a request with a box under
+  it, and two things take that request off the reader's list. An answer verb is
+  one. A conversation standing in the widget's own seat while it waits on the
+  agent is the other, and it is not an answer: the widget holds no state for it
+  and its controls still offer one. Saying otherwise asked the reader a second
+  time for what they had just written, in a box the page itself put under the
+  question, while the panel showed that thread as the agent's to answer.
+  Finishing with the conversation hands it back, by reply or by resolve, and
+  the version that marks the pick ends it. That is the whole re-arm: nothing
+  new to mark, and a clarifying question cannot retire a decision nobody made.
+  The stop hook reads the same fact, so what leaves the reader's banner lands
+  on the agent's own gate rather than nowhere; `awaits_agent` is the one
+  spelling of it, beside the runtime's `awaitsAgent`. Which side opened the
+  thread does not enter into it. Because it is not an answer, a reading that
+  asks whether the request is answered — an action's `requires` — takes the
+  seats out again rather than sharing this one. Frozen thread markup seats no
+  conversation, so only an action answers there.
 - `x-parent` declares the members that make up a holder. Combined with
   `x-retired-when`, it defines which slots a settlement retires.
 - `x-withdrawn-as` states what an unanswered member becomes when the author

@@ -369,6 +369,62 @@ def anchored_ids(events: list, spk: dict) -> set:
     } - {None}
 
 
+def awaits_agent(thread: dict) -> bool:
+    """Whether a thread's next word is the agent's.
+
+    The agent spoke last and the thread waits on the reader; anyone else spoke last
+    and it waits on the agent. A resolved thread waits on nobody, so neither reading
+    is the other's negation. The runtime's `awaitsAgent` is the same sentence, and it
+    has to be: the panel telling the reader a thread is with the agent while the
+    banner counts the same question as theirs is one fact told two ways.
+
+    Not the agent, rather than the reader: `author` is an open string on every message
+    contract, and the two the code writes are `user` and `claude`. A line from anywhere
+    else therefore reads as owed an answer, which is the direction to err in — an
+    unanswered word is invisible to everyone, while one answer too many costs a reply."""
+    return not thread["resolved"] and thread["msgs"][-1]["author"] != "claude"
+
+
+def seat_root(thread: dict) -> str | None:
+    """The widget whose conversation seat this thread's root stands in.
+
+    An element anchor naming that widget and carrying nothing else, which is the
+    runtime's `seatRoot` and the anchor `renderConversations` collects into the seat's
+    own view. Narrower than `anchored_ids`, deliberately: a quote anchor points into
+    the widget's words rather than standing in the box it offers, and the reader can
+    see the difference — one is a note on a phrase, the other is the cell.
+
+    A reply whose root the log lost is its own root and carries no anchor, so it seats
+    nowhere. No cell on the page shows it either."""
+    root = thread["root"]
+    anchor = root.get("anchor")
+    if root.get("about") or not anchor or len(anchor) != 1:
+        return None
+    return anchor.get("section")
+
+
+def seats_with_agent(threads: dict) -> set[str]:
+    """Widget ids whose own seat holds a conversation now waiting on the agent.
+
+    A request whose own conversation is with the agent is not one the reader has to
+    deal with, so an ask projection reading their list subtracts these. It is not an
+    answer — the widget's state is untouched — which is why the reading that asks
+    whether a request is answered passes an empty set instead. The runtime builds the
+    same set from `awaitsAgent` over `seatRoot`, so the banner's count and `page state`
+    cannot disagree about whose turn it is.
+
+    Whose thread it is does not enter into it: the agent may open one in the seat too,
+    and once the reader has answered there the question is with the agent either way.
+
+    Takes the built fold rather than the log, because every caller already holds one:
+    `build_threads` walks the whole log and tests each action against the retraction
+    floors, and a second fold of the same events in the same function is that walk
+    done twice for one answer."""
+    return {
+        seat for t in threads.values() if awaits_agent(t) and (seat := seat_root(t))
+    }
+
+
 def note_settlements(event: dict, kind: str) -> set[str]:
     """The ids one version note settles for a provisional-information kind."""
     return {

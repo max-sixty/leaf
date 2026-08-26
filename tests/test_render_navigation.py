@@ -2648,7 +2648,13 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     so the pair is what makes the assertion mean anything. The first phase is the control
     — standing on the widget rather than in a thread still opens the composer on the
     widget, so a green here is the standing being read and not every press landing in a
-    conversation."""
+    conversation.
+
+    The agent has answered both remarks, which is what leaves the question still asking:
+    words in a seat answer the request behind it until that conversation is handed back,
+    and `standingIn` reads the open asks. Without the replies this control would be
+    measuring a group that has stood down — where `c` rightly means the one option the
+    reader is on — and would say nothing about seated conversations at all."""
     url = serve(
         leaf_page(
             "seated",
@@ -2675,6 +2681,16 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             },
         )
         said.append(events_model.read_events(d)[-1]["id"])
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "version": 1,
+                "parent": said[-1],
+                "text": "Noted.",
+            },
+        )
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")

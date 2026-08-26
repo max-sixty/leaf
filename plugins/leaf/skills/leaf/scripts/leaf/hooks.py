@@ -2,7 +2,7 @@
 
 import json
 
-from .events import build_threads, read_events
+from .events import awaits_agent, build_threads, read_events
 from .files import published_versions
 from .http import full_state
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
@@ -19,7 +19,8 @@ def unanswered_asks(events: list, cursor: int) -> list:
     reader is left looking at a question with nothing under it, and the agent
     believes the batch is dealt with.
 
-    What it looks for is a thread whose last word is the reader's. Not a thread
+    What it looks for is a thread whose last word is not the agent's (`awaits_agent`,
+    the reading the banner's ask count and the comment panel share). Not a thread
     nobody but the reader has ever spoken in: the browser posts the reader's
     follow-ups as `reply` events of their own, so under that reading one agent
     message anywhere in a thread answers it forever, and a follow-up — "but why
@@ -54,9 +55,7 @@ def unanswered_asks(events: list, cursor: int) -> list:
         # The cursor is read against the last word, not the root: a follow-up
         # past it is a delivery the agent has yet to take, which is the
         # unacknowledged clause's to report and not this one's.
-        if t["msgs"][-1]["author"] == "user"
-        and t["msgs"][-1]["seq"] <= cursor
-        and not t["resolved"]
+        if awaits_agent(t) and t["msgs"][-1]["seq"] <= cursor
     ]
 
 

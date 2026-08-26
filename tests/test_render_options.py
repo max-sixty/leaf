@@ -1920,6 +1920,53 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.close()
 
 
+def test_writing_the_last_option_leaves_the_question_with_the_agent(browser, serve):
+    """Writing in the group's last cell puts the question in the agent's hands, so
+    the page stops asking the reader for it.
+
+    The banner's count and the panel's reading of that thread are one fact: the
+    conversation waits on the agent, so the request is not also waiting on the
+    reader. Counting it anyway asked them twice for what they had just written, in
+    a box the page itself put there. It answers nothing — no pick rests on the group
+    — so a reply hands the question straight back, and the count and the tray's row
+    both say so. That is the whole of the re-arm, and why words need no new attribute
+    to take back."""
+    url = serve(ASK_PAGE)
+    page, errors = open_page(browser, url)
+    asks = page.locator(".lf-asks")
+    expect(asks).to_have_text("Asks (3)")
+    asks.click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(3)
+
+    conversation = page.locator("#jobs > .lf-conversation")
+    conversation.locator(".lf-say textarea").fill("Neither — do the camera first.")
+    conversation.locator(".lf-say [role='button']").click()
+    round_trip(page)
+    expect(asks).to_have_text("Asks (2)")
+    expect(rows).to_have_count(2)
+    assert page.locator('.lf-asks-row[data-lf-at="jobs"]').count() == 0, (
+        "the walk still steps to a question the reader has handed to the agent"
+    )
+
+    root = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "version": 1,
+            "parent": root["id"],
+            "text": "The camera costs us the mounts this month. Still first?",
+        },
+    )
+    round_trip(page)
+    expect(asks).to_have_text("Asks (3)")
+    expect(page.locator('.lf-asks-row[data-lf-at="jobs"]')).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     """The option a reader writes starts one log thread and becomes its page view.
 

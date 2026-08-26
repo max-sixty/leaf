@@ -665,6 +665,61 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     page.close()
 
 
+def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
+    browser, serve, tmp_path, monkeypatch
+):
+    """The reader's own remark must not lock the control it is a remark about.
+
+    A conversation standing in the group's seat takes the request off the reader's
+    list — the banner stops counting it — but answers nothing, so the pick that
+    would answer it is still live. This is the browser half of the split, and the
+    half the reader meets first: the POST door only sees a hand-posted event, while
+    here `actionAvailable` paints the control and `sendAction` guards the press, and
+    `lf-options` has already painted the pick by the time either runs. Reading the
+    reader's list at this door therefore does not refuse the press so much as
+    swallow it — the option flips, nothing is logged, no toast fires, and the next
+    poll puts it back with nothing anywhere saying why."""
+    monkeypatch.chdir(tmp_path)
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir()
+    standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
+    options = standard["lf-options"]
+    options["x-state"]["choose"]["requires"] = {"target": "self", "awaiting": True}
+    (overlay / "registry.json").write_text(json.dumps({"lf-options": options}))
+    url = serve(
+        leaf_page(
+            "seated eligibility",
+            '<h1 id="heading">Choose</h1><lf-options id="pick" choose>'
+            '<lf-option id="pick-a">A</lf-option>'
+            '<lf-option id="pick-b">B</lf-option></lf-options>',
+        )
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "anchor": {"section": "pick"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    page, errors = open_page(browser, url)
+    # Off the reader's list, which is the whole reason the two readings differ here.
+    expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
+
+    page.get_by_role("button", name=re.compile(r"^choose one: A")).click()
+    round_trip(page)
+
+    expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
+    # The log is what holds this, and the attribute above cannot: the module paints
+    # the pick before either guard runs, so with the wrong reading at this door the
+    # option wears `chosen` exactly as it does here and the log stays empty.
+    assert [event["action"] for event in actions(serve.page_dir)] == ["choose"]
+    assert errors == []
+    page.close()
+
+
 def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serve):
     """The runtime bytes and registry are one contract, even across a slow fetch."""
     url = serve(REPLAYED_PAGE)

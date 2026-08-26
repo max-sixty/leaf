@@ -2249,6 +2249,80 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     assert state_json(page_dir)["asks"] == []
 
 
+def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
+    """The group's last cell is where the reader writes the option the menu hasn't
+    got, so a conversation standing there is the question in the agent's hands: a
+    session picking the page up is not told to go and ask them again. It is not an
+    answer — no pick rests on the group — and it holds only while that thread waits
+    on the agent. A reply hands the question back, and so does closing it."""
+    opts = OPTIONS.format(a="", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    asking = [{"id": "g1", "tag": "lf-options", "thread": None}]
+    assert state_json(page_dir)["asks"] == asking
+    # A quote inside the group is a note about one of its words, not the reader
+    # standing in the box it offers. Only the seat's own anchor reaches this.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "g1", "quote": "Shim it"},
+            "text": "shim how?",
+        },
+    )
+    assert state_json(page_dir)["asks"] == asking
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "g1"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root["id"],
+            "text": "Capping it costs the backfill. Still worth it?",
+        },
+    )
+    assert state_json(page_dir)["asks"] == asking
+
+
+def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir):
+    """A resolved conversation waits on nobody, so it is no longer the question
+    standing in the agent's hands — and the group still holds no pick."""
+    opts = OPTIONS.format(a="", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c-another",
+            "author": "user",
+            "anchor": {"section": "g1"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+    events_model.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c-another"}
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "g1", "tag": "lf-options", "thread": None}
+    ]
+
+
 def test_page_state_gives_a_thread_its_exchange(page_dir):
     """A session picking the page up is the reader this whole object exists for,
     and answering a conversation is the first thing it owes. A count of messages

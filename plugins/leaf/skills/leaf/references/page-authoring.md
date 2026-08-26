@@ -79,6 +79,15 @@ beside them: a `Something else` option takes a click where that cell takes the
 answer. In a thread the reply box is already that cell, so the group carries
 none of its own.
 
+Writing there is the reader dealing with the question, so the group stops being
+one of the page's open asks and the ball is yours. Nothing is recorded by it:
+the group still holds no pick. Answer what they wrote and honor it in the same
+move — carry their words in as an option, mark the pick it settled, or settle
+the group. Both ways of finishing with the thread hand the question back,
+`leaf reply` and `leaf resolve` alike, so a group still open asks again, now
+with their option on it. Ship a version that leaves the question standing
+without answering them and the page waits on you while saying nothing.
+
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
 `<strong>` title. When the context begins above the actionable widget, wrap the
@@ -126,6 +135,10 @@ onto later versions, but the version must eventually record the decision so the
 page reads correctly without the log:
 
 - Mark every picked option `chosen`.
+- Carry an option a reader wrote in the group's last cell into the group as an
+  option, or settle the question their words settled. Their answer stands in a
+  thread and in no record at all, and the group stops asking only until you have
+  finished with that thread.
 - Replace an accepted suggestion with `lf-new`; replace a rejected one with
   `lf-old`, retaining ids on surviving passages.
 - Carry a reader edit verbatim.

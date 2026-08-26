@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from .data import page_data_binding_inventory, read_data
-from .events import build_threads, thread_digest
+from .events import build_threads, seats_with_agent, thread_digest
 from .files import list_versions, published_versions, version_path
 from .http import presence
 from .passages import page_passages
@@ -241,6 +241,10 @@ def _write_page_state(page_dir: Path, events: list) -> None:
             spk,
             registry,
             set(passages.retired) | set(passages.gone),
+            # A session picking the page up wants the reader's list, so a request
+            # whose own seat conversation is with this agent is not on it: the next
+            # word there is owed by the agent, and the stop hook says so.
+            seats_with_agent(threads),
         )
         state["lag"] = record_lag_entries(projection, byid, spk, registry)
     elif written:

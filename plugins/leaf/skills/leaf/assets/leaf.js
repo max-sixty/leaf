@@ -5723,15 +5723,34 @@ function askContext(projection = stateProjection(runtime.currentVersion)) {
     )
       positionedParents.set(unit, parent);
   }
+  const threads = buildThreads();
   return {
     projection,
     positionedParents,
     settled: new Set(
-      buildThreads()
-        .filter((thread) => thread.resolved)
-        .map((thread) => thread.root.id),
+      threads.filter((thread) => thread.resolved).map((thread) => thread.root.id),
+    ),
+    // The widgets whose own seat holds a conversation now waiting on the agent. What
+    // makes this the reader's-list reading, and what `answeredContext` takes back out.
+    seatsWithAgent: new Set(
+      threads
+        .filter((thread) => awaitsAgent(thread))
+        .map((thread) => seatRoot(thread))
+        .filter(Boolean),
     ),
   };
+}
+
+// The same reducer asked the other question: whether a request is answered, rather than
+// whether it is the reader's to deal with. A conversation standing in a widget's seat is
+// the entire difference between them, so taking the seats out is the entire difference
+// here — and it is stated beside the shape rather than by a caller reaching into it, so
+// a member derived from those conversations later cannot escape the emptying by being
+// added somewhere this doesn't name. An action's `requires` is the one caller: a
+// conversation does not answer a question the widget holds no state for, and refusing a
+// pick over the reader's own remark would refuse them the answer they were asked for.
+export function answeredContext(projection) {
+  return { ...askContext(projection), seatsWithAgent: new Set() };
 }
 
 function askExists(el, context) {
@@ -5771,6 +5790,58 @@ function locallyAsks(el, context) {
   );
 }
 
+// A conversation standing in this widget's own seat, with the agent. Declaration-driven
+// at both ends: a widget with no x-conversation offers no seat, and one whose attributes
+// miss the predicate has none placed on this instance either — so an element anchor
+// written onto some other widget by `leaf comment` reaches nothing here.
+// `conversationBox` asks the same question of the same declaration when it places the
+// box, so the cell the reader can see and the request this takes off their list are the
+// same one. It reads the live attributes because that is what the placement read; the
+// registry refuses a record-written attribute in this predicate, which is what keeps the
+// two from drifting as the log replays.
+//
+// Whose thread it is does not enter into it. The agent may open one in the seat too, and
+// once the reader has answered there the question is with the agent either way — which is
+// the only thing this is claiming.
+function seatWithAgent(el, context) {
+  const declaration = registry[el.localName]?.["x-conversation"];
+  return Boolean(
+    declaration &&
+    matchesWhen(el, declaration.when) &&
+    context.seatsWithAgent.has(el.id),
+  );
+}
+
+// Whether a request is still one the reader has to deal with. Two things take it off
+// their hands, and only one of them is an answer.
+//
+// A state verb answers it outright. A conversation standing in the widget's own seat does
+// not — the group holds no pick and its controls still offer one — but while that
+// conversation is with the agent the request is not the reader's to act on, and saying it
+// is asked them a second time for what they had just written, in a box the page itself
+// put under the question. That was the panel and the banner telling one fact two ways.
+//
+// So this is the reader's-list reading, and it is what the banner, the asks tray, the
+// `n`/`p` walk and the standing ring want. An action's `requires` wants the other one —
+// whether the request is answered at all — and says so by asking with no seats in its
+// context. A pick refused because the reader had remarked on the question would be
+// refusing them the very answer they were asked for.
+//
+// Finishing with the conversation hands the question back, by reply or by resolve, and
+// the version that marks the pick `chosen` ends it. That is the whole re-arm, and it
+// costs nothing to make. A seat answer that held for good would let a clarifying question
+// retire a decision nobody made, invisibly to both sides, which is what the log's own
+// defaults exist to refuse.
+//
+// Frozen thread markup seats no conversation of its own — `conversationBox` declines a
+// widget standing inside a thread, whose reply box is already that seat — so this reaches
+// only the page's widgets, which is exactly where there is a box to answer in.
+function asksTheReader(el, context) {
+  return inChrome(el)
+    ? !answeredThreadAsk(el, context.projection)
+    : !answeredAsk(el, context.projection) && !seatWithAgent(el, context);
+}
+
 // The ordinary case is one local request. A roll-up is the same request projected
 // through a nested plan: a non-requesting node stops the walk; direct interventions
 // take precedence; otherwise child roll-ups recurse; a leaf
@@ -5780,10 +5851,7 @@ function isAwaiting(el, context) {
   if (!askExists(el, context)) return false;
   if (!matchesProjectedWhen(el, askEntry(el).when, context.projection)) return false;
   const entry = askEntry(el);
-  if (!entry.rollup)
-    return !(inChrome(el)
-      ? answeredThreadAsk(el, context.projection)
-      : answeredAsk(el, context.projection));
+  if (!entry.rollup) return asksTheReader(el, context);
 
   const tags = askTags();
   const direct = tags.length
@@ -5799,9 +5867,7 @@ function isAwaiting(el, context) {
   const children = direct.filter((candidate) => askEntry(candidate).rollup);
   if (children.length)
     return children.some((candidate) => isAwaiting(candidate, context));
-  return !(inChrome(el)
-    ? answeredThreadAsk(el, context.projection)
-    : answeredAsk(el, context.projection));
+  return asksTheReader(el, context);
 }
 
 // In document order, because that is the order the page asks them in and the order
@@ -7083,6 +7149,12 @@ function narrowed(...args) {
 function awaitsReader(...args) {
   return conversationRuntime.awaitsReader(...args);
 }
+function awaitsAgent(...args) {
+  return conversationRuntime.awaitsAgent(...args);
+}
+function seatRoot(...args) {
+  return conversationRuntime.seatRoot(...args);
+}
 function setChildren(...args) {
   return conversationRuntime.setChildren(...args);
 }
@@ -7239,7 +7311,7 @@ const runtimeProjection = createProjection(runtime, {
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   agentName,
-  askContext,
+  answeredContext,
   askEntry,
   containsAcross,
   dress,

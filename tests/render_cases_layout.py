@@ -254,6 +254,17 @@ WIDE_TABLE_PAGE = leaf_page(
 # the line breaker and most of the measure long, so whether it can break is the whole
 # difference between the theme's second case and a squeezed table — `held` says how
 # each name is written, and nothing else differs between the two pages below.
+#
+# The longest name is longer than the 720px measure on its own, and that is the fixture
+# rather than a flourish. Every width here is the font's, and the measure is not: with a
+# 79-character name — this repo's own longest — the three columns asked for 699px of the
+# 720px on the CI fallback serif and 775px on macOS Charter, so the bare page scrolled
+# where the author read it and fitted with 21px to spare where CI did, and the squeeze
+# the gate is supposed to report was never on the page to report. The name below asks
+# for 753px on that same narrow font, more than the whole measure by itself, and the
+# three columns together for 955px of the 720px — a third more than there is. Every one
+# of those widths is the font's, so they shrink together: it takes a serif a quarter
+# narrower than the narrowest in play to give this table a way to fit.
 def prose_beside_identifiers(held):
     rows = [
         (
@@ -283,7 +294,7 @@ def prose_beside_identifiers(held):
                 " order; a stray key disarms and keeps its meaning."
             ),
             [
-                "test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back"
+                "test_the_keyboard_arms_the_bar_with_address_chip_digits_in_declared_order_and_a_stray_key_disarms_it_and_keeps_its_meaning"
             ],
         ),
     ]

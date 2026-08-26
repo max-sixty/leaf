@@ -687,9 +687,9 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
     """The theme's second case, reached by a table that used to fall through to the
     third: a column of test names beside a column of prose. A name is one word to
-    the line breaker, and unbreakable it held its column at 583px of the 720px
-    measure, squeezed the prose to 118px and a few words a line, and scrolled the
-    table 83px sideways for the rest. In <code> it breaks inside its cell where it
+    the line breaker, and unbreakable it holds its column at 767px of the 720px
+    measure, squeezes the prose to 114px and a few words a line, and scrolls the
+    table 235px sideways for the rest. In <code> it breaks inside its cell where it
     must, and the table fits. The names are longer than any share of the measure a
     column gets, so a name that did not break is a name that fitted by luck rather
     than by the rule, and the test says so."""
@@ -721,8 +721,23 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     widths that carry the diagnosis: the names' column several times the prose's.
     The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
     table that scrolls with nothing left to wrap is the theme's honest third case
-    and passes."""
-    failures = rendering_model.render_version(browser, serve(BARE_IDENTIFIERS_PAGE))
+    and passes.
+
+    The scroll is read here before the gate is asked, because it is the whole premise
+    and the font decides it: a table that fits is one the gate is right to say nothing
+    about, and left to the finding alone that arrives as an empty list naming neither
+    the table nor the fit."""
+    url = serve(BARE_IDENTIFIERS_PAGE)
+    page, errors = open_page(browser, url)
+    scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+    page.close()
+    assert errors == []
+    assert scrolls > 1, (
+        f"this table fits, so there is no squeeze to report: {scrolls}px sideways"
+        " — see prose_beside_identifiers on the widths the font has to keep"
+    )
+
+    failures = rendering_model.render_version(browser, url)
 
     squeezed = [f for f in failures if "<table id=held> scrolls" in f]
     assert squeezed, failures

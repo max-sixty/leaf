@@ -50,11 +50,10 @@ uninteresting here than in a repo of unit tests. Classify before writing a fix:
 - **A real regression.** Deterministic, repeats at the same assertion across
   runs, and usually clusters on one widget or one behaviour. This is worth a fix
   PR.
-- **The network.** Tests marked `nightly` shell out to `bin/leaf` on the paths
-  that resolve Playwright outside the script's lock, so they need pypi. CI
-  passes `--run-nightly` deliberately (it holds a network). If only those tests
-  fail while the rest of the suite is green, suspect the index rather than the
-  code.
+- **The network.** Tests marked `nightly` shell out to `bin/leaf`, which resolves
+  everything it needs — Playwright included — through the host's index. CI passes
+  `--run-nightly` deliberately (it holds a network). If only those tests fail
+  while the rest of the suite is green, suspect the index rather than the code.
 
 `scripts/linux-suite.sh` exists to reproduce a Linux-only failure from a Mac.
 From CI you are already on Linux, so run the suite directly — the container adds

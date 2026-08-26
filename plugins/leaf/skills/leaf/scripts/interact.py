@@ -5,12 +5,12 @@
 # ///
 """Serve and mediate an interactive leaf page.
 
-A `uv` script: the PEP 723 header above declares the dependencies, and
-`interact.py.lock` beside it pins them, so every install runs the same versions;
-editing the header re-resolves the lock on the next run. The lock's URLs are
-pypi.org's, which a host serving its own mirror cannot fetch, so `bin/leaf` falls
-back to resolving the header against that host's index. `uv` is the one
-software prerequisite for the whole plugin — no venv to create, no build step.
+A `uv` script: the PEP 723 header above declares the dependencies, and `uv`
+resolves them through the host's own index the first time it meets them, then
+reuses the environment it built. It ships no lock, and states a floor per
+dependency and no cap, for the reasons the root `CLAUDE.md` gives under "The host
+supplies what leaf runs on". `uv` is the one software prerequisite for the whole
+plugin — no venv to create, no build step.
 The host must supply POSIX `fcntl` file locking: the event log's atomic attempt
 identity and every other cross-process update use that one primitive, and a
 platform without it is refused rather than silently running unlocked.

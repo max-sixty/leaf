@@ -349,9 +349,17 @@ def test_shim_adds_playwright_only_for_browser_commands(
         check=False,
     )
     dispatched = result.stdout.splitlines()
+    script_at = next(
+        i for i, arg in enumerate(dispatched) if arg.endswith("interact.py")
+    )
 
     assert result.returncode == 0, result.stderr
-    assert (dispatched[1:3] == ["--with", "playwright"]) is needs_playwright
+    # Everything before the script path is uv's, and this states the whole of it
+    # rather than that some flag appears somewhere in it: an index named here
+    # would take back the host's say as surely as a lock would.
+    assert dispatched[1:script_at] == (
+        ["--with", "playwright>=1.49"] if needs_playwright else ["-q"]
+    )
 
 
 def test_claude_and_codex_load_the_same_plugin_payload():
@@ -392,12 +400,13 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/serving-pages.md",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/scripts/interact.py",
-        # The lock only pins what it ships beside; an install that loses it
-        # resolves fresh and looks identical from the outside.
-        "skills/leaf/scripts/interact.py.lock",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
     assert not [path for path in PLUGIN_ROOT.rglob("*") if path.is_symlink()]
+    # Shipping a lock would take the client's own index out of the loop, per the
+    # root `CLAUDE.md`. The nightly test below proves that against a real index;
+    # this is the half every run sees.
+    assert not list(PLUGIN_ROOT.rglob("*.lock"))
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
@@ -465,51 +474,65 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     assert interact.published_versions(page, interact.read_events(page)) == [1]
 
 
-@pytest.mark.nightly  # the resolve behind the lock asks the index for the header
-def test_the_launcher_starts_where_the_locks_own_urls_cannot_be_served(tmp_path):
-    """The lock records an absolute URL per wheel and uv fetches exactly those, so an
-    index the host configures is never consulted while the lock can be satisfied. On a
-    host whose index is a private mirror rather than pypi.org that fetch fails, and it
-    fails before the script runs — `page init`, `version check` and `server run` alike.
+@pytest.mark.nightly  # the resolve asks the host's index for the header
+def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
+    """The index a host configures is the only place leaf may look for its
+    dependencies, and resolving the PEP 723 header is the only way it gets a
+    wheel.
 
-    The mirror is stood up from the other side, because that is the half this repro
-    needs: the lock's recorded URLs are pointed at a closed port, which leaves the
-    configured index as the only thing that can serve the three dependencies. The cache
-    gets a directory of its own for the same reason — a wheel already in the developer's
-    cache answers whatever the lock says, and the run proves nothing."""
+    Both halves need a cache directory of their own, because a wheel already in
+    the developer's cache answers before any index is consulted and the run would
+    prove nothing. A cold resolve is also the one moment uv has an install summary
+    to print, so it is where `bin/leaf`'s `-q` can be held to the silent stderr an
+    agent reads back.
+
+    The second half stands a closed port in for a private mirror, which is enough
+    to say which index was asked: the run must fail naming that port, and a
+    pypi.org URL anywhere in the output would mean something still had a way
+    around it. It declines the developer's own index settings, in their
+    environment and in their `uv.toml` alike, since either would serve the run and
+    read as leaf ignoring the port it was pointed at."""
     installed = tmp_path / "plugins" / "leaf"
     shutil.copytree(PLUGIN_ROOT, installed)
-    lock = installed / "skills" / "leaf" / "scripts" / "interact.py.lock"
-    lock.write_text(
-        lock.read_text().replace(
-            "https://files.pythonhosted.org/", "http://127.0.0.1:1/"
-        )
-    )
 
-    result = subprocess.run(
+    unconfigured = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("UV_INDEX")
+        and name not in {"UV_DEFAULT_INDEX", "UV_FIND_LINKS", "UV_NO_INDEX"}
+    }
+
+    cold = subprocess.run(
         [installed / "bin" / "leaf", "--help"],
         cwd=tmp_path,
-        env={**os.environ, "UV_CACHE_DIR": str(tmp_path / "uv-cache")},
+        env={**os.environ, "UV_CACHE_DIR": str(tmp_path / "first-run-cache")},
         capture_output=True,
         text=True,
         check=False,
     )
-    assert result.returncode == 0, result.stderr
+    assert cold.returncode == 0, cold.stderr
+    assert cold.stderr == ""
     assert (
-        "Build and run interactive pages a session shares with its user."
-        in result.stdout
+        "Build and run interactive pages a session shares with its user." in cold.stdout
     )
-    # The fallback re-resolves a header with no upper bounds and writes the result
-    # over the pins, and the run behind it succeeds — so it says so on stderr,
-    # which is the only account anyone gets of a moved pin.
-    assert "resolving the header against this host's index" in result.stderr
-    # Which failure it was is the ask's to say and not the announcement's — an
-    # unservable lock reads nothing like a 503 or a host with no `uv` at all — so
-    # the ask's own words come with it rather than dying with its exit status.
-    assert "127.0.0.1:1" in result.stderr
-    # The resolve is paid once: it rewrites the lock to what this host's index
-    # served, so the next run is pinned again rather than resolving afresh.
-    assert "127.0.0.1:1" not in lock.read_text()
+
+    mirrored = subprocess.run(
+        [installed / "bin" / "leaf", "--help"],
+        cwd=tmp_path,
+        env={
+            **unconfigured,
+            "UV_CACHE_DIR": str(tmp_path / "mirror-cache"),
+            "UV_DEFAULT_INDEX": "http://127.0.0.1:1/simple",
+            "UV_NO_CONFIG": "1",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = mirrored.stdout + mirrored.stderr
+    assert mirrored.returncode != 0, output
+    assert "127.0.0.1:1" in output, output
+    assert "pypi.org" not in output and "pythonhosted.org" not in output, output
 
 
 def test_init_vendors_the_layer(page_dir):

@@ -214,6 +214,32 @@ events. The runtime's detailed contract lives in its own `CLAUDE.md`.
 
 Registry declarations choose these routes. Core does not branch on widget names.
 
+### The host supplies what leaf runs on
+
+Leaf installs onto a host whose software supply chain is not ours. Every
+dependency it reaches for resolves through the index that host already
+configured, and the payload states nothing a host cannot answer.
+
+So the payload ships no lock. `uv` resolves `interact.py`'s PEP 723 header
+against the host's index the first time it meets those requirements, then reuses
+the environment it built. A lock would install from the absolute pypi.org URLs it
+records and ask no index at all, so a client on a private mirror is served around
+it and one with no route to pypi.org cannot install. `uv.lock` beside
+`pyproject.toml` is the developer's reproducibility, not the client's.
+
+The header states a floor per dependency, the lowest version the suite passes on,
+and `bin/leaf` hands Playwright the same. It states no upper cap. Neither
+`UV_OVERRIDE` nor `UV_CONSTRAINT` loosens one, so a cap is the one thing here a
+host cannot answer, and a guess at a major release that does not exist yet is a
+poor thing to make unanswerable.
+
+The interpreter is the host's too: where no installed Python satisfies
+`requires-python`, uv fetches a build from GitHub, and `UV_PYTHON_DOWNLOADS` and
+`UV_PYTHON_INSTALL_MIRROR` govern that. The render gate launches the host's
+installed Chrome rather than downloading one. Nothing in the payload writes back
+into its own install directory either: a host may mount it read-only, and an
+update replaces it wholesale.
+
 ### One representation answers one question
 
 A passage is a sequence of `{node, start, end}` segments. The same segments serve
@@ -458,9 +484,9 @@ uv run pytest --lf --lfnf=none -x -n0
 
 Ruff and prettier come from `.pre-commit-config.yaml`. `wt merge` is the complete
 suite gate: `.config/wt.toml` runs them and `uv run pytest tests --run-nightly`
-once against the rebased tree. The nightly run needs a network because the
-installed launcher's browser path may resolve Playwright outside `uv.lock`. CI
-repeats both on main and pull requests.
+once against the rebased tree. The nightly run needs a network: the installed
+launcher resolves its own dependencies, Playwright included, through the host's
+index rather than out of `uv.lock`. CI repeats both on main and pull requests.
 
 ```sh
 pre-commit run --all-files

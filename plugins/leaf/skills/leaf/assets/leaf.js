@@ -4833,8 +4833,10 @@ let reactArmed = false;
 let reactRaised = false;
 let reactRevealed = null;
 let reactSurface = null;
-const latestAgentStrip = (held) =>
-  [...held.querySelectorAll(".lf-react-strip")].at(-1) ?? null;
+// The strip the panel has open — the latest agent message's — asked of the class the
+// list paints it with rather than of DOM order, so arming and offering cannot disagree
+// about which message is the latest one.
+const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
 function setReact(on, { spent = false } = {}) {
   if (on === reactArmed) return;
   // Armed over a control that has claimed Escape, one press would have two owners, so

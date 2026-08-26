@@ -354,24 +354,28 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     press commented on the one below it, which is the composer opening on an item the
     reader was never shown.
 
-    So the aim is put a third of a pixel past a seam, where the true point and its
-    rounded twin name different items. Both are asserted first: a seam that fell on a
-    whole pixel would leave this proving that two agreeing readings agree."""
+    So the aim is put a third of a pixel from a seam, where the true point and its
+    rounded twin name different items. Which of the two the true point is over depends on
+    where in the pixel the seam fell, so the item the aim is held to is read off the point
+    rather than named here; what is asserted first is that the two readings differ at all,
+    since a seam that fell on a whole pixel would leave this proving that two agreeing
+    readings agree."""
     page, errors = open_page(browser, serve(AIM_SEAM_PAGE))
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
-    assert seam and (seam["at"], seam["rounded"]) == ("seam-lower", "seam-upper"), (
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the aim point and the whole pixel it "
-        f"rounds to are on the same item, so nothing here is under test: {seam}"
+        "rounds to are not on the two items either side of it, so nothing here is under "
+        f"test: {seam}"
     )
 
     page.mouse.move(seam["x"], seam["y"])
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "seam-lower")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", seam["at"])
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
     expect(page.locator(".lf-composer")).to_be_visible()
-    assert page.evaluate(DRAFT_MARK) == "seam-lower"
+    assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
     page.close()
 
@@ -1195,7 +1199,7 @@ def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, ser
 def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
     """What a press would take can change with no mouse event to say so.
 
-    Only the mousemove used to re-ask the aim, so scrolling under a held key left the
+    Only a pointer move used to re-ask the aim, so scrolling under a held key left the
     outline on the item that had been under the pointer while a press took the one now
     there — the paint answering an old page, the claim the current one. The scroll
     listener re-asks; this scrolls the page under a parked pointer and requires the

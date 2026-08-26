@@ -865,8 +865,8 @@ AIM_SEAM_PAGE = leaf_page(
 </style>""",
 )
 # Where the browser's own hit test stops answering the upper item and starts answering the
-# lower one, and a point just past that seam whose whole-pixel rounding still lands short
-# of it. The rounding is not this reading's invention: `mousemove` carries clientX and
+# lower one, and a point beside that seam whose whole-pixel rounding lands on the other
+# side of it. The rounding is not this reading's invention: `mousemove` carries clientX and
 # clientY rounded to whole pixels, so a pointer record kept from one answers about a place
 # the pointer is not, while the press is dispatched against the position it was rounded
 # from. The seam is searched for rather than computed, because a box's hit region is not
@@ -882,9 +882,13 @@ AIM_SEAM = """([above, below]) => {
     const mid = (lo + hi) / 2;
     if (at(mid) === above) lo = mid; else hi = mid;
   }
-  // Halfway between the seam and the point that would round up past it, so the pointer is
-  // over `below` and its rounded twin is over `above`. The caller asserts both, since a
-  // seam that landed on a whole pixel would leave the two agreeing and prove nothing.
+  // Halfway between the seam and the whole-pixel boundary rounding turns at, which puts
+  // the point and its rounded twin on opposite sides of the seam. Which of them is over
+  // which item follows where in the pixel the seam fell: under .5 the point is over
+  // `below` and the twin over `above`, and from .5 up the two swap. So the caller reads
+  // the item to hold the aim to off `at` rather than naming one, and requires the pair to
+  // differ — a seam that landed on a whole pixel leaves the two agreeing and proves
+  // nothing.
   const y = (hi + Math.floor(hi) + 0.5) / 2;
   return { x, y, at: at(y), rounded: at(Math.round(y)) };
 }"""

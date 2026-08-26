@@ -223,6 +223,7 @@ import { createVersionDiff } from "./runtime/version-diff.js";
 import { createVersionNavigation } from "./runtime/version-navigation.js";
 import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
 import {
+  createMeasurements,
   installReachedForWordsGuard,
   offer,
   quoted,
@@ -408,62 +409,7 @@ window.addEventListener("unhandledrejection", (e) => {
   );
 });
 
-// A number a widget can only read off a box the browser has laid out. Three ship: the
-// room a pick mark's word will need, the room a card keeps clear of its grip, the width
-// of a roster's state column. Every one is measured rather than stated for the same
-// reason — the face this page is actually set in, which no constant names across two
-// platforms — and every one reads 0 where there is no box to read.
-//
-// A widget upgrades wherever the runtime connects it, and not every one of those places
-// is drawn. A message body is built for every comment the log carries and connected
-// whether or not the reader has opened the panel, and a shut panel is `display: none`:
-// every box beneath it is zero. `once` then refuses the second upgrade that would put
-// it right, and the body is cached for the life of the tab and never rebuilt — so a
-// zero taken there is indistinguishable from a measurement and stands for good. A pick
-// column collapsed to nothing, a grip drawn over the card's own title.
-//
-// So the module states the measurement and the runtime takes it: now, where there is
-// something to read, and otherwise the first time there is. ResizeObserver is the
-// browser's own answer to "this has a box now", and the one that answers it wherever
-// the element sits — a message scrolled past the panel's own fold has been laid out
-// just the same, which is the question an IntersectionObserver would get wrong.
-//
-// The observation ends at the reading it was waiting for, so what a measurement writes
-// cannot return through what triggered it. The loop the page's other geometry writer
-// guards against (syncLayout, and the rule stated with it) needs a second delivery to
-// the element that was just written, and after the unobserve there is none.
-const measurements = new WeakMap();
-const drawn = (el) => {
-  const box = shownBox(el);
-  return Boolean(box.width || box.height);
-};
-const unmeasured = new ResizeObserver((entries) => {
-  const taking = [];
-  for (const { target } of entries) {
-    if (!drawn(target)) continue;
-    unmeasured.unobserve(target);
-    taking.push(measurements.get(target));
-    measurements.delete(target);
-  }
-  // Every one released before any of them is taken: a measurement writes room its own
-  // widget spends, which resizes it, and a widget still observed when that happens is a
-  // second delivery inside the round that wrote it.
-  for (const take of taking) take();
-});
-export function measure(el, take) {
-  // `shownBox`, not this element's own rect: a `display: contents` wrapper draws no box
-  // of its own and never will, and its contents are what the measurement is about. Asked
-  // the narrow way it would wait forever, holding the take and the observation with it.
-  if (drawn(el)) {
-    // A wait already standing for this element is over: it was waiting for the box
-    // this reading just found. Left standing it would deliver a second reading of
-    // the same number, which is harmless and still a claim that nothing was read.
-    if (measurements.delete(el)) unmeasured.unobserve(el);
-    return take();
-  }
-  measurements.set(el, take);
-  unmeasured.observe(el);
-}
+export const { measure } = createMeasurements({ shownBox });
 
 installReachedForWordsGuard();
 

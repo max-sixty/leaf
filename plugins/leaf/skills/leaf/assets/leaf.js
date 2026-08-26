@@ -3362,7 +3362,7 @@ const { commentOnItem, glideTo, scrollerFor, seenScroller, stepPage, stepThread 
     SCROLL,
     beside,
     inChrome: (node) => inChrome(node),
-    inPanel: () => inPanel(),
+    inPanel,
     openOnItem,
     openThreads,
     pageScroller,

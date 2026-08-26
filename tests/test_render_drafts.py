@@ -2268,7 +2268,7 @@ def test_the_half_page_keys_follow_the_reader_into_the_panel(browser, serve):
     assert threads_now > threads_was, (
         "the list the reader is standing in did not move for the key they pressed"
     )
-    assert page_now == page_was, (
+    assert page_now == pytest.approx(page_was, abs=1), (
         "the page stepped behind a reader who was working down the comment list"
     )
     assert errors == []

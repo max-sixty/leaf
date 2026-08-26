@@ -48,7 +48,7 @@ its key scope, and forced live activation;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
-guards, and control sizing;
+guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;

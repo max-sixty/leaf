@@ -2,9 +2,55 @@
 
    Domain owners stay directly importable to the browser entry while this module
    decides which of their capabilities widgets may rely on. The entry module still
-   contains most helper implementations; its reexport is temporary until those
+   contains helper implementations; these explicit reexports are temporary until those
    implementations move to their owners. */
-export * from "../leaf.js";
+export {
+  ARRANGEMENTS,
+  DISCLOSE,
+  PRESS,
+  actionAvailable,
+  actionSequence,
+  actionStands,
+  ago,
+  alignText,
+  announce,
+  answeredContext,
+  askSource,
+  conversationBox,
+  dragging,
+  inChrome,
+  inUi,
+  itemWord,
+  keys,
+  labelOf,
+  measure,
+  movedWords,
+  openAsks,
+  paintKeys,
+  projectData,
+  publishedAt,
+  quietSince,
+  renderRetired,
+  saidAt,
+  saying,
+  says,
+  scrollerFor,
+  sendAction,
+  shadowStage,
+  shallowSigs,
+  shownBand,
+  shownBox,
+  shownParts,
+  standingState,
+  textNodesUnder,
+  toast,
+  uiInside,
+  updateSequence,
+  watchActions,
+  watchHistory,
+  watchUpdates,
+  wrote,
+} from "../leaf.js";
 export { agentName } from "./context.js";
 export { watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";

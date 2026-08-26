@@ -5,6 +5,7 @@
    contains most helper implementations; its reexport is temporary until those
    implementations move to their owners. */
 export * from "../leaf.js";
+export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
   closestDeclaring,
   declarationFor,

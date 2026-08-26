@@ -205,8 +205,6 @@ import {
 import { VERSION_PATH, readerStore, tabStore, versionUrl } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
 
-export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft };
-
 // ---------- widget layer ----------
 
 export const agentName = () => runtime.agent;

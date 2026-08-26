@@ -64,12 +64,17 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
           const api = await import('/runtime/widget-api.js');
           const entry = await import('/leaf.js');
           const names = [
+            'clearDraft',
             'closestDeclaring',
             'declarationFor',
             'elementsDeclaring',
             'layerFact',
+            'loadDraft',
             'matchesWhen',
             'quietWord',
+            'saveDraft',
+            'sendDraft',
+            'watchDraft',
           ];
           return Object.fromEntries(names.map((name) => [name, {
             api: typeof api[name],
@@ -80,12 +85,17 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
     assert exports == {
         name: {"api": "function", "entry": False}
         for name in [
+            "clearDraft",
             "closestDeclaring",
             "declarationFor",
             "elementsDeclaring",
             "layerFact",
+            "loadDraft",
             "matchesWhen",
             "quietWord",
+            "saveDraft",
+            "sendDraft",
+            "watchDraft",
         ]
     }
     assert errors == []

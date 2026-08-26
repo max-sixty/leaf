@@ -36,6 +36,8 @@ and selection-composer state;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
+`runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
+Web Animations playback;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/version-activation.js` owns version document loading, authored-root

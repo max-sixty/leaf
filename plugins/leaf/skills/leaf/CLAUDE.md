@@ -1160,6 +1160,12 @@ Whether a group is answerable is independent of its form. The presence of
 `choose` gives the whole group a visible control boundary in cards and rows.
 Each form chooses its presentation, not whether the page admits a response.
 
+Joined into one control and standing alone are a second axis across that one,
+and the rule above holds on it too. The group declares which side it is on
+(`--lf-joined`) and the rules that dress an option standing alone sit under that
+style query, because half of what decides it — the medium, and a copy's class on
+the root — cannot go inside a `:not()`.
+
 A group joined into one control has cells, and its children arrive from every
 layer: the authored options are the author's, the option the reader writes is
 the module's, the question and the Done press are the runtime's. Each brings the
@@ -1484,6 +1490,12 @@ Focus is the reader's current place. `focused` follows it through declared
 shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
 control that contains focus. The ring is derived on each paint; it does not
 store the ask walk's position.
+
+A control that draws the band on itself draws it only where nothing else holds
+that box's one outline. An ask written out around the control wears the band
+already, and the log's news about the content — `restated`, `pending`,
+`reported` — has no second carrier, while the band also has the washed cell and
+the address chips.
 
 A press that acts on where the reader is standing reads it through
 `standingItem`: the open ask where focus is on a control that works it — a pick,

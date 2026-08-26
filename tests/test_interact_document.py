@@ -20,6 +20,7 @@ from interact_support import (
     _board,
     _decided,
     _marker_for,
+    _paint_names,
     _report,
     _status,
     _tasks_version,
@@ -310,13 +311,19 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     assert js_set == passages_model.COLLAPSE_CHARS
 
 
-def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
+def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
     """A choose group's affordance rules stand down inside an exhibit in their own
     selectors, because a stylesheet cannot read the registry the runtime's quoted()
     dispatches on. What they exclude is the paint that declaration leaves on the
     page (data-lf-exhibit, markDeclared) rather than the widgets declaring it, so
     the layer that ships an exhibit and the layer whose rules withhold the hand need
     not be the same one — the shape a tag list cannot have.
+
+    The joined group's own here-ring stands down inside the second, the standing ask
+    (data-lf-ask, markHere), and asks it the same way and for the same reason: what
+    counts as an ask is the registry's answer (x-ask), and a stylesheet cannot read
+    that either. Both markers are the runtime's paint, so both are held to the name
+    the runtime actually writes.
 
     Every ancestor exclusion in the rules of the composed theme is read, not the
     exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
@@ -346,17 +353,28 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
         for found in re.finditer(r":not\(", theme)
         if (inside := _balanced(theme, found.end())).endswith(" *")
     }
-    assert excluded == {":where([data-lf-exhibit])"}, (
-        f"the theme's ancestor exclusions are {excluded}, and the one thing a rule "
-        "may ask to stand down inside is the painted exhibit marker. A tag spelled "
-        "here answers for the layer that ships it and for no other; a second marker "
-        "is a second question, and belongs to whichever test owns that one; an empty "
-        "set is rules that stopped standing down inside an exhibit at all"
+    assert excluded == {":where([data-lf-exhibit])", ":where([data-lf-ask])"}, (
+        f"the theme's ancestor exclusions are {excluded}, and the two things a rule "
+        "may ask to stand down inside are the painted exhibit and the painted "
+        "standing ask. A tag spelled here answers for the layer that ships it and for "
+        "no other; a third marker is a third question, and belongs to whichever test "
+        "owns that one; a missing one is rules that stopped standing down at all"
     )
     assert _marker_for("x-exhibit") == "data-lf-exhibit", (
         "the theme excludes data-lf-exhibit and markDeclared paints "
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
+    )
+    js = (schema_model.ASSETS / "leaf.js").read_text()
+    assert _paint_names().get("ask") == "data-lf-ask", (
+        "the theme excludes data-lf-ask and PAGE_PAINT_ATTRIBUTE spells the standing "
+        f"ask's mark {_paint_names().get('ask')!r}, so nothing puts that mark on a "
+        "page and a group inside an open ask draws the reader's band a second time"
+    )
+    assert re.search(r"function markHere\(\)(?:.|\n)*?PAGE_PAINT_ATTRIBUTE\.ask", js), (
+        "markHere is what paints the standing ask, and it no longer writes "
+        "PAGE_PAINT_ATTRIBUTE.ask — the exclusion in the theme then answers for a "
+        "mark nothing leaves on the page"
     )
     registry = validation_model.incoming_registry(
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
@@ -366,6 +384,56 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-exhibit")
     ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
+
+
+def test_the_group_stands_down_for_every_outline_the_log_paints():
+    """An element wears one outline, and two writers want the joined group's.
+
+    The log paints the news about a widget's content there — a version restated it, a
+    decision is not in the page's words yet, a worker reported something — and the
+    group draws the reader's band there when the keyboard is in it. The band has other
+    carriers and the news has none, so the band is what stands down, and it says so by
+    naming the states it defers to.
+
+    A name it does not know is a state buried again, silently: a keyboard pick hid its
+    own pending ring until the reader tabbed away, and nothing rendered wrong. So the
+    list is held to the whole of what the kernel paints as an outline against an
+    attribute of its own, which is where a fourth would be written."""
+    theme = re.sub(
+        r"/\*.*?\*/",
+        "",
+        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
+        flags=re.DOTALL,
+    )
+    painted = {
+        found.group(1)
+        for found in re.finditer(
+            r"(?m)^\[(data-lf-[a-z-]+)\]\s*\{([^}]*)\}", theme, re.DOTALL
+        )
+        if "outline:" in found.group(2)
+    }
+    assert painted, "the kernel paints no state outline at all, so this reads nothing"
+    rule = re.search(
+        r"&:has\(> lf-option > \.lf-pick:focus-visible\)([^{]*)\{([^}]*)\}",
+        theme,
+        re.DOTALL,
+    )
+    assert rule and "--here-ring" in rule.group(2), (
+        "the joined group no longer draws the reader's band on itself, so the states it "
+        "was deferring to are nobody's question here"
+    )
+    deferred = set()
+    for found in re.finditer(r":not\(", rule.group(1)):
+        inside = _balanced(rule.group(1), found.end())
+        names = [part.strip() for part in inside.split(",")]
+        if names and all(re.fullmatch(r"\[data-lf-[a-z-]+\]", name) for name in names):
+            deferred |= {name[1:-1] for name in names}
+    assert deferred == painted, (
+        f"the group defers to {sorted(deferred)} and the kernel paints "
+        f"{sorted(painted)}: a state the group does not name draws nothing while the "
+        "keyboard is in the control, which is exactly when a reader has just made the "
+        "decision the ring is about"
+    )
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():

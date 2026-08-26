@@ -17,6 +17,7 @@ from leaf_interact import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
+    ASK_WITH_CONTEXT_PAGE,
     ASKED_PAGE,
     CARRIED_PAGE,
     CHIP_PAGE,
@@ -401,8 +402,12 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
 
     # The strip the mark sits in: what the card's bottom padding holds over its own
     # base, so the measure follows the theme's spacing instead of pinning a number.
+    # Read against the top, which is the card's own padding on every side the group
+    # has not claimed. The leading side is claimed — a choose group reserves the
+    # keyboard address column there, `settled` included — so a base taken from it was
+    # the width of that column, and the strip came out as the two numbers' difference.
     strip = """el => parseFloat(getComputedStyle(el).paddingBottom) -
-                     parseFloat(getComputedStyle(el).paddingLeft)"""
+                     parseFloat(getComputedStyle(el).paddingTop)"""
     pick = page.locator("#opt-lax .lf-pick")
     page.emulate_media(media="print")
     expect(
@@ -1129,6 +1134,138 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page.close()
 
 
+def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
+    """A cell says its status in a bar beside its words, and the aim is a wash: two
+    facts about the same box, so both are true at once and the pointer arriving changes
+    only its own.
+
+    Which the two forms of the same statement did not manage while they shared the one
+    property. The cell's status rode a box-shadow, so did a loose card's ring, the
+    card's hover put a lift there, and the rules that restated the ring under the lift
+    carried the status attribute — one class column, enough to outrank the cell's own
+    paint in a group the card rules were never meant to reach. What a reader got for
+    pointing at the option the page recommends was the status gone, a 1px ring in its
+    place with the group's clip cutting away its side runs, and a drop shadow inside a
+    box with no room to cast one.
+
+    So the card's channels are separate (--lf-ring, --lf-lift), the cell's bar is drawn
+    where neither reaches, and the two forms are alternatives rather than layers
+    (--lf-joined): a cell is never handed the dressing it would have to undo. Read on
+    the recommended cell and its plain neighbour, since "unchanged" is also what a cell
+    with nothing to say returns.
+
+    The bar's own place is held too. It stands in the column the group reserves for a
+    keyboard address, clear of the leading edge, because the ask around a control wears
+    the reader's band three pixels outside that edge and a second accent bar just inside
+    it cannot be told from the first."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    page.wait_for_function(
+        """() => document.querySelector('#live-group')
+                 .getAnimations({subtree: true}).length === 0"""
+    )
+    paint = """el => { const s = getComputedStyle(el), bar = getComputedStyle(el, '::before');
+                       return [bar.backgroundColor,
+                               [parseFloat(bar.left), parseFloat(bar.width)],
+                               s.borderTopStyle === 'none'
+                                 ? 0 : parseFloat(s.borderTopWidth),
+                               parseFloat(s.borderTopLeftRadius),
+                               s.backgroundColor]; }"""
+    marked, plain = page.locator("#l-stage"), page.locator("#l-shim")
+    stripe, (left, width), border, radius, fill = marked.evaluate(paint)
+    assert (border, radius) == (0, 0), (
+        f"a cell of a joined group wears a card's border and corner: {border}, {radius}"
+    )
+    assert stripe != plain.evaluate(paint)[0], (
+        "the recommended cell and its plain neighbour carry the same paint, so this "
+        "reads nothing about the recommendation"
+    )
+    column = page.locator("#live-group").evaluate(
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-address-col'))"
+    )
+    assert 0 < left and left + width < column, (
+        f"the bar at {left}…{left + width} does not stand inside the {column}px the "
+        "group reserves, so it is back on the edge the reader's band runs down"
+    )
+    marked.hover()
+    expect(marked).not_to_have_css("background-color", fill)
+    assert marked.evaluate(paint)[:4] == [stripe, [left, width], 0, 0], (
+        f"the pointer took the recommendation with it: {marked.evaluate(paint)} "
+        f"against {[stripe, [left, width], border, radius]} at rest"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_one_band_says_where_the_reader_is_standing(browser, serve):
+    """The reader's band is drawn once, on the outermost box that claims it.
+
+    A joined group is focused as one control and draws the band itself, which is the
+    same band and the same stroke the ask it stands in wears. Where the ask is the
+    group — most questions — the two are one element and one ring. Where an author has
+    written the region out, so the heading and the premise arrive with the control, the
+    ask is a box around the group and the two rings nested: one around a paragraph of
+    context, another a few pixels inside it, saying the same thing at two sizes.
+
+    So the group's is the one that stands down. Its half of the fact — which control,
+    and which cell of it — is already said by the washed cell and the address chips,
+    while the ask's ring is what the walk aims at and what the arrival scrolls to."""
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    mark = page.locator("#storage-evict .lf-pick")
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#storage-ask[data-lf-ask]")).to_have_count(1)
+    drawn = """el => { const s = getComputedStyle(el);
+                       return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
+    assert page.locator("#storage-ask").evaluate(drawn) > 0, (
+        "the ask the reader is standing in draws no band, so nothing says where they are"
+    )
+    group = page.locator("#storage-options")
+    assert group.evaluate(
+        "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"
+    ), "the keyboard is not on the group's own mark, so this reads nothing"
+    assert group.evaluate(drawn) == 0, (
+        "the group draws the reader's band inside the ask already wearing it"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_pick_does_not_bury_the_news_that_it_is_unrecorded(browser, serve):
+    """An element wears one outline, so the group's own band gives way to the log's.
+
+    Answering closes the ask, and what the group wears next is the news that the
+    decision stands in replay and not yet in the page's own words. That ring and the
+    band saying the keyboard is here are the same property on the same box, and the
+    band was winning: a reader who picked by keyboard saw their pick reported as
+    recorded until they tabbed away, which is the one moment the ring has nothing to
+    add and the one moment it was drawn.
+
+    Read as paint rather than as a rule, and against a probe wearing the state and
+    nothing else, so a theme that recolours the news moves both sides together."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    mark = page.locator("#l-stage .lf-pick")
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    page.keyboard.press("Enter")
+    expect(page.locator("#live-group[data-lf-pending]")).to_have_count(1)
+    assert page.locator("#l-stage").evaluate(
+        "el => el.matches(':has(> .lf-pick:focus-visible)')"
+    ), "the keyboard left the mark, so the two bands never met"
+    news = page.evaluate("""() => {
+        const probe = document.createElement('div');
+        probe.setAttribute('data-lf-pending', '1');
+        document.body.append(probe);
+        const seen = getComputedStyle(probe).outlineColor;
+        probe.remove();
+        return seen;
+    }""")
+    expect(page.locator("#live-group")).to_have_css("outline-color", news)
+    assert errors == []
+    page.close()
+
+
 def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serve):
     """Which form a group takes is a fact about its options rather than an attribute
     saying so, and the whole of that fact is whether an option leads with a title. So
@@ -1167,20 +1304,27 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     # arrives after the reader has already had to guess where to aim. The group's edge
     # and the cells' hairlines are what a reader sees before committing the pointer, and
     # they are the same two rules a card group has always had.
+    #
+    # The hairline is read as the border it is drawn as. It was read off the cell's
+    # box-shadow, which is where a row's status stripe rode and not where any line
+    # between two rows has ever been: the assertion passed on a transparent stripe and
+    # would have passed on a group with no line between its rows at all.
     edge = """el => { const s = getComputedStyle(el);
                       return s.borderTopStyle === 'none' ? 0 : parseFloat(s.borderTopWidth); }"""
-    hairline = "el => getComputedStyle(el).boxShadow"
+    hairline = """el => { const s = getComputedStyle(el);
+                          return s.borderBottomStyle === 'none'
+                                   ? 0 : parseFloat(s.borderBottomWidth); }"""
     assert page.locator("#jobs").evaluate(edge) > 0, (
         "a list offering a pick draws no edge, so nothing says the rows are answerable"
     )
-    assert page.locator("#job-mounts").evaluate(hairline) != "none", (
+    assert page.locator("#job-mounts").evaluate(hairline) > 0, (
         "a row draws no box of its own, so its bounds show only under the pointer"
     )
     # And the shape is the offer, so a list that asks nothing wears none of it.
     assert page.locator("#ordered").evaluate(edge) == 0, (
         "a list with no pick to take was drawn as a control anyway"
     )
-    assert page.locator("#ord-mounts").evaluate(hairline) == "none", (
+    assert page.locator("#ord-mounts").evaluate(hairline) == 0, (
         "a row nobody can press draws cell edges anyway"
     )
 

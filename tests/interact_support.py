@@ -308,17 +308,11 @@ def _balanced(css, start):
     return css[start : at - 1]
 
 
-def _marker_for(declaration):
-    """The attribute presentation.js paints for an `x-` declaration, or None.
-
-    Two facts, and the second is the one a stylesheet's exclusion rests on.
-    PAGE_PAINT_ATTRIBUTE is the spelling every writer in the runtime shares and the
-    set of names no version file may assert; a name in it says only that the runtime
-    is allowed to paint it. What actually puts a mark on a page is a declaration's
-    entry in one of markDeclared's tables, and a selector naming an attribute with no
-    such entry excludes nothing anywhere. Both tables are read, because which of the
-    two a declaration sits in is a question about where the fact holds, and the
-    browser is what answers that."""
+def _paint_names():
+    """PAGE_PAINT_ATTRIBUTE: the spelling every writer in the runtime shares, and the
+    set of names no version file may assert. A name in it says only that the runtime
+    is allowed to paint that attribute; which writer does, and on what, is the
+    caller's question."""
     js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
     table = re.search(
         r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);", js, re.DOTALL
@@ -326,6 +320,20 @@ def _marker_for(declaration):
     assert table, "presentation.js lost the list of attributes the runtime may paint"
     names = dict(re.findall(r'(\w+): "(data-lf-[a-z-]+)",', table.group(1)))
     assert names, "that list holds no data-lf-* name"
+    return names
+
+
+def _marker_for(declaration):
+    """The attribute presentation.js paints for an `x-` declaration, or None.
+
+    Two facts, and the second is the one a stylesheet's exclusion rests on. Being
+    allowed to paint a name is _paint_names; what actually puts a mark on a page is a
+    declaration's entry in one of markDeclared's tables, and a selector naming an
+    attribute with no such entry excludes nothing anywhere. Both tables are read,
+    because which of the two a declaration sits in is a question about where the fact
+    holds, and the browser is what answers that."""
+    js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
+    names = _paint_names()
     tables = re.findall(
         r"const MARKED_(?:ANYWHERE|IN_PAGE) = Object\.freeze\(\{(.*?)\}\);",
         js,

@@ -30,6 +30,8 @@ from render_support import (
     AIM_CURSOR,
     AIM_PAINT_PAGE,
     AIM_POINT,
+    AIM_SEAM,
+    AIM_SEAM_PAGE,
     AIMED,
     BADGE_CHROME,
     BANNER_WATCH,
@@ -61,6 +63,7 @@ from render_support import (
     RENDERED,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    RING_NAMES,
     SCROLL_SETTLE_MS,
     SCROLL_STILL,
     SCROLLED,
@@ -101,7 +104,6 @@ from render_support import (
     record_claim,
     resized,
     ring_faults,
-    ring_rules,
     rings_drawn,
     round_trip,
     select,
@@ -336,6 +338,44 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
+    assert errors == []
+    page.close()
+
+
+def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):
+    """The outline and the press ask one question of one point, down to the sub-pixel.
+
+    The two readings of "what is under the pointer" come from different doors: the
+    outline hit-tests the pointer record the runtime keeps, and the press takes the
+    target the browser resolved for it. `mousemove` carries the pointer's place rounded
+    to a whole pixel, so a record kept from one is an answer about a place the pointer is
+    not — and within a pixel of a seam that place is a different item. It cost a corpus
+    page a promise: ⌥ over a choose group outlined the option above the seam and the
+    press commented on the one below it, which is the composer opening on an item the
+    reader was never shown.
+
+    So the aim is put within a quarter pixel of a seam, where the true point and its
+    rounded twin name different items. Which of the two the true point is over depends on
+    where in the pixel the seam fell, so the item the aim is held to is read off the point
+    rather than named here; what is asserted first is that the two readings differ at all,
+    since a seam that fell on a whole pixel would leave this proving that two agreeing
+    readings agree."""
+    page, errors = open_page(browser, serve(AIM_SEAM_PAGE))
+    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+        "the fixture no longer straddles a seam — the aim point and the whole pixel it "
+        "rounds to are not on the two items either side of it, so nothing here is under "
+        f"test: {seam}"
+    )
+
+    page.mouse.move(seam["x"], seam["y"])
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", seam["at"])
+    page.mouse.click(seam["x"], seam["y"])
+    page.keyboard.up("Alt")
+
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
     page.close()
 
@@ -1159,7 +1199,7 @@ def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, ser
 def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
     """What a press would take can change with no mouse event to say so.
 
-    Only the mousemove used to re-ask the aim, so scrolling under a held key left the
+    Only a pointer move used to re-ask the aim, so scrolling under a held key left the
     outline on the item that had been under the pointer while a press took the one now
     there — the paint answering an old page, the claim the current one. The scroll
     listener re-asks; this scrolls the page under a parked pointer and requires the
@@ -2665,6 +2705,13 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
+    native_link = CARRIED_PAGE.replace(
+        '<lf-option id="c-lax" chosen>',
+        '<lf-option id="c-lax" chosen><a class="lf-ui" href="#h">Read context</a>',
+    )
+    assert rendering_model.render_version(browser, serve(native_link)) == [], (
+        "a native link's words label its browser-owned control rather than the page"
+    )
     found = rendering_model.render_version(browser, serve(OUT_OF_REACH_PAGE))
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
@@ -3337,6 +3384,9 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     url = serve(example.read_text(), comments=2)
     page, errors = open_page(browser, url)
     page.locator(".lf-sug-accept").first.focus()
+    # The probe's control must begin clear of the viewport edge. Its subject is each
+    # ancestor's clipping behavior, not where the corpus happened to place this button.
+    page.evaluate("document.activeElement.scrollIntoView({block: 'center'})")
 
     plant = """(how) => {
       const el = document.activeElement;
@@ -3366,6 +3416,90 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
             f"a parent clipping by {how} ({style}) drew the ring away and the reading "
             f"said {cuts}"
         )
+
+    assert errors == []
+    page.close()
+
+
+def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, serve):
+    """The reading sweeps for boxes painting the ring, so it has to know one on sight.
+
+    Style and width do not say. The layer draws three other outlines at exactly the
+    ring's weight: `[data-lf-restated]` and `[data-lf-pending]` are 2px solid over a
+    `color-mix`, and a mark under the pointer takes the ring's own width while keeping
+    the mark's hue. A sweep asking style and width alone claims all three and then
+    reports the page painting a ring no rule named — a complaint with no answer, since
+    naming them puts them in a population the keyboard can never light.
+
+    Nothing in the corpus paints one of the three during the walk today, so the walk
+    going green says nothing about this. What it turns on is which example is written
+    next and where the walk last left the pointer, and neither is a decision anybody
+    would make knowing it decided this.
+
+    The colour is what separates them, and it has to be resolved on both sides: a custom
+    property serializes as it was written, `outline-color` as it resolved, and a package
+    writing `color-mix()` for its accent once left every rule in the layer uncredited.
+
+    The real ring goes last, as the control: without it a reading that claimed nothing at
+    all would pass the three cases above and prove only that it was silent."""
+    example = next(e for e in EXAMPLES if e.stem == "release-notes")
+    url = serve(example.read_text(), comments=2)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-sug-accept").first.focus()
+
+    plant = """(how) => {
+      const box = document.querySelector('main p');
+      box.classList.add('probe-target');
+      box.removeAttribute('data-lf-restated');
+      box.removeAttribute('data-lf-pending');
+      box.classList.remove('lf-mark-el', 'lf-mark-hover');
+      box.style.outline = '';
+      if (how === 'restated') box.setAttribute('data-lf-restated', '');
+      if (how === 'pending') box.setAttribute('data-lf-pending', '');
+      if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
+      if (how === 'the ring itself') box.style.outline = 'var(--here-ring)';
+      const cs = getComputedStyle(box);
+      return [cs.outlineStyle, cs.outlineWidth, cs.outlineColor];
+    }"""
+
+    def claimed():
+        """Whether the reading calls this one box a ring.
+
+        Asked of the box rather than of how many rings the page has: the runtime
+        repaints the panel on its own schedule, so two whole-page counts taken a moment
+        apart differ for reasons that have nothing to do with what was planted here.
+        """
+        return [
+            seen["who"]
+            for seen in rings_drawn(page)
+            if seen["here"] and "probe-target" in seen["who"]
+        ]
+
+    page.evaluate(plant, "none")
+    assert not claimed(), "the box is called a ring before anything is painted on it"
+    standing = standing_ring(page)
+    assert standing and standing["here"], (
+        "no ring is painted with the keyboard on a control, so the reading is silent "
+        "here and would pass this test however it behaved"
+    )
+
+    for how in ("restated", "pending", "mark"):
+        style, width, colour = page.evaluate(plant, how)
+        # Non-vacuity: the lookalike has to actually be painted, at the ring's own
+        # weight, or the reading was never given the chance to mistake it for one.
+        assert (style, width) == ("solid", "2px"), (
+            f"{how} drew {style} {width}, not the 2px solid this is written against, so "
+            "the reading was never offered anything to confuse with a ring"
+        )
+        assert not claimed(), (
+            f"the reading counted {how} ({colour}) as a here ring: {claimed()}"
+        )
+
+    style, width, colour = page.evaluate(plant, "the ring itself")
+    assert claimed(), (
+        f"a box wearing the layer's own ring ({colour}) was not counted, so the three "
+        "cases above prove only that this reading is silent"
+    )
 
     assert errors == []
     page.close()
@@ -3612,6 +3746,150 @@ RING_NEW_STOP = f"""async () => {{
 }}"""
 
 
+# A stop the reader cannot find, or null when they can. The walk stands on every control
+# a page has; this asks, at each one, whether anything on screen says so.
+#
+# Four answers count, because the layer leaves "here" drawn in four ways and every one of
+# them is the reader seeing the same thing.
+#
+# The platform's own ring (`outline-style: auto`) is the first and the commonest. Leaf
+# restyles the controls it draws and leaves that ring on the rest — an authored link, a
+# `summary`, a widget's own native control — and replacing it everywhere would be a
+# change to how the product looks rather than a thing this test is owed.
+#
+# The layer's here ring is the second, on the stop or on an ancestor: a `choose` group
+# takes the ring for the pick mark inside it, whose own rule states `outline: none`
+# exactly so the two do not both draw, and the reader sees the group.
+#
+# What this cannot see, said out loud so a green is not read as more than it is. A
+# joined `lf-options` carrying log news — restated, pending, reported — deliberately
+# stands its ring down, because an element takes one outline and the log has claimed it;
+# the layer's own comment (packages/default/theme.css) names the carriers that stand in
+# its place as the washed cell and the address chips, and neither is an outline nor an
+# accent shadow. That is a fifth way of drawing "here" and this reading has no honest
+# test for it: accepting a background would pass every stop on a tinted page. No corpus
+# example reaches the state — none carries `restated`, the one shipped log carries no
+# report, and the walk makes no gesture — so nothing here is being excused today. A
+# reading of the wash has to come with the corpus case that shows it.
+#
+# `.lf-mark-here` is a smaller one of the same kind: it paints the accent ring on a box a
+# standing thread is anchored to, with no focus of its own, so a stop inside such a box
+# is credited to it. Today the corpus anchors one element comment, to a diagram, which
+# has nothing focusable inside it.
+#
+# The mark's own ink is the third. A box carrying an element comment already wears a
+# hairline in --mark-ink, and the layer ranks its states in that one property: 1px
+# posted, 2px indicated, 2px accent stood in. Focus indicates, so a marked box answers
+# the keyboard at the indicated weight in its own ink. Width is what keeps this from
+# passing everything: a mark that is merely posted is a hairline, and a hairline is not
+# an answer to where the keyboard is.
+#
+# An accent shadow is the fourth. Every box the reader types into is drawn that way: the
+# chrome's textarea rule takes the outline off and puts the shadow in its place, and a
+# box drawn like that is as found as one drawn with a ring. Read on the stop itself and
+# never on an ancestor, and only in the accent, since a card's decorative drop shadow is
+# no answer to where the keyboard is and accepting any shadow from any ancestor would
+# pass every stop on a page that has one shadowed box anywhere above it.
+#
+# Both colours are resolved through a swatch rather than compared as written, and the
+# accent is resolved twice: `outline-color` serializes as the browser resolved it, and a
+# `color-mix` resolves into a different space than a plain token does, so the ring's
+# `rgb(...)` and the shadow's `color(srgb ...)` are the same colour written two ways and
+# each needs the browser to say so.
+SEEN_STOP = f"""() => {{
+  const e = ({DEEP_FOCUS})();
+  if (!e) return null;
+  const swatch = document.createElement('span');
+  swatch.style.cssText = 'outline: 1px solid var(--accent)';
+  document.head.append(swatch);
+  const accent = getComputedStyle(swatch).outlineColor;
+  swatch.style.outlineColor = 'var(--mark-ink)';
+  const markInk = getComputedStyle(swatch).outlineColor;
+  swatch.style.outlineColor = 'color-mix(in srgb, var(--accent) 100%, transparent)';
+  const mixed = getComputedStyle(swatch).outlineColor
+    .match(/color\\(srgb ([\\d.]+ [\\d.]+ [\\d.]+)/)?.[1];
+  swatch.remove();
+  const shown = (el) => {{
+    const cs = getComputedStyle(el);
+    if (cs.outlineStyle === 'auto') return true;
+    return cs.outlineStyle === 'solid'
+      && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+      && (cs.outlineColor === accent || cs.outlineColor === markInk);
+  }};
+  // An ancestor answers only for a ring whose rule named it. Every ancestor on this
+  // chain contains the focus by construction, so containing it says nothing; what
+  // separates a ring drawn because the reader is here from one drawn for another
+  // reason is that the layer's focus rules say which ring they are and the pointer's
+  // do not. `.lf-mark-hover` is the case: a resting mouse over a marked box paints the
+  // indicated weight in the mark's own ink, and unnamed it no longer answers the
+  // keyboard's question for every stop underneath it.
+  const named = (el) =>
+    getComputedStyle(el).getPropertyValue('--lf-here-ring').trim() !== 'none';
+  if (shown(e)) return null;
+  for (let el = e.parentElement ?? e.getRootNode().host ?? null; el;
+       el = el.parentElement ?? el.getRootNode().host ?? null)
+    if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
+      return null;
+  const shadow = getComputedStyle(e).boxShadow;
+  if (mixed && shadow.includes(mixed)) return null;
+  const cls = typeof e.className === 'string' && e.className.trim()
+    ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
+  return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + cls
+    + ' [outline ' + getComputedStyle(e).outlineStyle + ', shadow ' + shadow + ']';
+}}"""
+
+
+def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serve):
+    """The reach half of the stop reading, which the corpus walk cannot supply.
+
+    The walk asserts that no stop goes unseen, and a reading that had gone blind returns
+    exactly what a clean corpus returns. Every other reading in that test says how far it
+    reaches — the ring population is asserted before it is divided by, the scopes are
+    asserted opened and walked, and the fault reading has two plants of its own — and
+    this one arrived with none. The direction that goes quiet is `shown` answering true
+    too often: one future rule putting `outline-style: auto` on a chrome wrapper would
+    answer for every stop beneath it, and the walk would stay green reporting a clean
+    corpus.
+
+    So: a real control, reached by a real Tab, with its indication taken away. The
+    control case first and in the same run, because a reading that named every button
+    would name the planted one without seeing it."""
+    url = serve(LONG_PAGE, comments=2)
+    page, errors = open_page(browser, url)
+    page.evaluate(RING_WALK_START)
+    for _ in range(60):
+        page.keyboard.press("Tab")
+        if page.evaluate(
+            "() => Boolean(document.activeElement?.matches('.lf-comments'))"
+        ):
+            break
+    else:
+        raise AssertionError("Tab never reached the banner's comments button")
+    page.evaluate(RENDERED)
+
+    assert page.evaluate(SEEN_STOP) is None, (
+        "a banner button wearing the layer's own ring reads as a stop nothing draws, so "
+        "the walk's whole assertion is about a reading that answers for every control"
+    )
+
+    page.evaluate("""() => {
+        const style = document.createElement('style');
+        style.textContent =
+          '.lf-comments:focus-visible { outline: none !important;'
+          + ' box-shadow: none !important; }';
+        document.head.append(style);
+    }""")
+    page.evaluate(RENDERED)
+    lost = page.evaluate(SEEN_STOP)
+    assert lost and "lf-comments" in lost, (
+        "the ring was taken off a focused control and the reading still called it seen "
+        f"({lost}), so the walk cannot report a stop the reader cannot find"
+    )
+
+    page.close()
+    assert errors == [], errors
+
+
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     browser, serve, live_leaf
 ):
@@ -3619,10 +3897,18 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     is evidence without the other: a clean walk says nothing about a rule it never met,
     and a rule the walk met says nothing if the reading excused every side of it.
 
-    The population is read out of the page's own composed stylesheets (`RING_RULES`)
-    rather than kept in a list beside them, for the reason `page catalog` reads the
-    merged registry: a twelfth widget must not need a handwritten list updated, and the
-    list that was here in prose was already wrong.
+    The population is the rings the layer declares (`RING_NAMES`), read out of the
+    page's own composed stylesheets rather than kept in a list beside them, for the
+    reason `page catalog` reads the merged registry: a twelfth widget must not need a
+    handwritten list updated, and the list that was here in prose was already wrong.
+    What is credited is the name the cascade handed the box, so a ring is lit by the
+    rule the reader is looking at rather than by every rule whose selector reached it.
+
+    Two halves guard the naming itself, because neither can see what the other does. The
+    scan reaches a rule the corpus never paints and cannot tell a ring drawn some other
+    way from no ring at all; the sweep is the reverse of both, and says when a box paints
+    a ring nothing named. And the population is asserted before it is divided by, since
+    an empty one makes every line above vacuous while reporting what a clean corpus does.
 
     Tab, because that is the walk every page has and it reaches the page's own controls
     and the runtime's chrome in one order. The scopes are what Tab alone cannot reach. A
@@ -3642,7 +3928,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     # (theme.css), which is what `test_a_reader_who_asked_for_no_motion_gets_a_ring_
     # that_does_not_arrive` holds — so a walk that reads two frames after a press reads
     # the ring the rule states.
-    rules, lit, faults, seen_faults = {}, set(), [], set()
+    rings, lit, faults, seen_faults = {}, set(), [], set()
+    unseen = set()
+    unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
     for example in EXAMPLES:
@@ -3710,9 +3998,16 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         break
                     continue
                 walked, stops = walked + 1, stops + 1
+                if (lost := page.evaluate(SEEN_STOP)) is not None:
+                    unseen.add(f"{where}: {lost}")
                 drawn = rings_drawn(page)
                 for ring in drawn:
-                    lit.update(ring["rules"])
+                    if not ring["here"]:
+                        continue
+                    if ring["ring"]:
+                        lit.add(ring["ring"])
+                    else:
+                        unnamed.add(ring["who"])
                 # One standing defect is one finding, not one per stop: a ring worn by
                 # something the walk is not moving — an ask's mark, a thread's element
                 # mark — is read again at every stop it survives.
@@ -3735,11 +4030,19 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     "in it"
                 )
 
-        for sel, said, _ in ring_rules(page):
-            rules[sel] = said
+        for declared in page.evaluate(RING_NAMES):
+            seen = rings.setdefault(declared["name"], [])
+            for said in declared["said"]:
+                if said not in seen:
+                    seen.append(said)
         errors += [f"{example.stem}: {e}" for e in console]
         page.close()
 
+    assert not unseen, (
+        "the walk stood on a control and nothing on screen said where the keyboard was, "
+        "so a reader arriving by Tab has no way to tell: "
+        f"{sorted(unseen)}"
+    )
     assert not errors, errors
     # Corpus-wide, because a scope can be dead on a page with nothing to put in it. What
     # cannot happen is a scope no example in the corpus ever opens or walks: then its
@@ -3751,9 +4054,41 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     assert not faults, "\n  ".join(
         [f"{len(faults)} faults over {stops} stops:"] + faults
     )
-    unlit = [said for sel, said in sorted(rules.items()) if sel not in lit]
+    # A ring nobody named, said from either side. The scan reaches a rule the corpus
+    # never paints and cannot tell a ring drawn some other way from no ring at all; the
+    # sweep is the reverse of both. Neither half is the whole claim, and a name is worth
+    # nothing to the floor below until both agree it stands for one drawn ring.
+    unnamed_rules = rings.pop("", [])
+    assert not unnamed_rules, (
+        f"{len(unnamed_rules)} rules draw the here ring and name none of them, so the "
+        "floor below divides by a population short of them and says nothing about "
+        "it — declare --lf-here-ring in the rule that draws the ring:\n  "
+        + "\n  ".join(sorted(unnamed_rules))
+    )
+    assert not unnamed, (
+        "the corpus paints a here ring on boxes no rule named, so no reading can say "
+        "which rule drew it: " + ", ".join(sorted(unnamed))
+    )
+    # Both halves of the division, before it is taken. An empty population makes every
+    # line below vacuous and silent about it, and a name painted that the scan never
+    # declared is the scan's own blind spot showing: it reads the `outline` shorthand for
+    # the layer's token, so a rule that draws the ring some other way and still names it
+    # paints a credit for a name no population holds.
+    assert rings, (
+        "the layer declares no rings, so this floor divided by nothing and the walk "
+        "above is evidence about no rule at all"
+    )
+    assert not lit - set(rings), (
+        "the corpus painted rings the layer's own reading does not declare: "
+        + ", ".join(sorted(lit - set(rings)))
+    )
+    unlit = [
+        f"{name} ({', '.join(said)})"
+        for name, said in sorted(rings.items())
+        if name not in lit
+    ]
     assert not unlit, (
-        f"{len(unlit)} of the layer's {len(rules)} ring rules are painted nowhere the "
+        f"{len(unlit)} of the layer's {len(rings)} rings are painted nowhere the "
         f"corpus can be walked to, so nothing above is evidence about them:\n  "
         + "\n  ".join(unlit)
     )

@@ -96,9 +96,12 @@ reached, a joined option group for the one its picks give up, and an element a
 focused thread is anchored to wears one with no focus of its own.
 `getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
 words it uses for a control whose ring is fine — a 2px cut planted on
-`.lf-thread:focus-within` passed all ten examples. So the reading asks the elements
-the layer's ring rules match, and reads those rules out of the page's own composed
-stylesheets rather than from a list kept beside them.
+`.lf-thread:focus-within` passed all ten examples. So the reading sweeps every box
+painting one, and asks the outline rather than the rules: nothing re-runs a
+selector. Which rule drew a ring is the other question, and the rule answers it
+where it draws (`--lf-here-ring`, theme.css), so the population the floor divides
+by is read out of the page's own composed stylesheets rather than from a list kept
+beside them.
 
 The failure that makes this worth stating is a quiet one. A reading blind to one
 mechanism does not report that it is blind — it returns the same clean result it
@@ -109,10 +112,35 @@ one outset ring under three parents differing only in how they clip, with a cont
 case that has to report nothing, and
 `test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails on
 any rule in the layer that nothing in the corpus paints, and on any scope of its
-walk that no example opens. A rule is credited when something matching it paints
-an outline of the layer's own width and style, so a rule under a condition this
-gate cannot make hold — a print stylesheet, the other colour scheme — is left out
-of the population rather than credited off a neighbour's ring.
+walk that no example opens. A ring is credited when a box painting the layer's own
+width and style also carries a name, so a name the cascade left on a box whose
+outline a later rule took away is not credited off it, and a ring painted with no
+name is a finding of its own — that half is the only one that can see a rule
+drawing the ring some other way, since what a declaration's text draws is not
+decidable and what a box paints is. Nothing reads `@media` or `@supports`: one
+rule is conditional (`options-joined`, under `@media screen`) and this reading is
+taken on screen, so evaluating them would change nothing, while a ring that painted
+only in some other medium is one the corpus never shows and should say so.
+
+The walk also asks, at every stop, whether the reader can see where the keyboard
+is — which is the question the rings above were only ever half of, since a ring
+nothing draws and a stop drawn some other way come back the same. Four answers
+count. The platform's own ring (`outline-style: auto`), which leaf leaves on the
+controls it does not restyle. The layer's here ring, on the stop or on an ancestor
+drawing for it. The element mark's own ink at the indicated weight. And the accent
+shadow every box the reader types into wears, since the chrome's textarea rule takes
+the outline off and puts the shadow there instead. Colours are resolved through a
+swatch rather than compared as written, and the accent twice: a `color-mix` resolves
+into a different space than a plain token, so the ring's `rgb(...)` and the shadow's
+`color(srgb ...)` are one colour spelled two ways.
+
+Eighty-eight stops answered by three shapes when that first ran, and one of them was
+real: an author's outline on a focusable element takes the platform's ring away, and
+the element mark is a 1px hairline drawn whether or not anything is focused, so
+tabbing onto a commented diagram changed nothing on screen. The mark answers the
+keyboard the way it answers the pointer now. The general fact is what the walk keeps:
+any outline an element wears for a reason other than focus silently costs it the ring
+it would otherwise have had.
 
 A Tab walk needs its starting point said as well as its end. `blur()` does not
 supply one: the sequential focus navigation starting point stays where the blurred

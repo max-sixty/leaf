@@ -9,7 +9,6 @@ export {
   DISCLOSE,
   PRESS,
   actionAvailable,
-  actionSequence,
   actionStands,
   ago,
   alignText,
@@ -26,10 +25,8 @@ export {
   movedWords,
   openAsks,
   paintKeys,
-  publishedAt,
   quietSince,
   renderRetired,
-  saidAt,
   saying,
   says,
   scrollerFor,
@@ -43,10 +40,6 @@ export {
   textNodesUnder,
   toast,
   uiInside,
-  updateSequence,
-  watchActions,
-  watchHistory,
-  watchUpdates,
   wrote,
 } from "../leaf.js";
 export { agentName } from "./context.js";
@@ -65,6 +58,15 @@ export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";
 export { langForPath, synNodes, syntax, tokenLines } from "./syntax.js";
 export { dataBody, failSoft, once, settle } from "./widget-upgrade.js";
+export {
+  actionSequence,
+  publishedAt,
+  saidAt,
+  updateSequence,
+  watchActions,
+  watchHistory,
+  watchUpdates,
+} from "./updates.js";
 export {
   HIDDEN,
   measure,

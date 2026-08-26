@@ -234,6 +234,37 @@
   --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
   --series-4: #6c489a; --series-5: #8c2d2a;
 }
+/* Which here ring this is, said by the rule that draws it. An outline carries no word
+   for which of the layer's rules put it there — so a reader that had to know worked it
+   back from the selectors, matching the layer's own rules against the document by hand.
+   To ask `querySelectorAll` anything it first had to resolve nesting, join `@scope`
+   roots onto their descendants and split `:host(...)` on a matched paren, and it had
+   been wrong at each of them in turn: an unresolved `&` throws, and a throw there reads
+   exactly like a rule nothing on the page matches, which is the whole of why the joined
+   group's own ring was invisible to the gate that watches it. None of that was a fact
+   about rings. It was the cost of asking the stylesheet a question the browser had
+   already answered.
+
+   The rule says which ring it is instead, in the same declaration that draws it, the
+   way a box already says where it draws its frame (--lf-frame). Readers ask the
+   composed page, and get a truer answer than the matching gave: the cascade hands the
+   name to whichever rule won the outline, so what is credited is the ring the reader is
+   looking at rather than every rule whose selector reached the element.
+
+   Registered rather than reset, because the reset --lf-frame needs is a rule of its own
+   and this wants none: a name left to inherit would put a thread's ring on every word
+   inside it. Typed as one identifier, so a value that is no name — a shadow channel's,
+   under a property somebody else spelled the same way, which is how this one came to be
+   spelled out in full — falls back to `none` rather than reading as one.
+
+   Naming is not how the layer says a ring is there; the outline is, and nothing the
+   product ships reads this. What holds the layer to naming what it draws is the corpus
+   floor, in the suite, which divides by these names and credits what the page paints. */
+@property --lf-here-ring {
+  syntax: "<custom-ident>";
+  inherits: false;
+  initial-value: none;
+}
 
 /* The dark palette is the same page at night, not its inverse: the ground keeps
    the warmth (a brown-black, not a blue-black) and every grey above it is mixed
@@ -478,7 +509,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  * out of one column, and the way to have both would be two of them rather than a smaller
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
-       position: relative; --lf-frame: 1; }
+       position: relative; --lf-frame: 1; --lf-column: 1; }
 /* Evidence that is wider than the argument about it. The column above is the measure
  * prose is read at, and a board's columns or a diagram's graph are as wide as what they
  * hold — so a page carrying one was a cramped board, or a page whose every paragraph had

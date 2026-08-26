@@ -153,7 +153,7 @@ TINY_BOXES = """(widgets) => {
 # actually paints cannot come apart — the whole point of the pair being that there is one
 # answer to where an element is.
 UNMARKABLE_ITEMS = """async () => {
-    const { shownBox, shownParts } = await import('/leaf.js');
+    const { shownBox, shownParts } = await import('/runtime/widget-api.js');
     const HTML = 'http://www.w3.org/1999/xhtml';
     const found = [];
     for (const el of document.querySelectorAll('[id]')) {
@@ -234,7 +234,7 @@ UNREACHABLE_WORDS = """() => {
     // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
     // whose script is gone. The line counting a passage's comments is one of these too —
     // the runtime builds it through `offer`, as a widget builds its own.
-    const CONTROL = `${FORM}, label, [data-lf-offer]`;
+    const CONTROL = `${FORM}, label, a[href], [data-lf-offer]`;
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
         const el = n.parentElement;
@@ -352,7 +352,7 @@ MISPLACED_BOXES = (
     // apart — and because `overflow` is one of three ways to draw nothing past an edge.
     // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
     // formatting context keeps in.)
-    const { shownBand } = await import('/leaf.js');
+    const { shownBand } = await import('/runtime/widget-api.js');
     const main = document.querySelector('main');
     if (!main) return [];
     const style = getComputedStyle(main), box = main.getBoundingClientRect();
@@ -691,7 +691,7 @@ WITHHELD_ROOM = (
 SQUEEZED_TABLES = r"""async () => {
     const main = document.querySelector('main');
     if (!main) return [];
-    const { uiInside } = await import('/leaf.js');
+    const { uiInside } = await import('/runtime/widget-api.js');
     const at = el => `<${el.tagName.toLowerCase()}${el.id ? ' id=' + el.id : ''}>`;
     // What a heading says, for the column's name.
     const says = (cell) => {
@@ -773,7 +773,7 @@ SQUEEZED_TABLES = r"""async () => {
 REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
     const ids = (document.body.dataset.lfReplayWrote ?? '').split(' ').filter(Boolean);
     if (!ids.length) return [];
-    const { shallowSigs } = await import('/leaf.js');
+    const { shallowSigs } = await import('/runtime/widget-api.js');
     const sigs = (html) => shallowSigs(
         new DOMParser().parseFromString(html, 'text/html').body);
     const cur = sigs(curHtml), prev = sigs(prevHtml);
@@ -831,7 +831,7 @@ REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
 # it — its nearest ancestor with the method, as a replayed override already is — since
 # across a batch no single verb owns the difference.
 RELATIVE_REPLAYS = """async () => {
-    const { standingState, shallowSigs } = await import('/leaf.js');
+    const { standingState, shallowSigs } = await import('/runtime/widget-api.js');
     const at = (el) => `<${el.localName}${el.id ? ' id=' + el.id : ''}>`;
     // A fold reads the registry, so a decided widget whose module never loaded is in it
     // and has no method to converge. That failure is reported on its own — the console,
@@ -1162,7 +1162,7 @@ UNREAD_SYNTAX = (
 # `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
 # asking whether it renders covers both and the panel besides.
 SILENT_WORDS = (
-    """(widgets) => import('/leaf.js').then(leaf => {"""
+    """(widgets) => import('/runtime/widget-api.js').then(leaf => {"""
     + OPEN_ROOTS
     + """
     const found = [];
@@ -1369,7 +1369,7 @@ TRAPPED_MARGINS = (
     // reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow roots
     // of its own, and a `closest` written out here stops at the first of them and
     // calls what it finds the page's.
-    const { inChrome } = await import('/leaf.js');"""
+    const { inChrome } = await import('/runtime/widget-api.js');"""
     + OPEN_ROOTS
     + """
     const px = (v) => parseFloat(v) || 0;
@@ -1466,21 +1466,34 @@ BAKE = """() => {
         root.querySelectorAll('.lf-work-line').forEach(el => el.remove());
     document.querySelectorAll('script, .lf-chrome').forEach(el => el.remove());
     // A measurement of this window is not a fact about the reader's. The live page
-    // measures two of them and states each inline on the root — the room a wide widget
-    // may take (syncLayout) and the width of the page's own box, which is what the
-    // margin strips are sized against (stateStrip) — and an inline value outranks every
-    // rule a stylesheet could write, so a copy carrying either would hold whatever width
-    // the exporter's headless window happened to have, on a file whose whole point is
-    // being opened somewhere else. Each rule that reads one falls back to the viewport,
-    // which is honest in a copy: no panel takes a strip from a file, and no session grows
-    // one. Taken off the way the chrome above is, rather than guarded against in the
-    // theme, because the stale number is the thing that is wrong here and a rule written
-    // around it would leave it there to be read by the next thing that asks.
+    // measures its own box and states the numbers inline on the root — the room a wide
+    // widget may take (syncLayout), the width the margin strips are sized against
+    // (stateStrip), the width each edge stands at, the rail a suggestion's controls
+    // hang in — and an inline value outranks every rule a stylesheet could write, so a
+    // copy carrying one holds whatever width the exporter's headless window happened to
+    // have, on a file whose whole point is being opened somewhere else. Each rule that
+    // reads one falls back to the viewport, which is honest in a copy: no panel takes a
+    // strip from a file, and no session grows one. Taken off the way the chrome above
+    // is, rather than guarded against in the theme, because the stale number is the
+    // thing that is wrong here and a rule written around it would leave it there to be
+    // read by the next thing that asks.
     //
-    // The width each edge stands at is the same kind of number and goes for the same
-    // reason rather than because anything in a copy reads it: both are stated on the
-    // root by the same hand, and each is a fact about a region this file hasn't got and
-    // about a reader who is not the one opening it.
+    // Named, and the names are the point. What goes is a measurement whose subject
+    // this file no longer has: the panel and the tray are removed with the chrome
+    // above, and the room and the available width are read off a window that is not
+    // the reader's. A copy drops what it hasn't got.
+    //
+    // It keeps what it still has, which is why `--rail` is not on this list and must
+    // not be added to it. The rail is the width of the margin a suggestion's controls
+    // stand in, and a decided change keeps that control — the record of what was
+    // decided is the whole reason the margin was reserved. Cleared, the copy reads its
+    // room off the viewport, knows nothing of the row still sitting in the margin, and
+    // spends the surplus on the free side: the exported board stood 35px outside the
+    // page's box at a laptop's width and 47px at a narrow one, off the left, where
+    // overflow scrolls nothing and the columns are not cut off with a way to reach
+    // them but simply gone. `test_a_copy_keeps_the_rail_a_decided_change_left` is
+    // that, and it is what a sweep of every inline custom property on the root ran
+    // into: read as a stale number, the rail is the one that is not.
     for (const stale of ['--lf-room', '--lf-avail', '--lf-panel-w', '--lf-tray-w'])
         document.documentElement.style.removeProperty(stale);
     // The tab icon is the third seat of the banner's status (paintTab), and a file has

@@ -57,6 +57,95 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
+    browser, serve
+):
+    """The authored element is only a request for navigation. The module reads the
+    page's headings in document order, keeps their relative depth, and gives an
+    id-less heading a generated target without writing state onto the heading itself.
+    A link also takes the runtime's reveal route, so a heading in a closed disclosure
+    is reachable rather than merely named."""
+    source = leaf_page(
+        "contents",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<section><h2 id="prepare">Prepare <lf-gloss tip="One cohort at a time.">gradually</lf-gloss></h2><p>Take a snapshot.</p></section>
+<details style="margin-top: 110vh">
+  <summary>Implementation detail</summary>
+  <h3>Move the readers</h3>
+  <p>Shift one cohort at a time.</p>
+</details>
+<section style="margin-bottom: 110vh"><h2>Verify</h2><p>Compare the totals.</p></section>
+""",
+    )
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    toc = page.get_by_role("navigation", name="On this page")
+
+    expect(toc.get_by_role("link")).to_have_count(3)
+    assert toc.get_by_role("link").all_text_contents() == [
+        "Prepare gradually",
+        "Move the readers",
+        "Verify",
+    ]
+    assert toc.locator("li").evaluate_all(
+        "nodes => nodes.map(node => node.dataset.lfDepth)"
+    ) == ["0", "1", "0"]
+    assert page.locator("h2, h3").evaluate_all(
+        "nodes => nodes.map(node => node.getAttribute('id'))"
+    ) == ["prepare", None, None]
+
+    hrefs = toc.get_by_role("link").evaluate_all(
+        "links => links.map(link => link.getAttribute('href'))"
+    )
+    assert hrefs[0] == "#prepare"
+    assert hrefs[1].startswith("#lf-contents-section-")
+    target = page.locator(hrefs[1])
+    expect(target).to_have_attribute("data-lf-gen", "1")
+    expect(target).to_have_class(re.compile(r"\blf-ui\b"))
+
+    details = page.locator("details")
+    expect(details).not_to_have_attribute("open", "")
+    toc.get_by_role("link", name="Move the readers").click()
+    expect(details).to_have_attribute("open", "")
+    expect(page.locator(":target")).to_have_attribute("id", hrefs[1][1:])
+    expect(page).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    top = page.locator("h3").evaluate("heading => heading.getBoundingClientRect().top")
+    assert 0 <= top < 150, f"the revealed heading stopped at {top}px"
+
+    # The title is a visible page label, while each repeated heading is the label of a
+    # browser-owned link under .lf-ui. The authored heading remains the one passage.
+    spoken = page.locator("main").evaluate(
+        "async main => (await import('/runtime/widget-api.js')).says(main)"
+    )
+    assert spoken.count("Prepare gradually") == 1
+    assert spoken.count("Move the readers") == 1
+    assert spoken.count("Verify") == 1
+    expect(toc).to_have_class(re.compile(r"\blf-ui\b"))
+    expect(toc).to_have_attribute("data-lf-gen", "1")
+    assert errors == []
+    page.close()
+
+    # On first parse this id does not exist yet. The shared arrival pass runs after every
+    # widget settles, so a copied link still reveals and reaches the generated target.
+    direct, direct_errors = open_page(browser, url + hrefs[1])
+    expect(direct.locator("details")).to_have_attribute("open", "")
+    expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
+    direct.wait_for_function(
+        "heading => { const box = heading.getBoundingClientRect(); "
+        "return box.top >= 0 && box.bottom <= innerHeight; }",
+        arg=direct.locator("h3").element_handle(),
+    )
+    assert direct.locator("h3").evaluate(
+        "heading => { const box = heading.getBoundingClientRect(); "
+        "return box.top >= 0 && box.bottom <= innerHeight; }"
+    )
+    assert direct_errors == []
+    direct.close()
+
+
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase opens it on
     hover, Tab reaches its raised mark, and a click pins it for touch. In every form the

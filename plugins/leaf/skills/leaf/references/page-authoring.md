@@ -58,7 +58,10 @@ its source rather than pinning a page width.
 
 Give every section, major block, and widget item a stable, meaningful `id`.
 Comments and reading position attach to those ids across versions. Keep an id
-where its passage survives, and avoid the `lf-` prefix reserved for runtime ids.
+where its passage survives, and stay out of the `lf-` prefix: it is the runtime's
+namespace for ids and for classes alike, and `data-lf-` is the same for
+attributes. `version check` refuses all three, including a name the runtime does
+not write today — the namespace is reserved, not the list of names in it.
 
 A code block, table, figure, or aside that a reader will point at as a whole also
 needs a tight id, either on itself or on its immediate semantic container.

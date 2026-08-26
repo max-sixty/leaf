@@ -386,10 +386,25 @@ unanswered holder is withdrawn. These are relations between declarations and
 events, not special rules for suggestions.
 
 CSS is a consumer too. A selector listing every framed tag closes the vocabulary.
-A box declares `--lf-frame` where it draws its frame. Shared style queries use
+A box declares `--lf-frame` where it draws its frame, and shared style queries read
 that declaration to trim collapsed child margins and to limit the room a wide
 exhibit may take inside the box. `main` hands page-wide room back to its contents.
 The render gate checks trapped margins, clipping, and width on the composed page.
+
+A rule that draws the here ring names it the same way, in `--lf-here-ring`. Whether
+a ring is there is the outline's answer; the name says which rule drew it, so
+nothing re-runs the layer's selectors to work that out. The corpus floor holds the
+layer to naming what it draws.
+
+The reader is not always the browser. The rule that draws the readable column claims
+it in `--lf-column`, and the file lint is what reads that: `version check` measures
+every fixed pixel width against the column, so the column is the baseline the whole
+page is judged by. It used to find that rule from a list of seven container names,
+which is loose and tight at once — a rule spelled `.content` moved the baseline and
+took the overflow check quiet, while a page whose column is `.prose` was judged
+against a default. A stylesheet knows which of its rules is the measure. Declared
+where the width is set, the claim and the width are won together by the cascade and
+cannot drift apart.
 
 The declaration follows the drawn box rather than the tag. A nested task may draw
 its frame only in a child selector, and a module may generate a framed class with

@@ -66,7 +66,9 @@ def resize_notice_after_last_probe(page):
 # runtime that puts it back (leaf.js, ARRANGEMENTS). Read from the page rather than
 # listed here: which surfaces remember anything is the runtime's to say, and a list on
 # this side would stop at the ones it was taught.
-ARRANGEMENTS = "() => import('/leaf.js').then((leaf) => leaf.ARRANGEMENTS)"
+ARRANGEMENTS = (
+    "() => import('/runtime/widget-api.js').then((leaf) => leaf.ARRANGEMENTS)"
+)
 
 # One arrangement and no other, written the way a reader's own browser holds it. Both
 # stores are cleared first, so each arrival is the arrangement it names rather than that
@@ -1339,7 +1341,7 @@ RINGS_DRAWN = f"""async () => {{
   // comment names — it asked only about overflow, so paint containment and
   // content-visibility clipped a ring away with nothing said, and it measured the
   // padding box with the scrollbar's gutter still in it.
-  const {{ shownBand }} = await import('/leaf.js');
+  const {{ shownBand }} = await import('/runtime/widget-api.js');
   const named = {NAMED};
   const holds = (a, b) => {{
     for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;

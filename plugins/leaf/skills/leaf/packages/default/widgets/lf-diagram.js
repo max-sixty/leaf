@@ -2,7 +2,7 @@
  * data, not prose — the theme shows it as source until the SVG replaces it, so a page
  * degrades readably if rendering fails (the source stays visible in the error box).
  * The vendored mermaid bundle loads lazily, once, and only on pages that use it. */
-import { dataBody, once, failSoft, settle } from "/leaf.js";
+import { dataBody, once, failSoft, settle } from "/runtime/widget-api.js";
 
 /* A diagram paints its own boxes, which makes it the one widget that can hold a
  * palette of its own — and it did: mermaid's stock "neutral" is a cool grey, so

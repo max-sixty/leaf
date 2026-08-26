@@ -443,7 +443,7 @@ LATE_MARGIN_PAGE = leaf_page(
 # anybody's subject. The request is answered by the test, which is what puts the claim
 # after the handover on every machine rather than on a fast one.
 LATE_MARGIN_WIDGET = """\
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-callout",

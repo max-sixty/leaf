@@ -90,7 +90,7 @@ import {
   watchDraft,
   alignText,
   watchActions,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
 // the id alone is unambiguous — the same scoping every composer draft relies on.

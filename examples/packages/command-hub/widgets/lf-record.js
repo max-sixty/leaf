@@ -1,5 +1,5 @@
 /* The record as receipts. The log remains the only state; this is a read-only list. */
-import { declarationFor, once, watchHistory } from "/leaf.js";
+import { declarationFor, once, watchHistory } from "/runtime/widget-api.js";
 
 const kinds = new Set([
   "action",

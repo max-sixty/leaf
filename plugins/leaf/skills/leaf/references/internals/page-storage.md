@@ -5,7 +5,7 @@ A page directory holds:
                          exposes a version only once `version publish` lands its
                          note, after `version check` passes, so a half-written or
                          broken file is never live to an open browser.
-    leaf.js          the runtime (widget layer + comment layer), served at /leaf.js
+    leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
                          layer-wide facts under $ — $idioms, $languages, $keys (what
@@ -20,7 +20,7 @@ A page directory holds:
                          paints in whatever colour the banner's dot is wearing — so a
                          reader with six leaves open sees which one wants them
                          without opening any
-    runtime/             private modules imported by the stable /leaf.js entry
+    runtime/             private browser owners plus the public widget-api.js module
     widgets/             one ES module per upgraded widget (lf-tabs.js, lf-diagram.js)
     vendor/              vendored third-party assets (mermaid.min.js, sortable.esm.js)
     media/               images the page shows, each named by the hash of its bytes

@@ -1781,7 +1781,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
     refused = page.evaluate(
         """async () => {
-          const { keys } = await import('/leaf.js');
+          const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
               { keys: ['F2'], does: 'a press with nothing to say for itself',
@@ -1803,7 +1803,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { keys } = await import('/leaf.js');
+          const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
               { keys: ['Ctrl+k'], does: 'a modifier the matcher never asks about',

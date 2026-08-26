@@ -17,7 +17,7 @@ import {
   synNodes,
   syntax,
   tokenLines,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 // "3-5,8" → Set of line numbers.
 function parseRanges(spec) {

@@ -1147,7 +1147,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await import('/leaf.js');
+          const { syntax } = await import('/runtime/syntax.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {

@@ -27,15 +27,15 @@ import {
   dataBody,
   failSoft,
   keys,
-  langForPath,
   movedWords,
   once,
   settle,
   shadowStage,
+  langForPath,
   synNodes,
   syntax,
   tokenLines,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 // One entry per file: {path, adds, dels, lines: [{kind, text}]} where kind is
 // add | del | ctx | hunk | note. Tolerates both `diff --git` and bare ---/+++

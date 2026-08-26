@@ -1351,7 +1351,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/leaf.js');
+          const { keys } = await import('/runtime/widget-api.js');
           keys(document.body, 'On a draft',
                [{ keys: ['F2'], does: 'a project widget using the same heading' }]);
         }"""
@@ -1914,7 +1914,7 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
     url = data_projection_page(serve)
     page, errors = open_page(browser, url)
 
-    readings = page.evaluate("""() => import('/leaf.js').then(leaf => {
+    readings = page.evaluate("""() => import('/runtime/widget-api.js').then(leaf => {
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
@@ -2140,7 +2140,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/leaf.js');
+          const {watchData} = await import('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
           widget.removeAttribute('source');
           let unbound = 'not-called';

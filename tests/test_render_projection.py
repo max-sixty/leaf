@@ -816,7 +816,9 @@ def test_claims_and_reports_share_one_canonical_update_feed(
             )
     told(page)
 
-    updates = page.evaluate("async () => (await import('/leaf.js')).updateSequence()")
+    updates = page.evaluate(
+        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+    )
     by_source = {update["source"]: update for update in updates}
     assert set(by_source) == {"claim", "report"}
     assert [update["source"] for update in updates] == ["report", "claim"]
@@ -852,7 +854,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["report"]["session"] == by_source["claim"]["session"]
     targeted = page.evaluate(
         """async () => {
-            const feed = await import('/leaf.js');
+            const feed = await import('/runtime/widget-api.js');
             return {
                 widget: feed.updateSequence(document.querySelector('#ag-wren')),
                 thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
@@ -890,7 +892,9 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     page.wait_for_url("**/versions/v2.html")
     page.wait_for_function(BOTH_STAMPS)
 
-    updates = page.evaluate("async () => (await import('/leaf.js')).updateSequence()")
+    updates = page.evaluate(
+        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+    )
     by_source = {update["source"]: update for update in updates}
     assert by_source["claim"]["disposition"] == "settled"
     assert by_source["report"]["disposition"] == "settled"
@@ -1276,7 +1280,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         assert sent.exit_code == 0, sent.output
 
     page, errors = open_page(browser, url)
-    standing = page.evaluate("""async () => (await import('/leaf.js')).standingState()
+    standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
         .map(({ widget, facet, action }) => [widget.id, widget.localName, facet, action])""")
     page.close()
     registry = validation_model.incoming_registry(
@@ -1354,7 +1358,7 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
   connectedCallback() { once(this); }
   applyAction(_action, detail) {
@@ -1386,7 +1390,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await import('/leaf.js')).standingState()
+        """async () => (await import('/runtime/widget-api.js')).standingState()
           .filter(state => state.widget?.id === 'tally-fitted')
           .map(state => [state.action, state.detail.count])"""
     )
@@ -1472,7 +1476,7 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
         """\
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends HTMLElement {
   connectedCallback() { once(this); }
   applyAction(_action, detail) {
@@ -1485,7 +1489,7 @@ customElements.define("lf-owner", class extends HTMLElement {
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         """\
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
   connectedCallback() { once(this); }
   applyAction(_action, detail) { this.setAttribute("pinned", detail.pinned); }
@@ -1523,7 +1527,7 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     standing = page.evaluate(
-        """async () => (await import('/leaf.js')).standingState()
+        """async () => (await import('/runtime/widget-api.js')).standingState()
           .filter(state => state.unit === 'piece' && state.facet === 'placement')
           .map(state => [state.widget.id, state.action])"""
     )
@@ -1793,7 +1797,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     )
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/leaf.js");
+        const { shallowSigs } = await import("/runtime/widget-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -2089,7 +2093,7 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
         spec["record"] = record
     registry_path.write_text(json.dumps(entries))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { once } from "/leaf.js";
+        """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
   connectedCallback() { once(this); }
   applyAction(_action, detail) { this.setAttribute("decision", detail.decision); }

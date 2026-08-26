@@ -95,7 +95,7 @@
 ├── registry.json       widget entries and shared $ declarations
 ├── theme.css           rules appended to the cascade
 ├── guidance/           Markdown guides named for their audiences
-├── runtime/            private modules and replacements
+├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and private helpers
 ├── vendor/             third-party libraries or data
 ├── icon.svg            optional replacement
@@ -652,7 +652,7 @@ lf-chip {
           The module starts with the same one-shot upgrade guard used by shipped
           widgets:
         </p>
-        <pre><code>import { once } from "/leaf.js";
+        <pre><code>import { once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-callout",
@@ -666,8 +666,8 @@ customElements.define(
           The widget owns its supporting code. Put relative imports beside the entry
           module under <code>widgets/</code>, and third-party or data files under
           <code>vendor/</code>; <code>page init</code> carries both directories into the
-          page. <code>/leaf.js</code> is the whole Leaf API, not a limit on a widget's
-          own modules.
+          page. <code>/runtime/widget-api.js</code> is the whole Leaf API, not a limit
+          on a widget's own modules.
         </p>
         <p>
           The authored element should remain readable before the module runs. Set

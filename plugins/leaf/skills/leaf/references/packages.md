@@ -48,7 +48,7 @@ package/
 ├── registry.json       widget entries and shared $ declarations
 ├── theme.css           rules appended to the cascade
 ├── guidance/           Markdown guides named for their audiences
-├── runtime/            private runtime modules and replacements
+├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
 ├── icon.svg            optional replacement by path
@@ -110,7 +110,7 @@ an absolute `applyAction`, `says()` over `textContent`, `offer()` and `relabel()
 injected, `keys()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
 runtime owning those keys — `quoted()` before wiring input, `actionAvailable()` for
 an x-state verb with `requires`, and durable state in attributes because export drops
-the scripts. The helper surface `/leaf.js` exports is the whole Leaf API a module gets.
+the scripts. `/runtime/widget-api.js` is the whole Leaf API a behavior module gets.
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and

@@ -7,7 +7,7 @@
  * (renderSaid), for every widget alike: a word the page says has to be a word the
  * user can select. Upgrades flush before the first anchor pass, so comment quotes
  * always search the enhanced DOM. Widget modules import only the small helper surface
- * they need from here.
+ * they need from /runtime/widget-api.js.
  *
  * Actions: an interactive widget (lf-board) reports the user editing the document
  * through it as an `action` event — sendAction posts it, `leaf wait` prints it,
@@ -175,15 +175,7 @@ import {
   tabStore,
   versionUrl,
 } from "./runtime/storage.js";
-import {
-  highlightBlocks,
-  langForPath,
-  synNodes,
-  syntax,
-  tokenLines,
-} from "./runtime/syntax.js";
-
-export { langForPath, synNodes, syntax, tabStore, tokenLines };
+import { highlightBlocks } from "./runtime/syntax.js";
 
 // ---------- widget layer ----------
 
@@ -9717,9 +9709,10 @@ async function presentPage() {
 
 // Upgrades flush before the anchor pass and the view restore, so quotes and reading
 // positions are re-found in the enhanced DOM, not the pre-upgrade one. An async function,
-// never a top-level await: widget modules import this module's helpers, and awaiting their
-// import at top level would deadlock the cycle (their evaluation waits on this module's
-// async evaluation completing).
+// never a top-level await: widget modules import widget-api.js, which temporarily
+// reexports helpers from this entry, and awaiting their import at top level would
+// deadlock the cycle (their evaluation waits on this module's async evaluation
+// completing).
 async function startPage() {
   await Promise.all([
     upgradeWidgets(),

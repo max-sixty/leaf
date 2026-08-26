@@ -300,7 +300,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page, errors = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {sendAction} = await import('/leaf.js');
+          const {sendAction} = await import('/runtime/widget-api.js');
           const board = document.querySelector('#sprint');
           const attempt = 'one-attempt-two-actions';
           const first = sendAction(
@@ -801,7 +801,7 @@ def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, s
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void import('/leaf.js').then(({sendAction}) => {
+            """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#sprint');
               const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
               widget.applyAction('move', detail);
@@ -884,7 +884,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     entries["lf-column"]["x-parent"].append("lf-outer-board")
     registry_path.write_text(json.dumps(entries))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { once } from "/leaf.js";
+        """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
   connectedCallback() { once(this); }
   applyAction(action, detail) {
@@ -917,7 +917,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void import('/leaf.js').then(({sendAction}) => {
+            """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#outer');
               const detail = {card: 'outer-card', to: 'outer-done', index: 0};
               widget.applyAction('move', detail);
@@ -926,7 +926,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         )
     page.wait_for_timeout(0)
     page.evaluate(
-        """() => { void import('/leaf.js').then(({sendAction}) => {
+        """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
           const widget = document.querySelector('#inner');
           const detail = {card: 'inner-card', to: 'inner-done', index: 0};
           widget.applyAction('move', detail);

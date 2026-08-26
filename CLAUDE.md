@@ -45,10 +45,11 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
   the Click surface. Schema, document, and browser-probe modules sit below those
   owners on the same dependency path. The payload's `bin/leaf` shim invokes the
   facade. There is no daemon or database.
-- `assets/leaf.js` is the public page runtime and comment layer. Its private
-  context, state projector, passage reader, anchor painter, conversation
-  reconciler, and chrome stylesheet live under `assets/runtime/` and are
-  composed by that stable module. There is no build step.
+- `assets/leaf.js` is the browser entry and comment layer.
+  `assets/runtime/widget-api.js` is the public helper surface for behavior
+  modules. Its private context, state projector, passage reader, anchor painter,
+  conversation reconciler, and chrome stylesheet live beside that boundary
+  under `assets/runtime/`. There is no build step.
 - `assets/registry.json` is the kernel vocabulary and the layer-wide `$`
   declarations read by the runtime, linter, renderer, catalog, and docs.
 - `assets/theme.css` owns tokens, elements, class idioms, and the shared look of

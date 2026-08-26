@@ -1593,7 +1593,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     ]
     aligned = page.evaluate(
         """async (pairs) => {
-          const {alignText} = await import('/leaf.js');
+          const {alignText} = await import('/runtime/widget-api.js');
           return pairs.map(([before, after]) => alignText(before, after));
         }""",
         cases,
@@ -1686,7 +1686,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     sequence = page.evaluate(
         """async () => {
-          const {actionSequence} = await import('/leaf.js');
+          const {actionSequence} = await import('/runtime/widget-api.js');
           const widget = document.getElementById('draft-ops');
           const first = actionSequence(widget, 'edit');
           first[0].detail.text = 'A widget must not mutate the runtime log.';
@@ -1737,7 +1737,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 1 edit"
     )
     old_sequence = old.evaluate(
-        """async () => (await import('/leaf.js'))
+        """async () => (await import('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.version)"""
     )
@@ -1750,7 +1750,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 2 edits"
     )
     latest_sequence = latest.evaluate(
-        """async () => (await import('/leaf.js'))
+        """async () => (await import('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.version)"""
     )

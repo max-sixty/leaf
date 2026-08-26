@@ -116,7 +116,7 @@ import {
   toast,
   worksInside,
   wrote,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 // What an option is called, in either form: its title where it leads with one, and its
 // own words where the label is all it has. `wrote` rather than `says`, because a picked

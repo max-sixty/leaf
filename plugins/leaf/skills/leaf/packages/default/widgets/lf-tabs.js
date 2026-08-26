@@ -11,7 +11,7 @@
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
-import { once, keys, offer, relabel, tabStore, HIDDEN } from "/leaf.js";
+import { once, keys, offer, relabel, tabStore, HIDDEN } from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
 

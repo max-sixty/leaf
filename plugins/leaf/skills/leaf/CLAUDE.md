@@ -1,6 +1,6 @@
 # The page in the browser
 
-This file defines the contract for `assets/leaf.js`, its private modules under
+This file defines the contract for `assets/leaf.js`, its runtime modules under
 `assets/runtime/`, the widget modules, and `assets/theme.css`. It describes the
 current runtime. Page-authoring commands and
 markup rules live in `references/page-authoring.md`; package authoring lives in
@@ -19,16 +19,21 @@ record the sequence of implementations that led to the current one.
 
 ## Runtime ownership
 
-`leaf.js` is the one public ES module, with two code layers and private support
-modules behind it. `runtime/context.js` owns the mutable facts shared across
-those layers; `runtime/storage.js` owns page addressing and browser-backed
-stores; `runtime/syntax.js` owns code tokenization and highlighting;
+`leaf.js` is the browser entry module. `runtime/widget-api.js` is the one public
+helper surface for behavior modules and selects capabilities from their runtime
+owners. It temporarily reexports helpers still implemented by the entry module.
+`runtime/context.js` owns the mutable facts shared across the browser layers;
+`runtime/storage.js` owns page addressing and browser-backed stores;
+`runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/anchors.js` owns anchor geometry, paint, and navigation;
 `runtime/conversation.js` owns thread folding and panel reconciliation; and
 `runtime/projection.js` owns declaration-driven state folding and
-reconciliation. The facade composes their cyclic browser dependencies; private
-modules do not become a second public helper surface.
+reconciliation. The entry module composes their mutually dependent callbacks.
+TODO: Move the remaining helper implementations to their runtime owners so
+`widget-api.js` no longer reexports the entry module and `leaf.js` becomes
+boot-only.
+
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
 words, and reconciles recorded state. The comment layer polls `GET /api/state`,
@@ -605,9 +610,10 @@ a leak.
 
 ### Module contract
 
-A behavior module imports only the public helper surface from `leaf.js`. Do not
-reach into runtime globals, query private chrome, or duplicate a runtime helper
-inside a module. Every module has these minimum obligations:
+A behavior module imports only the public helper surface from
+`runtime/widget-api.js`. Do not reach into its private owners, query private
+chrome, or duplicate a runtime helper inside a module. Every module has these
+minimum obligations:
 
 - Define the custom element once and make `connectedCallback` safe to run after
   reconstruction.

@@ -466,7 +466,7 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/leaf.js";\n'
+        'import { once } from "/runtime/widget-api.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -516,7 +516,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/leaf.js";\n'
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -564,7 +564,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/leaf.js";\n'
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -1356,8 +1356,8 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     module.write_text(
         module.read_text()
         .replace(
-            'import { once } from "/leaf.js";',
-            'import { once } from "/leaf.js";\n'
+            'import { once } from "/runtime/widget-api.js";',
+            'import { once } from "/runtime/widget-api.js";\n'
             'import { label } from "./callout-label.js";',
         )
         .replace(
@@ -1521,7 +1521,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
     standing = page.evaluate(
-        "async () => (await import('/leaf.js')).standingState()"
+        "async () => (await import('/runtime/widget-api.js')).standingState()"
         ".map((s) => [s.unit, s.action])"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (

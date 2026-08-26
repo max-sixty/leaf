@@ -2840,7 +2840,7 @@ def test_covering_panel_keeps_toasts_on_screen_and_clear_of_the_footer(browser, 
     )
     page.evaluate(
         """async message => {
-            const {toast} = await import("/leaf.js");
+            const {toast} = await import("/runtime/widget-api.js");
             toast(message);
         }""",
         message,
@@ -3033,7 +3033,7 @@ def test_a_stale_package_widget_uses_recursive_parent_eligibility(
     )
     (overlay / "widgets" / "lf-quota.js").write_text(
         """\
-import { actionAvailable, offer, once, sendAction } from "/leaf.js";
+import { actionAvailable, offer, once, sendAction } from "/runtime/widget-api.js";
 
 const detail = (quota, delta) => ({
   slots: String(Number(quota.getAttribute("slots")) + delta),

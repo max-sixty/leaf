@@ -906,7 +906,7 @@ RELATIVE_WIDGET_PAGE = leaf_page(
 )
 
 RELATIVE_WIDGET_MODULE = """\
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",
@@ -944,7 +944,7 @@ DRIFT_PAGE = leaf_page(
 )
 
 DRIFT_MODULE = """\
-import { motion, once } from "/leaf.js";
+import { motion, once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-drift",

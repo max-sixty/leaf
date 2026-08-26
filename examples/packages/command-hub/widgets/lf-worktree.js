@@ -1,7 +1,7 @@
 /* Worktree evidence supplied by the host. The widget owns its typed input and
  * rendering; the page binds that input to a source, while Leaf delivers its validated
  * snapshot and keeps datum comments attached across replacement. */
-import { ago, offer, projectData, relabel, watchData } from "/leaf.js";
+import { ago, offer, projectData, relabel, watchData } from "/runtime/widget-api.js";
 
 function evidence(tree, kind, label, text, prior) {
   const group = prior ?? document.createElement("section");

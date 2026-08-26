@@ -10,7 +10,7 @@ import {
   once,
   projectData,
   relabel,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 import {
   closestCommandRole,
   commandRole,

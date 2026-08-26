@@ -422,9 +422,38 @@ def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
 def test_init_vendors_the_layer(page_dir):
     for name in ["leaf.js", "theme.css", "registry.json"]:
         assert (page_dir / name).is_file()
+    assert (page_dir / "runtime" / "widget-api.js").is_file()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
+
+
+def test_behavior_modules_use_the_widget_api_boundary():
+    modules = [
+        *(PLUGIN_ROOT / "assets" / "widgets").glob("*.js"),
+        *(PLUGIN_ROOT / "packages").glob("*/widgets/*.js"),
+        *(ROOT / "examples" / "packages").glob("*/widgets/*.js"),
+    ]
+    assert modules
+    for module in modules:
+        source = module.read_text()
+        specifiers = [
+            match[1]
+            for match in re.findall(
+                r"""(?:from\s+|import\s*(?:\(\s*)?)(["'])(/[^"']+)\1""",
+                source,
+            )
+        ]
+        assert "/leaf.js" not in specifiers, module
+        private_imports = [
+            specifier
+            for specifier in specifiers
+            if specifier.startswith("/runtime/")
+            and specifier != "/runtime/widget-api.js"
+        ]
+        assert private_imports == [], (
+            f"{module} imports private runtime owners: {private_imports}"
+        )
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):

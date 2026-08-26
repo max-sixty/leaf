@@ -733,7 +733,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         )
     if upgrade:
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/leaf.js";\n\n'
+            'import { once } from "/runtime/widget-api.js";\n\n'
             "customElements.define(\n"
             f'  "{tag}",\n'
             "  class extends HTMLElement {\n"

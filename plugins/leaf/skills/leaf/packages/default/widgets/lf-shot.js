@@ -27,7 +27,7 @@
  * frame is a thing to press, so it goes through `offer` with the rest of the chrome.
  * What the page has to say about the change itself is neither — it is prose, written
  * around the element, where a comment can reach it like any other sentence. */
-import { once, offer, failSoft, keys, paintKeys, settle } from "/leaf.js";
+import { once, offer, failSoft, keys, paintKeys, settle } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-shot",

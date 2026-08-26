@@ -83,7 +83,7 @@ import {
   sendAction,
   textNodesUnder,
   toast,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 // Each control's word in both states — what #name writes, and what the control
 // reserves room for, out of the one table so neither can outgrow the other.

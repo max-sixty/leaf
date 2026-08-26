@@ -12,7 +12,7 @@ import {
   quoted,
   saidAt,
   updateSequence,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 const widgets = layerFact("$command")?.widgets ?? {};
 

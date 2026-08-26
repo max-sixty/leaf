@@ -2,16 +2,23 @@
 
 import itertools
 import json
+import re
 import time
 
 import pytest
-from conftest import interact
+from leaf import events as events_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
+from leaf import validation as validation_model
 from playwright.sync_api import expect
 from render_support import (
     ARRANGE,
     ARRANGEMENTS,
     ASK_PAGE,
     ASKS_PAGE,
+    AUTHORED_LINES_PAGE,
+    BARE_IDENTIFIERS_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
     COLORED_CODE_PAGE,
@@ -23,6 +30,8 @@ from render_support import (
     FAINT_CODE_PAGE,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
+    IDENTIFIERS_IN_CODE_PAGE,
+    LINKED_CELLS_PAGE,
     LONG_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
@@ -150,7 +159,7 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
     url = serve(CUSTOM_WIDGET_PAGE)
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
-    declared.wait_for_function(interact.UPGRADED)
+    declared.wait_for_function(rendering_model.UPGRADED)
     arrangements = declared.evaluate(ARRANGEMENTS)
     declared.close()
     assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
@@ -250,7 +259,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
             lambda route: held.append(route) if next(polls) == 0 else route.continue_(),
         )
         page.goto(url, wait_until="load")
-        page.wait_for_function(interact.UPGRADED)
+        page.wait_for_function(rendering_model.UPGRADED)
         # The page's own statement that it is waiting: the surface it shows while the
         # log is outstanding has finished its dwell and is painting. Waiting for it is
         # what makes every load here the same load, so what a return moves can be held
@@ -292,7 +301,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         )
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
     # one document; one seen here is the platform under load and says nothing.
-    assert [e for e in errors if not interact.resize_observer_error(e)] == []
+    assert [e for e in errors if not rendering_model.resize_observer_error(e)] == []
     page.close()
 
 
@@ -307,7 +316,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
             resize_notice_after_last_probe(page)
         pages.append(page)
 
-    failures = interact.render_version(
+    failures = rendering_model.render_version(
         primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
     )
 
@@ -328,7 +337,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
             resize_notice_after_last_probe(page)
         pages.append(page)
 
-    failures = interact.render_version(
+    failures = rendering_model.render_version(
         primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
     )
 
@@ -343,12 +352,12 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         resize_notice_after_last_probe(page)
         pages.append(page)
 
-    failures = interact.render_version(
+    failures = rendering_model.render_version(
         primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
     )
 
     assert len(pages) == 4
-    assert interact.recurring_resize_observer_error("render attempt") in failures
+    assert rendering_model.recurring_resize_observer_error("render attempt") in failures
 
 
 def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, serve):
@@ -367,7 +376,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
             page.route("**/leaf.js", lambda route: route.abort())
         pages.append(page)
 
-    failures = interact.render_version(
+    failures = rendering_model.render_version(
         primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
     )
 
@@ -406,7 +415,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     )
     page, errors = open_page(browser, serve(CUSTOM_WIDGET_PAGE), init_script=every_load)
 
-    assert errors == [interact.recurring_resize_observer_error("navigation")]
+    assert errors == [rendering_model.recurring_resize_observer_error("navigation")]
     page.close()
 
 
@@ -418,7 +427,7 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text("// Valid JavaScript, but no custom-element definition.\n")
 
-    failures = interact.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = rendering_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
     assert any(
         "upgraded widgets did not define their elements: <lf-callout>" in failure
@@ -433,17 +442,17 @@ def test_the_render_gate_requires_a_declared_conversations_host(browser, serve):
     removes only its conversationBox placement from the vendored module; a fresh browser
     context prevents the clean load's module cache from answering for the changed file."""
     url = serve(ASK_PAGE)
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
     module = serve.page_dir / "widgets" / "lf-options.js"
     source = module.read_text()
-    placement = """        this.#conversation = conversationBox(this, "Say something");
-        if (this.#conversation) this.append(this.#conversation);
+    placement = """        this.#another = conversationBox(this, ANOTHER);
+        if (this.#another) this.append(this.#another);
 """
     assert source.count(placement) == 1
     module.write_text(source.replace(placement, ""))
 
-    failures = interact.render_version(browser, url)
+    failures = rendering_model.render_version(browser, url)
     assert (
         "[light] <lf-options id='jobs'> declares x-conversation but rendered 0 "
         "matching hosts; its module must place exactly one conversationBox"
@@ -462,7 +471,7 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/leaf.js";\n'
+        'import { once } from "/runtime/widget-api.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -477,7 +486,7 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
         ");\n"
     )
 
-    failures = interact.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = rendering_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
     assert any("x-verbatim" in f for f in failures), failures
     assert any("shadow roots the registry doesn't declare" in f for f in failures), (
@@ -512,7 +521,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/leaf.js";\n'
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -529,7 +538,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         ");\n"
     )
 
-    failures = interact.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = rendering_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
     assert any('never says "09:00"' in f for f in failures), failures
     assert any('paints kind="failure" and says nothing' in f for f in failures), (
@@ -560,7 +569,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/leaf.js";\n'
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
         "customElements.define(\n"
         '  "lf-callout",\n'
         "  class extends HTMLElement {\n"
@@ -574,7 +583,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
         ");\n"
     )
 
-    failures = interact.render_version(browser, serve(SHADOW_HOST_PAGE))
+    failures = rendering_model.render_version(browser, serve(SHADOW_HOST_PAGE))
 
     assert any('never says "Escalated"' in f for f in failures), failures
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
@@ -587,9 +596,9 @@ def test_example_renders(browser, serve, example):
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
-    interact.render_version — the pass `version check --render` runs on agent-authored
+    rendering.render_version — the pass `version check --render` runs on agent-authored
     pages — so this sweep also proves the gate a user's page goes through."""
-    assert interact.render_version(browser, serve(example)) == []
+    assert rendering_model.render_version(browser, serve(example)) == []
 
 
 def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
@@ -608,10 +617,10 @@ def test_every_idiom_in_the_catalog_stands_in_an_example(browser):
     Every key is put to the engine, so a key that is not a selector fails here too.
     `pre > code.language-*` was one for as long as nothing asked — readable, matching
     nothing, and the only member of the catalog with no way to be checked."""
-    registry = interact.incoming_registry(
+    registry = validation_model.incoming_registry(
         [
-            interact.ASSETS,
-            interact.DEFAULT_PACKAGE,
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
             COMMAND_HUB_PACKAGE,
         ]
     )
@@ -672,7 +681,180 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert measured["sideways"] == 0
     assert errors == []
     page.close()
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
+    """The theme's second case, reached by a table that used to fall through to the
+    third: a column of test names beside a column of prose. A name is one word to
+    the line breaker, and unbreakable it held its column at 583px of the 720px
+    measure, squeezed the prose to 118px and a few words a line, and scrolled the
+    table 83px sideways for the rest. In <code> it breaks inside its cell where it
+    must, and the table fits. The names are longer than any share of the measure a
+    column gets, so a name that did not break is a name that fitted by luck rather
+    than by the rule, and the test says so."""
+    url = serve(IDENTIFIERS_IN_CODE_PAGE)
+    page, errors = open_page(browser, url)
+    measured = page.locator("#held").evaluate(
+        """(t) => {
+        const range = document.createRange(), lines = (code) => {
+            range.selectNodeContents(code.firstChild);
+            return new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+        };
+        return { scrolls: t.scrollWidth - t.clientWidth,
+                 broke: [...t.querySelectorAll('td code')].some(c => lines(c) > 1),
+                 sideways: document.body.scrollWidth - document.body.clientWidth };
+    }"""
+    )
+    assert measured["scrolls"] == 0, measured
+    assert measured["broke"], "every name fitted whole, so the rule was never asked"
+    assert measured["sideways"] == 0
+    assert errors == []
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, serve):
+    """The same table with its names written bare. Every column of a scrolling table
+    is at its longest unbreakable run, so the prose column wrapping beside a name
+    that cannot break is the squeeze read off the page, and the finding states the
+    widths that carry the diagnosis: the names' column several times the prose's.
+    The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
+    table that scrolls with nothing left to wrap is the theme's honest third case
+    and passes. The table has to scroll before the reading has anything to say, and
+    the test says so first: a fixture that fitted CI's fonts by ten pixels left the
+    gate silent there, and the silence read as the reading's."""
+    url = serve(BARE_IDENTIFIERS_PAGE)
+    page, errors = open_page(browser, url)
+    scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+    assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
+    assert errors == []
+    page.close()
+    failures = rendering_model.render_version(browser, url)
+
+    squeezed = [f for f in failures if "<table id=held> scrolls" in f]
+    assert squeezed, failures
+    for finding in squeezed:
+        widths = dict(re.findall(r'"([^"]+)" wraps at (\d+)px', finding))
+        assert {"Mechanism", "Held by"} <= widths.keys(), finding
+        assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
+    assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+
+
+def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
+    """A wrap that falls at a node boundary rather than inside a text node: a
+    column of owners as links, one word each, in a table eight single-token
+    columns hold open. Read node by node it never wraps, and the column stood at
+    84px on five lines with the gate green; set at line-height 1, the second
+    line's glyph box overlaps the first's, and a reading of line boxes lost it
+    again. The table without that column is
+    `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`'s, and passes."""
+    failures = rendering_model.render_version(browser, serve(LINKED_CELLS_PAGE))
+
+    squeezed = [f for f in failures if "<table id=sessions> scrolls" in f]
+    assert squeezed, failures
+    assert all('"Owners" wraps at' in f for f in squeezed), squeezed
+
+
+def test_a_line_the_author_drew_is_not_a_wrap(browser, serve):
+    """Four cells of a table single tokens hold open, each with a line the author
+    wrote and nothing wrapped: `value <code>7</code>` on one line (an inline <code>
+    is set at 84% and starts 3px lower, so a reading of rect tops called it a wrap
+    and told the author to write the <code> they had written), a <br>, a newline
+    under <pre>, and words either side of a nested table. A wrap is what goes away
+    with soft wrapping turned off, and none of these does."""
+    assert rendering_model.render_version(browser, serve(AUTHORED_LINES_PAGE)) == []
+
+
+def test_a_comment_on_a_cell_is_not_a_wrap_in_it(browser, serve):
+    """The mark pass puts a comment badge in the cell it marks, and the badge is
+    two words in `.lf-ui` that wrap in a 33px cell. Read as the cell's words it
+    turned this table — single tokens, the theme's honest third case — red the
+    moment a reader commented on it. The runtime's words are not the page's.
+
+    The whole gate, rather than this one reading of it: the badge also stood the
+    page three hundred pixels wide of itself until the scroller was made to
+    contain what it scrolls, and a commented page has nothing left to report."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+
+    assert rendering_model.render_version(browser, url) == []
+
+
+def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
+    browser, serve
+):
+    """The runtime hangs a word clipped to nothing inside the block a comment lands
+    on, out of flow so it holds no room. Out of flow with no positioned ancestor is
+    positioned against the page, though, and a table scrolling inside itself holds
+    its far column three hundred pixels past the window: the cell was there, the
+    word was laid out there with it, and the page grew a sideways scrollbar
+    carrying the reader to a box nobody can see. The scroller answers for it — a
+    box that scrolls contains what it scrolls — so the word keeps the place on its
+    own cell that every reading of it expects and the table carries it.
+
+    Asked at both of the table's scroll positions, since the word travels with the
+    cell now rather than standing still while the cell moves; and the cell has to
+    be off the table's own edge at the first of them, or nothing here could have
+    escaped. Then the two things the place is for: the reader who takes the skip
+    link, and the gate."""
+    url = serve(WIDE_TABLE_PAGE, anchored=[("sessions", "value_number_7")])
+    page, errors = open_page(browser, url)
+    note = page.locator(".lf-mark-note")
+    expect(note).to_have_count(1)
+    expect(note).to_have_text("1 comment")
+
+    measured = note.evaluate(
+        """(n) => {
+        const table = document.querySelector('#sessions');
+        const read = () => {
+            const word = n.getBoundingClientRect();
+            const cell = n.parentElement.getBoundingClientRect();
+            const shown = table.getBoundingClientRect();
+            return {
+                onItsCell: word.left >= Math.floor(cell.left)
+                           && word.right <= Math.ceil(cell.right),
+                cellShown: cell.left >= Math.floor(shown.left)
+                           && cell.right <= Math.ceil(shown.right),
+                sideways: document.body.scrollWidth - document.body.clientWidth,
+            };
+        };
+        const out = { holder: n.parentElement.firstChild.data,
+                      scrolls: Math.round(table.scrollWidth - table.clientWidth),
+                      rest: read() };
+        table.scrollLeft = table.scrollWidth;
+        out.scrolled = read();
+        return out;
+    }"""
+    )
+    assert measured["holder"] == "value_number_7", "the word is on the marked cell"
+    assert measured["scrolls"] > 0, "this table fits, so it proves nothing"
+    assert not measured["rest"]["cellShown"], (
+        "the cell is on screen already, so nothing here could have escaped"
+    )
+    assert measured["scrolled"]["cellShown"], "the table did not scroll to the cell"
+    assert measured["rest"]["onItsCell"] and measured["scrolled"]["onItsCell"], (
+        f"the word left the cell it belongs to: {measured}"
+    )
+
+    # Reached the way a reader reaches it. `focus()` alone sets :focus and leaves
+    # :focus-visible to Chrome's focus modality, which one earlier mouse press flips
+    # — the skip link would then be asked for its resting form and the failure would
+    # talk about `position` (tests/CLAUDE.md).
+    note.evaluate("(n) => n.focus()")
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    reached = note.evaluate(
+        """(n) => {
+        const r = n.getBoundingClientRect();
+        return { held: document.activeElement === n, said: n.textContent,
+                 inTheWindow: r.width > 1 && r.left >= 0 && r.right <= innerWidth
+                              && r.top >= 0 && r.bottom <= innerHeight };
+    }"""
+    )
+    assert reached == {"held": True, "said": "1 comment", "inTheWindow": True}
+    assert errors == []
+    page.close()
+    assert rendering_model.render_version(browser, url) == []
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
@@ -682,7 +864,7 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     static lint reads pinned pixels, which a vw width is not. The failure names
     the element and how far out it is, because "something overflows" sends its
     reader back to the browser to find out what."""
-    failures = interact.render_version(browser, serve(SPILLING_PAGE))
+    failures = rendering_model.render_version(browser, serve(SPILLING_PAGE))
 
     assert [
         f
@@ -708,7 +890,7 @@ def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
 
     TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
     for an element with no box, so it filters out exactly the elements at issue."""
-    failures = interact.render_version(browser, serve(UNMARKABLE_PAGE))
+    failures = rendering_model.render_version(browser, serve(UNMARKABLE_PAGE))
 
     assert [f for f in failures if "<div id='ghost'>" in f and "no box to mark" in f], (
         f"the gate said nothing about words no mark can be shown on: {failures}"
@@ -736,7 +918,7 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
     And the side is resolved rather than string-matched: `float` computes to whichever
     of its four values was written, so `inline-start` — the same left edge — read as
     neither 'left' nor 'right' and failed the page for it."""
-    failures = interact.render_version(browser, serve(FLOATING_PAGE))
+    failures = rendering_model.render_version(browser, serve(FLOATING_PAGE))
 
     assert [
         f
@@ -785,7 +967,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
                 down: Math.min(note.bottom, b.bottom) - Math.max(note.top, b.top)};
     }"""
     level = page.evaluate(geometry)
-    covered = page.evaluate(interact.COVERED_WORDS)
+    covered = page.evaluate(render_checks_model.COVERED_WORDS)
     # The same row, docked: the theme releases the rail below its breakpoint, and the
     # module observes the resulting body geometry on its next layout frame. What the
     # gate asks is the computed position, so narrowing the window is how the other half
@@ -831,7 +1013,7 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     )
     page, errors = open_page(browser, serve(covering))
     page.locator("#under").scroll_into_view_if_needed()
-    covered = page.evaluate(interact.COVERED_WORDS)
+    covered = page.evaluate(render_checks_model.COVERED_WORDS)
     page.close()
     assert [f for f in covered if "id=under" in f and "id=over" in f], (
         f"a control the page put in the flow covered a paragraph unreported: {covered}"
@@ -869,7 +1051,7 @@ def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
         return {painted: !!mid && (n === mid || n.contains(mid)),
                 at: mid && mid.tagName};
     }""")
-    failures = interact.render_version(browser, url)
+    failures = rendering_model.render_version(browser, url)
     page.close()
 
     assert not seen["painted"], (
@@ -896,7 +1078,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     too, being what makes a static box the containing block of the box it then cuts —
     the converse of the box hung off `holding`, which is placed out of a clip that never
     held it."""
-    failures = interact.render_version(browser, serve(OVER_ITS_CONTAINER))
+    failures = rendering_model.render_version(browser, serve(OVER_ITS_CONTAINER))
 
     assert [
         f
@@ -957,7 +1139,7 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
         )
 
     url = serve(SCROLLED_CONTAINER)
-    failures = interact.render_version(primed(browser, scroll_it), url)
+    failures = rendering_model.render_version(primed(browser, scroll_it), url)
 
     assert not [f for f in failures if "riding" in f or "rolled" in f], (
         f"a scrolled box was read as having lost what it was scrolled past: {failures}"
@@ -998,7 +1180,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     page.locator(".lf-comments").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
-    misplaced = page.evaluate(interact.MISPLACED_BOXES)
+    misplaced = page.evaluate(render_checks_model.MISPLACED_BOXES)
     # Wide enough that the panel's 420px still leaves the floor a clear margin rather
     # than the twenty-odd pixels 1600 leaves it: the reading is meant to say the strip
     # survives a window with room for both, not to sit on the boundary and report which
@@ -1261,16 +1443,16 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     assert "cm" in roles and len(roles) > 1, (
         f"this block came out {roles}, so it says nothing about a role going unread"
     )
-    assert interact.render_version(browser, serve(COLORED_CODE_PAGE)) == []
+    assert rendering_model.render_version(browser, serve(COLORED_CODE_PAGE)) == []
 
-    unanswered = interact.render_version(browser, serve(UNANSWERED_CODE_PAGE))
+    unanswered = rendering_model.render_version(browser, serve(UNANSWERED_CODE_PAGE))
     assert [
         f
         for f in unanswered
         if f.startswith("[light] code marked cm is the ink of the code around it")
     ], unanswered
 
-    faint = interact.render_version(browser, serve(FAINT_CODE_PAGE))
+    faint = rendering_model.render_version(browser, serve(FAINT_CODE_PAGE))
     assert [
         f for f in faint if f.startswith("[light] code marked cm reads at 3.3:1")
     ], faint
@@ -1279,7 +1461,7 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         "rather than the rule"
     )
 
-    tinted = interact.render_version(browser, serve(TINTED_LINE_PAGE))
+    tinted = rendering_model.render_version(browser, serve(TINTED_LINE_PAGE))
     assert [
         f for f in tinted if f.startswith("[light] code marked st reads at 1.6:1")
     ], (
@@ -1299,14 +1481,14 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
         "this page has to put its only comment inside a shadow root, or the gate "
         f"passing it says nothing about the boundary — {where}"
     )
-    shadowed = interact.render_version(browser, serve(SHADOW_CODE_PAGE))
+    shadowed = rendering_model.render_version(browser, serve(SHADOW_CODE_PAGE))
     assert [
         f for f in shadowed if f.startswith("[light] code marked cm reads at 3.1:1")
     ], (
         "a widget that renders the page's words into a shadow root renders code the "
         f"reader still has to read — {shadowed}"
     )
-    assert interact.render_version(browser, serve(FLAT_SHADOW_PAGE)) == [], (
+    assert rendering_model.render_version(browser, serve(FLAT_SHADOW_PAGE)) == [], (
         "with the box's own surface flattened, what is behind the comment is the "
         "page's paper — which is above the host, and reached by climbing out of the "
         "root rather than stopping where parentElement runs out"
@@ -1352,8 +1534,8 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
     module.write_text(
         module.read_text()
         .replace(
-            'import { once } from "/leaf.js";',
-            'import { once } from "/leaf.js";\n'
+            'import { once } from "/runtime/widget-api.js";',
+            'import { once } from "/runtime/widget-api.js";\n'
             'import { label } from "./callout-label.js";',
         )
         .replace(
@@ -1415,7 +1597,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
              document.head.append(s);
            }"""
     )
-    found = page.evaluate(interact.TRAPPED_MARGINS)
+    found = page.evaluate(render_checks_model.TRAPPED_MARGINS)
     planted = [t for t in found if t["chrome"]]
     assert planted, (
         "a margin trapped inside the panel went unreported, so this reading is not "
@@ -1430,7 +1612,9 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     )
     page.evaluate("() => document.getElementById('trap').remove()")
 
-    trapped = [t for t in page.evaluate(interact.TRAPPED_MARGINS) if t["chrome"]]
+    trapped = [
+        t for t in page.evaluate(render_checks_model.TRAPPED_MARGINS) if t["chrome"]
+    ]
     assert trapped == [], "the layer traps a margin in its own chrome: " + "; ".join(
         f"<{t['tag']} class={t['cls']!r}> draws {t['drawn']:g}px of inset and "
         f"shows {t['drawn'] + t['margin']:g}px {t['edge']} its <{t['child']}>"
@@ -1459,7 +1643,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     is still nobody's check."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1469,7 +1653,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "text": "What should I carry into the patch?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1487,7 +1671,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             ),
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1499,7 +1683,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         },
     )
     # The Done press. Recordless, and the last word on the group.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1515,7 +1699,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
     standing = page.evaluate(
-        "async () => (await import('/leaf.js')).standingState()"
+        "async () => (await import('/runtime/widget-api.js')).standingState()"
         ".map((s) => [s.unit, s.action])"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
@@ -1525,7 +1709,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     assert errors == []
     page.close()
 
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
 
 TRAP_PAIR_PAGE = leaf_page(
@@ -1573,7 +1757,7 @@ def test_the_gate_reports_a_trapped_margin_in_the_page_and_not_in_the_layer(
     # A comment, so the thread list has a thread to draw and the layer's half of the
     # trap has a box to be trapped in.
     url = serve(TRAP_PAIR_PAGE, anchored=[("tp-first", "signed-cookie fallback")])
-    failures = interact.render_version(browser, url)
+    failures = rendering_model.render_version(browser, url)
     trapped = [f for f in failures if "of inset and shows" in f]
     assert any("tp-inset" in f for f in trapped), (
         "the author's own trapped margin went unreported, so the silence below is "

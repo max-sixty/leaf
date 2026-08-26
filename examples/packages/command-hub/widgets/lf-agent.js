@@ -29,7 +29,15 @@
  * second tab, and a re-applied report all converge. watchUpdates re-renders on every
  * poll whether or not the log grew, which is what keeps the elapsed line true without
  * a timer of this module's own. */
-import { ago, measure, offer, once, quietSince, saidAt, watchUpdates } from "/leaf.js";
+import {
+  ago,
+  measure,
+  offer,
+  once,
+  quietSince,
+  saidAt,
+  watchUpdates,
+} from "/runtime/widget-api.js";
 import { directCommandRole } from "/widgets/command-model.js";
 
 const LINE = "lf-agent-line";
@@ -180,8 +188,6 @@ function render(el) {
   const row = document.createElement("div");
   row.className = LINE;
   row.dataset.lfGen = "1"; // generated, not authored — the version diff skips it
-  const branch = el.getAttribute("branch");
-  if (branch) row.append(word("lf-branch", branch));
   const on = el.getAttribute("on");
   if (on) {
     // The task this worker holds, written the way every other reference on a page is

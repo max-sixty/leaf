@@ -95,7 +95,7 @@
 ├── registry.json       widget entries and shared $ declarations
 ├── theme.css           rules appended to the cascade
 ├── guidance/           Markdown guides named for their audiences
-├── runtime/            private modules and replacements
+├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and private helpers
 ├── vendor/             third-party libraries or data
 ├── icon.svg            optional replacement
@@ -119,13 +119,17 @@ leaf package check packages/callout</code></pre>
           never overwrite another.
         </p>
         <p>
-          Files directly under <code>guidance/</code> are named for their audience. A
-          filename matches <code>[a-z][a-z0-9-]*\.md</code>; examples include
-          <code>author.md</code>, <code>reviewer.md</code>, and <code>worker.md</code>.
-          Packages define the audience names; Leaf does not keep a role list.
+          Files directly under <code>guidance/</code> are named for their audience and
+          hold instructions that apply across the package. A widget attaches its own
+          instructions through <code>x-guidance</code>, while a data contract can carry
+          producer guidance beside its schema. A filename matches
+          <code>[a-z][a-z0-9-]*\.md</code>; examples include <code>author.md</code>,
+          <code>reviewer.md</code>, and <code>worker.md</code>. Packages define the
+          audience names; Leaf does not keep a role list.
           <code>leaf page guidance PAGE</code> lists the vendored audiences, and
-          <code>leaf page guidance PAGE AUDIENCE</code> prints one. The
-          <code>author</code> guide also follows the merged vocabulary in
+          <code>leaf page guidance PAGE AUDIENCE</code> composes the package-wide,
+          contract, and widget guidance for one audience. The complete
+          <code>author</code> reading also follows the merged vocabulary in
           <code>page catalog</code>.
         </p>
         <p>
@@ -295,14 +299,22 @@ lf-chip {
                 that steps them, the <code>?</code> overlay's row, and conditional
                 x-state actions are readings of one projection, so nothing names a tag
                 and the twelfth widget joins by declaring. Quoted material asks nothing
-                — an exhibited decision is a mention (x-exhibit). A widget inside a
-                thread asks like one on the page, with one bound set by frozen thread
-                markup: only an action can answer it there. <code>when</code> selects
-                asking instances, <code>answers</code> names exactly the x-state verbs
-                that settle one, <code>rollup</code> derives a nested request from
-                ordinary interventions and child roll-ups, <code>until</code> can
-                require a distinct completion verb for a matching thread ask, and
-                <code>all</code> names a blanket answer offered by the banner.
+                — an exhibited decision is a mention (x-exhibit). A widget that also
+                declares x-conversation puts a box under its own request, and a
+                conversation standing in that box takes the request off the reader's
+                list for as long as it waits on the agent — whoever opened it. That is
+                not an answer: the widget's state is untouched, so a version still has
+                to record what the words settled, and an action's
+                <code>requires</code> reads the request as open. Finishing with the
+                thread hands the question back, by reply or by resolve. A widget inside
+                a thread asks like one on the page, with one bound set by frozen thread
+                markup: the thread's own reply box is already that seat, so only an
+                action can answer it there. <code>when</code> selects asking instances,
+                <code>answers</code> names exactly the x-state verbs that settle one,
+                <code>rollup</code> derives a nested request from ordinary interventions
+                and child roll-ups, <code>until</code> can require a distinct completion
+                verb for a matching thread ask, and <code>all</code> names a blanket
+                answer offered by the banner.
               </td>
             </tr>
             <tr>
@@ -326,11 +338,33 @@ lf-chip {
                 projects exact-section threads textually from the whole log; Comments
                 keeps the complete view and is the only place interactive reply markup
                 renders. Both views share the reply draft. Thread markup and quoted
-                material take no second view. <code>hold</code> labels a stronger send
-                route whose comment carries <code>holds</code> naming this widget: that
-                route remains available after ordinary roots, the unresolved held thread
-                is the hold, resolution releases it, and undoing resolution restores it
-                atomically. Dropping the widget drops only the inline view.
+                material take no second view. Where the widget is also a standing
+                request (x-awaits), the seat is where the reader deals with it in words:
+                the request leaves their list while that conversation waits on the
+                agent, rather than being counted a second time under a box they have
+                already used. It is not an answer — the widget's own state is untouched,
+                so its controls still work and an action's <code>requires</code> still
+                reads the request as open — and either way of finishing with the thread
+                hands it back. A <code>hold</code> comment is such a conversation like
+                any other. <code>hold</code> labels a stronger send route whose comment
+                carries <code>holds</code> naming this widget: that route remains
+                available after ordinary roots, the unresolved held thread is the hold,
+                resolution releases it, and undoing resolution restores it atomically.
+                Dropping the widget drops only the inline view.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-data</code></td>
+              <td>
+                The widget's named external-data inputs. Each input names a
+                <code>$data.contracts</code> contract and the declared canonical string
+                attribute whose authored value is this page's source id. An optional
+                attribute leaves that input absent; <code>watchData</code> delivers
+                null. Several widgets may bind the same source to the same contract.
+                Across immutable versions and widgets frozen into threads, one source
+                cannot mean two contracts; use a new source id for a new meaning. A
+                module subscribes by widget and input name, never by a package-owned
+                source name.
               </td>
             </tr>
             <tr>
@@ -350,6 +384,15 @@ lf-chip {
                 it counts for nothing. A module asks <code>quoted(el)</code> before
                 wiring any input, and the theme's affordance rules — the hand, the lift,
                 the joined shape — stand down inside it on their own.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-guidance</code></td>
+              <td>
+                Audience-specific authoring or operating guidance owned by this widget.
+                <code>page guidance</code> composes it with data-contract guidance and
+                package-wide guidance, so instructions travel with the contribution they
+                explain rather than with whichever package happened to distribute it.
               </td>
             </tr>
             <tr>
@@ -625,7 +668,7 @@ lf-chip {
           The module starts with the same one-shot upgrade guard used by shipped
           widgets:
         </p>
-        <pre><code>import { once } from "/leaf.js";
+        <pre><code>import { once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-callout",
@@ -639,8 +682,8 @@ customElements.define(
           The widget owns its supporting code. Put relative imports beside the entry
           module under <code>widgets/</code>, and third-party or data files under
           <code>vendor/</code>; <code>page init</code> carries both directories into the
-          page. <code>/leaf.js</code> is the whole Leaf API, not a limit on a widget's
-          own modules.
+          page. <code>/runtime/widget-api.js</code> is the whole Leaf API, not a limit
+          on a widget's own modules.
         </p>
         <p>
           The authored element should remain readable before the module runs. Set
@@ -680,6 +723,86 @@ customElements.define(
           Export keeps the DOM produced by an upgrade and removes its scripts. Durable
           state therefore belongs in attributes, and the resulting markup must still
           make sense after its event handlers are gone.
+        </p>
+      </section>
+
+      <section id="data">
+        <h2>Bring in external data</h2>
+        <p>
+          A deployment result, worktree, sensor reading, or query result does not belong
+          in an immutable version, and refreshing it is not a reader action for the
+          append-only event log. Declare its reusable meaning under
+          <code>$data.contracts</code>. The page will choose the concrete source id; the
+          contract gives its complete value a JSON Schema:
+        </p>
+        <pre><code>{
+  "$data": {
+    "description": "Reusable build-data contracts.",
+    "contracts": {
+      "build-status": {
+        "description": "Current result keyed by branch.",
+        "schema": {
+          "type": "object",
+          "additionalProperties": { "enum": ["passing", "failing"] }
+        }
+      }
+    }
+  }
+}</code></pre>
+        <p>
+          The widget declares a named input, the contract it expects, and the attribute
+          where the page binds a source. Require that attribute when the widget cannot
+          work without the input; an optional unbound input delivers
+          <code>null</code>. Widget-specific guidance can travel in
+          <code>x-guidance</code>; producer guidance can live beside the data contract.
+          A package merely distributes these contributions.
+        </p>
+        <pre><code>{
+  "lf-builds": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "required": ["id", "source"],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-data": {
+      "builds": { "contract": "build-status", "source": "source" }
+    },
+    "x-upgrade": true
+  }
+}</code></pre>
+        <pre><code>&lt;lf-builds id="release-builds" source="release-ci"&gt;&lt;/lf-builds&gt;</code></pre>
+        <p>
+          The host gathers the value; Leaf does not execute a package provider or fetch
+          a package URL. <code>data set</code> validates and atomically replaces one
+          complete source. A rejected value leaves the prior revision untouched. Every
+          field goes to every reader of the page, even when the module does not paint
+          it, so source values must not contain credentials or private host state.
+        </p>
+        <pre><code>printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
+leaf data set PAGE release-ci --file build-state.json
+leaf data clear PAGE release-ci</code></pre>
+        <p>
+          The module subscribes with
+          <code>watchData(this, "builds", render)</code>. Its callback receives
+          <code>null</code> before the source has a value, otherwise a clone of
+          <code>{contract, updated, value}</code>. Render records into a stable,
+          id-bearing authored seat with <code>projectData</code>; stable datum keys keep
+          comments attached when later snapshots reorder or replace the text. Export
+          keeps the last rendering as a labelled snapshot and removes the code that
+          could refresh it.
+        </p>
+        <p>
+          Source revision and event sequence are independent. A source id keeps one
+          contract for the lifetime of the page: old versions and widgets frozen into
+          threads all share the current data store. Clearing removes its value, not its
+          meaning. Use a new source id for a new contract. Re-vendoring preserves this
+          mapping and checks standing values against incoming schemas.
+          <code>leaf page state PAGE</code> exposes the complete
+          <code>data_bindings</code> inventory, so a producer can discover source ids,
+          contracts, consumers, and their documents without parsing markup.
         </p>
       </section>
 

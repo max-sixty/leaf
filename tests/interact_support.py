@@ -1,4 +1,4 @@
-"""Shared fixtures and assertions for the interact.py integration modules.
+"""Shared fixtures and assertions for the Leaf integration modules.
 
 Run from the repo root:
 
@@ -26,11 +26,22 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
-from leaf_interact import conversation as conversation_model
-from leaf_interact import http as http_model
-from leaf_interact import layer as layer_model
-from leaf_interact import publishing as publishing_model
+from conftest import INTERACT_SCRIPT
+from leaf import cli as cli_model
+from leaf import conversation as conversation_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import layer as layer_model
+from leaf import passages as passages_model
+from leaf import publishing as publishing_model
+from leaf import registry as registry_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import session as session_model
+from leaf import structure as structure_model
+from leaf import validation as validation_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -38,20 +49,17 @@ COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 
 PROBE_BOOTSTRAP = """\
 import contextlib
-import importlib.util
 import os
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(os.environ["INTERACT"]).resolve().parent))
-spec = importlib.util.spec_from_file_location("interact", os.environ["INTERACT"])
-interact = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(interact)
+sys.path.insert(0, os.environ["LEAF_SCRIPTS"])
+from leaf import cli as cli_model
 """
 
 
 def spawn_probe(spawn, page_dir, body, **environment):
-    """Run a deterministic race seam in an isolated interact.py process."""
+    """Run a deterministic race seam in an isolated Leaf application process."""
     env = {name: str(value) for name, value in environment.items()}
     return spawn(
         [sys.executable, "-c", PROBE_BOOTSTRAP + body],
@@ -59,7 +67,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
         stderr=subprocess.PIPE,
         text=True,
         env=os.environ
-        | {"INTERACT": str(interact.__file__), "PAGE": str(page_dir)}
+        | {"LEAF_SCRIPTS": str(INTERACT_SCRIPT.parent), "PAGE": str(page_dir)}
         | env,
     )
 
@@ -111,7 +119,7 @@ def page_dir(tmp_path, monkeypatch):
     package = link_command_hub_package(tmp_path)
     d = tmp_path / "page"
     result = CliRunner().invoke(
-        interact.cli, ["page", "init", "--package", package, str(d)]
+        cli_model.cli, ["page", "init", "--package", package, str(d)]
     )
     assert result.exit_code == 0, result.output
     (d / "versions" / "v1.html").write_text(PAGE)
@@ -122,21 +130,63 @@ def check(d, version=None):
     args = ["version", "check", str(d)] + (
         ["--version", str(version)] if version else []
     )
-    return CliRunner().invoke(interact.cli, args)
+    return CliRunner().invoke(cli_model.cli, args)
+
+
+def declare_data_input(
+    page_dir,
+    source,
+    schema,
+    *,
+    contract="test-data",
+    tag="lf-test-data",
+    input_name="data",
+    guidance=None,
+):
+    """Add one typed widget input and bind it in the latest fixture version."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    declaration = {"description": "Test data contract.", "schema": schema}
+    if guidance:
+        declaration["guidance"] = guidance
+    registry["$data"]["contracts"][contract] = declaration
+    registry[tag] = {
+        "description": "A test widget with one external-data input.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+        },
+        "required": ["id", "source"],
+        "additionalProperties": False,
+        "x-content": "none",
+        "x-data": {input_name: {"contract": contract, "source": "source"}},
+        "x-upgrade": False,
+    }
+    registry_path.write_text(json.dumps(registry))
+    versions = files_model.list_versions(page_dir)
+    version_path = files_model.version_path(page_dir, versions[-1])
+    html = version_path.read_text()
+    version_path.write_text(
+        html.replace(
+            "</main>",
+            f'<{tag} id="test-data" source="{source}"></{tag}>\n</main>',
+        )
+    )
 
 
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
     `version check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": version, "text": "published"}
     )
 
 
 def page_state(d):
-    events = interact.read_events(d)
-    return interact.full_state(d, events, interact.published_versions(d, events))
+    events = events_model.read_events(d)
+    return http_model.full_state(d, events, files_model.published_versions(d, events))
 
 
 def record_claim(page, **fields):
@@ -153,22 +203,22 @@ def record_claim(page, **fields):
         "turn_closed": None,
         **fields,
     }
-    path = interact.claim_path(page)
+    path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
-    interact.write_json(path, record)
+    files_model.write_json(path, record)
     return record
 
 
 def live_versions(d):
-    events = interact.read_events(d)
-    return interact.published_versions(d, events)
+    events = events_model.read_events(d)
+    return files_model.published_versions(d, events)
 
 
 def fragment_errors(html, registry):
-    parser = interact._StructParser()
+    parser = structure_model._StructParser()
     parser.feed(html)
     parser.close()
-    return interact.fragment_errors(parser, registry)
+    return validation_model.fragment_errors(parser, registry)
 
 
 def case_alias(path):
@@ -245,44 +295,55 @@ PHRASING_CONTENT = frozenset(
 )
 
 
-def _balanced(css, start):
-    """What is inside a parenthesis already open at `start`, nesting included.
+def _balanced(text, start):
+    """What is inside a bracket already open at `start`, nesting included.
 
     A selector list carrying a :where() no longer ends at the first `)`, and reading
     it with one is how a marker arrives here missing its last bracket and passes for
-    a name the list never held."""
+    a name the list never held. The bracket is whichever one opens it, so a function
+    body is read the same way a selector list is: `(?:.|\n)*?` from a function's name
+    to the token being looked for runs straight past the closing brace, and a writer
+    somewhere else in the file then answers for a line that function no longer has."""
+    closing = {"(": ")", "{": "}", "[": "]"}[opening := text[start - 1]]
     depth, at = 1, start
     while depth:
-        depth += {"(": 1, ")": -1}.get(css[at], 0)
+        depth += {opening: 1, closing: -1}.get(text[at], 0)
         at += 1
-    return css[start : at - 1]
+    return text[start : at - 1]
 
 
-def _marker_for(declaration):
-    """The attribute leaf.js paints for an `x-` declaration, or None if it paints
-    none.
-
-    Two facts, and the second is the one a stylesheet's exclusion rests on.
-    PAGE_PAINT_ATTRIBUTE is the spelling every writer in the runtime shares and the
-    set of names no version file may assert; a name in it says only that the runtime
-    is allowed to paint it. What actually puts a mark on a page is a declaration's
-    entry in one of markDeclared's tables, and a selector naming an attribute with no
-    such entry excludes nothing anywhere. Both tables are read, because which of the
-    two a declaration sits in is a question about where the fact holds, and the
-    browser is what answers that."""
-    js = (interact.ASSETS / "leaf.js").read_text()
+def _paint_names():
+    """PAGE_PAINT_ATTRIBUTE: the spelling every writer in the runtime shares, and the
+    set of names no version file may assert. A name in it says only that the runtime
+    is allowed to paint that attribute; which writer does, and on what, is the
+    caller's question."""
+    js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
     table = re.search(
         r"const PAGE_PAINT_ATTRIBUTE = Object\.freeze\(\{(.*?)\}\);", js, re.DOTALL
     )
-    assert table, "leaf.js lost the list of attributes the runtime may paint"
+    assert table, "presentation.js lost the list of attributes the runtime may paint"
     names = dict(re.findall(r'(\w+): "(data-lf-[a-z-]+)",', table.group(1)))
     assert names, "that list holds no data-lf-* name"
+    return names
+
+
+def _marker_for(declaration):
+    """The attribute presentation.js paints for an `x-` declaration, or None.
+
+    Two facts, and the second is the one a stylesheet's exclusion rests on. Being
+    allowed to paint a name is _paint_names; what actually puts a mark on a page is a
+    declaration's entry in one of markDeclared's tables, and a selector naming an
+    attribute with no such entry excludes nothing anywhere. Both tables are read,
+    because which of the two a declaration sits in is a question about where the fact
+    holds, and the browser is what answers that."""
+    js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
+    names = _paint_names()
     tables = re.findall(
         r"const MARKED_(?:ANYWHERE|IN_PAGE) = Object\.freeze\(\{(.*?)\}\);",
         js,
         re.DOTALL,
     )
-    assert len(tables) == 2, "leaf.js lost one of markDeclared's tables"
+    assert len(tables) == 2, "presentation.js lost one of markDeclared's tables"
     for key in re.findall(
         rf'"{re.escape(declaration)}": PAGE_PAINT_ATTRIBUTE\.(\w+)', "".join(tables)
     ):
@@ -313,7 +374,7 @@ def suggest(page_dir, version=2, markup=SUGGESTION):
 
 
 def decide(page_dir, outcome, widget="sug-refill"):
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -336,7 +397,7 @@ def _decided(page_dir, words):
         )
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -371,7 +432,7 @@ def _tasks_version(page_dir, version, status, extra=""):
 
 
 def _report(page_dir, *args):
-    return CliRunner().invoke(interact.cli, ["report", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["report", str(page_dir), *args])
 
 
 def _board(todo, done):
@@ -397,7 +458,7 @@ OPTIONS = """<lf-options id="g1" choose>
 
 
 def state_json(d):
-    result = CliRunner().invoke(interact.cli, ["page", "state", str(d)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "state", str(d)])
     assert result.exit_code == 0, result.output
     return json.loads(result.output)
 
@@ -424,12 +485,12 @@ def logged(page_dir, *events):
     the whole log and the page the decisions were folded over. Copied in, because
     `append_event` stamps an id onto what it is handed and these are constants."""
     for event in events:
-        interact.append_event(page_dir, dict(event))
-    return interact.build_threads(
-        interact.read_events(page_dir),
-        interact.spoken(
+        events_model.append_event(page_dir, dict(event))
+    return events_model.build_threads(
+        events_model.read_events(page_dir),
+        passages_model.spoken(
             (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
-            interact.require_registry(page_dir),
+            registry_model.require_registry(page_dir),
         ),
     )
 
@@ -440,7 +501,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     resume = threading.Event()
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
-    original_append_event = interact.append_event
+    original_append_event = events_model.append_event
     original_composed_theme = layer_model.composed_theme
 
     def held_append_event(directory, event):
@@ -456,7 +517,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     def init_result():
         try:
-            interact.cmd_init(page_dir)
+            layer_model.cmd_init(page_dir)
         except SystemExit as error:
             return str(error)
         return None
@@ -595,7 +656,7 @@ def trial_page(tmp_path, monkeypatch):
     a project gets rather than what a fixture arranged."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     widgets = (
         ("lf-trial", True),
@@ -636,7 +697,7 @@ def trial_page(tmp_path, monkeypatch):
     source.write_text(json.dumps(entries))
 
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     (page / "versions" / "v1.html").write_text(
         trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE)
@@ -661,8 +722,8 @@ TOKEN = "test-page-key"
 @pytest.fixture
 def server(page_dir):
     """A real HTTP server over the page directory, on an ephemeral port."""
-    httpd = interact.LeafHTTPServer(
-        ("127.0.0.1", 0), interact.handler_for(page_dir, TOKEN)
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN)
     )
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -712,7 +773,7 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "enabled": True,
         "lifetime": lifetime,
     }
-    interact.write_json(directory / "service.json", service)
+    files_model.write_json(directory / "service.json", service)
     handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
     fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     HELD_LEASES.append(handle)
@@ -761,8 +822,8 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
         HELD_LEASES.pop().close()
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
-            if interact.running_server(lease.parent):
-                interact.cmd_stop(lease.parent)
+            if service_model.running_server(lease.parent):
+                hosting_model.cmd_stop(lease.parent)
 
 
 def neighbour_page(directory, title=None, dead=False, published=True):
@@ -774,12 +835,12 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         "<body><main><p>words</p></main></body></html>"
     )
     if published:
-        interact.append_event(
+        events_model.append_event(
             directory, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
     record = {"port": 59999}
     if dead:
-        interact.write_json(
+        files_model.write_json(
             directory / "service.json",
             {
                 "host": "127.0.0.1",
@@ -791,14 +852,14 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         )
     else:
         serving(directory, record["port"])
-    return interact.page_url("127.0.0.1", 59999, interact.host_key())
+    return service_model.page_url("127.0.0.1", 59999, service_model.host_key())
 
 
 @pytest.fixture
 def wildcard_server(page_dir):
     """The stated-host bind: a real server on "::", the network-facing socket."""
-    httpd = interact.DualStackHTTPServer(
-        ("::", 0), interact.handler_for(page_dir, TOKEN)
+    httpd = hosting_model.DualStackHTTPServer(
+        ("::", 0), http_model.handler_for(page_dir, TOKEN)
     )
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -806,7 +867,7 @@ def wildcard_server(page_dir):
 
 
 def _status(page_dir, *args):
-    return CliRunner().invoke(interact.cli, ["status", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
 
 
 @pytest.fixture
@@ -827,13 +888,13 @@ def comment_once_served():
 
         def post():
             while not stopped.wait(0.1):
-                if interact.running_server(page_dir):
-                    interact.append_event(
+                if service_model.running_server(page_dir):
+                    events_model.append_event(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )
                     return
                 if time.monotonic() > deadline:
-                    interact.cmd_status(page_dir, "idle", "no server came up")
+                    session_model.cmd_status(page_dir, "idle", "no server came up")
                     return
 
         thread = threading.Thread(target=post, daemon=True)
@@ -852,7 +913,7 @@ def claimed(page_dir, monkeypatch):
     it puts the session id and its pid into every Bash tool call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    interact.claim_page(page_dir)
+    service_model.claim_page(page_dir)
     return page_dir
 
 
@@ -925,8 +986,10 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     # The fake codex wrapper exits with this one command; a real Codex session
     # stays above later hook calls. Keep that session lifetime true for tests
     # using this fixture after the launch itself has been verified.
-    claim = interact.page_claim(page)
-    interact.write_json(interact.claim_path(page), {**claim, "pid": os.getpid()})
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
     return page
 
 
@@ -955,7 +1018,7 @@ def managed_server(spawn):
         process = spawn(
             [
                 sys.executable,
-                str(interact.__file__),
+                str(INTERACT_SCRIPT),
                 "server",
                 "run",
                 str(page_dir),
@@ -982,7 +1045,7 @@ def start_through_the_launcher(page_dir, *flags, session_id="starter"):
     return subprocess.run(
         [
             sys.executable,
-            str(interact.__file__),
+            str(INTERACT_SCRIPT),
             "server",
             "start",
             *flags,
@@ -1011,7 +1074,7 @@ def standing_server(spawn, sessionless):
         process = spawn(
             [
                 sys.executable,
-                str(interact.__file__),
+                str(INTERACT_SCRIPT),
                 "server",
                 "run",
                 str(page_dir),
@@ -1034,7 +1097,7 @@ def published(page_dir):
     assert (
         CliRunner()
         .invoke(
-            interact.cli,
+            cli_model.cli,
             ["version", "publish", str(page_dir), "--version", "1", "--text", "first"],
         )
         .exit_code
@@ -1044,7 +1107,7 @@ def published(page_dir):
 
 
 def comment(page_dir, *args):
-    return CliRunner().invoke(interact.cli, ["comment", str(page_dir), *args])
+    return CliRunner().invoke(cli_model.cli, ["comment", str(page_dir), *args])
 
 
 DRAFTED = PAGE.replace(
@@ -1060,7 +1123,7 @@ def drafted(page_dir):
 
 
 def edit(page_dir, text, widget="note", version=1):
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",

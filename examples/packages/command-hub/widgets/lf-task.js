@@ -1,6 +1,6 @@
 /* Generic task rows retain their compact chip projection. A command surface owns its
  * richer row projection at the root, so ordinary task trees never inherit fleet UI. */
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 import { closestCommandRole } from "/widgets/command-model.js";
 
 function renderChips(task) {

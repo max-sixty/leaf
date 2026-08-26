@@ -10,20 +10,23 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 from interact_support import (
-    COMMAND_HUB_PACKAGE,
     PAGE,
     PLUGIN_ROOT,
     ROOT,
     add_test_widget,
     case_alias,
     check,
-    interact,
     link_command_hub_package,
     record_claim,
     widget_entry,
 )
-from leaf_interact import files as interact_files
-from leaf_interact import layer as layer_model
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import files as interact_files
+from leaf import hooks as hooks_model
+from leaf import layer as layer_model
+from leaf import schema as schema_model
+from leaf import service as service_model
 
 
 @pytest.mark.parametrize(
@@ -41,6 +44,7 @@ Options:
 Commands:
   ack         Acknowledge one complete, untruncated wait batch.
   comment     Open an agent thread — on a passage, or on the page whole.
+  data        Set or clear page-bound external data.
   events      Print the event log as JSON lines.
   package     Create and check packages.
   page        Create pages and add media.
@@ -54,6 +58,21 @@ Commands:
   wait        Print one page's unacknowledged events and reports, then exit.
 """,
             id="root",
+        ),
+        pytest.param(
+            ["data", "--help"],
+            """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
+
+  Manage replaceable external or derived page data.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  clear  Remove one source snapshot.
+  set    Replace one bound source value.
+""",
+            id="data",
         ),
         pytest.param(
             ["package", "--help"],
@@ -81,7 +100,7 @@ Options:
 
 Commands:
   catalog   Print the widget and theme vocabulary.
-  guidance  List or print package guidance by audience.
+  guidance  List or print composed guidance by audience.
   init      Create or re-vendor a page directory.
   media     Add images and print their page paths.
   state     Print where the page stands, as JSON.
@@ -124,7 +143,7 @@ Commands:
 )
 def test_cli_help_groups_commands_with_complete_summaries(args, expected):
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         args,
         prog_name="leaf",
         terminal_width=80,
@@ -137,173 +156,36 @@ def test_cli_help_groups_commands_with_complete_summaries(args, expected):
 @pytest.mark.parametrize("command", ["wait", "ack"])
 def test_wait_and_ack_help_require_a_complete_batch(command):
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [command, "--help"],
         terminal_width=200,
     )
 
     assert result.exit_code == 0
     assert "--forward" not in result.output
-    assert " ".join(interact.ACK_BATCH_INSTRUCTION.split()) in " ".join(
+    assert " ".join(schema_model.ACK_BATCH_INSTRUCTION.split()) in " ".join(
         result.output.split()
     )
 
 
-def test_ack_batch_instruction_preserves_scalar_cursor_safety():
-    assert interact.ACK_BATCH_INSTRUCTION == (
-        "If wait output is truncated, acknowledge nothing and rerun with enough output "
-        "capacity for the whole batch. After the complete batch reaches its next durable "
-        "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
-        "batch's first line names."
-    )
+def test_the_skill_routes_every_reference_it_ships():
+    """A reference SKILL.md never links is a file no session opens.
 
-
-def test_skill_assigns_acknowledgement_to_the_wait_owner():
-    root = PLUGIN_ROOT / "skills" / "leaf"
-    conversation = (root / "references" / "conversation-loop.md").read_text()
-    watcher = (root / "references" / "codex-watcher.md").read_text()
-
-    assert " ".join(interact.ACK_BATCH_INSTRUCTION.split()) in " ".join(
-        conversation.split()
-    )
-    assert "Process every event" in conversation
-    assert "`send_message_to_thread` is available" in watcher
-    assert "Run `leaf wait <page>`" in watcher
-    assert "do not run\n   `leaf wait` or `leaf ack`" in watcher
-    assert "page and event seq already handled is a retry" in watcher
-    assert "After the host accepts the follow-up" in watcher
-
-
-def test_the_reply_guidance_shows_the_shape_a_long_answer_takes():
-    """A reply is written into a shell argument and never read where it lands.
-
-    The panel renders a reply through `marked` and the theme dresses its lists,
-    code, quotes and tables for a column that is narrow by default, so the shape
-    is available and nothing in the loop shows the author what they chose. The
-    guidance said "brief Markdown" over a single-line `--text "<answer>"`, and
-    brevity read as one paragraph: an answer carrying three independent reasons
-    arrived as four sentences of prose with the reasons buried in clauses.
-
-    So the rule states the short case as complete and the example carries the
-    long one, because a documented call is copied where a description is not.
-    The two assertions hold each half: brevity first, and a worked long answer
-    to copy from when brevity does not fit.
+    The set comes from the directory rather than a list here, because a list is the
+    second copy: adding a reference and forgetting to route it would leave it green.
     """
-    root = PLUGIN_ROOT / "skills" / "leaf" / "references"
-    conversation = (root / "conversation-loop.md").read_text()
-
-    assert "one sentence is a complete reply" in " ".join(conversation.split())
-    reply_block = conversation.split("leaf reply <page> --to <thread-id>")
-    assert any(part.startswith(" <<'EOF'") for part in reply_block[1:])
-    assert any(part.startswith(' --text "') for part in reply_block[1:])
-
-    # The Command Hub package carries its own worker protocol, so its reply example
-    # must keep the long-answer shape when the package leaves Leaf's kernel.
-    worker = (COMMAND_HUB_PACKAGE / "guidance" / "worker.md").read_text()
-    assert 'reply "$PAGE" --to "$THREAD" <<' in worker
-
-
-def test_leaf_skill_routes_its_complete_reference_set():
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()
-    references = sorted((root / "references").glob("*.md"))
-    expected = {
-        "codex-watcher.md",
-        "conversation-loop.md",
-        "packages.md",
-        "page-authoring.md",
-        "serving-pages.md",
-    }
+    references = sorted((root / "references").rglob("*.md"))
 
-    assert len(skill.splitlines()) < 500
-    assert {path.name for path in references} == expected
-    assert "--forward" not in "\n".join(
-        [skill, *(path.read_text() for path in references)]
-    )
-    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
-    conversation = " ".join(
-        (root / "references/conversation-loop.md").read_text().split()
-    )
-    assert "Escape `&` first, then `<` and `>`" in authoring
-    assert "status banner, comment sidebar, version picker" in authoring
-    assert "live-leaves tray, and open-asks tray" in authoring
-    assert "informational page with no concrete ask" in " ".join(skill.split())
-    assert "informational page with no concrete ask" in conversation
+    assert references, "no references read — an empty set routes itself"
     for path in references:
-        assert f"references/{path.name}" in skill
-
-
-def test_a_correction_is_written_straight_rather_than_offered_as_a_choice():
-    """A suggestion asks the reader to decide, so it needs a live alternative.
-
-    The revision rule keys on who owns the words and whether the reader has already
-    seen them, and had no test for whether there was anything to decide. So a page
-    that reported a latency in the wrong unit put the corrected sentence in an
-    `lf-suggestion`, and the reader got a check and a cross over a fact whose only
-    other answer restores the error — counted, until pressed, among the things the
-    banner and the ask walk say the page is waiting on them for.
-
-    The carve-out is asserted inside its own section because that paragraph is what
-    an author reads before writing the revision; stated anywhere else it is guidance
-    nobody reaches at the moment it applies. Both halves are pinned, so dropping the
-    suggestion rule to satisfy the carve-out fails here too."""
-    authoring = " ".join(
-        (PLUGIN_ROOT / "skills/leaf/references/page-authoring.md").read_text().split()
-    )
-    start = authoring.index("## Revisions and reader-owned words")
-    revisions = authoring[start : authoring.index("## Honoring reader state", start)]
-
-    assert (
-        "Rewrite prose the reader has already seen as an `lf-suggestion`" in revisions
-    )
-    assert "A correction is not a proposal" in revisions
-    assert "write the true thing straight" in revisions
-    assert "wording the reader could reasonably prefer as it stands" in revisions
-
-
-def test_the_page_is_named_by_its_findings_and_collapsed_around_them():
-    """What a page costs to review is stated where it is composed and checked
-    where it is handed over.
-
-    A version can pass every gate and still be unreadable: the finding three
-    paragraphs down, the section called "What we learned", the transcript that
-    supports it standing open in the column. Neither the markup check nor the
-    render gate can see any of that — both answer whether a page renders, not
-    whether it is worth the reading — so this is prose or it is nothing.
-
-    Two places, because they answer at different moments. "Reading cost" is what
-    an author reads while deciding what goes on the page. The pre-handover review
-    is the last point it can still change, and a heading that withholds its own
-    finding is invisible to whoever just wrote it and plain to anyone who reads
-    the headings alone. Pinned in one place only, the rule would be stated and
-    never asked after."""
-    root = PLUGIN_ROOT / "skills" / "leaf"
-    authoring = " ".join((root / "references/page-authoring.md").read_text().split())
-    start = authoring.index("## Reading cost")
-    cost = authoring[start : authoring.index("## Interactivity", start)]
-
-    assert "what the reader has to take from the page" in cost
-    assert "its backing goes under `<details>`" in cost
-    assert "A section that reaches a finding says it in the heading" in cost
-    # The other half of the same rule. Without it the sentence above reads as a
-    # demand that every section name be a claim, which turns an honest label over
-    # a list or a control into a sentence; with it alone, every label is excused.
-    assert "where there is no finding to state" in cost
-    # The one thing a reading-cost rule must never license. A collapsed ask still
-    # counts in the banner and the asks tray, and `checkVisibility()` is false
-    # inside a closed disclosure, so no gate refuses the page whose decision is
-    # behind a click.
-    assert "An ask never collapses" in cost
-
-    review = authoring[authoring.index("## Pre-handover review") :]
-    assert "Take the headings on their own first" in review
-
-    contract = " ".join((root / "SKILL.md").read_text().split())
-    assert "its backing sits under `<details>`" in contract
+        relative = path.relative_to(root).as_posix()
+        assert relative in skill, relative
 
 
 def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(interact.cli, ["hook"], input="{}")
+    result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
 
     assert result.exit_code == 0
     assert result.output == ""
@@ -311,7 +193,7 @@ def test_hidden_hook_remains_callable():
 
 def test_init_help_names_the_version_file_layout():
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["page", "init", "--help"],
         prog_name="leaf",
         terminal_width=80,
@@ -471,7 +353,9 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
         check=False,
     )
     assert publish_result.returncode == 0, publish_result.stderr
-    assert interact.published_versions(page, interact.read_events(page)) == [1]
+    assert interact_files.published_versions(page, events_model.read_events(page)) == [
+        1
+    ]
 
 
 @pytest.mark.nightly  # the resolve asks the host's index for the header
@@ -538,9 +422,188 @@ def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
 def test_init_vendors_the_layer(page_dir):
     for name in ["leaf.js", "theme.css", "registry.json"]:
         assert (page_dir / name).is_file()
+    assert (page_dir / "runtime" / "widget-api.js").is_file()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
+    assert (page_dir / "widgets" / "lf-chart.js").is_file()
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
+    assert (page_dir / "vendor" / "plot.esm.js").is_file()
+
+
+def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / "package"
+    module = package / "runtime" / "nested-package" / "fold" / "model.js"
+    module.parent.mkdir(parents=True)
+    module.write_text("export const model = 'package';\n")
+    page = tmp_path / "page"
+    runner = CliRunner()
+
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "package", str(page)]
+    )
+
+    assert initialized.exit_code == 0, initialized.output
+    assert (page / "runtime" / "nested-package" / "fold" / "model.js").read_text() == (
+        "export const model = 'package';\n"
+    )
+    assert schema_model.SERVED_PATH.fullmatch("/runtime/nested-package/fold/model.js")
+    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../status.json")
+    assert not schema_model.SERVED_PATH.fullmatch("/vendor/../leaf.js")
+
+    module.unlink()
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+
+    assert initialized.exit_code == 0, initialized.output
+    assert not (page / "runtime" / "nested-package").exists()
+
+
+@pytest.mark.parametrize("nested_first", [False, True])
+def test_init_refuses_composed_file_directory_collisions_before_writing(
+    tmp_path, monkeypatch, nested_first
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    before = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    flat = tmp_path / "flat" / "vendor" / "cache"
+    flat.parent.mkdir(parents=True)
+    flat.write_text("flat")
+    nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("nested")
+    packages = ["nested", "flat"] if nested_first else ["flat", "nested"]
+
+    result = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *(arg for package in packages for arg in ("--package", package)),
+            str(page),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "as a file and" in result.output
+    assert "vendor/cache" in result.output
+    after = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+
+
+def test_init_refuses_an_intermediate_symlink_before_writing_nested_modules(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    package_module = (
+        tmp_path / "package" / "runtime" / "nested-package" / "fold" / "model.js"
+    )
+    package_module.parent.mkdir(parents=True)
+    package_module.write_text("export const model = true;\n")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (page / "runtime" / "nested-package").symlink_to(outside, target_is_directory=True)
+
+    result = runner.invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "package", str(page)],
+    )
+
+    assert result.exit_code != 0
+    assert "must be a real directory, not a symlink" in result.output
+    assert list(outside.iterdir()) == []
+
+
+def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    before = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    flat = tmp_path / "flat" / "vendor" / "Cache"
+    flat.parent.mkdir(parents=True)
+    flat.write_text("flat")
+    nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
+    nested.parent.mkdir(parents=True)
+    nested.write_text("nested")
+    location = layer_model._path_location
+
+    def case_insensitive(path):
+        found = location(path)
+        return found._replace(tail=tuple(part.casefold() for part in found.tail))
+
+    monkeypatch.setattr(layer_model, "_path_location", case_insensitive)
+
+    result = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "flat",
+            "--package",
+            "nested",
+            str(page),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "as a file and" in result.output
+    after = {
+        path.relative_to(page): path.read_bytes()
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+
+
+def test_behavior_modules_use_the_widget_api_boundary():
+    modules = [
+        *(PLUGIN_ROOT / "assets" / "widgets").glob("*.js"),
+        *(PLUGIN_ROOT / "packages").glob("*/widgets/*.js"),
+        *(ROOT / "examples" / "packages").glob("*/widgets/*.js"),
+    ]
+    assert modules
+    for module in modules:
+        source = module.read_text()
+        specifiers = [
+            match[1]
+            for match in re.findall(
+                r"""(?:from\s+|import\s*(?:\(\s*)?)(["'])(/[^"']+)\1""",
+                source,
+            )
+        ]
+        assert "/leaf.js" not in specifiers, module
+        private_imports = [
+            specifier
+            for specifier in specifiers
+            if specifier.startswith("/runtime/")
+            and specifier != "/runtime/widget-api.js"
+        ]
+        assert private_imports == [], (
+            f"{module} imports private runtime owners: {private_imports}"
+        )
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
@@ -554,8 +617,8 @@ def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
     is a different question; `test_a_run_ends_only_the_servers_it_started` asks
     it."""
     root = tmp_path_factory.getbasetemp()
-    assert interact.config_home().is_relative_to(root)
-    assert interact.state_home().is_relative_to(root)
+    assert service_model.config_home().is_relative_to(root)
+    assert service_model.state_home().is_relative_to(root)
 
 
 def test_init_user_layer_applies(tmp_path, monkeypatch):
@@ -570,10 +633,10 @@ def test_init_user_layer_applies(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.chdir(tmp_path)
     d = tmp_path / "page"
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
     assert result.exit_code == 0, result.output
     vendored_theme = (d / "theme.css").read_text()
-    assert vendored_theme.startswith((interact.ASSETS / "theme.css").read_text())
+    assert vendored_theme.startswith((schema_model.ASSETS / "theme.css").read_text())
     assert vendored_theme.endswith(custom_theme)
     assert (d / "widgets" / "lf-foo.js").read_text() == "// user widget"
     assert (d / "widgets" / "lf-tabs.js").is_file()  # shipped modules still vendored
@@ -587,10 +650,10 @@ def test_init_project_layer_wins(tmp_path, monkeypatch):
     (project / ".leaf" / "theme.css").write_text(custom_theme)
     monkeypatch.chdir(project)
     d = tmp_path / "page"
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
     assert result.exit_code == 0, result.output
     theme = (d / "theme.css").read_text()
-    assert theme.startswith((interact.ASSETS / "theme.css").read_text())
+    assert theme.startswith((schema_model.ASSETS / "theme.css").read_text())
     assert theme.endswith(custom_theme)
     # Files the project layer doesn't override still come from the shipped defaults.
     assert (d / "registry.json").is_file()
@@ -610,7 +673,7 @@ def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypat
         "@media screen and (min-width: 900px) {\n  :root { --accent: red }\n"
     )
     monkeypatch.chdir(project)
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(tmp_path / "page")])
     assert result.exit_code == 1
     assert "block(s) left open at end of file" in result.output
     assert "theme.css" in result.output
@@ -659,7 +722,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     monkeypatch.chdir(project)
 
     page = tmp_path / "page"
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code == 0, result.output
     registry = json.loads((page / "registry.json").read_text())
@@ -698,17 +761,17 @@ def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
     monkeypatch.chdir(project)
 
     page = tmp_path / "page"
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code == 0, result.output
     idioms = json.loads((page / "registry.json").read_text())["$idioms"]
-    shipped = json.loads((interact.ASSETS / "registry.json").read_text())["$idioms"]
+    shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())["$idioms"]
     assert idioms[".hazard"] == hazard
     assert idioms[".lede"] == lede
     assert idioms["description"] == shipped["description"]
     assert set(shipped) <= set(idioms)
     languages = json.loads((page / "registry.json").read_text())["$languages"]
-    shipped_langs = json.loads((interact.ASSETS / "registry.json").read_text())[
+    shipped_langs = json.loads((schema_model.ASSETS / "registry.json").read_text())[
         "$languages"
     ]
     assert languages["paths"]["svelte"] == "javascript"
@@ -724,7 +787,7 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
     runner = CliRunner()
     old_umask = os.umask(0o077)
     try:
-        customized = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+        customized = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     finally:
         os.umask(old_umask)
     assert customized.exit_code == 0, customized.output
@@ -732,7 +795,7 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
     assert custom_theme.stat().st_mode & 0o777 == 0o600
 
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     external = tmp_path / "external-theme.css"
     external.write_text("external")
@@ -741,7 +804,7 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
     (page / "theme.css").symlink_to(external)
     old_umask = os.umask(0o022)
     try:
-        revendored = runner.invoke(interact.cli, ["page", "init", str(page)])
+        revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     finally:
         os.umask(old_umask)
 
@@ -763,14 +826,14 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
     upper = tmp_path / "FutureScope"
     lower = tmp_path / "fUTUREsCOPE"
     monkeypatch.setattr(interact_files, "_filesystem_case_sensitive", lambda path: True)
-    assert not interact.locations_overlap(
-        interact._path_location(upper), interact._path_location(lower)
+    assert not interact_files.locations_overlap(
+        interact_files._path_location(upper), interact_files._path_location(lower)
     )
 
     monkeypatch.setattr(
         interact_files, "_filesystem_case_sensitive", lambda path: False
     )
-    assert interact.paths_same(upper, lower)
+    assert interact_files.paths_same(upper, lower)
 
 
 @pytest.mark.parametrize(
@@ -787,11 +850,11 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
 def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
-    initialized = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert interact.initialized_page_owning(page / name) == page
-    assert interact.initialized_page_owning(page / ".leaf" / name) is None
+    assert layer_model.initialized_page_owning(page / name) == page
+    assert layer_model.initialized_page_owning(page / ".leaf" / name) is None
 
 
 @pytest.mark.parametrize(
@@ -802,10 +865,10 @@ def test_initialized_page_owns_declared_directory_trees(
 ):
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
-    initialized = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert interact.initialized_page_owning(page / directory / "future") == page
+    assert layer_model.initialized_page_owning(page / directory / "future") == page
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
@@ -816,7 +879,9 @@ def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch
     second = tmp_path / "rESULT.CSS"
 
     with pytest.raises(SystemExit, match="resolve to the same target"):
-        interact.replace_files([(first, b"first", False), (second, b"second", False)])
+        interact_files.replace_files(
+            [(first, b"first", False), (second, b"second", False)]
+        )
 
     assert not first.exists() and not second.exists()
 
@@ -834,7 +899,7 @@ def test_init_refuses_case_aliased_layer_scopes(tmp_path, monkeypatch):
     before = theme.read_bytes()
     page = tmp_path / "page"
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "package scopes must be separate" in result.output
@@ -846,7 +911,7 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     before = {
         path.relative_to(page): path.read_bytes()
@@ -861,7 +926,7 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
     )
     (layer / "theme.css").write_bytes(b"\xff")
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "theme.css must be UTF-8" in result.output
@@ -882,7 +947,7 @@ def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypat
     layer.mkdir()
     (layer / "theme.css").write_text(".bad { color red; }\n")
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "theme.css syntax error" in result.output
@@ -894,7 +959,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     page = tmp_path / "prepared-page"
     page.mkdir()
 
-    result = CliRunner().invoke(interact.cli, ["server", "stop", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
     assert "page init" in result.output
@@ -907,7 +972,7 @@ def test_hooks_do_not_mint_the_successful_init_marker_for_a_deleted_page(page_di
     shutil.rmtree(page_dir)
     page_dir.mkdir()
 
-    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "stale-session"})
 
     assert list(page_dir.iterdir()) == []
 
@@ -928,7 +993,7 @@ def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
     monkeypatch.setattr(layer_model, "replace_files", fail_layer_commit)
 
     with pytest.raises(OSError, match="layer commit failed"):
-        interact.cmd_init(page)
+        layer_model.cmd_init(page)
 
     assert not (page / "comments.jsonl").exists()
 
@@ -937,7 +1002,7 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     before = {
         path.relative_to(page): path.read_bytes()
@@ -948,7 +1013,7 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
     theme.parent.mkdir(parents=True)
     theme.write_text(".bad { color red; }\n")
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert f"{theme} syntax error" in result.output
@@ -966,7 +1031,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     theme_before = (page / "theme.css").read_bytes()
     registry_before = (page / "registry.json").read_bytes()
@@ -981,7 +1046,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
         json.dumps({"lf-new-shape": widget_entry("lf-new-shape")})
     )
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     # Named, not merely refused. `page init` has a dozen ways to stop, and the layer
@@ -1000,7 +1065,7 @@ def test_init_refuses_a_symlinked_page_directory(tmp_path, monkeypatch, sub):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     original = tmp_path / f"original-{sub}"
     (page / sub).rename(original)
@@ -1010,7 +1075,7 @@ def test_init_refuses_a_symlinked_page_directory(tmp_path, monkeypatch, sub):
     sentinel.write_text("do not prune or replace files outside the page")
     (page / sub).symlink_to(outside, target_is_directory=True)
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "must be a real directory, not a symlink" in result.output
@@ -1028,7 +1093,7 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     destination = page / destination_relative
     if destination.is_dir():
@@ -1045,7 +1110,7 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
         if path.is_file()
     }
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
@@ -1066,7 +1131,7 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "MixedCasePage"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     alias = case_alias(page)
     target = alias / "THEME.CSS"
@@ -1080,7 +1145,7 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
     layer_theme.parent.mkdir(parents=True)
     layer_theme.symlink_to(target)
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
@@ -1096,7 +1161,7 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     source = page / f"theme.css.{os.getpid()}.0.tmp"
     source.write_text(":root { --accent: rebeccapurple; }\n")
@@ -1104,7 +1169,7 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
     layer.mkdir(parents=True)
     (layer / "theme.css").symlink_to(source)
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code == 0, result.output
     assert source.read_text() == ":root { --accent: rebeccapurple; }\n"
@@ -1130,7 +1195,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -1138,7 +1203,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(tmp_path / "page")])
 
     assert result.exit_code != 0
     assert "<lf-toned-note> x-example is invalid" in result.output
@@ -1148,7 +1213,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
 def test_revendoring_removes_files_the_layer_retired(page_dir):
     stale = page_dir / "widgets" / "lf-retired.js"
     stale.write_text("// no longer in any layer")
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert not stale.exists()
 
@@ -1163,7 +1228,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
     stale = page_dir / sub / name
     stale.symlink_to(page_dir.parent / "missing-target")
 
-    retired = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    retired = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert retired.exit_code == 0, retired.output
     assert not stale.is_symlink()
@@ -1171,7 +1236,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
     source = page_dir.parent / ".leaf" / sub / name
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("// returned\n")
-    returned = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    returned = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert returned.exit_code == 0, returned.output
     assert stale.is_file() and not stale.is_symlink()
@@ -1194,7 +1259,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
 
     page = tmp_path / "page"
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "page",
             "init",
@@ -1222,7 +1287,7 @@ def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     layer = project / ".leaf"
     page = alias / ".LEAF" / "WIDGETS"
@@ -1233,7 +1298,7 @@ def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch
         if path.is_file()
     }
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "inside package" in result.output
@@ -1255,13 +1320,13 @@ def test_init_refuses_non_utf8_package_guidance_before_revendoring(
     source = package / "author.md"
     source.write_text("# Project author\n")
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     before = (page / "guidance" / "author.md").read_bytes()
 
     source.write_bytes(b"\xff")
 
-    result = runner.invoke(interact.cli, ["page", "init", str(page)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "guidance/author.md must be UTF-8" in result.output
@@ -1276,7 +1341,7 @@ def test_init_refuses_a_noncanonical_guidance_audience(tmp_path, monkeypatch):
     malformed.write_text("Use the project package.\n")
     page = tmp_path / "page"
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert f"{malformed} must be named <audience>.md" in result.output
@@ -1301,7 +1366,7 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     }
     page = tmp_path / "page"
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert result.exit_code != 0
     assert "package scopes must be separate" in result.output
@@ -1323,7 +1388,7 @@ def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
     monkeypatch.chdir(project)
     runner = CliRunner()
     package = config / "leaf" if user else project / ".leaf"
-    created = runner.invoke(interact.cli, ["package", "init", str(package)])
+    created = runner.invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
 
     layer = package
@@ -1334,7 +1399,7 @@ def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
     }
     assert before
 
-    result = runner.invoke(interact.cli, ["page", "init", str(layer)])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(layer)])
 
     assert result.exit_code != 0
     assert "inside package" in result.output
@@ -1349,7 +1414,7 @@ def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
 def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     layer = tmp_path / ".leaf"
     before = {
@@ -1358,7 +1423,7 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
         if path.is_file()
     }
 
-    result = runner.invoke(interact.cli, ["page", "init", str(layer / "widgets")])
+    result = runner.invoke(cli_model.cli, ["page", "init", str(layer / "widgets")])
 
     assert result.exit_code != 0
     assert "inside package" in result.output
@@ -1391,7 +1456,7 @@ def test_init_refuses_wrong_kind_package_paths(
     else:
         path.write_text("not a directory")
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(tmp_path / "page")])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(tmp_path / "page")])
 
     assert result.exit_code != 0
     assert str(path) in result.output
@@ -1413,7 +1478,7 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     (layer / "widgets").symlink_to(widgets, target_is_directory=True)
 
     runner = CliRunner()
-    result = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code == 0, result.output
     assert (layer / "theme.css").is_symlink()
@@ -1421,7 +1486,7 @@ def test_package_allows_a_symlink_managed_external_layer(tmp_path, monkeypatch):
     assert (layer / "widgets").is_symlink()
     assert theme.read_text() == ":root { --accent: teal; }\n"
     assert json.loads(registry.read_text()) == {}
-    checked = runner.invoke(interact.cli, ["package", "check", ".leaf"])
+    checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
     assert checked.exit_code == 0, checked.output
 
 
@@ -1430,7 +1495,7 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-unfinished")
 
@@ -1444,7 +1509,7 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         ["package", "check", ".leaf"],
         ["page", "init", str(tmp_path / "page")],
     ):
-        result = runner.invoke(interact.cli, args)
+        result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
 
@@ -1454,7 +1519,7 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
 
@@ -1465,7 +1530,7 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(interact.cli, ["package", "check", ".leaf"])
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
     assert "<lf-toned-note> x-example is invalid" in result.output
@@ -1480,7 +1545,7 @@ def test_package_check_refuses_malformed_css_without_writing(tmp_path, monkeypat
     theme.write_text(".bad { color red; }\n")
 
     before = theme.read_bytes()
-    result = CliRunner().invoke(interact.cli, ["package", "check", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
     assert f"{theme} syntax error" in result.output
@@ -1492,7 +1557,7 @@ def test_package_check_refuses_malformed_css_without_writing(tmp_path, monkeypat
 def test_package_check_requires_an_existing_package(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(interact.cli, ["package", "check", "packages/missing"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "check", "packages/missing"])
 
     assert result.exit_code != 0
     assert "is not a package directory" in result.output
@@ -1506,7 +1571,7 @@ def test_package_command_accepts_the_root_of_a_standalone_package_repo(
     package.mkdir()
     monkeypatch.chdir(package)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", "."])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", "."])
 
     assert result.exit_code == 0, result.output
     assert (package / "registry.json").is_file()
@@ -1521,7 +1586,9 @@ def test_package_command_can_target_the_user_package(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", str(config / "leaf")])
+    result = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(config / "leaf")]
+    )
 
     assert result.exit_code == 0, result.output
     package = config / "leaf"
@@ -1533,9 +1600,9 @@ def test_package_command_can_target_the_user_package(tmp_path, monkeypatch):
 def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
-    initialized = runner.invoke(interact.cli, ["page", "init", "."])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", "."])
     assert initialized.exit_code == 0, initialized.output
     page_theme = tmp_path / "theme.css"
     page_registry = tmp_path / "registry.json"
@@ -1549,7 +1616,7 @@ def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypat
 
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-after-init", upgrade=True)
-    checked = runner.invoke(interact.cli, ["package", "check", ".leaf"])
+    checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert checked.exit_code == 0, checked.output
     assert page_theme.read_bytes() == before_theme
@@ -1561,7 +1628,7 @@ def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypat
     } == before_widgets
     assert (package / "widgets" / "lf-after-init.js").is_file()
 
-    revendored = runner.invoke(interact.cli, ["page", "init", "."])
+    revendored = runner.invoke(cli_model.cli, ["page", "init", "."])
 
     assert revendored.exit_code == 0, revendored.output
     assert "lf-after-init" in json.loads(page_registry.read_text())
@@ -1575,7 +1642,7 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
     accent = Path("packages/accent")
 
     for path in (callout, accent):
-        result = runner.invoke(interact.cli, ["package", "init", str(path)])
+        result = runner.invoke(cli_model.cli, ["package", "init", str(path)])
         assert result.exit_code == 0, result.output
     add_test_widget(tmp_path / callout, "lf-callout", upgrade=True)
     with (tmp_path / accent / "theme.css").open("a") as theme:
@@ -1583,7 +1650,7 @@ def test_package_init_creates_independently_selectable_packages(tmp_path, monkey
 
     page = tmp_path / "page"
     initialized = runner.invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "page",
             "init",
@@ -1611,7 +1678,7 @@ def test_package_init_names_a_wrong_kind_lower_package(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert f"{user_layer} must be a directory" in result.output
@@ -1627,7 +1694,7 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
     theme = layer / "theme.css"
     theme.write_text(":root { --accent: rebeccapurple; }\n")
 
-    result = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert result.exit_code == 0, result.output
     assert theme.read_text() == ":root { --accent: rebeccapurple; }\n"
     (layer / "registry.json").write_text('{"$local": {"value": 1}}\n')
@@ -1638,7 +1705,7 @@ def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
         if path.is_file()
     }
 
-    repeated = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    repeated = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert repeated.exit_code == 0, repeated.output
     assert {
         path.relative_to(layer): path.read_bytes()
@@ -1658,7 +1725,7 @@ def test_package_init_protects_another_package_future_root(tmp_path, monkeypatch
     monkeypatch.chdir(project)
 
     package = project / ".leaf" if role == "project" else config / "leaf"
-    result = CliRunner().invoke(interact.cli, ["package", "init", str(package)])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -1673,7 +1740,7 @@ def test_package_init_validates_every_target_before_writing(tmp_path, monkeypatc
     sentinel = theme / "keep.txt"
     sentinel.write_text("keep")
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "theme.css must be a file" in result.output
@@ -1698,7 +1765,7 @@ def test_package_init_validates_the_complete_package(
     else:
         malformed.write_text("not a directory")
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert str(malformed) in result.output
@@ -1713,7 +1780,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
 
-    created = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
 
     package = tmp_path / ".leaf"
@@ -1732,11 +1799,11 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     )
     (package / "vendor" / "callout-schema.json").write_text('{"kind":"callout"}\n')
 
-    checked = runner.invoke(interact.cli, ["package", "check", ".leaf"])
+    checked = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
     assert checked.exit_code == 0, checked.output
 
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     assert "lf-callout {" in (page / "theme.css").read_text()
     assert json.loads((page / "registry.json").read_text())["lf-callout"] == entry
@@ -1772,7 +1839,7 @@ def test_package_preserves_a_symlinked_registry(tmp_path, monkeypatch):
     registry = layer / "registry.json"
     registry.symlink_to(shared_registry)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code == 0, result.output
     assert registry.is_symlink()
@@ -1786,7 +1853,7 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     (page / "status.json").unlink()
     before = (page / "theme.css").read_bytes()
@@ -1795,7 +1862,7 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     layer.mkdir(parents=True)
     (layer / "theme.css").symlink_to(page / "theme.css")
 
-    result = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "owned by initialized page" in result.output
@@ -1816,7 +1883,7 @@ def test_package_refuses_a_broken_case_alias_to_its_future_target(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -1838,7 +1905,7 @@ def test_package_refuses_a_broken_lower_alias_to_its_planned_target(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -1861,7 +1928,7 @@ def test_package_refuses_an_existing_member_aliased_to_another_scope(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -1885,7 +1952,7 @@ def test_package_refuses_an_existing_member_case_alias(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -1902,7 +1969,7 @@ def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, u
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     before = {
         path.relative_to(page): path.read_bytes()
@@ -1913,7 +1980,7 @@ def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, u
     layer = config / "leaf" if user else project / ".leaf"
     layer.parent.mkdir(parents=True, exist_ok=True)
     layer.symlink_to(page, target_is_directory=True)
-    result = runner.invoke(interact.cli, ["package", "init", str(layer)])
+    result = runner.invoke(cli_model.cli, ["package", "init", str(layer)])
 
     assert result.exit_code != 0
     assert "owned by initialized page" in result.output
@@ -1932,7 +1999,7 @@ def test_package_refuses_case_aliased_future_roots(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".LEAF"))
     monkeypatch.chdir(project)
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -1952,7 +2019,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     before = {
         path.relative_to(page): path.read_bytes()
@@ -1966,7 +2033,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
     target = page / relative
     alias.symlink_to(target, target_is_directory=target.is_dir())
 
-    result = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "owned by initialized page" in result.output
@@ -1984,7 +2051,7 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
     ("source_name", "page_name"),
     [
         ("theme.css", "status.json"),
-        ("widgets", interact.MEDIA_DIR),
+        ("widgets", schema_model.MEDIA_DIR),
         ("vendor", "versions"),
     ],
 )
@@ -1997,10 +2064,10 @@ def test_package_refuses_sources_aliased_to_page_owned_state(
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
-    initialized = runner.invoke(interact.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     target = page / page_name
-    if source_name in interact.BROWSER_DIRS:
+    if source_name in schema_model.BROWSER_DIRS:
         target.mkdir(exist_ok=True)
     before = {
         path.relative_to(page): path.read_bytes()
@@ -2012,7 +2079,7 @@ def test_package_refuses_sources_aliased_to_page_owned_state(
     layer.mkdir(parents=True)
     (layer / source_name).symlink_to(target, target_is_directory=target.is_dir())
 
-    result = runner.invoke(interact.cli, ["package", "init", ".leaf"])
+    result = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "owned by initialized page" in result.output
@@ -2049,7 +2116,7 @@ def test_package_refuses_targets_aliased_to_another_layer(tmp_path, monkeypatch,
         if path.is_file()
     }
 
-    result = CliRunner().invoke(interact.cli, ["package", "init", ".leaf"])
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
 
     assert result.exit_code != 0
     assert "overlaps another package" in result.output
@@ -2067,7 +2134,7 @@ def test_page_init_refuses_a_duplicate_package_path(tmp_path, monkeypatch):
     package.mkdir()
 
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "page",
             "init",
@@ -2088,7 +2155,7 @@ def test_page_init_refuses_an_empty_package_path_before_writing(tmp_path, monkey
     page = tmp_path / "page"
 
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["page", "init", "--package", "", str(page)],
     )
 
@@ -2104,7 +2171,7 @@ def test_page_init_refuses_to_publish_an_absolute_package_path(tmp_path, monkeyp
     page = tmp_path / "page"
 
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["page", "init", "--package", str(source), str(page)],
     )
 
@@ -2163,7 +2230,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
 
     page = tmp_path / "page"
     initialized = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "page",
             "init",
@@ -2189,14 +2256,16 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert "Report the result." in (page / "guidance" / "worker.md").read_text()
     assert "Check the contrast." in (page / "guidance" / "reviewer.md").read_text()
 
-    audiences = CliRunner().invoke(interact.cli, ["page", "guidance", str(page)])
-    worker = CliRunner().invoke(interact.cli, ["page", "guidance", str(page), "worker"])
+    audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(page)])
+    worker = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(page), "worker"]
+    )
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "reviewer", "worker"]
     assert worker.exit_code == 0, worker.output
     assert worker.output == "# Solo worker\n\nReport the result.\n"
 
-    revendored = CliRunner().invoke(interact.cli, ["page", "init", str(page)])
+    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
     assert json.loads((page / "registry.json").read_text())["$layer"]["packages"] == [
         "solo",
@@ -2212,9 +2281,9 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     plain = tmp_path / "plain"
     command = tmp_path / "command"
 
-    plain_result = CliRunner().invoke(interact.cli, ["page", "init", str(plain)])
+    plain_result = CliRunner().invoke(cli_model.cli, ["page", "init", str(plain)])
     packaged_result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["page", "init", "--package", package, str(command)],
     )
 
@@ -2241,10 +2310,12 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert (command / "widgets" / "lf-command.js").is_file()
     assert list((plain / "guidance").iterdir()) == []
     assert "# Command Hub package" in (command / "guidance" / "author.md").read_text()
-    plain_audiences = CliRunner().invoke(interact.cli, ["page", "guidance", str(plain)])
-    plain_catalog = CliRunner().invoke(interact.cli, ["page", "catalog", str(plain)])
+    plain_audiences = CliRunner().invoke(
+        cli_model.cli, ["page", "guidance", str(plain)]
+    )
+    plain_catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(plain)])
     packaged_catalog = CliRunner().invoke(
-        interact.cli, ["page", "catalog", str(command)]
+        cli_model.cli, ["page", "catalog", str(command)]
     )
     assert plain_audiences.exit_code == 0, plain_audiences.output
     assert plain_audiences.output == ""
@@ -2252,20 +2323,32 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert packaged_catalog.exit_code == 0, packaged_catalog.output
     assert '"lf-worktree"' not in plain_catalog.output
     assert '"lf-worktree"' in packaged_catalog.output
-    assert "Package guidance for authors" not in plain_catalog.output
+    assert "# Widget `<lf-worktree>`" in packaged_catalog.output
+    assert (
+        packaged_registry["lf-worktree"]["x-guidance"]["author"]
+        in packaged_catalog.output
+    )
+    assert "# Guidance for authors" not in plain_catalog.output
     assert "# $command, declared by this layer." in packaged_catalog.output
-    assert "# Package guidance for authors" in packaged_catalog.output
+    assert "# Guidance for authors" in packaged_catalog.output
     assert "# Command Hub package" in packaged_catalog.output
-    audiences = CliRunner().invoke(interact.cli, ["page", "guidance", str(command)])
+    audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
-        interact.cli, ["page", "guidance", str(command), "coordinator"]
+        cli_model.cli, ["page", "guidance", str(command), "coordinator"]
     )
     assert audiences.exit_code == 0, audiences.output
     assert audiences.output.splitlines() == ["author", "coordinator", "worker"]
     assert coordinator.exit_code == 0, coordinator.output
-    assert "Keep each host task handle" in coordinator.output
+    assert "# Command Hub coordinator" in coordinator.output
+    assert "# Data contract `lf-worktree`" in coordinator.output
+    assert (
+        packaged_registry["$data"]["contracts"]["lf-worktree"]["guidance"][
+            "coordinator"
+        ]
+        in coordinator.output
+    )
 
-    revendor = CliRunner().invoke(interact.cli, ["page", "init", str(command)])
+    revendor = CliRunner().invoke(cli_model.cli, ["page", "init", str(command)])
     assert revendor.exit_code == 0, revendor.output
     assert json.loads((command / "registry.json").read_text())["$layer"][
         "packages"
@@ -2273,7 +2356,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert (command / "widgets" / "lf-command.js").is_file()
 
     removed = CliRunner().invoke(
-        interact.cli, ["page", "init", "--no-packages", str(command)]
+        cli_model.cli, ["page", "init", "--no-packages", str(command)]
     )
     assert removed.exit_code == 0, removed.output
     removed_registry = json.loads((command / "registry.json").read_text())

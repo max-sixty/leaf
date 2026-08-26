@@ -4,7 +4,9 @@ import itertools
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf import cli as cli_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     EXAMPLES,
@@ -24,6 +26,78 @@ pytestmark = pytest.mark.nightly
 # ---------- export: the page as one file ----------
 
 
+def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
+    browser, serve, tmp_path
+):
+    """A table of contents is navigation rather than a live decision. Its generated
+    links and targets stay in a standalone copy, where the browser can follow them
+    without the runtime that supplied the smoother live-page journey."""
+    source = leaf_page(
+        "contents export",
+        """
+<h1>Migration plan</h1>
+<lf-toc id="contents"></lf-toc>
+<h2>Prepare</h2><p>Take a snapshot.</p>
+<h2 style="margin-top: 110vh">Verify</h2><p>Compare the totals.</p>
+""",
+    )
+    url = serve(source)
+    out = tmp_path / "contents-copy.html"
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    expect(links).to_have_count(2)
+    href = links.nth(1).get_attribute("href")
+    assert href and href.startswith("#lf-contents-section-")
+
+    links.nth(1).click()
+    expect(page.locator(":target")).to_have_attribute("id", href[1:])
+    assert page.locator("script").count() == 0
+    assert errors == []
+    page.close()
+
+
+def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path):
+    """Hover is only the live page's presentation. Print and a standalone export have
+    no script or pointer contract, so the author-written x-says tip becomes visible
+    inline and its now-inert raised mark leaves with the rest of the offers."""
+    source = leaf_page(
+        "gloss export",
+        """
+<h1>Rollout</h1>
+<p>Start with a <lf-gloss tip="A thin path through the real system."
+  >walking skeleton</lf-gloss> before parallelizing.</p>
+""",
+    )
+    url = serve(source)
+
+    live = browser.new_page(viewport={"width": 1200, "height": 900})
+    live.goto(url, wait_until="load")
+    live.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    tip = live.locator(".lf-gloss-popover")
+    expect(tip).to_be_hidden()
+    live.emulate_media(media="print")
+    expect(tip).to_be_visible()
+    assert tip.evaluate("el => getComputedStyle(el).position") == "static"
+    live.close()
+
+    out = tmp_path / "gloss-copy.html"
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    copy = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.locator(".lf-gloss-popover")).to_be_visible()
+    expect(copy.locator(".lf-gloss-mark")).to_have_count(0)
+    expect(copy.locator("lf-gloss")).to_contain_text(
+        "walking skeletonA thin path through the real system."
+    )
+    assert errors == []
+    copy.close()
+
+
 def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     """A local work line is live runtime chrome even though its seat is in the page.
     A standalone copy has no agent behind it, so preserving the rendered sentence
@@ -39,7 +113,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     )
     url = serve(work_page)
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "status",
             str(serve.page_dir),
@@ -52,7 +126,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     assert result.exit_code == 0, result.output
 
     out = tmp_path / "work-copy.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
@@ -82,7 +156,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     rather than to any widget."""
     url = serve(example)
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -164,7 +238,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     # The gate's own reading, on the medium that most needs it: a copy is laid out by
     # rules no other medium runs, and the last two ways one went out wrong were both a
     # widget's words landing on the page's.
-    covered = page.evaluate(interact.COVERED_WORDS)
+    covered = page.evaluate(render_checks_model.COVERED_WORDS)
     # The other direction of every question above: not what the copy still offers,
     # but what it under-delivers. BAKE is a remover, and until this ran the only
     # gates on it asked whether it removed enough — a wide diagram lost its scroll
@@ -226,7 +300,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     stand-in `primed` supplies."""
     url = serve(REPORT_PAGE)
     sent = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["report", str(serve.page_dir), "t-parser", "status", "status=done"],
     )
     assert sent.exit_code == 0, sent.output
@@ -240,7 +314,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
 
     out = tmp_path / "standalone.html"
     out.write_text(
-        interact.export_page(
+        rendering_model.export_page(
             primed(browser, refuse_the_first_poll), url, serve.page_dir
         )
     )
@@ -262,7 +336,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     link here still points at a server)."""
     url = serve(LONG_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")

@@ -50,9 +50,9 @@ currently about.
 ## Packages
 
 A package is a directory that can supply a theme, one widget, a related family,
-helper modules, vendor files, or guidance for named audiences. Leaf's included
-content widgets are a bundled default package. Project and user packages live at
-`.leaf/` and `~/.config/leaf/`.
+helper modules, vendor files, typed external-data contracts, or guidance for named
+audiences. Leaf's included content widgets are a bundled default package. Project
+and user packages live at `.leaf/` and `~/.config/leaf/`.
 
 Leaf creates and checks the package as one unit:
 

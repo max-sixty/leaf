@@ -1,0 +1,795 @@
+"""Append-only event model and its pure folds."""
+
+import contextlib
+import json
+import os
+import secrets
+import threading
+from datetime import datetime
+from pathlib import Path
+from typing import NamedTuple, Protocol
+
+from leaf.files import read_json
+from leaf.passages import EMPTY
+from leaf.schema import UNDOABLE_KINDS
+from leaf.structure import parse_structure
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - unsupported non-POSIX platform
+    fcntl = None
+
+
+class EventAppender(Protocol):
+    """A transaction already holding the event log's append lease."""
+
+    def append_event(self, event: dict) -> dict: ...
+
+
+def require_cross_process_locking() -> None:
+    """Refuse every writer/server path on a host without the log's lock."""
+    if fcntl is None:
+        raise RuntimeError(
+            "leaf requires POSIX cross-process file locking; this platform has no fcntl"
+        )
+
+
+@contextlib.contextmanager
+def flocked(path: Path):
+    """An exclusive lock held while the block runs — the one serialization
+    primitive here. The log serializes appends, cursor and status updates, and
+    claim and delivery transitions. Stable purpose locks serialize contract or service
+    transitions; a `.lock` beside a registry of JSON files serializes updates
+    to them, since the files themselves are replaced by rename and a lock on a
+    replaced inode holds nothing."""
+    require_cross_process_locking()
+    # comments.jsonl is the successful-init marker as well as a lease. A
+    # transaction racing page deletion must not recreate it and turn a deleted
+    # directory back into an initialized page. Purpose locks are disposable and
+    # may be minted on first use.
+    mode = "r+b" if path.name == "comments.jsonl" else "a+b"
+    with open(path, mode) as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield f
+
+
+def now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def read_cursor(page_dir: Path) -> int:
+    """The seq the agent has acknowledged through (`leaf ack`); 0 before any."""
+    return (read_json(page_dir / "cursor.json") or {"seq": 0})["seq"]
+
+
+def jsonl_line(event: dict) -> str:
+    """One event as one physical line. U+2028, U+2029 and U+0085 are legal raw in
+    JSON strings and line breaks to any splitlines()-shaped reader, so they are
+    written as escapes — a pasted comment carrying one must not decide where an
+    event ends. The log's own reader splits on the "\\n" the writer puts between
+    events either way; the escape is for what `wait` and `events` print, which
+    stays one event per line for every consumer. json.dumps escapes every other
+    line-breaking character on its own."""
+    line = json.dumps(event, ensure_ascii=False)
+    for ch in "\u2028\u2029\u0085":
+        line = line.replace(ch, f"\\u{ord(ch):04x}")
+    return line
+
+
+class AttemptConflict(ValueError):
+    """One browser attempt was reused for a different event payload."""
+
+
+class AttemptExecution:
+    """One execution shared by concurrent HTTP requests for the same attempt.
+
+    Success is durable in the event log. The record coordinates requests while a
+    handler is executing and is released once that handler finishes, so a concurrent
+    retry receives the same outcome and a later one is free to be evaluated again.
+    """
+
+    def __init__(self, payload: dict):
+        self.payload = payload
+        self.done = threading.Event()
+        self.result = None
+
+
+def _attempt_payload(event: dict) -> dict:
+    # Kind is part of the gesture. Only fields the append boundary itself assigns
+    # disappear from the equality check.
+    return {
+        key: value
+        for key, value in event.items()
+        if key not in {"id", "ts", "author", "seq"}
+    }
+
+
+def _matching_attempt(f, event: dict) -> dict | None:
+    attempt = event.get("attempt")
+    if not attempt:
+        return None
+    f.seek(0)
+    for raw in f:
+        try:
+            existing = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if existing.get("attempt") != attempt:
+            continue
+        if _attempt_payload(existing) != _attempt_payload(event):
+            raise AttemptConflict(
+                f"attempt {attempt!r} already belongs to another event"
+            )
+        return existing
+    return None
+
+
+def _append_event_unlocked(f, event: dict) -> dict:
+    """Append while the caller holds this log file's exclusive lease."""
+    event.setdefault("id", secrets.token_hex(4))
+    event.setdefault("ts", now_iso())
+    # Attempt identity is checked under the log's append lock. Checking before
+    # this point would leave two server threads free to observe absence together
+    # and append together. Content and time deliberately play no part: an
+    # intentional later identical message has a fresh attempt and is a second
+    # event.
+    if event.get("attempt") and (existing := _matching_attempt(f, event)):
+        return existing
+    # A crash can tear the previous append mid-line: SIGKILL under a buffered
+    # flush, a full disk. The line discipline is the writer's, so the writer
+    # restores it — without this, the next event glues onto the torn fragment
+    # and one lost event becomes an unreadable line mid-file.
+    f.seek(0, os.SEEK_END)
+    if f.tell():
+        f.seek(-1, os.SEEK_END)
+        if f.read(1) != b"\n":
+            f.write(b"\n")
+    f.write((jsonl_line(event) + "\n").encode())
+    # To the platter before the caller is told it landed: an event is a
+    # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
+    # and events are rare enough that a flush per append costs nothing.
+    f.flush()
+    os.fsync(f.fileno())
+    return event
+
+
+def append_event(page_dir: Path | EventAppender, event: dict) -> dict:
+    if not isinstance(page_dir, Path):
+        return page_dir.append_event(event)
+    # The path form is the low-level fixture/instrumentation seam and retains
+    # its historic ability to start a log in an already-created directory.
+    # Product writers pass PageTransaction, whose entry never mints the page's
+    # successful-init marker.
+    log = page_dir / "comments.jsonl"
+    with open(log, "a", encoding="utf-8"):
+        pass
+    with flocked(log) as f:
+        return _append_event_unlocked(f, event)
+
+
+def read_events(page_dir: Path) -> list:
+    path = page_dir / "comments.jsonl"
+    if not path.exists():
+        return []
+    events = []
+    # The log's grammar is events joined by "\n" — the writer's own separator,
+    # not splitlines()'s wider class, which once read a U+2028 inside a comment's
+    # text as a break and left half an event leading a line no parse could take.
+    # Bytes, decoded per line: a crash can tear mid-character as easily as
+    # mid-line (ensure_ascii=False writes multi-byte UTF-8), and one strict
+    # read_text of the file would raise on the tear before any line-level
+    # tolerance could reach it.
+    lines = path.read_bytes().split(b"\n")
+    if lines and lines[-1] == b"":
+        lines.pop()
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # The final line is a concurrent append mid-flush, complete on the
+            # next read. An earlier one is the tear a crash left, standing alone
+            # because append_event repairs the discipline before writing: that
+            # event's sender already saw its send fail, the seqs around it hold,
+            # and there is nothing anyone could do with a fragment — so it is
+            # skipped, not raised over, and the page keeps reading.
+            continue
+        event["seq"] = i + 1
+        events.append(event)
+    return events
+
+
+def taken_back(events: list) -> set:
+    """Event ids some later gesture took back (`undoes`).
+
+    An undo names the gesture it withdraws and carries no counter-state, so every
+    projection drops those ids. The thread an action answered is open again once
+    the answer is withdrawn, and the undo walk steps back past what it has
+    already taken."""
+    return {e["undoes"] for e in events if e.get("undoes")}
+
+
+def undo_error(event: dict, events: list) -> str | None:
+    """Why this undo may not take back the event it names, or None.
+
+    Checked once here, at the door the browser writes through, so nothing
+    downstream asks a second time whether an `undoes` points at something real.
+    Two tabs racing to take back the same event are the one case this refuses
+    that nothing is wrong with: the second is a no-op, and refusing it costs a
+    toast where accepting it would leave two withdrawals of one gesture in a log
+    whose every other line is something the reader did."""
+    target = next((e for e in events if e["id"] == event["undoes"]), None)
+    if target is None:
+        return f"unknown undoes {event['undoes']!r}"
+    if target["author"] != "user":
+        return f"{target['kind']} {target['id']} is not the reader's own gesture"
+    if target["kind"] not in UNDOABLE_KINDS:
+        return (
+            f"{target['kind']} events cannot be taken back (the kinds that can "
+            f"are {', '.join(sorted(UNDOABLE_KINDS))})"
+        )
+    if target["id"] in taken_back(events):
+        return f"{target['id']} has already been taken back"
+    return None
+
+
+def build_threads(events: list, spk: dict) -> dict:
+    """Fold the chronological log into comment threads by root id.
+
+    `resolved` is the event that currently closes the thread, or None. Either side
+    can close one, so a bool beside a second field naming who would be two readings
+    of one fact; the event answers both questions and carries its own `author`.
+    A thread is settled by the widget's standing answer: the last action that
+    widget sent and the log still lets stand, and then only while that answer
+    names the thread. Three things unseat one, and every one of them is the log's
+    own word rather than a case written out here. A version that rewrites what a
+    decision rested on says `restated`, publishing records the floor, and replay
+    drops the action — `action_retracted`, the same test the fold and the words
+    gate ask. The reader can take the answer back where they stand, which is the
+    `undo` naming it and `taken_back` reading it. And a later action on the same
+    widget supersedes the one before it, exactly as the state fold reads a second
+    `move` on one card. Without that last one, a reject after an accept left the
+    reader's question filed away as answered by the fix they had just turned down,
+    while the fold reported the suggestion rejected: the log held one thing, the
+    panel showed another, and nothing on either side said so.
+
+    An ask is a widget instance ($awaits), so what answers one is that widget's
+    own last word — and the widget id is also the only key the log carries by
+    itself. That is why the state fold cannot serve here: it drops an action whose
+    widget the current page no longer holds, and the version that honors a
+    decision retires the widget that made it, precisely when the thread it settled
+    must stay settled. `x-state` holds a verb declaring `resolves` to a
+    widget-absolute unit, so the two keys are one key.
+
+    Standing says nothing about the page, and that silence cuts both ways: a stale
+    tab's decision unseats an answer whose widget a published version has since
+    retired, leaving the fold nothing to paint and the reader's press reaching the
+    thread or nothing at all. Asking the page instead would fork the two runtimes,
+    which read different pages — the browser's pinned version against this side's
+    last published file.
+
+    A `resolve` is a person saying the conversation is done. An `unresolve` clears
+    that closure. A superseded answer also stops closing the thread; undo and
+    retraction remove it from the reading entirely.
+
+    What `resolves` cannot say is the difference between an answer that leaves the
+    thread open and an action that is not an answer at all — a reject means the
+    first, and both spell it by carrying nothing. The one widget that names a
+    thread has two verbs, both of them its answers, so the readings coincide; a
+    press that confirms rather than answers, Done over a set of picks, would want
+    the third value spelled before its widget could settle a thread.
+
+    `spk` is the page the containment half of the retraction test is read against,
+    and it is the reading of the version the outcomes were folded over, so threads
+    and state cannot be settled against two different pages. Required, not
+    defaulted: a caller with no published page passes `{}` and says so, because a
+    default that stood down quietly is exactly where a verb naming a part of its
+    own widget would have gone unfloored."""
+    floors = retractions(events)
+    withdrawn = taken_back(events)
+    # widget id -> its last action the log still lets stand: not one the reader
+    # took back, and not one a version retracted under it.
+    answers = {}
+    settling_actions = set()
+    for e in events:
+        if (
+            e["kind"] == "action"
+            and e["id"] not in withdrawn
+            and not action_retracted(e, floors, spk)
+        ):
+            answers[e["widget"]] = e
+            if e["detail"].get("resolves"):
+                settling_actions.add(e["id"])
+    threads = {}
+    thread_for = {}
+    for e in events:
+        # A gesture the reader took back settles nothing, whichever way it settled:
+        # the log holds it and no reading of the log stands on it.
+        if e["id"] in withdrawn:
+            continue
+        if e["kind"] == "comment":
+            thread = {"root": e, "msgs": [e], "resolved": None}
+            threads[e["id"]] = thread
+            thread_for[e["id"]] = thread
+            continue
+        # A surviving answer closes the thread it names. The detail carrying
+        # `resolves` is the whole of that condition — a second widget that answers
+        # a thread joins by declaring the field, not by being read here by name.
+        # The sender snapshots the mapping into the action because the honoring
+        # version retires the element that held it, so nothing later can look it up.
+        #
+        # Folded here, at the answer's own place in the log, rather than after the
+        # walk: a resolve pressed between two decisions is the last current word on
+        # the thread.
+        if e["kind"] == "action":
+            answered = threads.get(e["detail"].get("resolves"))
+            if (
+                answered
+                and e["id"] in settling_actions
+                and answers.get(e["widget"]) is e
+            ):
+                answered["resolved"] = e
+            continue
+        if e["kind"] == "reply":
+            # A reply whose message the log lost opens the thread that message would
+            # have opened, under the id it was known by, which is the id an action
+            # names in `resolves` and the one `thread_roots` resolves it to. A person
+            # answers it by its own surviving id; the lost one names no message and
+            # `leaf reply` says so.
+            # `read_events` skips a torn line and keeps reading, and `thread_roots`
+            # resolves such a reply to the lost id for the same reason: a reader who
+            # can see the reply is owed the rest of the page around it. Raising here
+            # instead cost the whole page — `page state` exited on the KeyError, and
+            # the browser's own walk, which mirrors this one, threw where it builds
+            # the panel — so one torn line took down every reading of a log that had
+            # already been read.
+            thread = thread_for.get(e["parent"])
+            if thread is None:
+                thread = {"root": e, "msgs": [], "resolved": None}
+                threads[e["parent"]] = thread
+                thread_for[e["parent"]] = thread
+            thread["msgs"].append(e)
+            thread_for[e["id"]] = thread
+        # A resolve names a message rather than opening one, so a conversation the log
+        # lost whole — no reply of its own survived either — leaves it nothing to close.
+        elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
+            thread["resolved"] = e
+        elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
+            thread["resolved"] = None
+    return threads
+
+
+def anchored_ids(events: list, spk: dict) -> set:
+    """Element ids an unresolved thread still points at."""
+    return {
+        (t["root"].get("anchor") or {}).get("section")
+        for t in build_threads(events, spk).values()
+        if not t["resolved"]
+    } - {None}
+
+
+def awaits_agent(thread: dict) -> bool:
+    """Whether a thread's next word is the agent's.
+
+    The agent spoke last and the thread waits on the reader; anyone else spoke last
+    and it waits on the agent. A resolved thread waits on nobody, so neither reading
+    is the other's negation. The runtime's `awaitsAgent` is the same sentence, and it
+    has to be: the panel telling the reader a thread is with the agent while the
+    banner counts the same question as theirs is one fact told two ways.
+
+    Not the agent, rather than the reader: `author` is an open string on every message
+    contract, and the two the code writes are `user` and `claude`. A line from anywhere
+    else therefore reads as owed an answer, which is the direction to err in — an
+    unanswered word is invisible to everyone, while one answer too many costs a reply."""
+    return not thread["resolved"] and thread["msgs"][-1]["author"] != "claude"
+
+
+def seat_root(thread: dict) -> str | None:
+    """The widget whose conversation seat this thread's root stands in.
+
+    An element anchor naming that widget and carrying nothing else, which is the
+    runtime's `seatRoot` and the anchor `renderConversations` collects into the seat's
+    own view. Narrower than `anchored_ids`, deliberately: a quote anchor points into
+    the widget's words rather than standing in the box it offers, and the reader can
+    see the difference — one is a note on a phrase, the other is the cell.
+
+    A reply whose root the log lost is its own root and carries no anchor, so it seats
+    nowhere. No cell on the page shows it either."""
+    root = thread["root"]
+    anchor = root.get("anchor")
+    if root.get("about") or not anchor or len(anchor) != 1:
+        return None
+    return anchor.get("section")
+
+
+def seats_with_agent(threads: dict) -> set[str]:
+    """Widget ids whose own seat holds a conversation now waiting on the agent.
+
+    A request whose own conversation is with the agent is not one the reader has to
+    deal with, so an ask projection reading their list subtracts these. It is not an
+    answer — the widget's state is untouched — which is why the reading that asks
+    whether a request is answered passes an empty set instead. The runtime builds the
+    same set from `awaitsAgent` over `seatRoot`, so the banner's count and `page state`
+    cannot disagree about whose turn it is.
+
+    Whose thread it is does not enter into it: the agent may open one in the seat too,
+    and once the reader has answered there the question is with the agent either way.
+
+    Takes the built fold rather than the log, because every caller already holds one:
+    `build_threads` walks the whole log and tests each action against the retraction
+    floors, and a second fold of the same events in the same function is that walk
+    done twice for one answer."""
+    return {
+        seat for t in threads.values() if awaits_agent(t) and (seat := seat_root(t))
+    }
+
+
+def note_settlements(event: dict, kind: str) -> set[str]:
+    """The ids one version note settles for a provisional-information kind."""
+    return {
+        target["id"] for target in event.get("settles", []) if target["kind"] == kind
+    }
+
+
+def work_claim_version(claim: dict, events: list) -> int:
+    """The published page at a claim's sole stored temporal boundary."""
+    return max(
+        event["version"]
+        for event in events
+        if event["kind"] == "note" and event["seq"] <= claim["after"]
+    )
+
+
+def standing_work_claims(
+    status: dict, events: list, *, include_resolved: bool = False
+) -> list:
+    """The transient work claims the durable exchange has not ended.
+
+    A claim starts after one exact log sequence. Thread work ends at the agent's
+    next reply in that conversation; widget work ends at a later version note
+    that explicitly settles its id. The sequence boundary matters in both
+    directions: renewing work after an answer creates a new claim, and an old
+    answer cannot settle it merely because it names the same subject.
+
+    Resolution only hides a thread claim. An unresolve can make it visible again,
+    so callers carrying status across a rewrite ask to include resolved threads;
+    presence does not. A reply and a widget settlement are permanent log answers and
+    are filtered in both readings.
+    """
+    threads = build_threads(events, {})
+    standing = []
+    for claim in status.get("work", []):
+        subject = claim["subject"]
+        after = claim["after"]
+        if subject["kind"] == "thread":
+            thread = threads.get(subject["id"])
+            if thread is None:
+                continue
+            replied = any(
+                msg["kind"] == "reply"
+                and msg["author"] == "claude"
+                and msg["seq"] > after
+                for msg in thread["msgs"]
+            )
+            if replied or (thread["resolved"] and not include_resolved):
+                continue
+        elif subject["kind"] == "widget":
+            if any(
+                event["kind"] == "note"
+                and event["seq"] > after
+                and subject["id"] in note_settlements(event, "work")
+                for event in events
+            ):
+                continue
+        else:
+            continue
+        standing.append(claim)
+    return standing
+
+
+def thread_roots(events: list) -> dict:
+    """Message id → the id of the comment that opened its thread.
+
+    Two readings of the panel's own document resolve a reply to its root, and they
+    must answer alike: a decision and an ask naming different conversations for one
+    message is a disagreement no reader could account for. (`build_threads` walks the
+    same relation to a different end — the thread object itself, with its resolution —
+    so it keeps its own walk, and answers the same way where the log is torn.)
+
+    A reply whose root the log lost stands as its own thread rather than raising.
+    `read_events` skips a line nothing could be done with and keeps reading, and a
+    reader who can see the reply is owed the rest of the page around it."""
+    root = {}
+    for e in events:
+        if e["kind"] == "comment":
+            root[e["id"]] = e["id"]
+        elif e["kind"] == "reply":
+            root[e["id"]] = root.get(e["parent"], e["parent"])
+    return root
+
+
+class ThreadStructure(NamedTuple):
+    ids: set
+    by_id: dict
+    fragments: dict
+
+
+def thread_structure(events: list) -> ThreadStructure:
+    """Parse each logged markup fragment once into the panel's id universe."""
+    ids, by_id, fragments = set(), {}, {}
+    for e in events:
+        if markup := e.get("markup"):
+            fragment = parse_structure(markup)
+            fragments[e["id"]] = fragment
+            ids.update(fragment.ids)
+            by_id.update(fragment.by_id)
+    return ThreadStructure(ids, by_id, fragments)
+
+
+def thread_widgets(structure: ThreadStructure, roots: dict) -> dict:
+    """Widget id → the conversation whose frozen markup holds it.
+
+    The relation on its own, apart from `thread_universe`, which wants it
+    alongside the records and words a vocabulary supplies — so a caller needing
+    only this does not load a registry to reach it. It takes the two readings
+    rather than the log, so the caller that already holds them does not parse
+    every fragment a second time."""
+    return {
+        widget: roots[event_id]
+        for event_id, fragment in structure.fragments.items()
+        if event_id in roots
+        for widget in fragment.by_id
+    }
+
+
+def event_threads(event: dict, roots: dict, widgets: dict) -> list:
+    """The conversations one event belongs to — empty for news about the page.
+
+    Every kind that belongs to a thread names it differently, and none of them
+    names it outright: a message through the message it answers, a resolve
+    through any message in the thread, an action two ways at once. One reading
+    of that relation, so a delivery and a projection cannot put the same event
+    in different conversations.
+
+    An action is in the conversation it was sent in, where an agent sent its
+    widget, and in the conversation it settles, which `detail.resolves` names —
+    the same key `build_threads` folds on to close one. Those are usually
+    different threads and often only the second exists: the shipped settling
+    verb is `lf-suggestion`'s accept, whose widget stands on the page and in no
+    conversation at all. Reading the widget alone left the gesture that closes a
+    thread as the one gesture arriving with nothing behind it.
+
+    A `report` carries a widget too and belongs to no conversation: `cmd_report`
+    validates its target against the published version's own elements, so one
+    can never name a widget an agent sent."""
+    kind = event["kind"]
+    if kind in {"comment", "reply"}:
+        named = [roots.get(event["id"])]
+    elif kind in {"resolve", "unresolve"}:
+        named = [roots.get(event["parent"])]
+    elif kind == "action":
+        named = [widgets.get(event["widget"]), event["detail"].get("resolves")]
+    else:
+        return []
+    return [thread for thread in dict.fromkeys(named) if thread]
+
+
+# What one message is, to a reader holding no page: who said it, what they said,
+# the widget they sent with it, and the id an answer names. `seq` is the log
+# position, which is also what marks a message as already delivered. A
+# `suggestion` is the reader proposing exact replacement words rather than
+# describing a change, and the loop owes it a different answer — taken verbatim,
+# or declined with a reason — so a digest that dropped the flag rendered it as
+# ordinary prose and lost the obligation with it.
+MESSAGE_FIELDS = (
+    "id",
+    "seq",
+    "author",
+    "agent",
+    "text",
+    "markup",
+    "suggestion",
+)
+
+# How much of one conversation a digest carries: the message that opened it,
+# because it holds the question the thread is about, and the most recent, being
+# what a new one answers. `leaf transcript` prints the exchange whole for a
+# reader who needs the middle.
+#
+# The bound is the point. A delivery reprints the entire thread every time,
+# because the agent it is for may hold none of it — so unbounded, the header
+# grows with the conversation until it alone outgrows the output it prints
+# into. That is the one shape acknowledgement cannot recover from: the ack rule
+# says to rerun with more capacity, and a rerun prints the same oversize header,
+# so nothing can ever be acked and the wait repeats forever.
+SHOWN = 8
+
+# What one gesture on a sent widget is, unfolded. `author` for the same reason a
+# message carries one: who did it is part of what happened, and the alternative
+# is this reading asserting that only the reader ever can.
+ACTION_FIELDS = ("id", "seq", "author", "widget", "action", "detail")
+
+
+def ends_kept(items: list, pin: frozenset = frozenset()) -> list:
+    """The first, anything pinned, and the most recent, where a run outgrows
+    `SHOWN`.
+
+    A pin outranks the bound because some of what the bound would drop is what
+    the rest is read against. Pins come from the actions the same digest
+    carries, which the bound has already capped, so the whole stays bounded at
+    twice `SHOWN`."""
+    if len(items) <= SHOWN:
+        return items
+    keep = {0, *range(len(items) - SHOWN + 1, len(items))}
+    keep |= {i for i, item in enumerate(items) if item.get("id") in pin}
+    return [items[i] for i in sorted(keep)]
+
+
+def thread_digest(
+    thread: dict, omit: frozenset = frozenset(), pin: frozenset = frozenset()
+) -> dict:
+    """One conversation as a reader away from the panel needs it: the passage it
+    hangs on, who closed it, and what was said.
+
+    `omit` drops messages by log sequence, which is how a delivery carries the
+    exchange its own events land in without printing them twice. `pin` keeps a
+    message the bound would otherwise drop. `elided` says how many went, so a
+    reader can tell a short conversation from a shortened one and knows to
+    reach for `leaf transcript`."""
+    kept = [m for m in thread["msgs"] if m["seq"] not in omit]
+    shown = ends_kept(kept, pin)
+    return {
+        "id": thread["root"]["id"],
+        "anchor": thread["root"].get("anchor"),
+        # Who closed it, or null for a thread still open — a thread an agent
+        # closed is one the reader may never have answered.
+        "resolved": thread["resolved"] and thread["resolved"]["author"],
+        "elided": {"messages": len(kept) - len(shown), "actions": 0},
+        "messages": [
+            {key: m[key] for key in MESSAGE_FIELDS if key in m} for m in shown
+        ],
+    }
+
+
+def batch_threads(events: list, batch: list) -> list:
+    """The conversations a delivered batch lands in, with what was said before it.
+
+    A root comment states its own anchor and needs no history, and that is the
+    whole of what a delivered event carries: a reply names the message it
+    answers, an action its widget and whatever it settles, an undo an event.
+    Those ids are the session's own memory of the exchange, and a session that
+    has compacted, or one picking the page up, no longer holds it — so the news
+    arrives with nothing behind it and the reply goes out against half a
+    conversation. The envelope carries the rest, once per thread however many of
+    its events the batch holds, and leaves out the batch's own messages because
+    they follow on the next lines.
+
+    A widget an agent sent is part of the conversation too, so `actions` carries
+    what the reader did to one: without it the question reaches the agent and
+    the answer does not, and the reply reopens something already settled.
+    `page state` gets none of these, because it folds them into its own `state`
+    list with the thread named, and one fact read twice in one object is a fact
+    that can differ from itself.
+
+    Read from the log alone, as the Stop hook reads it: the containment half of
+    the retraction test wants a published page and its vocabulary, and neither
+    is worth a delivery that raises. Today that costs nothing. `action_rests_on`
+    needs the page only for ids a verb's detail names inside its own widget, and
+    the one shipped verb that settles a conversation — `lf-suggestion`'s accept
+    — names the thread and nothing else, so every settling reading here is
+    exact. A package declaring a settling verb whose detail can name a contained
+    id would break that both ways at once, showing a retracted settlement as
+    standing and a retracted superseder as masking one.
+
+    The actions are unfolded because folding wants the declarations that say
+    what a verb's unit and facet are, and they need no window: thread markup is
+    frozen, so no version bounds it and no retraction floor reaches it, and undo
+    is the whole of what unseats one."""
+    roots = thread_roots(events)
+    structure = thread_structure(events)
+    widgets = thread_widgets(structure, roots)
+    by_id = {e["id"]: e for e in events}
+    named = []
+    for event in batch:
+        # An undo carries no thread of its own; it belongs to the one holding
+        # the gesture it takes back. A log torn between the two leaves nothing
+        # to resolve, and an undo of an undo is not a shape the door accepts.
+        subject = by_id.get(event["undoes"]) if event["kind"] == "undo" else event
+        for thread in event_threads(subject, roots, widgets) if subject else []:
+            if thread not in named:
+                named.append(thread)
+    threads = build_threads(events, {})
+    delivered = frozenset(event["seq"] for event in batch)
+    withdrawn = taken_back(events)
+    gestures: dict = {}
+    for event in events:
+        if (
+            event["kind"] == "action"
+            and event["id"] not in withdrawn
+            and event["seq"] not in delivered
+            and (thread := widgets.get(event["widget"]))
+        ):
+            gestures.setdefault(thread, []).append(
+                {key: event[key] for key in ACTION_FIELDS}
+            )
+    # A gesture names a widget, and what that widget asked lives only in the
+    # message that sent it — page markup is a file read away, thread markup is
+    # nowhere but the log. So the message declaring a widget any carried or
+    # delivered gesture names is pinned past the bound; eliding it leaves an
+    # action naming ids nothing in the envelope spells out, which is the defect
+    # this whole reading exists to fix, surviving in the long-thread case.
+    carried = []
+    for t in named:
+        if t not in threads:
+            continue
+        acted = ends_kept(gestures.get(t, []))
+        spoken_for = {a["widget"] for a in acted}
+        spoken_for |= {
+            e["widget"]
+            for e in batch
+            if e["kind"] == "action" and widgets.get(e["widget"]) == t
+        }
+        pin = frozenset(
+            sent
+            for sent, fragment in structure.fragments.items()
+            if fragment.by_id.keys() & spoken_for
+        )
+        digest = thread_digest(threads[t], delivered, pin)
+        digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
+        digest["actions"] = acted
+        if digest["messages"] or digest["actions"]:
+            carried.append(digest)
+    return carried
+
+
+def retractions(events: list, upto=None) -> dict:
+    """id → the greatest version whose `restated` note took back its decision."""
+    at = {}
+    for event in events:
+        if event["kind"] == "note" and (upto is None or event["version"] <= upto):
+            for named in event.get("restated", []):
+                at[named] = max(at.get(named, 0), event["version"])
+    return at
+
+
+def report_settlements(events: list, upto=None) -> dict:
+    """Report event id → the greatest version whose note settled it."""
+    at = {}
+    for event in events:
+        if event["kind"] != "note" or (upto is not None and event["version"] > upto):
+            continue
+        for identity in note_settlements(event, "report"):
+            at[identity] = max(at.get(identity, 0), event["version"])
+    return at
+
+
+def action_rests_on(event: dict, spk: dict) -> list:
+    """The runtime's restsOn, read the same way here: the sending widget plus
+    every detail id it contains. This is the one key space for liveness — fold
+    survival, retraction floors, and the earning of `restated` all go through
+    it, in both runtimes — while `action_subjects` stays the words gate's finer,
+    subject-keyed view of the same containment. Two views, one containment test;
+    a third keying would fork the JS/Python twin a third way."""
+    widget = event["widget"]
+    parts = [
+        v
+        for field in event["detail"].values()
+        for v in (field if isinstance(field, list) else [field])
+        if isinstance(v, str) and widget in spk.get(v, EMPTY).within
+    ]
+    return [widget, *parts]
+
+
+def action_retracted(event: dict, floors: dict, spk: dict) -> bool:
+    """Whether a retraction has taken this action back: true when any id it rests
+    on carries a floor from a version later than the one the action was made on.
+
+    One predicate for every reader of liveness — the fold's survival test, the
+    words gate's, and the thread a decision settles — because a decision the log
+    has taken back has to be absent everywhere at once. It was written out twice
+    and a third reader went without: `build_threads` settled a thread on an accept
+    and never asked, so a suggestion the next version rewrote came back pending
+    with the thread it had answered still filed away, and the user was never asked
+    the question again."""
+    return any(floors.get(i, 0) > event["version"] for i in action_rests_on(event, spk))

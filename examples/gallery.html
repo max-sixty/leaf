@@ -444,7 +444,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
             At 40 MB a workspace, something has to give. Nothing in the beta reached the
             cap, so this decides what happens to the first workspace that does. My
             recommendation is the first. Pick one to settle it; if you want a fourth
-            behaviour, the box below takes it.
+            behaviour, the empty option under them takes it in your own words.
           </p>
           <lf-options id="off-full-store" choose>
             <lf-option id="off-fs-evict" recommended
@@ -622,8 +622,8 @@ and we have reported it; the workaround ships either way.
           <h2>What I pick up next</h2>
           <p id="off-followup-intro">
             Four jobs stand behind the ship, none of them holding it. Tick whichever you
-            want started, by click or by keyboard, and write a fifth in the box if I
-            have missed one.
+            want started, by click or by keyboard, and write a fifth in the last row if
+            I have missed one.
           </p>
           <lf-options id="off-followups" choose multiple>
             <lf-option id="off-fu-drill" for="off-merge"
@@ -664,8 +664,11 @@ and we have reported it; the workaround ships either way.
             account-takeover response.
           </li>
           <li>
-            Session writes happen on every request (rolling expiry), so the store sees
-            full request volume.
+            Session writes happen on every request (<lf-gloss
+              id="session-rolling-expiry"
+              tip="Extending a session's expiration time whenever it is used."
+              >rolling expiry</lf-gloss
+            >), so the store sees full request volume.
           </li>
           <li>
             The team already operates Redis for rate limiting; nobody runs Dynamo-style
@@ -895,8 +898,8 @@ graph LR
           <p id="next-intro">
             Whichever store wins, three jobs stand behind it, and each is argued
             somewhere above rather than in a card of its own. Pick the ones worth
-            starting — click a row, or Tab to its mark and press Enter — and the box
-            takes anything the rows don't cover, including "none of these".
+            starting — click a row, or Tab to its mark and press Enter — or write
+            another option in the last row if none of these is the job.
           </p>
           <lf-options id="next-jobs" choose multiple>
             <lf-option id="nx-revoke" for="constraints" recommended
@@ -1120,8 +1123,8 @@ graph LR
         <lf-ask id="pm-where-ask">
           <h2>Still open</h2>
           <p id="pm-where-note">
-            Click an option to settle each of these, or write a different answer in the
-            box beneath it.
+            Click an option to settle each of these, or write another one in the empty
+            option under them.
           </p>
           <lf-options id="pm-where" choose>
             <lf-option id="pm-wh-status"
@@ -1330,13 +1333,40 @@ def bucket_key(self, request):
 
       <section id="testing">
         <h2>Testing</h2>
-        <ul id="test-list">
-          <li>Unit: bucket key for tokened, untokened, and both-present requests.</li>
-          <li>
-            Integration: two tokens behind one address each get a full budget; two
-            addresses on one token share one.
-          </li>
-        </ul>
+        <table id="test-table">
+          <caption>
+            What each half of the change proves, and the test that holds it.
+          </caption>
+          <thead>
+            <tr>
+              <th>Suite</th>
+              <th>What it proves</th>
+              <th>Held by</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Unit</th>
+              <td>The bucket key for tokened, untokened, and both-present requests.</td>
+              <td>
+                <code
+                  >test_the_bucket_key_prefers_the_token_and_falls_back_to_the_address</code
+                >
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Integration</th>
+              <td>
+                Two tokens behind one address each get a full budget; two addresses on
+                one token share one.
+              </td>
+              <td>
+                <code>test_two_tokens_behind_one_address_each_get_a_full_budget</code>,
+                <code>test_two_addresses_on_one_token_share_one_budget</code>
+              </td>
+            </tr>
+          </tbody>
+        </table>
         <p id="test-run">Both suites run under the rate-limit marker:</p>
         <pre
           id="test-cmd"
@@ -1440,6 +1470,169 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
       </section>
 </lf-tab>
 
+<lf-tab id="gal-heat-loss" label="Heating review">
+<h1>Where the heat goes</h1>
+      <p class="lede" id="heat-lede">
+        You sent me the meter readings, the thermostat log, and the survey the installer
+        left behind. This is what they say together. A chart has no words to select, so
+        click one and the comment lands on the whole picture — say which number you want
+        and I will put it in the next version. The last section asks which measure to
+        pay for first.
+      </p>
+
+      <section id="heat-years-section">
+        <h2>Five winters</h2>
+        <p id="heat-years-note">
+          The meter has November-to-March totals back to 2021. This winter is the lowest
+          of the five, and it is also the mildest, which is the reason for everything
+          below.
+        </p>
+        <lf-chart id="heat-years" kind="bars" y="gas, kWh a winter">
+          <pre>
+winter, meter
+2021-22, 11840
+2022-23, 10920
+2023-24, 11510
+2024-25, 12260
+2025-26, 10480
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="heat-winter">
+        <h2>This winter, week by week</h2>
+        <p id="heat-winter-note">
+          Gas use climbed until the week before Christmas and then fell away faster than
+          the weather did. The draught-proofing went in on 12 January, which is the week
+          the line turns.
+        </p>
+        <lf-chart id="heat-weekly" kind="line" y="gas, kWh a week">
+          <pre>
+week, meter
+2025-11-17, 441
+2025-11-24, 470
+2025-12-01, 512
+2025-12-08, 538
+2025-12-15, 561
+2025-12-22, 604
+2025-12-29, 588
+2026-01-05, 597
+2026-01-12, 542
+2026-01-19, 498
+</pre>
+        </lf-chart>
+        <p id="heat-winter-caveat">
+          One of those weeks is not comparable: the boiler was serviced on 8 December,
+          so that week starts a day late and reads low for a reason the weather cannot
+          explain.
+        </p>
+      </section>
+
+      <section id="heat-split">
+        <h2>What the gas is doing</h2>
+        <p id="heat-split-note">
+          The meter cannot tell heating from hot water, so this split comes from the
+          boiler's own hour counters. Hot water and cooking barely move across the
+          winter; the whole of the seasonal swing is space heating.
+        </p>
+        <lf-chart id="heat-uses" kind="stack" y="gas, kWh a month">
+          <pre>
+month, space heating, hot water, cooking
+Nov, 1180, 320, 60
+Dec, 1890, 350, 95
+Jan, 1720, 340, 70
+Feb, 1240, 315, 60
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="heat-fabric">
+        <h2>Where it leaves</h2>
+        <p id="heat-fabric-note">
+          These five are the installer's survey, in watts lost at a 20°C difference
+          between inside and out. The bay window is a third of the five together.
+        </p>
+        <lf-chart id="heat-elements" kind="rows" y="watts lost">
+          <pre>
+element, loss
+single-glazed bay window, 410
+uninsulated loft hatch, 265
+suspended timber floor, 240
+front door and letterbox, 155
+chimney with no cap, 120
+</pre>
+        </lf-chart>
+      </section>
+
+      <section id="heat-weather">
+        <h2>Against the weather</h2>
+        <p id="heat-weather-note">
+          Every week sits at its own average outside temperature, so a colder winter
+          cannot be mistaken for a leakier house. The two runs are the same house six
+          weeks apart: the second sits about 40 kWh a week below the first at the same
+          temperature, which is the draught-proofing showing up.
+        </p>
+        <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
+          <pre>
+outside average, before, after
+2.1, 604,
+3.0, 588,
+3.4, 561,
+4.2, 538,
+5.0, 512,
+6.1, 470,
+2.6, , 542
+3.8, , 498
+5.2, , 470
+6.4, , 449
+</pre>
+        </lf-chart>
+      </section>
+
+      <lf-ask id="heat-first-ask">
+        <h2>Which one first</h2>
+        <p id="heat-first-note">
+          The three are independent, and doing all of them this year needs the floor to
+          come up while the room is being used. Pick the one to book now; the click
+          records it and I will get the date from whichever firm you name.
+        </p>
+        <lf-options
+          id="heat-first"
+          choose
+          label="Which measure should be booked first?"
+        >
+          <lf-option id="heat-opt-hatch">
+            <strong>The loft hatch</strong>
+            <lf-chip>£180</lf-chip><lf-chip tone="ok">an afternoon</lf-chip>
+            <p>
+              265 watts for the cheapest job on the list, and nothing has to be moved to
+              do it. It is the smallest saving of the three and the only one that can
+              happen next week.
+            </p>
+          </lf-option>
+          <lf-option id="heat-opt-window">
+            <strong>Secondary glazing on the bay</strong>
+            <lf-chip>£1,180</lf-chip><lf-chip>three weeks' lead</lf-chip>
+            <p>
+              The largest single loss, and the room nobody sits in during January. The
+              quote is for an internal panel, so the sash and the outside of the house
+              are untouched.
+            </p>
+          </lf-option>
+          <lf-option id="heat-opt-floor">
+            <strong>Under the floorboards</strong>
+            <lf-chip>£2,100</lf-chip
+            ><lf-chip tone="warn">the room is out for a week</lf-chip>
+            <p>
+              240 watts, and the disruption of the three. It is worth doing before the
+              floor is refinished rather than after, which is the argument for taking it
+              now instead of next winter.
+            </p>
+          </lf-option>
+        </lf-options>
+      </lf-ask>
+</lf-tab>
+
 <lf-tab id="gal-triage-board" label="Triage board">
 <h1>Release triage</h1>
       <p class="lede" id="triage-lede">
@@ -1530,49 +1723,10 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
           Two workers own separate worktrees; the whole row opens both. The stalled
           dedupe leaf filed itself around this goal rather than turning a worker into a
           pet.
-          <lf-agent
-            id="w-1"
-            state="working"
-            on="parser-declarations"
-            branch="atlas/xml-declarations"
-          >
+          <lf-agent id="w-1" state="working" on="parser-declarations">
             <strong>w-1</strong> Parser area owner; focused now on declarations and
             entity boundaries, but responsible for this whole branch of the plan.
-            <lf-worktree
-              id="tree-w-1"
-              branch="atlas/xml-declarations"
-              base="9d35f25"
-              head="b781f0c"
-              ahead="3"
-              behind="0"
-              additions="214"
-              deletions="61"
-              commits="3"
-              tests="running"
-              tested-at="now"
-              committed-at="2026-08-21T11:42:00-07:00"
-            >
-              <lf-tree id="files-w-1">
-                <pre>
-atlas/parse/
-  declarations.py  +126 -22
-  entities.py  +63 -31
-tests/
-  test_declarations.py  +25 -8
-</pre>
-              </lf-tree>
-              <lf-diff id="diff-w-1">
-                <pre>
-diff --git a/atlas/parse/declarations.py b/atlas/parse/declarations.py
---- a/atlas/parse/declarations.py
-+++ b/atlas/parse/declarations.py
-@@ -41,3 +41,5 @@ def declaration(token):
--    return token.split(" ", 1)[0]
-+    name, _, payload = token.partition(" ")
-+    return Declaration(name=name, payload=payload)
-</pre>
-              </lf-diff>
-            </lf-worktree>
+            <lf-worktree id="tree-w-1" source="atlas-worktrees"></lf-worktree>
           </lf-agent>
           <lf-task id="parser-declarations" status="active">
             <strong>Declarations and entities</strong> Three new corpus cases remain.
@@ -1581,39 +1735,9 @@ diff --git a/atlas/parse/declarations.py b/atlas/parse/declarations.py
             </lf-task>
             <lf-task id="parser-cdata" status="done">
               <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-              <lf-agent
-                id="w-2"
-                state="working"
-                on="parser-cdata"
-                branch="atlas/xml-cdata"
-              >
+              <lf-agent id="w-2" state="working" on="parser-cdata">
                 <strong>w-2</strong> CDATA specialist: escaped-markup corpus cases.
-                <lf-worktree
-                  id="tree-w-2"
-                  branch="atlas/xml-cdata"
-                  base="9d35f25"
-                  head="12c4a91"
-                  ahead="2"
-                  behind="0"
-                  additions="88"
-                  deletions="17"
-                  commits="2"
-                  tests="failing"
-                  tested-at="last push"
-                  committed-at="2026-08-21T11:31:00-07:00"
-                >
-                  <lf-diff id="diff-w-2">
-                    <pre>
-diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py
---- a/atlas/parse/cdata.py
-+++ b/atlas/parse/cdata.py
-@@ -19,2 +19,3 @@ def read_cdata(stream):
--    return stream.read_until("]]>")
-+    body = stream.read_until("]]>")
-+    return html.unescape(body)
-</pre>
-                  </lf-diff>
-                </lf-worktree>
+                <lf-worktree id="tree-w-2" source="atlas-worktrees"></lf-worktree>
               </lf-agent>
             </lf-task>
           </lf-task>
@@ -1625,28 +1749,10 @@ diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py
             <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
             activity produced no commit. Last worktree:
             <a href="#tree-w-2">atlas/xml-cdata</a>.
-            <lf-agent
-              id="w-5"
-              state="reaped"
-              on="parser-dedupe"
-              branch="atlas/dedupe-attempt"
-            >
+            <lf-agent id="w-5" state="reaped" on="parser-dedupe">
               <strong>w-5</strong> Dedupe specialist, reaped after three hours without a
               commit; its branch and evidence remain inspectable.
-              <lf-worktree
-                id="tree-w-5"
-                branch="atlas/dedupe-attempt"
-                base="9d35f25"
-                head="9d35f25"
-                ahead="0"
-                behind="0"
-                additions="0"
-                deletions="0"
-                commits="0"
-                tests="not-run"
-              >
-                <pre>No diff was produced before this worker was reaped.</pre>
-              </lf-worktree>
+              <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
             <lf-ask id="ask-dedupe-region">
               <lf-options
@@ -1707,35 +1813,10 @@ diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py
           >
             <strong>Choose the additive schema</strong> Both columns are nullable; the
             migration and reverse path are green.
-            <lf-agent id="w-8" state="working" on="schema-choice" branch="atlas/schema">
+            <lf-agent id="w-8" state="working" on="schema-choice">
               <strong>w-8</strong> Schema-choice specialist: migration and
               reconciliation evidence.
-              <lf-worktree
-                id="tree-w-8"
-                branch="atlas/schema"
-                base="9d35f25"
-                head="4e0bd62"
-                ahead="4"
-                behind="0"
-                additions="99"
-                deletions="14"
-                commits="4"
-                tests="passing"
-                tested-at="last push"
-                committed-at="2026-08-21T08:10:00-07:00"
-              >
-                <lf-diff id="diff-w-8">
-                  <pre>
-diff --git a/schema/atlas.sql b/schema/atlas.sql
---- a/schema/atlas.sql
-+++ b/schema/atlas.sql
-@@ -18,2 +18,4 @@ CREATE TABLE ledger_entry (
-   booked_at TIMESTAMPTZ NOT NULL,
-+  refunded_minor BIGINT NULL,
-+  reconciled_at TIMESTAMPTZ NULL,
-</pre>
-                </lf-diff>
-              </lf-worktree>
+              <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
             <lf-ask id="ask-schema-region">
               <lf-options id="ask-schema" label="Land the schema migration?" choose>
@@ -1796,35 +1877,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           here.
           <lf-task id="api-shape" status="active">
             <strong>Review the public result type</strong>
-            <lf-agent id="w-3" state="working" on="api-shape" branch="atlas/public-api">
+            <lf-agent id="w-3" state="working" on="api-shape">
               <strong>w-3</strong> Public-contract specialist: result types and
               compatibility tests.
-              <lf-worktree
-                id="tree-w-3"
-                branch="atlas/public-api"
-                base="9d35f25"
-                head="a9132fd"
-                ahead="2"
-                behind="1"
-                additions="74"
-                deletions="28"
-                commits="2"
-                tests="passing"
-                tested-at="last push"
-                committed-at="2026-08-21T10:20:00-07:00"
-              >
-                <lf-diff id="diff-w-3">
-                  <pre>
-diff --git a/atlas/api.py b/atlas/api.py
---- a/atlas/api.py
-+++ b/atlas/api.py
-@@ -7,3 +7,3 @@ class ImportResult:
--    errors: list[str]
-+    failures: tuple[ImportFailure, ...]
-     rows: int
-</pre>
-                </lf-diff>
-              </lf-worktree>
+              <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
             <lf-ask id="ask-api-region">
               <lf-options id="ask-api" label="Disposition for atlas/public-api" choose>
@@ -1905,6 +1961,7 @@ diff --git a/atlas/api.py b/atlas/api.py
         discussing first. When the set reads well, sign off; if a note shouldn't ship at
         all, say so in a comment.
       </p>
+      <lf-toc id="rn-contents"></lf-toc>
 
       <section id="rn-cli-section">
         <h2>CLI</h2>

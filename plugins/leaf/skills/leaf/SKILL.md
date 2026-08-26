@@ -18,11 +18,26 @@ in chat, including interim updates, questions, and the final handoff.
 
 ## Page contract
 
+Using Leaf should feel like playing a game. Sometimes the game is Snap, where
+the reader sees the match at once and picks it; sometimes it is Factorio, where
+the whole system is laid out and the reader moves its pieces. It is never a chore, so a
+reader can see what the page wants of them without reading it first.
+
 The subject decides the shape. Use options for decisions, boards for movable
 work, milestones for stages, metrics for measurements, and prose where no other
-shape fits. What stands open in the column is what the reader has to take from
-the page, and its backing sits under `<details>`. `leaf page catalog
-<page>` is the authority for the vendored vocabulary and theme.
+shape fits. Prose connects the shapes, so keep it short. What stands open in the
+column is what the reader has to take from the page, and its backing sits under
+`<details>`. `leaf page catalog <page>` is the authority for the vendored
+vocabulary and theme.
+
+The stakes decide the ceremony. A quick page — one that exists to get a
+reaction now and will be revised or dropped on it, whatever shape it takes —
+goes out on the markup check publishing already runs. A finished record — one
+that later work reads from after the conversation ends: a write-up, a findings
+report, the design a build follows — also passes the browser gate and a
+read-through before its URL first reaches the user. A quick page becomes a
+record when a version makes it one; that review runs before that version goes
+out. Both kinds set status and enter the wait loop.
 
 Packages may also carry guidance for roles involved in the page. `leaf page
 guidance <page>` lists the available audiences, and `leaf page guidance <page>
@@ -50,7 +65,7 @@ is absent, report that the plugin payload is incomplete. A checkout keeps it at
 
 1. Run `leaf page init <page>`, then run and read
    `leaf page catalog <page>`.
-2. Read `references/page-authoring.md`. Write a complete first version to
+2. Read `references/page-authoring.md`. Write the first version to
    `<page>/versions/v1.html` using only the catalog's tags, attributes, and
    idioms.
 3. Start the service with `leaf server start <page>` and retain its exact URL.
@@ -58,9 +73,12 @@ is absent, report that the plugin payload is incomplete. A checkout keeps it at
 4. Publish with
    `leaf version publish <page> --version 1 --text "<changelog>"`. Publishing
    runs the static markup check.
-5. Before the URL first reaches the user, repeat the pre-handover review in
+5. On a finished record, run the pre-handover review in
    `references/page-authoring.md`, including
-   `leaf version check <page> --render`.
+   `leaf version check <page> --render`, before the URL first reaches the
+   user — or, when a version turns a quick page into a record, before that
+   version goes out. A quick page otherwise goes out on the publish check
+   alone.
 6. Read `references/conversation-loop.md`. Set
    `leaf status <page> waiting "<what you want back>"`; leave the detail empty
    on an informational page with no concrete ask.
@@ -78,13 +96,23 @@ seen.
 Read references directly from this skill directory. They do not route to one
 another.
 
-- `references/page-authoring.md`: before writing or revising a version and again
-  before the first handoff.
+- `references/page-authoring.md`: before writing or revising a version.
 - `references/conversation-loop.md`: before waiting, processing a delivered
   batch, opening or replying to a thread, or ending a page.
 - `references/serving-pages.md`: for `--export`, an unreachable URL, `--host`, a
   standing page, re-vendoring a served page, or resuming another session's page.
 - `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
+- `references/internals/page-storage.md`: when changing page files or storage
+  invariants.
+- `references/internals/session-lifetime.md`: when changing work claims,
+  watchers, hooks, or server lifetime.
+- `references/internals/layer-registry.md`: when changing composition or the
+  registry's custom vocabulary.
+- `references/internals/events.md`: when changing events, undo, authorship, or
+  conversation semantics.
+- `references/internals/validation.md`: when changing static or browser
+  validation, passages, or parsed source. These internal contracts are not for
+  ordinary page use.
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

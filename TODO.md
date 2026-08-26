@@ -21,7 +21,8 @@
   Two halves of one gap, measured together and left because neither known mechanism
   closes it.
 
-  The ring sweep (`test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring`)
+  The ring sweep
+  (`test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus`)
   measures an outline, so a control indicating focus another way is counted as ringless
   and skipped — the runtime's own textareas take `outline: none` and draw a 2px spread
   `box-shadow` (`.lf-ui textarea:focus`). Widening the sweep to read a shadow's spread is

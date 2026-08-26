@@ -5,11 +5,19 @@ import itertools
 import json
 import os
 import re
+import time
 from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import http as http_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -32,6 +40,7 @@ from render_support import (
     _publish,
     compare_with,
     data_projection_page,
+    live_url,
     live_watcher,
     open_page,
     panel_settled,
@@ -46,6 +55,90 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    exports = page.evaluate(
+        """async () => {
+          const api = await import('/runtime/widget-api.js');
+          const entry = await import('/leaf.js');
+          const names = [
+            'clearDraft',
+            'closestDeclaring',
+            'declarationFor',
+            'elementsDeclaring',
+            'layerFact',
+            'loadDraft',
+            'matchesWhen',
+            'quietWord',
+            'saveDraft',
+            'sendDraft',
+            'watchDraft',
+          ];
+          return Object.fromEntries(names.map((name) => [name, {
+            api: typeof api[name],
+            entry: name in entry,
+          }]));
+        }"""
+    )
+    assert exports == {
+        name: {"api": "function", "entry": False}
+        for name in [
+            "clearDraft",
+            "closestDeclaring",
+            "declarationFor",
+            "elementsDeclaring",
+            "layerFact",
+            "loadDraft",
+            "matchesWhen",
+            "quietWord",
+            "saveDraft",
+            "sendDraft",
+            "watchDraft",
+        ]
+    }
+    assert errors == []
+    page.close()
+
+
+def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
+    """Acquiring web storage can itself throw before any method is called.
+
+    The stores' unavailable answer covers that outer browser boundary too, so a
+    locked-down page loses only remembered view state and drafts, not the page.
+    """
+    page, errors = open_page(
+        browser,
+        serve(SHORT_SUGGESTION),
+        init_script="""
+          for (const name of ['localStorage', 'sessionStorage'])
+            Object.defineProperty(window, name, {
+              configurable: true,
+              get() { throw new DOMException('blocked', 'SecurityError'); },
+            });
+        """,
+    )
+    expect(page.locator("main")).to_be_visible()
+    tab_store = page.evaluate(
+        """async () => {
+          const { tabStore } = await import('/runtime/widget-api.js');
+          return {
+            read: tabStore.read('refused'),
+            wrote: tabStore.set('refused', '1'),
+            keys: tabStore.keys(),
+            where: tabStore.where('refused'),
+          };
+        }"""
+    )
+    assert tab_store == {
+        "read": {"available": False, "value": None},
+        "wrote": False,
+        "keys": [],
+        "where": {"store": "session", "key": "refused"},
+    }
+    assert errors == []
+    page.close()
 
 
 def test_first_replay_is_the_pages_first_presentation(browser, serve):
@@ -83,7 +176,7 @@ main, main * {
         )
         .replace("</main>", SHADOWED_DIFF)
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -281,7 +374,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
     Once replay presents the page, the restored tray paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -334,7 +427,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
 def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     """Receiving state is not readiness while its message renderer is still loading."""
     url = serve(SHORT_SUGGESTION)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -641,7 +734,7 @@ def test_a_startup_failure_never_presents_unapplied_authored_state(browser, serv
     fixed explanation rather than the authored alternatives underneath it: those words
     predate the decision, and showing them as the live page would be a false answer."""
     url = serve(SHORT_SUGGESTION)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -696,7 +789,7 @@ def test_a_malformed_first_state_never_presents_unapplied_authored_state(
             "</title>", '</title><meta name="lf-review" content="sign-off">', 1
         )
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -823,7 +916,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     saying out loud."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -867,7 +960,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     on it and every later version inherits it for free."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -895,7 +988,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
         _draft_says(JOURNEY_V2, corrected, " restated")
     )
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "4", "--text", "again"],
     )
     assert result.exit_code != 0
@@ -971,7 +1064,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
     page.mouse.move(grip["x"] + grip["width"] / 2 + 12, grip["y"] + 12, steps=4)
     expect(page.locator(".lf-dragging")).to_have_count(1)
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1033,7 +1126,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
     )
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1075,7 +1168,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
     )
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1093,7 +1186,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # What the other tab's press leaves in the log, made against the same version:
     # its own accept and reject controls are still standing, because it has not
     # heard about this one's decision yet.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1122,7 +1215,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # it was reopened and closed again by that log being read.
     assert [
         e.get("action", e["kind"])
-        for e in interact.read_events(d)
+        for e in events_model.read_events(d)
         if e["kind"] in ("action", "undo", "resolve", "unresolve")
     ] == ["accept", "reject", "undo"]
     assert errors == []
@@ -1246,7 +1339,7 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     page.locator(".lf-general button").click()
     page.wait_for_function("() => window.lfDelayedPollCaptured === true")
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1289,7 +1382,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         older.append(route)
 
     page.route("**/api/state*", hold_older_state)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1342,7 +1435,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { keys } = await import('/leaf.js');
+          const { keys } = await import('/runtime/widget-api.js');
           keys(document.body, 'On a draft',
                [{ keys: ['F2'], does: 'a project widget using the same heading' }]);
         }"""
@@ -1421,8 +1514,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
                 ).isoformat(timespec="seconds"),
             )
         else:
-            interact.claim_path(d).unlink(missing_ok=True)
-        interact.write_json(d / "status.json", status)
+            service_model.claim_path(d).unlink(missing_ok=True)
+        files_model.write_json(d / "status.json", status)
         told(page)
 
     declare("working", "revising the plan")
@@ -1572,9 +1665,9 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     def claim(detail):
         record_claim(d)
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
-            {"state": "working", "detail": detail, "ts": interact.now_iso()},
+            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
         )
         told(page)
 
@@ -1616,7 +1709,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     again."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
     d = serve.page_dir
-    comments = [e for e in interact.read_events(d) if e["kind"] == "comment"]
+    comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
@@ -1625,7 +1718,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     def status(*args):
         assert (
-            CliRunner().invoke(interact.cli, ["status", str(d), *args]).exit_code == 0
+            CliRunner().invoke(cli_model.cli, ["status", str(d), *args]).exit_code == 0
         )
         told(page)
 
@@ -1663,7 +1756,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(work_line).to_contain_text("reading the reconnect traces")
 
     # The answer is what ends it.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1686,7 +1779,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(work_line).to_have_count(0)
@@ -1694,7 +1787,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # Reopening restores a claim that no reply answered. The local line still goes
     # with the page claim it is part of: once nothing holds the page, it cannot keep
     # claiming work under a banner that says the opposite.
-    interact.append_event(d, {"kind": "unresolve", "author": "user", "parent": held})
+    events_model.append_event(
+        d, {"kind": "unresolve", "author": "user", "parent": held}
+    )
     told(page)
     expect(work_line).to_have_count(1)
     record_claim(d, pid=dead_pid)
@@ -1724,19 +1819,19 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     it, so one elapsed line reads the same wherever it appears."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     d = serve.page_dir
-    held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
+    held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-work-line")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "rerunning the failing shard",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
                 "work": [
                     {
                         "id": "trace-check",
@@ -1744,7 +1839,9 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
                         "detail": "reading the reconnect traces",
                         "ts": claim_ts,
                         "after": next(
-                            e["seq"] for e in interact.read_events(d) if e["id"] == held
+                            e["seq"]
+                            for e in events_model.read_events(d)
+                            if e["id"] == held
                         ),
                         "agent": "Claude",
                         "session": session,
@@ -1754,7 +1851,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         )
         told(page)
 
-    claim(interact.now_iso())
+    claim(events_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
     expect(work_line).not_to_contain_text("quiet")
@@ -1813,7 +1910,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
     record_claim(d)
-    claim(interact.now_iso())
+    claim(events_model.now_iso())
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line).to_have_count(1)
     assert errors == []
@@ -1845,9 +1942,9 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             )
 
     def declare(state, **status):
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
-            {"state": state, "ts": interact.now_iso(), **status},
+            {"state": state, "ts": events_model.now_iso(), **status},
         )
         told(page)
 
@@ -1901,7 +1998,7 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
     url = data_projection_page(serve)
     page, errors = open_page(browser, url)
 
-    readings = page.evaluate("""() => import('/leaf.js').then(leaf => {
+    readings = page.evaluate("""() => import('/runtime/widget-api.js').then(leaf => {
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
@@ -1929,20 +2026,30 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
         "quote": "Ready",
     }
 
-    page.evaluate("""() => document.querySelector('#deployments').show([
-      {key: 'worker', value: 'Ready'},
-      {key: 'api', value: 'Ready'},
-    ])""")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "worker", "value": "Ready"},
+            {"key": "api", "value": "Ready"},
+        ],
+    )
     page.wait_for_function("""() => {
       const mark = [...(CSS.highlights.get('lf-mark') ?? [])][0];
       return mark?.startContainer?.isConnected
-        && mark.startContainer.parentElement.dataset.lfDatum === 'api';
+        && mark.startContainer.parentElement.dataset.lfDatum === 'api'
+        && document.querySelector('#deployments').firstElementChild.dataset.lfDatum
+          === 'worker';
     }""")
 
-    page.evaluate("""() => document.querySelector('#deployments').show([
-      {key: 'worker', value: 'Ready'},
-      {key: 'api', value: 'Running'},
-    ])""")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "worker", "value": "Ready"},
+            {"key": "api", "value": "Running"},
+        ],
+    )
     expect(page.locator('[data-lf-datum="api"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
@@ -1954,16 +2061,16 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
         re.compile(r"\bdetached\b")
     )
 
-    screen = page.evaluate(interact.PAPER_WORDS)
+    screen = page.evaluate(render_checks_model.PAPER_WORDS)
     page.emulate_media(media="print")
-    paper = page.evaluate(interact.PAPER_WORDS)
+    paper = page.evaluate(render_checks_model.PAPER_WORDS)
     assert paper == screen, "paper dropped or rewrote projected data"
     assert errors == []
     page.close()
 
 
 def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, monkeypatch
 ):
     """Export cannot refresh data after its scripts leave, so it preserves the rendered
     snapshot and the projection/key labels that say what kind of words these are. Dropping
@@ -1971,8 +2078,28 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     make it pretend the dead snapshot was still live.
     """
     url = data_projection_page(serve)
+    module = serve.page_dir / "widgets" / "lf-feed.js"
+    module.write_text(
+        module.read_text()
+        .replace(
+            "import {offer, projectData, watchData}",
+            "import {offer, projectData, settle, watchData}",
+        )
+        .replace(
+            "  connectedCallback() {",
+            "  connectedCallback() {\n"
+            "    settle(new Promise(resolve => setTimeout(resolve, 750)));",
+        )
+    )
+    native_page_state = http_model.Handler.page_state
+
+    def delayed_page_state(handler):
+        time.sleep(0.5)
+        return native_page_state(handler)
+
+    monkeypatch.setattr(http_model.Handler, "page_state", delayed_page_state)
     out = tmp_path / "data-copy.html"
-    out.write_text(interact.export_page(browser, url, serve.page_dir))
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page()
     errors = watched(page)
@@ -1985,5 +2112,234 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     assert page.locator("script").count() == 0, (
         "the snapshot still claims it can refresh"
     )
+    assert errors == []
+    page.close()
+
+
+def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
+    """Overlapping polls order data by its own revision, not by arrival time."""
+    delay_second_state = """
+      const nativeFetch = window.fetch.bind(window);
+      let stateCalls = 0;
+      window.fetch = async (...args) => {
+        const input = args[0];
+        const url = typeof input === 'string' ? input : input.url;
+        const response = await nativeFetch(...args);
+        if (new URL(url, location.href).pathname !== '/api/state') return response;
+        stateCalls += 1;
+        if (stateCalls !== 2) return response;
+        const body = await response.text();
+        window.lfOldDataCaptured = true;
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        window.lfOldDataReleased = true;
+        return new Response(body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      };
+    """
+    page, errors = open_page(
+        browser, data_projection_page(serve), init_script=delay_second_state
+    )
+    page.wait_for_function("() => window.lfOldDataCaptured === true")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    page.wait_for_function("() => window.lfOldDataReleased === true")
+    told(page)
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    assert errors == []
+    page.close()
+
+
+def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
+    """Event sequence and source revision are independent coordinates.
+
+    A crossed response may be behind the rendered log while carrying the latest source.
+    Dropping the whole response at the event gate would make live data depend on an
+    unrelated comment arriving first.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "newer-event",
+            "author": "user",
+            "version": 1,
+            "text": "This event must not disappear.",
+        },
+    )
+    told(page)
+    expect(
+        page.locator(".lf-thread", has_text="This event must not disappear")
+    ).to_have_count(1)
+
+    crossed = []
+
+    def older_events_with_new_data(route):
+        response = route.fetch()
+        state = response.json()
+        if state["data"]["revision"] < 2:
+            route.fulfill(status=response.status, json=state)
+            return
+        state["events"] = state["events"][:-1]
+        crossed.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", older_events_with_new_data)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    assert crossed, "the data revision never arrived beside the stale event tail"
+    expect(
+        page.locator(".lf-thread", has_text="This event must not disappear")
+    ).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
+    browser, serve
+):
+    """Source names are data, including names inherited by a plain JS object.
+
+    A subscriber is also a package mount boundary: if its first render fails, later
+    polls must not keep calling a listener whose widget never finished connecting.
+    """
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await import('/runtime/widget-api.js');
+          const widget = document.querySelector('lf-feed');
+          widget.removeAttribute('source');
+          let unbound = 'not-called';
+          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
+          stopUnbound();
+          widget.setAttribute('source', 'constructor');
+          let absent = 'not-called';
+          const stop = watchData(widget, 'rows', snapshot => { absent = snapshot; });
+          stop();
+
+          const captured = [];
+          const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
+          widget.setAttribute('source', 'deployments');
+          document.dispatchEvent(new Event('lf-data'));
+          stopCaptured();
+
+          let failedCalls = 0;
+          let message = null;
+          try {
+            watchData(widget, 'rows', () => {
+              failedCalls += 1;
+              throw new Error('mount failed');
+            });
+          } catch (error) {
+            message = error.message;
+          }
+          document.dispatchEvent(new Event('lf-data'));
+          return {unbound, absent, captured, failedCalls, message};
+        }"""
+    )
+    assert result == {
+        "unbound": None,
+        "absent": None,
+        "captured": [None, None],
+        "failedCalls": 1,
+        "message": "mount failed",
+    }
+    assert errors == []
+    page.close()
+
+
+def test_data_notification_waits_for_a_version_activation(browser, serve):
+    """A crossed data response may advance its revision during activation, but its
+    subscribers cannot paint the old or half-upgraded document.
+
+    Hold the view transition after the replacement document has mounted. A newer source
+    response arrives while that activation still owns the page. Its value should render
+    only after the activation releases.
+    """
+    activation_probe = """
+      window.__lfTransitionHeld = false;
+      window.__lfDataDuringActivation = false;
+      window.__lfSawDataRevisionTwo = false;
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = async (...args) => {
+        const response = await nativeFetch(...args);
+        const input = args[0];
+        const url = typeof input === 'string' ? input : input.url;
+        if (new URL(url, location.href).pathname === '/api/state') {
+          response.clone().json().then(state => {
+            if (state.data?.revision >= 2) window.__lfSawDataRevisionTwo = true;
+          });
+        }
+        return response;
+      };
+      document.addEventListener('lf-data', () => {
+        const datum = document.querySelector('[data-lf-datum="api"]');
+        if (window.__lfTransitionHeld && datum?.textContent.includes('Running'))
+          window.__lfDataDuringActivation = true;
+      });
+      document.startViewTransition = update => {
+        const ready = Promise.resolve();
+        const finished = Promise.resolve()
+          .then(update)
+          .then(() => {
+            window.__lfTransitionHeld = true;
+            return new Promise(resolve => {
+              window.__lfReleaseTransition = () => {
+                window.__lfTransitionHeld = false;
+                resolve();
+              };
+            });
+          });
+        return {ready, finished};
+      };
+    """
+    page, errors = open_page(
+        browser, live_url(data_projection_page(serve)), init_script=activation_probe
+    )
+    d = serve.page_dir
+    current = (d / "versions" / "v1.html").read_text()
+    _publish(
+        d,
+        2,
+        current.replace("Live status follows.", "Live status follows now."),
+        "refreshed the page",
+    )
+    page.wait_for_function("() => window.__lfTransitionHeld === true")
+
+    data_model.cmd_data_set(
+        d,
+        "deployments",
+        [
+            {"key": "api", "value": "Running"},
+            {"key": "worker", "value": "Ready"},
+        ],
+    )
+    page.wait_for_function("() => window.__lfSawDataRevisionTwo === true")
+    page.wait_for_timeout(100)
+    assert not page.evaluate("() => window.__lfDataDuringActivation"), (
+        "a source subscriber painted while version activation still owned the document"
+    )
+
+    page.evaluate("() => window.__lfReleaseTransition()")
+    expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
+    expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
     page.close()

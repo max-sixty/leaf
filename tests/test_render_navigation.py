@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
-from conftest import interact
+from leaf import events as events_model
 from playwright.sync_api import expect
 from render_support import (
     ADDRESS_PAGE,
@@ -17,6 +17,7 @@ from render_support import (
     CROWDED_PAGE,
     DISCLOSED_PAGE,
     FOOTED_PAGE,
+    GLYPH_OFFSETS,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
     LONG_PAGE,
@@ -77,7 +78,9 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.keyboard.press("1")
     expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
     round_trip(page)
-    acts = [e for e in interact.read_events(serve.page_dir) if e["kind"] == "action"]
+    acts = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
+    ]
     assert acts[-1]["widget"] == "live-question"
     assert acts[-1]["detail"] == {"options": ["lq-keep"]}
     assert errors == []
@@ -297,7 +300,7 @@ def test_the_pointer_over_a_page_mark_lights_its_comment_card(browser, serve):
     )
     comments = [
         event
-        for event in interact.read_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
     first_id, second_id = (comment["id"] for comment in comments)
@@ -378,9 +381,10 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator("#fig.lf-mark-el").wait_for()
 
-    assert standing_mark(page) == {"text": "", "elements": []}, (
-        "a page nobody has opened a comment on is already saying the reader is in one"
-    )
+    assert standing_mark(page) == {
+        "text": "",
+        "elements": [],
+    }, "a page nobody has opened a comment on is already saying the reader is in one"
 
     page.keyboard.press("j")
     wait_standing(page, "bold text")
@@ -689,7 +693,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     d = serve.page_dir
 
     def comment(anchor, text):
-        return interact.append_event(
+        return events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -728,7 +732,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # Once the first thread resolves, the same control enters the next one.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c1})
     told(page)
     expect(note).to_have_text("1 comment")
     note.press("Enter")
@@ -774,10 +778,12 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     page.locator(".lf-composer textarea").fill("Too short.")
     page.get_by_role("button", name="Comment", exact=True).click()
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(1)
-    c4 = [e for e in interact.read_events(d) if e.get("kind") == "comment"][-1]["id"]
+    c4 = [e for e in events_model.read_events(d) if e.get("kind") == "comment"][-1][
+        "id"
+    ]
 
     # A resolved thread takes its line with it: the pass owns what it wrote.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c4})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c4})
     told(page)
     expect(page.locator("#p2 .lf-mark-note")).to_have_count(0)
     assert "1 comment" in page.locator("#p1").aria_snapshot()
@@ -922,7 +928,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     are the lists the page has, the digits are the members the named one holds, each member
     on screen wears its whole address as a chip from the moment the chord is armed — the
     same address a reply box's placeholder speaks, key for key, with the keys already
-    pressed dimmed. What is asserted
+    pressed set back on the chip's own paper. What is asserted
     here is that the lists behave as one mechanism — a comment, an ask, a link and a
     disclosure reached the same way — rather than that any of them works, which is each
     list's own business elsewhere."""
@@ -930,7 +936,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     d = serve.page_dir
 
     def comment(anchor, text):
-        return interact.append_event(
+        return events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -979,11 +985,18 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # member's own visible box, and a shut panel gives none.
     expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
     # Whole, and saying how much of it is still to press: the leader is behind the reader
-    # here, so it stands back and the two keys that finish the motion keep the chip's own
-    # size and colour. A chip set evenly would state an address and leave the reader to
-    # work out for themselves which part of it they had already made.
+    # here, so it stands back on the chip's own paper and the two keys that finish the
+    # motion are lit on a ground of their own. A chip set evenly would state an address and
+    # leave the reader to work out for themselves which part of it they had already made —
+    # and one that said it in type sizes would hold two of them in one box, and re-set every
+    # chip on screen the moment the next press moved a key across.
     assert page.evaluate(SPENT, CHIPS) == ["g", "g", "g", "g"]
-    assert page.evaluate(STANDS_BACK, CHIPS) == {"quieter": True, "smaller": True}, (
+    assert page.evaluate(STANDS_BACK, CHIPS) == {
+        "quieter": True,
+        "lit": True,
+        "flat": True,
+        "sized": True,
+    }, (
         "the keys already pressed do not stand back from the ones still to come: "
         f"{page.evaluate(STANDS_BACK, CHIPS)}"
     )
@@ -1130,7 +1143,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     # the chrome's. A list is what the document holds, so it is not addressed: read of the
     # document at large, `d` would offer a digit for a disclosure the author never wrote
     # and the reader never sees on the page.
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": c3})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": c3})
     told(page)
     expect(page.locator("details.lf-details")).to_have_count(1)
     page.keyboard.press("g")
@@ -1214,6 +1227,74 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.type("gc1")
     expect(ta1).to_have_value("gc1")
     expect(ta1).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_press_that_lights_a_key_moves_no_glyph(browser, serve):
+    """A chip holds still while the chord advances through it — the box and every glyph in
+    it.
+
+    This is the whole claim of the split. A chip carries the address it does because the
+    reader is meant to read it once and press it, and the old chip broke that by saying how
+    far in they were with type size: the key crossing from the live half to the spent one
+    shrank, so every chip on screen re-laid-out under the eye at the moment it was being
+    read. The ground that replaced it is a fixed-width channel and was supposed to end that.
+
+    It did not, quite, and the first version of this fix shipped the same fault one glyph
+    smaller. The lit block took its padding as advance, so the crossing key stepped by that
+    padding — 3px, against the 1.2px slide being fixed — while the chip's width, its left
+    edge, the leader and the digit all held perfectly still. Every reading the suite had
+    said the chip was fine, because every one of them was of the box.
+
+    So the reading here is of the glyphs, through a Range: the spans are the thing that
+    moves, and an element rect answers about a different element at each stage. The negative
+    margin on .lf-lit is what this covers — remove it and the letter steps."""
+    url = serve(ADDRESSED_PAGE)
+    page, errors = open_page(browser, url)
+    resized(page, 1280, 800)
+
+    # The asks list, whose letter narrows the offer without revealing anything, so the chip
+    # under measurement is the same chip before and after and is drawn from the same box.
+    # Its chip leads the layer, the table's order being the order they are painted in.
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1", "g l 1", "g l 2", "g d 1"])
+    before = page.evaluate(GLYPH_OFFSETS, CHIPS)
+
+    # The letter the chip itself names. What says the repaint has landed is the count and
+    # not the text: this chip reads "g a 1" at both stages, so an assertion on what it says
+    # is satisfied by the frame before the press as readily as the one after it, and the
+    # measurement below then compares a reading with itself. It passed that way two runs in
+    # three with the fix reverted. The narrowing is the fact the press actually writes —
+    # every other list's chips go — and the paint is coalesced into one frame with it.
+    page.keyboard.press("a")
+    expect(page.locator(CHIPS)).to_have_text(["g a 1"])
+    after = page.evaluate(GLYPH_OFFSETS, CHIPS)
+
+    assert before and after, "the chord painted no chip to measure"
+    # Half a pixel of tolerance, which is subpixel rounding rather than a step: the halves
+    # are separate inline boxes, so a glyph's edge can land either side of a device pixel
+    # depending on which of them carries it. The fault this covers was three pixels, and
+    # paying the lit block's padding in advance is the smallest way to bring it back.
+    assert before["glyphs"].keys() == after["glyphs"].keys(), (
+        "the chip's keys changed with the press: "
+        f"{sorted(before['glyphs'])} -> {sorted(after['glyphs'])}"
+    )
+    moved = {
+        k: (v, after["glyphs"][k])
+        for k, v in before["glyphs"].items()
+        if abs(v - after["glyphs"][k]) > 0.5
+    }
+    assert not moved, "a key moved when the press lit it: " + ", ".join(
+        f"{k!r} {a} -> {b}" for k, (a, b) in moved.items()
+    )
+    # And the box the glyphs sit in, which is the reading that passed while they moved.
+    assert abs(before["width"] - after["width"]) <= 0.5, (
+        f"the chip resized: {before['width']} -> {after['width']}"
+    )
+    assert abs(before["left"] - after["left"]) <= 0.5, (
+        f"the chip slid: {before['left']} -> {after['left']}"
+    )
     assert errors == []
     page.close()
 
@@ -1373,7 +1454,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     passes over exactly the entry that can break."""
     url = serve(ADDRESSED_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1556,7 +1637,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     # stands as well as which way it is standing, so the row cannot offer a key that
     # nothing there runs. The platform's pair still works it, so what differs is the
     # offer rather than the capability.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1612,7 +1693,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     And the armed chord is on screen with the panel closed — where the old corner
     badges, display:none inside it, said nothing at all."""
     url = serve(NOTED_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1700,7 +1781,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
 
     refused = page.evaluate(
         """async () => {
-          const { keys } = await import('/leaf.js');
+          const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
               { keys: ['F2'], does: 'a press with nothing to say for itself',
@@ -1722,7 +1803,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
         """async () => {
-          const { keys } = await import('/leaf.js');
+          const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
               { keys: ['Ctrl+k'], does: 'a modifier the matcher never asks about',
@@ -1755,6 +1836,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
     sources = [
         layer / "assets/leaf.js",
+        *sorted((layer / "assets/runtime").rglob("*.js")),
         *sorted((layer / "packages/default/widgets").glob("*.js")),
         *sorted((ROOT / "examples/packages").glob("*/widgets/*.js")),
     ]
@@ -2204,7 +2286,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # comments row counting the two there are, not the nine there could be, and no
     # row for the lists this page hasn't got.
     for text in ["A thread.", "Another."]:
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
         )
     told(page)
@@ -2227,7 +2309,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # A v2 lands and the unpinned page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
     (d / "versions" / "v2.html").write_text(NOTED_PAGE)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/versions/v2.html*")
@@ -2280,7 +2362,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     d = serve.page_dir
 
     def comment(text):
-        return interact.append_event(
+        return events_model.append_event(
             d, {"kind": "comment", "author": "user", "version": 1, "text": text}
         )["id"]
 
@@ -2339,7 +2421,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
     url = serve(html)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "comment", "author": "user", "version": 1, "text": "A thread."},
     )
@@ -2395,8 +2477,8 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     address put them on an option and the box that opened still said "Comment on the
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
-    Where they are standing is the open ask first, because that is what the page has
-    already told them: markHere rings the whole ask, and `g a 1` addressed the
+    Where they are standing is the unanswered ask first, because that is what the page
+    has already told them: markHere rings the whole ask, and `g a 1` addressed the
     question rather than the first of its options. Below an ask it is the innermost
     item, which is the aim's own reading — so the link the walk stands on speaks for
     the paragraph holding it, no id of its own being what an anchor needs.
@@ -2490,6 +2572,158 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     page.close()
 
 
+def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
+    """Where the reader is standing and what the reader still owes are two facts, and a
+    widget mid-conversation with the agent is where they part. Its seat holds the words
+    the reader just wrote, its pick is unmade and its controls are live, and it has left
+    the banner and the tray because the next word there is the agent's — but the reader
+    is standing in it all the same, and it is still the question they are working.
+
+    Read off the reader's list, both the ring and `c` went with the count: the moment the
+    remark was sent the ring left from under the reader, and `c` slid from the seat they
+    were writing in down to whichever option their focus rested on. That is a different
+    conversation, not a shorter way into the same one — `{section: "shape"}` is the seat's
+    own anchor and `{section: "sh-steel"}` is not — so the next line of a remark landed
+    somewhere the first line was not. The agent's reply moved both back. Nothing the
+    reader did moved either, which is the whole of the complaint; the reply phase here is
+    what says the ring has stopped tracking the count rather than merely tracking it late.
+
+    A picked group is the control on the other side. It is answered, so it is off both
+    readings and must stay off: the switch is about a seat the reader is mid-sentence in,
+    not about reopening what a pick has closed."""
+    url = serve(
+        leaf_page(
+            "mid-sentence",
+            """
+<h1 id="t">Mid-sentence</h1>
+<lf-options id="shape" choose>
+  <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
+  <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
+</lf-options>
+<lf-options id="picked" choose>
+  <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
+</lf-options>
+<p id="p2">A passage carrying
+<lf-suggestion id="sug-window">
+  <lf-old>Refill every feeder each morning.</lf-old>
+  <lf-new>Refill when the camera shows it half-empty.</lf-new>
+</lf-suggestion></p>
+""",
+        )
+    )
+    d = serve.page_dir
+    events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Steel, unless the sealing is quick?",
+            "anchor": {"section": "shape"},
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    line = page.locator(".lf-keyline")
+    asks = page.locator(".lf-asks")
+
+    # The premise, from the reader's list itself: the group has left it, the picked group
+    # was never on it, and the suggestion is what remains to be counted.
+    expect(asks).to_have_text("Asks (1)")
+    asks.click()
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    # Which row, not just how many: one row is also what a build listing the picked group
+    # and dropping the suggestion would show.
+    expect(page.locator('.lf-asks-row[data-lf-at="sug-window"]')).to_have_count(1)
+
+    # The reader is standing in it all the same — and first with the tray still open, the
+    # one state where the ring has a second surface to reach for and this ask has no row
+    # on it. `markHere` looks its row up by id and paints the row too; there is none, and
+    # the scroll that brings a row into view is the tray's own reading. So the ask wears
+    # the ring alone, and the tray goes on listing what the reader owes rather than
+    # gaining a row for where they happen to be standing.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("button.lf-asks-row")).to_have_count(1)
+    assert page.locator(".lf-asks-row[data-lf-ask]").count() == 0, (
+        "the tray drew a here-ring on a row for an ask it does not list"
+    )
+    page.evaluate("() => document.activeElement?.blur()")
+    asks.click()
+
+    # And with it shut, which is every other reading below.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the options")
+
+    # And the press means the seat, so the next line joins the conversation the first
+    # line opened rather than starting one on the option under the focus.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.locator(".lf-composer textarea").fill("Cedar, then, if it is not.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    expect(page.locator("#shape .lf-conversation-thread")).to_have_count(2)
+    # Both comments, not the last one: the fixture's own opening remark is anchored on the
+    # group, so reading the last anchor alone is satisfied by the setup whatever the press
+    # did. Two seat-anchored comments is the fact, and the thread count above is the
+    # rendering of it rather than a second reading.
+    made = [e for e in events_model.read_events(d) if e.get("kind") == "comment"]
+    assert (
+        len(made) == 2 and [e["anchor"] for e in made] == [{"section": "shape"}] * 2
+    ), f"the second line landed outside the seat: {[e['anchor'] for e in made]}"
+
+    # Back on the pick, and the ring with it. The composer's own Comment button took the
+    # focus on the way out, so this is the reader returning to the question they were
+    # working rather than a fresh arrival at it.
+    page.locator("#shape .lf-pick").first.focus()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+
+    # Answering hands the question back, and the count moves while the ring does not.
+    # Focus is not touched again from here, so the ring read below is the one painted
+    # above: blurring and coming back would re-derive it and repeat the phase instead of
+    # measuring that it stayed through the news.
+    #
+    # Both threads, because a seat is the reader's again only when every conversation in
+    # it is: one unanswered remark there is still a word the agent owes, and the phase
+    # above left a second one. Replying to the first alone leaves the count at 1, which is
+    # the honest answer and not the one this phase is asking about.
+    for root in [
+        e["id"] for e in events_model.read_events(d) if e.get("kind") == "comment"
+    ]:
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "version": 1,
+                "parent": root,
+                "text": "Sealing is an afternoon.",
+            },
+        )
+    told(page)
+    expect(asks).to_have_text("Asks (2)")
+    expect(page.locator("#shape .lf-pick").first).to_be_focused()
+    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the options")
+    page.evaluate("() => document.activeElement?.blur()")
+
+    # The picked group is the control on the other side: answered, so off both readings,
+    # and the switch leaves it there. Read through the key line, because `markHere` paints
+    # inside `paintHere`'s frame — an absence read in the same round trip as the focus is
+    # the frame before the paint, and stays green while a ring lands here a frame later.
+    # The word is the other half of the same fact: with `standingIn` null the reading falls
+    # through to the innermost item, which from a pick is the option and not the question.
+    page.locator("#picked .lf-pick").first.focus()
+    expect(line).to_contain_text(re.compile(r"comment on the option(?!s)"))
+    assert page.locator("[data-lf-ask]").count() == 0, (
+        "an answered group wears the ring the switch was not about"
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     """The panel's open list is the one part of the chrome that holds a conversation of
     its own, so a press meaning "say something about this" belongs to that box rather
@@ -2510,7 +2744,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     d = serve.page_dir
     live = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
     gone = panel_comment(d, "Settled already.", {"section": "how-cap"})
-    interact.append_event(d, {"kind": "resolve", "author": "user", "parent": gone})
+    events_model.append_event(d, {"kind": "resolve", "author": "user", "parent": gone})
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")
@@ -2567,7 +2801,14 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     so the pair is what makes the assertion mean anything. The first phase is the control
     — standing on the widget rather than in a thread still opens the composer on the
     widget, so a green here is the standing being read and not every press landing in a
-    conversation."""
+    conversation.
+
+    The agent has answered both remarks, so each thread here is a whole exchange. Nothing
+    in this test turns on that: `standingIn` reads the unanswered asks rather than the
+    reader's list, so the group is what the reader is standing in whichever way the seat's
+    conversations are facing, and this control says the same thing before a reply and
+    after one. test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer is what holds
+    that, and it is why the replies are the exchange's shape and not a premise."""
     url = serve(
         leaf_page(
             "seated",
@@ -2583,7 +2824,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     d = serve.page_dir
     said = []
     for text in ("First remark.", "Second remark."):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "comment",
@@ -2593,7 +2834,17 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
                 "anchor": {"section": "shape"},
             },
         )
-        said.append(interact.read_events(d)[-1]["id"])
+        said.append(events_model.read_events(d)[-1]["id"])
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "version": 1,
+                "parent": said[-1],
+                "text": "Noted.",
+            },
+        )
 
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")

@@ -12,7 +12,15 @@ from types import SimpleNamespace
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from conftest import interact
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import registry as registry_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -47,7 +55,7 @@ def resize_notice_after_last_probe(page):
 
     def with_notice(expression, *args, **kwargs):
         result = evaluate(expression, *args, **kwargs)
-        if expression == interact.RELATIVE_REPLAYS:
+        if expression == render_checks_model.RELATIVE_REPLAYS:
             evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
         return result
 
@@ -58,7 +66,9 @@ def resize_notice_after_last_probe(page):
 # runtime that puts it back (leaf.js, ARRANGEMENTS). Read from the page rather than
 # listed here: which surfaces remember anything is the runtime's to say, and a list on
 # this side would stop at the ones it was taught.
-ARRANGEMENTS = "() => import('/leaf.js').then((leaf) => leaf.ARRANGEMENTS)"
+ARRANGEMENTS = (
+    "() => import('/runtime/widget-api.js').then((leaf) => leaf.ARRANGEMENTS)"
+)
 
 # One arrangement and no other, written the way a reader's own browser holds it. Both
 # stores are cleared first, so each arrival is the arrangement it names rather than that
@@ -98,14 +108,18 @@ def arrival_findings(browser, url):
     a box that a first visit didn't.
     """
 
-    page = browser.new_page(viewport=interact.RENDER_VIEWPORT, color_scheme="light")
+    page = browser.new_page(
+        viewport=render_checks_model.RENDER_VIEWPORT, color_scheme="light"
+    )
     errors = []
     notices = []
 
     def console_message(message):
         if message.type != "error":
             return
-        target = notices if interact.resize_observer_error(message.text) else errors
+        target = (
+            notices if rendering_model.resize_observer_error(message.text) else errors
+        )
         target.append(message.text)
 
     page.on("console", console_message)
@@ -114,7 +128,7 @@ def arrival_findings(browser, url):
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
-    page.add_init_script(interact.WINDOW_ERRORS)
+    page.add_init_script(rendering_model.WINDOW_ERRORS)
     found = []
     try:
         # A first visit, to be arranged from and to read the arrangements off. Reported
@@ -130,7 +144,7 @@ def arrival_findings(browser, url):
             # event does over the five navigations here, measured on
             # design-decision.html, and buys this nothing.
             page.goto(url, wait_until="load")
-            page.wait_for_function(interact.UPGRADED)
+            page.wait_for_function(rendering_model.UPGRADED)
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
@@ -144,7 +158,7 @@ def arrival_findings(browser, url):
             notices.clear()
             try:
                 page.reload(wait_until="load")
-                page.wait_for_function(interact.UPGRADED)
+                page.wait_for_function(rendering_model.UPGRADED)
             except PlaywrightTimeout:
                 found.append(
                     f"[{arrangement['name']}] the page never finished coming up — "
@@ -165,7 +179,7 @@ def arrival_findings(browser, url):
 def motions(events):
     """The settling motions the browser reported, keyed by the motion, not by its target.
 
-    Settling and not living, which is `interact.MOVING`'s distinction and is here for
+    Settling and not living, which is `rendering.MOVING`'s distinction and is here for
     its reason: the banner's dot pulses for as long as the tab is open, and something
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
@@ -232,6 +246,102 @@ WIDE_TABLE_PAGE = leaf_page(
 ).format(
     heads="".join(f"<th>heading_number_{i}</th>" for i in range(8)),
     cells="".join(f"<td>value_number_{i}</td>" for i in range(8)),
+)
+
+
+# Prose beside identifiers, which is the table a plan or a PR walkthrough writes: a row's
+# name, its mechanism in words, and the test that holds it. A test name is one word to
+# the line breaker and most of the measure long, so whether it can break is the whole
+# difference between the theme's second case and a squeezed table — `held` says how
+# each name is written, and nothing else differs between the two pages below. The
+# names run past ninety characters so that bare they hold the table open on any font:
+# at seventy-nine the bare table scrolled by ten pixels on a Mac and fitted on CI's
+# fonts, where the gate, rightly silent, read as broken.
+def prose_beside_identifiers(held):
+    rows = [
+        (
+            "Log shape",
+            (
+                "<code>token</code> in place of <code>text</code> on <code>comment</code>"
+                " and <code>reply</code>; a record is one or the other, and a token rides"
+                " no suggestion, hold, or markup."
+            ),
+            [
+                "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares_and_refuses_one_it_does_not"
+            ],
+        ),
+        (
+            "In threads",
+            (
+                "A strip under each agent message; <code>settles</code> on the latest"
+                " agent message ends the wait as a reading of the log, undo restores it."
+            ),
+            [
+                "test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting_until_the_next_question",
+                "test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor_whatever_the_version",
+            ],
+        ),
+        (
+            "Keyboard",
+            (
+                "<kbd>r</kbd> arms the bar with address-chip digits, 1–n in declared"
+                " order; a stray key disarms and keeps its meaning."
+            ),
+            [
+                "test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back_when_pressed"
+            ],
+        ),
+    ]
+    body = "".join(
+        f'<tr><th scope="row">{name}</th><td>{how}</td>'
+        f"<td>{', '.join(held(t) for t in tests)}</td></tr>"
+        for name, how, tests in rows
+    )
+    return leaf_page(
+        "held",
+        f"""
+<h1 id="t">The plan</h1>
+<p id="p">Each item, the mechanism that carries it, and the test that holds it.</p>
+<table id="held">
+<thead><tr><th>Plan item</th><th>Mechanism</th><th>Held by</th></tr></thead>
+<tbody>{body}</tbody>
+</table>
+""",
+    )
+
+
+IDENTIFIERS_IN_CODE_PAGE = prose_beside_identifiers(lambda name: f"<code>{name}</code>")
+BARE_IDENTIFIERS_PAGE = prose_beside_identifiers(lambda name: name)
+
+# The honest third case with every line an author can write and no wrap: a token split
+# around an inline <code>, which is set smaller and stands 3px lower on the same line
+# (a reading of rect tops called it a wrap and told the author to write <code>); a
+# <br>; a newline under <pre>; loose words either side of a nested table. Each is a
+# line the author drew, and none stands shorter with soft wrapping off.
+AUTHORED_LINES_PAGE = (
+    WIDE_TABLE_PAGE.replace("<td>value_number_7</td>", "<td>value <code>7</code></td>")
+    .replace("<td>value_number_6</td>", "<td>value<br>six</td>")
+    .replace("<td>value_number_5</td>", "<td><pre>def go():\n    return 5</pre></td>")
+    .replace(
+        "<td>value_number_4</td>",
+        "<td>before <table><tr><td>four</td></tr></table> after</td>",
+    )
+)
+
+# The squeeze written entirely in inline elements: eight single-token columns hold the
+# table open, and the ninth is a run of owners as links, one word each, so every wrap
+# in it falls between two nodes and never inside one — set at line-height 1, where the
+# glyph boxes of two lines overlap and a reading of line boxes lost the second line.
+# WIDE_TABLE_PAGE with the column added, so the two differ in nothing but the run.
+LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
+    "</th></tr></thead>", "</th><th>Owners</th></tr></thead>"
+).replace(
+    "</td></tr></tbody>",
+    '</td><td style="line-height: 1">'
+    + ", ".join(
+        f'<a href="#t">{w}</a>' for w in ["alpha", "bravo", "charlie", "delta", "echo"]
+    )
+    + "</td></tr></tbody>",
 )
 
 # A block wider than the column and narrower than the window: 70% of 1200px is
@@ -601,7 +711,7 @@ RENDERED = "() => new Promise(done => requestAnimationFrame(() => requestAnimati
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
     page.evaluate(RENDERED)
-    page.wait_for_function(f"() => ({interact.MOVING})().length === 0")
+    page.wait_for_function(f"() => ({rendering_model.MOVING})().length === 0")
     page.evaluate(RENDERED)
 
 
@@ -627,7 +737,7 @@ def aim_targets(page_dir):
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
     tags = ", ".join(
-        t for t in interact.load_registry(page_dir) if not t.startswith("$")
+        t for t in registry_model.load_registry(page_dir) if not t.startswith("$")
     )
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
@@ -683,12 +793,19 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
+# The page as a press leaves it. Where the pointer is resting is not that: the runtime
+# paints .lf-mark-hover on a marked element under the cursor, so a reading taken with the
+# pointer still on an item reports the hover as a change the press made. It shows up only
+# on an element some thread already marks, which is why nothing saw it until a shipped
+# log carried a comment on a widget.
 PAGE_MARKUP = """() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
         const c = n.cloneNode(true);
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
+        for (const el of [c, ...c.querySelectorAll("*")])
+            el.classList?.remove("lf-mark-hover");
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""
@@ -733,6 +850,53 @@ AIM_PAINT_PAGE = leaf_page(
 </lf-options>
 """,
 )
+# Two items meeting at a seam the browser puts between two whole pixels, held there by a
+# fixed box rather than by flow, so the fraction is the stylesheet's number on every
+# machine instead of whatever the fonts above it came to. Here the seam falls at .31 of a
+# pixel, so a pointer just below it is over the lower item and rounds to a whole pixel
+# over the upper one, which is the disagreement AIM_SEAM below goes looking for.
+AIM_SEAM_PAGE = leaf_page(
+    "aim seam",
+    """
+<h1 id="t">Aim seam</h1>
+<div id="seam-stack">
+  <p id="seam-upper">The item above the seam.</p>
+  <p id="seam-lower">The item below the seam.</p>
+</div>
+""",
+    head="""<style>
+  #seam-stack { position: fixed; top: 300.3px; left: 40px; width: 220px; }
+  #seam-stack > p { margin: 0; height: 20px; }
+</style>""",
+)
+# Where the browser's own hit test stops answering the upper item and starts answering the
+# lower one, and a point beside that seam whose whole-pixel rounding lands on the other
+# side of it. The rounding is not this reading's invention: `mousemove` carries clientX and
+# clientY rounded to whole pixels, so a pointer record kept from one answers about a place
+# the pointer is not, while the press is dispatched against the position it was rounded
+# from. The seam is searched for rather than computed, because a box's hit region is not
+# always its border box — a neighbour's hairline border hit-tests as the cell below it.
+AIM_SEAM = """([above, below]) => {
+  const a = document.getElementById(above), b = document.getElementById(below);
+  const box = a.getBoundingClientRect();
+  const x = Math.round(box.left + box.width / 2) + 0.5;
+  const at = (y) => document.elementFromPoint(x, y)?.closest("[id]")?.id ?? null;
+  let lo = box.top + 1, hi = b.getBoundingClientRect().bottom - 1;
+  if (at(lo) !== above || at(hi) !== below) return null;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid) === above) lo = mid; else hi = mid;
+  }
+  // Halfway between the seam and the whole-pixel boundary rounding turns at, which puts
+  // the point and its rounded twin on opposite sides of the seam. Which of them is over
+  // which item follows where in the pixel the seam fell: under .5 the point is over
+  // `below` and the twin over `above`, and from .5 up the two swap. So the caller reads
+  // the item to hold the aim to off `at` rather than naming one, and requires the pair to
+  // differ — a seam that landed on a whole pixel leaves the two agreeing and proves
+  // nothing.
+  const y = (hi + Math.floor(hi) + 0.5) / 2;
+  return { x, y, at: at(y), rounded: at(Math.round(y)) };
+}"""
 MARK_PAD = 6  # CSS px of ground kept around the element in the clip
 MARK_NEAR = 12  # per channel, wide enough for the stroke's antialiased shoulder only
 
@@ -874,21 +1038,21 @@ def live_leaf(tmp_path, monkeypatch):
     held = []
 
     def go(name, title):
-        d = interact.state_home() / "pages" / name
-        result = CliRunner().invoke(interact.cli, ["page", "init", str(d)])
+        d = service_model.state_home() / "pages" / name
+        result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         (d / "versions" / "v1.html").write_text(
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
         )
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "running the suite",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
             },
         )
         # A live leaf has a session behind it, and what the tray's hover says about a
@@ -899,15 +1063,15 @@ def live_leaf(tmp_path, monkeypatch):
             id=f"s-{name}",
             cwd=str(tmp_path / f"{name}-work"),
         )
-        httpd = interact.LeafHTTPServer(
-            ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
+        httpd = hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
         port = httpd.server_address[1]
         # Desired address and a held, contentless lease are the two facts a real
         # server exposes to neighbouring pages.
-        interact.write_json(
+        files_model.write_json(
             d / "service.json",
             {
                 "host": "127.0.0.1",
@@ -1209,3 +1373,421 @@ def in_threads_scrollport(page, selector):
         }""",
         arg=selector,
     )
+
+
+DEEP_FOCUS = """() => {
+  let e = document.activeElement;
+  while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
+  return e;
+}"""
+
+
+# Every rule in this page's own composed layer that draws the here ring, read out of the
+# CSSOM. The layer is where the population lives — a list kept beside it is a second
+# statement of what the theme says, and the one that was kept here in prose went stale
+# the moment a rule moved. Twelve of the twenty-three had never been stood on when this
+# was written, and nothing said so, because the gate only ever asked about rules it had
+# happened to meet.
+#
+# Nesting is resolved the way the spec defines it — `&` is `:is(parent)`, and a nested
+# selector naming no `&` is a descendant of it — because the two texts joined by hand
+# give a string no engine will take. `querySelectorAll` throws on one, and a throw
+# swallowed here reads exactly like a rule nothing on the page matches: the option
+# group's own ring was invisible to this for that reason alone.
+RING_RULES = """() => {
+  const rules = new Map();
+  const eaten = new Set();
+  const eat = (sheet, shadow) => {
+    if (!sheet || eaten.has(sheet)) return;
+    eaten.add(sheet);
+    let list;
+    try { list = sheet.cssRules; } catch { return; }  // a sheet from another origin
+    const walk = (from, outer) => {
+      for (const rule of from) {
+        // A rule that carries no selector of its own is one of three things, and the
+        // three are not interchangeable. A condition — @media, @supports — decides
+        // whether its contents apply at all, and one that does not hold here is left
+        // out of the population rather than passed through: this gate reads one colour
+        // scheme and no print stylesheet, and a rule it cannot make the page paint is a
+        // rule it must not then credit off a neighbour's ring. @scope is a selector
+        // constraint wearing a condition's shape — eleven of the layer's ring rules sit
+        // under `@scope (.lf-chrome)` — so its root joins the selector. Anything else
+        // (@layer) passes its parent's selector through untouched.
+        if (!rule.selectorText) {
+          if (rule.media && !matchMedia(rule.media.mediaText).matches) continue;
+          if (rule.conditionText !== undefined && !rule.media
+              && !CSS.supports(rule.conditionText)) continue;
+          const root = rule.start;  // CSSScopeRule
+          // A declaration written after a nested rule in the same block: Chrome hoists
+          // it into a CSSNestedDeclarations, which has a style and no selector, so a
+          // walk that asks for both drops it and the rule leaves the population on an
+          // ordinary reorder.
+          if (rule.style) keep(rule, outer, outer);
+          if (rule.cssRules)
+            walk(rule.cssRules, root ? `${outer ? `${outer} ` : ''}${root}` : outer);
+          continue;
+        }
+        const own = rule.selectorText;
+        const whole = !outer
+          ? own
+          : own.includes('&')
+            ? own.replaceAll('&', `:is(${outer})`)
+            : `:is(${outer}) ${own}`;
+        keep(rule, whole, outer);
+        if (rule.cssRules?.length) walk(rule.cssRules, whole);
+      }
+    };
+    // Which root a rule was met in is structure, not something to infer back from its
+    // text later: the same theme file is both linked at document level and adopted into
+    // every shadow tree, and a shadow rule written without :host is a plain selector
+    // that must still be queried in its own root.
+    const keep = (rule, whole, outer) => {
+      if (!/outline\\s*:[^;}]*--here-ring/.test((rule.cssText || '').split('{')[1] || ''))
+        return;
+      rules.set(whole, [
+        outer && outer !== whole ? `${whole.slice(outer.length).trim()} (in ${outer})`
+                                 : whole,
+        (rules.get(whole)?.[1] ?? false) || shadow,
+      ]);
+    };
+    walk(list, '');
+  };
+  for (const sheet of document.styleSheets) eat(sheet, false);
+  for (const sheet of document.adoptedStyleSheets) eat(sheet, false);
+  for (const el of document.querySelectorAll('*'))
+    if (el.shadowRoot) {
+      for (const sheet of el.shadowRoot.styleSheets) eat(sheet, true);
+      for (const sheet of el.shadowRoot.adoptedStyleSheets) eat(sheet, true);
+    }
+  return [...rules].map(([whole, [said, shadow]]) => [whole, said, shadow]);
+}"""
+
+
+# Every here ring the page is showing right now, and what is wrong with each.
+#
+# Asked of the elements the layer's ring rules match rather than of the focused one.
+# The two are not the same set: four rules draw
+# the ring on something other than the control holding focus — a thread card wears it
+# for anything focused inside it, an ask wears it for whichever of its controls the
+# reader reached, a joined option group wears the one its picks give up, and an element
+# a focused thread is anchored to wears it with no focus of its own — and a reading that
+# asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
+# cut planted on `.lf-thread:focus-within` passed all ten examples.
+#
+# The focused element is a candidate too, whatever paints its outline, so a ring the
+# platform draws and the theme never named is still measured.
+RINGS_DRAWN = f"""async () => {{
+  // shownBand, rather than a fourth reading of what a box clips to. Its own comment
+  // carries why: version check --render imports it so the band a handover is refused
+  // against and the band the page paints to are one reading, and written twice they
+  // disagreed twice. This was the third copy and it was wrong in both of the ways that
+  // comment names — it asked only about overflow, so paint containment and
+  // content-visibility clipped a ring away with nothing said, and it measured the
+  // padding box with the scrollbar's gutter still in it.
+  const {{ shownBand }} = await import('/runtime/widget-api.js');
+  const named = {NAMED};
+  const holds = (a, b) => {{
+    for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
+    return false;
+  }};
+  // The layer's rules are the page's for its whole life, so they are read once. What
+  // matches them is asked afresh every time, because that is the part that moves.
+  const rules = (window.__lfRingRules ??= ({RING_RULES})());
+  const roots = [];
+  for (const el of document.querySelectorAll('*'))
+    if (el.shadowRoot) roots.push(el.shadowRoot);
+  // `:host(X) rest` is only meaningful inside a shadow root, and the parentheses are
+  // matched rather than split at the first `)` — `:host(:not(.x))` would otherwise be
+  // cut in half and take the rest of the selector with it.
+  const hosted = (sel) => {{
+    if (!sel.startsWith(':host')) return null;
+    if (!sel.startsWith(':host(')) return {{ host: '*', rest: sel.slice(5).trim() }};
+    let depth = 0;
+    for (let i = 5; i < sel.length; i++) {{
+      if (sel[i] === '(') depth++;
+      else if (sel[i] === ')' && !--depth)
+        return {{ host: sel.slice(6, i), rest: sel.slice(i + 1).trim() }};
+    }}
+    return null;
+  }};
+  const claimed = new Map();
+  for (const [sel, , shadow] of rules) {{
+    const host = hosted(sel);
+    const where = [
+      ...(host ? [] : [document]),
+      ...(shadow
+        ? roots.filter((root) => !host || root.host.matches(host.host))
+        : []),
+    ];
+    for (const root of where)
+      // `:host(X)` with nothing after it styles the widget's own box, so what it
+      // matches is the host and there is no selector left to run inside the root —
+      // `querySelectorAll('')` throws, and the throw takes the whole reading down
+      // naming a line of JavaScript rather than a ring.
+      for (const el of host && !host.rest
+        ? [root.host]
+        : root.querySelectorAll(host ? host.rest : sel)) {{
+        if (!claimed.has(el)) claimed.set(el, []);
+        claimed.get(el).push(sel);
+      }}
+  }}
+  const focused = ({DEEP_FOCUS})();
+  if (focused && focused !== document.body && focused !== document.documentElement
+      && !claimed.has(focused)) claimed.set(focused, []);
+  // Whether the outline on this element is the layer's ring: `--here-ring` is
+  // `var(--here-ring-w) solid var(--accent)`, so its width and style are what the
+  // element computes them to and both sides of the comparison are computed values.
+  // The colour is not usable for this — a custom property serializes as it was
+  // written and `outline-color` as it resolved, which agree for `#2f5480` and for
+  // nothing more exotic. `color-mix()` or `light-dark()` in a package's accent turned
+  // every rule in the layer uncredited and the whole gate red on a page drawing every
+  // ring correctly. An element wearing some other outline is still measured, since a
+  // visible outline cut in half is a fault whoever drew it.
+  const isHereRing = (cs) =>
+    cs.outlineStyle === 'solid'
+    && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim();
+  const answers = [];
+  for (const [el, matched] of claimed) {{
+    // A ring on something the browser is not rendering is not on screen, and its box is
+    // whatever the last layout left behind. An inactive lf-tab is the case: it carries
+    // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
+    // contents are skipped, and the ask inside one still answers a stale rect three
+    // thousand pixels from the band its own panel now reports.
+    if (!el.checkVisibility({{
+      contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true,
+    }})) continue;
+    // Straight off the computed style, which holds because no ring in this layer moves.
+    // A ring on its way somewhere reads as wherever it has got to — mid-transition the
+    // platform reports the animated value, which early on is the value the property is
+    // leaving — and this once read every ring that way, because the theme's
+    // reduced-motion guard shortened transitions rather than removing them and
+    // `transition-property` is `all`, so a ring arriving was a ring in transit for two
+    // frames on every page. That is fixed where it was made (theme.css). A layer that
+    // deliberately animates a ring owes this reading a wait on `getAnimations()`; one
+    // written here now would wait on nothing, in front of the reading it is meant to
+    // protect.
+    const cs = getComputedStyle(el);
+    const w = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0;
+    if (!w) continue;
+    const grow = w + (parseFloat(cs.outlineOffset) || 0);
+    const b = el.getBoundingClientRect();
+    const ring = {{ top: b.top - grow, left: b.left - grow,
+                   bottom: b.bottom + grow, right: b.right + grow }};
+    const at = (r) => [r.left, r.top, r.right, r.bottom].map(Math.round).join();
+    // A ring drawn inside its control's box — twelve of the layer's rules inset theirs —
+    // cannot leave it, so `cuts` is empty for those by geometry and the covers half is
+    // the whole of what this says about them.
+    const cuts = [];
+    let scrolled = false;
+    const above = (n) => n.parentElement || n.getRootNode().host || null;
+    // One side, one message, named for the innermost box that took it. A scroll region's
+    // edge is often the window's to the pixel — .lf-threads' right edge is .lf-panel's is
+    // innerWidth — and one ring reported twice reads as two defects. The innermost box is
+    // the more useful of the two answers anyway: it is the box the control lives in.
+    const taken = {{}};
+    const took = (band, who) => {{
+      // Only the sides where this box is showing the control's own edge, which is the
+      // claim a box can be held to: where the control can be seen, so can the ring
+      // around it. Asked of the edge rather than of the size, because the two answers
+      // differ for everything not focused — a code block taller than the window hangs
+      // out of it however the browser scrolls; an ask wears its ring for a control the
+      // reader reached near its top and its own foot is below the fold; a thread's
+      // element mark is painted on a widget nobody has scrolled to at all. None of
+      // those is a ring drawn outside its box, and a size test excuses the first and
+      // reports the other two.
+      //
+      // What it gives up in exchange: a control whose own box its holder clips gets no
+      // ring reading on that side, where a size test would have reported one. That is
+      // a control drawn where no reader can reach it rather than a ring leaving its
+      // box, and CLIPPED_CONTROLS is the reading that owns it.
+      //
+      // Asked of the control's border box and not of its ring, because a ring is the one
+      // thing a box is asked to find room for beyond what it holds: a control filling its
+      // scroller to the pixel excused itself from every reading it should have answered.
+      const shows = {{
+        top: b.top >= band.top - 0.5,
+        bottom: b.bottom <= band.bottom + 0.5,
+        left: b.left >= band.left - 0.5,
+        right: b.right <= band.right + 0.5,
+      }};
+      for (const [side, by] of Object.entries({{
+        top: band.top - ring.top,
+        left: band.left - ring.left,
+        bottom: ring.bottom - band.bottom,
+        right: ring.right - band.right,
+      }}))
+        if (!taken[side] && by > 0.5 && shows[side])
+          taken[side] =
+            `its ${{side}} edge is ${{Math.round(by * 10) / 10}}px outside ` + who
+            + ` (ring ${{at(ring)}} vs band ${{at(band)}})`;
+    }};
+    // `clipped` in anchors.js is this walk, and this is its shape: from the box itself
+    // rather than its parent, skipping the box's own band because an element is not clipped
+    // by its own overflow, and stopping at the first fixed box. Its comment records what
+    // starting at the parent cost — "the question of every ancestor of a fixed box and
+    // never of the box" — which is the bug this reading had too.
+    for (let a = el; a; a = above(a)) {{
+      if (a !== el) {{
+        if (a.scrollHeight > a.clientHeight) scrolled = true;
+        const band = shownBand(a);
+        if (band) took(band, named(a));
+      }}
+      if (getComputedStyle(a).position === 'fixed') break;
+    }}
+    // The window last, so an inner box that shares an edge with it is the one named, and
+    // unconditionally, because the walk above may have stopped at a fixed box and every
+    // box stops somewhere. It is the outermost clip there is: a fixed subtree is laid out
+    // against it, and everything else reaches it through body, which is this page's
+    // scroller. Not a claim that nothing else could clip a fixed box — a containing block
+    // established by transform, filter or containment is a real case, and .lf-banner's
+    // backdrop-filter is one such generator — but the walk covers that case now by asking
+    // every box on the way up instead of branching on the focused one's own position.
+    took({{ top: 0, left: 0, bottom: innerHeight, right: innerWidth }}, 'the window');
+    for (const side of ['top', 'left', 'bottom', 'right'])
+      if (taken[side]) cuts.push(taken[side]);
+    const paints = (n) => {{
+      const s = getComputedStyle(n);
+      return s.backgroundImage !== 'none'
+        || !/^(transparent$|rgba\\(.*,\\s*0\\))/.test(s.backgroundColor);
+    }};
+    const mid = (x, y) => (x + y) / 2;
+    const covers = [];
+    // Whether this reading has an order to read at all. It works by hit-testing the ring's
+    // own pixels and taking whatever comes back as standing over them — but an outline is
+    // painted by its control, at its control's level, and an outline's pixels are not
+    // hit-testable. A pixel of ring outside the control's box therefore returns whatever
+    // is beneath, and beneath is where the answer would have to come from.
+    //
+    // That is sound while the control's own surface takes hits, because then the ring's
+    // sample either lands on the control's line or lands somewhere the line does not
+    // reach. It stops being sound inside a surface declaring `pointer-events: none`: the
+    // key line stands over the page at z-index 8940 and takes no hits, so its More button
+    // is topmost where it lives and every line of code under the ring's top run read as
+    // standing over it. `cuts` is geometry and still answers for these; this half says
+    // nothing rather than saying the opposite of what the page shows.
+    let ordered = true;
+    for (let a = el; a; a = above(a))
+      if (getComputedStyle(a).pointerEvents === 'none') {{ ordered = false; break; }}
+    // Whether a fixed surface standing over this ring is worth reporting. Tab scrolls
+    // the control it lands on clear of the banner — that is what the document's
+    // scroll-padding is for — so a fixed bar over the focused control's ring is a
+    // promise broken. Over a ring some ancestor wears it is not: nobody scrolled that
+    // box, and where its top edge comes to rest a pixel under the bar is the reader's
+    // scroll position rather than the layer's doing. An option group 2261px tall, whose
+    // pick the walk had landed on, is the case.
+    const fixedOver = (n) => {{
+      for (let a = n; a; a = above(a))
+        if (getComputedStyle(a).position === 'fixed') return true;
+      return false;
+    }};
+    const scrolledTo = el === focused;
+    // Each run sampled in the middle of the part of it that is on screen, rather than in
+    // the middle of the whole run. They differ for anything taller or wider than the
+    // window, and then the plain midpoint is a point the reader cannot see: an option
+    // group 1791px tall was sampled 22px down the window, which is inside the banner,
+    // and the banner's status dot came back as standing over its ring.
+    const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
+    const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
+    const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
+    for (const [side, x, y] of ordered && shownRun ? [
+      ['top', mid(...runX), ring.top + 0.5],
+      ['bottom', mid(...runX), ring.bottom - 0.5],
+      ['left', ring.left + 0.5, mid(...runY)],
+      ['right', ring.right - 0.5, mid(...runY)],
+    ] : []) {{
+      if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+      for (const over of document.elementsFromPoint(x, y)) {{
+        if (over === el || holds(el, over) || holds(over, el)) break;
+        if (!paints(over)) continue;
+        if (!scrolledTo && fixedOver(over)) break;
+        // Is the control itself under this too? Where a control stands partly behind
+        // something, the ring's run on that side is behind whatever the control is behind,
+        // which is a fact about where the control was put rather than about the ring being
+        // drawn outside its box. The claim worth making is the other one: where the control
+        // can be seen, so can the ring that names it. Stated without a case on purpose —
+        // the one this was written for was the tray's edge handle running the whole height
+        // of the window under the banner, which stopped being true in 3a8f16f0, the commit
+        // that added this comment and the handle's top inset together.
+        //
+        // The step in has to clear the ring's own band, and `grow + w` from the ring's
+        // edge is what lands `w + 1` inside the box whichever side of it the ring is
+        // drawn on. Written as `grow + 1` it cleared an outward ring, where grow is
+        // already at least w, and landed inside an inset one, where grow is nought:
+        // every covered inset ring answered that the control was behind the same thing
+        // and was dropped without a word. The rings the panel's own list draws are all
+        // inset, so this went blind in the same commit that made them so — a thread
+        // lying two pixels under its stuck run heading is a card with three sides, and
+        // the gate written to catch exactly that reported nothing.
+        const step = grow + w + 1;
+        const inx = x + (side === 'left' ? step : side === 'right' ? -step : 0);
+        const iny = y + (side === 'top' ? step : side === 'bottom' ? -step : 0);
+        if (document.elementsFromPoint(inx, iny).includes(over)) break;
+        const o = over.getBoundingClientRect();
+        covers.push(`its ${{side}} edge is under ` + named(over)
+                    + ` (ring ${{at(ring)}} vs ${{at(o)}}, sampled ${{Math.round(x)}},`
+                    + `${{Math.round(y)}})`);
+        break;
+      }}
+    }}
+    answers.push({{
+      who: named(el),
+      rules: isHereRing(cs) ? matched : [],
+      focused: el === focused,
+      scrolled,
+      cuts,
+      covers,
+    }});
+  }}
+  return answers;
+}}"""
+
+
+COVERED_TOP = """() => {
+  const el = document.activeElement;
+  const box = document.querySelector('.lf-threads');
+  if (!el || !box.contains(el)) return null;
+  const r = el.getBoundingClientRect();
+  const over = document.elementsFromPoint((r.left + r.right) / 2, r.top + 1)
+    .find((n) => n !== el && !el.contains(n) && !n.contains(el)
+                 && n.classList.contains('lf-pinned'));
+  if (!over) return null;
+  const o = over.getBoundingClientRect();
+  return `${over.textContent.trim().slice(0, 32)} covers it down to `
+         + `${Math.round(o.bottom - r.top)}px in`;
+}"""
+
+
+def ring_rules(page):
+    """The layer's ring rules, as the reading itself holds them.
+
+    Through the reading's own memo rather than a second evaluation, so the
+    population a coverage floor divides by is the one the credits were counted
+    against. Two evaluations are two moments, and a stylesheet arriving between
+    them — design mode, a module loading late — makes the floor report a rule
+    that was never checkable or hide one that was.
+    """
+    return page.evaluate(f"() => (window.__lfRingRules ??= ({RING_RULES})())")
+
+
+def rings_drawn(page):
+    """Every here ring the page is drawing, each with what is wrong with it."""
+    return page.evaluate(RINGS_DRAWN)
+
+
+def standing_ring(page):
+    """The ring on the control the keyboard is standing on, or None if it wears none."""
+    return next((seen for seen in rings_drawn(page) if seen["focused"]), None)
+
+
+def ring_faults(drawn, where):
+    """The complaints about a page's rings, in the failure's own words.
+
+    Takes a reading rather than a page: a caller that also wants what the rings
+    credit would otherwise sweep the page twice and describe two instants of it.
+    """
+    return [
+        f"{where}, the ring on {seen['who']} is not all there: "
+        + "; ".join(seen["cuts"] + seen["covers"])
+        for seen in drawn
+        if seen["cuts"] or seen["covers"]
+    ]

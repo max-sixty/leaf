@@ -5,7 +5,8 @@ import math
 import re
 
 import pytest
-from conftest import interact
+from leaf import events as events_model
+from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     BOARD_PAGE,
@@ -51,12 +52,14 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     page.locator(".lf-comments").click()
     panel_settled(page)
     comments = [
-        e["id"] for e in interact.read_events(serve.page_dir) if e["kind"] == "comment"
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
     ]
     comment = comments[0]
     # The reader has done nothing, so there is nothing to take back — a thread the
     # agent closed with `leaf resolve` is not theirs to reopen by pressing undo.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "resolve", "author": "claude", "agent": "A", "parent": comments[1]},
     )
@@ -70,7 +73,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[data-id="{comment}"]')
     ).to_have_count(1)
-    log = interact.read_events(serve.page_dir)
+    log = events_model.read_events(serve.page_dir)
     assert log[-1] == {
         **log[-1],
         "kind": "undo",
@@ -112,7 +115,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     undo(page)
     assert [
         event["kind"]
-        for event in interact.read_events(serve.page_dir)
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] in {"resolve", "undo"} and event["author"] == "user"
     ] == ["resolve", "resolve", "undo"]
     assert errors == []
@@ -149,7 +152,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
         "card-baffle",
     ]
     expect(grip).to_be_focused()
-    log = interact.read_events(serve.page_dir)
+    log = events_model.read_events(serve.page_dir)
     (moved,) = actions(serve.page_dir)
     assert moved["detail"] == {"card": "card-baffle", "to": "col-done", "index": 0}
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
@@ -184,7 +187,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
             '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
         )
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "carried"}
     )
     page.wait_for_url("**/v2.html*")
@@ -197,7 +200,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     # in exactly the failure the test is named for. The log holding no withdrawal is
     # what says it, and the card still being where the move put it is what that means
     # on the page.
-    assert [e["kind"] for e in interact.read_events(d) if e["kind"] == "undo"] == []
+    assert [e["kind"] for e in events_model.read_events(d) if e["kind"] == "undo"] == []
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     assert errors == []
     page.close()
@@ -297,7 +300,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page, errors = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {sendAction} = await import('/leaf.js');
+          const {sendAction} = await import('/runtime/widget-api.js');
           const board = document.querySelector('#sprint');
           const attempt = 'one-attempt-two-actions';
           const first = sendAction(
@@ -467,7 +470,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
     round_trip(page)
     first = actions(serve.page_dir)[0]
 
-    second = interact.append_event(
+    second = events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -508,7 +511,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
         page.keyboard.press("z")
     logged_undo = next(
         event
-        for event in reversed(interact.read_events(serve.page_dir))
+        for event in reversed(events_model.read_events(serve.page_dir))
         if event["kind"] == "undo"
     )
     assert logged_undo["undoes"] == first["id"]
@@ -774,7 +777,7 @@ def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, s
         '    <lf-card id="card-third"><strong>Third card</strong></lf-card>',
     )
     url = serve(three_cards)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -798,7 +801,7 @@ def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, s
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void import('/leaf.js').then(({sendAction}) => {
+            """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#sprint');
               const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
               widget.applyAction('move', detail);
@@ -876,12 +879,12 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
             },
         }
     }
-    standard = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())
+    standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     entries["lf-column"] = standard["lf-column"]
     entries["lf-column"]["x-parent"].append("lf-outer-board")
     registry_path.write_text(json.dumps(entries))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { once } from "/leaf.js";
+        """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
   connectedCallback() { once(this); }
   applyAction(action, detail) {
@@ -914,7 +917,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void import('/leaf.js').then(({sendAction}) => {
+            """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#outer');
               const detail = {card: 'outer-card', to: 'outer-done', index: 0};
               widget.applyAction('move', detail);
@@ -923,7 +926,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         )
     page.wait_for_timeout(0)
     page.evaluate(
-        """() => { void import('/leaf.js').then(({sendAction}) => {
+        """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
           const widget = document.querySelector('#inner');
           const detail = {card: 'inner-card', to: 'inner-done', index: 0};
           widget.applyAction('move', detail);
@@ -1004,7 +1007,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     page.unroute("**/api/event")
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1092,7 +1095,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
     older_answer = held[
         0
     ].fetch()  # the server appends A; its browser response stays held
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1150,7 +1153,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1197,7 +1200,7 @@ def test_a_first_complete_read_restores_its_own_already_undone_action(browser, s
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1243,7 +1246,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
         for event in accepted_answer.json()["state"]["events"]
         if event.get("attempt") == attempt
     )
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
@@ -1273,7 +1276,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     page.wait_for_timeout(0)
     # Append the accept while its browser response remains held.
     accepted_answer = held[0].fetch()
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1466,7 +1469,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.wait_for_timeout(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1537,7 +1540,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     # Two gestures and two words taking them back, newest first: nothing in the log
     # claims the reader chose opt-b or typed the authored draft, because they did
     # neither — the page derived both from what still stands.
-    log = interact.read_events(serve.page_dir)
+    log = events_model.read_events(serve.page_dir)
     edit, choose = actions(serve.page_dir)
     assert [(e["action"], e["detail"]) for e in (edit, choose)] == [
         ("edit", {"text": "Rewritten."}),
@@ -1588,7 +1591,9 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     (accepted,) = actions(serve.page_dir)
     assert accepted["action"] == "accept"
     assert [
-        e["undoes"] for e in interact.read_events(serve.page_dir) if e["kind"] == "undo"
+        e["undoes"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "undo"
     ] == [accepted["id"]]
     assert errors == []
     page.close()
@@ -1611,7 +1616,7 @@ def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
     this route ever lost it."""
     url = serve(SUGGESTION_PAGE)
     page, errors = open_page(browser, url)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1807,7 +1812,7 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     # it — so what the two tabs owe the card afterwards is visibly different.
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(BOARD_PAGE)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "unchanged"}
     )
     moved_on.wait_for_url("**/v2.html*")
@@ -1865,7 +1870,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
     expect(one.locator("#sug-refill lf-new")).to_be_hidden()
     assert [
         e.get("action", e["kind"])
-        for e in interact.read_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] in ("action", "undo")
     ] == ["accept", "undo", "reject"]
     assert errors_one == [] and errors_two == []
@@ -2105,7 +2110,7 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
             "Rewritten, with nothing left of the sentence the draft was about.",
         )
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     told(page)
@@ -2168,7 +2173,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     put down where it was picked up takes the class off and returns before #send, so
     there is no send downstream to paint in its place."""
     url = serve(BOARD_PAGE)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",

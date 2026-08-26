@@ -8,10 +8,16 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import render_checks as render_checks_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
+    ASK_WITH_CONTEXT_PAGE,
     ASKED_PAGE,
     CARRIED_PAGE,
     CHIP_PAGE,
@@ -309,9 +315,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # asks the same of every example and cannot reach this moment: a group arrives
     # closed, and nothing it does opens one.
     assert row.get_attribute("aria-expanded") == "true"
-    assert page.evaluate(interact.UNDECLARED_ATTRS, page_registry(page)) == [], (
-        "opening the group left an attribute on a widget its entry never declared"
-    )
+    assert (
+        page.evaluate(render_checks_model.UNDECLARED_ATTRS, page_registry(page)) == []
+    ), "opening the group left an attribute on a widget its entry never declared"
 
     row.click()  # closed again, so the reveal below has something to open
 
@@ -396,8 +402,12 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
 
     # The strip the mark sits in: what the card's bottom padding holds over its own
     # base, so the measure follows the theme's spacing instead of pinning a number.
+    # Read against the top, which is the card's own padding on every side the group
+    # has not claimed. The leading side is claimed — a choose group reserves the
+    # keyboard address column there, `settled` included — so a base taken from it was
+    # the width of that column, and the strip came out as the two numbers' difference.
     strip = """el => parseFloat(getComputedStyle(el).paddingBottom) -
-                     parseFloat(getComputedStyle(el).paddingLeft)"""
+                     parseFloat(getComputedStyle(el).paddingTop)"""
     pick = page.locator("#opt-lax .lf-pick")
     page.emulate_media(media="print")
     expect(
@@ -443,7 +453,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     base version unupgraded, where no mark exists at all, and must not read this
     one as a change nobody wrote."""
     url = serve(CARRIED_PAGE)
-    assert interact.render_version(browser, url) == []
+    assert rendering_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
     mark = page.locator("#c-lax .lf-pick")
@@ -473,7 +483,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     (d / "versions" / "v2.html").write_text(
         CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best")
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -585,7 +595,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     (d / "versions" / "v2.html").write_text(
         SETTLED_PAGE.replace("arrives logged out", "arrives logged out every time")
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
     )
     page.wait_for_url("**/v2.html")
@@ -635,8 +645,9 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-shim").evaluate(below) == 1, (
         "the cells share no hairline, so the set reads as one box rather than as cells"
     )
-    # The group's last child is the box for words the module appends, so the last
-    # option still draws its line — against that box, not the group's border.
+    # The group's last child is the cell the module appends for the reader's own
+    # option, so the last authored option still draws its line — against that cell,
+    # not the group's border.
     assert page.locator("#approach > :last-child").evaluate(below) == 0, (
         "the group's last child draws a line against the group's own border"
     )
@@ -728,7 +739,8 @@ def test_the_question_a_joined_group_asks_stands_with_its_answers(
     A group under `choose` is one control and its members are cells of it, each holding
     its words off the drawn edge and opening at the address column the group reserves.
     The question is a cell too. It was not treated as one: the block naming the cells
-    named the two kinds it expected — the options and the box for words — and the
+    named the two kinds it expected — the authored options and the cell the reader
+    writes their own in — and the
     question is written by the runtime from `x-says`, so it arrived as a third kind with
     no rule to meet it. What shipped was a question set hard into the frame's top-left
     corner, a full address column to the left of every word it was a question about,
@@ -811,7 +823,7 @@ def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
     # words into a detached body before any element connects, where the page upgrades
     # first and renders words after — so this is the reading that says the order does
     # not depend on that.
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -866,9 +878,9 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     forms are visible and nothing correct is accused.
 
     Every child, because which kinds a group holds is not this test's to know: the
-    options are the author's, the box for words is the module's, the question and the
-    Done press are the runtime's, and each arrived carrying the spacing it wears
-    standing alone."""
+    authored options are the author's, the option the reader writes is the module's,
+    the question and the Done press are the runtime's, and each arrived carrying the
+    spacing it wears standing alone."""
     page, errors = open_page(browser, serve(ASKED_PAGE))
     cells = page.locator(f"#{group}").evaluate(
         r"""el => {
@@ -878,10 +890,18 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
                const s = getComputedStyle(c);
                const r = c.getBoundingClientRect();
                const next = kids[i + 1];
+               // The ground the reader sees under the cell, which is not the same as
+               // what the cell declares: a cell that paints nothing shows the group's
+               // own, and that is how an unpicked option is filled.
+               const clear = (v) => !v || v === 'transparent'
+                        || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
                return {
                  what: c.tagName.toLowerCase() + (c.dataset.lfSaid
                         ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
                  opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
+                 ground: clear(s.backgroundColor)
+                   ? getComputedStyle(el).backgroundColor : s.backgroundColor,
+                 picked: c.hasAttribute('chosen'),
                  gap: next
                    ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
                    : null,
@@ -903,13 +923,33 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     )
 
     # And they open at one column, which is the half a reader sees first: the question
-    # hung a whole address column left of the words it was a question about. The box for
-    # words is apparatus and states its own inset, so this asks the cells that carry the
-    # group's own words.
-    words = {c["opens"] for c in cells if "lf-conversation" not in c["what"]}
+    # hung a whole address column left of the words it was a question about. Every cell,
+    # the reader's own among them: that cell holds the option they write when none of the
+    # authored ones is the answer, so a cell drawn short of the column starts the one box
+    # the group takes words in outside the run of boxes the group is. Its own 12px did
+    # exactly that, and this line excused it as apparatus. What is compared is the cell,
+    # not the caret: a text box holds its words off its own frame, which is the box's and
+    # no business of the group's.
+    words = {c["opens"] for c in cells}
     assert len(words) == 1, (
-        f"the cells carrying #{group}'s words open at {sorted(words)}, so the question "
-        "and its answers read as more than one column"
+        f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
+        "the option the reader writes read as more than one column"
+    )
+
+    # And the reader's own option is filled the way an option nobody has picked is
+    # filled, which is the other half of what says it is one of the answers. A pick
+    # colours the cell that holds it and nothing else does, so any other ground here is
+    # a state the group hasn't got: the cell wore --field, a tinted band that in this
+    # theme means a detail or a note, and a band under the answers is a footer whatever
+    # else is written in it.
+    open_option = next(
+        c["ground"] for c in cells if c["what"] == "lf-option" and not c["picked"]
+    )
+    reader = next(c for c in cells if "lf-conversation" in c["what"])
+    assert reader["ground"] == open_option, (
+        f"#{group}'s reader-written option stands on {reader['ground']} where an "
+        f"unpicked option stands on {open_option}, so it reads as apparatus under the "
+        "answers rather than as one of them"
     )
     assert errors == []
     page.close()
@@ -952,8 +992,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # choose path sets `chosen` before it sends, so a pick would show here).
     assert page.locator('#quoted-group .lf-pick[role="button"]').count() == 0
     assert page.locator("#quoted-board .lf-grip").count() == 0
-    # Nor a box for words: an exhibited question takes no answer of either kind, and
-    # a box is the one that would have looked answerable.
+    # Nor a cell to write another option in: an exhibited question takes no answer of
+    # either kind, and a box is the one that would have looked answerable.
     assert page.locator("#quoted-group .lf-say").count() == 0
     page.locator("#q-shim").click()
     assert page.locator("#quoted-group lf-option[chosen]").count() == 0
@@ -1094,6 +1134,164 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page.close()
 
 
+def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
+    """A cell says its status in a bar beside its words, and the aim is a wash: two
+    facts about the same box, so both are true at once and the pointer arriving changes
+    only its own.
+
+    Which the two forms of the same statement did not manage while they shared the one
+    property. The cell's status rode a box-shadow, so did a loose card's ring, the
+    card's hover put a lift there, and the rules that restated the ring under the lift
+    carried the status attribute — one class column, enough to outrank the cell's own
+    paint in a group the card rules were never meant to reach. What a reader got for
+    pointing at the option the page recommends was the status gone, a 1px ring in its
+    place with the group's clip cutting away its side runs, and a drop shadow inside a
+    box with no room to cast one.
+
+    So the card's channels are separate (--lf-ring, --lf-lift), the cell's bar is drawn
+    where neither reaches, and the two forms are alternatives rather than layers
+    (--lf-joined): a cell is never handed the dressing it would have to undo. Read on
+    the recommended cell and its plain neighbour, since "unchanged" is also what a cell
+    with nothing to say returns.
+
+    The bar's own place is held too. It stands in the column the group reserves for a
+    keyboard address, clear of the leading edge, because the ask around a control wears
+    the reader's band three pixels outside that edge and a second accent bar just inside
+    it cannot be told from the first."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    page.wait_for_function(
+        """() => document.querySelector('#live-group')
+                 .getAnimations({subtree: true}).length === 0"""
+    )
+    paint = """el => { const s = getComputedStyle(el), bar = getComputedStyle(el, '::before');
+                       return [bar.backgroundColor,
+                               [parseFloat(bar.left), parseFloat(bar.width)],
+                               s.borderTopStyle === 'none'
+                                 ? 0 : parseFloat(s.borderTopWidth),
+                               parseFloat(s.borderTopLeftRadius),
+                               s.backgroundColor]; }"""
+    marked, plain = page.locator("#l-stage"), page.locator("#l-shim")
+    stripe, (left, width), border, radius, fill = marked.evaluate(paint)
+    assert (border, radius) == (0, 0), (
+        f"a cell of a joined group wears a card's border and corner: {border}, {radius}"
+    )
+    assert stripe != plain.evaluate(paint)[0], (
+        "the recommended cell and its plain neighbour carry the same paint, so this "
+        "reads nothing about the recommendation"
+    )
+    # The column as the cell spends it, rather than the token's own text: the term is a
+    # calc over the chip's box, so `getPropertyValue` answers with the expression and a
+    # number read off it is NaN — which compares false against everything and reports a
+    # bar in the wrong place as convincingly as a real one.
+    column = marked.evaluate(
+        "el => parseFloat(getComputedStyle(el).paddingInlineStart)"
+    )
+    assert 0 < left and left + width < column, (
+        f"the bar at {left}…{left + width} does not stand inside the {column}px the "
+        "group reserves, so it is back on the edge the reader's band runs down"
+    )
+    marked.hover()
+    expect(marked).not_to_have_css("background-color", fill)
+    assert marked.evaluate(paint)[:4] == [stripe, [left, width], 0, 0], (
+        f"the pointer took the recommendation with it: {marked.evaluate(paint)} "
+        f"against {[stripe, [left, width], border, radius]} at rest"
+    )
+
+    # The column holds two things, and the other one arrives only for the keyboard. Both
+    # terms of the column follow the type — the chip's box does by declaration
+    # (--lf-key-box), and the bar hangs off the column's trailing edge — so this is what
+    # says the column is still the sum of what stands in it. A package redeclaring the
+    # ladder is the case: written as a number, the column stayed the size the chip was
+    # when somebody measured it, and the chip grew into the bar's three pixels.
+    page.mouse.move(0, 0)
+    mark = page.locator("#l-stage .lf-pick").first
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    chip = page.locator("#l-stage .lf-address")
+    expect(chip).to_be_visible()
+    ends = chip.evaluate(
+        """el => el.getBoundingClientRect().right
+                 - el.closest('lf-option').getBoundingClientRect().left"""
+    )
+    assert ends < left, (
+        f"the keyboard address runs to {ends} and the status bar opens at {left}, so "
+        "the column is holding one of them in the other's room"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_one_band_says_where_the_reader_is_standing(browser, serve):
+    """The reader's band is drawn once, on the outermost box that claims it.
+
+    A joined group is focused as one control and draws the band itself, which is the
+    same band and the same stroke the ask it stands in wears. Where the ask is the
+    group — most questions — the two are one element and one ring. Where an author has
+    written the region out, so the heading and the premise arrive with the control, the
+    ask is a box around the group and the two rings nested: one around a paragraph of
+    context, another a few pixels inside it, saying the same thing at two sizes.
+
+    So the group's is the one that stands down. Its half of the fact — which control,
+    and which cell of it — is already said by the washed cell and the address chips,
+    while the ask's ring is what the walk aims at and what the arrival scrolls to."""
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    mark = page.locator("#storage-evict .lf-pick")
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#storage-ask[data-lf-ask]")).to_have_count(1)
+    drawn = """el => { const s = getComputedStyle(el);
+                       return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
+    assert page.locator("#storage-ask").evaluate(drawn) > 0, (
+        "the ask the reader is standing in draws no band, so nothing says where they are"
+    )
+    group = page.locator("#storage-options")
+    assert group.evaluate(
+        "el => el.matches(':has(> lf-option > .lf-pick:focus-visible)')"
+    ), "the keyboard is not on the group's own mark, so this reads nothing"
+    assert group.evaluate(drawn) == 0, (
+        "the group draws the reader's band inside the ask already wearing it"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_pick_does_not_bury_the_news_that_it_is_unrecorded(browser, serve):
+    """An element wears one outline, so the group's own band gives way to the log's.
+
+    Answering closes the ask, and what the group wears next is the news that the
+    decision stands in replay and not yet in the page's own words. That ring and the
+    band saying the keyboard is here are the same property on the same box, and the
+    band was winning: a reader who picked by keyboard saw their pick reported as
+    recorded until they tabbed away, which is the one moment the ring has nothing to
+    add and the one moment it was drawn.
+
+    Read as paint rather than as a rule, and against a probe wearing the state and
+    nothing else, so a theme that recolours the news moves both sides together."""
+    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    mark = page.locator("#l-stage .lf-pick")
+    mark.focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    page.keyboard.press("Enter")
+    expect(page.locator("#live-group[data-lf-pending]")).to_have_count(1)
+    assert page.locator("#l-stage").evaluate(
+        "el => el.matches(':has(> .lf-pick:focus-visible)')"
+    ), "the keyboard left the mark, so the two bands never met"
+    news = page.evaluate("""() => {
+        const probe = document.createElement('div');
+        probe.setAttribute('data-lf-pending', '1');
+        document.body.append(probe);
+        const seen = getComputedStyle(probe).outlineColor;
+        probe.remove();
+        return seen;
+    }""")
+    expect(page.locator("#live-group")).to_have_css("outline-color", news)
+    assert errors == []
+    page.close()
+
+
 def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serve):
     """Which form a group takes is a fact about its options rather than an attribute
     saying so, and the whole of that fact is whether an option leads with a title. So
@@ -1132,20 +1330,27 @@ def test_a_group_of_bare_labels_reads_as_a_question_about_the_page(browser, serv
     # arrives after the reader has already had to guess where to aim. The group's edge
     # and the cells' hairlines are what a reader sees before committing the pointer, and
     # they are the same two rules a card group has always had.
+    #
+    # The hairline is read as the border it is drawn as. It was read off the cell's
+    # box-shadow, which is where a row's status stripe rode and not where any line
+    # between two rows has ever been: the assertion passed on a transparent stripe and
+    # would have passed on a group with no line between its rows at all.
     edge = """el => { const s = getComputedStyle(el);
                       return s.borderTopStyle === 'none' ? 0 : parseFloat(s.borderTopWidth); }"""
-    hairline = "el => getComputedStyle(el).boxShadow"
+    hairline = """el => { const s = getComputedStyle(el);
+                          return s.borderBottomStyle === 'none'
+                                   ? 0 : parseFloat(s.borderBottomWidth); }"""
     assert page.locator("#jobs").evaluate(edge) > 0, (
         "a list offering a pick draws no edge, so nothing says the rows are answerable"
     )
-    assert page.locator("#job-mounts").evaluate(hairline) != "none", (
+    assert page.locator("#job-mounts").evaluate(hairline) > 0, (
         "a row draws no box of its own, so its bounds show only under the pointer"
     )
     # And the shape is the offer, so a list that asks nothing wears none of it.
     assert page.locator("#ordered").evaluate(edge) == 0, (
         "a list with no pick to take was drawn as a control anyway"
     )
-    assert page.locator("#ord-mounts").evaluate(hairline) == "none", (
+    assert page.locator("#ord-mounts").evaluate(hairline) == 0, (
         "a row nobody can press draws cell edges anyway"
     )
 
@@ -1299,7 +1504,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
         '<lf-option id="out-drill">', '<lf-option id="out-drill" chosen>'
     ).replace('<lf-option id="in-now">', '<lf-option id="in-now" chosen>')
     url = serve(nested_choices)
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "action",
@@ -1715,8 +1920,55 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.close()
 
 
+def test_writing_the_last_option_leaves_the_question_with_the_agent(browser, serve):
+    """Writing in the group's last cell puts the question in the agent's hands, so
+    the page stops asking the reader for it.
+
+    The banner's count and the panel's reading of that thread are one fact: the
+    conversation waits on the agent, so the request is not also waiting on the
+    reader. Counting it anyway asked them twice for what they had just written, in
+    a box the page itself put there. It answers nothing — no pick rests on the group
+    — so a reply hands the question straight back, and the count and the tray's row
+    both say so. That is the whole of the re-arm, and why words need no new attribute
+    to take back."""
+    url = serve(ASK_PAGE)
+    page, errors = open_page(browser, url)
+    asks = page.locator(".lf-asks")
+    expect(asks).to_have_text("Asks (3)")
+    asks.click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(3)
+
+    conversation = page.locator("#jobs > .lf-conversation")
+    conversation.locator(".lf-say textarea").fill("Neither — do the camera first.")
+    conversation.locator(".lf-say [role='button']").click()
+    round_trip(page)
+    expect(asks).to_have_text("Asks (2)")
+    expect(rows).to_have_count(2)
+    assert page.locator('.lf-asks-row[data-lf-at="jobs"]').count() == 0, (
+        "the walk still steps to a question the reader has handed to the agent"
+    )
+
+    root = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "version": 1,
+            "parent": root["id"],
+            "text": "The camera costs us the mounts this month. Still first?",
+        },
+    )
+    told(page)
+    expect(asks).to_have_text("Asks (3)")
+    expect(page.locator('.lf-asks-row[data-lf-at="jobs"]')).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
 def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
-    """A question's box starts one ordinary log thread and then becomes its page view.
+    """The option a reader writes starts one log thread and becomes its page view.
 
     The panel remains the complete conversation workspace, including interactive reply
     markup, while the question keeps every message's text beside what asked for it. Both
@@ -1730,6 +1982,12 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     conversation = page.locator("#jobs > .lf-conversation")
     box = conversation.locator(".lf-say textarea")
     send = conversation.locator(".lf-say [role='button']")
+    # What the box is for, in both registers a reader has: the words on screen and the
+    # name read aloud, saying the same thing. It names what the cell supplies rather
+    # than the act of typing into it — a box under a menu that invites the reader to
+    # say something invites an aside, when what it takes is the option nobody listed.
+    assert box.get_attribute("placeholder") == "Another option"
+    assert box.get_attribute("aria-label") == "Another option"
     assert send.get_attribute("aria-disabled") == "true"
     first_text = "Neither, really — do the camera and tell me what it costs."
     box.fill(first_text)
@@ -1791,7 +2049,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     expect(panel_thread.locator(".lf-msg")).to_have_count(2)
 
     agent_text = "One follow-up choice is attached."
-    agent_reply = interact.append_event(
+    agent_reply = events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -1832,7 +2090,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     page.locator(f'.lf-details .lf-thread[data-id="{root["id"]}"] .lf-reopen').click()
     round_trip(page)
     expect(conversation.locator("textarea")).to_have_count(1)
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "resolve",
@@ -1849,7 +2107,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     (d / "versions" / "v2.html").write_text(
         ASK_PAGE.replace('<h1 id="h">Three jobs</h1>', '<h1 id="h">Four jobs</h1>')
     )
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "Retitled"}
     )
     page.wait_for_url("**/versions/v2.html*")
@@ -1875,7 +2133,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
         flags=re.DOTALL,
     )
     (d / "versions" / "v3.html").write_text(without_owner)
-    interact.append_event(
+    events_model.append_event(
         d,
         {"kind": "note", "author": "claude", "version": 3, "text": "Question removed"},
     )
@@ -1905,24 +2163,26 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     conversation.locator(".lf-say textarea").fill("Which of these is cheapest?")
     conversation.locator(".lf-say [role='button']").click()
     round_trip(page)
-    held = next(e for e in interact.read_events(d) if e["kind"] == "comment")["id"]
+    held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = conversation.locator(".lf-work-line")
     expect(work_line).to_have_count(0)
 
     def claim(claim_ts):
-        interact.write_json(
+        files_model.write_json(
             d / "status.json",
             {
                 "state": "working",
                 "detail": "pricing the camera",
-                "ts": interact.now_iso(),
+                "ts": events_model.now_iso(),
                 "work": [
                     {
                         "subject": {"kind": "thread", "id": held},
                         "detail": "pricing the camera",
                         "ts": claim_ts,
                         "after": next(
-                            e["seq"] for e in interact.read_events(d) if e["id"] == held
+                            e["seq"]
+                            for e in events_model.read_events(d)
+                            if e["id"] == held
                         ),
                     }
                 ],
@@ -1930,14 +2190,14 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
         )
         told(page)
 
-    claim(interact.now_iso())
+    claim(events_model.now_iso())
     expect(work_line).to_have_text(
         re.compile(r"^Claude is on this — pricing the camera\s*just now$")
     )
     page.evaluate(
         "() => { window.heldWorkLine = document.querySelector('.lf-work-line') }"
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -1967,7 +2227,7 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     expect(work_line.locator("time")).to_have_text("40m ago")
 
     # Answering is what ends it, here as in the panel: nothing deletes a local record.
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2007,7 +2267,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
     def claim(subject, detail):
         result = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             ["status", str(d), "working", detail, "--on", subject],
         )
         assert result.exit_code == 0, result.output
@@ -2043,7 +2303,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     # An unrelated version changes neither coordinate.
     (d / "versions" / "v2.html").write_text(work_page)
     unrelated = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(d), "--version", "2", "--text", "Elsewhere"],
     )
     assert unrelated.exit_code == 0, unrelated.output
@@ -2065,7 +2325,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
     (d / "versions" / "v3.html").write_text(work_page)
     settled = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -2091,7 +2351,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     """A customization may deliberately give a container member a content seat.
     The runtime's generated line is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
-    option = json.loads((interact.DEFAULT_PACKAGE / "registry.json").read_text())[
+    option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
     ]
     option["x-work"] = {"seat": "content"}
@@ -2101,7 +2361,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
 
     page, errors = open_page(browser, serve(ASK_PAGE))
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "status",
             str(serve.page_dir),
@@ -2153,7 +2413,7 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     d = serve.page_dir
 
     claimed = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["status", str(d), "working", "checking the shard", "--on", "shadow-card"],
     )
     assert claimed.exit_code == 0, claimed.output
@@ -2169,7 +2429,7 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
 
     (d / "versions" / "v2.html").write_text(work_page)
     settled = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -2202,7 +2462,7 @@ def test_widget_work_keeps_its_style_in_a_declared_shadow_tree(browser, serve):
     url = serve(work_page)
     page, errors = open_page(browser, url, pin=True)
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "status",
             str(serve.page_dir),
@@ -2240,7 +2500,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
     draft = "Keep this answer even if another thread arrives first."
     first.fill(draft)
 
-    external = interact.append_event(
+    external = events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2519,7 +2779,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     nothing else in the suite renders a specimen there."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2529,7 +2789,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "text": "What would the alternative look like?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",
@@ -2589,7 +2849,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     # a second one the exhibit had no business sending. The page's own count is the whole
     # of what it sent, so this waits out an exhibit's stray post too.
     round_trip(page)
-    actions = [e for e in interact.read_events(d) if e["kind"] == "action"]
+    actions = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert [(e["widget"], e["detail"]) for e in actions] == [
         ("rp-live", {"options": ["rp-stage"]})
     ]
@@ -2606,7 +2866,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     same in a cell and is the actual regression to fear."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "comment",
@@ -2616,7 +2876,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "text": "What are the ceilings?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "reply",

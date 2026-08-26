@@ -35,9 +35,9 @@ repo-root pointers are `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json`; the payload carries one manifest for each
 host. Six parts live under `plugins/leaf/skills/leaf/`:
 
-- `scripts/interact.py` is the `uv` script and public CLI facade for the server,
+- `scripts/interact.py` is the `uv` script and public CLI entrypoint for the server,
   event log, `version check`, vendoring, and export. Pure implementation domains
-  live beside it under `scripts/leaf_interact/`: `files` owns atomic file
+  live beside it under `scripts/leaf/`: `files` owns atomic file
   operations, `events` the append-only model, `service` host and process
   lifetime, `registry` the merged vocabulary, and `projection` the standing
   state derived from events. `validation` owns event, markup, and authored-page
@@ -45,10 +45,11 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
   the Click surface. Schema, document, and browser-probe modules sit below those
   owners on the same dependency path. The payload's `bin/leaf` shim invokes the
   facade. There is no daemon or database.
-- `assets/leaf.js` is the public page runtime and comment layer. Its private
-  context, state projector, passage reader, anchor painter, conversation
-  reconciler, and chrome stylesheet live under `assets/runtime/` and are
-  composed by that stable module. There is no build step.
+- `assets/leaf.js` is the browser entry and comment layer.
+  `assets/runtime/widget-api.js` is the public helper surface for behavior
+  modules. Its private context, state projector, passage reader, anchor painter,
+  conversation reconciler, and chrome stylesheet live beside that boundary
+  under `assets/runtime/`. There is no build step.
 - `assets/registry.json` is the kernel vocabulary and the layer-wide `$`
   declarations read by the runtime, linter, renderer, catalog, and docs.
 - `assets/theme.css` owns tokens, elements, class idioms, and the shared look of
@@ -58,8 +59,8 @@ host. Six parts live under `plugins/leaf/skills/leaf/`:
 - `packages/default/` supplies the bundled content vocabulary. It enters the
   composer through the same package contract as an explicit package, `.leaf/`,
   or `~/.config/leaf/`. A package may carry a theme, zero or more widgets,
-  helper modules, vendor files, named guidance audiences, or top-level layer
-  files.
+  helper modules, vendor files, typed external-data contracts, contribution or
+  package-wide guidance, or top-level layer files.
 
 The seventh product part is repo-root `examples/`: complete pages that form the
 render corpus. `examples/gallery.html` is generated from them.
@@ -83,31 +84,42 @@ background job's worker is sitting lifetime; tying the server to either retires
 the page while the session still stands.
 
 `page init` vendors the complete merged layer into a page directory. A reviewed
-page therefore keeps the assets it was reviewed with. `interact.py`'s module
-docstring defines every file in a page directory.
+page therefore keeps the assets it was reviewed with.
+`plugins/leaf/skills/leaf/references/internals/page-storage.md` defines every
+file in a page directory.
 
 The kernel and packages merge in this order: `assets/`, the bundled default
 package, explicit package paths in command order, `~/.config/leaf/`, then
 `.leaf/`. The vendored registry records explicit paths under `$layer.packages`
 so a plain re-init resolves the same packages. Theme files concatenate.
 Runtime, icon, widget, and vendor files replace by path. Registry tag entries
-replace whole, while members of shared `$` entries compose. Guidance files with
-the same audience name concatenate in package order. Each initialization
+replace whole, while members of shared `$` entries compose. Package-wide guidance
+files with the same audience name concatenate in package order; contract guidance and
+widget `x-guidance` stay attached to the contribution that owns them. Each initialization
 validates the merged vocabulary and writes the same fresh layer epoch into the
 runtime and registry. An open tab carrying an older contract reloads before its
 next poll or event reaches the replacement server.
 
 The page directory is both durable record and deployment unit. It contains
-immutable version files, the append-only log, vendored assets, service state, and
-status. Do not add a database, daemon, build output, or hidden current-state file
-between those parts. A static export derives from the same version and log, then
-removes live handlers and replaces controls with their answers.
+immutable version files, the append-only log, the explicit replace-in-place
+`data.json` authority for page-bound sources validated against named contracts,
+vendored assets, service
+state, and status. Do not add a database, daemon, build output, or hidden derived
+current-state file between those parts. A static export derives from the same
+version, log, and data snapshot, then removes live handlers and replaces controls
+with their answers.
+
+A concrete data source id has one contract for the page's lifetime. Every immutable
+version and every widget frozen into thread markup can keep consuming the current
+replace-in-place snapshot, so clearing a value does not free its id for reuse. The
+binding is derived from those documents, exposed by `page state`, and preserved across
+re-vendoring; a new meaning requires a new source id.
 
 ## Ownership rules
 
 Detailed browser, widget, and theme rules live in
 `plugins/leaf/skills/leaf/CLAUDE.md`. Server and lint rules live beside the
-facade and its `leaf_interact` domains; test rules live in `tests/CLAUDE.md`;
+facade and its `leaf` domains; test rules live in `tests/CLAUDE.md`;
 corpus rules live in `examples/CLAUDE.md`. The rules below cross those
 boundaries.
 
@@ -182,8 +194,11 @@ document beside the version, with an element universe of its own: every reading
 that must answer for a widget an agent sent — the action gate at the door, and
 `page state` for a session picking the page up — builds it through
 `thread_state`, so a decision made in the panel cannot stand at one and be
-missing at the other. A fragment gets no stylesheet of its own; it has no page
-to dress. Version notes provide durable
+missing at the other. A wait batch answers for one too, and reads the log alone:
+a delivery may not raise on the registry gate a vocabulary load is, so it
+carries the conversation's gestures unfolded and leaves the fold to `page
+state`. A fragment gets no stylesheet of its own; it has no page to dress.
+Version notes provide durable
 retraction and report-absorption floors: the version after the note does not need
 to repeat them. A pinned page may therefore show its historical widget state
 while the comment panel shows a later retraction; each reading is answering its
@@ -317,6 +332,26 @@ Declarations describe general behavior:
   banner count, asks tray, keyboard walk, help, and conditional actions. Its
   answer verbs are explicit; `rollup` derives a nested plan from ordinary
   interventions and child roll-ups without naming either family.
+- `x-conversation` and `x-awaits` on one widget is a request with a box under
+  it, and two things take that request off the reader's list. An answer verb is
+  one. A conversation standing in the widget's own seat while it waits on the
+  agent is the other, and it is not an answer: the widget holds no state for it
+  and its controls still offer one. Saying otherwise asked the reader a second
+  time for what they had just written, in a box the page itself put under the
+  question, while the panel showed that thread as the agent's to answer.
+  Finishing with the conversation hands it back, by reply or by resolve, and
+  the version that marks the pick ends it. That is the whole re-arm: nothing
+  new to mark, and a clarifying question cannot retire a decision nobody made.
+  The stop hook reads the same fact, so what leaves the reader's banner lands
+  on the agent's own gate rather than nowhere; `awaits_agent` is the one
+  spelling of it, beside the runtime's `awaitsAgent`. Which side opened the
+  thread does not enter into it. Because it is not an answer, a reading that
+  asks whether the request is answered takes the seats out again rather than
+  sharing this one. An action's `requires` is one such reading. Where the
+  reader is standing is the other: the ring and `c`'s destination say what the
+  reader is working, not what they owe, and a widget they are mid-sentence in
+  is still the question in front of them. Frozen thread markup seats no
+  conversation, so only an action answers there.
 - `x-parent` declares the members that make up a holder. Combined with
   `x-retired-when`, it defines which slots a settlement retires.
 - `x-withdrawn-as` states what an unanswered member becomes when the author
@@ -429,6 +464,14 @@ prose enumeration.
 - Land with `wt merge`, a direct local squash merge to main, never a PR. This
   chooses the landing form, not whether landing was requested. Finished work
   waits for the user's authorization unless the task already granted it.
+- A merge dislodged by a newer main may land with `wt merge --no-hooks`, once
+  the suite the hook runs has passed locally on this branch. The hook takes
+  about as long as main's landing cadence, so re-running it forfeits the race as
+  often as it wins, and it is the branch being tested rather than the merge. CI
+  runs the same suite on every push to main, which is where a skipped hook is
+  recovered. Finish with `git push origin main:main`: `wt merge` fast-forwards
+  the local branch and stops there, and its `✗ Can't push to local main branch`
+  names that fast-forward failing rather than a remote refusing.
 - Sessions load host caches, not the checkout. Both marketplaces install from
   GitHub main. Claude Code keys an unversioned manifest by commit and updates on
   its marketplace sweep. Codex requires
@@ -458,8 +501,10 @@ Every other corpus reading is a first visit, so restoration cannot hide an
 arrival regression.
 
 The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's own
-runtime dependencies remain in `interact.py`'s PEP 723 header. Tests load that
-script by path and therefore need the same packages.
+runtime dependencies remain in `interact.py`'s PEP 723 header. Pytest adds
+`plugins/leaf/skills/leaf/scripts` to its import path, and tests import the
+`leaf` owner modules directly, so the developer environment needs the
+same packages.
 
 The everyday suite needs no network after setup and runs one shipped page through
 the browser gate:
@@ -509,7 +554,8 @@ worker so browser timing and output remain readable.
 
 `scripts/preview.py [example]` freshly vendors and serves a shipped example;
 `examples/CLAUDE.md` defines its fixtures. For another page, run `page init` and
-serve it in-process with `interact.handler_for(page_dir, token)`, then open the
+serve it in-process with `leaf.http.handler_for(page_dir, token)` after
+adding `plugins/leaf/skills/leaf/scripts` to the Python import path, then open the
 key as `?t=…`. `server start` instead attaches a live page to the session and its
 hooks.
 
@@ -539,3 +585,9 @@ same languages.
 
 `scripts/vendor-marked.sh` copies the pinned, dependency-free
 `vendor/marked.esm.js` used for thread Markdown.
+
+`scripts/vendor-plot.sh` rebuilds
+`plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js`, which draws
+`lf-chart`. Observable Plot publishes no entry point a browser can load — its
+ESM imports d3 by bare specifier and its UMD build leaves d3 external — so this
+bundles the two together, the way the highlight bundle is built.

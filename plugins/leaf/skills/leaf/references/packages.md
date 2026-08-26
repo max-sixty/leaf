@@ -1,9 +1,9 @@
 # Packages
 
 A package is the directory Leaf authors, shares, and adds to a page. It may hold a
-theme, one widget, a family of widgets, helper modules, libraries, or any combination
-of them. The layer is different: it is the checked result that `page init` vendors
-after composing the kernel and packages.
+theme, one widget, a family of widgets, helper modules, libraries, external-data
+contracts, or any combination of them. The layer is different: it is the checked
+result that `page init` vendors after composing the kernel and packages.
 
 Read this reference when a design comment arrives with `"about": "layer"`, or
 when `/leaf` is invoked on a widget to build or a look to change.
@@ -48,7 +48,7 @@ package/
 ├── registry.json       widget entries and shared $ declarations
 ├── theme.css           rules appended to the cascade
 ├── guidance/           Markdown guides named for their audiences
-├── runtime/            private runtime modules and replacements
+├── runtime/            browser modules and replacements by vendored path
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
 ├── icon.svg            optional replacement by path
@@ -62,11 +62,13 @@ a shared `$` entry. Guidance files with the same audience name concatenate in pa
 order. The merged vocabulary is validated before vendoring.
 
 Each file directly under `guidance/` is named `<audience>.md`; the filename must match
-`[a-z][a-z0-9-]*\.md`. Packages define audiences such as `author`, `reviewer`, or
-`worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists the audiences
-in the vendored page, and `leaf page guidance PAGE AUDIENCE` prints one. `page catalog`
-also prints `author` after the merged vocabulary so the instructions for writing a
-widget arrive with that widget.
+`[a-z][a-z0-9-]*\.md`. Those files are for guidance that applies across the package.
+A widget attaches its own guidance through `x-guidance`, while a data contract may
+carry producer guidance beside its schema. Packages define audiences such as `author`,
+`reviewer`, or `worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists
+the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` composes all
+three sources. `page catalog` also prints the complete `author` reading after the merged
+vocabulary.
 
 Composition order is kernel, bundled default package, explicit packages in command
 order, user package, then project package. Later packages win collisions. `page init`
@@ -108,17 +110,119 @@ an absolute `applyAction`, `says()` over `textContent`, `offer()` and `relabel()
 injected, `keys()` at upgrade — through `DISCLOSE(el)` over anything that folds, the
 runtime owning those keys — `quoted()` before wiring input, `actionAvailable()` for
 an x-state verb with `requires`, and durable state in attributes because export drops
-the scripts. The helper surface `/leaf.js` exports is the whole Leaf API a module gets.
+the scripts. `/runtime/widget-api.js` is the whole Leaf API a behavior module gets.
 The widget still owns its implementation: supporting modules can sit beside its entry
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
-A widget that renders records supplied at runtime uses `projectData(root, records,
-keyOf, render)`. The root is the id-bearing authored seat and owns the projection's
-children. `keyOf` returns a stable non-empty string for the logical datum; `render`
-receives `(record, priorNode, index)` and returns its element, reusing `priorNode` where
-that preserves a focused control or selection. Leaf marks those words as readable data
+## External or derived data
+
+Authored markup says what a version begins with; the event log says what readers and
+agents did afterward. A current deployment, sensor reading, worktree, or query result
+is neither. Leaf keeps that third authority in replace-in-place source snapshots.
+
+The source id belongs to the page: it says which concrete feed this page uses. Its
+meaning comes from a named contract under `$data.contracts`, which can travel in any
+package and be shared by more than one widget:
+
+```json
+{
+  "$data": {
+    "description": "Reusable build-data contracts.",
+    "contracts": {
+      "build-status": {
+        "description": "Current result keyed by branch.",
+        "schema": {
+          "type": "object",
+          "additionalProperties": { "enum": ["passing", "failing"] }
+        }
+      }
+    }
+  }
+}
+```
+
+A widget declares the inputs it knows how to present. Each input names its contract and
+the attribute that will carry the page's source id. Make that attribute required when
+the widget cannot work without the input; an optional unbound input delivers `null`.
+Widget-specific operating
+instructions can travel in `x-guidance`; contract-specific producer instructions can
+travel beside the contract in `guidance`. Package guidance files are for instructions
+that really apply to the package as a whole.
+
+```json
+{
+  "lf-builds": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "required": ["id", "source"],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-data": {
+      "builds": { "contract": "build-status", "source": "source" }
+    },
+    "x-guidance": {
+      "author": "Bind `source` to the build feed this page should show."
+    },
+    "x-upgrade": true
+  }
+}
+```
+
+The page makes the concrete binding in ordinary authored markup. Several widgets may
+share one source when they read the same contract; two independent feeds use different
+ids.
+
+```html
+<lf-builds id="release-builds" source="release-ci"></lf-builds>
+```
+
+The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
+complete snapshot using the page's source id:
+
+```bash
+printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
+leaf data set PAGE release-ci --file build-state.json
+leaf data clear PAGE release-ci
+```
+
+`data set` validates before replacing the source atomically. A rejected value leaves
+the prior revision untouched. Source revisions and event sequences are independent:
+an old poll may contain new data, and a new event response may contain old data, so
+neither orders the other.
+
+A source id keeps one contract for the lifetime of the page. Every immutable version
+and every widget frozen into a thread shares the page's current data store, so a later
+document cannot reuse an old id with a new meaning. `data clear` removes the current
+value, not that identity. Use a new source id for a new contract. Re-vendoring preserves
+this mapping as well as validating any standing values against the incoming schemas.
+`leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
+discover the ids, contracts, widgets, and documents it needs without parsing markup.
+Every source value goes to every reader of the page, including fields a module does not
+paint. Do not put credentials or private host state in it.
+
+A module subscribes through its own input declaration:
+
+```js
+this.stopWatching = watchData(this, "builds", (snapshot) => {
+  render(snapshot?.value ?? {});
+});
+```
+
+The callback receives `null` before the host has supplied a value, otherwise a clone of
+`{contract, updated, value}`. It runs immediately and again when Leaf asks subscribers
+to restate their view. Return the cleanup function from the element's disconnect path.
+The callback must state the whole rendering and remain idempotent.
+
+Render the value with `projectData(root, records, keyOf, render)`. The root is an
+id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
+non-empty string for the logical datum; `render` receives
+`(record, priorNode, index)` and returns its element, reusing `priorNode` where that
+preserves a focused control or selection. Leaf marks those words as readable data
 rather than authored prose, reconciles their order, and keeps comments attached by the
 projection/key pair even when a refresh replaces the text nodes. Export keeps the last
 rendering as a labelled snapshot and drops the code that could refresh it.

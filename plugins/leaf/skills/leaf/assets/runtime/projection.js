@@ -1,3 +1,6 @@
+import { createAuthoredProjection } from "./projection/authored.js";
+import { createProjectionFold } from "./projection/fold.js";
+
 /* Declaration-driven state projection and reconciliation. */
 export function createProjection(runtime, dependencies) {
   const {
@@ -8,7 +11,7 @@ export function createProjection(runtime, dependencies) {
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     agentName,
-    askContext,
+    answeredContext,
     askEntry,
     containsAcross,
     dress,
@@ -47,73 +50,6 @@ export function createProjection(runtime, dependencies) {
   // state survived a recordless rebuild or a thread reconcile; node identity can. A
   // coordinate with no winner is committed too, once its authored baseline stands.
   const committedProjection = new Map();
-  // What an action rests on: the widget that sent it, and the parts of that widget
-  // its detail names — a `move` rests on its card as much as on the board. Either
-  // can be taken back, which is what lets a rewritten card drop its own moves while
-  // the rest of the board stays where the user put it. Containment is the test,
-  // not "the page has an element by that id", so a literal detail value can't
-  // collide with an unrelated element that happens to be called the same thing.
-  function restsOn(e, widget) {
-    // flat(), because a detail field may name several elements at once (a group's
-    // set of picks) and each of them is something the action rests on.
-    const parts = Object.values(e.detail)
-      .flat()
-      .map((v) => (typeof v === "string" ? elementById(v) : null))
-      .filter((el) => el && widget && containsAcross(widget, el))
-      .map((el) => el.id);
-    return [e.widget, ...parts];
-  }
-  // Which of those a later version took back. One spelling of the rule, because three
-  // readings ask it — replay, the fold, and the thread list — and a decision standing in
-  // one of them and retracted in another is the drift `restated` exists to prevent. The
-  // ids rather than a boolean, since replay says so on the page (data-lf-restated) and
-  // the other two only count them.
-  //
-  // A widget the page no longer holds answers for itself alone, which is what a version
-  // honoring a decision leaves behind: the wrapper is retired, so there is nothing to ask
-  // about containment and nothing that should read as a retraction — retirement is the
-  // decision being carried out, not taken back. That is also the answer interact.py gives
-  // without trying, reading a version file where the same element is simply absent.
-  function retractedIds(e, floors, widget) {
-    return restsOn(e, widget).filter((id) => (floors.get(id) ?? 0) > e.version);
-  }
-  // Retractions: a version that rewrote the words or state under a decision says
-  // so with `restated`, and publishing records it on the note that released it.
-  // Reading it from the log rather than from the markup is what makes it last —
-  // the version *after* the rewrite declares nothing, and its silence would
-  // otherwise hand the user's retracted state straight back.
-  // Retractions and settlements are separate durable relations carried by the same
-  // version note. `restated` retracts reader decisions; typed `settles` targets end
-  // provisional agent facts without overloading a field name or an id namespace.
-  // Memoized on the log's identity and the relation/window query: `events` has one writer,
-  // which replaces the array wholesale (poll), so a cached answer cannot be stale and
-  // every consumer shares the same filter-and-max fold.
-  const noteFloorsMemo = new WeakMap();
-  function noteFloors(relation, upto, idsOf) {
-    let byQuery = noteFloorsMemo.get(runtime.events);
-    if (!byQuery) noteFloorsMemo.set(runtime.events, (byQuery = new Map()));
-    const query = `${relation}:${upto}`;
-    if (byQuery.has(query)) return byQuery.get(query);
-    const floors = new Map();
-    for (const e of runtime.events)
-      if (e.kind === "note" && e.version <= upto)
-        for (const id of idsOf(e))
-          floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
-    byQuery.set(query, floors);
-    return floors;
-  }
-  const retractionFloors = (upto) =>
-    noteFloors("retraction", upto, (e) => e.restated ?? []);
-  // A report's end: the ids the notes in the window answered, absorbed or
-  // overruled — the agent channel's mirror of retractionFloors, read from the
-  // log for the same reason (the version after the answer declares nothing, and
-  // its silence must not hand the report back).
-  const settledReports = (upto) =>
-    noteFloors("settlement:report", upto, (e) =>
-      (e.settles ?? [])
-        .filter((target) => target.kind === "report")
-        .map((target) => target.id),
-    );
   // An id-bearing element's state as markup can say it: tag, attributes, and
   // place among its id-bearing kin. Text is deliberately absent — words are the
   // static gate's subject (restatement_errors); this is the rest, the state no
@@ -186,84 +122,54 @@ export function createProjection(runtime, dependencies) {
     renderRetired(el);
     return true;
   }
-  // ---------- decided, awaiting the honoring version ----------
-  // The registry's x-state names each verb's fold unit and record form, so one
-  // pass renders "the user decided this and no version has carried it yet"
-  // for every widget alike — choose had its mark, edit its tint, move nothing,
-  // and the asymmetry was each widget remembering (or not) on its own. The
-  // authored facets are captured once per page load, after upgrades and before
-  // the first replay: the markup's initial condition, which replay then
-  // overwrites in the DOM.
-  const authoredFacets = new Map(); // (owner, unit, facet) -> authored record value
+  const {
+    authoredDetails,
+    authoredFacets,
+    authoredMarkup,
+    authoredParents,
+    authoredStatements,
+    authoredWidgets,
+    captureAuthoredFacets,
+    domFacet,
+    rememberAuthoredMarkup,
+    stateCoordinate,
+    stateSpecs,
+    unitOf,
+  } = createAuthoredProjection({ quoteFrom, textNodesUnder, widgetEntries });
 
-  // Both channels: a report's record form is a facet exactly as an action's is,
-  // so the authored-facet capture and the diff's state half serve the two alike.
-  // Named members rather than a tuple, because every consumer takes a different subset
-  // and positional destructuring once bound a verb where it wanted the spec. Nothing
-  // threw; the diff simply marked no recorded state.
-  function stateSpecs() {
-    const specs = [];
-    for (const [tag, entry] of widgetEntries())
-      for (const channel of ["x-state", "x-report"])
-        for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
-          specs.push({ tag, channel, verb, spec });
-    return specs;
+  function resetAuthoredPage() {
+    authoredFacets.clear();
+    authoredDetails.clear();
+    authoredStatements.clear();
+    authoredMarkup.clear();
+    authoredWidgets.clear();
+    committedProjection.clear();
+    for (const attr of [
+      PAGE_PAINT_ATTRIBUTE.applied,
+      PAGE_PAINT_ATTRIBUTE.replayWrote,
+      PAGE_PAINT_ATTRIBUTE.reportWrote,
+    ])
+      document.body.removeAttribute(attr);
   }
 
-  // A recorded part belongs to the nearest widget that owns recorded state, regardless
-  // of tag. Custom containers and shipped widgets compose through the same registry, so
-  // same-tag scoping is too weak: an outer group must not read or reset a nested group's
-  // chosen members merely because the inner owner has another name.
-  const recordedOwner = (member) => {
-    const selector = [
-      ...new Set(
-        stateSpecs()
-          .filter(({ spec }) => spec.record)
-          .map(({ tag }) => tag),
-      ),
-    ].join(",");
-    return selector ? member.closest(selector) : null;
-  };
-  const ownedRecordMembers = (widget, selector) =>
-    [...widget.querySelectorAll(selector)].filter(
-      (member) => recordedOwner(member) === widget,
-    );
-
-  // What the page shows for one unit's declared record form, asked of the live
-  // DOM or of the diff's parsed base document alike. An attribute record is the
-  // set of elements wearing it — a group taking several picks marks several — so
-  // both readings collapse to the sorted ids, and comparing them stays a !==.
-  //
-  // The id-bearing ones only, because an id is how a member of that set is named
-  // everywhere else: in the action detail the fold reads back (foldedFacet sorts
-  // the ids the log carries) and in interact.py's reading of the same page, which
-  // can see none but those. One marked element without an id contributed an empty
-  // string that sorted to the front of the join, so a set the two sides agreed on
-  // came out with a leading space on this one.
-  function domFacet(el, record) {
-    if (record.kind === "attribute")
-      return ownedRecordMembers(el, `[${record.attr}]`)
-        .map((o) => o.id)
-        .filter(Boolean)
-        .sort()
-        .join(" ");
-    if (record.kind === "value") return el.getAttribute(record.attr);
-    if (record.kind === "position") return el.closest(record.within)?.id ?? null;
-    return quoteFrom(textNodesUnder(el)); // "body": the words, read the way a quote is
-  }
-
-  // The state the folded action left, from the detail field the record declares,
-  // collapsed the way the DOM reading collapses — its words where it is words,
-  // its sorted ids where it is a set.
-  function foldedFacet(e, record) {
-    const value = e.detail[record.value];
-    if (record.kind === "body")
-      return String(value ?? "")
-        .replace(COLLAPSE, " ")
-        .trim();
-    if (record.kind === "attribute") return [...value].sort().join(" ");
-    return value ?? null;
-  }
+  const {
+    compareProjected,
+    foldedFacet,
+    retractedIds,
+    retractionFloors,
+    standingState,
+    stateProjection,
+    takenBack,
+  } = createProjectionFold(runtime, {
+    COLLAPSE,
+    containsAcross,
+    domFacet,
+    elementById,
+    inChrome,
+    outbox,
+    stateCoordinate,
+    unitOf,
+  });
 
   // One canonical current reading for action admission as for replay: the latest desired
   // action/report at an owner-unit-facet coordinate, falling back to the version's
@@ -323,156 +229,17 @@ export function createProjection(runtime, dependencies) {
   function requirementMatches(widget, spec) {
     if (!pagePresented()) return false;
     const requirement = spec.requires;
-    const context = askContext();
+    // Whether the request is answered, which is not the question the banner asks: a
+    // conversation standing in the widget's own seat takes the request off the reader's
+    // list without answering it. Reading the reader's list here would refuse the pick
+    // because the reader had remarked on the question, which is refusing them the answer
+    // they were asked for. One reducer, and the caller names the question it wants.
+    const context = answeredContext();
     const target = requirementTarget(widget, requirement.target, context);
     if (!target) return false;
     const awaiting = isAwaiting(target, context);
     return awaiting === requirement.awaiting;
   }
-
-  // The same capture read the other way: the detail that *states* each unit's
-  // authored placement, keyed by the verb that would state it. The facet above is
-  // what a comparison needs, and it is deliberately lossy — a position collapses to
-  // its column, a body to its collapsed words — because the log's own detail is
-  // compared collapsed. Taking a gesture back needs a statement rather than a
-  // comparison, and the two are different questions about one record: a card put
-  // back on the right list in the wrong place is the facet's answer, correct and
-  // useless.
-  const authoredDetails = new Map(); // (owner, unit, facet) -> the detail stating it
-  // Reconciliation resets a dirty widget as one composition boundary before replaying
-  // its winners. Position units share sibling order, so restoring only the unit whose
-  // winner disappeared would make its authored index relative to a still-projected
-  // container and then replay the other units from the wrong order.
-  const authoredStatements = new Map(); // widget id -> coordinate -> absolute statement
-
-  // And the markup itself, for state no action detail can state: a recordless
-  // settlement, or an optional authored scalar absent before its first action. Keep a
-  // clone only where one declared action needs that route.
-  //
-  // Taken beside the passage fences and for the same reason, which is that both are
-  // readings of what the *version* wrote: the moment after the registry lands and before
-  // the modules import is the only one at which the page holds the author's markup and
-  // nothing else. A clone taken a moment later is a clone of the upgraded page — the
-  // injected controls, the marks, and `once`'s own stamp with them — so putting it back
-  // would put back a widget that had already been upgraded and would never upgrade again.
-  const authoredMarkup = new Map(); // widget id -> the markup this version wrote
-  const authoredParents = new WeakMap(); // element -> its pre-upgrade parent
-  // By tag rather than by verb, because a family declaring two record-less verbs — a
-  // suggestion's accept and its reject — would otherwise clone every one of its
-  // instances once per verb and keep the last.
-  function rememberAuthoredMarkup(root = document) {
-    const elements = root.nodeType === Node.ELEMENT_NODE ? [root] : [];
-    elements.push(...root.querySelectorAll("*"));
-    for (const element of elements)
-      if (!authoredParents.has(element))
-        authoredParents.set(element, element.parentElement);
-
-    const specs = new Map();
-    for (const declared of stateSpecs().filter(({ channel }) => channel === "x-state"))
-      specs.set(declared.tag, [...(specs.get(declared.tag) ?? []), declared]);
-    for (const [tag, declared] of specs) {
-      for (const widget of root.querySelectorAll(tag))
-        if (
-          widget.id &&
-          !authoredMarkup.has(widget.id) &&
-          declared.some(
-            ({ spec }) =>
-              !spec.record ||
-              (spec.record.kind === "value" && !widget.hasAttribute(spec.record.attr)),
-          )
-        )
-          authoredMarkup.set(widget.id, widget.cloneNode(true));
-    }
-  }
-
-  const authoredWidgets = new Set();
-  function captureAuthoredFacets(root = document) {
-    const byTag = new Map();
-    for (const statement of stateSpecs()) {
-      if (!statement.spec.record) continue;
-      const statements = byTag.get(statement.tag) ?? [];
-      statements.push(statement);
-      byTag.set(statement.tag, statements);
-    }
-    for (const [tag, statements] of byTag) {
-      for (const widget of root.querySelectorAll(tag)) {
-        if (!widget.id || authoredWidgets.has(widget.id)) continue;
-        for (const { verb, spec } of statements) {
-          if (spec.unit === "widget")
-            rememberAuthored(widget, widget, widget.id, verb, spec);
-          else
-            // A position facet is carried by the container's direct id'd children.
-            // Ownership stops at the nearest widget declaring recorded state, so an
-            // outer custom container cannot capture a nested widget's parts.
-            for (const part of widget.querySelectorAll(`${spec.record.within} > [id]`))
-              if (recordedOwner(part.parentElement) === widget)
-                rememberAuthored(widget, part, part.id, verb, spec);
-        }
-        authoredWidgets.add(widget.id);
-      }
-    }
-  }
-
-  // The facet and the statement that restores it are both authored facts. Reports are
-  // not undoable gestures, but a report can be the projected state displaced by an
-  // action; when that action is withdrawn, reconciliation needs the same baseline.
-  function rememberAuthored(widget, el, unit, verb, spec) {
-    const coordinate = stateCoordinate(widget.id, unit, spec);
-    authoredFacets.set(coordinate, domFacet(el, spec.record));
-    const detail = authoredDetail(el, unit, spec);
-    if (!detail) return;
-    authoredDetails.set(coordinate, detail);
-    const statements = authoredStatements.get(widget.id) ?? new Map();
-    if (!statements.has(coordinate))
-      statements.set(coordinate, { coordinate, unit, action: verb, detail, spec });
-    authoredStatements.set(widget.id, statements);
-  }
-
-  // Built from the record form alone, so no widget is named here and a twelfth one is
-  // covered the day it declares. Null where this version's markup states no placement
-  // at all — an unset scalar, a part standing outside the container its record names —
-  // and a unit with no authored statement simply has no first gesture to take back.
-  function authoredDetail(el, unit, spec) {
-    const record = spec.record;
-    const detail = spec.unit !== "widget" ? { [spec.unit]: unit } : {};
-    if (record.kind === "attribute")
-      detail[record.value] = ownedRecordMembers(el, `[${record.attr}]`)
-        .map((o) => o.id)
-        .filter(Boolean)
-        .sort();
-    else if (record.kind === "value") {
-      const value = el.getAttribute(record.attr);
-      if (value === null) return null;
-      detail[record.value] = value;
-    } else if (record.kind === "body")
-      // Uncollapsed, where domFacet collapses: what is being reproduced is the
-      // words, and a draft's paragraphs are the whole of the difference. The same
-      // walk either way, so the two readings cannot disagree about *which* words
-      // are the page's — only about the whitespace between them.
-      detail[record.value] = textNodesUnder(el)
-        .map((seg) => seg.node.data.slice(seg.start, seg.end))
-        .join("");
-    else {
-      const within = el.closest(record.within);
-      if (!within?.id) return null;
-      detail[record.value] = within.id;
-      // Among the container's id'd children, which is the same list the capture
-      // above walks — and the same one a board counts, a column admitting nothing
-      // but cards.
-      detail[record.order] = [...within.children].filter((c) => c.id).indexOf(el);
-    }
-    return detail;
-  }
-
-  // Which element one event states, per the verb's declared fold unit: the widget itself
-  // where the verb is absolute across the group, and the element its detail names where
-  // it is absolute per part. One sentence, because two copies of it are two readings of
-  // the registry free to disagree about what an event is about.
-  const unitOf = (e, spec) => (spec.unit === "widget" ? e.widget : e.detail[spec.unit]);
-  // One stable representation for the semantic coordinate in every derived view.
-  // JSON's array form preserves the boundary even when an id contains punctuation.
-  const stateCoordinate = (owner, unit, spec) =>
-    JSON.stringify([owner, unit, spec.facet]);
 
   // A recorded action has already been painted by its widget when it enters this door.
   // Give that optimistic value the same semantic coordinate as authoritative state, and
@@ -503,149 +270,6 @@ export function createProjection(runtime, dependencies) {
     });
   }
 
-  function compareProjected(a, b) {
-    const aLogged = Number.isInteger(a.e.seq);
-    const bLogged = Number.isInteger(b.e.seq);
-    if (aLogged && bLogged) return a.e.seq - b.e.seq;
-    if (aLogged) return -1;
-    if (bLogged) return 1;
-    return a.localOrder - b.localOrder;
-  }
-
-  // Both durable channels projected in one pass. Actions holds the last surviving
-  // reader action per coordinate. Reports keeps every live report because publishing
-  // answers all of them there. Desired gives the reader's action precedence over
-  // provisional agent news on the same fact.
-  // The projection is deliberately pure and uncached: its declarations resolve through
-  // the live DOM, which panel construction and a recordless rebuild can replace.
-  function stateProjection(upto, without = null) {
-    const floors = retractionFloors(upto);
-    const withdrawn = takenBack();
-    const settled = settledReports(upto);
-    const actions = new Map();
-    const reports = new Map();
-    const classified = new Map();
-    for (const e of runtime.events) {
-      if (e.kind !== "action" && e.kind !== "report") continue;
-      const el = elementById(e.widget);
-      if (!el) {
-        classified.set(e.id, { e, terminal: true });
-        continue;
-      }
-      const chrome = inChrome(el);
-      // Reply widgets live in frozen log markup and therefore see the whole action
-      // sequence. Reports belong to versions, as do actions on page widgets.
-      if (
-        e.kind === "report" ? chrome || e.version > upto : !chrome && e.version > upto
-      ) {
-        classified.set(e.id, { e, terminal: true });
-        continue;
-      }
-      const channel = e.kind === "action" ? "x-state" : "x-report";
-      const spec = registry[el.tagName.toLowerCase()]?.[channel]?.[e.action];
-      if (!spec) {
-        classified.set(e.id, { e, terminal: true });
-        continue;
-      }
-      const unit = unitOf(e, spec);
-      if (typeof unit !== "string") {
-        classified.set(e.id, { e, terminal: true });
-        continue;
-      }
-      const coordinate = stateCoordinate(e.widget, unit, spec);
-      const entry = { unit, e, spec, coordinate };
-      classified.set(e.id, entry);
-      if (e.kind === "action") {
-        if (e.id === without || withdrawn.has(e.id)) continue;
-        const restated = chrome ? [] : retractedIds(e, floors, el);
-        entry.restated = restated;
-        if (restated.length) continue;
-        actions.set(coordinate, entry);
-      } else if (!settled.has(e.id)) {
-        const standing = reports.get(coordinate) ?? [];
-        standing.push(entry);
-        reports.set(coordinate, standing);
-      }
-    }
-    // A retained accepted attempt already appears above at its true log position. Every
-    // other surviving recorded action is newer local state, in the order the one outbox
-    // will deliver it. Rejections are tombstones, not winners.
-    const loggedAttempts = new Set(
-      runtime.events.map((e) => e.attempt).filter(Boolean),
-    );
-    for (const out of outbox) {
-      const entry = out.projection;
-      if (!entry || out.rejected || loggedAttempts.has(out.event.attempt)) continue;
-      actions.set(entry.coordinate, entry);
-    }
-    const desired = new Map(
-      [...reports].map(([coordinate, standing]) => [coordinate, standing.at(-1)]),
-    );
-    for (const [coordinate, entry] of actions) desired.set(coordinate, entry);
-    return {
-      actions,
-      reports,
-      classified,
-      desired,
-    };
-  }
-
-  // What this page's folds hold, handed out so the one premise underneath them can
-  // be tested from outside: every applyAction is absolute, and neither fold is a
-  // fold if one isn't. `version check --render` applies each of these a second
-  // time and asks what moved (RELATIVE_REPLAYS, in interact.py) — the page has
-  // already replayed them, so a widget stating the whole value has nothing to do
-  // and one stepping from what it reads moves again.
-  //
-  // Both channels, because both fold the same way: a report states an absolute
-  // value exactly as an action does. The widget rather than the unit, because
-  // applyAction is the widget's method and the detail is what names the part.
-  //
-  // In the log's own order, which is the whole of what makes re-applying them a
-  // no-op. An absolute applyAction states its unit whole and says nothing about
-  // any other, so where two units share an ordered container the page is the
-  // *sequence's* result rather than any one action's: two cards dragged to the
-  // head of one column leave it holding the second above the first, and replaying
-  // the first alone lifts it back over the second. Neither implementation moved;
-  // the reading did. A fold is keyed by coordinate and a Map keeps each key where it
-  // first appeared, so the surviving events have to be put back in `seq` order
-  // rather than taken as the fold hands them over.
-  //
-  // The widget and the facet are both read at the call rather than held, because
-  // an application earlier in the batch is free to have replaced the element a
-  // later one names. A unit the current version dropped has no facet at all —
-  // its widget survived it.
-  //
-  // Every action this page holds, the panel's included. A widget an agent sent folds the
-  // way a widget on the page does, and the poll replays its standing action over the state
-  // that action already produced, exactly as it does for the page's — so the premise binds
-  // it and the gate that tests the premise has to see it. A filter on `inChrome` stood here
-  // and meant the one verb only a message can carry (`answer`, the Done press on a question
-  // asked in a reply) was the one verb whose absoluteness nothing ever checked.
-  //
-  // Actions and not reports, though both channels come through here: a report has to be
-  // answerable by a version and thread markup is frozen, so every door refuses one on a
-  // widget an agent sent and the projection above marks any that reached the log terminal.
-  const standingState = () => {
-    const projection = stateProjection(runtime.currentVersion);
-    return [...projection.desired]
-      .sort(([, a], [, b]) => compareProjected(a, b))
-      .map(([_coordinate, { unit, e, spec }]) => ({
-        get widget() {
-          return elementById(e.widget);
-        },
-        unit,
-        facet: spec.facet,
-        record: spec.record?.kind ?? null,
-        action: e.action,
-        detail: e.detail,
-        read: () => {
-          const el = spec.record && elementById(unit);
-          return el ? domFacet(el, spec.record) : null;
-        },
-      }));
-  };
-
   // ---------- taking a gesture back ----------
   // Undo withdraws; it never deletes. The log is append-only and the page is a fold over
   // it, so `z` posts one event naming the gesture it takes back, and every fold and the
@@ -663,8 +287,6 @@ export function createProjection(runtime, dependencies) {
   // keeps its focus. Where the verb records nothing, there is no such state, so the
   // widget is rebuilt from the version's own markup and whatever survives is replayed
   // onto it. Both routes are chosen by a declaration and neither knows a widget's name.
-  const takenBack = () =>
-    new Set(runtime.events.filter((e) => e.undoes).map((e) => e.undoes));
   // Whether removing one action leaves the reconciler a state it can paint. The actual
   // transition belongs to reconciliation; this is only the keyboard offer, bounded to
   // the version where the gesture was made.
@@ -1154,6 +776,7 @@ export function createProjection(runtime, dependencies) {
     reconcileState,
     releaseProjectedOutbox,
     rememberAuthoredMarkup,
+    resetAuthoredPage,
     requirementMatches,
     retractedIds,
     retractionFloors,

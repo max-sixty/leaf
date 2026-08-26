@@ -1,0 +1,114 @@
+import { tagsDeclaring } from "./registry.js";
+
+// The open shadow roots under some root that hold the page's own words, from what the
+// registry declares rather than from a sweep of every element: an x-shadow widget is
+// making a promise about whose words those are, and a root some other library happened
+// to attach is not covered by it. `getComposedRanges` is told exactly these, so what the
+// capture can see and what the reading walks are one list.
+//
+// Which root to look under is the axis, because the whole document is not the only
+// answer: a message arriving in the panel carries widget markup that upgrades in a
+// subtree, so a pass over that subtree has the same boundary to cross and no document
+// to ask about.
+export const shadowRootsIn = (root) =>
+  tagsDeclaring((entry) => entry["x-shadow"])
+    .flatMap((tag) => [...root.querySelectorAll(tag)])
+    .map((host) => host.shadowRoot)
+    .filter(Boolean);
+export const pageShadowRoots = () => shadowRootsIn(document);
+
+// The theme's rules for shadow trees, sliced out once at load (see the markers in
+// theme.css). Every layer may contribute a block; concatenating them in theme order
+// preserves the same cascade inside a declared shadow root as in the document. Read
+// from the theme rather than written here so a project override travels with the widget,
+// and fetched during upgrade so the stage below stays synchronous for its callers.
+let shadowRules = "";
+const SHADOW_CSS = /\/\* lf-shadow:start \*\/([\s\S]*?)\/\* lf-shadow:end \*\//g;
+// A top-layer element no longer composites through its light/shadow ancestors, so the
+// document's main gate cannot hide a dialog promoted out of an x-shadow widget. Every
+// legitimate page shadow tree is built here; put the same subtree boundary inside it,
+// in an anonymous first layer so later widget stylesheet rules cannot outrank it.
+const SHADOW_PRESENTATION_CSS = `
+@layer {
+  @media screen {
+    :host-context(body:not([data-lf-presented])) *,
+    :host-context(body:not([data-lf-presented])) *::backdrop {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      interactivity: inert !important;
+      pointer-events: none !important;
+    }
+  }
+}`;
+export async function loadShadowRules() {
+  const response = await fetch("/theme.css");
+  if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
+  // Refused rather than defaulted to nothing. A project theme that drops the markers
+  // still styles the document, so the page looks right everywhere except inside the
+  // widgets this slice feeds — which would arrive unstyled with no error anywhere, the
+  // failure that reads as a widget nobody finished rather than as a theme missing a
+  // block. Whichever theme is vendored, either it carries these or the page says so.
+  const found = [...(await response.text()).matchAll(SHADOW_CSS)];
+  if (!found.length)
+    throw new Error(
+      "leaf: the theme carries no /* lf-shadow:start */…/* lf-shadow:end */ block, " +
+        "which is where the rules an x-shadow widget renders under are read from",
+    );
+  shadowRules = found.map((match) => match[1]).join("\n");
+}
+
+/* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
+   through the highlight registry — which styles glyphs, so the underline stands in for
+   a border. Stated once and installed twice: in the document and in every declared
+   shadow root, where document highlight rules cannot reach. */
+export const MARK_RULES = `
+  ::highlight(lf-mark) { background-color: var(--mark);
+    text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
+  ::highlight(lf-mark-hover) { background-color: var(--mark-hover); }
+  ::highlight(lf-mark-here) {
+    background-color: var(--mark-strong);
+    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
+  ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+    text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }`;
+
+// The stage an x-shadow widget renders into. A module never calls attachShadow itself,
+// because the marks the runtime paints come from a registry that is the document's while
+// the ::highlight() rules styling them are not — they reach no shadow tree. A root
+// attached anywhere else would show words the reader can select and no mark could ever
+// paint, which is the one failure this whole capability exists to avoid.
+//
+// The two sheets arrive differently on purpose. The theme's rules go in as a <style>
+// element, because that is markup and a copy keeps it; the marks are adopted, because
+// they are the live comment layer, which a copy drops with the rest of the chrome — an
+// adopted sheet is in no element's markup and would not survive the export either way.
+//
+// It takes the nodes rather than handing back a root to fill, so the style cannot be
+// left out: a module that wrote its own children would replace the one thing holding its
+// look, and it would look right in exactly the session where someone remembered. Same
+// reasoning as renderSaid — a rule each widget has to remember is a rule that gets
+// forgotten, and the forgetting is invisible until a page ships without it.
+export function createShadowStage(watchDisclosures) {
+  let markSheet;
+  return function shadowStage(host, nodes) {
+    if (!markSheet) {
+      markSheet = new CSSStyleSheet();
+      markSheet.replaceSync(MARK_RULES);
+    }
+    // serializable, because a copy is rendered DOM with the scripts dropped and a shadow
+    // root is in no element's outerHTML: exported without this, a diff leaves an empty
+    // element where its lines were, which is the one medium that cannot be re-rendered
+    // later. With it, `version export` writes a declarative <template shadowrootmode>
+    // the browser rebuilds on open, with nothing running.
+    const root =
+      host.shadowRoot ?? host.attachShadow({ mode: "open", serializable: true });
+    root.adoptedStyleSheets = [markSheet];
+    // A root is the one place the key line's watch cannot reach on its own: a `toggle`
+    // from inside one is not composed, and a MutationObserver does not cross the
+    // boundary either.
+    watchDisclosures(root);
+    const style = document.createElement("style");
+    style.textContent = SHADOW_PRESENTATION_CSS + shadowRules;
+    root.replaceChildren(style, ...nodes);
+    return root;
+  };
+}

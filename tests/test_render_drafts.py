@@ -6,7 +6,9 @@ import re
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf import cli as cli_model
+from leaf import events as events_model
+from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -116,7 +118,7 @@ def test_page_round_trip(browser, serve):
 
     # Claude ships v2 with the passage moved; the page follows on its next poll.
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "moved"}
     )
     told(page)
@@ -334,7 +336,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "action",
@@ -345,7 +347,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "detail": {"text": text},
             },
         )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -390,7 +392,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
     )
     told(page)
@@ -643,7 +645,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     expect(second.locator(".lf-general button")).to_have_attribute(
         "aria-disabled", "true"
     )
-    said = [e["text"] for e in interact.read_events(serve.page_dir) if "text" in e]
+    said = [e["text"] for e in events_model.read_events(serve.page_dir) if "text" in e]
     assert said[-2:] == [reply, typed]
     assert first_errors == []
     assert second_errors == []
@@ -888,7 +890,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_reader):
     """Both inline views may POST the shared reply; its attempt appends it once."""
     url = serve(ASK_PAGE)
-    root = interact.append_event(
+    root = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -936,7 +938,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
 ):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
     url = serve(ASK_PAGE)
-    root = interact.append_event(
+    root = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1344,7 +1346,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     current_say.locator("textarea").fill(newer)
     expect(stale_say.locator("textarea")).to_have_value(old)
 
-    interact.append_event(
+    events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1426,7 +1428,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
 def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serve):
     """Identity follows the edit generation, never content or a time window."""
     url = serve(ASK_PAGE)
-    root = interact.append_event(
+    root = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
@@ -1563,7 +1565,7 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     expect(second.locator(".lf-composer")).to_be_hidden()
     said = [
         e["text"]
-        for e in interact.read_events(serve.page_dir)
+        for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "comment"
     ]
     assert said == [sent], "one box, and so one comment however many tabs showed it"
@@ -1591,7 +1593,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     ]
     aligned = page.evaluate(
         """async (pairs) => {
-          const {alignText} = await import('/leaf.js');
+          const {alignText} = await import('/runtime/widget-api.js');
           return pairs.map(([before, after]) => alignText(before, after));
         }""",
         cases,
@@ -1684,7 +1686,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     sequence = page.evaluate(
         """async () => {
-          const {actionSequence} = await import('/leaf.js');
+          const {actionSequence} = await import('/runtime/widget-api.js');
           const widget = document.getElementById('draft-ops');
           const first = actionSequence(widget, 'edit');
           first[0].detail.text = 'A widget must not mutate the runtime log.';
@@ -1715,10 +1717,10 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
         if version == 2:
             (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-            interact.append_event(
+            events_model.append_event(
                 d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
             )
-        interact.append_event(
+        events_model.append_event(
             d,
             {
                 "kind": "action",
@@ -1735,7 +1737,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 1 edit"
     )
     old_sequence = old.evaluate(
-        """async () => (await import('/leaf.js'))
+        """async () => (await import('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.version)"""
     )
@@ -1748,7 +1750,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 2 edits"
     )
     latest_sequence = latest.evaluate(
-        """async () => (await import('/leaf.js'))
+        """async () => (await import('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.version)"""
     )
@@ -1773,7 +1775,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     did."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1784,7 +1786,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
         },
     )
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1796,12 +1798,12 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
-    interact.cmd_ack(d, interact.read_events(d)[-1]["seq"])
+    session_model.cmd_ack(d, events_model.read_events(d)[-1]["seq"])
     # And the agent answers with a version that carries neither — the page generator
     # emitting its own idea of the board and the draft, as one did for five
     # versions running.
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-    interact.append_event(
+    events_model.append_event(
         d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
     )
 
@@ -1824,7 +1826,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     in front of the user."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
-    interact.append_event(
+    events_model.append_event(
         d,
         {
             "kind": "action",
@@ -1836,12 +1838,12 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
         },
     )
     refused = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["comment", str(d), "--quote", "It is online.", "--text", "x"],
     )
     assert refused.exit_code != 0 and "rewrote § draft-ops" in refused.output
     written = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "comment",
             str(d),

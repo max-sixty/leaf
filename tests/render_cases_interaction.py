@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
-from conftest import interact
+from leaf import events as events_model
 from render_harness import (
     EXAMPLES,
     TOKEN,
@@ -61,7 +61,7 @@ def panel_comment(d, text, anchor=None, author="user"):
         event["agent"] = "Claude"
     if anchor:
         event["anchor"] = anchor
-    return interact.append_event(d, event)["id"]
+    return events_model.append_event(d, event)["id"]
 
 
 # What the list is holding, from the one query that answers both halves of the
@@ -563,7 +563,7 @@ ROOM_WIDGETS = """<lf-options id="{id}-q" choose label="Which extras go in?">
   </lf-column>
 </lf-board>
 <lf-roster id="{id}-r">
-  <lf-agent id="{id}-wren" state="working" branch="north-pair">
+  <lf-agent id="{id}-wren" state="working">
     <strong>wren</strong> Fitting the brackets.
   </lf-agent>
 </lf-roster>"""
@@ -771,9 +771,10 @@ REPORT_PAGE = leaf_page(
 </lf-tasks>
 """,
 )
-COMMAND_HUB_PAGE = next(
+COMMAND_HUB_EXAMPLE = next(
     example for example in EXAMPLES if example.stem == "command-hub"
-).read_text()
+)
+COMMAND_HUB_PAGE = COMMAND_HUB_EXAMPLE.read_text()
 # Two workers, one claiming work and one idle, because silence is only news against a
 # claim: the elapsed line is about what a row said it was doing, not about the clock.
 ROSTER_PAGE = leaf_page(
@@ -781,7 +782,7 @@ ROSTER_PAGE = leaf_page(
     """
 <h1 id="h">The aviary crew</h1>
 <lf-roster id="crew">
-  <lf-agent id="ag-wren" state="working" branch="mounts">
+  <lf-agent id="ag-wren" state="working">
     <strong>wren</strong> The feeders.</lf-agent>
   <lf-agent id="ag-finch" state="idle"><strong>finch</strong> Free.</lf-agent>
   <lf-agent id="ag-siskin" state="working"><strong>siskin</strong> Has never reported.</lf-agent>
@@ -795,7 +796,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
     quarter of an hour, so nothing that waits can reach it and nothing that sleeps
     should: the fact under test is what the row does with a timestamp, and the log
     is where a timestamp comes from."""
-    return interact.append_event(
+    return events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -905,7 +906,7 @@ RELATIVE_WIDGET_PAGE = leaf_page(
 )
 
 RELATIVE_WIDGET_MODULE = """\
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-tally",
@@ -943,7 +944,7 @@ DRIFT_PAGE = leaf_page(
 )
 
 DRIFT_MODULE = """\
-import { motion, once } from "/leaf.js";
+import { motion, once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-drift",

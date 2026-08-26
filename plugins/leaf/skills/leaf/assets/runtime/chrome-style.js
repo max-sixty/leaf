@@ -202,15 +202,27 @@ export function chromeStyle({
      .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
      quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
      so it holds no room; the covered-words gate skips this class the way it skips the
-     runtime's own .lf-mark-note, whose clip this is.
+     runtime's own .lf-mark-note, which wears the same clip.
 
      And out of the selection, which the clip does not do on its own: a word standing
      among the page's own words is inside any selection drawn across them, so the
      runtime's reading skipped it and the user's clipboard did not — a copied task line
      came away carrying the word "done", and a copied code block would carry
-     "highlighted" into whatever editor it was bound for. .lf-mark-note answered this
-     the day it was written; the clip it shares had not. */
-  .lf-quiet { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; user-select: none; -webkit-user-select: none; }
+     "highlighted" into whatever editor it was bound for. .lf-mark-note had answered
+     this the day it was written and the clip it shares had not — two copies of one
+     recipe, already drifted apart, which is why there is one of them here now.
+
+     No offsets, so the box keeps the static position its holder gives it. That place is
+     read: shownBox reads it for a wrapper that draws no box of its own, and everything
+     asking where such an element is asks through that. What the box must not do is
+     escape the box it sits in, which it did — an out-of-flow box with no positioned
+     ancestor is positioned against the page, so the count on a cell of a table scrolling
+     inside itself stood three hundred pixels past the window with the page scrolling
+     sideways to reach it. The answer is the scroller's rather than this rule's: a box
+     that scrolls contains what it scrolls (theme.css, at pre). */
+  .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip-path: inset(50%); user-select: none; -webkit-user-select: none; }
+  .lf-quiet { white-space: nowrap; }
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
@@ -257,14 +269,29 @@ export function chromeStyle({
      stand in a layer of their own, placed on each member's visible corner, an option's in
      a column that option holds for it. This rule dresses; theirs place and paint.
 
-     Its numbers are off the ladder because they are the box rather than the type: a 17px
-     floor with a 1px ring leaves 15px of interior, which is the line the keys are centred
-     on; 11px is a glyph that sits in that interior with room around it; 4px is what holds
-     a second glyph off the ring. Set at the apparatus rung the type would crowd the ring
-     it is drawn inside, the way the pick mark's ✓ would. Border-box is what makes those
-     numbers true on both sides of the scope line: the page sets none, so the copy in an
-     option came out 19px across while the chord's was 17 — the drift this one rule was
-     written to make impossible.
+     The box follows the type rather than standing beside it, and --lf-key-box says how
+     (theme.css, where it is stated because an option's column has to read it back).
+     Height and the square floor are both that, so the ring keeps its
+     clearance and a one-key address comes out square whatever the type is set at. At --t-6
+     it lands on the 17px interior and 19px box this chip has always been drawn to, so
+     nothing moves today — but a package may redeclare the ladder, theme files being
+     concatenated, and a fixed interior beside a token font is a box its own glyphs grow out
+     of. They painted over the ring at about 14.6px, and the reference's keys (.lf-help kbd)
+     have no fixed height at all, so the two would have parted at the first override.
+
+     Stated as a height and not left to the content, because one wearer does not size itself
+     from its content at all: an option's digit in the row form is absolutely positioned
+     against top and bottom together and centred with auto margins, so a box with no height
+     of its own stretches to the whole row — 30px against the chord's 19 — and the auto
+     margins have nothing left to centre. 4px of side padding is what holds a glyph off the
+     ring, and it is the same 4 for both wearers: a pick's address is one digit, so its whole
+     width is the square floor, and two more pixels a side put it past that floor and drew a
+     rectangle. Nothing here is a chip's own to restate — the render suite holds the two
+     faces to being one declaration, padding included.
+
+     Border-box is what makes those numbers true on both sides of the scope line: the page
+     sets none, so the copy in an option came out two pixels wider than the chord's — the
+     drift this one rule was written to make impossible.
 
      Mono and a 4px radius because this is a key chip, dressed as the line and the
      reference dress theirs (.lf-help kbd, .lf-keyline kbd; the render suite compares the
@@ -278,8 +305,20 @@ export function chromeStyle({
      would have needed a rule of its own in the chord's layer, and the family would have
      been dressed in two places. The keys hold one line, the box being shrink-to-fit and
      placed from a corner — one near the window's right edge would otherwise break in
-     two. */
-  .lf-address { display: none; box-sizing: border-box; min-width: 17px; height: 17px; padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: 11px; line-height: 15px; text-align: center; white-space: nowrap; z-index: 1; }
+     two.
+
+     --t-6 and not a number of its own: that is what the line and the reference already
+     set their keys at, and a key chip is one thing wherever the reader meets it. The 11px
+     it held was half a pixel under the surfaces it is meant to match.
+
+     The interior is two pixels deeper than the 15 it stood at, which is room for the lit
+     block a chord chip carries: an inline background paints the font's own box and not the
+     line's, so the block comes out inset from the chip's edge by itself, and the spare
+     height is what makes that inset visible rather than a hairline. A flex box would centre
+     it as surely and cost the space between the keys — flex drops a whitespace-only text
+     node, so the address rendered as "ga 1", correct in every rule here and wrong in the
+     one place a reader looks. */
+  .lf-address { display: none; box-sizing: border-box; min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--card); color: var(--accent); font-family: var(--mono); font-size: var(--t-6); line-height: 1.478; text-align: center; white-space: nowrap; z-index: 1; }
   /* The leaf text box, in one rule. field-sizing does the growing, so no script
      measures a textarea: the JS that did had to reset height to auto to re-measure,
      which made the box briefly too small for its own text on every keystroke — and a
@@ -373,7 +412,8 @@ ${MARK_RULES}
      for the reason the standing ring gives below — the offset is to the outer edge, so a
      doubled width at -1px pokes a pixel into the band a scrolling ancestor clips. Before
      the standing rule, so an element that is both takes the accent. */
-  .lf-mark-el.lf-mark-hover { outline-width: 2px; outline-offset: -2px; }
+  .lf-mark-el.lf-mark-hover { outline-width: var(--here-ring-w);
+    outline-offset: calc(-1 * var(--here-ring-w)); }
   /* The standing comment's element anchor (paintStanding). It keeps the hairline's own
      inset rather than taking the ask ring's gap, so focusing the thread changes the ring
      where it already is instead of moving it outward by four pixels — the mark is the
@@ -387,7 +427,8 @@ ${MARK_RULES}
      marked boxes there is a 1px violet hairline and a 2px accent ring, which differ in
      weight as well as hue and are told apart on sight — checked on a composed page, not
      assumed. A pulse would be motion answering a question already answered. */
-  .lf-mark-el.lf-mark-here { outline: var(--here-ring); outline-offset: -2px; }
+  .lf-mark-el.lf-mark-here { outline: var(--here-ring);
+    outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Armed, a press on a thread-marked element is the aim's, not the thread's, so the
      hand here is the aim's answer rather than the thread's: it stands where the aim has
      an item and comes off where it hasn't, which is the same promise the body is making
@@ -395,24 +436,26 @@ ${MARK_RULES}
   body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
   body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The one runtime word living inside the page's own elements, so its hiding cannot
-     come from the chrome's scoped .lf-unseen — the same recipe, restated at document
-     level. It becomes a skip-link-style control on focus: a reader who hears the count
-     can enter its first thread, then j/k through the rest. user-select keeps it out of
-     a selection, so the runtime's own words never enter a captured quote. */
-  .lf-mark-note { position: absolute; width: 1px; height: 1px; padding: 0; border: 0;
-    overflow: hidden; clip-path: inset(50%); user-select: none; }
+     come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
+     once above for both. It becomes a skip-link-style control on focus: a reader who
+     hears the count can enter its first thread, then j/k through the rest. The rule
+     below states its whole visible form, so the resting one adds nothing to the clip —
+     the padding and border reset that stood here were a real button's, and the note has
+     been a span since offer() built it. */
   .lf-mark-note:focus-visible { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
-  /* The open ask the reader is standing in (markHere), worn by the ask rather than by
-     whichever of its controls holds the focus — they are standing in the whole thing,
-     however they got there. Exactly one ask wears it at a time: every shipped widget
+  /* The unanswered ask the reader is standing in (markHere), worn by the ask rather than
+     by whichever of its controls holds the focus — they are standing in the whole thing,
+     however they got there. Unanswered and not open: a widget whose own seat is
+     mid-conversation with the agent has left the reader's list while the reader is still
+     standing in it. Exactly one ask wears it at a time: every shipped widget
      draws one box for it to paint on, and one a page styles boxless hangs it on the
      boxes its contents make (shownParts). While the asks tray is open, its row mirrors
-     the same fact on the second surface. It is an outline like every other mark the
+     the same fact — for an ask the tray lists, which is one the reader still owes. It is an outline like every other mark the
      runtime paints on the page's own elements: it moves nothing on arriving, and it
      keeps its place for nothing, being the element's own paint rather than a box in
      the chrome that would have to chase it down every scroll, reflow and drag. */
@@ -543,7 +586,8 @@ ${MARK_RULES}
       text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
       background: none; color: inherit; cursor: pointer; width: 100%; }
     .lf-version-row:hover { background: var(--chip); }
-    .lf-version-row:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
+    .lf-version-row:focus-visible { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     /* The version being read wears the accent rather than a fill, so the row the
        pointer is over stays the one that looks pressable. */
     .lf-version-row[aria-current] .lf-version-num { color: var(--accent); font-weight: 600; }
@@ -562,7 +606,8 @@ ${MARK_RULES}
       border: 1px solid var(--rule); border-radius: 4px; background: none;
       color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
     .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
-    .lf-version-diff:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
+    .lf-version-diff:focus-visible { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
       background: var(--chip); }
     /* A diff is a span rather than a point — everything that changed across the versions
@@ -596,7 +641,8 @@ ${MARK_RULES}
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
     a.lf-others-row:hover { background: var(--chip); }
-    .lf-others-row:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
+    .lf-others-row:focus-visible { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-others-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .lf-others-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
       text-overflow: ellipsis; }
@@ -612,7 +658,14 @@ ${MARK_RULES}
       border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
       cursor: pointer; }
     .lf-asks-row:hover { background: var(--chip); }
-    .lf-asks-row:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
+    /* Both rings this row can wear, inset together. A control packed into a list states
+       its own inset (theme.css, --here-ring), because the list clips to its padding box.
+       The second ring arrives from a rule written for a page element with room around
+       it: while the tray is open the row mirrors the standing ask (markHere) wherever
+       the tray lists that ask, so it wears the ask's own outset ring and lost a pixel of
+       it to each edge. */
+    .lf-asks-row:is(:focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
+      outline: var(--here-ring); outline-offset: calc(-1 * var(--here-ring-w)); }
     /* What kind of thing is asking, in the apparatus voice, over the ask's own words in
        the page's. Two lines, because they are two claims: the kind is the runtime's word
        for the element and the words below it are the page's own. */
@@ -661,7 +714,7 @@ ${MARK_RULES}
        nothing, it paints over at z-index 9000, while the window clips outright. The
        handle gives up those pixels of reach at both; the alternative is a ring inside an
        eight-pixel strip, which is a second accent line beside the one ::before already
-       draws. RING_FAULTS fails the page if either run goes back. */
+       draws. RINGS_DRAWN fails the page if either run goes back. */
     .lf-edge { position: absolute; top: var(--here-ring-w);
       bottom: var(--here-ring-w); width: 8px;
       z-index: 1; cursor: col-resize; touch-action: none; }
@@ -714,7 +767,8 @@ ${MARK_RULES}
       scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
         var(--here-ring-room); }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
-    .lf-threads:focus-visible { outline: var(--here-ring); outline-offset: -2px; }
+    .lf-threads:focus-visible { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
     /* Which part of the page the threads under it are about — the page's own heading,
        said once over the run of threads that share it. Sticky, so the answer to "where
@@ -744,7 +798,14 @@ ${MARK_RULES}
       overflow-wrap: anywhere; }
     button.lf-group { cursor: pointer; }
     button.lf-group:hover { color: var(--ink-2); }
-    button.lf-group:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
+    /* Inset, because being pinned is where this heading spends its life and the pin
+       puts its box top on the scrollport's own edge: a sticky offset is measured from
+       the scroller's content box, so a heading drawn back over the list's inset
+       (.lf-pinned) has nothing above it at all, and a ring a pixel outside the box was
+       three pixels into the strip the scroller clips. Every control packed into this
+       list states its own inset for the same reason (theme.css, --here-ring). */
+    button.lf-group:focus-visible { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     /* A thread and the room a resolved one is still giving back (foldOut) are the same
        box, so the fold starts from the box the reader was looking at rather than from
        a second description of it. What .lf-going adds is the clip the fold needs and
@@ -1004,25 +1065,44 @@ ${MARK_RULES}
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
-    /* The half of an address already pressed. A chip carries the whole of it, so how far
-       in the reader is has to be said by how the keys are set: what is behind them stands
-       back and the press that finishes the motion keeps the chip's own accent. Muted
-       rather than dropped, which is what the chip used to do — the address it drew was
-       then shorter than the one its own reply box speaks, and the short one reaches
-       nothing from a standing start.
+    /* The two halves of an address: the keys already pressed, and the press that finishes
+       the motion. A chip carries the whole of it, so how far in the reader is has to be
+       said by how the keys are set. Muted rather than dropped, which is what the chip used
+       to do — the address it drew was then shorter than the one its own reply box speaks,
+       and the short one reaches nothing from a standing start.
 
-       Two channels and not one. Muted against accent is 1.45:1 in the light palette and
-       1.28:1 in the dark, which is a difference in hue and barely one in lightness: on an
-       11px key at arm's length the two halves read as one word, and to a reader who does
-       not separate those hues they are one word. The size is the channel that survives
-       both, and it gives back a third of the width the leader cost — which is room this
-       layer spends on telling two neighbouring addresses apart. It rides the same
-       baseline, and the chip's line-height is fixed, so nothing moves.
+       Ground and not size. Muted against accent is 1.45:1 in the light palette and 1.28:1
+       in the dark, which is a difference in hue and barely one in lightness: on a key this
+       small the two halves read as one word, and to a reader who does not separate those
+       hues they are one word. Size was the second channel for exactly that reason, and it
+       cost more than it bought — one box holding two type sizes reads as a fault rather
+       than a hierarchy, and because a press moves a key from one size to the other, naming
+       a list re-set every chip on screen: 2.4px narrower and, being centred on its corner,
+       1.2px further right, under the eye that was reading them. A lit ground says the same
+       thing and takes no advance at all.
 
-       In here rather than beside the shared face, because only the chord's chips have a
-       half behind them: an option's digit is one key, whole whenever it is drawn, and a
-       name a page could coin belongs to no document-level vocabulary. */
-    .lf-addresses > .lf-address .lf-spent { color: var(--muted); font-size: 9px; }
+       Which is what the negative margin buys, and the whole of why it is here. The ground
+       the block paints is not room it occupies: the margin cancels the padding that would
+       have been advance, so the keys sit exactly where they would with no block at all and
+       the key crossing from one half to the other on a press does not move. Without it that
+       key stepped 3px — measured, and larger than the 1.2px slide this rule replaced, which
+       would have been the same fault rewritten one glyph smaller.
+
+       The leading edge alone, because that is the only side a glyph sits after. Nothing
+       follows the lit half — it ends the address — so its trailing padding costs no glyph a
+       pixel and is left to take its room, which is what stands the ground off the ring
+       without the chip having to widen its own inset and lose the square a one-key address
+       comes out as.
+
+       Keyed off .lf-spent's presence, the one question both halves turn on: a chord chip
+       always has a half behind it (the leader is pressed before any chip is drawn) and an
+       option's digit never does — it is one key, whole whenever it is drawn, and it wants
+       neither a muted half nor a block inside its own box. Both rules take the same selector
+       shape for that reason. Keyed differently, a chip could take the ground without the
+       muting and come out half dressed. */
+    .lf-address .lf-spent { color: var(--muted); }
+    .lf-address .lf-spent + .lf-lit { padding: 0 3px; margin-left: -3px;
+      border-radius: 3px; background: var(--accent); color: var(--card); }
     /* Under the banner there is no room to straddle the corner, so the chip hangs below
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */

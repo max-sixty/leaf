@@ -178,7 +178,7 @@ def check_links(out: Path) -> None:
         )
 
 
-def leaf(env: dict, *args: str) -> None:
+def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
     """A leaf command, quiet unless it fails — and then failing with what it said. The
     output is the whole of a refused check's news, and a build that swallowed it stopped
     on a traceback naming this file about a fault in an example."""
@@ -188,6 +188,7 @@ def leaf(env: dict, *args: str) -> None:
         env=env,
         capture_output=True,
         text=True,
+        input=input_text,
         check=False,
     )
     if done.returncode:
@@ -215,6 +216,25 @@ def publish_pages(out: Path, env: dict) -> None:
         for source in sorted(EXAMPLES.glob("*.html")):
             version = page / "versions" / "v1.html"
             version.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            # External data is complete replaceable source state, not a log. The
+            # temporary page is reused for the corpus, so remove the prior example's
+            # sources before setting this one's through the same validating door a
+            # host uses.
+            data_file = page / "data.json"
+            data_file.unlink(missing_ok=True)
+            data_seed = source.with_suffix(".data.json")
+            if data_seed.exists():
+                for name, value in json.loads(
+                    data_seed.read_text(encoding="utf-8")
+                ).items():
+                    leaf(
+                        env,
+                        "data",
+                        "set",
+                        str(page),
+                        name,
+                        input_text=json.dumps(value),
+                    )
             # The example's companion log, where it ships one (examples/CLAUDE.md).
             # Written rather than appended, because one page directory serves every
             # example here and an appended seed would hand the next one the last one's
@@ -238,6 +258,12 @@ def publish_pages(out: Path, env: dict) -> None:
             # is a file beside the versions exactly as it is in a page directory and
             # that file is what the session reads before the runtime asks.
             shutil.copy2(log, published / "comments.jsonl")
+            (published / "data.json").write_text(
+                data_file.read_text(encoding="utf-8")
+                if data_file.exists()
+                else json.dumps({"revision": 0, "sources": {}}) + "\n",
+                encoding="utf-8",
+            )
             print(f"  {source.stem}")
 
 

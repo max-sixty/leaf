@@ -51,49 +51,10 @@
           Two workers own separate worktrees; the whole row opens both. The stalled
           dedupe leaf filed itself around this goal rather than turning a worker into a
           pet.
-          <lf-agent
-            id="w-1"
-            state="working"
-            on="parser-declarations"
-            branch="atlas/xml-declarations"
-          >
+          <lf-agent id="w-1" state="working" on="parser-declarations">
             <strong>w-1</strong> Parser area owner; focused now on declarations and
             entity boundaries, but responsible for this whole branch of the plan.
-            <lf-worktree
-              id="tree-w-1"
-              branch="atlas/xml-declarations"
-              base="9d35f25"
-              head="b781f0c"
-              ahead="3"
-              behind="0"
-              additions="214"
-              deletions="61"
-              commits="3"
-              tests="running"
-              tested-at="now"
-              committed-at="2026-08-21T11:42:00-07:00"
-            >
-              <lf-tree id="files-w-1">
-                <pre>
-atlas/parse/
-  declarations.py  +126 -22
-  entities.py  +63 -31
-tests/
-  test_declarations.py  +25 -8
-</pre>
-              </lf-tree>
-              <lf-diff id="diff-w-1">
-                <pre>
-diff --git a/atlas/parse/declarations.py b/atlas/parse/declarations.py
---- a/atlas/parse/declarations.py
-+++ b/atlas/parse/declarations.py
-@@ -41,3 +41,5 @@ def declaration(token):
--    return token.split(" ", 1)[0]
-+    name, _, payload = token.partition(" ")
-+    return Declaration(name=name, payload=payload)
-</pre>
-              </lf-diff>
-            </lf-worktree>
+            <lf-worktree id="tree-w-1" source="atlas-worktrees"></lf-worktree>
           </lf-agent>
           <lf-task id="parser-declarations" status="active">
             <strong>Declarations and entities</strong> Three new corpus cases remain.
@@ -102,39 +63,9 @@ diff --git a/atlas/parse/declarations.py b/atlas/parse/declarations.py
             </lf-task>
             <lf-task id="parser-cdata" status="done">
               <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-              <lf-agent
-                id="w-2"
-                state="working"
-                on="parser-cdata"
-                branch="atlas/xml-cdata"
-              >
+              <lf-agent id="w-2" state="working" on="parser-cdata">
                 <strong>w-2</strong> CDATA specialist: escaped-markup corpus cases.
-                <lf-worktree
-                  id="tree-w-2"
-                  branch="atlas/xml-cdata"
-                  base="9d35f25"
-                  head="12c4a91"
-                  ahead="2"
-                  behind="0"
-                  additions="88"
-                  deletions="17"
-                  commits="2"
-                  tests="failing"
-                  tested-at="last push"
-                  committed-at="2026-08-21T11:31:00-07:00"
-                >
-                  <lf-diff id="diff-w-2">
-                    <pre>
-diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py
---- a/atlas/parse/cdata.py
-+++ b/atlas/parse/cdata.py
-@@ -19,2 +19,3 @@ def read_cdata(stream):
--    return stream.read_until("]]>")
-+    body = stream.read_until("]]>")
-+    return html.unescape(body)
-</pre>
-                  </lf-diff>
-                </lf-worktree>
+                <lf-worktree id="tree-w-2" source="atlas-worktrees"></lf-worktree>
               </lf-agent>
             </lf-task>
           </lf-task>
@@ -146,28 +77,10 @@ diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py
             <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
             activity produced no commit. Last worktree:
             <a href="#tree-w-2">atlas/xml-cdata</a>.
-            <lf-agent
-              id="w-5"
-              state="reaped"
-              on="parser-dedupe"
-              branch="atlas/dedupe-attempt"
-            >
+            <lf-agent id="w-5" state="reaped" on="parser-dedupe">
               <strong>w-5</strong> Dedupe specialist, reaped after three hours without a
               commit; its branch and evidence remain inspectable.
-              <lf-worktree
-                id="tree-w-5"
-                branch="atlas/dedupe-attempt"
-                base="9d35f25"
-                head="9d35f25"
-                ahead="0"
-                behind="0"
-                additions="0"
-                deletions="0"
-                commits="0"
-                tests="not-run"
-              >
-                <pre>No diff was produced before this worker was reaped.</pre>
-              </lf-worktree>
+              <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
             <lf-ask id="ask-dedupe-region">
               <lf-options
@@ -228,35 +141,10 @@ diff --git a/atlas/parse/cdata.py b/atlas/parse/cdata.py
           >
             <strong>Choose the additive schema</strong> Both columns are nullable; the
             migration and reverse path are green.
-            <lf-agent id="w-8" state="working" on="schema-choice" branch="atlas/schema">
+            <lf-agent id="w-8" state="working" on="schema-choice">
               <strong>w-8</strong> Schema-choice specialist: migration and
               reconciliation evidence.
-              <lf-worktree
-                id="tree-w-8"
-                branch="atlas/schema"
-                base="9d35f25"
-                head="4e0bd62"
-                ahead="4"
-                behind="0"
-                additions="99"
-                deletions="14"
-                commits="4"
-                tests="passing"
-                tested-at="last push"
-                committed-at="2026-08-21T08:10:00-07:00"
-              >
-                <lf-diff id="diff-w-8">
-                  <pre>
-diff --git a/schema/atlas.sql b/schema/atlas.sql
---- a/schema/atlas.sql
-+++ b/schema/atlas.sql
-@@ -18,2 +18,4 @@ CREATE TABLE ledger_entry (
-   booked_at TIMESTAMPTZ NOT NULL,
-+  refunded_minor BIGINT NULL,
-+  reconciled_at TIMESTAMPTZ NULL,
-</pre>
-                </lf-diff>
-              </lf-worktree>
+              <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
             <lf-ask id="ask-schema-region">
               <lf-options id="ask-schema" label="Land the schema migration?" choose>
@@ -317,35 +205,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           here.
           <lf-task id="api-shape" status="active">
             <strong>Review the public result type</strong>
-            <lf-agent id="w-3" state="working" on="api-shape" branch="atlas/public-api">
+            <lf-agent id="w-3" state="working" on="api-shape">
               <strong>w-3</strong> Public-contract specialist: result types and
               compatibility tests.
-              <lf-worktree
-                id="tree-w-3"
-                branch="atlas/public-api"
-                base="9d35f25"
-                head="a9132fd"
-                ahead="2"
-                behind="1"
-                additions="74"
-                deletions="28"
-                commits="2"
-                tests="passing"
-                tested-at="last push"
-                committed-at="2026-08-21T10:20:00-07:00"
-              >
-                <lf-diff id="diff-w-3">
-                  <pre>
-diff --git a/atlas/api.py b/atlas/api.py
---- a/atlas/api.py
-+++ b/atlas/api.py
-@@ -7,3 +7,3 @@ class ImportResult:
--    errors: list[str]
-+    failures: tuple[ImportFailure, ...]
-     rows: int
-</pre>
-                </lf-diff>
-              </lf-worktree>
+              <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
             <lf-ask id="ask-api-region">
               <lf-options id="ask-api" label="Disposition for atlas/public-api" choose>

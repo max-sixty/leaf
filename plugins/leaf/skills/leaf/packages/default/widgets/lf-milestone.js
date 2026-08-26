@@ -10,7 +10,7 @@
  * x-says because that pass renders one run of words at an edge a pseudo-element
  * could have reached, while this row is a list placed after the title — which is
  * the line past which a widget needs a module of its own. */
-import { once } from "/leaf.js";
+import { once } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-milestone",

@@ -40,7 +40,7 @@ import {
   PRESS,
   REDUCED,
   SCROLL,
-} from "/leaf.js";
+} from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-board",

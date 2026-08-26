@@ -1,8 +1,8 @@
 # Page authoring
 
-Read this before writing or revising a version and before the first handoff.
+Read this before writing or revising a version.
 `leaf page catalog <page>` is the authority for the page's vendored widgets,
-attributes, examples, theme idioms, and package guidance for authors; read it
+attributes, examples, theme idioms, and composed guidance for authors; read it
 before authoring.
 
 ## Document scaffold
@@ -44,10 +44,15 @@ shortcuts, live-leaves tray, and open-asks tray. Author asks through the
 registry's request widgets and regions, but do not duplicate that chrome or
 maintain a second list of it in the page.
 
-Keep content inside the page's column. Give raw `<pre>`, tables, SVG, and images
-`max-width: 100%` or local overflow. Widgets whose catalog entry declares a wide
-shape size themselves; fix a diagram that is too wide in its source rather than
-pinning a page width.
+Keep content inside the page's column. The theme scrolls a `<pre>` or a table
+that runs wider than it and fits an image or SVG to it, so none of them needs a
+width. A table that scrolls has every column at its longest unbreakable run,
+and the browser gate refuses one that scrolls with a cell in it wrapped: put an
+identifier in `<code>`, where it breaks inside its cell, rather than bare, where
+it holds its column and squeezes the prose beside it, and keep the columns to
+what the measure holds. Widgets whose catalog
+entry declares a wide shape size themselves; fix a diagram that is too wide in
+its source rather than pinning a page width.
 
 ## Stable anchors
 
@@ -72,6 +77,21 @@ Put alternatives in `lf-options` with `choose`. Each option carries its title,
 case, and evidence in the option itself. When whole page sections are the
 alternatives, use short option labels with `for="<section-id>"`. Use `multiple`
 only when several options may stand.
+
+On the page the group's last cell is an option the reader writes, saying
+`Another option`, so author the alternatives you actually mean and no catch-all
+beside them: a `Something else` option takes a click where that cell takes the
+answer. In a thread the reply box is already that cell, so the group carries
+none of its own.
+
+Writing there is the reader dealing with the question, so the group stops being
+one of the page's open asks and the ball is yours. Nothing is recorded by it:
+the group still holds no pick. Answer what they wrote and honor it in the same
+move — carry their words in as an option, mark the pick it settled, or settle
+the group. Both ways of finishing with the thread hand the question back,
+`leaf reply` and `leaf resolve` alike, so a group still open asks again, now
+with their option on it. Ship a version that leaves the question standing
+without answering them and the page waits on you while saying nothing.
 
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
@@ -120,6 +140,10 @@ onto later versions, but the version must eventually record the decision so the
 page reads correctly without the log:
 
 - Mark every picked option `chosen`.
+- Carry an option a reader wrote in the group's last cell into the group as an
+  option, or settle the question their words settled. Their answer stands in a
+  thread and in no record at all, and the group stops asking only until you have
+  finished with that thread.
 - Replace an accepted suggestion with `lf-new`; replace a rejected one with
   `lf-old`, retaining ids on surviving passages.
 - Carry a reader edit verbatim.
@@ -160,9 +184,12 @@ it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.
 
 Give a structure its own shape rather than describing it in sentences. A flow or
-a sequence is a diagram, a comparison is a table, a set of movable things is a
-board, and the prose beside one says only what the shape cannot. What is left
-for prose is the claim, the reason it holds, and the question the page is asking.
+a sequence is a diagram, a comparison is a table, a measurement is a metric and a
+run of them is a chart, a set of movable things is a board, and the prose beside
+one says only what the shape cannot. What is left for prose is the claim, the
+reason it holds, and the question the page is asking. A few sentences hold all
+three. A section that runs longer is carrying either a structure with a shape of
+its own or backing that belongs under `<details>`.
 
 Write for what the reader has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
@@ -174,10 +201,14 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task awaits a decision. Do not
 copy the connective sentence from another page.
 
-Use `lf-diagram` for flow, sequence, and state diagrams; use inline SVG only for
-bespoke drawings. Use `<pre><code class="language-…">` for selectable literal
-source and `lf-code` for a line-numbered walkthrough. The catalog lists accepted
-language names. Keep logs and transcripts plain when they are not source code.
+Use `lf-diagram` for what mermaid draws — a flow, a sequence, a state machine —
+and `lf-chart` for quantities: a comparison across a few categories, a run over
+time, a ranking, a composition, two numbers against each other. A handful of numbers the sentence beside them can
+carry is prose; a chart is for when the shape of the numbers is the point. Use
+inline SVG only for a bespoke drawing. Use `<pre><code class="language-…">` for
+selectable literal source and `lf-code` for a line-numbered walkthrough. The
+catalog lists accepted language names. Keep logs and transcripts plain when they
+are not source code.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with
@@ -187,8 +218,11 @@ and URLs as real links.
 
 ## Pre-handover review
 
-Publishing runs the deterministic markup check. Before the URL first reaches the
-user, run the browser gate once:
+Publishing runs the deterministic markup check. For a quick page put up for
+reaction, that check is the whole gate, and the URL goes out as soon as it
+passes. A finished record takes the browser gate once before its URL first
+reaches the user; a quick page that a version turns into a record takes it
+before that version goes out:
 
 ```bash
 leaf version check <page> --render

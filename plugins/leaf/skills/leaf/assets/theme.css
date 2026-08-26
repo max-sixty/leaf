@@ -180,11 +180,20 @@
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
      read back in a calc, and the number was therefore being retyped wherever the
-     room was worked out. --here-ring is composed from it, so there is still one
-     place the band's thickness is decided. */
+     room was worked out. --here-ring is composed from it, --here-ring-room adds
+     the gap to it, and every control that insets its ring by one width negates
+     it, so there is still one place the band's thickness is decided. */
   --here-ring-w: 2px;
   --here-ring: var(--here-ring-w) solid var(--accent); --here-ring-gap: 3px;
   --here-ring-room: calc(var(--here-ring-w) + var(--here-ring-gap));
+  /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
+     the ring drawn around it (chrome-style.js dresses one). It is a token for the
+     reason the ring's width is — a box somebody else holds room for has to be read
+     back in a calc, and the option that holds a column for one is in another layer's
+     stylesheet entirely. Written as a number there, the column stayed at the size the
+     chip was when it was measured, and a package redeclaring the ladder grows the chip
+     into whatever the column was holding beside it. */
+  --lf-key-box: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
@@ -203,6 +212,27 @@
      to it too. */
   --syn-comment: #696458; --syn-keyword: #a3372c; --syn-string: #1d4f6b;
   --syn-number: #2f5480;  --syn-name: #6b4a9e;    --syn-type: #8a5a12;
+
+  /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
+     drawn: these are the most a reader can hold apart, and a palette that runs out and
+     starts again tells them two series are one. They are their own family rather than
+     --accent, --ok, --warn and --danger reused, because those four say something on this
+     page — a decision's link, a passing check, a warning — and a bar wearing one would
+     be making that claim about a number.
+     Not chosen by eye. The first attempt at this line was, and its blue and its plum
+     came out 0.3 apart under deuteranopia — the same color, to a reader who has no way
+     to tell us. So the steps are stepped to clear the measurable floors: every pair
+     (not merely the neighbors, since a stacked bar puts any two of them edge to edge)
+     at least 8 apart in OKLab ΔE×100 under simulated protanopia and deuteranopia, at
+     least 15 apart under ordinary vision, chroma above the point where a hue reads as
+     gray, and 3:1 against the paper they sit on. Worst pair here is 9.5 and 17.8, which
+     leaves a little room to move one without having to re-derive the set. The floors are
+     a test rather than a note asking to be remembered
+     (test_the_series_palette_clears_the_floors_it_claims_to), and it counts the steps
+     against $series.steps in the same breath, that being what a chart refuses a sixth
+     series against. */
+  --series-1: #4589d2; --series-2: #b77114; --series-3: #25966a;
+  --series-4: #6c489a; --series-5: #8c2d2a;
 }
 
 /* The dark palette is the same page at night, not its inverse: the ground keeps
@@ -224,6 +254,12 @@
     --add-tint: #1b2a1c; --del-tint: #33201b; --hi-tint: #342d14;
     --syn-comment: #a29a8b; --syn-keyword: #e59a8c; --syn-string: #9dc4dd;
     --syn-number: #a8c4e2;  --syn-name: #c3a8de;    --syn-type: #dcb27e;
+    /* Stepped against this ground rather than lightened from the light set: the band a
+       mark has to sit in over a brown-black is a different band, and the five above
+       leave it at both ends. Same hues, same floors, checked the same way (worst pair
+       9.2 and 17.2). */
+    --series-1: #2b8ecd; --series-2: #ce7600; --series-3: #50a069;
+    --series-4: #7a4faf; --series-5: #b13d54;
   }
 }
 
@@ -565,6 +601,7 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
     display: flex;
     justify-content: safe center;
     overflow-x: auto;
+    position: relative;
   }
   [data-lf-wide="drawing"]::before, [data-lf-wide="drawing"]::after {
     content: ""; flex: 0 1 auto;
@@ -638,8 +675,23 @@ a { color: var(--accent); text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 a:hover { text-decoration-color: currentColor; }
 hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+/* An identifier breaks where it must. A test name or a path is one word to the line
+ * breaker, and a word a box cannot hold is either drawn past the box or holds the
+ * box to its own width — in a table cell the latter: a column of 79-character test
+ * names beside a column of prose held its column at 583px of the 720px measure, the
+ * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
+ * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
+ * because only `anywhere` counts the break when a box's minimum is measured, and a
+ * table's columns are sized from exactly that: with it the same table stood
+ * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
+ * because a cell's minimum is its longest word, and that is what keeps a column of
+ * row names from being squeezed under the prose beside it — with every cell
+ * breakable the same table's row names measured 55px. The minimum is what every
+ * shrinking box is sized from, so a flex item or a grid track holding a long name
+ * hands room to its neighbour the same way (a flex item measured 691px to 359px).
+ * A block (pre) wraps nothing, so this reaches nothing there. */
 code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
-       font-size: 84%; font-family: var(--mono); }
+       font-size: 84%; font-family: var(--mono); overflow-wrap: anywhere; }
 /* A code block is sized by how many characters it takes across, which is why this size
  * is off the ladder above: that ladder is the serif's. Mono runs .602em, so 13px is
  * 7.83px a character and the 690px inside this padding fits 88 of them, clear of the 80
@@ -650,9 +702,17 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
  * while lf-code's rendered form builds a plain <pre> that takes this rule. So this
  * number moving alone is lf-code changing size the moment its module runs, and a
  * rendered tree no longer matching the code blocks around it. */
+/* Positioned because it scrolls, which is the layer's rule for every box that does
+ * (CLAUDE.md, "A box that scrolls contains what it scrolls"): out-of-flow content inside
+ * a scroller that is not a containing block is laid out against the page instead, where
+ * the scroller neither carries it nor clips it. The runtime hangs a word clipped to
+ * nothing inside the block each comment lands on, so one comment on the far column of a
+ * table wider than the window had the page itself scrolling sideways to reach a box no
+ * reader can see. Written at each box that declares the scroll, the way --lf-frame is
+ * written where a box draws its frame, because no selector asks "does this scroll". */
 pre { background: var(--pre-bg); border: 1px solid var(--rule); border-radius: var(--r);
-      padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.55;
-      font-family: var(--mono); }
+      padding: 12px 14px; position: relative; overflow-x: auto; font-size: 13px;
+      line-height: 1.55; font-family: var(--mono); }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
@@ -692,6 +752,15 @@ img, svg, video { max-width: 100%; height: auto; }
  * suggestion's controls hang, having scrolled the page by nothing the render
  * gate can see at its own viewport width.
  *
+ * The third case is reached through the second: a table scrolls once every
+ * column is at its minimum, and a column's minimum is its longest unbreakable
+ * run — so whatever wraps in a scrolling table wraps at a word a line, beside a
+ * name that could not break (an identifier has nowhere to break until the rule
+ * at `code` above gives it one) or because there are more columns than the
+ * measure holds. `version check --render` refuses a table that scrolls with a
+ * cell in it wrapped (SQUEEZED_TABLES) and leaves the third case to a table with
+ * nothing left to wrap.
+ *
  * Two things the display change could have cost, both measured rather than
  * assumed, and neither charged: Chrome's accessibility tree keeps table,
  * rowgroup, row, columnheader and cell through it, with or without an explicit
@@ -700,7 +769,7 @@ img, svg, video { max-width: 100%; height: auto; }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-table { display: block; overflow-x: auto; border-collapse: collapse;
+table { display: block; position: relative; overflow-x: auto; border-collapse: collapse;
         font-size: var(--t-5); margin: 18px 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }
@@ -1311,10 +1380,24 @@ html.lf-versioning::view-transition-new(root) {
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so
  * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and SCROLL, which answer the same preference themselves. */
+ * motion() and SCROLL, which answer the same preference themselves.
+ *
+ * The two halves are not written alike, because a duration is a way of keeping
+ * an animation and no way at all of keeping a transition. An animation is
+ * declared and named, and `animationend` is how the layer knows one has run —
+ * the thread list takes `grow` off a card that way — so the near-zero duration
+ * keeps that event and spends no time on it. A transition is declared by
+ * nobody: `transition-property` is `all` until something says otherwise, so a
+ * duration on every element makes a transition out of every property that
+ * changes, on every element, and none of them is a transition this theme
+ * wrote. Nothing listens for `transitionend`, so they were kept for no one and
+ * were not free: a running transition's animated value is what the platform
+ * reports for the property, so for the frames one of these took, every reading
+ * of a box's style — the render gate's included — was told the value the
+ * property was leaving rather than the one on screen. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
-    transition-duration: .01ms !important;
+    transition: none !important;
   }
 }

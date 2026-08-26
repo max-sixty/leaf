@@ -1,6 +1,7 @@
 """Static document, version, and page-state tests."""
 
 import json
+import math
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -20,17 +21,29 @@ from interact_support import (
     _board,
     _decided,
     _marker_for,
+    _paint_names,
     _report,
     _status,
     _tasks_version,
     check,
     decide,
-    interact,
+    declare_data_input,
     publish,
     state_json,
     suggest,
 )
-from leaf_interact import publishing as publishing_model
+from leaf import cli as cli_model
+from leaf import conversation as conversation_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import layer as layer_model
+from leaf import passages as passages_model
+from leaf import publishing as publishing_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf import validation as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -247,13 +260,17 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     above the type names beside it, over the marks the layer paints on top of the
     result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
     it had just retired."""
-    theme = interact.composed_theme([interact.ASSETS, interact.DEFAULT_PACKAGE])
+    theme = layer_model.composed_theme(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
+    )
     lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
     lists = [found for found in lists if found.startswith("a, abbr")]
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
-    registry = interact.incoming_registry([interact.ASSETS, interact.DEFAULT_PACKAGE])
+    registry = validation_model.incoming_registry(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
+    )
     assert [
         tag
         for tag, entry in registry.items()
@@ -287,21 +304,27 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     rests on their agreement: a character one side collapses and the other keeps
     is a quote captured in the browser that the file's reading can never confirm.
     The next edit to either spelling meets this test, not a detached comment."""
-    js = (interact.ASSETS / "runtime" / "passages.js").read_text()
+    js = (schema_model.ASSETS / "runtime" / "passages.js").read_text()
     found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
     assert found, "the browser passage reader lost its COLLAPSE regex"
     js_class = re.compile(f"[{found.group(1)}]")
     js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
-    assert js_set == interact.COLLAPSE_CHARS
+    assert js_set == passages_model.COLLAPSE_CHARS
 
 
-def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
+def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
     """A choose group's affordance rules stand down inside an exhibit in their own
     selectors, because a stylesheet cannot read the registry the runtime's quoted()
     dispatches on. What they exclude is the paint that declaration leaves on the
     page (data-lf-exhibit, markDeclared) rather than the widgets declaring it, so
     the layer that ships an exhibit and the layer whose rules withhold the hand need
     not be the same one — the shape a tag list cannot have.
+
+    The joined group's own here-ring stands down inside the second, the standing ask
+    (data-lf-ask, markHere), and asks it the same way and for the same reason: what
+    counts as an ask is the registry's answer (x-ask), and a stylesheet cannot read
+    that either. Both markers are the runtime's paint, so both are held to the name
+    the runtime actually writes.
 
     Every ancestor exclusion in the rules of the composed theme is read, not the
     exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
@@ -323,7 +346,7 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
     theme = re.sub(
         r"/\*.*?\*/",
         "",
-        interact.composed_theme([interact.ASSETS, interact.DEFAULT_PACKAGE]),
+        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
         flags=re.DOTALL,
     )
     excluded = {
@@ -331,24 +354,104 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
         for found in re.finditer(r":not\(", theme)
         if (inside := _balanced(theme, found.end())).endswith(" *")
     }
-    assert excluded == {":where([data-lf-exhibit])"}, (
-        f"the theme's ancestor exclusions are {excluded}, and the one thing a rule "
-        "may ask to stand down inside is the painted exhibit marker. A tag spelled "
-        "here answers for the layer that ships it and for no other; a second marker "
-        "is a second question, and belongs to whichever test owns that one; an empty "
-        "set is rules that stopped standing down inside an exhibit at all"
+    assert excluded == {":where([data-lf-exhibit])", ":where([data-lf-ask])"}, (
+        f"the theme's ancestor exclusions are {excluded}, and the two things a rule "
+        "may ask to stand down inside are the painted exhibit and the painted "
+        "standing ask. A tag spelled here answers for the layer that ships it and for "
+        "no other; a third marker is a third question, and belongs to whichever test "
+        "owns that one; a missing one is rules that stopped standing down at all"
     )
     assert _marker_for("x-exhibit") == "data-lf-exhibit", (
         "the theme excludes data-lf-exhibit and markDeclared paints "
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
     )
-    registry = interact.incoming_registry([interact.ASSETS, interact.DEFAULT_PACKAGE])
+    assert _paint_names().get("ask") == "data-lf-ask", (
+        "the theme excludes data-lf-ask and PAGE_PAINT_ATTRIBUTE spells the standing "
+        f"ask's mark {_paint_names().get('ask')!r}, so nothing puts that mark on a "
+        "page and a group inside an open ask draws the reader's band a second time"
+    )
+    # Asked of the file that defines markHere rather than of a path: the runtime is
+    # composed from leaf.js and the modules beside it, and which one owns a function
+    # moves as those split — this read leaf.js, and the day the ask runtime moved out
+    # of it the reading went missing rather than red about the mark.
+    defines = [
+        f
+        for f in [
+            schema_model.ASSETS / "leaf.js",
+            *sorted((schema_model.ASSETS / "runtime").rglob("*.js")),
+        ]
+        if re.search(r"function markHere\(\)", f.read_text())
+    ]
+    assert len(defines) == 1, (
+        f"the runtime defines markHere in {[f.name for f in defines]}, and this asks "
+        "one file what it writes"
+    )
+    owner = defines[0].read_text()
+    body = _balanced(owner, owner.index("{", owner.index("function markHere()")) + 1)
+    assert "PAGE_PAINT_ATTRIBUTE.ask" in body, (
+        "markHere is what paints the standing ask, and it no longer writes "
+        "PAGE_PAINT_ATTRIBUTE.ask — the exclusion in the theme then answers for a "
+        "mark nothing leaves on the page"
+    )
+    registry = validation_model.incoming_registry(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
+    )
     assert [
         tag
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-exhibit")
     ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
+
+
+def test_the_group_stands_down_for_every_outline_the_log_paints():
+    """An element wears one outline, and two writers want the joined group's.
+
+    The log paints the news about a widget's content there — a version restated it, a
+    decision is not in the page's words yet, a worker reported something — and the
+    group draws the reader's band there when the keyboard is in it. The band has other
+    carriers and the news has none, so the band is what stands down, and it says so by
+    naming the states it defers to.
+
+    A name it does not know is a state buried again, silently: a keyboard pick hid its
+    own pending ring until the reader tabbed away, and nothing rendered wrong. So the
+    list is held to the whole of what the kernel paints as an outline against an
+    attribute of its own, which is where a fourth would be written."""
+    theme = re.sub(
+        r"/\*.*?\*/",
+        "",
+        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
+        flags=re.DOTALL,
+    )
+    painted = {
+        found.group(1)
+        for found in re.finditer(
+            r"(?m)^\[(data-lf-[a-z-]+)\]\s*\{([^}]*)\}", theme, re.DOTALL
+        )
+        if "outline:" in found.group(2)
+    }
+    assert painted, "the kernel paints no state outline at all, so this reads nothing"
+    rule = re.search(
+        r"&:has\(> lf-option > \.lf-pick:focus-visible\)([^{]*)\{([^}]*)\}",
+        theme,
+        re.DOTALL,
+    )
+    assert rule and "--here-ring" in rule.group(2), (
+        "the joined group no longer draws the reader's band on itself, so the states it "
+        "was deferring to are nobody's question here"
+    )
+    deferred = set()
+    for found in re.finditer(r":not\(", rule.group(1)):
+        inside = _balanced(rule.group(1), found.end())
+        names = [part.strip() for part in inside.split(",")]
+        if names and all(re.fullmatch(r"\[data-lf-[a-z-]+\]", name) for name in names):
+            deferred |= {name[1:-1] for name in names}
+    assert deferred == painted, (
+        f"the group defers to {sorted(deferred)} and the kernel paints "
+        f"{sorted(painted)}: a state the group does not name draws nothing while the "
+        "keyboard is in the control, which is exactly when a reader has just made the "
+        "decision the ring is about"
+    )
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -359,16 +462,16 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
     holds, which a one-version corpus cannot earn."""
-    registry = interact.incoming_registry(
+    registry = validation_model.incoming_registry(
         [
-            interact.ASSETS,
-            interact.DEFAULT_PACKAGE,
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
             COMMAND_HUB_PACKAGE,
         ]
     )
     used = {}
     for path in (Path(__file__).parent.parent / "examples").glob("*.html"):
-        for rec in interact.parse_structure(path.read_text()).lf_elements:
+        for rec in structure_model.parse_structure(path.read_text()).lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
     missing = []
@@ -582,7 +685,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
 
 
 def test_suggestion_resolves_accepts_a_real_comment(page_dir):
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion><lf-options>'
@@ -615,7 +718,7 @@ def test_a_later_decision_does_not_license_an_earlier_version(page_dir):
         PAGE.replace("<lf-options>", SUGGESTION)
     )
     publish(page_dir, 3)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -676,7 +779,7 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
             '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
         )
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -723,7 +826,7 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
         )
     )
     assert check(page_dir, version=2).exit_code == 0
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -736,18 +839,18 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "refill-camera" in result.output
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     assert check(page_dir, version=2).exit_code == 0
 
 
 def test_reply_refuses_a_suggestion(page_dir):
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -1024,13 +1127,13 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         refused = _report(page_dir, *args)
         assert refused.exit_code == 1, args
         assert message in refused.output, args
-    assert all(e["kind"] != "report" for e in interact.read_events(page_dir))
+    assert all(e["kind"] != "report" for e in events_model.read_events(page_dir))
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0, sent.output
-    event = interact.read_events(page_dir)[-1]
+    event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "report" and event["author"] == "claude"
     assert (event["agent"], event["session"]) == ("Indexer", "worker-1")
     assert event["widget"] == "t-parser" and event["action"] == "status"
@@ -1095,7 +1198,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     runner = CliRunner()
     assert (
         runner.invoke(
-            interact.cli,
+            cli_model.cli,
             ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
         ).exit_code
         == 0
@@ -1111,7 +1214,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     _tasks_version(page_dir, 2, "review")
     add_board(2)
     published = runner.invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1125,7 +1228,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         ],
     )
     assert published.exit_code == 0, published.output
-    note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
+    note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["settles"] == [
         {"kind": "report", "id": report_id},
         {"kind": "work", "id": "rollout-card"},
@@ -1150,7 +1253,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     future_report = json.loads(sent.output)["id"]
     _tasks_version(page_dir, 1, "review")
     republished = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1162,7 +1265,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         ],
     )
     assert republished.exit_code == 0, republished.output
-    note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
+    note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["version"] == 1
     assert {"kind": "report", "id": future_report} not in note.get("settles", [])
 
@@ -1175,7 +1278,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
 
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_event = interact.append_event
+    original_append_event = events_model.append_event
 
     def held_append_event(directory, event):
         if event.get("kind") == "note" and event.get("version") == 2:
@@ -1185,11 +1288,13 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
 
     monkeypatch.setattr(publishing_model, "append_event", held_append_event)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        publishing = executor.submit(interact.cmd_publish, page_dir, 2, "absorb")
+        publishing = executor.submit(
+            publishing_model.cmd_publish, page_dir, 2, "absorb"
+        )
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
-        serialized = interact.lock_is_held(page_dir / "comments.jsonl")
+        serialized = service_model.lock_is_held(page_dir / "comments.jsonl")
         reporting = executor.submit(
-            interact.cmd_report,
+            conversation_model.cmd_report,
             page_dir,
             "t-parser",
             "status",
@@ -1208,7 +1313,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
             resume.set()
             publishing.result(timeout=10)
 
-    events = interact.read_events(page_dir)
+    events = events_model.read_events(page_dir)
     report = [event for event in events if event["kind"] == "report"][-1]
     note = [event for event in events if event["kind"] == "note"][-1]
     assert serialized, "publish calculated mutable log state outside its transaction"
@@ -1296,7 +1401,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     write(1, [X, Y], [])
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1377,7 +1482,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1422,7 +1527,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     assert check(page_dir, version=2).exit_code == 0
 
     # A later pick on the same coordinate releases the old option's words.
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1458,7 +1563,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1501,7 +1606,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1524,7 +1629,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     write(2, b=" chosen", attrs=" restated")
     assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1566,7 +1671,7 @@ def test_check_reports_record_lag_without_erroring(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1589,7 +1694,7 @@ def test_check_reports_record_lag_without_erroring(page_dir):
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
 
-    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "record behind the log" in result.output  # CliRunner folds stderr in
 
 
@@ -1603,7 +1708,7 @@ def test_record_lag_uses_the_version_being_checked(page_dir):
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
         )
         publish(page_dir, version)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1636,7 +1741,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
     (page_dir / "versions" / "v1.html").write_text(html)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1672,7 +1777,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == [] and state["lag"] == []
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1715,7 +1820,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
 
     # Completion is an independent fact on the same widget. It stands beside
     # selection instead of superseding it, and both are visible to the agent.
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1732,6 +1837,332 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         ("completion", "answer"),
         ("selection", "choose"),
     ]
+
+
+def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
+    """One CLI boundary writes complete source values. A rejected replacement leaves
+    the accepted revision untouched, while `page state` exposes the same envelope a
+    browser receives so a session never has to infer external facts from markup."""
+    declare_data_input(
+        page_dir,
+        "deployments",
+        {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        contract="deployment-rows",
+    )
+    runner = CliRunner()
+
+    written = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "deployments"],
+        input='["api", "worker"]',
+    )
+
+    assert written.exit_code == 0, written.output
+    standing = state_json(page_dir)
+    first = standing["data"]
+    assert first["revision"] == 1
+    assert first["sources"]["deployments"]["contract"] == "deployment-rows"
+    assert first["sources"]["deployments"]["value"] == ["api", "worker"]
+    assert standing["data_bindings"] == {
+        "deployments": {
+            "contract": "deployment-rows",
+            "consumers": [
+                {
+                    "widget": "test-data",
+                    "input": "data",
+                    "document": "v1.html",
+                }
+            ],
+        }
+    }
+
+    rejected = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "deployments"],
+        input='{"api": "ready"}',
+    )
+    assert rejected.exit_code != 0
+    assert "source 'deployments' value is invalid" in rejected.output
+    assert state_json(page_dir)["data"] == first
+
+    non_json = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "deployments"],
+        input="NaN",
+    )
+    assert non_json.exit_code != 0
+    assert "value is not JSON" in non_json.output
+    assert state_json(page_dir)["data"] == first
+
+    cleared = runner.invoke(
+        cli_model.cli, ["data", "clear", str(page_dir), "deployments"]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    assert state_json(page_dir)["data"] == {"revision": 2, "sources": {}}
+
+    unbound = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "package-guessed-name"],
+        input="[]",
+    )
+    assert unbound.exit_code != 0
+    assert "not bound by any page or thread widget" in unbound.output
+
+
+def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_dir):
+    """The page owns concrete source identity. Seats may share one typed feed, while
+    binding that id to a different meaning is refused before either the browser or a
+    producer can reinterpret its standing value."""
+    declare_data_input(
+        page_dir,
+        "project-feed",
+        {"type": "array"},
+        contract="rows",
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</main>",
+            '<lf-test-data id="test-data-two" source="project-feed"></lf-test-data>\n'
+            "</main>",
+        )
+    )
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+
+    shared = check(page_dir)
+    assert shared.exit_code == 0, shared.output
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    version.write_text(
+        version.read_text().replace(
+            "</main>",
+            '<lf-other-data id="other-data" source="project-feed"></lf-other-data>\n'
+            "</main>",
+        )
+    )
+
+    conflict = check(page_dir)
+    assert conflict.exit_code != 0
+    assert "bound to both contract 'rows'" in conflict.output
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert state.exit_code != 0
+    assert "page history has conflicting data bindings" in state.output
+
+
+def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir):
+    """Pinned versions share the page's current data store. Clearing removes a value,
+    not the meaning of the source id that an immutable version still consumes."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    publish(page_dir)
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+    data_model.cmd_data_clear(page_dir, "project-feed")
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    first = (page_dir / "versions" / "v1.html").read_text()
+    (page_dir / "versions" / "v2.html").write_text(
+        first.replace("lf-test-data", "lf-other-data")
+    )
+
+    result = check(page_dir, 2)
+    assert result.exit_code != 0
+    assert "use a new source id for the new meaning" in result.output
+
+
+def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
+    """A widget sent by an agent is still a data consumer. Its binding enters the
+    page-lifetime index even though no authored version contains its seat."""
+    declare_data_input(page_dir, "reply-feed", {"type": "array"}, contract="rows")
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        re.sub(r"<lf-test-data[^>]*></lf-test-data>\n?", "", version.read_text())
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "data-question",
+            "author": "user",
+            "version": 1,
+            "text": "Show the feed here.",
+        },
+    )
+    reply = conversation_model.cmd_reply(
+        page_dir,
+        "data-question",
+        "Here it is.",
+        '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
+    )
+
+    data_model.cmd_data_set(page_dir, "reply-feed", [])
+    standing = state_json(page_dir)
+    assert standing["data"]["sources"]["reply-feed"]["contract"] == "rows"
+    assert standing["data_bindings"]["reply-feed"]["consumers"] == [
+        {
+            "widget": "reply-data",
+            "input": "data",
+            "document": f"event {reply['id']!r} markup",
+        }
+    ]
+
+
+def test_thread_markup_cannot_rebind_a_page_source(page_dir):
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-other-data"] = {
+        **registry["lf-test-data"],
+        "description": "A differently typed test input.",
+        "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+    }
+    registry_path.write_text(json.dumps(registry))
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "data-question",
+            "author": "user",
+            "version": 1,
+            "text": "Show another feed here.",
+        },
+    )
+
+    with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
+        conversation_model.cmd_reply(
+            page_dir,
+            "data-question",
+            "Here it is.",
+            '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        )
+
+
+def test_data_set_validates_the_json_value_it_writes(page_dir):
+    """The Python facade and CLI share one boundary. A caller may hand the facade a
+    mapping key that json.dumps coerces, but the schema must judge the resulting JSON,
+    not a Python-only shape that can never reach the browser."""
+    declare_data_input(
+        page_dir,
+        "builds",
+        {
+            "type": "object",
+            "propertyNames": {"pattern": "^[a-z]+$"},
+        },
+        contract="build-map",
+    )
+
+    with pytest.raises(data_model.DataError, match="value is invalid"):
+        data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
+
+    assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
+
+
+def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
+    """Recursive schemas can describe trees, but a reference cycle that never moves
+    into a child instance cannot answer for any value. It is a package-contract error,
+    not a recursion failure the producer or re-vendor should have to catch."""
+    declare_data_input(
+        page_dir,
+        "loop",
+        {
+            "$id": "https://example.invalid/loop",
+            "$ref": "https://example.invalid/loop",
+        },
+        contract="loop",
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+
+    with pytest.raises(
+        data_model.DataError, match="recursive reference did not terminate"
+    ):
+        data_model.cmd_data_set(page_dir, "loop", {})
+
+    assert data_model.data_contract_errors(
+        {
+            "revision": 1,
+            "sources": {
+                "loop": {
+                    "contract": "loop",
+                    "updated": "2026-08-25T12:00:00-07:00",
+                    "value": {},
+                }
+            },
+        },
+        registry,
+    ) == [
+        (
+            "source 'loop' contract 'loop' could not validate its value: "
+            "a recursive reference did not terminate"
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("stored", "message"),
+    [
+        ("null", "object with only revision and sources"),
+        (
+            (
+                '{"revision":1,"sources":{"builds":{"contract":"build-map",'
+                '"updated":"2026-08-25T12:00:00-07:00","value":NaN}}}'
+            ),
+            "value is not JSON",
+        ),
+        (
+            (
+                '{"revision":1,"sources":{"builds":{"contract":"Bad Contract",'
+                '"updated":"2026-08-25T12:00:00-07:00","value":[]}}}'
+            ),
+            "must contain only contract, updated, and value",
+        ),
+    ],
+)
+def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
+    """A file on disk still crosses a structural boundary before it reaches the wire.
+
+    Python's JSON reader admits `NaN`, and a JSON `null` is easy to confuse with a
+    missing file. Neither can become a browser snapshot.
+    """
+    (page_dir / "data.json").write_text(stored)
+
+    with pytest.raises(data_model.DataError, match=message):
+        data_model.read_data_store(page_dir)
+
+
+def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
+    (page_dir / "data.json").write_bytes(b"\xff")
+
+    with pytest.raises(data_model.DataError, match="invalid JSON"):
+        data_model.read_data_store(page_dir)
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
@@ -1752,7 +2183,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     state = state_json(page_dir)
     assert state["asks"] == [{"id": "plan-ask", "tag": "lf-ask", "thread": None}]
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1783,7 +2214,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -1795,7 +2226,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "detail": {"options": ["o-stage"]},
         },
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1836,12 +2267,149 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     assert state_json(page_dir)["asks"] == []
 
 
+def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
+    """The group's last cell is where the reader writes the option the menu hasn't
+    got, so a conversation standing there is the question in the agent's hands: a
+    session picking the page up is not told to go and ask them again. It is not an
+    answer — no pick rests on the group — and it holds only while that thread waits
+    on the agent. A reply hands the question back, and so does closing it."""
+    opts = OPTIONS.format(a="", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    asking = [{"id": "g1", "tag": "lf-options", "thread": None}]
+    assert state_json(page_dir)["asks"] == asking
+    # A quote inside the group is a note about one of its words, not the reader
+    # standing in the box it offers. Only the seat's own anchor reaches this.
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "g1", "quote": "Shim it"},
+            "text": "shim how?",
+        },
+    )
+    assert state_json(page_dir)["asks"] == asking
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "anchor": {"section": "g1"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root["id"],
+            "text": "Capping it costs the backfill. Still worth it?",
+        },
+    )
+    assert state_json(page_dir)["asks"] == asking
+
+
+def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir):
+    """A resolved conversation waits on nobody, so it is no longer the question
+    standing in the agent's hands — and the group still holds no pick."""
+    opts = OPTIONS.format(a="", b="", chip="", shim="s.", stage="t.")
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c-another",
+            "author": "user",
+            "anchor": {"section": "g1"},
+            "text": "neither — cap the retries instead",
+        },
+    )
+    assert state_json(page_dir)["asks"] == []
+    events_model.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c-another"}
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "g1", "tag": "lf-options", "thread": None}
+    ]
+
+
+def test_page_state_gives_a_thread_its_exchange(page_dir):
+    """A session picking the page up is the reader this whole object exists for,
+    and answering a conversation is the first thing it owes. A count of messages
+    tells it one happened and leaves the words in a log it must fold itself,
+    which is where a standing answer gets missed. The digest is the wait
+    envelope's own, so the two readings of a thread stay one shape."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    opened = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "cameras are flaky",
+            "anchor": {"section": "s-1", "quote": "Ship dark"},
+        },
+    )
+    answered = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Indexer",
+            "parent": opened["id"],
+            "text": "two of them share a power rail",
+        },
+    )
+
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["id"] == opened["id"]
+    assert thread["anchor"] == {"section": "s-1", "quote": "Ship dark"}
+    assert thread["resolved"] is None
+    assert [(m["id"], m["author"], m["text"]) for m in thread["messages"]] == [
+        (opened["id"], "user", "cameras are flaky"),
+        (answered["id"], "claude", "two of them share a power rail"),
+    ]
+    assert thread["messages"][1]["agent"] == "Indexer"
+
+
+def test_page_state_keeps_a_readers_suggestion_flag(page_dir):
+    """`suggestion: true` is the reader proposing exact replacement words rather
+    than describing a change, and the loop owes that a different answer — taken
+    verbatim, or declined with a reason. A digest that dropped the flag rendered
+    it as ordinary prose and lost the obligation with it."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Ship dark behind the importer flag.",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+            "suggestion": True,
+        },
+    )
+
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["messages"][0]["suggestion"] is True, json.dumps(thread)
+
+
 def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     """A widget in thread markup asks like one on the page, `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
-    root = interact.append_event(
+    root = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -1857,7 +2425,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "gm", "tag": "lf-options", "thread": root["id"]}
     ]
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1871,7 +2439,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "gm", "tag": "lf-options", "thread": root["id"]}
     ]
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1900,7 +2468,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "t-parser", "tag": "lf-task", "thread": None}
     ]
-    rep = interact.append_event(
+    rep = events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -1947,7 +2515,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "note",
@@ -1989,8 +2557,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     )
     publish(page_dir)
     tied = "2026-08-24T12:00:00-07:00"
-    monkeypatch.setattr(interact, "now_iso", lambda: tied)
-    first = interact.append_event(
+    monkeypatch.setattr(events_model, "now_iso", lambda: tied)
+    first = events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -2001,13 +2569,13 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
             "detail": {"status": "done"},
         },
     )
-    thread = interact.append_event(
+    thread = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
     assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
-    claim_id = interact.read_json(page_dir / "status.json")["work"][0]["id"]
-    second = interact.append_event(
+    claim_id = files_model.read_json(page_dir / "status.json")["work"][0]["id"]
+    second = events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -2115,7 +2683,7 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
         {"id": "cargo", "tag": "lf-draft", "thread": None}
     ]
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -2136,3 +2704,106 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
     )
     publish(page_dir, 2)
     assert state_json(page_dir)["asks"] == []
+
+
+# The colour-vision maths the series palette is stepped against, written out here because
+# nothing else in the payload needs it. Machado, Oliveira & Fernandes (2009) at severity
+# 1.0 in linear sRGB, and OKLab for the distance — the pair the field uses, so the numbers
+# below are the ones a reader of the literature would expect.
+_CVD = {
+    "protan": (
+        (0.152286, 1.052583, -0.204868),
+        (0.114503, 0.786281, 0.099216),
+        (-0.003882, -0.048116, 1.051998),
+    ),
+    "deutan": (
+        (0.367322, 0.860646, -0.227968),
+        (0.280085, 0.672501, 0.047413),
+        (-0.011820, 0.042940, 0.968881),
+    ),
+}
+
+
+def _linear(hex_colour):
+    raw = [int(hex_colour[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    return [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in raw]
+
+
+def _oklab(rgb):
+    r, g, b = rgb
+    l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (
+        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+    )
+
+
+def _contrast(a, b):
+    def luminance(colour):
+        r, g, bl = _linear(colour)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+
+    hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _apart(a, b, vision=None):
+    def seen(colour):
+        rgb = _linear(colour)
+        if vision is None:
+            return _oklab(rgb)
+        return _oklab([sum(w * c for w, c in zip(row, rgb)) for row in _CVD[vision]])
+
+    return math.dist(seen(a), seen(b)) * 100
+
+
+def _palette(theme, block):
+    """The series steps and the paper they sit on, read out of one scheme's token block."""
+    steps = dict(re.findall(r"--series-(\d+):\s*(#[0-9a-f]{6})", block))
+    paper = re.search(r"--paper:\s*(#[0-9a-f]{6})", block)[1]
+    assert steps, "no series tokens in this block"
+    return [steps[str(n)] for n in range(1, len(steps) + 1)], paper
+
+
+def test_the_series_palette_clears_the_floors_it_claims_to():
+    """The theme's comment beside these tokens tells the next editor to check them rather
+    than look at them, and until this test there was nothing to check them with — the
+    syntax roles have UNREAD_SYNTAX in the render gate and the series steps had the
+    honour system. What made the argument was the first attempt at the line, chosen by
+    eye: its blue and its plum came out 0.3 apart under simulated deuteranopia, which is
+    one colour to a reader who has no way to tell us.
+
+    Every pair rather than the neighbours, because a stacked bar puts any two of them
+    edge to edge, and both palettes, because the dark steps are stepped against a
+    brown-black rather than lightened from the light ones. The registry's $series.steps
+    is counted against the tokens in the same breath: it is what a chart refuses a series
+    past, and a palette one step longer than the number it publishes would refuse a
+    series it has a colour for."""
+    theme = (schema_model.ASSETS / "theme.css").read_text()
+    light, dark = theme.split("prefers-color-scheme: dark")
+    declared = json.loads((schema_model.ASSETS / "registry.json").read_text())[
+        "$series"
+    ]["steps"]
+
+    for scheme, block in (("light", light), ("dark", dark)):
+        steps, paper = _palette(theme, block)
+        assert len(steps) == declared, (
+            f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
+        )
+        faint = [c for c in steps if _contrast(c, paper) < 3.0]
+        assert not faint, f"{scheme}: {faint} under 3:1 against {paper}"
+        pairs = [(a, b) for i, a in enumerate(steps) for b in steps[i + 1 :]]
+        blind = min(
+            (min(_apart(a, b, "protan"), _apart(a, b, "deutan")), a, b)
+            for a, b in pairs
+        )
+        assert blind[0] >= 8.0, (
+            f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
+        )
+        seen = min((_apart(a, b), a, b) for a, b in pairs)
+        assert seen[0] >= 15.0, (
+            f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        )

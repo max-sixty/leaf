@@ -7,8 +7,9 @@ green result could only have come from the behavior named by the test.
 
 This file owns those testing mechanics. The repository-level `CLAUDE.md` owns
 environment setup, suite inventory, and the normal run. The runtime's
-`CLAUDE.md` and `interact.py` own the product protocols. Keep their implementation
-rules there; state here only what a test must observe or control.
+`CLAUDE.md` and `plugins/leaf/skills/leaf/references/internals/` own the product
+protocols. Keep their implementation rules there; state here only what a test
+must observe or control.
 
 ## Run the narrowest useful surface
 
@@ -28,7 +29,15 @@ interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 `render_support.py` reexports that surface for the test modules rather than
 owning another copy. `test_site.py` reads the built site through its served URLs.
 Product documentation tests compare the docs with the shipped vocabulary and
-command surface.
+command surface: a shown command the click tree has not got, an `x-` key the guide
+omits, a table that has drifted from the registry it was generated from.
+
+That comparison is the whole of what a test over prose can prove. An assertion that
+some sentence stands in a file a model reads — a skill, a reference, package
+guidance, a paragraph of the docs — fails only when somebody rewrites that sentence.
+So what it catches is an edit, and whether the edit was right is a question for
+review either way. Every later rewrite then arrives as a test to work around. Derive
+one side of a prose assertion from the machine, or leave the wording to review.
 
 The distinction matters most around `render_version`. A property caused by a
 particular page belongs in that gate, because `version check --render` must report
@@ -68,7 +77,7 @@ of the band a box shows, and it names all three ways a box draws nothing past it
 edge: overflow, paint containment, and `content-visibility`. `version check
 --render` imports it so the band a handover is refused against and the band the
 page paints to are one reading, and its comment records that the two copies before
-it disagreed twice. `RING_FAULTS` is a third consumer of it rather than a third
+it disagreed twice. `RINGS_DRAWN` is a third consumer of it rather than a third
 copy of it, and it asks the window on the same terms as any other box: a fixed
 subtree is laid out against the window, and everything else reaches it through
 `body`, which is this page's scroller.
@@ -80,18 +89,53 @@ perfectly fine comes back with. Reach it with a real `Tab`, or focus it and pres
 `Tab` then `Shift+Tab` back onto it, and asserting the ring is there comes before
 asserting anything about its shape.
 
+Which control wears the ring is a separate question from which one holds the focus,
+and four of the layer's rules answer it differently: a thread card wears the ring
+for anything focused inside it, an ask for whichever of its controls the reader
+reached, a joined option group for the one its picks give up, and an element a
+focused thread is anchored to wears one with no focus of its own.
+`getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
+words it uses for a control whose ring is fine — a 2px cut planted on
+`.lf-thread:focus-within` passed all ten examples. So the reading asks the elements
+the layer's ring rules match, and reads those rules out of the page's own composed
+stylesheets rather than from a list kept beside them.
+
 The failure that makes this worth stating is a quiet one. A reading blind to one
 mechanism does not report that it is blind — it returns the same clean result it
 returns when nothing is wrong — so a green corpus is not evidence of a clean
 corpus. Assert a gate's reach the way its population is asserted:
 `test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge` puts
-one displacement under three parents differing only in how they clip, with a
-control case that has to report nothing.
+one outset ring under three parents differing only in how they clip, with a control
+case that has to report nothing, and
+`test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus` fails on
+any rule in the layer that nothing in the corpus paints, and on any scope of its
+walk that no example opens. A rule is credited when something matching it paints
+an outline of the layer's own width and style, so a rule under a condition this
+gate cannot make hold — a print stylesheet, the other colour scheme — is left out
+of the population rather than credited off a neighbour's ring.
+
+A Tab walk needs its starting point said as well as its end. `blur()` does not
+supply one: the sequential focus navigation starting point stays where the blurred
+control stood, so the next Tab carries on from there, runs off the end of the order
+and never enters the page. `document.body.focus()` resets it, and the walk that had
+been reporting twelve stops reports thirty-three.
+
+`RING_FAULTS` has gone blind once more since, in what it reads rather than in
+what it walks, and silently. Its excuse for a control standing behind something
+has to step past the ring's own band to ask the question, which is `grow + w`;
+written as one pixel it cleared an outward ring and landed inside an inset one,
+so every covered inset ring answered that the control was behind the same thing —
+and the panel's list draws nothing but inset rings. A reach case for the cover
+half already stood, and it could not have caught this: it plants over a ring
+drawn outside its control, where any step in clears the band.
+`test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
+is the same plant over the other shape. A reach case answers for the shapes it
+is written over, and a ring has two.
 
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
-`interact.render_version`, not reproduce one of its probes. Test a helper directly
+`leaf.rendering.render_version`, not reproduce one of its probes. Test a helper directly
 only when the helper itself carries a contract that would otherwise be hard to
 diagnose, such as the traffic wait reaching its deadline.
 
@@ -239,7 +283,7 @@ is only for a test whose subject is the interval before those stamps; it waits f
 banner module to exist and must make its later readiness explicit.
 
 `watched` must be installed before navigation. It collects console errors and
-`pageerror`, and installs `interact.WINDOW_ERRORS` so browser `error` events without
+`pageerror`, and installs `leaf.rendering.WINDOW_ERRORS` so browser `error` events without
 an exception, including ResizeObserver delivery failures, reach the same error list.
 That script is shared with `render_version`; the suite and the handover gate must not
 disagree about which browser error channels count.
@@ -256,6 +300,19 @@ A reliable wait consumes a fact stated by the system. It does not infer completi
 from elapsed time, two matching samples, or a quiet network. A page that has not
 started an effect is indistinguishable from one that finished if the only evidence is
 stillness.
+
+A computed style is one of those facts and it is not always a resting one. What the
+platform reports for a property under a running transition is the animated value,
+which early in one is the value the property is leaving — so a reading taken of a
+control the gesture just changed can be a true answer about the wrong moment, and
+steady enough while it lasts that two matching samples both land inside it. Ask
+`getAnimations()` where a reading's subject may be in transit. What made this worth
+saying was a page where every subject was: under `reduced_motion="reduce"` the
+theme's guard shortened transitions rather than removing them, and
+`transition-property` is `all`, so every property that changed on any element was a
+property in transit for two frames. That is fixed in the theme, which is why no
+reading here carries such a wait — a wait in front of a reading whose subject never
+moves is a mechanism that cannot fail and cannot help.
 
 ### A state the page passes through is not a state to poll for
 
@@ -281,6 +338,18 @@ The main causal helpers are:
 - `key_line(page)` reads what the key line says, once, after the repaint's own frame.
   `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
   round-trip as the press that caused it is a read of the frame before.
+
+A surface that reads the same before and after the press cannot be its own wait at all.
+`expect(...).to_have_text(...)` is satisfied by the frame the press has not reached yet,
+and a measurement taken behind it then compares a reading with itself and passes. It is
+the same coalesced frame as above, but it fails differently: not late by a poll, but
+green because nothing was ever asserted. `test_the_press_that_lights_a_key_moves_no_glyph`
+measures one address chip either side of the press that lights its next key, and the chip
+says "g a 1" at both — waiting on its text, the test passed two runs in three with the fix
+reverted. It waits on the offer narrowing instead, which is what the press actually
+writes. So a test whose subject is what a press does *within* a surface waits on some
+other fact of that press, and its bug-back is run more than once: a wait that is
+sometimes real looks exactly like a wait that is.
 
 The key line is the sharpest case of the rule above, because a second mechanism will
 supply its answer late. Every state poll repaints it, so an auto-retrying assertion on
@@ -333,6 +402,13 @@ If a race appears only on a loaded machine, make the ordering explicit with
 `page.route`; do not repeat the test until the machine happens to lose it. Register
 the route before the gesture whose request it must catch. For initial navigation,
 attach it through `primed` so no request is already in flight.
+
+That rule is about the page. A fact the driver loses on its way out of the browser
+is not a page state any route can arrange, and it has no second channel to be read
+through: `opened_tab` makes the press again because Chromium made the tab every time
+and Playwright reported none of the lost ones. Reach for a repeat only with that
+evidence in hand — the browser's own record showing the subject did its part — and
+say so where the repeat is written.
 
 A handler that appends a route to `held` has established only that the browser made
 the request. Before indexing `held`, wait for the corresponding `Traffic` edge, a
@@ -485,9 +561,9 @@ widget changes the DOM, make sure the relevant render probe can fail with that c
 reintroduced; a source-only assertion cannot cover a generated attribute or a replay
 that moves on its second application.
 
-The canonical probes are `interact.UNDECLARED_ATTRS` for attributes a module writes
+The canonical probes are `leaf.render_checks.UNDECLARED_ATTRS` for attributes a module writes
 into the author's namespace without a record declaration, and
-`interact.RELATIVE_REPLAYS` for an action whose second application changes state.
+`leaf.render_checks.RELATIVE_REPLAYS` for an action whose second application changes state.
 Call the product probes instead of maintaining test-side variants. Their fixtures
 must include at least one widget and verb that can trigger the finding; otherwise a
 clean result only says the probe received an empty population.

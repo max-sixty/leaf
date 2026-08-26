@@ -38,6 +38,9 @@ const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)
 const LAYER = await fetch("/registry.json")
   .then((response) => response.json())
   .then((registry) => registry.$layer.generation);
+const DATA = await fetch("../data.json")
+  .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
+  .catch(() => ({ revision: 0, sources: {} }));
 
 // The name a reply in the panel wears, and nothing else. It is not the name of anyone
 // behind the page — nobody is — so the banner never speaks it: `unattended` below is what
@@ -154,6 +157,10 @@ const state = () => ({
   // a page. There is none behind this one, which `unattended` above already says.
   session_cwd: null,
   others: [],
+  // Package-declared source state is served beside the event log. Unlike local reader
+  // gestures it does not change in this static session, but it enters through the same
+  // full-state field as a live host and therefore exercises the same package modules.
+  data: DATA,
   events,
 });
 

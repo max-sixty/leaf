@@ -39,7 +39,15 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from conftest import interact
+from leaf import cli as cli_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import files as files_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
+from leaf import rendering as rendering_model
+from leaf import service as service_model
+from leaf import structure as structure_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -64,7 +72,7 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
 <head>
 <meta charset="utf-8">
 <title>{title}</title>
-<meta http-equiv="Content-Security-Policy" content="{interact.PAGE_CSP}">
+<meta http-equiv="Content-Security-Policy" content="{structure_model.PAGE_CSP}">
 <link rel="stylesheet" href="/theme.css">
 {extra_head}<script type="module" src="/leaf.js"></script>
 </head>
@@ -339,9 +347,9 @@ def record_claim(page, **fields):
         "turn_closed": None,
         **fields,
     }
-    path = interact.claim_path(page)
+    path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
-    interact.write_json(path, record)
+    files_model.write_json(path, record)
     return record
 
 
@@ -350,9 +358,9 @@ def serve(tmp_path, monkeypatch):
     """Publish HTML as v1 of a fresh page directory and serve it, as the real
     server does — vendoring included, so the assets under test are this repo's.
 
-    Handed an example's path rather than its markup, it also lays in the two
-    things that example ships beside itself: the media it names, and the event
-    log, where it has one. The log for the same reason `test_examples_pass_check`
+    Handed an example's path rather than its markup, it also lays in the three
+    things that example ships beside itself: the media it names, external data,
+    and the event log, where it has one. The log for the same reason `test_examples_pass_check`
     reads one — a page is what its markup and its standing log make together, and
     a corpus that reads only the markup is reading half of it. A thread and any
     widget a message carries exist nowhere else, so without this every sweep is
@@ -370,7 +378,7 @@ def serve(tmp_path, monkeypatch):
         selection_args = [arg for name in packages for arg in ("--package", name)]
         d = tmp_path / f"page{len(servers)}"
         initialized = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             ["page", "init", *selection_args, str(d)],
         )
         assert initialized.exit_code == 0, initialized.output
@@ -378,9 +386,14 @@ def serve(tmp_path, monkeypatch):
             example.read_text() if example else source
         )
         shutil.copytree(EXAMPLE_MEDIA, d / "media", dirs_exist_ok=True)
-        interact.append_event(
+        events_model.append_event(
             d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
         )
+        if example and (data_seed := example.with_suffix(".data.json")).exists():
+            for name, value in json.loads(
+                data_seed.read_text(encoding="utf-8")
+            ).items():
+                data_model.cmd_data_set(d, name, value)
         # After the note, so v1's announcement stays the log's first line and the
         # exchange reads in the order it happened, which is preview.py's ordering.
         # (The site build writes the seed alone and announces its versions
@@ -390,7 +403,7 @@ def serve(tmp_path, monkeypatch):
         if example and (seed := example.with_suffix(".jsonl")).exists():
             for line in seed.read_text(encoding="utf-8").split("\n"):
                 if line.strip():
-                    interact.append_event(d, json.loads(line))
+                    events_model.append_event(d, json.loads(line))
             # A seed is history rather than news, so the page opens acknowledged
             # through it — the state every other publisher of a seeded example
             # serves. Left at nought the banner tells the reader their own comment
@@ -398,11 +411,11 @@ def serve(tmp_path, monkeypatch):
             # would have manufactured for itself. Read back for the seq rather than
             # counted, because a seq is what the log's reader assigns and an append
             # hands back no such number.
-            interact.write_json(
-                d / "cursor.json", {"seq": interact.read_events(d)[-1]["seq"]}
+            files_model.write_json(
+                d / "cursor.json", {"seq": events_model.read_events(d)[-1]["seq"]}
             )
         for i in range(comments):
-            interact.append_event(
+            events_model.append_event(
                 d,
                 {
                     "kind": "comment",
@@ -412,7 +425,7 @@ def serve(tmp_path, monkeypatch):
                 },
             )
         for section, quote in anchored:
-            interact.append_event(
+            events_model.append_event(
                 d,
                 {
                     "kind": "comment",
@@ -422,8 +435,8 @@ def serve(tmp_path, monkeypatch):
                     "anchor": {"section": section, "quote": quote},
                 },
             )
-        httpd = interact.LeafHTTPServer(
-            ("127.0.0.1", 0), interact.handler_for(d, TOKEN)
+        httpd = hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.handler_for(d, TOKEN)
         )
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         servers.append(httpd)
@@ -449,7 +462,7 @@ def page_registry(page):
     the page's own server, not this repo's tree, since what a vendored page holds is
     the whole question those readings answer.
     """
-    return interact.served(page, page.url, "/registry.json").json()
+    return rendering_model.served(page, page.url, "/registry.json").json()
 
 
 def post_event(page, url, **kwargs):
@@ -688,7 +701,7 @@ def told(page):
 def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
     """Author one small widget in the project package for browser fixtures."""
     package = root / ".leaf"
-    created = CliRunner().invoke(interact.cli, ["package", "init", str(package)])
+    created = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
     assert created.exit_code == 0, created.output
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -720,7 +733,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         )
     if upgrade:
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/leaf.js";\n\n'
+            'import { once } from "/runtime/widget-api.js";\n\n'
             "customElements.define(\n"
             f'  "{tag}",\n'
             "  class extends HTMLElement {\n"
@@ -879,7 +892,7 @@ def watched(page):
     one channel every reader in this file already has, and only for the events with no
     exception, since the rest arrive on `pageerror` already.
 
-    The script is `interact.WINDOW_ERRORS`, which `render_version` lays in for the same
+    The script is `rendering.WINDOW_ERRORS`, which `render_version` lays in for the same
     reason: one implementation with two callers is what keeps `version check --render`
     and this suite holding the same invariants, and a channel read on one side only is
     that drift in its quietest form.
@@ -888,7 +901,7 @@ def watched(page):
     errors = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.add_init_script(interact.WINDOW_ERRORS)
+    page.add_init_script(rendering_model.WINDOW_ERRORS)
     return errors
 
 
@@ -910,9 +923,11 @@ def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
         page.evaluate("() => new Promise(requestAnimationFrame)")
         fresh = errors[start:]
         del errors[start:]
-        notices = [error for error in fresh if interact.resize_observer_error(error)]
+        notices = [
+            error for error in fresh if rendering_model.resize_observer_error(error)
+        ]
         errors.extend(
-            error for error in fresh if not interact.resize_observer_error(error)
+            error for error in fresh if not rendering_model.resize_observer_error(error)
         )
         return notices
 
@@ -925,7 +940,7 @@ def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(interact.recurring_resize_observer_error("navigation"))
+        errors.append(rendering_model.recurring_resize_observer_error("navigation"))
 
 
 def key_line(page):
@@ -1009,6 +1024,56 @@ def open_page(
         ),
     )
     return page, errors
+
+
+def opened_tab(page, press, tries=3, each=10_000):
+    """The tab a press opens, pressed again when the harness loses the one Chromium made.
+
+    Chromium makes the tab every time. After a press whose tab never arrives,
+    `Target.getTargets` holds a second page target in this browser context — attached,
+    loaded, titled, sitting at the href the press named — while `context.pages` still
+    holds one, and it stays that way for the life of the page: the targets pile up press
+    after press and Playwright reports none of them. So `expect_page` spends its whole
+    timeout waiting on a tab that already exists, and the test reads as though the press
+    had opened nothing.
+
+    A driver that loses the handle is not a page state a route can arrange, and there is
+    no second channel to reach an unreported tab through, so the press is made again
+    rather than waited on longer. This is instrument repair, not tolerance for a flaky
+    subject: the press itself is deterministic — the loss reaches every chord, though not
+    at one rate: 3, 10 and 1 of 60 presses lost for ⌃-click, ⌃⇧-click and ⇧-click on a
+    loaded machine — so a runtime that stopped leaving a real href for the platform to act
+    on opens no tab for any of the tries, and the last one says which wait went unanswered.
+
+    A press whose tab is lost still leaves that tab loaded and polling its server, and no
+    caller can close what it was never handed. A test that closes the tab it receives is
+    closing only the try that was reported; the rest stand until context teardown. That is
+    the standing cost of the repeat, not a leak to chase.
+
+    A press that refuses outright — an anchor hidden, covered, or disabled, the shape a
+    runtime regression takes — raises its own timeout from inside the wait, and Playwright's
+    `EventContextManager.__exit__` cancels the wait and lets it through. Repeating that
+    press would be exactly the tolerance this helper is not, so it is caught where it is
+    raised and named as the subject's refusal.
+    """
+    for attempt in range(tries):
+        try:
+            with page.context.expect_page(timeout=each) as opened:
+                try:
+                    press()
+                except PlaywrightTimeout as refused:
+                    raise AssertionError(
+                        "the press timed out before any tab could open: the subject "
+                        "refused the gesture, which is not the loss this repeats for"
+                    ) from refused
+            return opened.value
+        except PlaywrightTimeout as lost:
+            if attempt == tries - 1:
+                raise AssertionError(
+                    f"no tab after {tries} presses waiting {each}ms each: either the "
+                    "press stopped leaving a real href, or Chromium holds a target "
+                    "Playwright never reported"
+                ) from lost
 
 
 def primed(browser, prepare):

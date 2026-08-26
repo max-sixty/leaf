@@ -15,10 +15,9 @@ example gets revised like any other page; run from a bare shell, they queue in
 the log until an agent next reads it. Which of those happens follows from the
 host identity the launcher puts in the environment.
 
-An example that ships a companion `.jsonl` opens with that log already in it, so
-the page arrives mid-conversation rather than blank. That is the only way to see
-a thread: it lives in the log, and `version export` drops the layer that draws
-one, so no static copy anywhere can carry it.
+An example can also ship companion `.jsonl` events and `.data.json` source
+values. The first lets a page arrive mid-conversation; the second supplies the
+same page-bound external data a real host would replace through `leaf data set`.
 
 Vendoring runs fresh each time, so an edit to the theme, the registry, or a
 widget shows up on the next run. `version publish` lints the example on the way past. The
@@ -42,8 +41,23 @@ PAGE = ROOT / ".tmp" / "preview"  # gitignored, and stable so the port persists
 PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text(encoding="utf-8"))
 
 
-def leaf(*args, check=True):
-    return subprocess.run([str(LEAF), *args], cwd=ROOT, check=check)
+def leaf(*args, check=True, input_text=None):
+    return subprocess.run(
+        [str(LEAF), *args],
+        cwd=ROOT,
+        check=check,
+        input=input_text,
+        text=input_text is not None,
+    )
+
+
+def seed_data(source: Path, page: Path) -> None:
+    """Set each page-bound source shipped beside an example."""
+    seed = source.with_suffix(".data.json")
+    if not seed.exists():
+        return
+    for name, value in json.loads(seed.read_text(encoding="utf-8")).items():
+        leaf("data", "set", str(page), name, input_text=json.dumps(value))
 
 
 def seed_log(source: Path, page: Path) -> None:
@@ -103,6 +117,7 @@ def main() -> None:
         "--text",
         f"{source.name}, as it stands in the tree",
     )
+    seed_data(source, PAGE)
     seed_log(source, PAGE)
     leaf("server", "run", str(PAGE))
 

@@ -37,8 +37,8 @@ from interact_support import (
     check,
     comment,
     decide,
+    declare_data_input,
     fetch,
-    interact,
     live_versions,
     logged,
     publish,
@@ -47,9 +47,20 @@ from interact_support import (
     trial_version,
     widget_entry,
 )
-from leaf_interact import conversation as conversation_model
-from leaf_interact import http as http_model
-from leaf_interact import layer as layer_model
+from leaf import cli as cli_model
+from leaf import conversation as conversation_model
+from leaf import data as data_model
+from leaf import events as events_model
+from leaf import http as http_model
+from leaf import layer as layer_model
+from leaf import media as media_model
+from leaf import passages as passages_model
+from leaf import registry as registry_model
+from leaf import rendering as rendering_model
+from leaf import schema as schema_model
+from leaf import service as service_model
+from leaf import structure as structure_model
+from leaf import styles as styles_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):
@@ -74,11 +85,11 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     same widget are the others — and the thread reading owes all three the same
     reply, or a question would read as answered by a gesture the log itself records
     as taken back."""
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "which mounts?"},
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -90,15 +101,17 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
             "detail": {"options": ["flag-first"], "resolves": "c1"},
         },
     )
-    spk = interact.spoken(
+    spk = passages_model.spoken(
         (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
-        interact.require_registry(page_dir),
+        registry_model.require_registry(page_dir),
     )
-    threads = interact.build_threads(interact.read_events(page_dir), spk)
+    threads = events_model.build_threads(events_model.read_events(page_dir), spk)
     assert threads["c1"]["resolved"]["id"] == "a1"
 
-    interact.append_event(page_dir, {"kind": "undo", "author": "user", "undoes": "a1"})
-    threads = interact.build_threads(interact.read_events(page_dir), spk)
+    events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
+    )
+    threads = events_model.build_threads(events_model.read_events(page_dir), spk)
     assert threads["c1"]["resolved"] is None
 
 
@@ -122,7 +135,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             data=json.dumps({"kind": "resolve", "parent": posted["id"]}).encode(),
         )[1]
     )["state"]["events"][-1]
-    agent_closed = interact.append_event(
+    agent_closed = events_model.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": posted["id"]}
     )
 
@@ -244,7 +257,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     assert refusal["final"] is True and "already been taken back" in refusal["error"]
     undos = [
         event
-        for event in interact.read_events(page_dir)
+        for event in events_model.read_events(page_dir)
         if event.get("undoes") == target["id"]
     ]
     assert len(undos) == 1
@@ -322,7 +335,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
         )
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -333,7 +346,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
             "detail": {"decision": "approved"},
         },
     )
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "decide" in result.output
@@ -346,7 +359,7 @@ def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
     The vocabulary stamp promises both, so retaining the kind alone cannot make
     the recorded field meaningful to the incoming runtime."""
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -358,7 +371,7 @@ def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
         },
     )
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -374,7 +387,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         version.read_text().replace("</section>", board + "\n</section>")
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -403,7 +416,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         )
     )
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -421,7 +434,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
         version.read_text().replace("</section>", board + "\n</section>")
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -442,7 +455,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
         json.dumps({"lf-board": registry["lf-board"]})
     )
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -464,7 +477,7 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
         version.read_text().replace("</section>", options + "\n</section>")
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -486,12 +499,12 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
         json.dumps({"lf-options": registry["lf-options"]})
     )
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
     assert [
         event["action"]
-        for event in interact.read_events(page_dir)
+        for event in events_model.read_events(page_dir)
         if event["kind"] == "action"
     ] == ["choose"]
 
@@ -512,7 +525,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     publish(page_dir)
     assert (
         CliRunner()
-        .invoke(interact.cli, ["report", str(page_dir), "t1", "status", "status=done"])
+        .invoke(cli_model.cli, ["report", str(page_dir), "t1", "status", "status=done"])
         .exit_code
         == 0
     )
@@ -524,7 +537,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -544,11 +557,11 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
-    transition = interact.transition_lock(page_dir)
+    transition = service_model.transition_lock(page_dir)
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
-    real_append = interact.append_event
+    real_append = events_model.append_event
     real_flocked = layer_model.flocked
 
     def paused_append(directory, event):
@@ -570,14 +583,16 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
     def report():
         try:
-            interact.cmd_report(page_dir, "t-parser", "status", ("status=done",))
+            conversation_model.cmd_report(
+                page_dir, "t-parser", "status", ("status=done",)
+            )
             outcomes.append("reported")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
 
     def revendoring():
         try:
-            interact.cmd_init(page_dir)
+            layer_model.cmd_init(page_dir)
             outcomes.append("revendored")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
@@ -595,13 +610,13 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert not reporting.is_alive() and not initing.is_alive()
     assert outcomes == ["reported"]
     assert len(errors) == 1 and "report contract" in str(errors[0])
-    assert interact.read_events(page_dir)[-1]["kind"] == "report"
+    assert events_model.read_events(page_dir)[-1]["kind"] == "report"
     assert "x-report" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
-    before = interact.layer_generation(page_dir)
-    transition = interact.transition_lock(page_dir)
+    before = registry_model.layer_generation(page_dir)
+    transition = service_model.transition_lock(page_dir)
     init_waiting = threading.Event()
     real_flocked = layer_model.flocked
 
@@ -617,20 +632,20 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
 
     def revendoring():
         try:
-            interact.cmd_init(page_dir)
+            layer_model.cmd_init(page_dir)
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
 
-    with interact.preview_server(page_dir, 1):
+    with rendering_model.preview_server(page_dir, 1):
         initing = threading.Thread(target=revendoring, name="re-vendor")
         initing.start()
         assert init_waiting.wait(5)
-        assert interact.layer_generation(page_dir) == before
+        assert registry_model.layer_generation(page_dir) == before
 
     initing.join(timeout=5)
     assert not initing.is_alive()
     assert errors == []
-    assert interact.layer_generation(page_dir) != before
+    assert registry_model.layer_generation(page_dir) != before
 
 
 def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
@@ -681,7 +696,9 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
         page_dir,
         monkeypatch,
         "report",
-        lambda: interact.cmd_report(page_dir, "t-parser", "status", ("status=review",)),
+        lambda: conversation_model.cmd_report(
+            page_dir, "t-parser", "status", ("status=review",)
+        ),
     )
 
     assert "no longer speaks" in refusal and "status" in refusal
@@ -694,9 +711,9 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
     overlay.mkdir(parents=True)
     local = widget_entry("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    interact.cmd_init(page_dir)
+    layer_model.cmd_init(page_dir)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
@@ -706,7 +723,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         page_dir,
         monkeypatch,
         "reply",
-        lambda: interact.cmd_reply(page_dir, "c1", "Pick one:", markup),
+        lambda: conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup),
     )
 
     assert "lf-local-thread" in refusal
@@ -716,7 +733,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     page_dir,
 ):
     """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
@@ -725,7 +742,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options>"
     )
-    interact.cmd_reply(page_dir, "c1", "Pick one:", markup)
+    conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
 
     registry = json.loads((page_dir / "registry.json").read_text())
     option = registry["lf-option"]
@@ -734,7 +751,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-option": option}))
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "thread markup contract" in result.output
@@ -746,6 +763,177 @@ def test_check_refuses_a_malformed_registry(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "invalid JSON" in result.output
+
+
+@pytest.mark.parametrize(
+    ("contracts", "message"),
+    [
+        ({"Bad Name": {"description": "x", "schema": {}}}, "invalid contract name"),
+        ({"builds": {"schema": {}}}, "description and schema"),
+        (
+            {"builds": {"description": "Build facts.", "schema": {"type": "nope"}}},
+            "invalid JSON Schema",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {"$ref": "https://schemas.example/build.json"},
+                }
+            },
+            "must be self-contained",
+        ),
+        (
+            {
+                "builds": {
+                    "description": "Build facts.",
+                    "schema": {"$defs": {}, "$ref": "#/$defs/missing"},
+                }
+            },
+            "must be self-contained",
+        ),
+    ],
+)
+def test_the_registry_door_validates_data_contracts(page_dir, contracts, message):
+    """A contract is executable widget vocabulary: its name carries meaning and its
+    schema admits bytes to the browser, so package checking refuses an ambiguous name,
+    an undocumented contract, or a schema no boundary can run."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$data"]["contracts"] = contracts
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "$data" in result.output and message in result.output
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"const": {"$ref": "https://example.invalid/literal-value"}},
+        {
+            "$defs": {"row": {"type": "string"}},
+            "type": "array",
+            "items": {"$ref": "#/$defs/row"},
+        },
+    ],
+)
+def test_package_data_schema_allows_literal_refs_and_resolved_local_refs(
+    page_dir, schema
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$data"]["contracts"]["builds"] = {
+        "description": "Build facts.",
+        "schema": schema,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            lambda entry: entry["x-data"]["data"].update(
+                {"contract": "missing-contract"}
+            ),
+            "names unknown contract",
+        ),
+        (
+            lambda entry: entry["properties"].pop("source"),
+            "must be a canonical data source string",
+        ),
+        (
+            lambda entry: entry["properties"]["source"].update(
+                {"pattern": "^anything$"}
+            ),
+            "must be a canonical data source string",
+        ),
+        (
+            lambda entry: entry.update({"x-guidance": {"author": ""}}),
+            "should be non-empty",
+        ),
+    ],
+)
+def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message):
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = json.loads((page_dir / "registry.json").read_text())
+    change(registry["lf-test-data"])
+
+    with pytest.raises(registry_model.RegistryError, match=message):
+        registry_model.validate_registry(registry, "test registry")
+
+
+def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
+    """x-data requires the canonical string contract, not one byte-for-byte schema;
+    packages remain free to document or further constrain the attribute."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-test-data"]["properties"]["source"]["description"] = (
+        "The page-owned feed id."
+    )
+    registry["lf-test-data"]["required"].remove("source")
+
+    assert registry_model.validate_registry(registry, "test registry") is registry
+
+
+def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
+    """The authored document owns a widget's binding for that element lifetime. A
+    value record on the same attribute would make replay paint a source that the
+    already-mounted watcher correctly does not consume."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"})
+    registry = json.loads((page_dir / "registry.json").read_text())
+    widget = registry["lf-test-data"]
+    widget["x-state"] = {
+        "rebind": {
+            "detail": {
+                "type": "object",
+                "properties": {"source": widget["properties"]["source"]},
+                "required": ["source"],
+                "additionalProperties": False,
+            },
+            "facet": "binding",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "source", "value": "source"},
+        }
+    }
+
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="x-data source attributes are authored bindings",
+    ):
+        registry_model.validate_registry(registry, "test registry")
+
+
+def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
+    """Clearing a replaceable value does not erase the meaning an immutable version
+    gave its source id. An incoming layer must still understand that binding because a
+    pinned reader can keep consuming the page's current data store."""
+    declare_data_input(
+        page_dir,
+        "builds",
+        {"type": "array"},
+        contract="builds",
+    )
+    data_model.cmd_data_set(page_dir, "builds", [])
+
+    refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert refused.exit_code != 0
+    assert "immutable documents" in refused.output
+    assert "source 'builds' loses its contract 'builds'" in refused.output
+    assert "use a new source id" in refused.output
+    cleared = CliRunner().invoke(
+        cli_model.cli, ["data", "clear", str(page_dir), "builds"]
+    )
+    assert cleared.exit_code == 0, cleared.output
+    still_refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert still_refused.exit_code != 0
+    assert "source 'builds' loses its contract 'builds'" in still_refused.output
 
 
 @pytest.mark.parametrize(
@@ -1400,7 +1588,7 @@ def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
     decide(trial_page, "adopt", widget="trial-cache")
 
     honored = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(trial_page), "--version", "2", "--text", "adopted"],
     )
     assert honored.exit_code == 0, honored.output
@@ -1720,10 +1908,10 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({section: {}}))
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     merged = json.loads((page_dir / "registry.json").read_text())[section]
-    shipped = json.loads((interact.ASSETS / "registry.json").read_text())[section]
+    shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[section]
     assert merged == shipped
 
 
@@ -1739,7 +1927,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"$tones": {"names": names}}))
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
     assert "$tones.names must be a unique list of strings" in result.output
 
@@ -1754,19 +1942,19 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-wide": "wider, in this project", "x-nope": "?"}})
     )
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
     assert "unadmitted ['x-nope']" in result.output
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-wide": "wider, in this project"}})
     )
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
     assert keys["x-wide"] == "wider, in this project"
     assert keys["x-says"]  # the rest of the shipped members stand
-    catalog = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
     assert "wider, in this project" in catalog.output
 
 
@@ -1778,7 +1966,7 @@ def test_init_requires_the_event_vocabulary_the_layer_writes(page_dir, tmp_path,
     del registry["$events"]["kinds"]["note"]["record"]["properties"][field]
     (overlay / "registry.json").write_text(json.dumps(registry))
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
     assert "current layer writes" in result.output
     assert "note" in result.output
@@ -1820,7 +2008,7 @@ def test_an_empty_host_name_uses_the_host_default(page_dir, sessionless, monkeyp
     result = comment(page_dir, "--text", "Which worker said this?")
 
     assert result.exit_code == 0, result.output
-    event = interact.read_events(page_dir)[-1]
+    event = events_model.read_events(page_dir)[-1]
     assert (event["agent"], event["session"]) == ("Codex", "worker-1")
 
 
@@ -1842,7 +2030,7 @@ def test_an_event_kind_contract_replaces_whole_across_layers():
     replacement = {"record": {"const": "new"}}
     merged = {"$events": {"kinds": {"signal": old}}}
 
-    interact.merge_layer_entries(
+    registry_model.merge_layer_entries(
         merged, {"$events": {"kinds": {"signal": replacement}}}
     )
 
@@ -1878,13 +2066,13 @@ def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
     registry = json.loads((page_dir / "registry.json").read_text())
     del registry["$events"]["kinds"]["note"]
     (overlay / "registry.json").write_text(json.dumps(registry))
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     merged = json.loads((page_dir / "registry.json").read_text())
     assert "note" in merged["$events"]["kinds"]
 
-    with pytest.raises(interact.RegistryError, match="current layer writes"):
-        interact.validate_registry(registry, "incoming")
+    with pytest.raises(registry_model.RegistryError, match="current layer writes"):
+        registry_model.validate_registry(registry, "incoming")
 
 
 def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
@@ -1938,19 +2126,22 @@ def test_check_reads_a_column_the_theme_states_as_a_token():
     that condition's, the same reason the column will not read a media query's width, and
     a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
     stated = ":root { --col: 640px }\nmain { max-width: var(--col) }"
-    assert interact._column_width("", stated) == 640
+    assert styles_model._column_width("", stated) == 640
 
     conditional = (
         "@media screen { :root { --col: 640px } }\nmain { max-width: var(--col) }"
     )
-    assert interact._column_width("", conditional) == interact.COLUMN_FALLBACK
+    assert (
+        styles_model._column_width("", conditional) == structure_model.COLUMN_FALLBACK
+    )
 
     fallback = "main { max-width: var(--col, 512px) }"
-    assert interact._column_width("", fallback) == 512
+    assert styles_model._column_width("", fallback) == 512
 
     # The shipped theme is the case that motivated this: it must still read as itself.
     assert (
-        interact._column_width("", (interact.ASSETS / "theme.css").read_text()) == 720
+        styles_model._column_width("", (schema_model.ASSETS / "theme.css").read_text())
+        == 720
     )
 
 
@@ -1980,7 +2171,7 @@ def test_the_strip_floor_is_one_number():
     is written twice — and the second table free to disagree with the first is the shape
     this codebase keeps getting wrong. Here it is a static fact about one file, so this
     is the cheapest place to hold the two together."""
-    css = (interact.ASSETS / "theme.css").read_text()
+    css = (schema_model.ASSETS / "theme.css").read_text()
     floor = re.search(r"--strip-min:\s*(\d+)px", css)
     assert floor, "the theme states no floor for the strips it takes off the page"
     assert re.search(rf"min-width:\s*{floor[1]}px", css), (
@@ -1997,10 +2188,10 @@ def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, serve
     a name the user has already approved can never come to mean different pixels."""
     shot = tmp_path / "nav.png"
     shot.write_bytes(b"\x89PNG\r\n\x1a\n" + b"pretend pixels")
-    (url,) = [u for _, u in interact.cmd_media(page_dir, [shot])]
+    (url,) = [u for _, u in media_model.cmd_media(page_dir, [shot])]
     assert re.fullmatch(r"/media/[a-f0-9]{16}\.png", url)
     # Re-adding the same bytes is the same file, not a second copy of it.
-    assert interact.cmd_media(page_dir, [shot])[0][1] == url
+    assert media_model.cmd_media(page_dir, [shot])[0][1] == url
     assert len(list((page_dir / "media").iterdir())) == 1
 
     status, body = fetch(server + url)
@@ -2049,7 +2240,7 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
         f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / "versions" / "v1.html").write_text(html)
-    parser = interact._StructParser()
+    parser = structure_model._StructParser()
     parser.feed(html)
     parser.close()
     assert parser.css == ""
@@ -2202,7 +2393,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
 def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
-    assert interact.json_validator(schema).is_valid(value) is valid
+    assert registry_model.json_validator(schema).is_valid(value) is valid
 
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
@@ -2219,7 +2410,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
         )
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -2235,7 +2426,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     del registry["lf-task"]["x-conversation"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
-    result = CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -2248,7 +2439,9 @@ def test_shared_package_declarations_compose_by_member():
     lane = {"role": "holder", "state": "phase"}
     merged = {"$workflow": {"widgets": {"lf-board": board}}}
 
-    interact.merge_layer_entries(merged, {"$workflow": {"widgets": {"lf-lane": lane}}})
+    registry_model.merge_layer_entries(
+        merged, {"$workflow": {"widgets": {"lf-lane": lane}}}
+    )
 
     assert merged["$workflow"]["widgets"] == {
         "lf-board": board,
@@ -2295,11 +2488,11 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     opened = CliRunner().invoke(
-        interact.cli, ["comment", str(page_dir), "--text", "show me?"]
+        cli_model.cli, ["comment", str(page_dir), "--text", "show me?"]
     )
     assert opened.exit_code == 0, opened.output
     posted = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -2316,4 +2509,4 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"{posted.output}"
     )
     assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
-    assert not [e for e in interact.read_events(page_dir) if e["kind"] == "reply"]
+    assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]

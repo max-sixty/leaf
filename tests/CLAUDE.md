@@ -73,6 +73,13 @@ copy of it, and it asks the window on the same terms as any other box: a fixed
 subtree is laid out against the window, and everything else reaches it through
 `body`, which is this page's scroller.
 
+A ring is also only drawn for a press. `element.focus()` sets `:focus` and not
+`:focus-visible`, so a control focused from script wears no ring at all, and every
+reading of one comes back empty — the same empty that a control whose ring is
+perfectly fine comes back with. Reach it with a real `Tab`, or focus it and press
+`Tab` then `Shift+Tab` back onto it, and asserting the ring is there comes before
+asserting anything about its shape.
+
 The failure that makes this worth stating is a quiet one. A reading blind to one
 mechanism does not report that it is blind — it returns the same clean result it
 returns when nothing is wrong — so a green corpus is not evidence of a clean
@@ -367,6 +374,27 @@ a default aborted request as a console load failure. That is why `refuse` uses t
 `aborted` cancellation reason for polling conditions. If a test intentionally produces
 an HTTP error, assert the enriched status-and-URL entry collected by `open_page`
 instead of filtering it out globally.
+
+### A repeated gesture has to let the repaint it causes land
+
+Pressing the same key twice inside one round-trip is not a reader pressing it twice.
+Work coalesced into a `requestAnimationFrame` runs between a person's two presses and
+between none of a test's, so a fault that the repaint itself causes is invisible to
+exactly the rhythm a suite presses at — and reads as correct rather than as flaky.
+
+`renderLine` runs under `paintHere`'s frame and cleared the key line with
+`textContent = ""` before putting its More button back. That takes a focused element
+out of the document, which blurs it, so a reader who tabbed to More was dropped to
+`body` a frame later with the button back on the line looking untouched. Pressed back
+to back the walk was whole; at every human speed it was broken, and the button was
+never gone to look at nor gone from the DOM to assert on.
+
+So a walk, or any repeated press a repaint could answer, waits a frame between presses
+and says why. Where waiting is what changes the outcome, the contrast is the assertion
+rather than a threshold: `test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted`
+runs one walk both ways and holds the two to being the same walk. A count of lost stops
+has no honest threshold, because a page whose tab order is three controls and a wrap
+puts the reader on `body` every fourth press as a matter of course.
 
 ## Distinguish a frame, a sequence, and an instant
 

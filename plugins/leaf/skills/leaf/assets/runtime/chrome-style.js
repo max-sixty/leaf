@@ -1018,7 +1018,14 @@ ${MARK_RULES}
       pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
       border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
     .lf-key-more:hover { color: var(--ink-2); }
-    .lf-key-more:focus-visible { outline: var(--here-ring); outline-offset: 1px; }
+    /* Inside, because the line clips: the button pulls itself out of the row by 3px so
+       its own padding does not grow the line, and a ring drawn a further pixel out lands
+       past the line's padding box, which overflow: hidden cuts. A control packed into
+       a list states its own inset (theme.css, --here-ring) — the thread cards and the
+       joined option group do the same — and here the line's own border is what stands
+       the whole thing off the page. */
+    .lf-key-more:focus-visible { outline: var(--here-ring);
+      outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for
        as long as they are the page shows its bones. Every item — a widget, a section, a

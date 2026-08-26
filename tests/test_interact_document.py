@@ -25,12 +25,21 @@ from interact_support import (
     _tasks_version,
     check,
     decide,
-    interact,
     publish,
     state_json,
     suggest,
 )
+from leaf_interact import cli as cli_model
+from leaf_interact import conversation as conversation_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import layer as layer_model
+from leaf_interact import passages as passages_model
 from leaf_interact import publishing as publishing_model
+from leaf_interact import schema as schema_model
+from leaf_interact import service as service_model
+from leaf_interact import structure as structure_model
+from leaf_interact import validation as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -247,13 +256,17 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     above the type names beside it, over the marks the layer paints on top of the
     result. Bare, it beat [data-lf-retired] and a decided suggestion kept the slot
     it had just retired."""
-    theme = interact.composed_theme([interact.ASSETS, interact.DEFAULT_PACKAGE])
+    theme = layer_model.composed_theme(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
+    )
     lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
     lists = [found for found in lists if found.startswith("a, abbr")]
     assert len(lists) == 2, (
         "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     )
-    registry = interact.incoming_registry([interact.ASSETS, interact.DEFAULT_PACKAGE])
+    registry = validation_model.incoming_registry(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
+    )
     assert [
         tag
         for tag, entry in registry.items()
@@ -287,12 +300,12 @@ def test_the_collapse_class_is_one_set_on_both_sides():
     rests on their agreement: a character one side collapses and the other keeps
     is a quote captured in the browser that the file's reading can never confirm.
     The next edit to either spelling meets this test, not a detached comment."""
-    js = (interact.ASSETS / "runtime" / "passages.js").read_text()
+    js = (schema_model.ASSETS / "runtime" / "passages.js").read_text()
     found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
     assert found, "the browser passage reader lost its COLLAPSE regex"
     js_class = re.compile(f"[{found.group(1)}]")
     js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
-    assert js_set == interact.COLLAPSE_CHARS
+    assert js_set == passages_model.COLLAPSE_CHARS
 
 
 def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
@@ -323,7 +336,7 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
     theme = re.sub(
         r"/\*.*?\*/",
         "",
-        interact.composed_theme([interact.ASSETS, interact.DEFAULT_PACKAGE]),
+        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
         flags=re.DOTALL,
     )
     excluded = {
@@ -343,7 +356,9 @@ def test_the_exhibit_exclusions_ask_for_the_marker_and_not_a_tag():
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
     )
-    registry = interact.incoming_registry([interact.ASSETS, interact.DEFAULT_PACKAGE])
+    registry = validation_model.incoming_registry(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
+    )
     assert [
         tag
         for tag, entry in registry.items()
@@ -359,16 +374,16 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     corpus by being declared. The exemptions are the log-only names the doc
     enumerates — restated, overruled and resolves each name something the log
     holds, which a one-version corpus cannot earn."""
-    registry = interact.incoming_registry(
+    registry = validation_model.incoming_registry(
         [
-            interact.ASSETS,
-            interact.DEFAULT_PACKAGE,
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
             COMMAND_HUB_PACKAGE,
         ]
     )
     used = {}
     for path in (Path(__file__).parent.parent / "examples").glob("*.html"):
-        for rec in interact.parse_structure(path.read_text()).lf_elements:
+        for rec in structure_model.parse_structure(path.read_text()).lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
     missing = []
@@ -582,7 +597,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
 
 
 def test_suggestion_resolves_accepts_a_real_comment(page_dir):
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion><lf-options>'
@@ -615,7 +630,7 @@ def test_a_later_decision_does_not_license_an_earlier_version(page_dir):
         PAGE.replace("<lf-options>", SUGGESTION)
     )
     publish(page_dir, 3)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -676,7 +691,7 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
             '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
         )
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -723,7 +738,7 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
         )
     )
     assert check(page_dir, version=2).exit_code == 0
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -736,18 +751,18 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "refill-camera" in result.output
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     assert check(page_dir, version=2).exit_code == 0
 
 
 def test_reply_refuses_a_suggestion(page_dir):
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -1024,13 +1039,13 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         refused = _report(page_dir, *args)
         assert refused.exit_code == 1, args
         assert message in refused.output, args
-    assert all(e["kind"] != "report" for e in interact.read_events(page_dir))
+    assert all(e["kind"] != "report" for e in events_model.read_events(page_dir))
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0, sent.output
-    event = interact.read_events(page_dir)[-1]
+    event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "report" and event["author"] == "claude"
     assert (event["agent"], event["session"]) == ("Indexer", "worker-1")
     assert event["widget"] == "t-parser" and event["action"] == "status"
@@ -1095,7 +1110,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     runner = CliRunner()
     assert (
         runner.invoke(
-            interact.cli,
+            cli_model.cli,
             ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
         ).exit_code
         == 0
@@ -1111,7 +1126,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     _tasks_version(page_dir, 2, "review")
     add_board(2)
     published = runner.invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1125,7 +1140,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         ],
     )
     assert published.exit_code == 0, published.output
-    note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
+    note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["settles"] == [
         {"kind": "report", "id": report_id},
         {"kind": "work", "id": "rollout-card"},
@@ -1150,7 +1165,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     future_report = json.loads(sent.output)["id"]
     _tasks_version(page_dir, 1, "review")
     republished = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1162,7 +1177,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         ],
     )
     assert republished.exit_code == 0, republished.output
-    note = [e for e in interact.read_events(page_dir) if e["kind"] == "note"][-1]
+    note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["version"] == 1
     assert {"kind": "report", "id": future_report} not in note.get("settles", [])
 
@@ -1175,7 +1190,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
 
     at_commit = threading.Event()
     resume = threading.Event()
-    original_append_event = interact.append_event
+    original_append_event = events_model.append_event
 
     def held_append_event(directory, event):
         if event.get("kind") == "note" and event.get("version") == 2:
@@ -1185,11 +1200,13 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
 
     monkeypatch.setattr(publishing_model, "append_event", held_append_event)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        publishing = executor.submit(interact.cmd_publish, page_dir, 2, "absorb")
+        publishing = executor.submit(
+            publishing_model.cmd_publish, page_dir, 2, "absorb"
+        )
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
-        serialized = interact.lock_is_held(page_dir / "comments.jsonl")
+        serialized = service_model.lock_is_held(page_dir / "comments.jsonl")
         reporting = executor.submit(
-            interact.cmd_report,
+            conversation_model.cmd_report,
             page_dir,
             "t-parser",
             "status",
@@ -1208,7 +1225,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
             resume.set()
             publishing.result(timeout=10)
 
-    events = interact.read_events(page_dir)
+    events = events_model.read_events(page_dir)
     report = [event for event in events if event["kind"] == "report"][-1]
     note = [event for event in events if event["kind"] == "note"][-1]
     assert serialized, "publish calculated mutable log state outside its transaction"
@@ -1296,7 +1313,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     write(1, [X, Y], [])
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1377,7 +1394,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1422,7 +1439,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     assert check(page_dir, version=2).exit_code == 0
 
     # A later pick on the same coordinate releases the old option's words.
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1458,7 +1475,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1501,7 +1518,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1524,7 +1541,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     write(2, b=" chosen", attrs=" restated")
     assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1566,7 +1583,7 @@ def test_check_reports_record_lag_without_erroring(page_dir):
 
     write(1)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1589,7 +1606,7 @@ def test_check_reports_record_lag_without_erroring(page_dir):
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
 
-    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "record behind the log" in result.output  # CliRunner folds stderr in
 
 
@@ -1603,7 +1620,7 @@ def test_record_lag_uses_the_version_being_checked(page_dir):
             PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
         )
         publish(page_dir, version)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1636,7 +1653,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
     (page_dir / "versions" / "v1.html").write_text(html)
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1672,7 +1689,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == [] and state["lag"] == []
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1715,7 +1732,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
 
     # Completion is an independent fact on the same widget. It stands beside
     # selection instead of superseding it, and both are visible to the agent.
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1752,7 +1769,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     state = state_json(page_dir)
     assert state["asks"] == [{"id": "plan-ask", "tag": "lf-ask", "thread": None}]
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1783,7 +1800,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -1795,7 +1812,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "detail": {"options": ["o-stage"]},
         },
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1841,7 +1858,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
-    root = interact.append_event(
+    root = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -1857,7 +1874,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "gm", "tag": "lf-options", "thread": root["id"]}
     ]
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1871,7 +1888,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "gm", "tag": "lf-options", "thread": root["id"]}
     ]
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -1900,7 +1917,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert state_json(page_dir)["asks"] == [
         {"id": "t-parser", "tag": "lf-task", "thread": None}
     ]
-    rep = interact.append_event(
+    rep = events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -1947,7 +1964,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "note",
@@ -1989,8 +2006,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     )
     publish(page_dir)
     tied = "2026-08-24T12:00:00-07:00"
-    monkeypatch.setattr(interact, "now_iso", lambda: tied)
-    first = interact.append_event(
+    monkeypatch.setattr(events_model, "now_iso", lambda: tied)
+    first = events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -2001,13 +2018,13 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
             "detail": {"status": "done"},
         },
     )
-    thread = interact.append_event(
+    thread = events_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
     assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
-    claim_id = interact.read_json(page_dir / "status.json")["work"][0]["id"]
-    second = interact.append_event(
+    claim_id = files_model.read_json(page_dir / "status.json")["work"][0]["id"]
+    second = events_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -2115,7 +2132,7 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
         {"id": "cargo", "tag": "lf-draft", "thread": None}
     ]
 
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",

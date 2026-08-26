@@ -1,6 +1,6 @@
 # Page authoring
 
-Read this before writing or revising a version and before the first handoff.
+Read this before writing or revising a version.
 `leaf page catalog <page>` is the authority for the page's vendored widgets,
 attributes, examples, theme idioms, and package guidance for authors; read it
 before authoring.
@@ -187,8 +187,11 @@ and URLs as real links.
 
 ## Pre-handover review
 
-Publishing runs the deterministic markup check. Before the URL first reaches the
-user, run the browser gate once:
+Publishing runs the deterministic markup check. For a quick page put up for
+reaction, that check is the whole gate, and the URL goes out as soon as it
+passes. A finished record takes the browser gate once before its URL first
+reaches the user; a quick page that a version turns into a record takes it
+before that version goes out:
 
 ```bash
 leaf version check <page> --render

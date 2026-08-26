@@ -18,7 +18,6 @@ from interact_support import (
     comment,
     fetch,
     fragment_errors,
-    interact,
     link_command_hub_package,
     live_versions,
     page_state,
@@ -26,13 +25,23 @@ from interact_support import (
     published,
     state_json,
 )
+from leaf_interact import checking as checking_model
+from leaf_interact import cli as cli_model
+from leaf_interact import conversation as conversation_model
+from leaf_interact import events as events_model
+from leaf_interact import files as files_model
+from leaf_interact import layer as layer_model
+from leaf_interact import registry as registry_model
+from leaf_interact import schema as schema_model
+from leaf_interact import service as service_model
+from leaf_interact import validation as validation_model
 
 
 def test_versions_publish_only_once_noted(page_dir):
     assert live_versions(page_dir) == []
     assert page_state(page_dir)["versions"] == []
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "first cut"],
     )
     assert result.exit_code == 0, result.output
@@ -49,10 +58,10 @@ def test_versions_run_in_number_order_past_v9(page_dir):
     before v2 and every one of those would quietly answer with the wrong version."""
     for n in range(2, 12):
         (page_dir / "versions" / f"v{n}.html").write_text(PAGE)
-    assert interact.list_versions(page_dir) == list(range(1, 12))
+    assert files_model.list_versions(page_dir) == list(range(1, 12))
     for n in range(1, 12):
         result = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             [
                 "version",
                 "publish",
@@ -72,14 +81,14 @@ def test_version_filenames_are_canonical(page_dir, server):
     (page_dir / "versions" / "v01.html").write_text("<h1>shadow</h1>")
     (page_dir / "versions" / "v1٢.html").write_text("<h1>Unicode alias</h1>")
     (page_dir / "versions" / "v2.html").mkdir()
-    assert interact.list_versions(page_dir) == [1]
+    assert files_model.list_versions(page_dir) == [1]
     assert check(page_dir, version=1).exit_code == 0
     assert fetch(f"{server}/versions/v01.html")[0] == 404
 
 
 def test_choose_requires_an_id(page_dir):
     # Actions name their widget by id, so an interactive group can't go without one.
-    registry = interact.load_registry(page_dir)
+    registry = registry_model.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
@@ -91,7 +100,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
     # The registry marks a specimen's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
-    registry = interact.load_registry(page_dir)
+    registry = registry_model.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-specimen id="sp" label="a decision">'
         '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
@@ -106,7 +115,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
 def test_an_ask_region_frames_exactly_one_request(page_dir):
     """A broad Ask has one source of liveness and state; zero leaves navigation
     pointing at nothing, while two make its answer and roll-up ownership ambiguous."""
-    registry = interact.load_registry(page_dir)
+    registry = registry_model.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
@@ -157,7 +166,7 @@ def test_settling_a_decision_drops_no_ids(page_dir):
     the alternatives behind the disclosure keep both their ids and the anchors
     on them. A group can't be settled without an id either; the reader's
     open/closed state is remembered against it."""
-    registry = interact.load_registry(page_dir)
+    registry = registry_model.load_registry(page_dir)
     assert "'id' is a dependency of 'settled'" in " ".join(
         fragment_errors(
             '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
@@ -174,26 +183,27 @@ def test_settling_a_decision_drops_no_ids(page_dir):
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
     )
-    assert interact.cmd_check(page_dir, 2) == 0
+    assert checking_model.cmd_check(page_dir, 2) == 0
 
     # Deleting the alternatives instead is what check is there to stop.
     (page_dir / "versions" / "v2.html").write_text(PAGE)
-    assert interact.cmd_check(page_dir, 2) == 1
+    assert checking_model.cmd_check(page_dir, 2) == 1
 
 
 def test_registry_examples_validate(page_dir):
-    registry = interact.load_registry(page_dir)
+    registry = registry_model.load_registry(page_dir)
     assert any(
         tag.startswith("lf-") and "x-example" in entry
         for tag, entry in registry.items()
     )
     assert (
-        interact.validate_registry_examples(registry, "vendored registry") is registry
+        validation_model.validate_registry_examples(registry, "vendored registry")
+        is registry
     )
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
-    registry = interact.load_registry(page_dir)
+    registry = registry_model.load_registry(page_dir)
     registry["lf-diff"]["x-example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
@@ -202,7 +212,7 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     )
 
     assert (
-        interact.validate_registry_examples(registry, "independent examples")
+        validation_model.validate_registry_examples(registry, "independent examples")
         is registry
     )
 
@@ -237,7 +247,7 @@ def test_examples_pass_check(tmp_path, monkeypatch):
     for example in examples:
         d = tmp_path / example.stem
         initialized = CliRunner().invoke(
-            interact.cli, ["page", "init", *selection_args, str(d)]
+            cli_model.cli, ["page", "init", *selection_args, str(d)]
         )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "versions" / "v1.html").write_text(example.read_text())
@@ -258,10 +268,10 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     lf-shot and lf-specimen were outside them from the day each was written.
     examples/CLAUDE.md carries the rest, including the shapes this floor doesn't
     reach."""
-    registry = interact.incoming_registry(
+    registry = validation_model.incoming_registry(
         [
-            interact.ASSETS,
-            interact.DEFAULT_PACKAGE,
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
             COMMAND_HUB_PACKAGE,
         ]
     )
@@ -310,7 +320,9 @@ def test_the_key_table_is_generated_from_the_registry():
         "the registry's $keys changed — rerun scripts/keydocs.py"
     )
     # And that the region holds a row for every key the registry documents.
-    keys = json.loads(interact.ASSETS.joinpath("registry.json").read_text())["$keys"]
+    keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
+        "$keys"
+    ]
     for key in keys:
         if key != "description":
             assert f"<td><code>{key}</code></td>" in said(committed), key
@@ -368,7 +380,7 @@ def test_no_example_writes_another_example_s_sentences():
 
 
 def test_catalog_prints_widgets_and_idioms(page_dir):
-    result = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
     assert result.exit_code == 0
     assert "lf-options" in result.output
     assert "x-example" in result.output
@@ -376,7 +388,7 @@ def test_catalog_prints_widgets_and_idioms(page_dir):
     assert "$idioms" not in result.output  # sections are split out, not dumped raw
     # Every x- key an entry may declare is explained, in the one section that does.
     assert "# The x- keys an entry may declare" in result.output
-    for key in interact.EXTENSION_SCHEMA["properties"]:
+    for key in schema_model.EXTENSION_SCHEMA["properties"]:
         assert f'"{key}": "' in result.output, key
 
 
@@ -391,7 +403,7 @@ def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
     registry["$hazards"] = {"freeze": {"description": "Deploys freeze on Fridays."}}
     registry_path.write_text(json.dumps(registry))
 
-    result = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
 
     assert result.exit_code == 0, result.output
     assert "Deploys freeze on Fridays." in result.output
@@ -404,13 +416,13 @@ def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
 
 
 def test_reply_validates_widget_markup(page_dir):
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
     def reply(markup):
         return CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             [
                 "reply",
                 str(page_dir),
@@ -438,7 +450,7 @@ def test_reply_validates_widget_markup(page_dir):
     assert "carries no widget" in prose.output
     good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
     assert good.exit_code == 0, good.output
-    event = interact.read_events(page_dir)[-1]
+    event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "reply"
     assert event["author"] == "claude"
     assert event["text"] == "See:"
@@ -448,13 +460,13 @@ def test_reply_validates_widget_markup(page_dir):
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     """The runtime resolves actions document-wide by id, so a reply widget must not
     reuse a page id — and a later version must not take a reply's."""
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
     def reply(markup):
         return CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             [
                 "reply",
                 str(page_dir),
@@ -488,7 +500,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -526,11 +538,11 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     assert result.exit_code == 1
     assert "lf- namespace" in result.output and "lf-msg-7" in result.output
 
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     reply = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -554,7 +566,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
     renders (test_render holds that side), markup is the fragment the CLI gate
     validated, and the only vocabulary a page's frozen layer has to keep speaking is
     the log's own, which $events stamps."""
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -564,7 +576,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
         },
     )
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -593,15 +605,15 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
     _tasks_version(page_dir, 1, "active")
-    interact.claim_page(page_dir)
+    service_model.claim_page(page_dir)
     published(page_dir)
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
     )
 
     def reply(text):
         return CliRunner().invoke(
-            interact.cli, ["reply", str(page_dir), "--to", "c1", "--text", text]
+            cli_model.cli, ["reply", str(page_dir), "--to", "c1", "--text", text]
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -612,7 +624,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
-    events = interact.read_events(page_dir)
+    events = events_model.read_events(page_dir)
     notes = [e for e in events if e["kind"] == "note"]
     assert [(e["agent"], e["session"]) for e in notes] == [("Hub", "hub")]
     report = next(e for e in events if e["kind"] == "report")
@@ -622,11 +634,11 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         ("Indexer", "worker-1"),
         ("Crawler", "worker-2"),
     ]
-    session = interact.page_claim(page_dir)
+    session = service_model.page_claim(page_dir)
     assert session["id"] == "hub" and session["agent"] == "Hub"
     assert page_state(page_dir)["agent"] == "Hub"
     # The reader meets each message under the name it carried.
-    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "- **Indexer**: indexing done" in transcript.output
     assert "- **Crawler**: crawl running" in transcript.output
 
@@ -636,7 +648,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     the log holds under `markup` has been through `check_markup`, which is what lets
     the thread structure and the panel index it unasked."""
     publish(page_dir, version=1)
-    before = interact.read_events(page_dir)
+    before = events_model.read_events(page_dir)
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
@@ -650,7 +662,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
     )
     assert status == 400
     assert "markup" in json.loads(body)["error"]
-    assert interact.read_events(page_dir) == before
+    assert events_model.read_events(page_dir) == before
 
 
 def test_export_prints_threads_and_versions(page_dir):
@@ -659,10 +671,10 @@ def test_export_prints_threads_and_versions(page_dir):
         PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
     )
     CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "first cut"],
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -672,7 +684,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "why?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -684,10 +696,10 @@ def test_export_prints_threads_and_versions(page_dir):
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "resolve", "id": "x1", "author": "user", "parent": "r1"}
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -697,7 +709,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "text": "arrow?",
         },
     )
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "action",
@@ -713,7 +725,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # named by its ends and the exchange stays readable under it.
     said = "The batch replays from the top."
     long_quote = " ".join([said] * 20)
-    interact.append_event(
+    events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -727,7 +739,7 @@ def test_export_prints_threads_and_versions(page_dir):
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Abandoned draft</title>")
     )
-    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert result.output.startswith("## Leaf: Cutoff & backfill\n")
     assert "- v1: first cut" in result.output
@@ -737,11 +749,11 @@ def test_export_prints_threads_and_versions(page_dir):
 
     # And one they took back is an outcome under its own name: left out it would
     # read as never made, and shown plainly it would read as final.
-    moved = next(e for e in interact.read_events(page_dir) if e["kind"] == "action")
-    interact.append_event(
+    moved = next(e for e in events_model.read_events(page_dir) if e["kind"] == "action")
+    events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
     )
-    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
         "- `b`: move card=card-x to=col-done index=0 (on v1) — taken back"
@@ -765,11 +777,11 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
     validate and posts without the registry; markup is checked against it, so without
     one the gate refuses rather than guessing."""
     (page_dir / "registry.json").unlink()
-    interact.append_event(
+    events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
     plain = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -781,7 +793,7 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
     )
     assert plain.exit_code == 0, plain.output
     with_markup = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -800,19 +812,19 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):
     published(page_dir)
     (page_dir / "registry.json").unlink()
-    before = interact.read_events(page_dir)
+    before = events_model.read_events(page_dir)
     result = comment(page_dir, "--quote", "Ship dark", "--text", "Still posts")
     assert result.exit_code != 0
     assert (
         "no registry.json" in result.output and "run `leaf page init`" in result.output
     )
-    assert interact.read_events(page_dir) == before
+    assert events_model.read_events(page_dir) == before
 
 
 def test_note_refuses_a_version_that_fails_check(page_dir):
     (page_dir / "versions" / "v1.html").write_text(PAGE.replace("</section>", ""))
     result = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "broken"],
     )
     assert result.exit_code != 0
@@ -827,7 +839,7 @@ def test_example_layer_names_repository_packages():
     assert packages
     assert all(not Path(name).is_absolute() for name in packages)
     assert all((ROOT / name).is_dir() for name in packages)
-    assert interact.checked_inputs([ROOT / name for name in packages])
+    assert layer_model.checked_inputs([ROOT / name for name in packages])
 
 
 def test_every_seeded_fragment_passes_the_door_it_never_came_through(
@@ -864,7 +876,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     for example in seeded:
         d = tmp_path / f"door-{example.stem}"
         initialized = CliRunner().invoke(
-            interact.cli, ["page", "init", *selection_args, str(d)]
+            cli_model.cli, ["page", "init", *selection_args, str(d)]
         )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
         (d / "versions" / "v1.html").write_text(example.read_text())
@@ -872,7 +884,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         # Published, because the door is only open on a page a reader could be
         # holding — which is the state every one of these seeds is written for.
         published = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             [
                 "version",
                 "publish",
@@ -885,7 +897,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         )
         assert published.exit_code == 0, f"{example.name}: {published.output}"
         opened = CliRunner().invoke(
-            interact.cli, ["comment", str(d), "--text", "what a reader would ask"]
+            cli_model.cli, ["comment", str(d), "--text", "what a reader would ask"]
         )
         assert opened.exit_code == 0, opened.output
         root = json.loads(opened.output)["id"]
@@ -898,7 +910,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                 continue
             read += 1
             posted = CliRunner().invoke(
-                interact.cli,
+                cli_model.cli,
                 [
                     "reply",
                     str(d),
@@ -928,7 +940,7 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     since it is read where no bar explains the glyph. The catalog names the
     vocabulary under its own heading."""
     published(page_dir)
-    bare = interact.append_event(
+    bare = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -938,10 +950,10 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
-    answered = interact.append_event(
+    answered = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "no"}
     )
-    interact.cmd_reply(page_dir, answered["id"], "Which part?", None)
+    conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
     assert state["threads"][0]["text"] is None
@@ -951,11 +963,11 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     ]
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
-    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    result = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "- **User** reacted: − cut — does not earn its length" in result.output
     assert "- **User** reacted: × no — this is wrong" in result.output
 
-    catalog = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
     assert "The one-press reactions a reader can put on" in catalog.output
     assert '"settles": true' in catalog.output

@@ -23,22 +23,25 @@ from interact_support import (
     TOKEN,
     check,
     fetch,
-    interact,
     neighbour_page,
     publish,
     record_claim,
 )
+from leaf_interact import cli as cli_model
 from leaf_interact import events as event_model
+from leaf_interact import files as files_model
 from leaf_interact import hosting as hosting_model
 from leaf_interact import http as http_model
 from leaf_interact import publishing as publishing_model
+from leaf_interact import registry as registry_model
+from leaf_interact import schema as schema_model
 from leaf_interact import service as service_model
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
     publish(page_dir)
     current = json.loads(fetch(f"{server}/api/state")[1])["layer"]
-    before = interact.read_events(page_dir)
+    before = event_model.read_events(page_dir)
 
     status, body = fetch(
         f"{server}/api/event",
@@ -48,7 +51,7 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
 
     assert status == 200
     assert json.loads(body) == {"layer": current}
-    assert interact.read_events(page_dir) == before
+    assert event_model.read_events(page_dir) == before
 
 
 def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
@@ -70,7 +73,7 @@ def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
     socketpair's buffer is a few kilobytes: nothing drains this one until the handler
     has returned, so the answered half asks for a response that fits. The runtime is
     297kB and deadlocks the test rather than the server."""
-    handler = interact.handler_for(page_dir, TOKEN)
+    handler = http_model.handler_for(page_dir, TOKEN)
     httpd = HTTPServer(("127.0.0.1", 0), handler)
     request = f"GET /api/state?t={TOKEN} HTTP/1.0\r\nHost: x\r\n\r\n".encode()
 
@@ -113,7 +116,7 @@ def test_server_round_trip(server, page_dir):
     status, _ = fetch(f"{server}/versions/v1.html")
     assert status == 404
     published = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
     assert published.exit_code == 0, published.output
@@ -159,7 +162,7 @@ def test_server_round_trip(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    posted = interact.read_events(page_dir)[-1]
+    posted = event_model.read_events(page_dir)[-1]
     assert posted["author"] == "user" and posted["id"] != "c9"
     assert "agent" not in posted and "session" not in posted
     assert posted["ts"] != "1900-01-01T00:00:00Z"
@@ -183,7 +186,7 @@ def test_server_round_trip(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    moved = interact.read_events(page_dir)[-1]
+    moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
     # A design comment: about the layer, anchored on a runtime part the version never
     # holds, naming the control the press landed on. The door takes it as posted, and
@@ -201,9 +204,9 @@ def test_server_round_trip(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    design = interact.read_events(page_dir)[-1]
+    design = event_model.read_events(page_dir)[-1]
     assert design["about"] == "layer" and design["anchor"]["part"] == "Comments"
-    transcript = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "> § lf-banner · Comments  — about the layer" in transcript.output
     for bad in [
         {"kind": []},
@@ -339,7 +342,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2, "text": "Looks good"}).encode(),
     )
     assert status == 200, body
-    assert interact.read_events(page_dir)[-1]["kind"] == "done"
+    assert event_model.read_events(page_dir)[-1]["kind"] == "done"
 
 
 def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
@@ -386,7 +389,9 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
         == accepted["id"]
     )
     comments = [
-        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["id"] for event in comments] == [accepted["id"]]
 
@@ -399,7 +404,9 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     status, body = fetch(f"{server}/api/event", data=json.dumps(later).encode())
     assert status == 200
     comments = [
-        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["text"] for event in comments] == [first["text"], first["text"]]
     assert [event["attempt"] for event in comments] == [
@@ -471,7 +478,9 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     assert status == 409
     assert "already belongs to another event" in json.loads(body)["error"]
     comments = [
-        event for event in interact.read_events(page_dir) if event["kind"] == "comment"
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "comment"
     ]
     assert [event["id"] for event in comments] == [accepted["id"]]
 
@@ -515,20 +524,20 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
 
     own_state_read = threading.Event()
     scanned = threading.Event()
-    original = interact.Handler._page_state
+    original = http_model.Handler._page_state
 
     def own_state(handler, events):
-        assert interact.lock_is_held(page_dir / "comments.jsonl")
+        assert service_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
         return original(handler, events)
 
     def neighbours(directory):
         assert directory == page_dir
-        assert not interact.lock_is_held(page_dir / "comments.jsonl")
+        assert not service_model.lock_is_held(page_dir / "comments.jsonl")
         scanned.set()
         return []
 
-    monkeypatch.setattr(interact.Handler, "_page_state", own_state)
+    monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
     monkeypatch.setattr(http_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
@@ -549,7 +558,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
     release = threading.Event()
     waiter_entered = threading.Event()
     calls = 0
-    original_attempt_init = interact.AttemptExecution.__init__
+    original_attempt_init = event_model.AttemptExecution.__init__
 
     def observe_attempt(execution, payload):
         original_attempt_init(execution, payload)
@@ -570,7 +579,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
         return "the action was refused"
 
     monkeypatch.setattr(http_model, "action_contract_error", refuse_once)
-    monkeypatch.setattr(interact.AttemptExecution, "__init__", observe_attempt)
+    monkeypatch.setattr(event_model.AttemptExecution, "__init__", observe_attempt)
     sent = {
         "kind": "action",
         "version": 1,
@@ -580,7 +589,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
         "attempt": "attempt-flight-001",
     }
     results = []
-    layer = interact.layer_generation(page_dir)
+    layer = registry_model.layer_generation(page_dir)
 
     def post():
         # A real retry already carries the layer of the attempt it is retrying. The
@@ -623,7 +632,9 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
     assert status == 400 and json.loads(body) == answers[0]
     assert calls == 2, "a completed refusal left a receipt behind"
     assert [
-        event for event in interact.read_events(page_dir) if event["kind"] == "action"
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "action"
     ] == []
 
 
@@ -634,7 +645,7 @@ def test_flocked_refuses_a_platform_without_cross_process_locking(
     monkeypatch.setattr(event_model, "fcntl", None)
     with (
         pytest.raises(RuntimeError, match="cross-process file locking"),
-        interact.flocked(page_dir / ".lock"),
+        event_model.flocked(page_dir / ".lock"),
     ):
         pass
 
@@ -646,11 +657,11 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     monkeypatch.setattr(event_model, "fcntl", None)
     monkeypatch.setattr(service_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        interact.cmd_serve(page_dir, standing=True)
+        hosting_model.cmd_serve(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        interact.start_server(page_dir, standing=True)
+        hosting_model.start_server(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        interact.lock_is_held(page_dir / "server.lock")
+        service_model.lock_is_held(page_dir / "server.lock")
     assert not (page_dir / "server.lock").exists()
     assert not (page_dir / "service.json").exists()
 
@@ -696,12 +707,12 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
             "detail is invalid",
         ),
     ]
-    before = len(interact.read_events(page_dir))
+    before = len(event_model.read_events(page_dir))
     for event, message in invalid:
         status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
         assert status == 400, event
         assert message in json.loads(body)["error"]
-    assert len(interact.read_events(page_dir)) == before
+    assert len(event_model.read_events(page_dir)) == before
 
     # The page may have advanced since the gesture, so resolve the sender from
     # the action's own published version rather than the newest document.
@@ -753,7 +764,7 @@ def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
     )
     assert status == 400
     assert message in json.loads(body)["error"]
-    assert not [e for e in interact.read_events(page_dir) if e["kind"] == "action"]
+    assert not [e for e in event_model.read_events(page_dir) if e["kind"] == "action"]
     # The refusal cost the request and nothing else: the server is still serving, so a
     # page whose stamp fell behind still reads even where it can no longer be acted on.
     assert fetch(f"{server}/api/state")[0] == 200
@@ -761,7 +772,7 @@ def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
 
 def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
     publish(page_dir)
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -772,7 +783,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
         },
     )
     reply = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "reply",
             str(page_dir),
@@ -793,7 +804,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
         ],
     )
     assert reply.exit_code == 0, reply.output
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -863,7 +874,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     widget = "eligibility-options"
     option = "eligibility-a"
     if in_thread:
-        interact.append_event(
+        event_model.append_event(
             page_dir,
             {
                 "kind": "comment",
@@ -874,7 +885,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
             },
         )
         reply = CliRunner().invoke(
-            interact.cli,
+            cli_model.cli,
             [
                 "reply",
                 str(page_dir),
@@ -906,7 +917,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(nonanswer).encode())[0] == 200
     assert fetch(f"{server}/api/event", data=json.dumps(choose).encode())[0] == 200
-    before = len(interact.read_events(page_dir))
+    before = len(event_model.read_events(page_dir))
 
     status_code, body = fetch(
         f"{server}/api/event", data=json.dumps(nonanswer).encode()
@@ -915,7 +926,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     assert status_code == 400
     assert "action 'defer' is unavailable" in json.loads(body)["error"]
     assert "no longer awaiting the reader" in json.loads(body)["error"]
-    assert len(interact.read_events(page_dir)) == before
+    assert len(event_model.read_events(page_dir)) == before
 
 
 def test_server_checks_recursive_parent_prerequisite_under_append_lock(
@@ -1009,7 +1020,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "action": "increase",
         "detail": {"slots": "2"},
     }
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -1024,7 +1035,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     # stopped parent is available while that answer stands.
     assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
 
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {
             "kind": "report",
@@ -1073,7 +1084,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     )
     assert [
         logged["action"]
-        for logged in interact.read_events(page_dir)
+        for logged in event_model.read_events(page_dir)
         if logged["kind"] == "action"
     ] == ["increase", "increase", "choose", "decrease", "move", "increase"]
 
@@ -1092,7 +1103,8 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         "customElements.define('lf-local-draft', class extends HTMLElement {});"
     )
     assert (
-        CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)]).exit_code == 0
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        == 0
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1103,7 +1115,7 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         )
     )
     noted = CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         [
             "version",
             "publish",
@@ -1121,7 +1133,8 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
     (overlay / "registry.json").unlink()
     (overlay / "widgets" / "lf-local-draft.js").unlink()
     assert (
-        CliRunner().invoke(interact.cli, ["page", "init", str(page_dir)]).exit_code == 0
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        == 0
     )
 
     status, body = fetch(
@@ -1143,7 +1156,7 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
     CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
 
@@ -1160,7 +1173,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
         t.start()
     for t in threads:
         t.join()
-    events = [e for e in interact.read_events(page_dir) if e["kind"] == "comment"]
+    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
 
@@ -1169,7 +1182,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
     polls and demoted the standing lifetime to the recovering session's."""
-    interact.write_json(
+    files_model.write_json(
         page_dir / "service.json",
         {
             "host": "10.0.0.5",
@@ -1179,7 +1192,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
             "lifetime": "standing",
         },
     )
-    access = interact.page_access(page_dir, "box.tailnet.example")
+    access = service_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
     assert access["port"] == 41234
     assert access["lifetime"] == "standing"
@@ -1192,7 +1205,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     through the same cursor — and never counted in the reader's pending, since
     a broken page is the agent's debt."""
     CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
     status, _ = fetch(
@@ -1202,12 +1215,14 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
         ).encode(),
     )
     assert status == 200
-    events = interact.read_events(page_dir)
+    events = event_model.read_events(page_dir)
     error = events[-1]
     assert error["kind"] == "error" and error["author"] == "page"
-    assert error in interact.unacknowledged(events, 0)
-    assert interact.presence(page_dir, events)["pending"] == 0
-    result = CliRunner().invoke(interact.cli, ["ack", str(page_dir), str(error["seq"])])
+    assert error in service_model.unacknowledged(events, 0)
+    assert http_model.presence(page_dir, events)["pending"] == 0
+    result = CliRunner().invoke(
+        cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
+    )
     assert result.exit_code == 0, result.output
 
 
@@ -1215,10 +1230,10 @@ def test_a_poll_records_that_the_page_is_open(server, page_dir):
     """A page nobody ever opened and one the user studied and left used to be
     indistinguishable from the agent's side; the poll is the proof a browser
     holds the page, so the server writes it down."""
-    events = interact.read_events(page_dir)
-    assert interact.presence(page_dir, events)["viewed"] is None
+    events = event_model.read_events(page_dir)
+    assert http_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
-    assert interact.presence(page_dir, events)["viewed"] is not None
+    assert http_model.presence(page_dir, events)["viewed"] is not None
 
 
 def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
@@ -1226,7 +1241,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     splitlines(): unescaped, one pasted separator split an event across "lines",
     every later read of the log raised, and the page read as offline forever."""
     CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
     text = "one\u2028two\u2029three\u0085four"
@@ -1235,7 +1250,7 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
         data=json.dumps({"kind": "comment", "version": 1, "text": text}).encode(),
     )
     assert status == 200
-    events = [e for e in interact.read_events(page_dir) if e["kind"] == "comment"]
+    events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert [e["text"] for e in events] == [text]
     # One physical line per event under any line-splitting reader, so what
     # `wait` and `events` print stays one event per line for every consumer.
@@ -1247,15 +1262,15 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     """A crash tears an append mid-line. The next append restores the line
     discipline rather than gluing onto the fragment, the fragment's event is
     gone (its sender saw the failure), and the seqs around it hold."""
-    interact.append_event(
+    event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "before"}
     )
     with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
         f.write('{"kind": "comm')  # the tear: no trailing newline
-    interact.append_event(
+    event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "after"}
     )
-    events = interact.read_events(page_dir)
+    events = event_model.read_events(page_dir)
     assert [e["text"] for e in events] == ["before", "after"]
     assert [e["seq"] for e in events] == [1, 3]  # the torn line keeps its number
     # A tear lands mid-character as easily as mid-line — ensure_ascii=False
@@ -1263,10 +1278,10 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     # before any line-level tolerance could reach it.
     with open(page_dir / "comments.jsonl", "ab") as f:
         f.write('{"kind": "comment", "text": "café'.encode()[:-1])
-    interact.append_event(
+    event_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "again"}
     )
-    assert [e["text"] for e in interact.read_events(page_dir)] == [
+    assert [e["text"] for e in event_model.read_events(page_dir)] == [
         "before",
         "after",
         "again",
@@ -1278,7 +1293,7 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     port is open to whatever else is on that network. Reading is half of it: the
     log outranks the document and takes appends from anyone who can POST."""
     CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
 
@@ -1293,16 +1308,16 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     assert status == 403
     assert json.loads(body) == {
         "ok": False,
-        "error": interact.NO_KEY,
+        "error": schema_model.NO_KEY,
         "final": True,
     }
 
     # The key gate precedes the body read. A peer that cannot open the page must not
     # get to choose how much a handler allocates or park it waiting for bytes that never
     # arrive merely by declaring a large body before authentication.
-    http11 = interact.LeafHTTPServer(
+    http11 = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
-        interact.handler_for(page_dir, TOKEN, protocol_version="HTTP/1.1"),
+        http_model.handler_for(page_dir, TOKEN, protocol_version="HTTP/1.1"),
     )
     thread = threading.Thread(target=http11.serve_forever, daemon=True)
     thread.start()
@@ -1321,14 +1336,16 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
         http11.shutdown()
     assert (refused.status, refusal) == (
         403,
-        {"ok": False, "error": interact.NO_KEY, "final": True},
+        {"ok": False, "error": schema_model.NO_KEY, "final": True},
     )
     assert refused.version == 11
     assert refused.getheader("Connection") == "close"
     assert refused.will_close
     assert fetch(f"{server}/versions/v1.html", token="not-the-key")[0] == 403
 
-    assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
+    assert [
+        e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
+    ] == []
 
 
 def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
@@ -1351,8 +1368,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "version": 1, "text": "hello", "attempt": attempt}
-    preview = interact.LeafHTTPServer(
-        ("127.0.0.1", 0), interact.handler_for(page_dir, TOKEN, preview_upto=1)
+    preview = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN, preview_upto=1)
     )
     thread = threading.Thread(target=preview.serve_forever, daemon=True)
     thread.start()
@@ -1367,7 +1384,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             True,
         )
         assert "attempt" not in answer
-        assert answer.get("error") == interact.NO_KEY
+        assert answer.get("error") == schema_model.NO_KEY
 
         refusals = [
             (
@@ -1484,7 +1501,9 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
         answer.get("error"),
     ) == (400, False, True, "invalid Content-Length"), answer
 
-    assert [e for e in interact.read_events(page_dir) if e["kind"] == "comment"] == []
+    assert [
+        e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
+    ] == []
 
 
 def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
@@ -1493,7 +1512,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     user who reloads the bare address is the same user — so nothing has to
     thread it through the page, and `leaf.js` never learns there is one."""
     CliRunner().invoke(
-        interact.cli,
+        cli_model.cli,
         ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
     )
     jar = http.cookiejar.CookieJar()
@@ -1516,13 +1535,13 @@ def test_a_page_is_reached_where_the_ssh_session_reached_this_machine(
     already used rather than a hostname guessed from this end. The server binds that
     address alone: the open port faces only the network the session crossed."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    access = interact.page_access(page_dir)
+    access = service_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("10.20.30.40", "10.20.30.40")
 
 
 def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
-    access = interact.page_access(page_dir)
+    access = service_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
 
 
@@ -1535,7 +1554,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     families and goes in the URL as given. Derivation stays in memory until the
     server-lease winner records it."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    stated = interact.page_access(page_dir, host="devbox.corp.example")
+    stated = service_model.page_access(page_dir, host="devbox.corp.example")
     assert (stated["host"], stated["bind"]) == ("devbox.corp.example", "::")
     service = {
         **stated,
@@ -1543,8 +1562,8 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         "enabled": False,
         "lifetime": "standing",
     }
-    interact.write_json(page_dir / "service.json", service)
-    assert interact.page_access(page_dir) == service
+    files_model.write_json(page_dir / "service.json", service)
+    assert service_model.page_access(page_dir) == service
 
 
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
@@ -1555,10 +1574,10 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     host:port."""
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
         with pytest.raises(SystemExit):
-            interact.page_access(page_dir, host=junk)
+            service_model.page_access(page_dir, host=junk)
     assert not (page_dir / "service.json").exists()
 
-    assert interact.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
+    assert service_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
 
 def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
@@ -1590,15 +1609,15 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
 
     monkeypatch.setattr(socket, "socket", kernel_without_ipv6)
     with pytest.raises(OSError) as refused:
-        interact.server_at(
-            "fd7a:115c:a1e0::1", 0, interact.handler_for(page_dir, TOKEN)
+        hosting_model.server_at(
+            "fd7a:115c:a1e0::1", 0, http_model.handler_for(page_dir, TOKEN)
         )
     # Name the errno, or the assertion is satisfied on a v6-capable machine by
     # EADDRNOTAVAIL from an address that is local nowhere — a bare OSError says
     # nothing about whether the family refusal under test was ever reached.
     assert refused.value.errno == errno.EAFNOSUPPORT
 
-    httpd = interact.server_at("::", 0, interact.handler_for(page_dir, TOKEN))
+    httpd = hosting_model.server_at("::", 0, http_model.handler_for(page_dir, TOKEN))
     assert httpd.socket.family == socket.AF_INET
     assert httpd.server_address[0] == "0.0.0.0"
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -1617,19 +1636,19 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     user's browser has been polling one URL since it died, so a fresh address or
     key there would leave the page it reopens talking to nothing."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    recorded = interact.page_access(page_dir)
-    minted = interact.host_key()
+    recorded = service_model.page_access(page_dir)
+    minted = service_model.host_key()
     service = {
         **recorded,
         "port": 41234,
         "enabled": False,
         "lifetime": "session",
     }
-    interact.write_json(page_dir / "service.json", service)
+    files_model.write_json(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
-    assert interact.page_access(page_dir) == service
-    assert interact.host_key() == minted
+    assert service_model.page_access(page_dir) == service
+    assert service_model.host_key() == minted
 
 
 def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
@@ -1652,7 +1671,7 @@ def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
 
     monkeypatch.setattr(hosting_model.subprocess, "Popen", popen)
 
-    started = interact.start_server(
+    started = hosting_model.start_server(
         page_dir,
         host="page.example",
         standing=True,
@@ -1707,7 +1726,7 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 def hold_standing(page: Path, start) -> subprocess.Popen:
     """A standing page with its lease held, as `server run --standing` leaves one."""
     page.mkdir(parents=True)
-    interact.write_json(
+    files_model.write_json(
         page / "service.json",
         {
             "host": "127.0.0.1",
@@ -1730,7 +1749,7 @@ def test_a_page_left_standing_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(interact.state_home() / "pages" / "left", subprocess.Popen)
+    hold_standing(service_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -1772,12 +1791,12 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
         check=False,
     )
     assert run.returncode == 0, run.stdout + run.stderr
-    assert interact.read_json(review / "service.json")["enabled"]
+    assert files_model.read_json(review / "service.json")["enabled"]
     assert holder.poll() is None
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
     (left,) = nested.rglob("left/service.json")
-    assert not interact.read_json(left)["enabled"]
-    assert not interact.lock_is_held(left.parent / "server.lock")
+    assert not files_model.read_json(left)["enabled"]
+    assert not service_model.lock_is_held(left.parent / "server.lock")
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
@@ -1787,12 +1806,14 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
     from."""
     second = tmp_path / "second-page"
     assert (
-        CliRunner().invoke(interact.cli, ["page", "init", str(second)]).exit_code == 0
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
     )
-    key = interact.host_key()
+    key = service_model.host_key()
 
     servers = [
-        interact.LeafHTTPServer(("127.0.0.1", 0), interact.handler_for(directory, key))
+        hosting_model.LeafHTTPServer(
+            ("127.0.0.1", 0), http_model.handler_for(directory, key)
+        )
         for directory in (page_dir, second)
     ]
     for httpd in servers:
@@ -1822,9 +1843,9 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     page ships about itself (`presence`), so the panel's row and that page's own
     banner judge from one shape — where the claiming session is working included,
     which is the one thing on a row's hover that no title could ever say."""
-    pages = interact.state_home() / "pages"
+    pages = service_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
-    interact.write_json(
+    files_model.write_json(
         pages / "live" / "status.json",
         {"state": "working", "detail": "measuring", "ts": "2026-01-01T00:00:00-08:00"},
     )
@@ -1846,12 +1867,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # malformed private claim on another page must not make this page's poll fail.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
-    interact.write_json(
+    files_model.write_json(
         malformed / "status.json",
         {
             "state": "working",
             "detail": "unknown",
-            "ts": interact.now_iso(),
+            "ts": event_model.now_iso(),
             "work": [{}],
         },
     )
@@ -1916,7 +1937,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     Status writes hold the log lease because a claim records the exact log floor it
     followed. The state reader takes the same lease across both reads, so every claim
     in a response names a floor that response's events actually contain."""
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
@@ -1941,7 +1962,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
 
     def resolve_then_claim():
         writer_entered.set()
-        with interact.PageTransaction(page_dir) as page:
+        with service_model.PageTransaction(page_dir) as page:
             page.append_event({"kind": "resolve", "author": "claude", "parent": "c1"})
             page.set_status(
                 "working",
@@ -1956,7 +1977,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     writer = threading.Thread(target=resolve_then_claim)
     writer.start()
     assert writer_entered.wait(5)
-    assert interact.lock_is_held(page_dir / "comments.jsonl")
+    assert service_model.lock_is_held(page_dir / "comments.jsonl")
     release.set()
     reader.join(5)
     writer.join(5)
@@ -1980,7 +2001,9 @@ def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
     reader already arrived on, because there is one key for the machine — so a
     `--host` reader sees the neighbours, and sees no key they were not already
     holding. Gating it again is what to do if the key is ever scoped per page."""
-    neighbour_page(interact.state_home() / "pages" / "live", title="The other page")
+    neighbour_page(
+        service_model.state_home() / "pages" / "live", title="The other page"
+    )
     state = json.loads(fetch(f"{wildcard_server}/api/state")[1])
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
@@ -1988,9 +2011,12 @@ def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
 def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     """A v6 address is colons all the way down, and the authority separates its port
     with one too."""
-    assert interact.page_url("fd00::1", 41999, "k") == "http://[fd00::1]:41999/?t=k"
     assert (
-        interact.page_url("10.20.30.40", 41999, "k") == "http://10.20.30.40:41999/?t=k"
+        service_model.page_url("fd00::1", 41999, "k") == "http://[fd00::1]:41999/?t=k"
+    )
+    assert (
+        service_model.page_url("10.20.30.40", 41999, "k")
+        == "http://10.20.30.40:41999/?t=k"
     )
 
 
@@ -2034,7 +2060,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
     assert status == 200, body
-    assert interact.read_events(page_dir)[-1]["holds"] == "goal"
+    assert event_model.read_events(page_dir)[-1]["holds"] == "goal"
 
     ambiguous = {
         **event,
@@ -2078,7 +2104,7 @@ def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page
 
     def run_publish():
         try:
-            interact.cmd_publish(page_dir, 2, "next")
+            publishing_model.cmd_publish(page_dir, 2, "next")
         except (AssertionError, SystemExit) as error:  # surface thread failures here
             failures.append(error)
 
@@ -2093,7 +2119,7 @@ def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page
     publisher = threading.Thread(target=run_publish)
     publisher.start()
     assert entered.wait(5)
-    writer = threading.Thread(target=lambda: interact.append_event(page_dir, action))
+    writer = threading.Thread(target=lambda: event_model.append_event(page_dir, action))
     writer.start()
     time.sleep(0.05)
     assert writer.is_alive(), "the browser writer crossed the checked snapshot"
@@ -2105,7 +2131,7 @@ def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page
     assert not publisher.is_alive() and not writer.is_alive()
     ordered = [
         (event["kind"], event.get("version"))
-        for event in interact.read_events(page_dir)
+        for event in event_model.read_events(page_dir)
         if event["kind"] in {"note", "action"}
     ]
     assert ordered == [("note", 1), ("note", 2), ("action", 1)]
@@ -2127,7 +2153,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     action naming that id in `resolves` still finds its thread and the two readings
     cannot disagree about which conversation a message is in."""
     publish(page_dir)
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -2137,7 +2163,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "text": "the question nobody can read any more",
         },
     )
-    interact.append_event(
+    event_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -2154,18 +2180,18 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     lines[torn] = lines[torn][: len(lines[torn]) // 2]  # the tear a crash leaves
     log.write_text("\n".join(lines), encoding="utf-8")
 
-    events = interact.read_events(page_dir)
+    events = event_model.read_events(page_dir)
     assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
         "the tear took the reply with it, so nothing below is being read"
     )
-    assert interact.thread_roots(events)["r-kept"] == "c-lost"
-    threads = interact.build_threads(events, {})
+    assert event_model.thread_roots(events)["r-kept"] == "c-lost"
+    threads = event_model.build_threads(events, {})
     assert list(threads) == ["c-lost"], (
         f"the two readings put the reply in different conversations: {list(threads)}"
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
     # And the command a session picks the page up with.
-    state = CliRunner().invoke(interact.cli, ["page", "state", str(page_dir)])
+    state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     assert "the answer that survived it" in state.output

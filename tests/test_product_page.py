@@ -9,7 +9,8 @@ from pathlib import Path
 
 import click
 import pytest
-from conftest import interact
+from leaf_interact import cli as cli_model
+from leaf_interact import schema as schema_model
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
@@ -69,7 +70,9 @@ def test_package_guide_documents_every_key_a_registry_entry_may_declare():
     documented = " ".join(
         (DOCS / "packages.html").read_text().split()
     )  # collapsed: prettier decides where the lines in a table cell fall
-    keys = sorted(k for k in interact.EXTENSION_SCHEMA["properties"] if k[:2] == "x-")
+    keys = sorted(
+        k for k in schema_model.EXTENSION_SCHEMA["properties"] if k[:2] == "x-"
+    )
     assert keys, "no extension keys read — an empty vocabulary demonstrates itself"
     undocumented = [
         k for k in keys if not re.search(rf"\b{re.escape(k)}\b", documented)
@@ -146,7 +149,7 @@ def test_every_command_the_docs_show_is_one_leaf_has():
 
     def named(tokens):
         """The subcommand path these tokens walk, greedily, from the root group."""
-        command, path = interact.cli, []
+        command, path = cli_model.cli, []
         for token in tokens:
             if not isinstance(command, click.Group):
                 break

@@ -966,7 +966,8 @@ export function createConversation(dependencies) {
   // `settles` counts and the one `r` arms. An older reply keeps the tokens standing on
   // it and offers nothing, so a thread wears one row of offers rather than one a turn.
   function paintReactStrips(node, t) {
-    const latest = t.msgs.findLast((x) => x.author === "claude")?.id ?? null;
+    const latest =
+      t.msgs.findLast((x) => x.author === "claude" && !isReaction(x))?.id ?? null;
     for (const msg of node.querySelectorAll(":scope > .lf-msg")) {
       const m = t.msgs.find((x) => x.id === msg.dataset.mid);
       if (!m || m.author !== "claude") continue;

@@ -497,7 +497,7 @@ import os  # noqa: F401 - public facade re-export
 import re  # noqa: F401 - public facade re-export
 import secrets  # noqa: F401 - public facade re-export
 import socket  # noqa: F401 - public facade re-export
-import subprocess
+import subprocess  # noqa: F401 - public facade re-export
 import sys
 import threading  # noqa: F401 - public facade re-export
 import time
@@ -713,7 +713,7 @@ from leaf_interact.service import (
     host_identity,
     host_key,  # noqa: F401 - public facade re-export
     init_lock_path,  # noqa: F401 - public facade re-export
-    lifetime_note,
+    lifetime_note,  # noqa: F401 - public facade re-export
     lock_is_held,
     message_identity,
     owned_pages,
@@ -816,6 +816,7 @@ from leaf_interact.hosting import (  # noqa: F401 - public facade re-exports
     LeafHTTPServer,
     cmd_serve,
     server_at,
+    start_server,
 )
 
 
@@ -838,63 +839,6 @@ def cmd_status(
                 sys.exit("--on needs a detail; a work line with no words says nothing")
             work = work_subject(page_dir, page.events, on)
         page.set_status(state, detail, handoff=handoff, work=work)
-
-
-def start_server(
-    page_dir: Path,
-    host: str | None = None,
-    standing: bool = False,
-    revive: bool = False,
-) -> tuple[str, str] | None:
-    """Put the page's server up in a session of its own, and report where.
-
-    The serve has to outlive this command — the browser polls it between turns
-    and across every `leaf wait`, which exits to deliver — so it is spawned
-    rather than held, and the one long-running command a leaf costs its session
-    is the watcher. The module docstring carries the rest of that.
-
-    `server run` in a session of its own is the whole mechanism. An explicit
-    start may enable a stopped service; a revival carries the narrower intent
-    "only if still enabled," which the child checks inside the transition.
-    sys.executable is the resolved uv environment, so this skips uv.
-
-    Returns where the page is and what ends it — the URL the child minted and
-    the note for the lifetime it recorded — or None, having put the child's
-    reason on stderr.
-    """
-    require_cross_process_locking()
-    child = subprocess.Popen(
-        [
-            sys.executable,
-            str(Path(__file__).resolve()),
-            "server",
-            "_serve",
-            str(page_dir),
-            *(["--host", host] if host else []),
-            *(["--standing"] if standing else []),
-            *(["--revive"] if revive else []),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    # The child's own handshake, rather than a deadline over a file that may or
-    # may not appear inside it: the service prints the URL once it holds the
-    # record and the port, and otherwise exits having named its own reason — a
-    # stale bind, a taken port, a flag the running server contradicts.
-    url = child.stdout.readline().strip()
-    if not url:
-        print(
-            child.stderr.read().strip() or f"the server for {page_dir} did not start",
-            file=sys.stderr,
-        )
-        return None
-    # Nothing drains the child's streams from here on, which is safe because the
-    # URL and the note printed beside it are everything a server ever says — the
-    # handler logs nothing (`log_message`) — so there is nothing left to write
-    # into pipes this process closes on its way out.
-    return url, lifetime_note(page_dir)
 
 
 class PageTick(NamedTuple):

@@ -1,7 +1,8 @@
-"""HTTP server binding and the in-process serve command."""
+"""HTTP server binding, process startup, and the in-process serve command."""
 
 import errno
 import socket
+import subprocess
 import sys
 import threading
 import zlib
@@ -28,6 +29,9 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - unsupported non-POSIX platform
     fcntl = None
+
+
+INTERACT_SCRIPT = Path(__file__).resolve().parent.parent / "interact.py"
 
 
 class LeafHTTPServer(ThreadingHTTPServer):
@@ -207,3 +211,60 @@ def cmd_serve(
     finally:
         httpd.server_close()
         lease.close()
+
+
+def start_server(
+    page_dir: Path,
+    host: str | None = None,
+    standing: bool = False,
+    revive: bool = False,
+) -> tuple[str, str] | None:
+    """Put the page's server up in a session of its own, and report where.
+
+    The serve has to outlive this command — the browser polls it between turns
+    and across every `leaf wait`, which exits to deliver — so it is spawned
+    rather than held, and the one long-running command a leaf costs its session
+    is the watcher. The module docstring carries the rest of that.
+
+    `server run` in a session of its own is the whole mechanism. An explicit
+    start may enable a stopped service; a revival carries the narrower intent
+    "only if still enabled," which the child checks inside the transition.
+    sys.executable is the resolved uv environment, so this skips uv.
+
+    Returns where the page is and what ends it — the URL the child minted and
+    the note for the lifetime it recorded — or None, having put the child's
+    reason on stderr.
+    """
+    require_cross_process_locking()
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            str(INTERACT_SCRIPT),
+            "server",
+            "_serve",
+            str(page_dir),
+            *(["--host", host] if host else []),
+            *(["--standing"] if standing else []),
+            *(["--revive"] if revive else []),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    # The child's own handshake, rather than a deadline over a file that may or
+    # may not appear inside it: the service prints the URL once it holds the
+    # record and the port, and otherwise exits having named its own reason — a
+    # stale bind, a taken port, a flag the running server contradicts.
+    url = child.stdout.readline().strip()
+    if not url:
+        print(
+            child.stderr.read().strip() or f"the server for {page_dir} did not start",
+            file=sys.stderr,
+        )
+        return None
+    # Nothing drains the child's streams from here on, which is safe because the
+    # URL and the note printed beside it are everything a server ever says — the
+    # handler logs nothing (`log_message`) — so there is nothing left to write
+    # into pipes this process closes on its way out.
+    return url, lifetime_note(page_dir)

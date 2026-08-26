@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import INTERACT_SCRIPT
 from interact_support import (
     PAGE,
     TOKEN,
@@ -28,6 +29,7 @@ from interact_support import (
     record_claim,
 )
 from leaf_interact import events as event_model
+from leaf_interact import hosting as hosting_model
 from leaf_interact import http as http_model
 from leaf_interact import service as service_model
 
@@ -1627,6 +1629,57 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
     assert interact.page_access(page_dir) == service
     assert interact.host_key() == minted
+
+
+def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
+    calls = []
+
+    class Pipe:
+        def readline(self):
+            return "http://127.0.0.1:41234/?t=test\n"
+
+        def read(self):
+            return ""
+
+    class Child:
+        stdout = Pipe()
+        stderr = Pipe()
+
+    def popen(command, **options):
+        calls.append((command, options))
+        return Child()
+
+    monkeypatch.setattr(hosting_model.subprocess, "Popen", popen)
+
+    started = interact.start_server(
+        page_dir,
+        host="page.example",
+        standing=True,
+        revive=True,
+    )
+
+    assert started[0] == "http://127.0.0.1:41234/?t=test"
+    assert calls == [
+        (
+            [
+                sys.executable,
+                str(INTERACT_SCRIPT.resolve()),
+                "server",
+                "_serve",
+                str(page_dir),
+                "--host",
+                "page.example",
+                "--standing",
+                "--revive",
+            ],
+            {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+                "start_new_session": True,
+            },
+        )
+    ]
 
 
 # A lease held the way a server holds one: until the service is disabled, which

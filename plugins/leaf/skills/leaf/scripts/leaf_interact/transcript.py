@@ -3,11 +3,11 @@
 import sys
 from pathlib import Path
 
-from leaf_interact.document import parse_version
 from leaf_interact.events import build_threads, jsonl_line, read_events, taken_back
 from leaf_interact.files import published_versions, version_path
 from leaf_interact.projection import page_projection, record_lag
 from leaf_interact.registry import load_registry
+from leaf_interact.structure import parse_version
 
 
 def cmd_events(page_dir: Path, after: int) -> None:

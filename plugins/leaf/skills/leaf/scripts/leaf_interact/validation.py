@@ -5,20 +5,9 @@ import sys
 from pathlib import Path
 
 from leaf_interact.data import data_binding_errors, read_data_store
-from leaf_interact.document import (
-    EMPTY,
-    OPTIONAL_END,
-    SECTIONING_TAGS,
-    _StructParser,
-    collapse,
-    inline_presentation_override_errors,
-    page_passages,
-    parse_structure,
-    parse_version,
-    spoken,
-)
 from leaf_interact.events import build_threads, thread_roots, thread_structure
 from leaf_interact.files import list_versions, version_path
+from leaf_interact.passages import EMPTY, collapse, page_passages, spoken
 from leaf_interact.projection import (
     NO_RECORD,
     StateProjection,
@@ -44,6 +33,14 @@ from leaf_interact.registry import (
     retirement_slots,
     validate_registry,
 )
+from leaf_interact.structure import (
+    OPTIONAL_END,
+    SECTIONING_TAGS,
+    _StructParser,
+    parse_structure,
+    parse_version,
+)
+from leaf_interact.styles import inline_presentation_override_errors
 
 
 def thread_universe(events: list, registry: dict):

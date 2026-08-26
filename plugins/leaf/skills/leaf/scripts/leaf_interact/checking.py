@@ -4,19 +4,9 @@ import sys
 from pathlib import Path
 
 from leaf_interact.data import data_binding_errors, read_data_store
-from leaf_interact.document import (
-    LF_META,
-    PAGE_CSP,
-    _column_width,
-    _overwide_elements,
-    css_syntax_errors,
-    inline_presentation_override_errors,
-    parse_structure,
-    root_tokens,
-    spoken,
-)
 from leaf_interact.events import flocked, read_events, retractions, thread_structure
 from leaf_interact.files import list_versions, version_name, version_path
+from leaf_interact.passages import spoken
 from leaf_interact.projection import (
     decisions,
     record_lag,
@@ -28,6 +18,14 @@ from leaf_interact.registry import load_registry
 from leaf_interact.rendering import render_check
 from leaf_interact.schema import VENDORED_FILES
 from leaf_interact.service import transition_lock
+from leaf_interact.structure import LF_META, PAGE_CSP, parse_structure
+from leaf_interact.styles import (
+    _column_width,
+    _overwide_elements,
+    css_syntax_errors,
+    inline_presentation_override_errors,
+    root_tokens,
+)
 from leaf_interact.validation import (
     addressable_instance_errors,
     ask_region_errors,

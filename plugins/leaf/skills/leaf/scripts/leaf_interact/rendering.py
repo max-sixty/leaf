@@ -11,11 +11,11 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf_interact.data import read_data
-from leaf_interact.document import EMPTY, parse_structure, spoken
 from leaf_interact.events import flocked, read_events
 from leaf_interact.files import published_versions, version_name, version_num
 from leaf_interact.hosting import LeafHTTPServer
 from leaf_interact.http import handler_for
+from leaf_interact.passages import EMPTY, spoken
 from leaf_interact.projection import decisions, page_projection, retirement_holders
 from leaf_interact.registry import retirement_slots
 from leaf_interact.render_checks import (
@@ -41,6 +41,7 @@ from leaf_interact.render_checks import (
 )
 from leaf_interact.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf_interact.service import transition_lock
+from leaf_interact.structure import parse_structure
 from leaf_interact.validation import thread_universe
 
 # ---------- check --render: the browser half of the gate ----------

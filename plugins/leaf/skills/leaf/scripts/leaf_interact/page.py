@@ -5,10 +5,10 @@ import sys
 from pathlib import Path
 
 from .data import page_data_binding_inventory, read_data
-from .document import page_passages, parse_version
 from .events import build_threads
 from .files import list_versions, published_versions, version_path
 from .http import presence
+from .passages import page_passages
 from .projection import (
     canonical_updates,
     decisions,
@@ -20,6 +20,7 @@ from .projection import (
 from .registry import require_registry
 from .schema import GUIDANCE_DIR
 from .service import PageTransaction, running_server, unacknowledged
+from .structure import parse_version
 from .validation import thread_state
 
 CATALOG_PREAMBLE = """\

@@ -731,5 +731,15 @@
     "x-exhibit": true,
     "x-upgrade": false,
     "x-example": "<lf-specimen id=\"spec-gear\" label=\"next season's kit\">\n  <lf-options>\n    <lf-option id=\"sp-paper\"><lf-chip>effort: low</lf-chip><strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\" recommended><lf-chip>effort: med</lf-chip><strong>Dedicated GPS</strong> Offline maps, week-long battery.</lf-option>\n  </lf-options>\n</lf-specimen>"
+  },
+  "$reactions": {
+    "tokens": {
+      "ok":   {"glyph": "✓", "means": "settled — no change asked", "settles": true},
+      "no":   {"glyph": "×", "means": "this is wrong; the passage is the referent"},
+      "lost": {"glyph": "?", "means": "unclear — rewrite it so it lands"},
+      "cut":  {"glyph": "−", "means": "does not earn its length — shorten or drop"},
+      "more": {"glyph": "+", "means": "expand here"},
+      "this": {"glyph": "⌖", "means": "look at this — attention, no verdict"}
+    }
   }
 }

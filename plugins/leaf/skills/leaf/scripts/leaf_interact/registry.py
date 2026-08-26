@@ -103,10 +103,11 @@ def validate_registry(registry: dict, source) -> dict:
         names = registry["$languages"]["names"]
         paths = registry["$languages"]["paths"]
         tones = registry["$tones"]["names"]
+        tokens = registry["$reactions"]["tokens"]
     except (KeyError, TypeError):
         raise RegistryError(
-            f"{path}: registry must declare $events.kinds, $languages.names/paths "
-            "and $tones.names"
+            f"{path}: registry must declare $events.kinds, $languages.names/paths, "
+            "$tones.names and $reactions.tokens"
         )
     if not isinstance(kinds, dict):
         raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
@@ -135,8 +136,14 @@ def validate_registry(registry: dict, source) -> dict:
         record = contract["record"]
         properties = record.get("properties", {})
         required = record.get("required", [])
+        # The record's closed shape, plus the two constraints a kind states over
+        # fields it lists — which of two it must carry (comment and reply carry
+        # `text` or `token`), and what one field rules out. Both are compared
+        # kind for kind below, so a layer cannot loosen the installed contract
+        # through them.
         if (
-            set(record) != {"type", "properties", "required", "additionalProperties"}
+            set(record) - RECORD_CONSTRAINTS
+            != {"type", "properties", "required", "additionalProperties"}
             or record.get("type") != "object"
             or not envelope <= set(properties)
             or not envelope <= set(required)
@@ -145,9 +152,10 @@ def validate_registry(registry: dict, source) -> dict:
         ):
             raise RegistryError(
                 f"{path}: $events kind `{kind}` record must use only type, "
-                "properties, required, and additionalProperties to declare a closed "
-                "full event schema with required id/ts/author/kind/seq fields and "
-                "its kind const"
+                "properties, required, and additionalProperties (plus oneOf and "
+                "dependentSchemas over declared fields) to declare a closed full "
+                "event schema with required id/ts/author/kind/seq fields and its "
+                "kind const"
             )
 
     # Compare a vendored or overlaid contract with the installed producers' own.
@@ -173,6 +181,11 @@ def validate_registry(registry: dict, source) -> dict:
             incompatible.append(f"`{kind}` fields {changed}")
         elif set(actual_record["required"]) != set(expected_record["required"]):
             incompatible.append(f"`{kind}` required fields")
+        elif any(
+            actual_record.get(key) != expected_record.get(key)
+            for key in RECORD_CONSTRAINTS
+        ):
+            incompatible.append(f"`{kind}` field constraints")
         elif actual.get("browser") != expected.get("browser"):
             incompatible.append(f"`{kind}` browser writer")
     if incompatible:
@@ -224,6 +237,27 @@ def validate_registry(registry: dict, source) -> dict:
         or len(tones) != len(set(tones))
     ):
         raise RegistryError(f"{path}: $tones.names must be a unique list of strings")
+    # Each token whole: every consumer reads the entry directly — the runtime paints
+    # `glyph`, `leaf wait` prints `means`, the panel's narrowing reads `settles` — so
+    # a missing or misspelled member would be a token that paints nothing or a
+    # `settle` that settles nothing, and neither says so anywhere else.
+    if not isinstance(tokens, dict) or not all(
+        isinstance(name, str)
+        and re.fullmatch(TOKEN_NAME, name)
+        and isinstance(entry, dict)
+        and not set(entry) - {"glyph", "means", "settles"}
+        and isinstance(entry.get("glyph"), str)
+        and entry["glyph"]
+        and isinstance(entry.get("means"), str)
+        and entry["means"]
+        and isinstance(entry.get("settles", False), bool)
+        for name, entry in tokens.items()
+    ):
+        raise RegistryError(
+            f"{path}: $reactions.tokens must map lowercase token names to entries "
+            "with a non-empty `glyph`, a non-empty `means`, and optionally a "
+            "boolean `settles`"
+        )
     invalid_names = [
         tag
         for tag in registry
@@ -935,6 +969,12 @@ def require_registry(page_dir: Path) -> dict:
     return registry
 
 
+# The record keys that constrain declared fields rather than list them.
+RECORD_CONSTRAINTS = frozenset({"oneOf", "dependentSchemas"})
+# A reaction token's name: one word the bar, the log, and `leaf wait` all spell.
+TOKEN_NAME = r"[a-z][a-z0-9-]*"
+
+
 def merge_layer_entries(merged: dict, entries: dict) -> None:
     """Fold one layer's top-level registry entries into the merge.
 
@@ -951,6 +991,11 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
     a names list is one statement — and the grain here decides nothing the
     gates don't re-check: validation and the vocabulary stamp read the merged
     result, whichever layer each piece came from.
+
+    Inside a map member the merge is JSON merge-patch: a later layer's value
+    replaces the key, a new key joins, and `null` removes one — which is the
+    only way a project can take a shipped reaction token off its bar, or a user
+    an extension off `$languages.paths`, without restating the whole map.
     """
     for name, entry in entries.items():
         earlier = merged.get(name)
@@ -960,8 +1005,27 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
         combined = {**earlier, **entry}
         for key, value in entry.items():
             if isinstance(value, dict) and isinstance(earlier.get(key), dict):
-                combined[key] = {**earlier[key], **value}
+                combined[key] = {
+                    k: v for k, v in {**earlier[key], **value}.items() if v is not None
+                }
         merged[name] = combined
+
+
+def reaction_tokens(registry: dict | None) -> dict:
+    """The merged reaction vocabulary, token → entry, in declared order."""
+    return (registry or {}).get("$reactions", {}).get("tokens", {})
+
+
+def described(event: dict, registry: dict | None) -> dict:
+    """A reaction event with its token's `means` beside it, so whoever reads the
+    line — `leaf wait`'s consumer, `page state`'s — meets a custom token
+    already explained. A token the vendored layer no longer declares keeps its
+    word and says nothing more. Any other event passes through as it is."""
+    token = event.get("token")
+    if not token:
+        return event
+    entry = reaction_tokens(registry).get(token)
+    return {**event, "means": entry["means"] if entry else None}
 
 
 def retirement_slots(registry: dict) -> dict:

@@ -8,6 +8,7 @@ from typing import NamedTuple
 from .events import jsonl_line
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
+from .registry import described, load_registry
 from .service import (
     PageTransaction,
     claim_page,
@@ -259,8 +260,20 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                     # Whose events follow, said in-band: no event line names its
                     # page, and the ack has to go back to the right one.
                     print(jsonl_line({"page": str(reading.page_dir)}), flush=True)
+                    # A reaction's word explained beside it (`means`), off the
+                    # page's own vendored vocabulary, so a token a project added
+                    # reaches the agent already saying what it asks for. Read
+                    # only where a batch carries one: the registry is a gate a
+                    # page vendored before the layer last moved fails, and a
+                    # wait that cannot deliver a comment over that would be a
+                    # wait that delivers nothing.
+                    registry = (
+                        load_registry(reading.page_dir)
+                        if any(e.get("token") for e in reading.batch)
+                        else None
+                    )
                     for event in reading.batch:
-                        print(jsonl_line(event), flush=True)
+                        print(jsonl_line(described(event, registry)), flush=True)
                     if reading.status["state"] != "working":
                         # Flip before the agent handles the batch: the handoff
                         # gap between this exit and pickup must not show

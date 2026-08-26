@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from .document import page_passages, parse_version
-from .events import build_threads
+from .events import bare_reaction, build_threads, is_reaction
 from .files import list_versions, published_versions, version_path
 from .http import presence
 from .projection import (
@@ -16,7 +16,7 @@ from .projection import (
     record_lag_entries,
     thread_asks,
 )
-from .registry import require_registry
+from .registry import described, require_registry
 from .schema import GUIDANCE_DIR
 from .service import PageTransaction, running_server, unacknowledged
 from .validation import thread_state
@@ -52,6 +52,13 @@ CATALOG_FACTS = (
         "The languages this page colors, in a code block's class or an x-language attribute.",
     ),
     ("$tones", "The tones this page's layer paints, on any x-tone attribute."),
+    (
+        "$reactions",
+        (
+            "The one-press reactions a reader can put on a passage, an element, a "
+            "message, or the page — each `token`'s glyph, meaning, and effect."
+        ),
+    ),
     (
         "$idioms",
         "Theme idioms — shapes the theme styles directly; no registry entry, no JS.",
@@ -177,11 +184,14 @@ def _write_page_state(page_dir: Path, events: list) -> None:
         "state": [],
         "updates": [],
         "asks": [],
+        # A conversation, or a reaction someone answered and so opened one; a
+        # reaction nobody has replied to is paint on the page and stands below.
         "threads": [
             {
                 "id": t["root"]["id"],
                 "anchor": t["root"].get("anchor"),
-                "text": t["root"]["text"],
+                "text": t["root"].get("text"),
+                "token": t["root"].get("token"),
                 # Who closed it, or null for a thread still open — the reading a
                 # session picking the page up acts on, since a thread an agent
                 # closed is one the reader may never have answered.
@@ -189,6 +199,29 @@ def _write_page_state(page_dir: Path, events: list) -> None:
                 "messages": len(t["msgs"]),
             }
             for t in threads.values()
+            if not bare_reaction(t)
+        ],
+        # Every reaction still standing — the agent-side reading of the marks
+        # the page paints, each explained (`means`) off this page's vocabulary.
+        # On the page (`anchor`, or none for the page whole) while its thread is
+        # unresolved; in a thread (`parent`) while that thread is open.
+        "reactions": [
+            described(
+                {
+                    "id": m["id"],
+                    "token": m["token"],
+                    "anchor": m.get("anchor"),
+                    "parent": m.get("parent"),
+                    "thread": root,
+                    "version": m.get("version"),
+                    "seq": m["seq"],
+                },
+                registry,
+            )
+            for root, t in threads.items()
+            if not t["resolved"]
+            for m in t["msgs"]
+            if is_reaction(m)
         ],
         "lag": [],
     }

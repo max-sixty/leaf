@@ -354,6 +354,32 @@ ${MARK_RULES}
      corner radius rather than restating one, which is what the radius here used to
      override. */
   .lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px; cursor: pointer; }
+  /* A standing reaction on an element: the same hairline, dashed — a mark fainter than a
+     comment's, as the wash on a reacted passage is fainter than a comment's (--react in
+     theme.css, ::highlight below). No hand, since nothing opens on a press here: the
+     glyph in the margin is the control. */
+  .lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
+  ::highlight(lf-react) { background-color: var(--react); }
+  /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
+     registry being script state no file can hold (BAKE). */
+  html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
+  /* The glyphs of the reactions standing on a block, in the column's right margin level
+     with the block's first line: the seat is the block's first child and positioned with
+     no top, so its static position is that line, and left: 100% is the margin wherever
+     the column is the containing block — the same margin a suggestion hangs its
+     controls in, 22px off the column as they are. A pill per reaction; the pill is the
+     reaction's own eraser (anchors.js seatReactions). Under the width the rail needs, it
+     docks as a float at the block's start instead, taking a glyph's width off the first
+     line rather than standing in a margin the page hasn't got. */
+  .lf-reacts { position: absolute; left: 100%; margin-left: 22px; display: inline-flex;
+    gap: 4px; white-space: nowrap; padding-right: var(--here-ring-room); z-index: 1; }
+  .lf-react-mark { min-width: 26px; text-align: center; }
+  @media screen and (max-width: 899px) {
+    .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
+  }
+  @media print {
+    .lf-reacts { position: static; float: right; margin: 0 0 4px 8px; }
+  }
   /* The draft's own passage — a standing annotation like the posted mark, which is why
      it may share the hairline where the ⌥ aim's promise may not (the .lf-aim rule in
      the scope block says why). Only the colour separates it from a posted mark, and the
@@ -870,8 +896,39 @@ ${MARK_RULES}
        pill that floats over the page's own content rather than standing in the empty
        rail, so it says so rather than relying on a hairline to separate it from
        whatever it happens to be over. */
-    .lf-fab { position: absolute; z-index: 8950; display: none;
-      box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
+      gap: 4px; padding: 3px 4px; background: var(--card); border: 1px solid var(--border-2);
+      border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,.14); white-space: nowrap; }
+    /* The tokens and the Comment are one bar: each token is a pill of its own, and the
+       Comment stands last behind a hairline, so the bar reads as the six cheap answers
+       and then the composed one. Hidden for the page whole, whose comment box is the
+       panel's general one. */
+    .lf-fab-bar > .lf-fab { margin-left: 4px; padding-left: 10px;
+      border-left: 1px solid var(--border-2); border-radius: 0 999px 999px 0;
+      border-top: 0; border-right: 0; border-bottom: 0; background: none; }
+    .lf-fab-bar > .lf-fab[hidden] { display: none; }
+    /* A token as a press, wherever it stands: the bar, a message's strip, the page row.
+       The glyph is the whole label at rest; the word joins it once the token stands on
+       its target (aria-pressed), so a strip reads "✓ ok" where the reader pressed and a
+       bare glyph everywhere else; the digit joins it while the react press is armed
+       (.lf-armed), in the address chip the rest of the page's bindings wear. State is
+       paint — ink, border, fill — and the word arrives as a change of box, which is the
+       one exception a standing mark earns: it is the reader's own press growing into
+       its receipt, not news moving chrome under them. */
+    .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
+      justify-content: center; }
+    .lf-react > .lf-address { display: none; position: static; }
+    .lf-armed .lf-react > .lf-address { display: inline-block; }
+    .lf-react > .lf-react-word { display: none; }
+    .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
+    .lf-react[aria-pressed="true"] { border-color: var(--mark-ink); color: var(--mark-ink);
+      background: var(--mark); }
+    .lf-react[aria-busy="true"] { opacity: .55; }
+    .lf-react-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .lf-page-strip { padding: 8px 14px 0; }
+    /* A thread whose root is a mark: the glyph and its word where the comment's words
+       would stand, in the chrome's face. */
+    .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }
     /* The ⌥ aim's promise: the item a press would take, whole. Drawn here in the
        chrome's own layer rather than painted onto the element, because no band of a
        page element is reliably the runtime's to paint in — the mark comment at

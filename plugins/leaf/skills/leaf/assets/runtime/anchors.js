@@ -10,6 +10,7 @@ export function createAnchors(dependencies) {
     aimedItem,
     anchorLabel,
     anchorsReady,
+    bareReaction,
     blockAt,
     buildThreads,
     closestAcross,
@@ -22,6 +23,7 @@ export function createAnchors(dependencies) {
     designIsOn,
     designName,
     designTarget,
+    el,
     elementById,
     elementFromPointAcross,
     elementOver,
@@ -53,6 +55,7 @@ export function createAnchors(dependencies) {
     threadsBox,
     uiInside,
     under,
+    withdraw,
   } = dependencies;
 
   // ---------- view continuity ----------
@@ -354,6 +357,15 @@ export function createAnchors(dependencies) {
   const MARK = "lf-mark";
   const PENDING = "lf-pending";
   const NOTE = "lf-mark-note";
+  // A standing reaction's paint: a wash fainter than a comment's on the passage (the
+  // same highlight registry), a dashed hairline on an element, and a glyph in the margin
+  // level with the block the passage starts in. Nothing enters the text flow, so no line
+  // reflows when one lands; the glyph is the withdraw control, so the record and the
+  // eraser are one surface. Recorded apart from `marked` because it answers a different
+  // question — a reaction is not a thread, takes no press to a card, and has no hover.
+  const REACT = "lf-react";
+  const SEAT = "lf-reacts";
+  const reacted = new Map(); // thread id -> the ranges or element parts painted for it
   const marked = new Map(); // thread id -> (Range | Element)[]: the pass's record of what it drew
   // thread id -> the element its passage lands in. A different question from `marked`, and
   // the one the panel's order asks: where a thread is, rather than what was drawn for it. A
@@ -639,13 +651,18 @@ export function createAnchors(dependencies) {
     if (!anchorsReady()) return;
     for (const where of allMarks())
       if (where instanceof Element) where.classList.remove("lf-mark-el");
+    for (const where of [...reacted.values()].flat())
+      if (where instanceof Element) where.classList.remove("lf-react-el");
     for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
     marked.clear();
+    reacted.clear();
     placed.clear();
     pendingOutline = [];
 
     const text = pageText(); // read once, for every anchor this pass places
     const posted = [];
+    const reactions = [];
+    const seats = new Map(); // block -> the reactions whose passage starts in it
     const noted = new Map(); // element -> ordered thread ids marking something inside it
     for (const t of threads) {
       if (!t.root.anchor) continue;
@@ -656,6 +673,26 @@ export function createAnchors(dependencies) {
       // in the panel's order and keep the one they had while they fold out of it.
       placed.set(t.root.id, found.element ?? elementOver(found.segments[0].node));
       if (t.resolved) continue;
+      // A reaction nobody has answered: its own paint, and no line for the note — the
+      // glyph is a real control that says what it is. Answered, it is a thread and takes
+      // a thread's mark below; resolved, nothing, resolve being its floor.
+      if (bareReaction(t)) {
+        let seat;
+        if (found.element) {
+          const parts = shownParts(found.element);
+          for (const part of parts) part.classList.add("lf-react-el");
+          reacted.set(t.root.id, parts);
+          seat = found.element;
+        } else {
+          const ranges = found.segments.map((seg) => rangeOf([seg]));
+          reacted.set(t.root.id, ranges);
+          reactions.push(...ranges);
+          seat = blockAt(found.segments[0].node) ?? sectionOf(t.root.anchor);
+        }
+        if (seat && !inChrome(seat))
+          seats.set(seat, [...(seats.get(seat) ?? []), t.root]);
+        continue;
+      }
       if (found.element) {
         // The boxes the element shows through, for the same reason the ask ring hangs on
         // those: an outline needs a box, and a wrapper that generates none took its ring
@@ -759,10 +796,12 @@ export function createAnchors(dependencies) {
     // the hover's wash and keeps its own ink. The
     // passage under the pointer answers the pointer.
     CSS.highlights.set(MARK, new Highlight(...posted));
+    CSS.highlights.set(REACT, new Highlight(...reactions));
     CSS.highlights.set(
       PENDING,
       Object.assign(new Highlight(...pending), { priority: 3 }),
     );
+    seatReactions(seats);
     noteMarks(noted); // and the same fact for a reader who can't see any of it
     paintStanding(); // the ranges are new objects and the element classes were just cleared
     // The semantic thread may be unchanged while this pass replaced every Range or
@@ -795,6 +834,52 @@ export function createAnchors(dependencies) {
         ? `Jump to § ${id}`
         : `§ ${id} isn't in the version you're viewing`;
     }
+  }
+
+  // The margin glyphs: one seat per block, holding a pill per reaction whose passage
+  // starts in it, in log order. The seat is the block's first child and positioned
+  // absolutely with no `top`, so its static position — the block's first line — is where
+  // it stands, in the column's right margin (`left: 100%`, as a suggestion's controls
+  // hang there): no anchor name written onto the author's element, no measurement to
+  // re-derive on a resize, and a copy at any width keeps it level with its block. Two
+  // reactions on one block share the seat rather than stacking on one point. The pill is
+  // the reaction's own eraser — its press is the ordinary undo naming the event — and
+  // wears the token's glyph, the token being the runtime's word for what it means.
+  //
+  // Reconciled rather than rebuilt, so a pill whose press is in flight is the node the
+  // reader pressed; stale seats are swept the way note lines are. The seat wears lf-ui
+  // and data-lf-gen: an account of the passage, not words of the page, so selection,
+  // quote capture and the diff readings skip it, and a frame's first-child trim does.
+  function seatReactions(seats) {
+    for (const [holder, roots] of seats) {
+      let seat = holder.querySelector(`:scope > .${SEAT}`);
+      if (!seat) {
+        seat = el("span", `lf-ui ${SEAT}`);
+        seat.dataset.lfGen = "1";
+        holder.prepend(seat);
+      }
+      const wanted = roots.map((root) => {
+        let mark = seat.querySelector(`:scope > [data-event="${root.id}"]`);
+        if (!mark) {
+          const entry = registry.$reactions.tokens[root.token];
+          mark = offer("button", "lf-pill lf-react-mark", entry?.glyph ?? root.token);
+          mark.dataset.event = root.id;
+          mark.dataset.token = root.token;
+          mark.title = `${root.token} — press to take it back`;
+          mark.setAttribute("aria-label", `${root.token} — take it back`);
+          mark.onclick = () => withdraw(root);
+        }
+        return mark;
+      });
+      for (const child of [...seat.children])
+        if (!wanted.includes(child)) child.remove();
+      wanted.forEach((mark, i) => {
+        if (seat.children[i] !== mark)
+          seat.insertBefore(mark, seat.children[i] ?? null);
+      });
+    }
+    for (const seat of pageQueryAll(`.${SEAT}`))
+      if (!seats.has(seat.parentElement)) seat.remove();
   }
 
   // Re-resolve marks after a package replaces derived passage nodes during replay.

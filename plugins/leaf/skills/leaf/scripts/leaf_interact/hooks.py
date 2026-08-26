@@ -2,7 +2,7 @@
 
 import json
 
-from .events import build_threads, read_events
+from .events import build_threads, read_events, spoken
 from .files import published_versions
 from .http import full_state
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
@@ -48,16 +48,24 @@ def unanswered_asks(events: list, cursor: int) -> list:
     reads as settling its thread — an ask that goes unmentioned, never a turn
     blocked over an answer the reader already gave.
     """
-    return [
-        t["root"]
-        for t in build_threads(events, {}).values()
+    # The last *word*: a reaction is a mark on a message, not a turn, so an `ok`
+    # the reader put on the agent's answer does not hand the thread back to the
+    # agent, and a reaction nobody has replied to is no thread at all — the agent
+    # answers those by acting (a version, a resolve), not by a reply under each.
+    asks = []
+    for t in build_threads(events, {}).values():
+        said = spoken(t)
         # The cursor is read against the last word, not the root: a follow-up
         # past it is a delivery the agent has yet to take, which is the
         # unacknowledged clause's to report and not this one's.
-        if t["msgs"][-1]["author"] == "user"
-        and t["msgs"][-1]["seq"] <= cursor
-        and not t["resolved"]
-    ]
+        if (
+            said
+            and said[-1]["author"] == "user"
+            and said[-1]["seq"] <= cursor
+            and not t["resolved"]
+        ):
+            asks.append(t["root"])
+    return asks
 
 
 def unattended_pages(session_id: str) -> list:

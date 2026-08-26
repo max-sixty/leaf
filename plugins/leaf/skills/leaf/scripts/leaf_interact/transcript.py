@@ -4,10 +4,16 @@ import sys
 from pathlib import Path
 
 from leaf_interact.document import parse_version
-from leaf_interact.events import build_threads, jsonl_line, read_events, taken_back
+from leaf_interact.events import (
+    build_threads,
+    is_reaction,
+    jsonl_line,
+    read_events,
+    taken_back,
+)
 from leaf_interact.files import published_versions, version_path
 from leaf_interact.projection import page_projection, record_lag
-from leaf_interact.registry import load_registry
+from leaf_interact.registry import load_registry, reaction_tokens
 
 
 def cmd_events(page_dir: Path, after: int) -> None:
@@ -123,6 +129,16 @@ def cmd_transcript(page_dir: Path) -> None:
         print(head)
         for m in t["msgs"]:
             who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
+            if is_reaction(m):
+                # A mark rather than a turn: the token's glyph and word, and the
+                # meaning the layer gave it, since a transcript is read where no
+                # bar is there to explain the glyph.
+                entry = reaction_tokens(registry).get(m["token"]) or {}
+                said = f"{entry.get('glyph', '')} {m['token']}".strip()
+                if entry.get("means"):
+                    said += f" — {entry['means']}"
+                print(f"- **{who}** reacted: {said}")
+                continue
             body = m["text"] + (f"\n{m['markup']}" if m.get("markup") else "")
             print(f"- **{who}**: " + body.replace("\n", "\n  "))
         print()

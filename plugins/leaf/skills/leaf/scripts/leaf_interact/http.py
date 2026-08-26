@@ -27,7 +27,12 @@ from .files import (
     version_num,
     write_json,
 )
-from .registry import RegistryError, layer_generation, load_registry
+from .registry import (
+    RegistryError,
+    layer_generation,
+    load_registry,
+    reaction_tokens,
+)
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
@@ -585,6 +590,25 @@ class Handler(BaseHTTPRequestHandler):
                         registry,
                     ):
                         return self.event_rejection(event, error)
+                if event.get("token"):
+                    # Against the vocabulary vendored under this lease, the way
+                    # an action's verb is: a token the layer does not declare has
+                    # no glyph to paint and no meaning for `leaf wait` to print.
+                    try:
+                        registry = load_registry(self.page_dir)
+                    except RegistryError as error:
+                        return self.event_rejection(event, str(error))
+                    if registry is None:
+                        return self.event_rejection(
+                            event, "the page has no registry.json"
+                        )
+                    tokens = reaction_tokens(registry)
+                    if event["token"] not in tokens:
+                        return self.event_rejection(
+                            event,
+                            f"unknown reaction token {event['token']!r}; this "
+                            f"layer declares {sorted(tokens)}",
+                        )
                 if kind == "comment" and event.get("holds"):
                     try:
                         registry = load_registry(self.page_dir)

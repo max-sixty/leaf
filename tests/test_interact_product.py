@@ -24,6 +24,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    state_json,
 )
 
 
@@ -917,3 +918,44 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         "no seeded event carries markup, so this read nothing — see "
         "examples/CLAUDE.md on what a log is for"
     )
+
+
+def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
+    """`page state` lists every standing reaction explained, beside threads that
+    leave a bare one out — paint on the page is not a conversation — and takes a
+    reaction back in once someone answers it, as the panel does. The transcript
+    prints one as the reader's mark rather than a turn, glyph and meaning beside it,
+    since it is read where no bar explains the glyph. The catalog names the
+    vocabulary under its own heading."""
+    published(page_dir)
+    bare = interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "token": "cut",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+        },
+    )
+    answered = interact.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "no"}
+    )
+    interact.cmd_reply(page_dir, answered["id"], "Which part?", None)
+    state = state_json(page_dir)
+    assert [t["id"] for t in state["threads"]] == [answered["id"]]
+    assert state["threads"][0]["token"] == "no" and state["threads"][0]["text"] is None
+    assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
+        ("cut", "does not earn its length — shorten or drop", bare["id"]),
+        ("no", "this is wrong; the passage is the referent", answered["id"]),
+    ]
+    assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
+
+    result = CliRunner().invoke(interact.cli, ["transcript", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert "- **User** reacted: − cut — does not earn its length" in result.output
+    assert "- **User** reacted: × no — this is wrong" in result.output
+
+    catalog = CliRunner().invoke(interact.cli, ["page", "catalog", str(page_dir)])
+    assert "The one-press reactions a reader can put on" in catalog.output
+    assert '"settles": true' in catalog.output

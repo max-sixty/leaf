@@ -11,7 +11,7 @@ from typing import NamedTuple, Protocol
 
 from leaf_interact.document import EMPTY, parse_structure
 from leaf_interact.files import read_json
-from leaf_interact.schema import UNDOABLE_KINDS
+from leaf_interact.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 try:
     import fcntl
@@ -209,6 +209,34 @@ def taken_back(events: list) -> set:
     return {e["undoes"] for e in events if e.get("undoes")}
 
 
+def is_reaction(event: dict) -> bool:
+    """A message carrying a token in place of words ($events, $reactions)."""
+    return bool(event.get("token"))
+
+
+def spoken(thread: dict) -> list:
+    """The thread's messages with words in them. A reaction is a mark on a
+    message rather than a turn in the conversation, so every reading of who
+    spoke last — the panel's "waiting on you", the hook's unanswered asks —
+    walks this list rather than `msgs`."""
+    return [m for m in thread["msgs"] if not is_reaction(m)]
+
+
+def bare_reaction(thread: dict) -> bool:
+    """A reaction nobody has replied to: paint on the page, and no thread yet."""
+    return is_reaction(thread["root"]) and not spoken(thread)
+
+
+def answered_ids(events: list) -> set:
+    """Message ids a surviving message names as its parent."""
+    withdrawn = taken_back(events)
+    return {
+        e["parent"]
+        for e in events
+        if e["kind"] in MESSAGE_KINDS and e.get("parent") and e["id"] not in withdrawn
+    }
+
+
 def undo_error(event: dict, events: list) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
@@ -217,16 +245,32 @@ def undo_error(event: dict, events: list) -> str | None:
     Two tabs racing to take back the same event are the one case this refuses
     that nothing is wrong with: the second is a no-op, and refusing it costs a
     toast where accepting it would leave two withdrawals of one gesture in a log
-    whose every other line is something the reader did."""
+    whose every other line is something the reader did.
+
+    A reaction is the one message a reader takes back rather than answers,
+    and only while it is still a mark: once someone has replied to it the
+    withdrawal would orphan their words, and the reader's move is in the
+    thread that reply opened."""
     target = next((e for e in events if e["id"] == event["undoes"]), None)
     if target is None:
         return f"unknown undoes {event['undoes']!r}"
     if target["author"] != "user":
         return f"{target['kind']} {target['id']} is not the reader's own gesture"
-    if target["kind"] not in UNDOABLE_KINDS:
+    if target["kind"] in MESSAGE_KINDS:
+        if not is_reaction(target):
+            return (
+                f"{target['kind']} {target['id']} is not a reaction; a message "
+                "with words in it is said rather than unsaid"
+            )
+        if target["id"] in answered_ids(events):
+            return (
+                f"reaction {target['id']} has been answered; withdraw it in the "
+                "thread the answer opened"
+            )
+    elif target["kind"] not in UNDOABLE_KINDS:
         return (
             f"{target['kind']} events cannot be taken back (the kinds that can "
-            f"are {', '.join(sorted(UNDOABLE_KINDS))})"
+            f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
         )
     if target["id"] in taken_back(events):
         return f"{target['id']} has already been taken back"
@@ -360,11 +404,13 @@ def build_threads(events: list, spk: dict) -> dict:
 
 
 def anchored_ids(events: list, spk: dict) -> set:
-    """Element ids an unresolved thread still points at."""
+    """Element ids an unresolved thread still points at. A reaction nobody has
+    answered is a mark and not a thread, so it holds no id: a reaction never
+    gates a version, and its anchor re-resolves or detaches like a comment's."""
     return {
         (t["root"].get("anchor") or {}).get("section")
         for t in build_threads(events, spk).values()
-        if not t["resolved"]
+        if not t["resolved"] and not bare_reaction(t)
     } - {None}
 
 

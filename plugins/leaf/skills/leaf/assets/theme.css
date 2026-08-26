@@ -167,6 +167,10 @@
      reads at 4.36:1 in light and 4.03:1 in dark, where it used to read at the
      strongest wash's 4.06 and 3.56. */
   --mark: #dfd1ed66; --mark-hover: #dfd1edb3; --mark-strong: #dfd1ed; --mark-ink: #4a3b7d;
+  /* A reaction's wash: the same hue one step under the resting mark, so a passage
+     someone reacted to reads as touched and a passage someone commented on reads as
+     annotated, and the two never look alike side by side. */
+  --react: #dfd1ed40;
   /* The "you are here" ring: where the reader is standing, wherever they are
      standing. The ask they are in wears it ([data-lf-ask], leaf.js), a control
      focused as one thing draws its own in the same band (a joined choose group,
@@ -218,6 +222,7 @@
     --chip: #2d2922;
     --ink-2: #c9c3b6; --muted-2: #988f7f; --border-2: #453f36;
     --mark: #6152a059; --mark-hover: #6152a079; --mark-strong: #6152a099; --mark-ink: #9d8fd6;
+    --react: #6152a036;
     --ok-tint: #1d2b1f;     --ok-ink: #97cca3;
     --warn-tint: #322715;   --warn-ink: #e2bb75;
     --danger-tint: #35211b; --danger-ink: #e0a091;

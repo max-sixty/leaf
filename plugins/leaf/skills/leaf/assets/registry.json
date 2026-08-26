@@ -68,7 +68,7 @@
     }
   },
   "$events": {
-    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement.",
+    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it.",
     "kinds": {
       "comment": {
         "record": {
@@ -81,6 +81,7 @@
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
+            "token": {"type": "string", "minLength": 1},
             "anchor": {
               "type": "object",
               "properties": {
@@ -107,11 +108,15 @@
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
             "holds": {"type": "string", "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
-          "additionalProperties": false
+          "required": ["id", "ts", "author", "kind", "seq", "version"],
+          "additionalProperties": false,
+          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "dependentSchemas": {
+            "token": {"not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["holds"]}, {"required": ["markup"]}]}}
+          }
         },
         "browser": {
-          "required": ["kind", "version", "text"],
+          "required": ["kind", "version"],
           "not": {"required": ["markup"]}
         }
       },
@@ -127,16 +132,19 @@
             "parent": {"type": "string", "minLength": 1},
             "version": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
+            "token": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "parent", "text"],
-          "additionalProperties": false
+          "required": ["id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false,
+          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "dependentSchemas": {"token": {"not": {"required": ["markup"]}}}
         },
         "browser": {
-          "required": ["kind", "parent", "version", "text"],
+          "required": ["kind", "parent", "version"],
           "not": {"required": ["markup"]}
         }
       },
@@ -361,6 +369,10 @@
     "when": "Only where a later version has to change what the user decided about: an error you found in a draft they rewrote, a picked option whose prose was wrong. Write the new words, mark that element, and say why in the note — to the user this reads as a decision undone, and the note is where a version explains itself. `version check` refuses a version that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
     "once": "It belongs to the one version that does the rewriting. Publishing records the retraction in the log, so it holds for good — later versions leave the attribute off, and `version check` refuses one that repeats it.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
+  },
+  "$reactions": {
+    "description": "The reaction vocabulary: the one-press words a reader can put on a passage, an element, a message in a thread, or the page whole, each recorded as a `comment` or `reply` carrying `token` in place of `text` ($events). The kernel declares the namespace and no word; the default package ships the working set, and any layer — a project's .leaf/, the user's ~/.config/leaf/ — reshapes it merge-patch style: an entry under a token's name replaces that token, a new name adds one, `null` removes one. Core never names a token. Everything a consumer needs rides the entry: `glyph` is the one character the page paints for it in the margin, on the bar and on a thread's strip; `means` is the sentence `leaf wait` prints beside the event, so a custom token is self-describing to whichever agent reads it; `settles`, where true, says a reaction of this kind standing on the latest agent message of a thread takes that thread out of \"waiting on you\" — a projection rule the panel reads, never a second event. POST refuses a token outside the merged set, the way $languages gates a language name. Tokens stand independently on one target; the armed keyboard bar numbers them 1–n in this declared order, so a digit survives any layer's renaming.",
+    "tokens": {}
   },
   "$tones": {
     "description": "The semantic tints this layer paints, and the whole vocabulary an author may declare: what the lint refuses a word outside, and what the theme has a rule for. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `tone` — a widget declares that one of its attributes names one (x-tone) and the lint reads the list from here, so a second tag taking a tone costs a declaration and no new reader. The list is short on purpose: a page that can paint anything paints nothing, and three is what the palette already answers for. Which facts earn a tint is never the theme's to decide — `ok` on one page's chip and `danger` on another's may be the same word, because the author is the only one who knows whether the answer is good news.",

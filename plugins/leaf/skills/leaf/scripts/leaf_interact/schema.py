@@ -9,8 +9,12 @@ from pathlib import Path
 ORPHAN_GRACE_SECS = 1
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
-# they say, rather than unsay. Nor is an undo itself, which would be a redo.
+# they say, rather than unsay. A reaction is the exception the message kinds
+# carry (`undo_error`): a token is a mark rather than speech, and while nothing
+# has answered it the mark is one press from off the page, which is what makes
+# it cheap. Nor is an undo itself, which would be a redo.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
+MESSAGE_KINDS = {"comment", "reply"}
 ANSWER_ASK_INSTRUCTION = (
     "Answer each with `leaf reply <page> --to <id> --text ...`, or close one the "
     "work has since answered with `leaf resolve <page> --to <id>`."

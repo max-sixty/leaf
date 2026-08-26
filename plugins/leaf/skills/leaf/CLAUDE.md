@@ -882,6 +882,43 @@ pointer keeps its own wash and its own ink and takes nothing from the hover.
 Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
 
+### Reactions
+
+A bare reaction — a token comment nobody has replied to — is paint, not a
+thread. `paintAnchors` resolves its anchor like any comment's and records it in
+`reacted` rather than `marked`: a wash through the `lf-react` highlight on a
+passage, `lf-react-el` on an element's shown parts, and a glyph seated by
+`seatReactions`. The seat is one `.lf-reacts` span per block, prepended so its
+static position is the block's first line, and positioned into the right margin
+the way a suggestion's controls are; the pill inside is the reaction's own
+eraser, posting the ordinary `undo` through `withdraw`. It wears `lf-ui` and
+`data-lf-gen`, so no reading takes it for the page's words and a frame's
+first-child trim ignores it. `markAt` does not see it: a reaction takes no press
+to a card and has no hover. Export keeps the glyph with its press taken off and
+writes the wash into the words as a `<mark>` (BAKE), the highlight registry
+being script state no file can hold.
+
+The bar the selection raises is `.lf-fab-bar`: the layer's tokens in declared
+order, then `.lf-fab`, the Comment press every route into the composer still
+goes through. `showFab` shows and places the bar; `raiseOnItem` raises it on an
+element from the ⌥ press; `PAGE_WHOLE` is its target for the page itself, with
+Comment hidden because the page's comment box is the panel's general one. `r`
+arms it (`setReact`): a digit on each token in the address-chip style, the
+surface being the bar — raised on the standing item, or the page, where none
+stood — or the strip under the latest agent message when the reader is standing
+in a thread. `REACT` is the armed scope and claims everything, as the address
+chord does; a stray key disarms and keeps its meaning, and a bar the arming
+raised goes down with it.
+
+`conversation.js` reads the log by `isReaction`, `spoken`, `turns`, and
+`bareReaction`, the names `events.py` reads it by. The panel lists
+`conversational` threads only; a card shows its turns and its root, so a thread
+that grew out of a reaction opens on the mark. `paintReactStrips` puts the token
+strip under each agent message of an open thread, the standing tokens pressed
+and wearing their word; `paintPageStrip` is the same strip above the general
+box for the page whole. `awaitsReader` reads the last turn and then the one
+declared exception, a `settles` token standing on it.
+
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
 sideways scroller, then `jumpBy` glides the exact mark to its final position in

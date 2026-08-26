@@ -9,6 +9,7 @@ export function createConversation(dependencies) {
     addressed,
     agentName,
     ago,
+    announce,
     captureAuthoredFacets,
     claimState,
     designName,
@@ -17,6 +18,7 @@ export function createConversation(dependencies) {
     elementById,
     findInput,
     focused,
+    generalRow,
     highlightBlocks,
     inChrome,
     isMarked,
@@ -41,6 +43,8 @@ export function createConversation(dependencies) {
     post,
     quietSince,
     reachScrollers,
+    reactDone,
+    reactPills,
     refreshHover,
     registry,
     rememberAuthoredMarkup,
@@ -63,8 +67,24 @@ export function createConversation(dependencies) {
     toggleBtn,
     updateSequence,
     wireInput,
+    withdraw,
   } = dependencies;
   let threadList = [];
+
+  // A reaction is a message carrying a token in place of words ($events): a mark on its
+  // target rather than a turn in the conversation. `spoken` is a thread's turns; one with
+  // none is a bare reaction — paint on the page, no card in the panel — until somebody
+  // replies to it, from which point it is a conversation whose root happens to be a mark.
+  // interact.py reads the log by the same three names (events.py), so the panel and
+  // `page state` cannot come to list different threads.
+  const isReaction = (m) => Boolean(m.token);
+  const spoken = (t) => t.msgs.filter((m) => !isReaction(m));
+  // What a card shows: the turns, and the root whatever it is — a thread that grew out
+  // of a reaction opens on the mark that started it, which is what the agent answered.
+  const turns = (t) => t.msgs.filter((m) => m === t.root || !isReaction(m));
+  const bareReaction = (t) => isReaction(t.root) && !spoken(t).length;
+  const conversational = (t) => !bareReaction(t);
+  const tokenEntry = (name) => registry.$reactions.tokens[name];
 
   // ---------- threads ----------
   function buildThreads() {
@@ -212,7 +232,18 @@ export function createConversation(dependencies) {
   const msgBodies = new Map();
   function buildMsgBody(m) {
     const body = el("div", "lf-msg-body");
-    if (m.suggestion) {
+    if (isReaction(m)) {
+      // A thread whose root is a mark: the glyph and its word, in the chrome's own
+      // face, where a comment's words would be. What it meant is the entry's `means`,
+      // said on hover the way the bar says it.
+      const said = el(
+        "span",
+        "lf-react-said",
+        `${tokenEntry(m.token)?.glyph ?? ""} ${m.token}`.trim(),
+      );
+      said.title = tokenEntry(m.token)?.means ?? "";
+      body.append(said);
+    } else if (m.suggestion) {
       // Verbatim: a suggestion's characters are bound for the page as typed, and a
       // rendering would show an italic where the next version carries the asterisks.
       body.classList.add("lf-suggest-body");
@@ -440,8 +471,24 @@ export function createConversation(dependencies) {
   const narrowed = () => Boolean(finding) || needsYou;
 
   // A thread the agent spoke in last is a thread waiting on the reader; one the reader spoke
-  // in last is waiting on the agent. A resolved thread waits on nobody.
-  const awaitsReader = (t) => !t.resolved && t.msgs.at(-1).author === "claude";
+  // in last is waiting on the agent. A resolved thread waits on nobody. Turns, not marks:
+  // a reaction on a message is not the reader speaking, with one declared exception — a
+  // token whose entry says `settles`, standing on the agent's latest message, is the
+  // reader saying "seen, go on", and takes the thread out of the waiting list without a
+  // second event. Take the ok back and the wait comes back, this being a reading of the
+  // log rather than a state anything wrote; core reads the flag and never the name.
+  const awaitsReader = (t) => {
+    if (t.resolved) return false;
+    const last = spoken(t).at(-1);
+    if (last?.author !== "claude") return false;
+    return !t.msgs.some(
+      (m) =>
+        isReaction(m) &&
+        m.author === "user" &&
+        m.parent === last.id &&
+        tokenEntry(m.token)?.settles,
+    );
+  };
 
   // What a search reads: everything the panel shows of a thread, plus the part of the page
   // it is on — so "merge rule" finds the threads under that heading as well as the ones
@@ -451,7 +498,7 @@ export function createConversation(dependencies) {
     [
       anchorLabel(t.root.anchor, t.root.about),
       group.label,
-      ...t.msgs.map((m) => m.text),
+      ...t.msgs.map((m) => m.text ?? m.token),
     ]
       .join("\n")
       .toLowerCase();
@@ -635,7 +682,15 @@ export function createConversation(dependencies) {
       el("time", "", ago(message.ts)),
     );
     const body = el("div", "lf-conversation-body");
-    if (message.suggestion) body.textContent = message.text;
+    if (isReaction(message))
+      body.append(
+        el(
+          "span",
+          "lf-react-said",
+          `${tokenEntry(message.token)?.glyph ?? ""} ${message.token}`.trim(),
+        ),
+      );
+    else if (message.suggestion) body.textContent = message.text;
     else body.innerHTML = renderMarkdown(message.text);
     node.append(head, body);
     if (message.markup) {
@@ -655,7 +710,11 @@ export function createConversation(dependencies) {
       thread.dataset.thread = t.root.id;
       thread.tabIndex = -1;
     }
-    const messages = t.msgs.map((message) => conversationMessageNode(thread, message));
+    // Turns only: a reaction on a message is the panel's strip to show, and the seat is
+    // the textual projection of the exchange.
+    const messages = turns(t).map((message) =>
+      conversationMessageNode(thread, message),
+    );
     let tail;
     if (t.resolved) {
       const compose = thread.querySelector(":scope > .lf-say");
@@ -761,7 +820,7 @@ export function createConversation(dependencies) {
         existing.querySelector(":scope > .lf-work-line") ??
         compose ??
         existing.querySelector(":scope > .lf-thread-actions");
-      for (const m of t.msgs) {
+      for (const m of turns(t)) {
         let msg = existing.querySelector(`:scope > .lf-msg[data-mid="${m.id}"]`);
         if (!msg) {
           msg = msgNode(m);
@@ -773,6 +832,7 @@ export function createConversation(dependencies) {
         const when = ago(m.ts);
         if (time.textContent !== when) time.textContent = when;
       }
+      paintReactStrips(existing, t);
       return existing;
     }
 
@@ -786,7 +846,8 @@ export function createConversation(dependencies) {
       quote.onclick = () => scrollToThread(t.root.id);
       div.append(quote);
     }
-    t.msgs.forEach((m) => div.append(msgNode(m)));
+    turns(t).forEach((m) => div.append(msgNode(m)));
+    paintReactStrips(div, t);
     if (!t.resolved) {
       const row = el("div", "lf-compose");
       const input = document.createElement("textarea");
@@ -859,6 +920,104 @@ export function createConversation(dependencies) {
       div.append(actions);
     }
     return div;
+  }
+
+  // The strip under each of the agent's messages: every token the layer declares, the
+  // ones the reader has put on that message reading pressed and wearing their word.
+  // Press one to put it there — a reply carrying the token, on that message — and press it
+  // again to take it back, an ordinary undo naming the reply. Rebuilt from the thread on
+  // each reconcile rather than from the press, so a reaction arriving from another tab,
+  // and an undo, land the same way. A resolved thread offers none: resolve is the floor
+  // after which a reaction stops painting, on the page and here alike.
+  function paintReactStrips(node, t) {
+    for (const msg of node.querySelectorAll(":scope > .lf-msg")) {
+      const m = t.msgs.find((x) => x.id === msg.dataset.mid);
+      if (!m || m.author !== "claude") continue;
+      let strip = msg.querySelector(":scope > .lf-react-strip");
+      if (t.resolved) {
+        strip?.remove();
+        continue;
+      }
+      if (!strip) {
+        strip = el("div", "lf-react-strip");
+        strip.setAttribute("role", "group");
+        strip.setAttribute("aria-label", "React to this reply");
+        for (const pill of reactPills((name, pill) => pressStrip(m, name, pill)))
+          strip.append(pill);
+        msg.append(strip);
+      }
+      paintStanding(
+        strip,
+        t.msgs.filter((x) => isReaction(x) && x.author === "user" && x.parent === m.id),
+      );
+    }
+  }
+  // Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
+  // carrying the event a second press takes back. The reaction rides the pill rather than
+  // a map beside it, so a reconcile that keeps the node keeps the fact with it.
+  function paintStanding(strip, standing) {
+    const by = new Map(standing.map((x) => [x.token, x]));
+    for (const pill of strip.querySelectorAll(":scope > .lf-react")) {
+      const on = by.get(pill.dataset.token) ?? null;
+      pill.setAttribute("aria-pressed", on ? "true" : "false");
+      pill.lfReaction = on;
+    }
+  }
+  async function pressStrip(m, name, pill) {
+    if (pill.lfReaction) {
+      await withdraw(pill.lfReaction);
+      reactDone();
+      return;
+    }
+    pill.setAttribute("aria-busy", "true");
+    try {
+      const sent = await post({
+        kind: "reply",
+        parent: m.id,
+        version: runtime.currentVersion,
+        token: name,
+      });
+      if (sent) announce(`${name} on ${m.agent || "the agent"}'s reply`);
+    } finally {
+      pill.removeAttribute("aria-busy");
+      reactDone();
+    }
+  }
+  // The page whole, from the panel: the same strip, above the general box, aimed at
+  // nothing in particular — the shape an unanchored comment already has. What stands
+  // here is every bare reaction with no anchor; a press puts one there or takes it back.
+  let pageStrip = null;
+  function paintPageStrip(threads) {
+    if (!pageStrip) {
+      pageStrip = el("div", "lf-react-strip lf-page-strip");
+      pageStrip.setAttribute("role", "group");
+      pageStrip.setAttribute("aria-label", "React to the page");
+      for (const pill of reactPills(pressPage)) pageStrip.append(pill);
+      generalRow.before(pageStrip);
+    }
+    paintStanding(
+      pageStrip,
+      threads
+        .filter((t) => bareReaction(t) && !t.resolved && !t.root.anchor)
+        .map((t) => t.root),
+    );
+  }
+  async function pressPage(name, pill) {
+    if (pill.lfReaction) {
+      await withdraw(pill.lfReaction);
+      return;
+    }
+    pill.setAttribute("aria-busy", "true");
+    try {
+      const sent = await post({
+        kind: "comment",
+        version: runtime.currentVersion,
+        token: name,
+      });
+      if (sent) announce(`${name} on the page`);
+    } finally {
+      pill.removeAttribute("aria-busy");
+    }
   }
 
   // A thread the log has resolved and the open list is still holding. Its place is not
@@ -1072,7 +1231,10 @@ export function createConversation(dependencies) {
   // no restore could give back was identity: nothing could animate, one send route kept
   // focus and the other dropped it, and a user's own comment landed below the fold
   // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
-  function renderThreads(threads) {
+  function renderThreads(all) {
+    // The conversations. A bare reaction is paint on the page and a pill on the page
+    // row, and counts for nothing here: no card, no address, no place in the walk.
+    const threads = all.filter(conversational);
     const open = threads.filter((t) => !t.resolved);
     // The page's outline, read once for the whole reconcile: every thread asks it where it
     // stands and which run it belongs to.
@@ -1309,7 +1471,7 @@ export function createConversation(dependencies) {
     }
     const threads = buildThreads();
     renderHolds(threads);
-    threadList = threads;
+    threadList = threads.filter(conversational);
     // The marks first, because the list is ordered by where they landed: one resolution of
     // every anchor, read by the page for its paint and by the panel for its order. Resolving
     // a second time for the order would be a second answer to where a thread is, free to
@@ -1317,7 +1479,8 @@ export function createConversation(dependencies) {
     // document's whole text again to say it.
     paintAnchors(threads);
     renderThreads(threads);
-    renderConversations(threads);
+    renderConversations(threadList);
+    paintPageStrip(threads);
     paintWorkLines();
   }
 
@@ -1368,6 +1531,10 @@ export function createConversation(dependencies) {
 
   return {
     buildThreads,
+    bareReaction,
+    conversational,
+    isReaction,
+    spoken,
     loadMarked,
     anchorLabel,
     openThreads,

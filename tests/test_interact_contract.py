@@ -133,7 +133,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             {"kind": "undo", "undoes": agent_closed["id"]},
             "not the reader's own gesture",
         ),
-        ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
+        ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
         ({"kind": "undo"}, "'undoes' is a required property"),
         (
@@ -2317,3 +2317,87 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     )
     assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
     assert not [e for e in interact.read_events(page_dir) if e["kind"] == "reply"]
+
+
+def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
+    server, page_dir
+):
+    """A reaction is a comment or reply carrying `token` in place of `text`: one of
+    the two and never both, a word the merged vocabulary declares, and no
+    suggestion, hold, or markup riding beside it. What the door lets through it
+    also lets the reader take back — while it is still a mark. An answer under it
+    makes it a conversation, and a message with words in it was never a mark."""
+    publish(page_dir)
+    root = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "version": 1, "text": "why?"}).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    for bad, says in [
+        (
+            {"kind": "comment", "version": 1, "token": "shrug"},
+            "unknown reaction token 'shrug'",
+        ),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "text": "and"},
+            "valid under each of",
+        ),
+        ({"kind": "comment", "version": 1}, "not valid under any"),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "suggestion": True},
+            "suggestion",
+        ),
+        (
+            {"kind": "reply", "version": 1, "parent": root["id"], "token": "nope"},
+            "unknown",
+        ),
+    ]:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400, (bad, body)
+        assert says in json.loads(body)["error"], (bad, body)
+
+    reaction = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "version": 1,
+                    "token": "cut",
+                    "anchor": {"section": "plan", "quote": "Ship dark"},
+                }
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert reaction["author"] == "user" and "text" not in reaction
+    nod = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "reply", "version": 1, "parent": root["id"], "token": "ok"}
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert nod["token"] == "ok" and nod["parent"] == root["id"]
+
+    # A message with words in it is said rather than unsaid.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
+    )
+    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    # The mark on the thread comes off with one press.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
+    )
+    assert status == 200, body
+    # Answered, the page reaction is a conversation, and the withdrawal would orphan
+    # the answer; the reader's move is in the thread it opened.
+    interact.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
+    )
+    assert status == 400 and "has been answered" in json.loads(body)["error"]

@@ -2566,3 +2566,68 @@ def test_state_reports_whether_the_owning_session_still_exists(claimed, dead_pid
     assert page_state(claimed)["session_alive"] is True
     record_claim(claimed, pid=dead_pid)
     assert page_state(claimed)["session_alive"] is False
+
+
+def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, capsys):
+    """A token reaches the agent explained: the line `leaf wait` prints carries the
+    token's `means` off the page's own vendored vocabulary, so a token a project
+    added is self-describing to whichever agent reads it. The same ack covers it,
+    and idling is refused over one nobody read, exactly as for a comment."""
+    serving(page_dir, 1)
+    publish(page_dir)
+    interact.cmd_status(page_dir, "waiting", "")
+    interact.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "token": "cut",
+            "anchor": {"section": "plan", "quote": "Ship dark"},
+        },
+    )
+    assert interact.cmd_wait(page_dir) == 0
+    _, shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    assert shown["token"] == "cut"
+    assert shown["means"] == "does not earn its length — shorten or drop"
+    assert "text" not in shown
+    assert page_state(page_dir)["pending"] == 1
+    interact.cmd_ack(page_dir, shown["seq"])
+    assert page_state(page_dir)["pending"] == 0
+
+
+def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
+    """A reaction is a mark, not a question: the agent answers it by acting, so an
+    acknowledged one nobody replied to does not hold the turn the way a comment
+    does. Nor does an `ok` the reader put on the agent's answer hand the thread back
+    to the agent — a reaction is not the reader speaking. The reader's words are."""
+    interact.cmd_status(claimed, "waiting", "")
+    session = interact.page_claim(claimed)
+    lease = interact.take_waiter_lease(interact.waiter_lease_path(claimed, session))
+    assert lease
+    interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+    )
+    asked = interact.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    answer = interact.cmd_reply(claimed, asked["id"], "because", None)
+    interact.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "ok"},
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    # Words under the answer are the reader's last word, and hold the turn as ever.
+    interact.append_event(
+        claimed,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
+    )
+    interact.cmd_ack(claimed, interact.read_events(claimed)[-1]["seq"])
+    interact.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert json.loads(capsys.readouterr().out)["decision"] == "block"

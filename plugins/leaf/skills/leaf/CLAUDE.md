@@ -35,6 +35,7 @@ and selection-composer state;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;
+`runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;

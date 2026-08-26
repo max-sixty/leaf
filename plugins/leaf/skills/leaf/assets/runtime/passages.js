@@ -38,10 +38,10 @@ export function createPassages(dependencies) {
   // same page follow one declaration: x-retired-when names the decision that removes the
   // element, x-parent the wrapper the decision is recorded on.
   // Computed once — but only once the registry has loaded: the aim listeners are
-  // live from module evaluation, and a mousemove in the upgrade window would
+  // live from module evaluation, and a pointer move in the upgrade window would
   // otherwise seed the cache from the empty pre-fetch registry and disable the
   // retired-slot skip for the life of the page. It used to be rebuilt per
-  // candidate ancestor per mousemove (itemAt's aim walk).
+  // candidate ancestor per pointer move (itemAt's aim walk).
   let retiredSlotsMemo;
   function retiredSlots() {
     if (retiredSlotsMemo != null) return retiredSlotsMemo;

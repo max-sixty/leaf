@@ -30,6 +30,8 @@ from render_support import (
     AIM_CURSOR,
     AIM_PAINT_PAGE,
     AIM_POINT,
+    AIM_SEAM,
+    AIM_SEAM_PAGE,
     AIMED,
     BADGE_CHROME,
     BANNER_WATCH,
@@ -336,6 +338,44 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "logout-frequency"
+    assert errors == []
+    page.close()
+
+
+def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):
+    """The outline and the press ask one question of one point, down to the sub-pixel.
+
+    The two readings of "what is under the pointer" come from different doors: the
+    outline hit-tests the pointer record the runtime keeps, and the press takes the
+    target the browser resolved for it. `mousemove` carries the pointer's place rounded
+    to a whole pixel, so a record kept from one is an answer about a place the pointer is
+    not — and within a pixel of a seam that place is a different item. It cost a corpus
+    page a promise: ⌥ over a choose group outlined the option above the seam and the
+    press commented on the one below it, which is the composer opening on an item the
+    reader was never shown.
+
+    So the aim is put within a quarter pixel of a seam, where the true point and its
+    rounded twin name different items. Which of the two the true point is over depends on
+    where in the pixel the seam fell, so the item the aim is held to is read off the point
+    rather than named here; what is asserted first is that the two readings differ at all,
+    since a seam that fell on a whole pixel would leave this proving that two agreeing
+    readings agree."""
+    page, errors = open_page(browser, serve(AIM_SEAM_PAGE))
+    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+        "the fixture no longer straddles a seam — the aim point and the whole pixel it "
+        "rounds to are not on the two items either side of it, so nothing here is under "
+        f"test: {seam}"
+    )
+
+    page.mouse.move(seam["x"], seam["y"])
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", seam["at"])
+    page.mouse.click(seam["x"], seam["y"])
+    page.keyboard.up("Alt")
+
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []
     page.close()
 
@@ -1159,7 +1199,7 @@ def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, ser
 def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
     """What a press would take can change with no mouse event to say so.
 
-    Only the mousemove used to re-ask the aim, so scrolling under a held key left the
+    Only a pointer move used to re-ask the aim, so scrolling under a held key left the
     outline on the item that had been under the pointer while a press took the one now
     there — the paint answering an old page, the claim the current one. The scroll
     listener re-asks; this scrolls the page under a parked pointer and requires the

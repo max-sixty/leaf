@@ -181,6 +181,7 @@ import { createProjection } from "./runtime/projection.js";
 import { createAnchors } from "./runtime/anchors.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
 import { createPassages } from "./runtime/passages.js";
+import { createUpdates } from "./runtime/updates.js";
 import {
   MARKED_ANYWHERE,
   MARKED_IN_PAGE,
@@ -2622,10 +2623,6 @@ let lastVersionsKey = "";
 
 const versions = runtime.versions;
 let agentMsgCount = -1;
-// Replace-in-place work claims, already normalized by the server out of status.json's
-// private store. Reports join them in updateSequence below. Keeping only source records
-// here means target and lifecycle are derived in one projection for every consumer.
-let claimUpdateSources = [];
 // Whether the page currently believes anything is behind its work claim. An update
 // remains in the feed after settlement, but no local seat presents it under a banner
 // saying nobody holds the page.
@@ -2646,209 +2643,20 @@ let claimingSession = null;
 let panelOpen = false;
 let pendingAnchor = null;
 
-// The fold answers where reader state stands; this answers how it got there. A widget
-// receives its own absolute actions in log order, bounded by the version being viewed.
-// A reply widget lives in frozen chrome and therefore sees the whole sequence. Returning
-// fresh copies keeps the private event store private.
-function sequence(widget, verb, live) {
-  return runtime.events
-    .filter(
-      (event) =>
-        event.kind === "action" &&
-        event.widget === widget.id &&
-        (!verb || event.action === verb) &&
-        (inChrome(widget) || event.version <= runtime.currentVersion) &&
-        live(event),
-    )
-    .map((event) => structuredClone(event));
-}
-
-export const actionSequence = (widget, action) => {
-  const projection = stateProjection(runtime.currentVersion);
-  return sequence(widget, action, (e) => projectionCommitted(projection, e));
-};
-
-// ---------- canonical updates ----------
-// Thread and widget ids may have the same spelling, so every target names its kind.
-function updateTarget(target) {
-  if (target === null) return null;
-  if (target instanceof Element) {
-    if (target.id) return { kind: "widget", id: target.id };
-  } else if (
-    ["widget", "thread"].includes(target?.kind) &&
-    typeof target.id === "string" &&
-    target.id
-  ) {
-    return { kind: target.kind, id: target.id };
-  }
-  throw new TypeError(
-    "update target must be a widget element or {kind: 'widget' | 'thread', id}",
-  );
-}
-const updateTargetKey = (target) =>
-  target ? JSON.stringify([target.kind, target.id]) : null;
-const compareText = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
-// A claim follows its log floor and precedes the next event.
-const updatePosition = (update) =>
-  update.source === "report" ? [update.seq, 0] : [update.log_floor, 1];
-
-// Normalize both sources after stateProjection has classified the durable channel.
-function updatesFromProjection(target, projection) {
-  const key = updateTargetKey(updateTarget(target));
-  const reportStanding = new Set(
-    [...projection.reports.values()].flat().map((entry) => entry.e.id),
-  );
-  const reportEffective = new Set(
-    [...projection.desired.values()]
-      .filter((entry) => entry.e.kind === "report")
-      .map((entry) => entry.e.id),
-  );
-  const updates = [];
-  for (const entry of projection.classified.values()) {
-    const event = entry.e;
-    if (event.kind !== "report" || entry.terminal) continue;
-    const entryTarget = { kind: "widget", id: event.widget };
-    if (key !== null && updateTargetKey(entryTarget) !== key) continue;
-    const field = entry.spec.update;
-    updates.push({
-      id: event.id,
-      target: entryTarget,
-      source: "report",
-      action: event.action,
-      detail: event.detail,
-      text: field ? event.detail[field] : null,
-      ts: event.ts,
-      version: event.version,
-      seq: event.seq,
-      agent: event.agent ?? null,
-      session: event.session ?? null,
-      disposition: reportEffective.has(event.id)
-        ? "effective"
-        : reportStanding.has(event.id)
-          ? "standing"
-          : "settled",
-    });
-  }
-  const threads = new Map(
-    conversationRuntime.threadList.map((thread) => [thread.root.id, thread]),
-  );
-  for (const source of claimUpdateSources) {
-    if (key !== null && updateTargetKey(source.target) !== key) continue;
-    let effective = false;
-    if (source.target.kind === "thread") {
-      const thread = threads.get(source.target.id);
-      effective = Boolean(
-        thread &&
-        !thread.resolved &&
-        !thread.msgs.some(
-          (message) =>
-            message.kind === "reply" &&
-            message.author === "claude" &&
-            message.seq > source.log_floor,
-        ),
-      );
-    } else if (source.target.kind === "widget") {
-      effective = !runtime.events.some(
-        (event) =>
-          event.kind === "note" &&
-          event.seq > source.log_floor &&
-          (event.settles ?? []).some(
-            (settlement) =>
-              settlement.kind === "work" && settlement.id === source.target.id,
-          ),
-      );
-    }
-    updates.push({
-      ...source,
-      disposition: effective ? "effective" : "settled",
-    });
-  }
-  return updates
-    .sort((left, right) => {
-      const leftPosition = updatePosition(left);
-      const rightPosition = updatePosition(right);
-      return (
-        leftPosition[0] - rightPosition[0] ||
-        leftPosition[1] - rightPosition[1] ||
-        Date.parse(left.ts) - Date.parse(right.ts) ||
-        compareText(left.source, right.source) ||
-        compareText(updateTargetKey(left.target), updateTargetKey(right.target)) ||
-        compareText(left.id, right.id)
-      );
-    })
-    .map((update) => structuredClone(update));
-}
-
-export const updateSequence = (target = null) =>
-  updatesFromProjection(target, stateProjection(runtime.currentVersion));
-
-// Do not narrate a report while its coordinate still paints the prior winner.
-function reportUpdatesCommitted(projection, target) {
-  const key = updateTargetKey(updateTarget(target));
-  const coordinates = new Map();
-  for (const entry of projection.classified.values()) {
-    if (entry.terminal || entry.e.kind !== "report") continue;
-    const entryKey = updateTargetKey({ kind: "widget", id: entry.e.widget });
-    if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
-  }
-  return [...coordinates.values()].every((entry) =>
-    coordinateProjectionCommitted(projection, entry),
-  );
-}
-
-// When the version being read was published — the floor under any statement about how
-// fresh what the page says is. A row nobody has reported on is not a row of unknown age:
-// its words were asserted when this version landed, and are exactly that old.
-//
-// Without the floor, silence renders as nothing at all, which is the one direction a
-// freshness line must never fail in. A fleet whose workers all died at six in the
-// evening, on a page republished at six, shows five rows claiming work and no elapsed
-// line anywhere at eight the next morning — a dead fleet reading healthy, which is the
-// claim-nobody-revises failure the banner's own judgment exists to answer, reintroduced
-// one section below the banner.
-export const publishedAt = () => {
-  let ts = null;
-  for (const e of runtime.events)
-    if (e.kind === "note" && e.version === runtime.currentVersion) ts = e.ts;
-  return ts;
-};
-
-// When the words around an element were said. A page's own content was said when its
-// version was published; a widget an agent put in a message was said when the message
-// was, which is a later moment and often a much later one. Anything measuring "how long
-// since we heard anything" has to take the second where it stands in one, or a roster
-// carried in a reply certifies its workers against a publish from before the reply
-// existed — the freshness line answering for a page nobody was asking about.
-export const saidAt = (el) =>
-  closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
-    ?.dateTime || publishedAt();
-
-// Run immediately and after every reconciliation, including polls with no new events.
-const watch = (owner, callback) => {
-  const update = () => {
-    if (!owner.isConnected) {
-      document.removeEventListener("lf-actions", update);
-      return;
-    }
-    callback();
-  };
-  document.addEventListener("lf-actions", update);
-  update();
-  return () => document.removeEventListener("lf-actions", update);
-};
-
+let updateRuntime;
+export const actionSequence = (widget, action) =>
+  updateRuntime.actionSequence(widget, action);
+export const updateSequence = (target = null) => updateRuntime.updateSequence(target);
+export const publishedAt = () => updateRuntime.publishedAt();
+export const saidAt = (el) => updateRuntime.saidAt(el);
 export const watchActions = (widget, action, callback) =>
-  watch(widget, () => callback(actionSequence(widget, action)));
-
+  updateRuntime.watchActions(widget, action, callback);
 export const watchUpdates = (target, callback) =>
-  watch(target instanceof Element ? target : document.body, () => {
-    const projection = stateProjection(runtime.currentVersion);
-    if (!reportUpdatesCommitted(projection, target)) return;
-    callback(updatesFromProjection(target, projection));
-  });
-
+  updateRuntime.watchUpdates(target, callback);
 export const watchHistory = (owner, callback) =>
-  watch(owner, () => callback(runtime.events.map((event) => structuredClone(event))));
+  updateRuntime.watchHistory(owner, callback);
+const claimUpdateSources = () => updateRuntime.claimUpdateSources();
+const setClaimUpdateSources = (...args) => updateRuntime.setClaimUpdateSources(...args);
 
 // Panel open/closed is remembered too: it survives live activation, document travel,
 // and reload, so reopening the panel by hand after every revision gets old fast.
@@ -8004,6 +7812,15 @@ conversationRuntime = createConversation({
   wireInput,
 });
 
+updateRuntime = createUpdates(runtime, {
+  closestAcross,
+  coordinateProjectionCommitted,
+  inChrome,
+  projectionCommitted,
+  stateProjection,
+  threadList: () => conversationRuntime.threadList,
+});
+
 anchorRuntime = createAnchors({
   DATUM,
   LANDMARK_CAP,
@@ -8252,7 +8069,7 @@ async function receiveState(state) {
   const priorEvents = runtime.events;
   const priorStatePhase = runtime.statePhase;
   const priorLastEventSeq = runtime.lastEventSeq;
-  const priorClaimUpdateSources = claimUpdateSources;
+  const priorClaimUpdateSources = claimUpdateSources();
   const priorClaimsHeld = claimsHeld;
   const priorAgentTurnClosed = agentTurnClosed;
   const priorClaimingSession = claimingSession;
@@ -8266,7 +8083,7 @@ async function receiveState(state) {
     }
     settleAcceptedDrafts();
     runtime.agent = state.agent || "Claude";
-    claimUpdateSources = state.claims || [];
+    setClaimUpdateSources(state.claims || []);
     claimsHeld = presented(state).held;
     agentTurnClosed = state.turn_closed || null;
     claimingSession = state.claim_session || null;
@@ -8357,7 +8174,7 @@ async function receiveState(state) {
     runtime.events = priorEvents;
     runtime.statePhase = priorStatePhase;
     runtime.lastEventSeq = priorLastEventSeq;
-    claimUpdateSources = priorClaimUpdateSources;
+    setClaimUpdateSources(priorClaimUpdateSources);
     claimsHeld = priorClaimsHeld;
     agentTurnClosed = priorAgentTurnClosed;
     claimingSession = priorClaimingSession;

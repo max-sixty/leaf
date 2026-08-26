@@ -1,0 +1,78 @@
+# Events and conversation
+
+Event kinds: comment (optional anchor {section, quote, and the neighbouring
+text as prefix/suffix where there is any, which is what tells two identical
+passages apart; a browser selection on projected data carries datum,
+the stable key local to section, instead of treating neighbouring values as
+identity), reply (parent=id),
+resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
+done (user sign-off; the banner offers it, and this door
+takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
+approval is the page's ask, and a page that asks nothing gets no terminal
+control at all), action (user; a widget reporting the
+user editing the document through it — widget=element id, action=verb, detail
+per widget, version the edit was made against), report (agent; a worker's
+provisional state change on a page widget — same widget/action/detail/version
+shape as an action, validated by the widget's x-report declaration at the
+`leaf report` door, and standing only until a version answers it), note
+(agent; per-version changelog, carrying `restated`: the element ids whose
+decisions the publishing version took back, and `reports`: the report event ids
+the version absorbed or overruled), error (the page's own runtime reporting a
+failure in front of the user — author=page, heard by the watcher like a report
+and never counted against the reader).
+
+undo (the reader taking a gesture back, `undoes` naming it — a resolve, an
+unresolve, or an action, per UNDOABLE_KINDS) is the log's one word for that, and
+it names the gesture and nothing else: every other field is the target's to
+state. It withdraws rather than deletes. Nothing is removed from the log; the
+folds and the thread reading simply drop the event, so the page is what the
+version says plus what still stands — the same sentence a reload has always
+read, and the same one `restated` already writes from the author's side. What
+the reader sees follows from that rather than from a second statement: where the
+log still leaves the unit a state that can be stated, the browser states it (a
+prior action's detail, or the placement the version's markup arrived showing) so
+the page moves rather than being rebuilt; where the verb records nothing, and so
+no state can be stated, the browser rebuilds that widget from the version's own
+markup and replays what survives onto it. The door refuses an `undoes` naming
+anything but an unwithdrawn gesture of the reader's own.
+
+The server stamps every other
+browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
+and `version publish` stamp the wire
+role author=claude plus the posting session's own voice: `agent`, its display name,
+and `session`, its host session id. Several agent sessions can write to one page,
+so the voice is read from the poster's environment rather than from the current
+watcher's claim record — and identity is the session id, because a display name
+is anyone's to choose and two workers may share one.
+A message body is Markdown, stored as typed and rendered by the page's own
+vendored runtime — the browser is where the page's other rendering already
+lives, and vendoring the renderer beside the panel's styles keeps the two
+versioning together. A fragment link in a body — `[the group](#d-channel)`,
+written by either author — points at an element of the page, and the browser's
+own navigation carries the reader there, opening whatever tab or settled group
+hides it. Two parts of that are the runtime's: handling an arrival aimed by such
+a link (a ⌘-click opens a tab the browser answers before any widget has
+upgraded), and marking a link this version can't follow, since a message
+outlives the version it was written on. Raw HTML in a body renders as its own
+characters, so text cannot inject markup. A widget in a message rides the
+event's `markup` field instead, whose one door is `leaf comment`/`leaf reply`,
+where it is validated against the vendored registry — the discussion-side analog
+of `version check`. The browser door refuses the field, so everything in the log
+under that name has been through the gate.
+
+Either side can open a thread and either side can close one, and `author` is the
+whole difference between them. The user selects a passage and the browser writes
+the anchor from the selection; `leaf comment` writes its file-confirmable form
+from a quote by reading authored HTML through `leaf_interact.passages`. The
+browser's anchor pass applies the matching rules to the DOM. Projected data has
+no file-side value to quote: its browser anchor
+adds the projection's section and datum key, and a CLI comment can still name the
+authored projection seat as an element. Everything downstream already turns on
+`author`: `leaf wait`
+prints user events and the banner counts them, so Claude's own comment neither
+wakes its own watcher nor reads as unanswered. Closing runs the other way round,
+because a note's purpose is discharged by being read, and only the reader knows
+that happened. So `leaf resolve` is the agent's door onto closing, and the
+reader is still the one who ordinarily closes a thread. A thread the reader did
+not close is the one settlement they cannot watch happen, so the panel and the
+transcript both name the agent that did it.

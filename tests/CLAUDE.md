@@ -7,9 +7,9 @@ green result could only have come from the behavior named by the test.
 
 This file owns those testing mechanics. The repository-level `CLAUDE.md` owns
 environment setup, suite inventory, and the normal run. The runtime's
-`CLAUDE.md` and `plugins/leaf/skills/leaf/references/operating-contract.md` own
-the product protocols. Keep their implementation rules there; state here only
-what a test must observe or control.
+`CLAUDE.md` and `plugins/leaf/skills/leaf/references/internals/` own the product
+protocols. Keep their implementation rules there; state here only what a test
+must observe or control.
 
 ## Run the narrowest useful surface
 

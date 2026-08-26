@@ -103,7 +103,16 @@ another.
   standing page, re-vendoring a served page, or resuming another session's page.
 - `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
-- `references/operating-contract.md`: when changing Leaf's own page, event,
-  service, or command protocols; not for ordinary page use.
+- `references/internals/page-storage.md`: when changing page files or storage
+  invariants.
+- `references/internals/session-lifetime.md`: when changing work claims,
+  watchers, hooks, or server lifetime.
+- `references/internals/layer-registry.md`: when changing composition or the
+  registry's custom vocabulary.
+- `references/internals/events.md`: when changing events, undo, authorship, or
+  conversation semantics.
+- `references/internals/validation.md`: when changing static or browser
+  validation, passages, or parsed source. These internal contracts are not for
+  ordinary page use.
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

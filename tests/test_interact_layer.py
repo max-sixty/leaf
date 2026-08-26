@@ -176,11 +176,12 @@ def test_the_skill_routes_every_reference_it_ships():
     """
     root = PLUGIN_ROOT / "skills" / "leaf"
     skill = (root / "SKILL.md").read_text()
-    references = sorted((root / "references").glob("*.md"))
+    references = sorted((root / "references").rglob("*.md"))
 
     assert references, "no references read — an empty set routes itself"
     for path in references:
-        assert f"references/{path.name}" in skill, path.name
+        relative = path.relative_to(root).as_posix()
+        assert relative in skill, relative
 
 
 def test_hidden_hook_remains_callable():

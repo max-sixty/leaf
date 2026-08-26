@@ -948,6 +948,17 @@ PAPER_WORDS = """() => {
 # too: it floats over the document on purpose, and where that costs the user a press
 # it is the hit test that says so.
 #
+# The same fact one element over: an SVG <text> lays out its own lines, a tspan each,
+# every one of them a sibling of the last. Where a chart's date axis names the month a
+# week begins — the tick reading 1 over Dec — the two lines are offset by the dy the
+# drawing asked for and each reports a line box carrying the font's own leading, which
+# is a couple of pixels taller than that step. So the pair overlapped by construction on
+# a drawing where no glyph comes near another. A wrapped paragraph is the identical
+# shape and never reported, because its lines are boxes of one text node and the
+# same-element skip takes them; two lines of one label are two nodes only because SVG
+# spells a line break as an element. The <text> is the label, so a pair inside one of
+# them is one word of the page's, and this asks about two.
+#
 # The layer is in two places and the float rule reaches both, which is why only one of
 # them is named. The line counting a passage's comments lives inside the page's own
 # elements by design — it is what a screen reader hears where a painted mark says
@@ -1008,14 +1019,19 @@ COVERED_WORDS = """() => {
         if (floating(el)) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
+        // The label these words are a line of, where an SVG <text> is what draws them.
+        // Read here rather than per pair: `closest` walks the tree, and the loop below
+        // asks about every pair of runs on the page.
+        const label = el.closest('text');
         for (const box of range.getClientRects())
             if (box.width > 1 && box.height > 1)
-                runs.push({ el, box, text: n.data.trim().slice(0, 40) });
+                runs.push({ el, label, box, text: n.data.trim().slice(0, 40) });
     }
     const found = [];
     for (let i = 0; i < runs.length; i++) for (let j = i + 1; j < runs.length; j++) {
         const a = runs[i], b = runs[j];
         if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        if (a.label && a.label === b.label) continue;
         const across = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
         const down = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
         if (across <= 2 || down <= 2) continue;

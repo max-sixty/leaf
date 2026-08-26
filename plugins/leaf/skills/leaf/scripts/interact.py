@@ -488,7 +488,6 @@ that cost.
 """
 
 import base64  # noqa: F401 - public facade re-export
-import contextlib
 import errno  # noqa: F401 - public facade re-export
 import functools
 import hashlib
@@ -513,7 +512,6 @@ from urllib.parse import (  # noqa: F401 - public facade re-export
 
 import click  # noqa: F401 - public facade re-export
 from jsonschema import Draft202012Validator  # noqa: F401 - public facade re-export
-from leaf_interact import rendering as _rendering
 from leaf_interact.cli import create_cli
 from leaf_interact.document import (
     COLLAPSE_CHARS,  # noqa: F401 - public facade re-export
@@ -579,7 +577,7 @@ from leaf_interact.files import (
 from leaf_interact.http import (
     Handler,  # noqa: F401 - public facade re-export
     full_state,  # noqa: F401 - public facade re-export
-    handler_for,
+    handler_for,  # noqa: F401 - public facade re-export
     other_leaves,  # noqa: F401 - public facade re-export
     presence,  # noqa: F401 - public facade re-export
 )
@@ -656,7 +654,7 @@ from leaf_interact.render_checks import (
     RENDER_VIEWPORT,  # noqa: F401 - public facade re-export
     REPLAY_OVERRIDES,  # noqa: F401 - public facade re-export
     RETIRED_SLOTS,  # noqa: F401 - public facade re-export
-    SERVED_TIMEOUT_MS,
+    SERVED_TIMEOUT_MS,  # noqa: F401 - public facade re-export
     SILENT_WORDS,  # noqa: F401 - public facade re-export
     TINY_BOXES,  # noqa: F401 - public facade re-export
     TRAPPED_MARGINS,  # noqa: F401 - public facade re-export
@@ -671,9 +669,17 @@ from leaf_interact.rendering import (
     RESIZE_OBSERVER_ERROR,  # noqa: F401 - public facade re-export
     UPGRADED,  # noqa: F401 - public facade re-export
     WINDOW_ERRORS,  # noqa: F401 - public facade re-export
+    _render_version_attempt,  # noqa: F401 - public facade re-export
+    cmd_export,  # noqa: F401 - public facade re-export
+    export_page,  # noqa: F401 - public facade re-export
+    inline_assets,  # noqa: F401 - public facade re-export
+    preview_server,  # noqa: F401 - public facade re-export
     previous_version,  # noqa: F401 - public facade re-export
     recurring_resize_observer_error,  # noqa: F401 - public facade re-export
+    render_check,
+    render_version,  # noqa: F401 - public facade re-export
     resize_observer_error,  # noqa: F401 - public facade re-export
+    served,  # noqa: F401 - public facade re-export
 )
 from leaf_interact.schema import (
     _DIR_FILES,  # noqa: F401 - public facade re-export
@@ -1450,57 +1456,6 @@ def cmd_check(
     # Render only what passed the static half: an unparsable page would drown
     # the browser's report in consequences of what the lint already named.
     return render_check(page_dir, selected, transition_held=True) if render else 0
-
-
-# ---------- browser render and export facade ----------
-
-
-def served(page, url: str, path: str):
-    return _rendering.served(page, url, path, timeout_ms=SERVED_TIMEOUT_MS)
-
-
-def _render_version_attempt(browser, url: str) -> tuple[list, list, bool]:
-    return _rendering._render_version_attempt(
-        browser, url, served_timeout_ms=SERVED_TIMEOUT_MS
-    )
-
-
-def render_version(browser, url: str) -> list:
-    return _rendering.render_version(browser, url, served_timeout_ms=SERVED_TIMEOUT_MS)
-
-
-@contextlib.contextmanager
-def preview_server(page_dir: Path, version: int, transition_held: bool = False):
-    with _rendering.preview_server(
-        page_dir,
-        version,
-        handler_factory=handler_for,
-        server_type=LeafHTTPServer,
-        transition_held=transition_held,
-    ) as url:
-        yield url
-
-
-def render_check(page_dir: Path, version: int, transition_held: bool = False) -> int:
-    return _rendering.render_check(
-        page_dir,
-        version,
-        preview=preview_server,
-        render=render_version,
-        transition_held=transition_held,
-    )
-
-
-def inline_assets(html: str, page_dir: Path) -> str:
-    return _rendering.inline_assets(html, page_dir)
-
-
-def export_page(browser, url: str, page_dir: Path) -> str:
-    return _rendering.export_page(browser, url, page_dir)
-
-
-def cmd_export(page_dir: Path, out: Path, version) -> int:
-    return _rendering.cmd_export(page_dir, out, version, preview=preview_server)
 
 
 at = _validation_at

@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from conftest import interact
+from leaf_interact import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     ASKS_IN_ORDER,
@@ -1104,7 +1105,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     states one: the number is not the subject, the bound is.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(interact, "SERVED_TIMEOUT_MS", 1500)
+    monkeypatch.setattr(rendering_model, "SERVED_TIMEOUT_MS", 1500)
     d = tmp_path / "page"
     assert CliRunner().invoke(interact.cli, ["page", "init", str(d)]).exit_code == 0
     for n in (1, 2):

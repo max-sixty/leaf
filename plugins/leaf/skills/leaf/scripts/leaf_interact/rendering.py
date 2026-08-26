@@ -13,6 +13,8 @@ from urllib.parse import urljoin, urlsplit
 from leaf_interact.document import EMPTY, parse_structure, spoken
 from leaf_interact.events import flocked, read_events
 from leaf_interact.files import published_versions, version_name, version_num
+from leaf_interact.hosting import LeafHTTPServer
+from leaf_interact.http import handler_for
 from leaf_interact.projection import decisions, page_projection, retirement_holders
 from leaf_interact.registry import retirement_slots
 from leaf_interact.render_checks import (
@@ -43,7 +45,7 @@ from leaf_interact.validation import thread_universe
 # ---------- check --render: the browser half of the gate ----------
 
 
-def served(page, url: str, path: str, timeout_ms: int = SERVED_TIMEOUT_MS):
+def served(page, url: str, path: str, timeout_ms: int | None = None):
     """A document this page's own server holds, read from out here.
 
     The one reader in the render gate that can be given a deadline. `page.evaluate`
@@ -53,6 +55,7 @@ def served(page, url: str, path: str, timeout_ms: int = SERVED_TIMEOUT_MS):
     from Python. `page.request` takes one, and shares the browser context's cookie
     jar, so it reads as the same authorized client the page is: the handover key
     rides in the URL and becomes a cookie on the first navigation."""
+    timeout_ms = SERVED_TIMEOUT_MS if timeout_ms is None else timeout_ms
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
 
@@ -127,7 +130,7 @@ MOVING = (
 
 
 def _render_version_attempt(
-    browser, url: str, served_timeout_ms: int = SERVED_TIMEOUT_MS
+    browser, url: str, served_timeout_ms: int | None = None
 ) -> tuple[list, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
     console or page error, a request that 404s, a fail-soft error box, an upgrade
@@ -159,6 +162,10 @@ def _render_version_attempt(
     reading completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    served_timeout_ms = (
+        SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
+    )
 
     def in_scheme(scheme):
         page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
@@ -582,9 +589,7 @@ def _render_version_attempt(
     )
 
 
-def render_version(
-    browser, url: str, served_timeout_ms: int = SERVED_TIMEOUT_MS
-) -> list:
+def render_version(browser, url: str, served_timeout_ms: int | None = None) -> list:
     """Read a version, confirming a complete attempt that reports a ResizeObserver
     loop notice.
 
@@ -594,6 +599,9 @@ def render_version(
     clean. Ordinary failures from both attempts are retained, and an incomplete
     confirmation cannot pardon the notice that prompted it.
     """
+    served_timeout_ms = (
+        SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
+    )
     failures = []
 
     def retain(found):
@@ -627,8 +635,8 @@ def preview_server(
     page_dir: Path,
     version: int,
     *,
-    handler_factory,
-    server_type,
+    handler_factory=None,
+    server_type=None,
     transition_held: bool = False,
 ):
     """The page directory on a loopback port, exposing versions up to this one, for
@@ -641,6 +649,8 @@ def preview_server(
     # page here is read with. It sets that key under the one cookie name, which
     # would sign a reader out of every page on 127.0.0.1 — except that both
     # callers below drive Playwright, whose browser brings its own jar.
+    handler_factory = handler_for if handler_factory is None else handler_factory
+    server_type = LeafHTTPServer if server_type is None else server_type
     transition = (
         contextlib.nullcontext()
         if transition_held
@@ -662,8 +672,8 @@ def render_check(
     page_dir: Path,
     version: int,
     *,
-    preview,
-    render,
+    preview=None,
+    render=None,
     transition_held: bool = False,
 ) -> int:
     """Serve the page directory to the machine's installed Chrome and run the
@@ -674,6 +684,8 @@ def render_check(
     `version publish`, so the import happens here and its absence names the
     invocation that supplies it. Chrome is part of this gate: if it cannot
     launch, the gate fails."""
+    preview = preview_server if preview is None else preview
+    render = render_version if render is None else render
     try:
         from playwright.sync_api import Error as PlaywrightError
         from playwright.sync_api import sync_playwright
@@ -797,7 +809,7 @@ def export_page(browser, url: str, page_dir: Path) -> str:
         page.close()
 
 
-def cmd_export(page_dir: Path, out: Path, version, *, preview) -> int:
+def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     """One published version as a standalone HTML file.
 
     The copy is the page as the browser finished drawing it, which is the only way to
@@ -806,6 +818,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview) -> int:
     by the vendored tokenizer in the page rather than by anything that can read the
     file. So Chrome is not an optimisation here and no `x-` key exempts a widget from
     it; without a browser there is nothing to copy at all."""
+    preview = preview_server if preview is None else preview
     try:
         from playwright.sync_api import Error as PlaywrightError
         from playwright.sync_api import sync_playwright

@@ -544,7 +544,7 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
-    "x-visual": true,
+    "x-visual": "whole",
     "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
   },
   "lf-shot": {

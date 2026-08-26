@@ -286,6 +286,10 @@ export function createSelectionSurface({
   // own pictures, and every widget that declares it renders as one.
   const visualSel = () =>
     [...tagsDeclaring((e) => e["x-visual"]), "svg", "img", "figure"].join(",");
+  // The outermost match is the seat: a rendered diagram's inner svg carries an id
+  // its renderer coined, and an anchor on that names nothing a version holds. The
+  // id-bearing element around it is what answers, so a picture under no authored id
+  // takes no anchor rather than one the next load would number differently.
   const visualAt = (target) => {
     const selector = visualSel();
     let element = target.closest?.(selector);

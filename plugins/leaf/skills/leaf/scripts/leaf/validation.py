@@ -184,6 +184,11 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     visual = anchor.get("visual")
     if not visual:
         return None
+    if anchor.get("quote") or anchor.get("datum"):
+        return (
+            f"visual anchor {visual!r} names a box rather than a passage, "
+            "so it cannot also carry a quote or a datum"
+        )
     section = anchor["section"]
     available = visual_parts(page_by_id.get(section) or {}, registry)
     if visual not in available:

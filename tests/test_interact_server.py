@@ -72,6 +72,16 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
+    for conflicting in ({"quote": "A"}, {"datum": "row-1"}):
+        mixed = {
+            **valid,
+            "text": "conflicting target",
+            "anchor": {**valid["anchor"], **conflicting},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(mixed).encode())
+        assert status == 400
+        assert b"names a box rather than a passage" in body
+
     invalid = {
         **valid,
         "text": "unknown target",

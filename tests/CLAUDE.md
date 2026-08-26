@@ -96,6 +96,18 @@ corpus. Assert a gate's reach the way its population is asserted:
 one displacement under three parents differing only in how they clip, with a
 control case that has to report nothing.
 
+`RING_FAULTS` has gone blind once more since, in what it reads rather than in
+what it walks, and silently. Its excuse for a control standing behind something
+has to step past the ring's own band to ask the question, which is `grow + w`;
+written as one pixel it cleared an outward ring and landed inside an inset one,
+so every covered inset ring answered that the control was behind the same thing —
+and the panel's list draws nothing but inset rings. A reach case for the cover
+half already stood, and it could not have caught this: it plants over a ring
+drawn outside its control, where any step in clears the band.
+`test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box`
+is the same plant over the other shape. A reach case answers for the shapes it
+is written over, and a ring has two.
+
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
@@ -264,6 +276,19 @@ A reliable wait consumes a fact stated by the system. It does not infer completi
 from elapsed time, two matching samples, or a quiet network. A page that has not
 started an effect is indistinguishable from one that finished if the only evidence is
 stillness.
+
+A computed style is one of those facts and it is not always a resting one. What the
+platform reports for a property under a running transition is the animated value,
+which early in one is the value the property is leaving — so a reading taken of a
+control the gesture just changed can be a true answer about the wrong moment, and
+steady enough while it lasts that two matching samples both land inside it. Ask
+`getAnimations()` where a reading's subject may be in transit. What made this worth
+saying was a page where every subject was: under `reduced_motion="reduce"` the
+theme's guard shortened transitions rather than removing them, and
+`transition-property` is `all`, so every property that changed on any element was a
+property in transit for two frames. That is fixed in the theme, which is why no
+reading here carries such a wait — a wait in front of a reading whose subject never
+moves is a mechanism that cannot fail and cannot help.
 
 ### A state the page passes through is not a state to poll for
 

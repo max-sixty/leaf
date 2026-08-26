@@ -3310,6 +3310,142 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     page.close()
 
 
+def test_a_reader_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
+    browser, serve
+):
+    """A duration is a way of keeping an animation and no way at all of keeping a
+    transition. An animation is declared and named, and the layer reads `animationend`
+    to know one has run, so the guard's near-zero duration keeps that event and spends
+    no time on it. A transition is declared by nobody — `transition-property` is `all`
+    until something says otherwise — so the same duration over every element made a
+    transition out of every property that changed on any of them.
+
+    None of which anybody wrote or listened for, and none of which was free: a ring is
+    `outline-width`, `outline-offset` and `outline-color` all changing at once, so a
+    reader who asked for no motion got a medium currentColor ring at offset nought
+    animating into the real one, on every focus, on every page. It is also what a
+    computed-style reading of a ring taken in those frames was told, which is how
+    `RING_FAULTS` came to invent one.
+
+    So this asks the reader's own question — is anything moving — of the control they
+    just landed on, in the one setting where the answer has to be no."""
+    url = serve(LONG_PAGE, comments=3)
+    context = browser.new_context(reduced_motion="reduce")
+    try:
+        page, errors = open_page(browser, url, context=context)
+        assert page.evaluate(
+            "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
+        ), "the context did not ask for reduced motion, so the guard under test is off"
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        page.locator(".lf-threads > .lf-thread").first.focus()
+
+        seen = page.evaluate(
+            """() => {
+          const el = document.activeElement;
+          const cs = getComputedStyle(el);
+          return {
+            moving: el.getAnimations().map(
+              (a) => a.transitionProperty || a.animationName || 'animation'),
+            ring: [cs.outlineWidth, cs.outlineStyle, cs.outlineOffset],
+            want: cs.getPropertyValue('--here-ring').trim(),
+          };
+        }"""
+        )
+        assert seen["moving"] == [], (
+            f"the ring is still arriving under reduced motion: {seen['moving']} are "
+            "running, so what the reader sees and what any reading of this control gets "
+            "is a value on its way rather than the one the rule states"
+        )
+        # Non-vacuity: a control with no ring has nothing that could have transitioned.
+        assert seen["ring"][:2] == [seen["want"].split()[0], "solid"], (
+            f"the thread reads {seen['ring']} where its ring is {seen['want']}, so "
+            "nothing here was ever going to move"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box(
+    browser, serve
+):
+    """The same half asked of the other shape of ring, and the shape it was quiet about.
+    A cover is excused where the control is under the same thing — a control put under a
+    fixed bar is where it was put, not a ring leaving its box — and how far in the
+    reading looks to ask that is the ring's own band.
+
+    Which is inside the box when the ring is. The test above plants over a ring drawn
+    outside its control, where the band is outside too and any step in clears it; asked
+    one pixel in, as it was, the same question over an inset ring lands on the ring
+    rather than past it, so every covered inset ring answered that the control was under
+    the same thing and the reading returned what it returns when nothing is wrong. The
+    panel's own threads are inset rings to the last one, so this was the half of the
+    reading that watches them.
+
+    So: a thread, which draws its ring inside itself, under a band exactly as deep as
+    that ring. The control case first, because a reading that reports over any thread
+    would pass the planted one without seeing it.
+    """
+    url = serve(LONG_PAGE, comments=6)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator(".lf-threads > .lf-thread").first.focus()
+    page.evaluate(RENDERED)
+
+    inset = page.evaluate(
+        """() => {
+      const s = getComputedStyle(document.activeElement.closest('.lf-thread'));
+      return [parseFloat(s.outlineWidth), parseFloat(s.outlineOffset)];
+    }"""
+    )
+    assert inset[1] <= -inset[0], (
+        f"the thread's ring is {inset[0]}px at offset {inset[1]}px, which is not drawn "
+        "inside its box, so this holds nothing about a reading of one that is"
+    )
+
+    # A band of the panel's own paper over the card's top run, and nothing else of it.
+    # Fixed and outside the card, because the reading passes over an ancestor or a
+    # descendant of the control by design — a widget painting its own edge is not a
+    # neighbour.
+    plant = """(depth) => {
+      document.querySelector('.lf-ring-plant')?.remove();
+      if (!depth) return null;
+      const card = document.activeElement.closest('.lf-thread');
+      const r = card.getBoundingClientRect();
+      const over = document.documentElement.appendChild(
+        document.createElement('div'));
+      over.className = 'lf-ring-plant';
+      Object.assign(over.style, {
+        position: 'fixed', zIndex: '9999',
+        background: getComputedStyle(card).backgroundColor === 'rgba(0, 0, 0, 0)'
+          ? '#fff' : getComputedStyle(document.body).backgroundColor || '#fff',
+        left: `${r.left}px`, top: `${r.top}px`,
+        width: `${r.width}px`, height: `${depth}px`,
+      });
+      return over.getBoundingClientRect().height;
+    }"""
+
+    page.evaluate(plant, 0)
+    assert page.evaluate(RING_FAULTS)["covers"] == [], (
+        "the thread is reported covered with nothing over it, so the planted case below "
+        "would only be repeating whatever this reading always says"
+    )
+
+    laid = page.evaluate(plant, inset[0])
+    covers = page.evaluate(RING_FAULTS)["covers"]
+    assert any("top edge" in c for c in covers), (
+        f"a {laid}px band over the whole of the card's {inset[0]}px inset ring, with the "
+        f"rest of the card in full view, and the reading said {covers}"
+    )
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
 def test_every_control_a_shipped_page_can_tab_to_shows_its_whole_ring(
     browser, serve, example

@@ -1839,6 +1839,318 @@ def test_no_focus_ring_the_keyboard_lands_on_is_cut_or_covered(browser, serve):
         context.close()
 
 
+# What the burial below is aiming at: how deep the heading stands over the first card,
+# the ring that depth has to match, and the box the press is aimed into. `COVERED_TOP`
+# answers the covered question afterwards, by hit test and about the focused card.
+UNDER_HEADING = """() => {
+  const list = document.querySelector('.lf-threads');
+  const card = list.querySelector('.lf-thread');
+  const head = list.querySelector('.lf-pinned');
+  return {
+    covered: head.getBoundingClientRect().bottom - card.getBoundingClientRect().top,
+    ring: parseFloat(getComputedStyle(card).getPropertyValue('--here-ring-w')),
+    box: card.getBoundingClientRect().toJSON(),
+  };
+}"""
+
+# Scroll by hand until the heading stands over the card by `want`. A pixel at a time,
+# because the heading moves under the gesture: it travels with the flow until it pins,
+# and only what it gains after that lands on the card. Bounded, so a list that never
+# covers its first card fails the precondition rather than spinning.
+BURY = """(want) => {
+  const list = document.querySelector('.lf-threads');
+  const card = list.querySelector('.lf-thread');
+  const head = list.querySelector('.lf-pinned');
+  const covered = () =>
+    head.getBoundingClientRect().bottom - card.getBoundingClientRect().top;
+  for (let i = 0; i < 400 && covered() < want; i++) list.scrollTop += 1;
+}"""
+
+
+def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
+    browser, serve
+):
+    """The walk above never sees this, and that is the point of having it twice: j/k
+    scroll their landing into the band the list declares unlandable, so the keyboard
+    cannot put a thread anywhere its ring is cut. A click scrolls nothing. The reader
+    nudges the list a dozen pixels, the run heading pins over the first card of its run,
+    and the two pixels it takes are the whole of that card's inset ring — a card with
+    three sides, reported twice by the reader and never by the suite.
+
+    So the gesture here is a real press rather than a locator click, which would scroll
+    the card into view for its own actionability check and quietly perform the fix it is
+    meant to test. What is asserted is the same question the walk asks — where the
+    control can be seen, so can the ring that names it — and, beside it, that the card
+    actually came out, since a ring reported whole while the card is still buried would
+    mean the reading rather than the landing had moved."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+
+        # Bury the card by exactly its ring, which is the reader's own case: a list nudged
+        # a dozen pixels puts the first card of a run a couple of pixels under the
+        # heading, and a couple of pixels is the whole of an inset ring. The depth is the
+        # ring's width rather than a comfortable number on purpose. Deeper, and the card
+        # itself is under the heading, which `RING_FAULTS` excuses by design — a control
+        # standing under something is a fact about where it was put. What is left when the
+        # card is otherwise in full view is the claim this file makes: where the control
+        # can be seen, so can the ring that names it.
+        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["ring"])
+        page.evaluate(RENDERED)
+        buried = page.evaluate(UNDER_HEADING)
+        assert buried["ring"] <= buried["covered"] <= buried["ring"] + 1, (
+            f"the heading stands over {buried['covered']}px of the first card and its "
+            f"ring is {buried['ring']}px: the setup wanted the ring buried and the rest "
+            "of the card showing, and this is neither"
+        )
+
+        # Just inside the card's own corner. Its middle is prose today and one layout
+        # away from being the reply box or a button, and a press that lands on a control
+        # inside the card would fail this for a reason that is not its subject.
+        box = buried["box"]
+        page.mouse.click(box["x"] + 6, box["y"] + 6)
+        page.evaluate(RENDERED)
+        assert page.evaluate(
+            "() => document.activeElement?.classList.contains('lf-thread')"
+        ), "the press did not land the reader on a thread, so nothing wore a ring"
+        assert page.evaluate(RING_FAULTS)["ring"], (
+            "the thread it landed on draws no ring"
+        )
+        assert not ring_fault(page, "after a press on a card under the run heading")
+        # The panel's own reading of the same question, and the stronger form of it: a
+        # hit test at the card's top edge rather than two rectangles subtracted, and it
+        # declines outright if the press left the list.
+        assert page.evaluate(COVERED_TOP) is None, (
+            f"after the press the card is still under a heading: "
+            f"{page.evaluate(COVERED_TOP)}"
+        )
+
+        # The reply box is the same card and the same ring — it is drawn for the whole
+        # thread, so writing in the box is standing in the thread. Reached by key this
+        # was never wrong, because landIn already lands the thread around the box; a
+        # press into it went the way every other press did.
+        page.evaluate(BURY, buried["ring"])
+        page.evaluate(RENDERED)
+        under = page.evaluate(UNDER_HEADING)
+        assert under["covered"] >= under["ring"], (
+            f"the setup put the card back only {under['covered']}px under, which its "
+            f"{under['ring']}px ring shows through"
+        )
+        reply = page.locator(".lf-threads > .lf-thread textarea").first
+        reply_box = reply.bounding_box()
+        page.mouse.click(
+            reply_box["x"] + reply_box["width"] / 2,
+            reply_box["y"] + reply_box["height"] / 2,
+        )
+        page.evaluate(RENDERED)
+        expect(reply).to_be_focused()
+        assert page.evaluate(COVERED_TOP) is None, (
+            "a press into the reply box left the thread's own ring under the heading: "
+            f"{page.evaluate(COVERED_TOP)}"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser, serve):
+    """The same gesture as the test above, from the state the reader is actually in when
+    they make it: standing in a comment, the list carried a little, the card's top run
+    gone under the heading. They press the card to bring it back — and a press on the
+    thread that already holds the focus moves no focus at all, so a landing hung off the
+    focus event hears nothing and the reader presses at a card that will not come.
+
+    Which is why the press asks where the gesture left the reader rather than which
+    thread the focus moved to. The keyboard half of this was already answered — `k` at
+    the top of the walk lands the thread it is already on — and this is the same shape
+    one scope out."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+
+        # Stand in the card first, then carry the list under it — which is the order the
+        # reader does it in, and the one where no later focus event is coming.
+        first = page.locator(".lf-threads > .lf-thread").first
+        first.focus()
+        page.evaluate(RENDERED)
+        page.evaluate(BURY, page.evaluate(UNDER_HEADING)["ring"])
+        page.evaluate(RENDERED)
+        under = page.evaluate(UNDER_HEADING)
+        assert under["covered"] >= under["ring"], (
+            f"the list carried only {under['covered']}px under the heading, which the "
+            f"{under['ring']}px ring shows through — nothing here is cut yet"
+        )
+        assert page.evaluate(
+            "() => document.activeElement?.classList.contains('lf-thread')"
+        ), "the reader is not standing in the card, so the press below moves focus"
+
+        box = under["box"]
+        page.mouse.click(box["x"] + 6, box["y"] + 6)
+        page.evaluate(RENDERED)
+        assert page.evaluate(COVERED_TOP) is None, (
+            "a press on the card the reader was already standing in left it under the "
+            f"heading: {page.evaluate(COVERED_TOP)}"
+        )
+        assert not ring_fault(page, "after a press on the card already standing in")
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serve):
+    """The panel's quote is words and a press at once — it says which passage the comment
+    is about, and pressing it travels the page there. So a reader who drags across it to
+    take the words gets the travel as well, and the page they were reading goes.
+
+    `offer` has answered this for its own controls since a suggestion's Accept went dead
+    under a selection that ran over it, and the answer is the same one: the selection's
+    focus end is the character the button came up on, so a press that ended in these
+    words was reaching for them. What is new is that the reading is now the reading and
+    not that listener's own business, because the same gesture reaches two more things —
+    a quote, which `offer` never made, and the list's own landing."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
+        page.evaluate(RENDERED)
+
+        where = "() => document.body.scrollTop"
+        before = page.evaluate(where)
+        quote = page.locator(".lf-threads > .lf-thread .lf-quote").first
+        span = quote.bounding_box()
+        page.mouse.move(span["x"] + 4, span["y"] + 6)
+        page.mouse.down()
+        page.mouse.move(span["x"] + span["width"] - 6, span["y"] + 6, steps=8)
+        page.mouse.up()
+        page.evaluate(RENDERED)
+        page.wait_for_timeout(400)  # the travel is a glide, so let one finish if it ran
+
+        drawn = page.evaluate("() => getSelection().toString()")
+        assert len(drawn) > 8, (
+            f"the drag took {drawn!r} of the quote, so this asserts nothing about one"
+        )
+        after = page.evaluate(where)
+        assert after == before, (
+            f"the page travelled from {before} to {after} while the reader was taking "
+            "the quote's words, so what they were reading went with it"
+        )
+
+        # The press itself still travels: what stood down is the drag, not the control.
+        # The words go first, because a press inside a standing selection is where the
+        # platform holds it for a drag of its own — the reader's next press is a press,
+        # not the tail of the one before it.
+        page.evaluate("() => getSelection().removeAllRanges()")
+        quote.click()
+        page.evaluate(RENDERED)
+        page.wait_for_timeout(400)
+        assert page.evaluate(where) != before, (
+            "a plain press on the quote no longer travels to its passage, so this took "
+            "the control away rather than the drag"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
+    browser, serve
+):
+    """The other half of landing a press, and the reason it waits for the press to end.
+    Focus arrives on the way down, so a landing taken there scrolls the words out from
+    under a pointer that is still selecting them — and the selection runs on to wherever
+    they went, which measured about three times what the reader had drawn.
+
+    So the gesture is a real drag across a card near the top of the list, where any
+    landing at all would move it, and the two things asserted are what the reader has
+    afterwards: the list where they were reading, and the words they actually dragged
+    over. `offer` asks the same question of a click and reads the answer the same way —
+    the selection's focus end is the character the button came up on."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+
+        # Far enough under the heading that a landing would be a visible jump, so the
+        # drag below is asserting the absence of something this list would otherwise do.
+        page.evaluate(BURY, 20)
+        page.evaluate(RENDERED)
+        before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+        # The message's own words, not the quote above them: a quote is a control that
+        # jumps to the passage, so a drag ending on one has a second reason to scroll and
+        # this would not be able to say which had moved the list.
+        words = page.locator(".lf-threads > .lf-thread .lf-msg-body").first
+        span = words.bounding_box()
+        page.mouse.move(span["x"] + 4, span["y"] + span["height"] / 2)
+        page.mouse.down()
+        page.mouse.move(
+            span["x"] + span["width"] - 4, span["y"] + span["height"] / 2, steps=8
+        )
+        page.mouse.up()
+        page.evaluate(RENDERED)
+
+        after = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+        assert after == before, (
+            f"the list moved from {before} to {after} under a drag, so the words the "
+            "reader was selecting went with it"
+        )
+        drawn = page.evaluate("() => getSelection().toString()")
+        assert len(drawn) > 4, (
+            f"the drag selected {drawn!r}, so this asserts nothing about a selection"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
 def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
     browser, serve
 ):

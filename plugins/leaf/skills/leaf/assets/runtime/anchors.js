@@ -624,7 +624,6 @@ export function createAnchors(dependencies) {
           id && threadsBox.querySelector(`:scope > .lf-thread[data-id="${id}"]`);
         if (!thread) return;
         thread.focus({ preventScroll: true });
-        thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
         scrollToThread(id);
       };
       const n = threadIds.length;

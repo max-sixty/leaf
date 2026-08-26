@@ -1941,6 +1941,12 @@ vendored registry, while the browser event schema refuses it. A widget in that
 markup is instantiated once in the panel; inline conversation seats show a
 textual projection rather than copying interactive ids.
 
+An agent message edit is a later event folded onto the original message id. The
+panel and an inline conversation update the existing message node and show
+`edited`; the text wrapper alone is replaced. The message's cached markup nodes
+stay connected because their widget state and authored baseline belong to the
+original event, not to the prose revision.
+
 Fragment links in messages use the browser's `hidden="until-found"` behavior to
 reveal authored disclosures and tabs. `paintAnchors` marks a link detached when
 this version no longer has the id and refuses its press. A thread outlives its

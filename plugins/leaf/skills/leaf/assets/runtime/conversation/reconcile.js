@@ -78,23 +78,29 @@ export function createConversation(dependencies) {
     runtime,
     takenBack,
   });
-  const { anchorLabel, loadMarked, msgNode, renderMessageMarkdown } =
-    createConversationMessages({
-      MARKED_ANYWHERE,
-      ago,
-      captureAuthoredFacets,
-      designName,
-      el,
-      elementById,
-      highlightBlocks,
-      itemSays,
-      itemWord,
-      markDeclared,
-      rememberAuthoredMarkup,
-      renderQuiet,
-      renderSaid,
-      reportPageError,
-    });
+  const {
+    anchorLabel,
+    loadMarked,
+    msgNode,
+    renderMessageMarkdown,
+    syncEdited,
+    syncMsgNode,
+  } = createConversationMessages({
+    MARKED_ANYWHERE,
+    ago,
+    captureAuthoredFacets,
+    designName,
+    el,
+    elementById,
+    highlightBlocks,
+    itemSays,
+    itemWord,
+    markDeclared,
+    rememberAuthoredMarkup,
+    renderQuiet,
+    renderSaid,
+    reportPageError,
+  });
 
   // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
   // children rather than a record kept beside them: a thread the log settles is renamed out
@@ -325,6 +331,14 @@ export function createConversation(dependencies) {
       const time = node.querySelector("time");
       const when = ago(message.ts);
       if (time.textContent !== when) time.textContent = when;
+      syncEdited(node.querySelector(":scope > .lf-conversation-head"), message);
+      const body = node.querySelector(":scope > .lf-conversation-body");
+      const revision = message.edited?.id ?? "";
+      if (node.lfRevision !== revision) {
+        if (message.suggestion) body.textContent = message.text;
+        else body.innerHTML = renderMessageMarkdown(message.text);
+        node.lfRevision = revision;
+      }
       return node;
     }
     node = offer("div", `lf-conversation-msg ${message.author}`);
@@ -334,9 +348,11 @@ export function createConversation(dependencies) {
       el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
       el("time", "", ago(message.ts)),
     );
+    syncEdited(head, message);
     const body = el("div", "lf-conversation-body");
     if (message.suggestion) body.textContent = message.text;
     else body.innerHTML = renderMessageMarkdown(message.text);
+    node.lfRevision = message.edited?.id ?? "";
     node.append(head, body);
     if (message.markup) {
       const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
@@ -461,10 +477,7 @@ export function createConversation(dependencies) {
           if (grow) msg.classList.add("grow");
           existing.insertBefore(msg, tail);
         }
-        // The head's clock, not any <time> a reply's own markup might carry.
-        const time = msg.querySelector(":scope > .lf-msg-head time");
-        const when = ago(m.ts);
-        if (time.textContent !== when) time.textContent = when;
+        syncMsgNode(msg, m);
       }
       return existing;
     }

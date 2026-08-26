@@ -5,6 +5,7 @@ text as prefix/suffix where there is any, which is what tells two identical
 passages apart; a browser selection on projected data carries datum,
 the stable key local to section, instead of treating neighbouring values as
 identity), reply (parent=id),
+edit (agent; message=id, replacing only that message's visible text),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -37,13 +38,22 @@ markup and replays what survives onto it. The door refuses an `undoes` naming
 anything but an unwithdrawn gesture of the reader's own.
 
 The server stamps every other
-browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf report`,
-and `version publish` stamp the wire
+browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf edit`,
+`leaf report`, and `version publish` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
 and `session`, its host session id. Several agent sessions can write to one page,
 so the voice is read from the poster's environment rather than from the current
 watcher's claim record — and identity is the session id, because a display name
 is anyone's to choose and two workers may share one.
+
+`leaf edit` may revise only a comment or reply whose recorded session matches the
+posting session. It appends rather than rewriting: the original message and every
+revision remain visible in `leaf events`, while the panel, `page state`, wait
+digests, and the transcript fold the latest text onto the original message and
+label it edited. The original id, timestamp, author, thread position, anchor, and
+markup remain its own. Markup is deliberately not editable because a reader action
+may already rest on a widget frozen into it.
+
 A message body is Markdown, stored as typed and rendered by the page's own
 vendored runtime — the browser is where the page's other rendering already
 lives, and vendoring the renderer beside the panel's styles keeps the two

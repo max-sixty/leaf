@@ -1702,6 +1702,83 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     page.close()
 
 
+def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
+    browser, serve
+):
+    """The edit is one log arrival and both views fold it onto the original message.
+
+    Neither view gains a second message. Their standing message nodes survive the
+    arrival, so an edit cannot disturb a reader working elsewhere in the same thread;
+    only the prose inside changes, and both heads disclose that it changed.
+    """
+    url = serve(CONVERSATION_DIFF_PAGE)
+    d = serve.page_dir
+    message = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "edited-agent-message",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "version": 1,
+            "text": "The north bracket fit.",
+            "anchor": {"section": "cd-q"},
+            "markup": (
+                '<lf-options id="edited-message-choice" choose>'
+                '<lf-option id="edited-message-now">Fit it now</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+    expect(inline.locator(".lf-conversation-body")).to_have_text(
+        "The north bracket fit."
+    )
+    page.locator(".lf-comments").click()
+    panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
+    expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
+    page.evaluate(
+        """([message]) => {
+          window.__editedInline = document.querySelector(
+            `#cd-q .lf-conversation-msg[data-event="${message}"]`);
+          window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
+          window.__editedWidget = document.querySelector('#edited-message-choice');
+        }""",
+        [message["id"]],
+    )
+
+    revision = events_model.append_event(
+        d,
+        {
+            "kind": "edit",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "message": message["id"],
+            "text": "The north bracket fits.",
+        },
+    )
+    told(page)
+
+    expect(inline.locator(".lf-conversation-body")).to_have_text(
+        "The north bracket fits."
+    )
+    expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fits.")
+    expect(inline.locator(".lf-edited")).to_have_text("edited")
+    expect(panel.locator(".lf-edited")).to_have_text("edited")
+    expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
+    assert page.evaluate(
+        "() => window.__editedInline.isConnected && window.__editedPanel.isConnected"
+        " && window.__editedWidget.isConnected"
+    ), "the edit replaced a standing message or its frozen widget"
+    assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
     """A question the agent asked is not one of the runtime's own buttons.
 

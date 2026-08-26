@@ -187,6 +187,13 @@ predicate. `x-content: prose` alone is not permission: that prose may itself be
 a holder gesture or may stand in a hidden panel. Core must refuse an undeclared
 target rather than branch on a tag name or infer a safe insertion point.
 
+An agent revises one of its messages with an append-only `edit` event naming the
+original comment or reply. The raw log therefore retains the original and every
+revision; conversation folds replace only that message's text and mark it edited.
+The message keeps its id, author, place, timestamp, anchor, and frozen markup, so
+the revision neither takes another turn nor rebuilds a widget a reader may already
+have acted on. Only the agent session recorded on the message may revise it.
+
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
 log markup and take the whole conversation window. That markup is a second

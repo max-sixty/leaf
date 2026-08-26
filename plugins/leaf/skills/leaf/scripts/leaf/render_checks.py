@@ -1279,7 +1279,7 @@ RETIRED_SLOTS = (
     """async (holders) => {"""
     + OPEN_ROOTS
     + """
-    const leaf = await import('/leaf.js');
+    const leaf = await import('/runtime/widget-api.js');
     const all = roots(document);
     const find = (id) => {
         for (const r of all) {

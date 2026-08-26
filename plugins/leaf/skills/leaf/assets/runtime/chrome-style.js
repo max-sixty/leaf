@@ -871,14 +871,16 @@ ${MARK_RULES}
     .lf-msg-head { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-6); }
     .lf-msg.claude .lf-msg-head b { color: var(--accent); }
     .lf-msg time { color: var(--muted-2); }
+    .lf-msg-head .lf-edited { color: var(--muted-2); }
     /* A message body is rendered Markdown, which is why this dresses a box and not a
        paragraph. The theme's element rules are at document level and reach in here, so a
        reply's lists, code, quotes and tables already read as the page's do; what is left
        is the panel's narrower column — tighter blocks, headings that don't shout at
        360px, and no margin where the body meets its own head. */
     .lf-msg-body { margin: 2px 0 0; overflow-wrap: anywhere; }
-    .lf-msg-body > :first-child { margin-top: 0; }
-    .lf-msg-body > :last-child { margin-bottom: 0; }
+    .lf-msg-text { display: contents; }
+    .lf-msg-text > :first-child { margin-top: 0; }
+    .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }
     .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) { margin: 6px 0; }
     /* Prose here breaks anywhere, because the thing a reply overflows on is a URL
        no wrap can help. A table is the one block in a reply with somewhere else to

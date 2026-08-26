@@ -458,7 +458,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
 
     page, errors = open_page(browser, url)
     mark = page.locator("#c-lax .lf-pick")
-    assert mark.get_attribute("role") is None, "nothing to press means no button role"
+    assert mark.get_attribute("role") is None, "nothing to select means no control role"
     box = mark.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -626,7 +626,10 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     page, errors = open_page(browser, url)
 
     page.keyboard.press("n")
-    expect(page.locator("#storage-evict .lf-pick")).to_be_focused()
+    mark = page.locator("#storage-evict .lf-pick")
+    expect(mark).to_be_focused()
+    expect(mark).to_have_attribute("role", "checkbox")
+    expect(mark).to_have_attribute("aria-checked", "false")
     line = key_line(page)
     assert "write another option" in line, (
         f"the selected Ask hides its text-entry binding behind More: {line}"
@@ -647,7 +650,10 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     page.keyboard.press("n")
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
-    expect(page.locator("#storage-stop .lf-pick")).to_be_focused()
+    chosen = page.locator("#storage-stop .lf-pick")
+    expect(chosen).to_be_focused()
+    expect(chosen).to_have_attribute("role", "checkbox")
+    expect(chosen).to_have_attribute("aria-checked", "true")
     expect(page.locator("#storage-options textarea")).not_to_be_focused()
     assert errors == []
     page.close()
@@ -1026,11 +1032,11 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         > 20
     )
 
-    # …but takes nothing back. Nothing pressable: no grips, and no mark wearing
-    # the button role — an unpicked quoted card carries no mark at all, exactly as
+    # …but takes nothing back. Nothing selectable: no grips, and no mark wearing
+    # the checkbox role — an unpicked quoted card carries no mark at all, exactly as
     # a group that never declared `choose`. A click chooses nothing either (the
     # choose path sets `chosen` before it sends, so a pick would show here).
-    assert page.locator('#quoted-group .lf-pick[role="button"]').count() == 0
+    assert page.locator('#quoted-group .lf-pick[role="checkbox"]').count() == 0
     assert page.locator("#quoted-board .lf-grip").count() == 0
     # Nor a cell to write another option in: an exhibited question takes no answer of
     # either kind, and a box is the one that would have looked answerable.
@@ -1050,7 +1056,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 
     # The control: the same markup unquoted wires all of it.
-    assert page.locator('#live-group .lf-pick[role="button"]').count() == 2
+    assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
     assert page.locator("#live-board .lf-grip").count() == 1
     assert page.locator("[data-lf-for='live-suggestion']").count() == 1
 
@@ -2891,7 +2897,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     page.wait_for_selector(
-        '#rp-live .lf-pick[role="button"]'
+        '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
     assert errors == []
 
@@ -2919,7 +2925,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
 
     # The exhibit takes the click first, so anything it sends would reach the log
     # ahead of the live group's pick — then the live group takes its own.
-    assert page.locator('#rp-quoted .lf-pick[role="button"]').count() == 0
+    assert page.locator('#rp-quoted .lf-pick[role="checkbox"]').count() == 0
     # And no hand over it, which is what the marker being painted anywhere buys: the
     # affordance rules ask whether an element stands inside [data-lf-exhibit], and the
     # runtime paints that on a widget wherever it renders. Painted in the document

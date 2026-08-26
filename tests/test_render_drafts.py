@@ -1865,20 +1865,21 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     page.close()
 
 
-def test_a_press_takes_the_keys_a_button_came_with(browser, serve):
-    """A press is a span wearing role="button" (`offer`), so Enter and Space are the
-    runtime's to supply — and it supplies them once, for every widget, which is why this
-    is one test rather than a leg in each widget's own. What it has to get right is the
-    two things a real <button> did for free.
+def test_registered_control_keys_activate_once(browser, serve):
+    """The register supplies keys that generated controls do not receive from the browser.
+
+    For a span wearing role="button", the generic control scope supplies Enter and Space.
+    A specialised control declares its own rows instead: an option mark is a checkbox whose
+    Space row toggles it. Both routes use the same dispatcher, which must get activation and
+    key-repeat handling right.
 
     Activation: the ✎ on a draft is the door a keyboard user uses, and if a span
     swallowed Enter there would be no way in at all.
 
-    And once per press however long the key is held. A real button fired on keyup; a
-    keydown listener hears the key repeat, and a mark that toggles per repeat posts a
-    `choose` per repeat — a stuck key filling the log with decisions the user never
-    made. Repeats are dispatched rather than driven, because no automation holds a key
-    down; what the browser delivers is exactly this event with `repeat` set."""
+    Activation happens once per press however long the key is held. A keydown listener
+    hears repeats, and a mark that toggles per repeat posts a `choose` for each one. Repeats
+    are dispatched rather than driven because no automation holds a key down; the browser
+    delivers this event with `repeat` set."""
     page, errors = open_page(browser, serve(KEYS_PAGE))
 
     page.locator("#draft-ops .lf-draft-pencil").focus()

@@ -60,7 +60,7 @@
  * version could ever have honored a record of it; `open` recorded which way this
  * tab last left the disclosure, which no version carries at all. Each was a second
  * copy of a fact the module already states on the control that carries it — the
- * press's `aria-pressed`, the row's `aria-expanded` — so the theme keys on those,
+ * mark's `aria-checked`, the row's `aria-expanded` — so the theme keys on those,
  * the way lf-tabs' strip already does, and the group's own attributes are the
  * author's again. What the copies cost was a reader that believed them:
  * `shallowSigs` excludes exactly what no version can assert, and read both of these
@@ -245,7 +245,9 @@ customElements.define(
     }
 
     #marks() {
-      return [...this.querySelectorAll(':scope > lf-option > .lf-pick[role="button"]')];
+      return [
+        ...this.querySelectorAll(':scope > lf-option > .lf-pick[role="checkbox"]'),
+      ];
     }
 
     // The words this question does not already list. On the page the group owns the
@@ -402,7 +404,7 @@ customElements.define(
       option.append(ref);
     }
 
-    // The keyboard affordance and the state marker, one element — a button whose click
+    // The keyboard affordance and the state marker, one element — a checkbox whose click
     // bubbles into the group's pick handler where there's a pick to make, and the same
     // mark as a span where there isn't.
     #mark(option, pressable) {
@@ -413,9 +415,18 @@ customElements.define(
       // since the diff parses the base version unupgraded and would read any mark as text
       // that version lacked.
       const mark = pressable
-        ? offer("button", "lf-pick")
+        ? offer("span", "lf-pick")
         : document.createElement("span");
-      if (!pressable) {
+      if (pressable) {
+        // This mark is a selection toggle, not a button: Space changes its checked state,
+        // while Enter steps into the question's text answer. The role makes that split
+        // the control's own contract instead of overriding the keyboard contract of a
+        // button. data-lf-offer still says it is generated apparatus, and its value keeps
+        // the generic button scope from promising a second meaning for Enter.
+        mark.dataset.lfOffer = "checkbox";
+        mark.setAttribute("role", "checkbox");
+        mark.tabIndex = 0;
+      } else {
         mark.className = "lf-pick";
         mark.dataset.lfGen = "1";
       }
@@ -470,7 +481,7 @@ customElements.define(
     // is a <button> to tell them apart by.
     //
     // Then what only a control needs: an accessible name saying which option it picks and
-    // how many of the group are on offer, containing the visible word, and the pressed
+    // how many of the group are on offer, containing the visible word, and the checked
     // state.
     #label(option) {
       const mark = option.querySelector(":scope > .lf-pick");
@@ -482,7 +493,7 @@ customElements.define(
           ? AUTHORED
           : PICKED;
       relabel(mark, word, { says: chosen });
-      if (!mark.matches('[role="button"]')) return;
+      if (!mark.matches('[role="checkbox"]')) return;
       // "option i of n" the way a native radio group announces position: the arity
       // word says how many the group takes, this says how many there are to take
       // from — the fact a listening reader otherwise has to walk the list to learn.
@@ -493,7 +504,7 @@ customElements.define(
           options.indexOf(option) + 1
         } of ${options.length}`,
       );
-      mark.setAttribute("aria-pressed", String(chosen));
+      mark.setAttribute("aria-checked", String(chosen));
     }
 
     // ---------- settled ----------

@@ -3054,7 +3054,7 @@ def test_command_hub_an_absorbed_intervention_does_not_stop_again(browser, serve
     d = serve.page_dir
     page, errors = open_page(browser, url)
     page.locator("#dedupe-snooze").get_by_role(
-        "button", name=re.compile("choose one: Park it for tomorrow")
+        "checkbox", name=re.compile("choose one: Park it for tomorrow")
     ).click()
     round_trip(page)
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
@@ -3186,7 +3186,7 @@ def test_command_hub_disposition_refolds_stopped_work(browser, serve):
     expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
 
     page.locator("#dedupe-snooze").get_by_role(
-        "button", name=re.compile("choose one: Park it for tomorrow")
+        "checkbox", name=re.compile("choose one: Park it for tomorrow")
     ).click()
     round_trip(page)
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")

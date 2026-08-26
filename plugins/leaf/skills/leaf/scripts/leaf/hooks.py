@@ -2,7 +2,7 @@
 
 import json
 
-from .events import awaits_agent, build_threads, read_events
+from .events import awaits_agent, build_threads, read_events, seat_root
 from .files import published_versions
 from .http import full_state
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
@@ -37,6 +37,12 @@ def unanswered_asks(events: list, cursor: int) -> list:
     this one need an answer" is a question the agent is holding the context to
     settle, and settling it costs one command.
 
+    A `response: version` root cannot take that command's ordinary reply. It stays
+    here until a later version lets the agent resolve it. If the agent opens an
+    ordinary thread in the same exact-section seat, that thread carries the work
+    while its last word is the agent's; once the reader answers there, both roots
+    return to this gate.
+
     The log alone, with no reading of the page: `build_threads` is told there is
     no published page to settle against, which is the one thing this reader may
     not ask for. Reading the page means loading the page's vendored registry,
@@ -49,13 +55,34 @@ def unanswered_asks(events: list, cursor: int) -> list:
     reads as settling its thread — an ask that goes unmentioned, never a turn
     blocked over an answer the reader already gave.
     """
+    threads = list(build_threads(events, {}).values())
+    clarifications = [
+        (thread["root"]["seq"], seat)
+        for thread in threads
+        if thread["root"]["author"] == "claude"
+        and not thread["resolved"]
+        and not awaits_agent(thread)
+        and (seat := seat_root(thread))
+    ]
     return [
         t["root"]
-        for t in build_threads(events, {}).values()
+        for t in threads
         # The cursor is read against the last word, not the root: a follow-up
         # past it is a delivery the agent has yet to take, which is the
         # unacknowledged clause's to report and not this one's.
-        if awaits_agent(t) and t["msgs"][-1]["seq"] <= cursor
+        if awaits_agent(t)
+        and t["msgs"][-1]["seq"] <= cursor
+        # A version-response thread cannot take an agent message. An ordinary
+        # agent-authored thread in the same declared seat carries any question the
+        # revision needs; while that thread waits on the reader, the proposal has a
+        # visible next step rather than being an acknowledged message nobody owns.
+        and not (
+            t["root"].get("response") == "version"
+            and any(
+                seat == seat_root(t) and root_seq > t["root"]["seq"]
+                for root_seq, seat in clarifications
+            )
+        )
     ]
 
 

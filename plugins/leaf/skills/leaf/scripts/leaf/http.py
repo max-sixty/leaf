@@ -53,6 +53,7 @@ from .validation import (
     action_contract_error,
     event_record_error,
     held_comment_error,
+    version_response_comment_error,
 )
 
 
@@ -591,7 +592,7 @@ class Handler(BaseHTTPRequestHandler):
                         registry,
                     ):
                         return self.event_rejection(event, error)
-                if kind == "comment" and event.get("holds"):
+                if kind == "comment" and (event.get("holds") or event.get("response")):
                     try:
                         registry = load_registry(self.page_dir)
                     except RegistryError as error:
@@ -600,10 +601,11 @@ class Handler(BaseHTTPRequestHandler):
                         return self.event_rejection(
                             event, "the page has no registry.json"
                         )
-                    if error := held_comment_error(
-                        event,
-                        parse_version(self.page_dir, event["version"]).by_id,
-                        registry,
+                    page_by_id = parse_version(self.page_dir, event["version"]).by_id
+                    if error := held_comment_error(event, page_by_id, registry):
+                        return self.event_rejection(event, error)
+                    if error := version_response_comment_error(
+                        event, page_by_id, registry
                     ):
                         return self.event_rejection(event, error)
                 if "parent" in event and event["parent"] not in {

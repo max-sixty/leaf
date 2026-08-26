@@ -465,6 +465,75 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["markup"].startswith("<lf-diagram")
 
 
+def test_a_version_response_cannot_take_an_agent_reply(page_dir):
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Add the camera as the first job.",
+            "anchor": {"section": "choice"},
+            "response": "version",
+        },
+    )
+    follow_up = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": proposal["id"],
+            "text": "Include the mounting cost.",
+        },
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            follow_up["id"],
+            "--text",
+            "I will add it.",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires a page version and cannot take a reply" in result.output
+    assert "leaf comment" in result.output
+    assert [event["kind"] for event in events_model.read_events(page_dir)] == [
+        "note",
+        "comment",
+        "reply",
+    ]
+
+    unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert unresolved.exit_code != 0
+    assert (
+        "requires a page version before the agent can resolve it" in unresolved.output
+    )
+
+    v2 = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        "</lf-options>",
+        '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+        1,
+    )
+    (page_dir / "versions" / "v2.html").write_text(v2)
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     """The runtime resolves actions document-wide by id, so a reply widget must not
     reuse a page id — and a later version must not take a reply's."""

@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from leaf.events import append_event
+from leaf.events import append_event, thread_roots
 from leaf.files import latest_published, version_path
 from leaf.passages import capture_anchor
 from leaf.projection import decisions, page_projection, rewritten_bodies
@@ -16,6 +16,16 @@ from leaf.validation import (
     read_text_arg,
     report_contract_error,
 )
+
+
+def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
+    messages = {
+        event["id"]: event for event in events if event["kind"] in {"comment", "reply"}
+    }
+    if to not in messages:
+        sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
+    root_id = thread_roots(events)[to]
+    return root_id, messages.get(root_id)
 
 
 @contract_writer
@@ -67,9 +77,14 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
-        if to not in known:
-            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+        root_id, root = _thread_root(events, to)
+        if root and root.get("response") == "version":
+            sys.exit(
+                f"thread {root_id!r} requires a page version and cannot take a reply; "
+                "incorporate its request in the next version, or open a separate "
+                "thread on the same Ask with `leaf comment --section <ask-id>` if "
+                "you need an answer first"
+            )
         if markup:
             check_markup(page_dir, "reply", markup, events)
         event = {
@@ -91,9 +106,16 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
-        if to not in known:
-            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+        root_id, root = _thread_root(events, to)
+        if (
+            root
+            and root.get("response") == "version"
+            and latest_published(page_dir, events) <= root["version"]
+        ):
+            sys.exit(
+                f"thread {root_id!r} requires a page version before the agent can "
+                "resolve it"
+            )
         event = {
             "kind": "resolve",
             "author": "claude",

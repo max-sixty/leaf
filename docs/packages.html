@@ -336,21 +336,23 @@ lf-chip {
                 authored, static <code>when</code> attributes (an attribute written by
                 an x-state or x-report value record cannot drive this predicate). It
                 projects exact-section threads textually from the whole log; Comments
-                keeps the complete view and is the only place interactive reply markup
-                renders. Both views share the reply draft. Thread markup and quoted
-                material take no second view. Where the widget is also a standing
-                request (x-awaits), the seat is where the reader deals with it in words:
-                the request leaves their list while that conversation waits on the
-                agent, rather than being counted a second time under a box they have
-                already used. It is not an answer — the widget's own state is untouched,
-                so its controls still work and an action's <code>requires</code> still
-                reads the request as open — and either way of finishing with the thread
-                hands it back. A <code>hold</code> comment is such a conversation like
-                any other. <code>hold</code> labels a stronger send route whose comment
-                carries <code>holds</code> naming this widget: that route remains
-                available after ordinary roots, the unresolved held thread is the hold,
-                resolution releases it, and undoing resolution restores it atomically.
-                Dropping the widget drops only the inline view.
+                keeps the complete interactive view. Thread markup and quoted material
+                take no second view. Where the widget is also a standing request
+                (x-awaits), the seat is where the reader deals with it in words: the
+                request leaves their list while that conversation waits on the agent,
+                rather than being counted a second time under a box they have already
+                used. It is not an answer — the widget's own state is untouched, so its
+                controls still work and an action's <code>requires</code> still reads
+                the request as open. A conversation with
+                <code>response: version</code> carries that field on its root comment,
+                has no inline reply control, and refuses <code>leaf reply</code>: the
+                agent incorporates it in a later version, or opens a separate thread
+                when that revision depends on the reader. A <code>hold</code> comment is
+                such a conversation like any other. <code>hold</code> labels a stronger
+                send route whose comment carries <code>holds</code> naming this widget:
+                that route remains available after ordinary roots, the unresolved held
+                thread is the hold, resolution releases it, and undoing resolution
+                restores it atomically. Dropping the widget drops only the inline view.
               </td>
             </tr>
             <tr>

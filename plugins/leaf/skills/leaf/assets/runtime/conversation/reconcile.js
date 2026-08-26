@@ -367,6 +367,10 @@ export function createConversation(dependencies) {
           : "✓ Resolved";
       if (!tail) tail = offer("div", "lf-conversation-resolved");
       if (tail.textContent !== settledBy) tail.textContent = settledBy;
+    } else if (t.root.response === "version") {
+      // The page seat shows what the reader proposed. Their reply workspace remains
+      // in Comments; the agent's response is the next authored version.
+      tail = null;
     } else {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
@@ -378,7 +382,11 @@ export function createConversation(dependencies) {
       }
     }
     const work = thread.querySelector(":scope > .lf-work-line");
-    setChildren(thread, [...messages, ...(work ? [work] : []), tail]);
+    setChildren(thread, [
+      ...messages,
+      ...(work ? [work] : []),
+      ...(tail ? [tail] : []),
+    ]);
     return thread;
   }
 

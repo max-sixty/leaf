@@ -2433,6 +2433,36 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     assert "x-conversation hold target" in result.output
 
 
+def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Add the camera first.",
+            "anchor": {"section": "choice"},
+            "response": "version",
+        },
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["lf-options"]["x-conversation"]["response"]
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir()
+    (overlay / "registry.json").write_text(
+        json.dumps({"lf-options": registry["lf-options"]})
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "x-conversation response target" in result.output
+
+
 def test_shared_package_declarations_compose_by_member():
     """One package can extend a shared declaration without copying its peers."""
     board = {"role": "holder", "state": "status"}

@@ -4,7 +4,8 @@ Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
 passages apart; a browser selection on projected data carries datum,
 the stable key local to section, instead of treating neighbouring values as
-identity), reply (parent=id),
+identity; `response: version` when the originating widget requires the agent to
+answer by revising the page rather than replying), reply (parent=id),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
@@ -59,6 +60,14 @@ event's `markup` field instead, whose one door is `leaf comment`/`leaf reply`,
 where it is validated against the vendored registry — the discussion-side analog
 of `version check`. The browser door refuses the field, so everything in the log
 under that name has been through the gate.
+
+A browser comment carrying `response: version` is a request to change authored
+state. Its exact-section view is text-only, and `leaf reply` refuses every
+message in that thread. When the change needs clarification, the agent opens a
+separate comment thread in the same exact-section seat. That thread carries the
+version response through the stop gate while it waits on the reader; their answer
+hands both back to the agent. The original remains open until a later published
+version has answered it, which is also when `leaf resolve` first accepts it.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes

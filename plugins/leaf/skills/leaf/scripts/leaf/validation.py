@@ -177,6 +177,31 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     return None
 
 
+def version_response_comment_error(event: dict, page_by_id: dict, registry: dict):
+    """Why a comment cannot require the authored response it names."""
+    response = event.get("response")
+    if not response:
+        return None
+    anchor = event.get("anchor")
+    target = anchor.get("section") if isinstance(anchor, dict) else None
+    rec = page_by_id.get(target)
+    conversation = (
+        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
+    )
+    if (
+        rec is None
+        or not conversation
+        or conversation.get("response") != response
+        or not asking(rec["attrs"], conversation.get("when"))
+        or anchor != {"section": target}
+    ):
+        return (
+            "comment response must match its exact-section x-conversation "
+            "response target"
+        )
+    return None
+
+
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
     """Why a fresh action violates its declaration or current applicability.
 
@@ -425,9 +450,9 @@ def incoming_registry(packages: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    events its $events record schemas reject; held comments whose conversation
-    contract changed; or actions and reports whose sending tag, verb, or detail
-    the incoming x-state or x-report contract rejects. Empty for a fresh page.
+    events its $events record schemas reject; comments whose conversation contract
+    changed; or actions and reports whose sending tag, verb, or detail the incoming
+    x-state or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
@@ -452,6 +477,14 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             kind == "comment"
             and e.get("holds")
             and (error := held_comment_error(e, page_by_id(e["version"]), incoming))
+        ) or (
+            kind == "comment"
+            and e.get("response")
+            and (
+                error := version_response_comment_error(
+                    e, page_by_id(e["version"]), incoming
+                )
+            )
         ):
             key = f"comment contract: {error}"
         elif kind == "action" and (

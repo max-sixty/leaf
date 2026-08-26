@@ -339,9 +339,13 @@ Declarations describe general behavior:
   and its controls still offer one. Saying otherwise asked the reader a second
   time for what they had just written, in a box the page itself put under the
   question, while the panel showed that thread as the agent's to answer.
-  Finishing with the conversation hands it back, by reply or by resolve, and
-  the version that marks the pick ends it. That is the whole re-arm: nothing
-  new to mark, and a clarifying question cannot retire a decision nobody made.
+  An ordinary reply hands the conversation back. A conversation declared with
+  `response: version` takes no agent reply: its page seat is text-only, the reply
+  door refuses it, and the agent opens a separate thread when the revision needs
+  clarification. While that thread waits on the reader in the same seat, it carries
+  the original response through the stop gate; their answer hands both back to the
+  agent. A version that records the decision ends the request, and only then may
+  the agent resolve the original thread.
   The stop hook reads the same fact, so what leaves the reader's banner lands
   on the agent's own gate rather than nowhere; `awaits_agent` is the one
   spelling of it, beside the runtime's `awaitsAgent`. Which side opened the

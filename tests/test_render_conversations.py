@@ -1087,6 +1087,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-reacts",
         "lf-react-mark",
         "lf-react",
+        "lf-docked",  # a seat's measured fallback, the word a suggestion row docks under
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )

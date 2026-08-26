@@ -218,6 +218,7 @@ import {
   createVersionActivation,
 } from "./runtime/version-activation.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
+import { createVersionNavigation } from "./runtime/version-navigation.js";
 import {
   MARKED_ANYWHERE,
   MARKED_IN_PAGE,
@@ -241,7 +242,7 @@ import {
   loadShadowRules,
   pageShadowRoots,
 } from "./runtime/shadow.js";
-import { VERSION_PATH, readerStore, tabStore, versionUrl } from "./runtime/storage.js";
+import { VERSION_PATH, readerStore, tabStore } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
 
 export { PRESS, labelOf };
@@ -2312,8 +2313,6 @@ document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 // distinction for a Comments panel restored or opened during startup; its General
 // composer stays usable while the log-derived list says what it is waiting for.
 
-let lastVersionsKey = "";
-
 const versions = runtime.versions;
 let agentMsgCount = -1;
 // Whether the page currently believes anything is behind its work claim. An update
@@ -4156,99 +4155,25 @@ const { activateVersion, currentActivation, trackActivation, versionDocument } =
     style,
     syncLayout,
   });
-// Navigate to a version with the pin semantics every chooser shares: an older
-// version pins the view, the newest unpins it.
-let forceActivation = false;
-const goVersion = (version) => {
-  if (LIVE_ROOT && version === runtime.currentVersion) return;
-  if (LIVE_ROOT && version === runtime.latestVersion) {
-    forceActivation = true;
-    showVersionMenu(false);
-    poll();
-    return;
-  }
-  const path = versionUrl(version);
-  location.href = version === runtime.latestVersion ? path : `${path}?pin`;
-};
-function renderVersions(state) {
-  versions.splice(0, versions.length, ...state.versions);
-  versionBtn.disabled = !versionsOffered();
-  const notes = {};
-  for (const e of runtime.events) if (e.kind === "note") notes[e.version] = e.text;
-  const key = JSON.stringify([state.versions, notes]);
-  const current = state.versions.includes(runtime.currentVersion)
-    ? runtime.currentVersion
-    : null;
-  // Rebuilt rather than reconciled: this runs only when the versions or their notes
-  // actually changed, which on a page's whole life is a handful of times, and the
-  // menu is only ever read while it is open — where a rebuild would take the focused
-  // row out from under a walk. So an open menu defers the rebuild, and the key is
-  // what the built list holds rather than what the last poll saw: consuming it here
-  // and skipping the build inside would mark the change handled and leave that
-  // version out of the menu until some later one happened along. A version arriving
-  // under an open menu is the new-version chip's news; the list catches up on the
-  // next poll after it closes.
-  if (key !== lastVersionsKey && !versionMenuOpen) {
-    lastVersionsKey = key;
-    versionMenu.textContent = "";
-    for (const version of state.versions) {
-      const isLatest = version === state.versions.at(-1);
-      const row = el("button", "lf-version-row");
-      row.setAttribute("role", "menuitem");
-      row.dataset.lfVersion = version;
-      // The version and its note are two kinds of word — which one this is, and
-      // what it was — so they are two elements rather than one string. That is
-      // what lets the note wrap to as many lines as it needs, which is the whole
-      // reason the notes are here rather than on a control 190px wide.
-      row.append(
-        el("span", "lf-version-num", `v${version}${isLatest ? " (latest)" : ""}`),
-      );
-      if (notes[version]) row.append(el("span", "lf-version-note", notes[version]));
-      if (version === current) row.setAttribute("aria-current", "true");
-      row.onclick = () => {
-        showVersionMenu(false);
-        goVersion(version);
-      };
-      versionMenu.append(row);
-      // The comparison this row offers, in the menu's second column beside the note
-      // that says the same thing in words. A grid sibling rather than a child, a
-      // button inside a button being no markup at all, and named in full: the glyph
-      // is the eye's shorthand and says nothing aloud.
-      if (comparable(version)) {
-        const press = el("button", "lf-version-diff", "Δ");
-        press.setAttribute("role", "menuitemcheckbox");
-        press.dataset.lfVersion = version;
-        press.setAttribute("aria-label", `Mark what changed since v${version}`);
-        press.title = `Mark what changed since v${version}`;
-        // The pointer's own door, and it closes the menu: the marks are on the page this
-        // hangs over, and a pointer has no walk to be standing in the middle of. The
-        // keyboard's is the walk itself, which leaves the list up.
-        press.onclick = () => {
-          showVersionMenu(false);
-          pressComparison(version);
-        };
-        versionMenu.append(press);
-      }
-    }
-    paintDiff(); // a fresh list, and a standing comparison to show on it
-  }
-  runtime.latestVersion = state.versions.at(-1) ?? null;
-  const behind =
-    runtime.latestVersion !== null &&
-    runtime.currentVersion !== null &&
-    runtime.latestVersion !== runtime.currentVersion;
-  // An immutable unpinned document still follows by navigation. The live root's
-  // activation decision was made before this rendering, where its fetched document and
-  // the composition hold were both available. Either route leaves the chip as news
-  // while it is behind.
-  if (behind && !LIVE_ROOT && !PINNED && !midComposition()) {
-    location.replace(versionUrl(runtime.latestVersion));
-    return;
-  }
-  showNews(latestChip, behind);
-  if (behind)
-    latestChip.textContent = `New version available → open v${runtime.latestVersion}`;
-}
+const { activationIsForced, clearForcedActivation, goVersion, renderVersions } =
+  createVersionNavigation({
+    comparable,
+    el,
+    latestChip,
+    liveRoot: LIVE_ROOT,
+    midComposition: (...args) => midComposition(...args),
+    paintDiff,
+    pinned: PINNED,
+    poll,
+    pressComparison,
+    showNews,
+    showVersionMenu,
+    versionBtn,
+    versionMenu,
+    versionMenuIsOpen: () => versionMenuOpen,
+    versions,
+    versionsOffered,
+  });
 /** The reader's hand on a widget, in the layer's own word: a drag the log has not taken
  * yet. The class is half of `unaccountedGesture` below, so taking it up or putting it
  * down moves core's `z` row — a row no widget declares, and therefore the one no widget
@@ -4912,7 +4837,7 @@ async function receiveState(state) {
   const willActivate =
     Boolean(incoming) &&
     targetVersion > runtime.currentVersion &&
-    (!midComposition() || forceActivation) &&
+    (!midComposition() || activationIsForced()) &&
     !versionMenuOpen &&
     targetVersion === state.versions.at(-1);
   const priorEvents = runtime.events;
@@ -4927,7 +4852,7 @@ async function receiveState(state) {
     let activation = null;
     runtime.statePhase = "ready";
     if (willActivate) {
-      forceActivation = false;
+      clearForcedActivation();
       activation = await activateVersion(incoming, targetVersion);
     }
     settleAcceptedDrafts();

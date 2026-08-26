@@ -210,30 +210,12 @@ const spread = (values) => {
 /* Where the ticks of a time axis go. Plot chooses an interval from the extent alone, and
  * over four days it chooses hours: a chart of four daily totals came out under eight ticks
  * reading 12 AM and 12 PM, naming instants the body never mentions. A short run says its
- * own ticks — the reader's dates, and no others — in one line: Plot's multi-tier formatter
- * put a month directly under a neighbouring day on Linux. Thin those labels when the room
- * cannot hold them, just as a band axis does. A long run keeps Plot's choosing while being
- * held to a day at the finest. */
-const dateLabeler = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
-const dateLabel = (value) => dateLabeler.format(value);
-function timeAxis(values, room, font) {
-  if (values.length <= 10) {
-    const every = Math.ceil(
-      (textWidth(values.map(dateLabel), font) + 6) / (room / values.length),
-    );
-    return {
-      ticks: values.filter((_, i) => i % every === 0),
-      tickFormat: dateLabel,
-    };
-  }
+ * own ticks — the reader's dates, and no others — and a long one keeps Plot's choosing
+ * while being held to a day at the finest. */
+function timeTicks(values) {
+  if (values.length <= 10) return values;
   const days = (Math.max(...values) - Math.min(...values)) / 86400000;
-  return {
-    ticks: days > 730 ? "year" : days > 180 ? "month" : days > 45 ? "week" : "day",
-  };
+  return days > 730 ? "year" : days > 180 ? "month" : days > 45 ? "week" : "day";
 }
 
 /* Which of a band's labels are drawn. Every one, until they stop fitting: five winters
@@ -414,12 +396,7 @@ function build(Plot, { kind, table, axis, label, width, font, line, grow, held }
           ticks: bandTicks(labels, width - marginLeft - common.marginRight, font),
         }
       : {}),
-    ...(axis.type === "utc"
-      ? {
-          type: "utc",
-          ...timeAxis(axis.values, width - marginLeft - common.marginRight, font),
-        }
-      : {}),
+    ...(axis.type === "utc" ? { type: "utc", ticks: timeTicks(axis.values) } : {}),
   };
 
   if (kind === "line")

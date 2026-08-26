@@ -98,8 +98,8 @@ export function createNavigation({
   // it untouched, and a test pins that); these are the runtime's.
   //
   // They move the region the reader is reading, which is the thread list wherever the
-  // reader stands in the panel or the panel covers the page — seenScroller owns both
-  // halves of that. Scrolling a region the reader is not in reads to them as the key doing
+  // reader stands in the panel or the panel covers the page. Scrolling a region the
+  // reader is not in reads to them as the key doing
   // nothing, and then the document is somewhere else when they look back at it.
   //
   // The step moves at the pace of the browser's own paging keys. Native paging is a quick
@@ -131,21 +131,13 @@ export function createNavigation({
   // in that gap otherwise measures from a goal the box has already left.
   const holding = (box) =>
     glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
-  // The box these motions move is the one the reader is reading, and two things make it
-  // the thread list. Standing in it is the first: a press that steps half a page steps
-  // the region the reader is working in, and beside the page the panel is a column of
-  // its own that a reader can be halfway down while the document is perfectly visible
-  // behind them. Layout alone answered this, so on a wide window — the ordinary one —
-  // the keys stepped the page behind a reader reading the comments, which is the same
-  // nothing the covering rule was written to prevent: the region they are reading does
-  // not move, and the document is somewhere else when they look away from the list.
-  //
-  // Covering is the second and is not the first restated. Under the sheet the reader
-  // may be standing outside the panel altogether — the Comments button that raised it
-  // is the banner's — and the page behind the sheet is a page nobody can see, so a key
-  // is no different from a wheel there. Focus says which region is the reader's;
-  // covering says which one the window will show them. A press wants both answers.
-  const seenScroller = () => (inPanel() || panelCovers() ? threadsBox : pageScroller);
+  // The visible box used by page-edge navigation. A covering panel replaces the page;
+  // beside it, the document keeps its own top and bottom.
+  const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
+  // Half-page keys follow the region the reader is working in. Focus can put them in a
+  // panel beside the page; a covering panel remains the only visible region even when
+  // focus is still on the banner control that opened it.
+  const stepScroller = () => (inPanel() || panelCovers() ? threadsBox : pageScroller);
   // Which box scrolls a given element, for anything that has to name its scroller rather
   // than search for one. The document's for everything the document holds — and the
   // panel's own list for a widget an agent put in a reply, which is scrolled by that and
@@ -153,7 +145,7 @@ export function createNavigation({
   // that never comes.
   const scrollerFor = (el) => (inChrome(el) ? threadsBox : pageScroller);
   function stepPage(fraction) {
-    const box = seenScroller();
+    const box = stepScroller();
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     const from = holding(box) ? glide.goal : box.scrollTop;
     glideTo(box, from + fraction * (box.clientHeight - clear));

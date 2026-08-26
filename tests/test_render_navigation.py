@@ -1214,6 +1214,20 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.press("g")
     page.wait_for_function("() => document.body.scrollTop === 0")
 
+    # Focus inside a panel standing beside the document changes which half-page d/u
+    # steps, but the address still names the page's edge. Keeping those two readings
+    # separate prevents an unrelated scrolling fix from changing what g g promises.
+    page.keyboard.press("j")
+    expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
+    page.evaluate("foot => document.body.scrollTo(0, foot / 2)", foot)
+    page.wait_for_function("() => document.body.scrollTop > 0")
+    threads_was = page.locator(".lf-threads").evaluate("e => e.scrollTop")
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function("() => document.body.scrollTop === 0")
+    assert page.locator(".lf-threads").evaluate("e => e.scrollTop") == threads_was
+    page.locator("#dsc-head").focus()
+
     # A key naming no list disarms the chord and keeps its ordinary meaning: g j is a
     # thread step, so a mistyped g costs nothing.
     page.keyboard.press("g")

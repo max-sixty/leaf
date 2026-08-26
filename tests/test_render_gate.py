@@ -721,8 +721,16 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     widths that carry the diagnosis: the names' column several times the prose's.
     The control is `test_a_table_too_wide_to_wrap_scrolls_inside_the_column`: a
     table that scrolls with nothing left to wrap is the theme's honest third case
-    and passes."""
-    failures = rendering_model.render_version(browser, serve(BARE_IDENTIFIERS_PAGE))
+    and passes. The table has to scroll before the reading has anything to say, and
+    the test says so first: a fixture that fitted CI's fonts by ten pixels left the
+    gate silent there, and the silence read as the reading's."""
+    url = serve(BARE_IDENTIFIERS_PAGE)
+    page, errors = open_page(browser, url)
+    scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+    assert scrolls > 1, "the names fit the measure here, so the reading is never asked"
+    assert errors == []
+    page.close()
+    failures = rendering_model.render_version(browser, url)
 
     squeezed = [f for f in failures if "<table id=held> scrolls" in f]
     assert squeezed, failures

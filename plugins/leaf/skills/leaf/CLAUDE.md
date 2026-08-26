@@ -42,6 +42,8 @@ and selection-composer state;
 replacement, and activation serialization;
 `runtime/version-navigation.js` owns version travel, the chooser control and menu,
 its key scope, and forced live activation;
+`runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
+rendering, and async settlement;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow;

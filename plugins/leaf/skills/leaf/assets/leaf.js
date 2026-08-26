@@ -219,6 +219,7 @@ import {
 } from "./runtime/version-activation.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
 import { createVersionNavigation } from "./runtime/version-navigation.js";
+import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
 import {
   MARKED_ANYWHERE,
   MARKED_IN_PAGE,
@@ -318,36 +319,6 @@ function promoteDeferredModals() {
   }
   deferredModals.clear();
 }
-// One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
-// already-upgraded child) must be harmless, so upgrade order can't matter.
-export function once(el) {
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) return false;
-  el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
-  return true;
-}
-
-// A data widget's body: the <pre> the content model requires, never the element's own
-// textContent. The two used to be the same string and are not once the element holds a
-// child — an HTML formatter is free to put the <pre> on its own line, and the newline
-// and indent before it are the element's text too. Line one is load-bearing in every
-// notation here, so that indent is not untidiness downstream: a diff's file header, a
-// tree's root and mermaid's graph type stop parsing, and a walkthrough's `hi` ranges
-// and note anchors all point one line off.
-export const dataBody = (el) => el.querySelector(":scope > pre").textContent;
-
-// A failed upgrade becomes a visible error box rather than a blank page.
-export function failSoft(el, err, source) {
-  const box = document.createElement("div");
-  box.className = "lf-error";
-  box.textContent = `<${el.tagName.toLowerCase()}> failed: ${err?.message || err}`;
-  if (source) {
-    const pre = document.createElement("pre");
-    pre.textContent = source;
-    box.append(pre);
-  }
-  el.replaceChildren(box);
-}
-
 // The page's one door to the log, spelled once. Two callers reach it — `post`, which
 // orders the reader's own gestures through it, and the error report below, which
 // deliberately doesn't — and what they share is the request rather than anything about
@@ -423,15 +394,6 @@ window.addEventListener("unhandledrejection", (e) => {
     !stack ? reason : stack.includes(reason) ? stack : `${reason}\n${stack}`,
   );
 });
-
-// An upgrade whose work is async (lf-diagram's mermaid render) registers its
-// promise here, so the runtime can hold the view restore and first anchor pass
-// until the page's geometry has settled. Rejections are the widget's own
-// fail-soft path; settling ignores them.
-const settling = [];
-export function settle(promise) {
-  settling.push(promise);
-}
 
 // A number a widget can only read off a box the browser has laid out. Three ship: the
 // room a pick mark's word will need, the room a card keeps clear of its grip, the width

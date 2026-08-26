@@ -1115,10 +1115,15 @@ Whether a group is answerable is independent of its form. The presence of
 Each form chooses its presentation, not whether the page admits a response.
 
 A group joined into one control has cells, and its children arrive from every
-layer: the options are the author's, the box for words is the module's, the
-question and the Done press are the runtime's. Each brings the spacing it wears
-standing alone, and the grid stretches all of them to the same column whatever
-they were written as.
+layer: the authored options are the author's, the option the reader writes is
+the module's, the question and the Done press are the runtime's. Each brings the
+spacing it wears standing alone, and the grid stretches all of them to the same
+column whatever they were written as.
+
+The reader's cell is an option and is dressed as one. It holds a conversation
+seat rather than a pick, but what it is for is the answer the menu hasn't got,
+so it takes the cells' fill and their column and states no inset of its own. A
+cell that dresses as apparatus tells the reader to skip it.
 
 So what every cell owes is said over every child, and only what one kind alone
 answers is said by naming it. Block margins are zeroed for all of them, because

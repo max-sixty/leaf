@@ -441,8 +441,8 @@ def test_the_render_gate_requires_a_declared_conversations_host(browser, serve):
 
     module = serve.page_dir / "widgets" / "lf-options.js"
     source = module.read_text()
-    placement = """        this.#conversation = conversationBox(this, "Say something");
-        if (this.#conversation) this.append(this.#conversation);
+    placement = """        this.#another = conversationBox(this, ANOTHER);
+        if (this.#another) this.append(this.#another);
 """
     assert source.count(placement) == 1
     module.write_text(source.replace(placement, ""))

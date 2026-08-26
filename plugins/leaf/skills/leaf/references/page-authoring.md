@@ -73,6 +73,12 @@ case, and evidence in the option itself. When whole page sections are the
 alternatives, use short option labels with `for="<section-id>"`. Use `multiple`
 only when several options may stand.
 
+On the page the group's last cell is an option the reader writes, saying
+`Another option`, so author the alternatives you actually mean and no catch-all
+beside them: a `Something else` option takes a click where that cell takes the
+answer. In a thread the reply box is already that cell, so the group carries
+none of its own.
+
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
 `<strong>` title. When the context begins above the actionable widget, wrap the

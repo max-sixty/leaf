@@ -444,7 +444,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
             At 40 MB a workspace, something has to give. Nothing in the beta reached the
             cap, so this decides what happens to the first workspace that does. My
             recommendation is the first. Pick one to settle it; if you want a fourth
-            behaviour, the box below takes it.
+            behaviour, the empty option under them takes it in your own words.
           </p>
           <lf-options id="off-full-store" choose>
             <lf-option id="off-fs-evict" recommended
@@ -622,8 +622,8 @@ and we have reported it; the workaround ships either way.
           <h2>What I pick up next</h2>
           <p id="off-followup-intro">
             Four jobs stand behind the ship, none of them holding it. Tick whichever you
-            want started, by click or by keyboard, and write a fifth in the box if I
-            have missed one.
+            want started, by click or by keyboard, and write a fifth in the last row if
+            I have missed one.
           </p>
           <lf-options id="off-followups" choose multiple>
             <lf-option id="off-fu-drill" for="off-merge"
@@ -895,8 +895,8 @@ graph LR
           <p id="next-intro">
             Whichever store wins, three jobs stand behind it, and each is argued
             somewhere above rather than in a card of its own. Pick the ones worth
-            starting — click a row, or Tab to its mark and press Enter — and the box
-            takes anything the rows don't cover, including "none of these".
+            starting — click a row, or Tab to its mark and press Enter — or write
+            another option in the last row if none of these is the job.
           </p>
           <lf-options id="next-jobs" choose multiple>
             <lf-option id="nx-revoke" for="constraints" recommended
@@ -1120,8 +1120,8 @@ graph LR
         <lf-ask id="pm-where-ask">
           <h2>Still open</h2>
           <p id="pm-where-note">
-            Click an option to settle each of these, or write a different answer in the
-            box beneath it.
+            Click an option to settle each of these, or write another one in the empty
+            option under them.
           </p>
           <lf-options id="pm-where" choose>
             <lf-option id="pm-wh-status"

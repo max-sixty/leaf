@@ -31,9 +31,19 @@
  * on the evidence an option argues from — a shot to flip, a disclosure to open, a link
  * to follow — belongs to what it landed on (`worksInside`).
  *
- * A choose group also owns the runtime's conversation (x-conversation) for an answer
- * outside the menu. This module places it; the runtime owns its messages, drafts and
- * sends. In a thread the existing reply box already owns those words, so a `multiple`
+ * The last cell of a choose group is the option the reader writes. It is the runtime's
+ * conversation (x-conversation) — this module places it, and the runtime owns its
+ * messages, drafts and sends — but what it is *for* is the answer the author didn't
+ * think of, which is why it says "Another option" and is dressed as a cell of the
+ * group rather than as a box hanging under it. A menu that takes only what it already
+ * lists makes the reader pick the nearest wrong thing.
+ *
+ * The keyboard walk below stops at the authored options, and that is deliberate rather
+ * than an oversight: ↑/↓ inside a textarea are the caret's, so a walk that stepped into
+ * this cell would have no step back out. Tab is the platform's own way to a box for
+ * words and is the way here.
+ *
+ * In a thread the existing reply box already owns those words, so a `multiple`
  * group grows a Done press instead: every toggle reaches
  * the agent as it lands, so the press is the one statement that the set is whole,
  * posted as an `answer` action and held as the thread ask's closing condition
@@ -82,9 +92,9 @@
  *
  * Inside an exhibit the group is quoted — exhibited, not offered — so it takes the
  * same path as a group that never declared `choose`: the mark is a span, the click
- * handler is never wired, there is no box for words, and an example decision can't be
- * answered. `settled` still collapses there, because quoting gates the action channel and
- * not presentation.
+ * handler is never wired, there is no cell for an option of the reader's own, and an
+ * example decision can't be answered. `settled` still collapses there, because quoting
+ * gates the action channel and not presentation.
  *
  * Authored content is never replaced, so there is no failSoft. */
 import {
@@ -127,6 +137,12 @@ const OPEN = { one: "choose one", any: "choose any" };
 const PICKED = "your pick"; // this reader picked it, this session
 const AUTHORED = "chosen"; // the document arrived carrying the pick
 
+// The word the last cell wears while it is still empty, and the accessible name of the
+// box in it. Named for what the cell supplies rather than for the act of typing into it:
+// "Say something" put a chat box under a question, and a chat box beneath a menu reads as
+// somewhere to leave an aside — when what it takes is the one answer the menu hasn't got.
+const ANOTHER = "Another option";
+
 const SETTLED_KEY = "lf-settled:";
 
 const SECTION = "In a question's options";
@@ -158,8 +174,8 @@ customElements.define(
       // an agent asked in a reply, and the panel that holds it opens later.
       measure(this, () => this.#holdWordRoom());
       if (choosable) {
-        this.#conversation = conversationBox(this, "Say something");
-        if (this.#conversation) this.append(this.#conversation);
+        this.#another = conversationBox(this, ANOTHER);
+        if (this.#another) this.append(this.#another);
         if (this.hasAttribute("multiple") && inChrome(this)) this.#doneRow();
         this.#keys();
       }
@@ -214,7 +230,7 @@ customElements.define(
     }
 
     #authored = new Set(); // ids the document arrived carrying, so a mark words itself honestly
-    #conversation = null; // the inline thread, hidden with the settled options
+    #another = null; // the option the reader writes, hidden with the settled options
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
 
@@ -527,13 +543,13 @@ customElements.define(
 
     #open(open, remember) {
       this.#isOpen = open;
-      // The conversation and the Done press go behind the collapse with the options:
-      // both belong to the question, and a settled group asks nothing until the
-      // reader opens it again — a Done left standing was a button under a summary
-      // with nothing above it to be done with.
+      // The reader's own option and the Done press go behind the collapse with the
+      // authored ones: all of them belong to the question, and a settled group asks
+      // nothing until the reader opens it again — a Done left standing was a button
+      // under a summary with nothing above it to be done with.
       for (const el of [
         ...this.#options(),
-        ...(this.#conversation ? [this.#conversation] : []),
+        ...(this.#another ? [this.#another] : []),
         ...(this.#done ? [this.#done] : []),
       ])
         if (open) el.removeAttribute("hidden");

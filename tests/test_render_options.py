@@ -640,8 +640,9 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert page.locator("#opt-shim").evaluate(below) == 1, (
         "the cells share no hairline, so the set reads as one box rather than as cells"
     )
-    # The group's last child is the box for words the module appends, so the last
-    # option still draws its line — against that box, not the group's border.
+    # The group's last child is the cell the module appends for the reader's own
+    # option, so the last authored option still draws its line — against that cell,
+    # not the group's border.
     assert page.locator("#approach > :last-child").evaluate(below) == 0, (
         "the group's last child draws a line against the group's own border"
     )
@@ -733,7 +734,8 @@ def test_the_question_a_joined_group_asks_stands_with_its_answers(
     A group under `choose` is one control and its members are cells of it, each holding
     its words off the drawn edge and opening at the address column the group reserves.
     The question is a cell too. It was not treated as one: the block naming the cells
-    named the two kinds it expected — the options and the box for words — and the
+    named the two kinds it expected — the authored options and the cell the reader
+    writes their own in — and the
     question is written by the runtime from `x-says`, so it arrived as a third kind with
     no rule to meet it. What shipped was a question set hard into the frame's top-left
     corner, a full address column to the left of every word it was a question about,
@@ -871,9 +873,9 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     forms are visible and nothing correct is accused.
 
     Every child, because which kinds a group holds is not this test's to know: the
-    options are the author's, the box for words is the module's, the question and the
-    Done press are the runtime's, and each arrived carrying the spacing it wears
-    standing alone."""
+    authored options are the author's, the option the reader writes is the module's,
+    the question and the Done press are the runtime's, and each arrived carrying the
+    spacing it wears standing alone."""
     page, errors = open_page(browser, serve(ASKED_PAGE))
     cells = page.locator(f"#{group}").evaluate(
         r"""el => {
@@ -883,10 +885,18 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
                const s = getComputedStyle(c);
                const r = c.getBoundingClientRect();
                const next = kids[i + 1];
+               // The ground the reader sees under the cell, which is not the same as
+               // what the cell declares: a cell that paints nothing shows the group's
+               // own, and that is how an unpicked option is filled.
+               const clear = (v) => !v || v === 'transparent'
+                        || /rgba\(0,\s*0,\s*0,\s*0\)/.test(v);
                return {
                  what: c.tagName.toLowerCase() + (c.dataset.lfSaid
                         ? `[${c.dataset.lfSaid}]` : (c.className ? '.' + c.className.trim().split(/\s+/)[0] : '')),
                  opens: px(s.paddingInlineStart) + px(s.borderInlineStartWidth),
+                 ground: clear(s.backgroundColor)
+                   ? getComputedStyle(el).backgroundColor : s.backgroundColor,
+                 picked: c.hasAttribute('chosen'),
                  gap: next
                    ? Math.round((next.getBoundingClientRect().top - r.bottom) * 10) / 10
                    : null,
@@ -908,13 +918,33 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     )
 
     # And they open at one column, which is the half a reader sees first: the question
-    # hung a whole address column left of the words it was a question about. The box for
-    # words is apparatus and states its own inset, so this asks the cells that carry the
-    # group's own words.
-    words = {c["opens"] for c in cells if "lf-conversation" not in c["what"]}
+    # hung a whole address column left of the words it was a question about. Every cell,
+    # the reader's own among them: that cell holds the option they write when none of the
+    # authored ones is the answer, so a cell drawn short of the column starts the one box
+    # the group takes words in outside the run of boxes the group is. Its own 12px did
+    # exactly that, and this line excused it as apparatus. What is compared is the cell,
+    # not the caret: a text box holds its words off its own frame, which is the box's and
+    # no business of the group's.
+    words = {c["opens"] for c in cells}
     assert len(words) == 1, (
-        f"the cells carrying #{group}'s words open at {sorted(words)}, so the question "
-        "and its answers read as more than one column"
+        f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
+        "the option the reader writes read as more than one column"
+    )
+
+    # And the reader's own option is filled the way an option nobody has picked is
+    # filled, which is the other half of what says it is one of the answers. A pick
+    # colours the cell that holds it and nothing else does, so any other ground here is
+    # a state the group hasn't got: the cell wore --field, a tinted band that in this
+    # theme means a detail or a note, and a band under the answers is a footer whatever
+    # else is written in it.
+    open_option = next(
+        c["ground"] for c in cells if c["what"] == "lf-option" and not c["picked"]
+    )
+    reader = next(c for c in cells if "lf-conversation" in c["what"])
+    assert reader["ground"] == open_option, (
+        f"#{group}'s reader-written option stands on {reader['ground']} where an "
+        f"unpicked option stands on {open_option}, so it reads as apparatus under the "
+        "answers rather than as one of them"
     )
     assert errors == []
     page.close()
@@ -957,8 +987,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # choose path sets `chosen` before it sends, so a pick would show here).
     assert page.locator('#quoted-group .lf-pick[role="button"]').count() == 0
     assert page.locator("#quoted-board .lf-grip").count() == 0
-    # Nor a box for words: an exhibited question takes no answer of either kind, and
-    # a box is the one that would have looked answerable.
+    # Nor a cell to write another option in: an exhibited question takes no answer of
+    # either kind, and a box is the one that would have looked answerable.
     assert page.locator("#quoted-group .lf-say").count() == 0
     page.locator("#q-shim").click()
     assert page.locator("#quoted-group lf-option[chosen]").count() == 0
@@ -1721,7 +1751,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 
 
 def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
-    """A question's box starts one ordinary log thread and then becomes its page view.
+    """The option a reader writes starts one log thread and becomes its page view.
 
     The panel remains the complete conversation workspace, including interactive reply
     markup, while the question keeps every message's text beside what asked for it. Both
@@ -1735,6 +1765,12 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     conversation = page.locator("#jobs > .lf-conversation")
     box = conversation.locator(".lf-say textarea")
     send = conversation.locator(".lf-say [role='button']")
+    # What the box is for, in both registers a reader has: the words on screen and the
+    # name read aloud, saying the same thing. It names what the cell supplies rather
+    # than the act of typing into it — a box under a menu that invites the reader to
+    # say something invites an aside, when what it takes is the option nobody listed.
+    assert box.get_attribute("placeholder") == "Another option"
+    assert box.get_attribute("aria-label") == "Another option"
     assert send.get_attribute("aria-disabled") == "true"
     first_text = "Neither, really — do the camera and tell me what it costs."
     box.fill(first_text)

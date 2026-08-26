@@ -10,6 +10,8 @@ from leaf import passages as passages_model
 from leaf import registry as registry_model
 from playwright.sync_api import expect
 from render_support import (
+    AIM_SEAM,
+    AIM_SEAM_PAGE,
     ASTRAL_PAGE,
     CEILING_PAGE,
     CHIPS,
@@ -1570,6 +1572,60 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
+    assert errors == []
+    page.close()
+
+
+def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
+    """The card the pointer lights and the card a press opens are one reading of one point.
+
+    They came from two doors, though. The hover hit-tests the pointer record the runtime
+    keeps, and the click read its own clientX and clientY — a `click` is a legacy mouse
+    event, so those arrive rounded to a whole pixel, while markAt measures against
+    getClientRects, whose edges are floats. Within a pixel of a mark's edge the two
+    answer different threads: a quote lights up under the hand and the press on it opens
+    the neighbour's conversation, which is the same disagreement the aim carried and this
+    is the surface it was left on.
+
+    The seam fixture puts the pointer where the true point and its rounded twin are over
+    different items, and a comment on each makes the disagreement a pair of cards rather
+    than a hit and a miss — so what is asserted is which thread opened, not whether one
+    did. Which item the true point is over follows where in the pixel the seam fell, so
+    the expected card is read off the point rather than named here."""
+    url = serve(AIM_SEAM_PAGE)
+    for ident in ("seam-upper", "seam-lower"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "version": 1,
+                "text": f"About {ident}.",
+                "anchor": {"section": ident},
+            },
+        )
+    page, errors = open_page(browser, url)
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
+    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+        "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
+        "to are not on the two marked items either side of it, so a press that read either "
+        f"of them would pass this: {seam}"
+    )
+
+    page.mouse.move(seam["x"], seam["y"])
+    promised = page.locator(".lf-thread.lf-mark-hover")
+    expect(promised).to_have_count(1)
+    expect(promised).to_contain_text(f"About {seam['at']}.")
+
+    page.mouse.click(seam["x"], seam["y"])
+    opened = page.evaluate(
+        "() => document.activeElement?.closest('.lf-thread')?.innerText ?? null"
+    )
+    assert opened and f"About {seam['at']}." in opened, (
+        f"the hover promised the thread on {seam['at']}, and the press at the same point "
+        f"opened: {opened}"
+    )
     assert errors == []
     page.close()
 

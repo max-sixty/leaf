@@ -28,6 +28,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import interact
 from leaf_interact import http as http_model
+from leaf_interact import layer as layer_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -438,7 +439,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     checked_without_writer = threading.Event()
     finish_vendoring = threading.Event()
     original_append_event = interact.append_event
-    original_composed_theme = interact.composed_theme
+    original_composed_theme = layer_model.composed_theme
 
     def held_append_event(directory, event):
         if event.get("kind") == kind:
@@ -460,7 +461,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     monkeypatch.setattr(interact, "append_event", held_append_event)
     monkeypatch.setattr(http_model, "append_event", held_append_event)
-    monkeypatch.setattr(interact, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     with ThreadPoolExecutor(max_workers=2) as executor:
         writing = executor.submit(write)
         assert entering.wait(timeout=10), f"{kind} never passed old-layer validation"

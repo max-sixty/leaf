@@ -48,6 +48,7 @@ from interact_support import (
     widget_entry,
 )
 from leaf_interact import http as http_model
+from leaf_interact import layer as layer_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):
@@ -547,7 +548,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     release_report = threading.Event()
     init_waiting = threading.Event()
     real_append = interact.append_event
-    real_flocked = interact.flocked
+    real_flocked = layer_model.flocked
 
     def paused_append(directory, event):
         if event["kind"] == "report":
@@ -563,7 +564,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
             yield held
 
     monkeypatch.setattr(interact, "append_event", paused_append)
-    monkeypatch.setattr(interact, "flocked", observed_flocked)
+    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 
     def report():
@@ -601,7 +602,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = interact.layer_generation(page_dir)
     transition = interact.transition_lock(page_dir)
     init_waiting = threading.Event()
-    real_flocked = interact.flocked
+    real_flocked = layer_model.flocked
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -610,7 +611,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(interact, "flocked", observed_flocked)
+    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
     errors = []
 
     def revendoring():

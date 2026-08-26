@@ -40,6 +40,7 @@ from interact_support import (
     start_through_the_launcher,
     state_json,
 )
+from leaf_interact import layer as layer_model
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -1153,14 +1154,14 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     page = tmp_path / "concurrent-page"
     reached_layer = threading.Event()
     resume = threading.Event()
-    original_composed_theme = interact.composed_theme
+    original_composed_theme = layer_model.composed_theme
 
     def held_composed_theme(sources):
         reached_layer.set()
         assert resume.wait(timeout=10), "the concurrent init never released its peer"
         return original_composed_theme(sources)
 
-    monkeypatch.setattr(interact, "composed_theme", held_composed_theme)
+    monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(interact.cmd_init, page)
     try:

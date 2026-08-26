@@ -23,6 +23,7 @@ from interact_support import (
     widget_entry,
 )
 from leaf_interact import files as interact_files
+from leaf_interact import layer as layer_model
 
 
 @pytest.mark.parametrize(
@@ -894,14 +895,14 @@ def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
     """The stable log marks a completed init, not one that failed while committing."""
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "interrupted-page"
-    original_replace_files = interact.replace_files
+    original_replace_files = layer_model.replace_files
 
     def fail_layer_commit(files):
         if any(path.name == "registry.json" for path, _, _ in files):
             raise OSError("layer commit failed")
         return original_replace_files(files)
 
-    monkeypatch.setattr(interact, "replace_files", fail_layer_commit)
+    monkeypatch.setattr(layer_model, "replace_files", fail_layer_commit)
 
     with pytest.raises(OSError, match="layer commit failed"):
         interact.cmd_init(page)

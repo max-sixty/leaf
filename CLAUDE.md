@@ -83,8 +83,9 @@ background job's worker is sitting lifetime; tying the server to either retires
 the page while the session still stands.
 
 `page init` vendors the complete merged layer into a page directory. A reviewed
-page therefore keeps the assets it was reviewed with. `interact.py`'s module
-docstring defines every file in a page directory.
+page therefore keeps the assets it was reviewed with.
+`plugins/leaf/skills/leaf/references/operating-contract.md` defines every file
+in a page directory.
 
 The kernel and packages merge in this order: `assets/`, the bundled default
 package, explicit package paths in command order, `~/.config/leaf/`, then

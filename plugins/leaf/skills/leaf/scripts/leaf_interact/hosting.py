@@ -225,7 +225,8 @@ def start_server(
     The serve has to outlive this command — the browser polls it between turns
     and across every `leaf wait`, which exits to deliver — so it is spawned
     rather than held, and the one long-running command a leaf costs its session
-    is the watcher. The module docstring carries the rest of that.
+    is the watcher. The operating contract in
+    `../../references/operating-contract.md` carries the rest of that.
 
     `server run` in a session of its own is the whole mechanism. An explicit
     start may enable a stopped service; a revival carries the narrower intent

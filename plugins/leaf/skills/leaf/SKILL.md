@@ -103,5 +103,7 @@ another.
   standing page, re-vendoring a served page, or resuming another session's page.
 - `references/packages.md`: for a package-design request or an event with
   `"about": "layer"`.
+- `references/operating-contract.md`: when changing Leaf's own page, event,
+  service, or command protocols; not for ordinary page use.
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

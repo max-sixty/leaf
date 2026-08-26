@@ -431,7 +431,7 @@ def test_init_vendors_the_layer(page_dir):
 def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
-    module = package / "runtime" / "conversation" / "fold" / "model.js"
+    module = package / "runtime" / "nested-package" / "fold" / "model.js"
     module.parent.mkdir(parents=True)
     module.write_text("export const model = 'package';\n")
     page = tmp_path / "page"
@@ -442,10 +442,10 @@ def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
     )
 
     assert initialized.exit_code == 0, initialized.output
-    assert (page / "runtime" / "conversation" / "fold" / "model.js").read_text() == (
+    assert (page / "runtime" / "nested-package" / "fold" / "model.js").read_text() == (
         "export const model = 'package';\n"
     )
-    assert schema_model.SERVED_PATH.fullmatch("/runtime/conversation/fold/model.js")
+    assert schema_model.SERVED_PATH.fullmatch("/runtime/nested-package/fold/model.js")
     assert not schema_model.SERVED_PATH.fullmatch("/vendor/../../status.json")
     assert not schema_model.SERVED_PATH.fullmatch("/vendor/../leaf.js")
 
@@ -453,7 +453,7 @@ def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert initialized.exit_code == 0, initialized.output
-    assert not (page / "runtime" / "conversation").exists()
+    assert not (page / "runtime" / "nested-package").exists()
 
 
 @pytest.mark.parametrize("nested_first", [False, True])
@@ -508,13 +508,13 @@ def test_init_refuses_an_intermediate_symlink_before_writing_nested_modules(
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     package_module = (
-        tmp_path / "package" / "runtime" / "conversation" / "fold" / "model.js"
+        tmp_path / "package" / "runtime" / "nested-package" / "fold" / "model.js"
     )
     package_module.parent.mkdir(parents=True)
     package_module.write_text("export const model = true;\n")
     outside = tmp_path / "outside"
     outside.mkdir()
-    (page / "runtime" / "conversation").symlink_to(outside, target_is_directory=True)
+    (page / "runtime" / "nested-package").symlink_to(outside, target_is_directory=True)
 
     result = runner.invoke(
         cli_model.cli,

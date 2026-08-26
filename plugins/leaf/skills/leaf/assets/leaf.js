@@ -177,7 +177,7 @@ import {
 } from "./runtime/drafts.js";
 import { createProjection } from "./runtime/projection.js";
 import { createAnchors } from "./runtime/anchors.js";
-import { createConversation } from "./runtime/conversation.js";
+import { createConversation } from "./runtime/conversation/reconcile.js";
 import { createPassages } from "./runtime/passages.js";
 import {
   MARKED_ANYWHERE,

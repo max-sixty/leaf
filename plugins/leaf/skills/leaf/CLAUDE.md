@@ -33,7 +33,11 @@ highlight rules;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/anchors.js` owns anchor geometry, paint, and navigation;
-`runtime/conversation.js` owns thread folding and panel reconciliation; and
+`runtime/conversation/model.js` owns the thread fold;
+`runtime/conversation/messages.js` owns message rendering;
+`runtime/conversation/placement.js` owns document-order grouping;
+`runtime/conversation/work-lines.js` owns live claim seats; and
+`runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection.js` owns declaration-driven state folding and
 reconciliation. The entry module composes their mutually dependent callbacks.
 TODO: Move the remaining helper implementations to their runtime owners so

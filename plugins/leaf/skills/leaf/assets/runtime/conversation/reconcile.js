@@ -1,3 +1,8 @@
+import { createThreadModel } from "./model.js";
+import { createConversationMessages } from "./messages.js";
+import { createThreadPlacement } from "./placement.js";
+import { createWorkLines } from "./work-lines.js";
+
 /* Conversation folding and panel reconciliation. */
 export function createConversation(dependencies) {
   const {
@@ -66,249 +71,30 @@ export function createConversation(dependencies) {
     wireInput,
   } = dependencies;
   let threadList = [];
-
-  // ---------- threads ----------
-  function buildThreads() {
-    const threads = new Map();
-    const threadFor = new Map();
-    // The whole log, not this version's window: a conversation is not version-scoped, so
-    // the panel shows the same threads whichever version is pinned and a retraction
-    // settles a thread's state from wherever it was declared. interact.py's callers pass
-    // upto=None for the same reason. Replay windows to currentVersion instead, and on any version
-    // but the newest the two are meant to disagree — the rule binds both sites, so it is
-    // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
-    // never the conversation".
-    const floors = retractionFloors(Infinity);
-    const withdrawn = takenBack();
-    // widget id -> its last action the log still lets stand: not one the reader took
-    // back, not one a version retracted under it. The widget is what an ask is
-    // (x-awaits), so what answers one is that widget's own last word; and it is the
-    // only key the log carries by itself, which is why the page projection cannot be
-    // borrowed for this: it drops an action whose widget the page no longer holds, and the
-    // version that honors a decision retires the widget that made it, precisely when the
-    // thread it settled most needs to stay settled. x-state holds a verb declaring
-    // `resolves` to a widget-absolute unit so the two keys are the same one.
-    const answers = new Map();
-    const settlingActions = new Set();
-    for (const e of runtime.events)
-      if (
-        e.kind === "action" &&
-        !withdrawn.has(e.id) &&
-        !retractedIds(e, floors, elementById(e.widget)).length
-      ) {
-        answers.set(e.widget, e);
-        if (e.detail.resolves) settlingActions.add(e.id);
-      }
-    for (const e of runtime.events) {
-      // A gesture the reader took back settles nothing, whichever way it settled: the
-      // log holds it and no reading of the log stands on it. The same sentence
-      // interact.py's build_threads reads, because it is the same reading.
-      if (withdrawn.has(e.id)) continue;
-      if (e.kind === "comment") {
-        // `resolved` is the event that currently closes the thread, or null. Either
-        // side can close one, so a flag beside a second field naming who would be two
-        // readings of one fact; the event answers both and carries its own author.
-        const thread = { root: e, msgs: [e], resolved: null };
-        threads.set(e.id, thread);
-        threadFor.set(e.id, thread);
-        continue;
-      }
-      // The widget's standing answer closes the thread it names. The answer snapshots the thread
-      // it was made in, because the honoring version retires the wrapper that held the
-      // mapping and one atomic event cannot half-arrive the way a second POST could.
-      // The log is the only place that pairing survives.
-      //
-      // Read off the detail rather than the verb, because the naming is the
-      // mechanism's and the verb is a member's: `accept` stood here once, which was
-      // exactly right for the one widget that says that word and silently nothing
-      // for the next widget whose answer closes the question it was asked in. That
-      // is the failure the widget list's norm names — it arrives as a feature
-      // nobody wired up rather than as an error. A verb carries only the detail
-      // keys its entry declares (additionalProperties: false), so a `resolves` is
-      // one on purpose, and an answer that settles no thread carries none.
-      //
-      // Standing is every way the log currently holds an answer: not retracted by a
-      // version that rewrote what the decision rested on (`restated`), not taken back
-      // by the reader (the skip above), and not superseded by a later action on the
-      // same widget. Without that last one, a
-      // reject after an accept left the reader's question filed away as answered by
-      // the fix they had just turned down, while the fold reported the suggestion
-      // rejected: the log held one thing, the panel showed another, and nothing on
-      // either side said so.
-      //
-      // Folded at the answer's own place in the walk rather than after it: a resolve
-      // pressed between two decisions remains the last current word on the thread,
-      // while every surviving settlement keeps its causal position.
-      if (e.kind === "action") {
-        const answered = threads.get(e.detail.resolves);
-        if (answered && settlingActions.has(e.id)) {
-          if (answers.get(e.widget) === e) answered.resolved = e;
-        }
-        continue;
-      }
-      // A reply whose message the log lost opens the thread that message would have
-      // opened, under the id it was known by — the same answer interact.py's
-      // build_threads gives, because it is the same reading. The log is read line by
-      // line and a torn one is skipped, so a reply can outlive the message above it;
-      // throwing here took the whole panel down over one lost line.
-      if (e.kind === "reply") {
-        let thread = threadFor.get(e.parent);
-        if (!thread) {
-          thread = { root: e, msgs: [], resolved: null };
-          threads.set(e.parent, thread);
-          threadFor.set(e.parent, thread);
-        }
-        thread.msgs.push(e);
-        threadFor.set(e.id, thread);
-      } else if (e.kind === "resolve") {
-        // A resolve names a message rather than opening one, so a conversation the log
-        // lost whole has nothing for it to close.
-        const thread = threadFor.get(e.parent);
-        if (thread) thread.resolved = e;
-      } else if (e.kind === "unresolve") {
-        const thread = threadFor.get(e.parent);
-        if (thread) thread.resolved = null;
-      }
-    }
-    return [...threads.values()];
-  }
-
-  const escapeHtml = (s) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  // Lazily, like the tokenizer: a page is usually handed over before anyone has said
-  // anything, and one with no messages never pays the parse. poll() awaits this before
-  // the panel builds a body, which is what keeps msgNode synchronous.
-  //
-  // Raw HTML — block and inline both route through the one `html` renderer — escapes to
-  // the characters it was written in: prose says `Vec<T>`, and a message injects widgets
-  // only through its gate-validated `markup` field, never through text. breaks: a single
-  // newline is a line break, because a message is typed prose and nobody types two
-  // spaces to mean the line they just ended.
-  // Plain escaped text until the renderer arrives, so a failed vendor import
-  // degrades a body's Markdown to its own words instead of refusing the poll
-  // that carries it.
-  let renderMarkdown = (text) => escapeHtml(text);
-  let markedReady;
-  const loadMarked = () =>
-    (markedReady ??= import("/vendor/marked.esm.js")
-      .then((m) => {
-        const md = new m.Marked({
-          breaks: true,
-          renderer: { html: (t) => escapeHtml(t.text) },
-        });
-        renderMarkdown = (text) => md.parse(text);
-      })
-      .catch((error) => {
-        // Retry on a later poll rather than caching the rejection for the life
-        // of the load — one transient failure otherwise left every body plain.
-        markedReady = undefined;
-        reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`);
-      }));
-
-  // Bodies are cached per event id and re-adopted when a thread node is rebuilt — which
-  // the reconcile leaves one occasion for, a thread resolving. The log is append-only,
-  // so a message's text never changes, and re-adopting the node keeps a widget in a reply
-  // (a rendered diagram) from re-upgrading across that rebuild.
-  const msgBodies = new Map();
-  function buildMsgBody(m) {
-    const body = el("div", "lf-msg-body");
-    if (m.suggestion) {
-      // Verbatim: a suggestion's characters are bound for the page as typed, and a
-      // rendering would show an italic where the next version carries the asterisks.
-      body.classList.add("lf-suggest-body");
-      body.textContent = m.text;
-    } else {
-      body.innerHTML = renderMarkdown(m.text);
-      // The widget markup beside the text, injected as the CLI gate validated it. A
-      // template is deliberately inert: an already-defined custom element's constructor
-      // runs even in a detached ordinary div, which would make generated state look like
-      // the thread event's authored baseline. Capture the literal event markup first,
-      // then move those same nodes into the body; they upgrade when the body is connected.
-      // The passes below don't come along with that upgrade — the said and quiet passes
-      // write a widget's declared words, spoken and silent, and a fenced block is a
-      // <pre><code class="language-…"> like any the page holds.
-      //
-      // The declared marks come along by the half that holds here (MARKED_ANYWHERE):
-      // whether a widget is set among the words is true of it in a reply as much as on
-      // the page, and a chip-led comparison quoted into one stacks without it. The width
-      // model is the half that stays behind, and the reason is what it hands out: the room
-      // the *document* has, which is not the room in here. A diagram in a reply is a widget
-      // the vocabulary calls wide, and marked as one it would lay itself out to the page's
-      // measure inside the panel. The room a message has is the message's, and it already
-      // has it.
-      if (m.markup) {
-        const authored = document.createElement("template");
-        authored.innerHTML = m.markup;
-        rememberAuthoredMarkup(authored.content);
-        captureAuthoredFacets(authored.content);
-        body.append(authored.content);
-      }
-      markDeclared(body, MARKED_ANYWHERE);
-      renderSaid(body);
-      renderQuiet(body);
-      // Not settle()d: that queue holds the page's geometry still for the first anchor
-      // pass, and a message colors in the panel, where no anchor is captured and nothing
-      // waits. Each block already fails soft to its own plain source.
-      highlightBlocks(body);
-    }
-    return body;
-  }
-
-  function msgNode(m) {
-    const div = el("div", `lf-msg ${m.author}`);
-    div.dataset.mid = m.id; // the reconcile's key, and revealThread's address for it
-    const head = el("div", "lf-msg-head");
-    // "3 hours ago" is not a datetime, so the machine-readable one goes in the attribute
-    // the element has for it — which is also what `saidAt` reads back when a widget the
-    // message carries needs to know when it was said.
-    const when = el("time", "", ago(m.ts));
-    when.dateTime = m.ts;
-    head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
-    let body = msgBodies.get(m.id);
-    if (!body) {
-      body = buildMsgBody(m);
-      msgBodies.set(m.id, body); // the id is server-minted, on every event
-    }
-    div.append(head);
-    if (m.suggestion)
-      div.append(el("div", "lf-suggest-label", "suggested replacement"));
-    div.append(body);
-    return div;
-  }
-
-  // How an anchor reads where it has to be printed rather than pointed at — every thread in
-  // the panel, and the open composer when the page has no passage left to mark. A quote-less
-  // anchor points at an element (a diagram or image commented on by click rather than by
-  // selection) and names its section instead of quoting it. One function, so the two places
-  // can't come to say it differently.
-  //
-  // An id is the page's name for an item and not the user's. `card-migration` says
-  // nothing they wrote, and pointing at an item is an ordinary gesture rather than the
-  // diagram's special case, so anchors reading this way are ordinary in the panel too.
-  // An element anchor is labelled with the item's own opening words, and falls
-  // back to the id where this version has no such element. The kind goes before the words
-  // because the two together are a name, where the words alone read as a quote the thread
-  // does not hold.
-  //
-  // A design comment (`about: "layer"`) reads "layer ·" first, because what follows names
-  // the thing whose look or behaviour is in question rather than the words on it: the
-  // control the press landed on where it landed on one (`part`), then the item — a
-  // widget by its tag and id, a runtime part by its name — since a design comment's
-  // subject is the element itself and its opening words would read as a quote.
-  function anchorLabel(anchor, about) {
-    if (about === "layer") {
-      const item = anchor?.section ? elementById(anchor.section) : null;
-      const name = item ? designName(item) : anchor?.section || "the page";
-      const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-      return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
-    }
-    if (anchor?.quote) return `“${anchor.quote}”`;
-    if (!anchor?.section) return "";
-    const item = elementById(anchor.section);
-    const says = itemSays(item);
-    return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
-  }
+  const { buildThreads } = createThreadModel({
+    elementById,
+    retractedIds,
+    retractionFloors,
+    runtime,
+    takenBack,
+  });
+  const { anchorLabel, loadMarked, msgNode, renderMessageMarkdown } =
+    createConversationMessages({
+      MARKED_ANYWHERE,
+      ago,
+      captureAuthoredFacets,
+      designName,
+      el,
+      elementById,
+      highlightBlocks,
+      itemSays,
+      itemWord,
+      markDeclared,
+      rememberAuthoredMarkup,
+      renderQuiet,
+      renderSaid,
+      reportPageError,
+    });
 
   // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
   // children rather than a record kept beside them: a thread the log settles is renamed out
@@ -317,120 +103,32 @@ export function createConversation(dependencies) {
   // renderThreads and read back by the chip and the placeholder — one list held twice, and
   // the copy free to be a reconcile behind the panel it described.
   const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
-
-  // ---------- where the panel puts a thread ----------
-  // The list reads in the page's order, not the log's. A page is a document with a
-  // beginning and an end, and the reader walks the conversation the way they walk the
-  // prose it is about: the thread on the lede is the first one, the thread on the punch
-  // list is the last, and j/k, the g c digits, the marks out on the page and the panel's
-  // own scroll all say the same order. Log order answered a different question — when a
-  // thread was opened — which is a question about one thread rather than about a list, and
-  // the message clocks already answer it.
-  //
-  // Where a thread stands is where the anchor pass resolved its passage to (`placed`) — the
-  // same resolution the marks are drawn from, so the list and the page cannot disagree about
-  // which of two threads comes first.
-  //
-  // A passage this version has rewritten falls back to the element the anchor names, which
-  // is the whole point of an anchor carrying one: an id survives a rewrite that takes the
-  // quote down with it, so a thread whose words are gone still belongs where it was about.
-  // It reads as detached in the list and sits under its own heading, which are two true
-  // things rather than one true and one lost.
-  //
-  // What is left resolves nowhere at all: a general comment, which names nowhere, and an
-  // anchor whose element this version no longer holds either. Both go under the list rather
-  // than at some point in the middle of it.
-  // Where a thread stands, said in the document's own tree. A passage a widget renders into
-  // a declared shadow root is placed inside that root, and `compareDocumentPosition` answers
-  // across trees with "disconnected, in an implementation-specific order" — an order no
-  // reader has ever seen, and one `contains` cannot correct. The host is the element the
-  // page holds, and where the page holds it is where those words are. A place in no tree at
-  // all — an element a version activation has replaced — is no place, which is the same
-  // answer an anchor that resolves nowhere gets.
-  const inPage = (el) => {
-    let at = el;
-    while (at && at.getRootNode() !== document) at = at.getRootNode().host ?? null;
-    return at;
-  };
-
-  const threadPlace = (t) =>
-    inPage(placedAt(t.root.id) ?? (t.root.anchor ? sectionOf(t.root.anchor) : null));
-
-  // Which of two elements the reader reaches first. `compareDocumentPosition` answers for
-  // a containing element too — a section reaches the reader before the paragraph inside it
-  // — which is what makes it the whole reading rather than a comparison of two indexes
-  // into a list this file would have to keep.
-  const pageOrder = (a, b) =>
-    a === b
-      ? 0
-      : a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
-        ? -1
-        : 1;
-
-  // The log's order is the tiebreak, so two threads on one paragraph read in the order they
-  // were opened, and a page that gave nothing an id keeps exactly the list it had.
-  function inPageOrder(threads) {
-    const seat = new Map(threads.map((t, i) => [t, i]));
-    const place = new Map(threads.map((t) => [t, threadPlace(t)]));
-    return [...threads].sort((a, b) => {
-      const pa = place.get(a);
-      const pb = place.get(b);
-      if (!pa || !pb) return (pa ? 0 : 1) - (pb ? 0 : 1) || seat.get(a) - seat.get(b);
-      return pageOrder(pa, pb) || seat.get(a) - seat.get(b);
-    });
-  }
-
-  // The page's own outline, in document order. Read off the headings the author wrote
-  // rather than off <section> nesting, because both shapes are in the corpus and a heading
-  // is the thing a reader navigates by in either — a page written as one flow of h2s has an
-  // outline just as much as one written as nested sections. The runtime's own chrome
-  // contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
-  // of the page's outline.
-  const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
-
-  // Which part of the page an element is in: the heading that names everything from itself
-  // to the next one. A place that contains a heading takes that heading rather than the one
-  // before it — an anchor on a whole <section> is about that section, not about the end of
-  // the one above.
-  function headingFor(place, outline) {
-    let above = null;
-    for (const heading of outline) {
-      if (heading === place || place.contains(heading)) return heading;
-      if (heading.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING)
-        above = heading;
-      else break;
-    }
-    return above;
-  }
-
-  // The run of threads a heading stands over, named. The key is what the panel reconciles
-  // the heading node by, so it is positional (the outline's own index) rather than an id the
-  // author may not have written. The named keys below it are the places a page has no seat
-  // for; none of them ever carries a target, so a group's node keeps its kind — a button
-  // where there is somewhere to go, a plain line where there is not — across every
-  // reconcile.
-  function groupFor(t, outline) {
-    const place = threadPlace(t);
-    if (!place)
-      return t.root.anchor
-        ? { key: "gone", label: "No longer in this version" }
-        : { key: "page", label: "About the page as a whole" };
-    if (inChrome(place))
-      return layerPart(place)
-        ? { key: "layer", label: "The page's own layer" }
-        : { key: "sent", label: "Sent in the conversation" };
-    const heading = headingFor(place, outline);
-    // A page its author wrote no headings into has no runs to name, and a run with no name
-    // gets no line: "Above the first heading" over the whole list would be a landmark
-    // naming a landmark the page hasn't got. The list is still the page's order.
-    if (!heading)
-      return { key: "top", label: outline.length ? "Above the first heading" : "" };
-    return {
-      key: "h" + outline.indexOf(heading),
-      label: itemSays(heading) || itemWord(heading),
-      target: heading,
-    };
-  }
+  const { groupFor, inPageOrder, pageOutline } = createThreadPlacement({
+    inChrome,
+    itemSays,
+    itemWord,
+    layerPart,
+    pageParts,
+    placedAt,
+    sectionOf,
+  });
+  const { paintWorkLines } = createWorkLines({
+    agentName,
+    ago,
+    claimState,
+    droppedAt,
+    el,
+    elementById,
+    inChrome,
+    matchesWhen,
+    pageQueryAll,
+    quietSince,
+    registry,
+    runtime,
+    threads: () => threadList,
+    threadsBox,
+    updateSequence,
+  });
 
   // ---------- narrowing the list ----------
   // Two narrowings, and they compose: the words a reader is looking for, and whether the
@@ -637,7 +335,7 @@ export function createConversation(dependencies) {
     );
     const body = el("div", "lf-conversation-body");
     if (message.suggestion) body.textContent = message.text;
-    else body.innerHTML = renderMarkdown(message.text);
+    else body.innerHTML = renderMessageMarkdown(message.text);
     node.append(head, body);
     if (message.markup) {
       const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
@@ -957,119 +655,6 @@ export function createConversation(dependencies) {
       renderPanel();
     });
     return node;
-  }
-
-  // One writer for every local work line. Which box it stands in is the subject's — a
-  // thread's complete or inline seat, a widget's declared conversation, or a prose
-  // widget itself — while the sentence, silence word, and clock are identical. Lines are
-  // kept across polls so an unchanged claim is not announced again every two seconds.
-  function paintWorkLine(host, update, before, wanted) {
-    if (!host) return;
-    const { kind, id } = update.target;
-    let line = [...host.children].find(
-      (child) =>
-        child.matches(".lf-work-line") &&
-        child.dataset.subjectKind === kind &&
-        child.dataset.subjectId === id,
-    );
-    if (!line) {
-      line = el("div", "lf-work-line lf-ui");
-      line.dataset.lfGen = "1";
-      line.dataset.subjectKind = kind;
-      line.dataset.subjectId = id;
-      line.append(el("span"), el("time"));
-    }
-    const next = before ?? null;
-    if (line.parentElement !== host || line.nextSibling !== next)
-      host.insertBefore(line, next);
-    wanted.add(line);
-    const what = line.firstElementChild;
-    const when = line.lastElementChild;
-    // Written only on change, like the message clocks beside it: an unchanged poll must
-    // not hand the reader's screen reader the same sentence every two seconds.
-    const said = `${update.agent || agentName()} is on this — ${update.text}`;
-    if (what.textContent !== said) what.textContent = said;
-    // A claim of work nobody has renewed, said in a word. The banner cannot answer for
-    // this seat: every `leaf status … --on` write refreshes the page's own line, so one
-    // delegate still reporting keeps the banner green while another's claim ages here —
-    // the fleet's dead-row failure one level down, and the reason the roster says this
-    // in words rather than leaving it to a tint. Both of the banner's own questions,
-    // asked here by the same two predicates: gone unrenewed too long, or left behind by
-    // a turn that ended. A local line is written by the command that writes the claim, so a
-    // seat answering either question differently would have the page arguing with
-    // itself about one silence. `ago` is still rendered whole beside the word rather
-    // than reworded to absorb it. The cell is added and removed rather than hidden,
-    // because a hidden one still reads out in the thread's text.
-    let cold = line.querySelector(":scope > .lf-work-quiet");
-    const turnClosed =
-      update.session && update.session === claimState().claimingSession
-        ? claimState().agentTurnClosed
-        : null;
-    if (quietSince(update.ts) || droppedAt(update.ts, turnClosed)) {
-      if (!cold) line.insertBefore(el("span", "lf-work-quiet", "quiet"), when);
-    } else cold?.remove();
-    const age = ago(update.ts);
-    if (when.textContent !== age) when.textContent = age;
-  }
-
-  function widgetWorkSeat(owner) {
-    const work = registry[owner.localName]?.["x-work"];
-    if (!work || !matchesWhen(owner, work.when)) return null;
-    if (work.seat === "content") return { host: owner, before: null };
-    const conversation = registry[owner.localName]["x-conversation"];
-    if (!matchesWhen(owner, conversation.when)) return null;
-    const host = [...owner.children].find(
-      (child) =>
-        child.matches(".lf-conversation[data-lf-conversation]") &&
-        child.dataset.lfConversation === owner.id,
-    );
-    if (!host) return null;
-    const before = [...host.children].find((child) => !child.matches(".lf-work-line"));
-    return { host, before: before ?? null };
-  }
-
-  // Every local seat for every typed subject. The merged x-work declaration decided at
-  // the CLI boundary whether a widget could safely carry one and tells this reading which
-  // of the two general seats to use. Core still knows no content-widget tag name. A claim
-  // created on a later version cannot leak backward into a pinned historical page.
-  function paintWorkLines() {
-    const wanted = new Set();
-    const claims = claimState().claimsHeld
-      ? updateSequence().filter(
-          (update) => update.source === "claim" && update.disposition === "effective",
-        )
-      : [];
-    for (const update of claims) {
-      const { kind, id } = update.target;
-      if (kind === "thread") {
-        const thread = threadList.find((candidate) => candidate.root.id === id);
-        if (!thread || thread.resolved) continue;
-        const complete = threadsBox.querySelector(`.lf-thread[data-id="${id}"]`);
-        paintWorkLine(
-          complete,
-          update,
-          complete?.querySelector(":scope > .lf-compose"),
-          wanted,
-        );
-        for (const inline of document.querySelectorAll(
-          `.lf-conversation-thread[data-thread="${id}"]`,
-        ))
-          paintWorkLine(
-            inline,
-            update,
-            inline.querySelector(":scope > .lf-say"),
-            wanted,
-          );
-        continue;
-      }
-      if (kind !== "widget" || update.version > runtime.currentVersion) continue;
-      const owner = elementById(id);
-      if (!owner || inChrome(owner)) continue;
-      const seat = widgetWorkSeat(owner);
-      if (seat) paintWorkLine(seat.host, update, seat.before, wanted);
-    }
-    for (const line of pageQueryAll(".lf-work-line"))
-      if (!wanted.has(line)) line.remove();
   }
 
   // The DOM is the one record of what's rendered, reconciled against the log: nodes the

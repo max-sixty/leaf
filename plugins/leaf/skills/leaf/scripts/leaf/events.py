@@ -216,9 +216,10 @@ def is_reaction(event: dict) -> bool:
 
 def spoken_turns(thread: dict) -> list:
     """The thread's messages with words in them. A reaction is a mark on a
-    message rather than a turn in the conversation, so every reading of who
-    spoke last — the panel's "waiting on you", the hook's unanswered asks —
-    walks this list rather than `msgs`."""
+    message rather than a turn in the conversation, so readings of who spoke
+    last — including the hook's unanswered asks — walk this list rather than
+    `msgs`. The panel's "waiting on you" also reads explicit reply asks and
+    structural thread asks in the browser after finding the last spoken turn."""
     return [m for m in thread["msgs"] if not is_reaction(m)]
 
 
@@ -432,11 +433,13 @@ def anchored_ids(events: list, within: dict) -> set:
 def awaits_agent(thread: dict) -> bool:
     """Whether a thread's next word is the agent's.
 
-    The agent spoke last and the thread waits on the reader; anyone else spoke last
-    and it waits on the agent. A resolved thread waits on nobody, so neither reading
-    is the other's negation. The runtime's `awaitsAgent` is the same sentence, and it
-    has to be: the panel telling the reader a thread is with the agent while the
-    banner counts the same question as theirs is one fact told two ways.
+    Anyone other than the agent spoke last and it waits on the agent. An agent-last
+    thread and a resolved thread do not. This reading deliberately says nothing about
+    whether the reader owes a word: an ordinary agent reply may leave the open thread
+    awaiting nobody, while an agent comment, an explicit prose ask, or a structured
+    widget ask awaits the reader. The runtime's `awaitsAgent` is the same sentence,
+    and it has to be: the panel telling the reader a seated thread is with the agent
+    while the banner counts the same question as theirs is one fact told two ways.
 
     Not the agent, rather than the reader: `author` is an open string on every message
     contract, and the two the code writes are `user` and `claude`. A line from anywhere

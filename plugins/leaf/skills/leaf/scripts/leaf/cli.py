@@ -456,9 +456,14 @@ def comment(
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
 @click.option("--text", help="reply text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
-def reply(dir: str, to: str, text: str, markup: str) -> None:
+@click.option("--awaits", is_flag=True, help="mark this reply as waiting on the reader")
+def reply(dir: str, to: str, text: str, markup: str, awaits: bool) -> None:
     """Post a threaded reply as the agent (--text or stdin)."""
-    print(json.dumps(cmd_reply(resolve_dir(dir), to, text, markup), ensure_ascii=False))
+    print(
+        json.dumps(
+            cmd_reply(resolve_dir(dir), to, text, markup, awaits), ensure_ascii=False
+        )
+    )
 
 
 @cli.command(short_help="Edit one of this agent session's messages.")

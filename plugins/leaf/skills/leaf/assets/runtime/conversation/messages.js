@@ -220,6 +220,7 @@ export function createConversationMessages(dependencies) {
   return {
     anchorLabel,
     loadMarked,
+    msgBody,
     msgNode,
     renderMessageMarkdown,
     syncEdited,

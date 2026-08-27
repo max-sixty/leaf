@@ -1,7 +1,14 @@
 /* The conversation log's version-independent thread fold. */
 export function createThreadModel(dependencies) {
-  const { elementById, registry, retractedIds, retractionFloors, runtime, takenBack } =
-    dependencies;
+  const {
+    elementById,
+    markupAwaiting,
+    registry,
+    retractedIds,
+    retractionFloors,
+    runtime,
+    takenBack,
+  } = dependencies;
 
   // A reaction is a message carrying a token in place of words ($events): a mark on its
   // target rather than a turn in the conversation. `spoken` is a thread's turns; one with
@@ -167,9 +174,10 @@ export function createThreadModel(dependencies) {
   };
 
   // ---------- whose turn a thread is ----------
-  // The agent spoke last and the thread waits on the reader; anyone else spoke last and it
-  // waits on the agent. A resolved thread waits on nobody, so neither reading is the
-  // other's negation and both have to say so.
+  // A resolved thread waits on nobody. An agent comment opens a question; a reply leaves
+  // one only when its prose flag says so or its own x-awaits markup still asks. Anyone
+  // else speaking last hands the thread to the agent. Neither reading is the other's
+  // negation, and both have to say so.
   //
   // Not the agent, rather than the reader: `author` is an open string on every message
   // contract, and the two written today are `user` and `claude`. A line from anywhere else
@@ -177,17 +185,26 @@ export function createThreadModel(dependencies) {
   // invisible to everyone, while one answer too many costs a reply. interact.py's
   // `awaits_agent` is the same sentence for the same reason.
   //
-  // Turns, not marks: a reaction on a message is not the reader speaking, and a thread
-  // whose last word is the agent's still waits on the reader however many marks they
-  // have left on it. The one declared exception runs the other way — a token whose entry
+  // Turns, not marks: a reaction on a message is not the reader speaking. Structured
+  // reply asks use the same x-awaits projection as the asks board rather than a parallel
+  // event flag. The one declared exception runs the other way — a token whose entry
   // says `settles`, standing on the agent's latest message, is the reader saying "seen,
   // go on" and takes the thread out of the waiting list without a second event. Take the
   // ok back and the wait comes back, this being a reading of the log rather than a state
   // anything wrote; core reads the flag and never the token's name.
+  //
+  // `markupAwaiting` is the conversation reconciler's reading of those reply bodies. It
+  // populates the map for every open last reply immediately before filtering or painting
+  // the list; public callers use `awaitsReader` only after that render stage. Calling this
+  // on a newly built fold before `renderThreads` would not yet have the structural half.
   const awaitsReader = (t) => {
     if (t.resolved) return false;
     const last = spoken(t).at(-1);
     if (last?.author !== "claude") return false;
+    if (last.kind === "reply") {
+      const structural = markupAwaiting(last);
+      if (structural === false || (structural === null && !last.awaits)) return false;
+    }
     return !t.msgs.some(
       (m) =>
         isReaction(m) &&

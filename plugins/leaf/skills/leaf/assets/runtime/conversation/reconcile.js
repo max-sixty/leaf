@@ -71,6 +71,7 @@ export function createConversation(dependencies) {
     takenBack,
     tellDraft,
     threadsBox,
+    threadMarkupAwaiting,
     toggleBtn,
     updateSequence,
     visualPartLabel,
@@ -78,6 +79,7 @@ export function createConversation(dependencies) {
     withdraw,
   } = dependencies;
   let threadList = [];
+  const markupAwaiting = new Map();
   const {
     awaitsAgent,
     awaitsReader,
@@ -98,10 +100,12 @@ export function createConversation(dependencies) {
     retractionFloors,
     runtime,
     takenBack,
+    markupAwaiting: (message) => markupAwaiting.get(message.id) ?? null,
   });
   const {
     anchorLabel,
     loadMarked,
+    msgBody,
     msgNode,
     renderMessageMarkdown,
     syncEdited,
@@ -809,11 +813,6 @@ export function createConversation(dependencies) {
     // stands and which run it belongs to.
     const outline = pageOutline();
     const group = new Map(threads.map((t) => [t, groupFor(t, outline)]));
-    // Where the reader's own narrowing applies, and the only place it does: the page's
-    // marks, the inline conversation seats and the banner's count are readings of the log
-    // and go on saying what the log says. What the panel shows is the panel's business.
-    const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
-    const resolved = shown.filter((t) => t.resolved);
     // Newcomers settle in (`grow`) only when the user already has the list in front
     // of them: the first populated render is the page loading, not news arriving, and a
     // node animated while the panel is closed would replay the moment it opens.
@@ -821,6 +820,51 @@ export function createConversation(dependencies) {
     // theme's one global guard's to stop.)
     const grow =
       panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
+
+    // A structured reply asks through its x-awaits widgets. Project the last reply bodies
+    // before applying the panel's narrowing, so a new question cannot be excluded before
+    // its markup has had a chance to admit the thread. Stage only the cached bodies, never
+    // complete hidden thread cards: building a card wires its reply box to document-level
+    // draft and flight listeners, and a filtered card has no node the next reconcile can
+    // reuse. Each body keeps skeletal thread/message ancestry while connected: widget
+    // setup may read its message timestamp or card geometry, and upgrades only once before
+    // the cache moves it into the lasting card. Connection lets the shared action fold
+    // find widget ids and distinguish an open request from one the reader already answered.
+    // The stage leaves synchronously, before a frame can expose it.
+    const markupReplies = [];
+    for (const t of open) {
+      const last = spoken(t).at(-1);
+      if (last?.kind !== "reply") continue;
+      if (!last.markup) {
+        markupAwaiting.set(last.id, null);
+        continue;
+      }
+      markupReplies.push({ reply: last, thread: t });
+    }
+    const bodies = markupReplies.map(({ reply }) => msgBody(reply));
+    const stage = el("div", "lf-thread-stage");
+    bodies.forEach((body, index) => {
+      if (body.isConnected) return;
+      const { reply, thread } = markupReplies[index];
+      const skeleton = el("div", "lf-thread");
+      skeleton.dataset.id = thread.root.id;
+      skeleton.append(msgNode(reply));
+      stage.append(skeleton);
+    });
+    if (stage.childElementCount) {
+      threadsBox.append(stage);
+      captureAuthoredFacets(stage);
+    }
+    const readings = threadMarkupAwaiting(bodies);
+    markupReplies.forEach(({ reply }, index) =>
+      markupAwaiting.set(reply.id, readings[index]),
+    );
+    stage.remove();
+    // Where the reader's own narrowing applies, and the only place it does: the page's
+    // marks, the inline conversation seats and the banner's count are readings of the log
+    // and go on saying what the log says. What the panel shows is the panel's business.
+    const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
+    const resolved = shown.filter((t) => t.resolved);
 
     const wanted = [];
     if (!threads.length) wanted.push(emptyNote);

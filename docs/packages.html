@@ -434,6 +434,19 @@ lf-chip {
               </td>
             </tr>
             <tr>
+              <td><code>x-measured</code></td>
+              <td>
+                A scalar in authored content pinned to one x-data input at an aware
+                instant. <code>input</code> names the widget's data input and
+                <code>at</code> names its required date-time attribute. The authored
+                words remain frozen with the version; when that source's stored
+                <code>updated</code> instant moves past <code>at</code>,
+                <code>version check</code> advises that the measurement is stale and
+                <code>page state</code> reports the same debt. The declaration compares
+                runs, not age: a source that never updates creates no warning.
+              </td>
+            </tr>
+            <tr>
               <td><code>x-paints</code></td>
               <td>
                 Attributes the theme renders as paint alone — a status marker's tint, an

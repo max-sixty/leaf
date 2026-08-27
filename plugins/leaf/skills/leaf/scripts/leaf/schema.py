@@ -225,6 +225,17 @@ DATA_INPUTS_SCHEMA = {
         "additionalProperties": False,
     },
 }
+MEASURED_SCHEMA = {
+    "type": "object",
+    "properties": {
+        # The x-data input whose source timestamp says whether another run landed.
+        "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        # The widget attribute holding the instant its authored value was captured.
+        "at": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+    },
+    "required": ["input", "at"],
+    "additionalProperties": False,
+}
 
 _ATTRIBUTE_LIST = {
     "type": "array",
@@ -266,6 +277,7 @@ EXTENSION_SCHEMA = {
         # the element's own <pre>, or its holder's (lf-note's `at` names a line of
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
+        "x-measured": MEASURED_SCHEMA,
         # Attributes the theme renders as paint alone — a status marker's tint, an
         # event's kind, the ring on the recommended option. The runtime speaks each as
         # a clipped word (renderQuiet), the value or, where a flag carries no value,
@@ -306,7 +318,10 @@ EXTENSION_SCHEMA = {
         "x-work": WORK_SCHEMA,
     },
     "required": ["x-content", "x-upgrade"],
-    "dependentRequired": {"x-retired-when": ["x-parent"]},
+    "dependentRequired": {
+        "x-retired-when": ["x-parent"],
+        "x-measured": ["x-data"],
+    },
     "additionalProperties": False,
 }
 # The keys whose value names attributes of the widget's own schema, in whichever shape

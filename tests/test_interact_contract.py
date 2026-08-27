@@ -951,6 +951,36 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     assert registry_model.validate_registry(registry, "test registry") is registry
 
 
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            lambda entry: entry["x-measured"].update({"input": "missing"}),
+            "is not one of its x-data inputs",
+        ),
+        (
+            lambda entry: entry["required"].remove("at"),
+            "must be required and declare a date-time string",
+        ),
+        (
+            lambda entry: entry["properties"]["at"].pop("format"),
+            "must be required and declare a date-time string",
+        ),
+    ],
+)
+def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
+    page_dir, change, message
+):
+    """The generic check cannot infer a widget's source or timestamp. Its registry
+    declaration names both, and the registry door refuses a half-readable join before
+    an authored value can silently miss the freshness advisory."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    change(registry["lf-num"])
+
+    with pytest.raises(registry_model.RegistryError, match=message):
+        registry_model.validate_registry(registry, "test registry")
+
+
 def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     """The authored document owns a widget's binding for that element lifetime. A
     value record on the same attribute would make replay paint a source that the

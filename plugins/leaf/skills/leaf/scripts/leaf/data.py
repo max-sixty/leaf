@@ -2,6 +2,7 @@
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -221,6 +222,67 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
                 {"widget": rec["attrs"].get("id"), "input": input_name}
             )
     return {source: inventory[source] for source in sorted(inventory)}
+
+
+def _aware_instant(value: str):
+    """A parsed instant after the shared date-time format has admitted its spelling."""
+    if not is_aware_datetime(value):
+        return None
+    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
+    return datetime.fromisoformat(normalized)
+
+
+def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
+    """Authored measurements whose bound source has completed a later run.
+
+    The widget declaration joins the frozen half (its timestamp attribute) to the live
+    half (one x-data input). Invalid attributes stay with widget validation, and an
+    unset source says only that no later run is known, so neither becomes advice here.
+    """
+    entries = []
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"], {})
+        measured = entry.get("x-measured")
+        if not measured:
+            continue
+        input_spec = entry.get("x-data", {}).get(measured["input"])
+        if not input_spec:
+            continue  # registry validation owns the malformed declaration
+        source = rec["attrs"].get(input_spec["source"])
+        captured = rec["attrs"].get(measured["at"])
+        snapshot = stored["sources"].get(source) if isinstance(source, str) else None
+        captured_at = _aware_instant(captured) if isinstance(captured, str) else None
+        updated_at = (
+            _aware_instant(snapshot["updated"])
+            if isinstance(snapshot, dict) and isinstance(snapshot.get("updated"), str)
+            else None
+        )
+        if captured_at is None or updated_at is None or updated_at <= captured_at:
+            continue
+        entries.append(
+            {
+                "tag": rec["tag"],
+                "widget": rec["attrs"].get("id"),
+                "line": rec["line"],
+                "source": source,
+                "at": captured,
+                "updated": snapshot["updated"],
+            }
+        )
+    return entries
+
+
+def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str]:
+    """`measurement_lag_entries` as source-check advice lines."""
+    lines = []
+    for entry in measurement_lag_entries(lf_elements, registry, stored):
+        identity = f" id={entry['widget']!r}" if entry["widget"] else ""
+        lines.append(
+            f"<{entry['tag']}{identity}> (line {entry['line']}) pins source "
+            f"{entry['source']!r} at {entry['at']}, but that source was updated at "
+            f"{entry['updated']}"
+        )
+    return lines
 
 
 def data_binding_errors(

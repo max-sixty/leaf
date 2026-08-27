@@ -505,6 +505,25 @@ def validate_registry(registry: dict, source) -> dict:
                     f"{path}: <{tag}> x-data input `{input_name}` source attribute "
                     f"`{source_attr}` must be a canonical data source string"
                 )
+        if measured := entry.get("x-measured"):
+            input_name = measured["input"]
+            if input_name not in entry.get("x-data", {}):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-measured input `{input_name}` is not one "
+                    "of its x-data inputs"
+                )
+            at_attr = measured["at"]
+            at_schema = properties.get(at_attr)
+            if not (
+                at_attr in entry.get("required", [])
+                and isinstance(at_schema, dict)
+                and at_schema.get("type") == "string"
+                and at_schema.get("format") == "date-time"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-measured timestamp attribute `{at_attr}` "
+                    "must be required and declare a date-time string"
+                )
         said = set(entry.get("x-says", {}))
         for role in ("x-awaits", "x-conversation"):
             if entry.get(role) is not None and (

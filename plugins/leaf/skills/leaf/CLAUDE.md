@@ -598,6 +598,7 @@ The extension keys describe general behavior:
 | `x-upgrade` | import this tag's module |
 | `x-content` | the element contains prose, items, data, or no authored content |
 | `x-inline` | the widget stands in an inline run |
+| `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
 | `x-verbatim` | authored data must agree with the rendered words |

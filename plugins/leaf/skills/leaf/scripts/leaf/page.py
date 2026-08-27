@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from .data import page_data_binding_inventory, read_data
+from .data import measurement_lag_entries, page_data_binding_inventory, read_data
 from .events import (
     bare_reaction,
     build_threads,
@@ -192,7 +192,8 @@ def _write_page_state(
     gets missed. So this prints the readings the runtime derives, from the same
     constructions it derives them with: the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
-    channel, where the record lags either (`record_lag_entries`), the open asks
+    channel, where the record lags either (`record_lag_entries`), authored
+    measurements whose live source has run again (`measurement_lag_entries`), the open asks
     on the page and in threads (the banner's own count), each comment thread's
     exchange,
     and presence beside what answers for it. Computed on demand from the log,
@@ -219,6 +220,7 @@ def _write_page_state(
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         projection, parser, spk = page_projection(html, events, registry, revision)
     threads = build_threads(events, enclosing_of(spk))
+    stored_data = read_data(page_dir)
     state = {
         "page": str(page_dir),
         "title": "",
@@ -233,8 +235,9 @@ def _write_page_state(
         "elements": [],
         "state": [],
         "updates": [],
-        "data": read_data(page_dir),
+        "data": stored_data,
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
+        "measurement_lag": [],
         "asks": [],
         # Whole, through the same digest a delivery carries: a session picking
         # the page up is in the position this reading exists for, and a count of
@@ -303,6 +306,9 @@ def _write_page_state(
             seats_with_agent(threads),
         )
         state["lag"] = record_lag_entries(projection, byid, spk, registry)
+        state["measurement_lag"] = measurement_lag_entries(
+            parser.lf_elements, registry, stored_data
+        )
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
     )

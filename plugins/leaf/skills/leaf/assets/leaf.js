@@ -2039,12 +2039,14 @@ const {
   beside,
   fabAnchorAt,
   openOnItem,
+  openOnVisual,
   placeClear,
   raiseOnItem,
   placeComposer,
   showFab,
   standDown,
   updateFab,
+  visualAt,
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
   composer,
@@ -2083,6 +2085,7 @@ const {
   tagsDeclaring,
   takesLetters: (node) => takesLetters(node),
   versionMenuIsOpen,
+  visualPartAt: (...args) => visualPartAt(...args),
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
@@ -2091,11 +2094,13 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   inChrome: (node) => inChrome(node),
   itemAt,
   openOnDesign,
+  openOnVisual,
   pointerAt: () => pointer,
   raiseOnItem,
   refreshAim,
   spell,
   standDown,
+  visualAt,
 });
 // ---------- design mode ----------
 let designRuntime;
@@ -2795,9 +2800,13 @@ function buildReactBar() {
   for (const pill of reactPills(reactHere)) fabBar.insertBefore(pill, fab);
 }
 // What the bar's target is called, for the line, the reference and the announcement:
-// the selection, or the item by its own word.
-const anchorWord = (anchor) =>
-  anchor.quote ? "the selection" : itemWord(elementById(anchor.section)) || "the item";
+// the selection, a declared visual part by its own label, or the item by its own word.
+const anchorWord = (anchor) => {
+  if (anchor.quote) return "the selection";
+  const item = elementById(anchor.section);
+  if (anchor.visual) return visualPartLabel(item, anchor.visual) ?? anchor.visual;
+  return itemWord(item) || "the item";
+};
 // A reaction aimed where the bar is: a comment carrying a token in place of words, on
 // the same anchor a comment from here would carry — the passage a selection named or
 // the item the bar was raised on — so the file meets it the way it meets a comment.
@@ -3889,6 +3898,12 @@ export function itemWord(...args) {
 function itemSays(...args) {
   return anchorRuntime.itemSays(...args);
 }
+function visualPartAt(...args) {
+  return anchorRuntime.visualPartAt(...args);
+}
+function visualPartLabel(...args) {
+  return anchorRuntime.visualPartLabel(...args);
+}
 function resolveAnchor(...args) {
   return anchorRuntime.resolveAnchor(...args);
 }
@@ -4166,6 +4181,7 @@ conversationRuntime = createConversation({
   threadsBox,
   toggleBtn,
   updateSequence,
+  visualPartLabel,
   wireInput,
   withdraw,
 });

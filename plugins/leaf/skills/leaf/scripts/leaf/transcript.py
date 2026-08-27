@@ -114,6 +114,8 @@ def cmd_transcript(page_dir: Path) -> None:
             head = f"> “{shown(anchor['quote'])}”"
         elif anchor.get("section"):
             head = f"> § {anchor['section']}"
+            if anchor.get("visual"):
+                head += f" · {anchor['visual']}"
             if anchor.get("part"):
                 head += f" · {anchor['part']}"
         else:

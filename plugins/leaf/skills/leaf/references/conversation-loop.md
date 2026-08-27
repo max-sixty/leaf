@@ -143,11 +143,13 @@ event the wait printed:
 ## Threads
 
 Open a thread when the answer depends on the reader. Use a quote for a passage, a
-section id for a diagram or image, and no anchor for the page as a whole:
+section id for a diagram or image, a declared part for one box within a visual, and no
+anchor for the page as a whole:
 
 ```bash
 leaf comment <page> --quote "<passage in the current page>" --text "…"
 leaf comment <page> --section <element-id> --text "…"
+leaf comment <page> --section <diagram-id> --part node:<source-id> --text "…"
 leaf comment <page> --text "…"
 ```
 

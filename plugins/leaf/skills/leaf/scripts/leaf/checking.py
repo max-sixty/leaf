@@ -14,7 +14,7 @@ from leaf.projection import (
     retirement_holders,
     state_projection,
 )
-from leaf.registry import load_registry
+from leaf.registry import load_registry, visual_parts
 from leaf.rendering import render_check
 from leaf.schema import VENDORED_FILES
 from leaf.service import transition_lock
@@ -41,6 +41,7 @@ from leaf.validation import (
     structure_errors,
     suggestion_errors,
     unpointable_blocks,
+    visual_part_errors,
     widget_errors,
 )
 
@@ -145,6 +146,7 @@ def cmd_check(
     registry = load_registry(page_dir)
     if registry is not None:
         errors.extend(widget_errors(parser.lf_elements, registry))
+        errors.extend(visual_part_errors(parser.lf_elements, registry))
         errors.extend(
             data_binding_errors(
                 page_dir,
@@ -211,6 +213,28 @@ def cmd_check(
         # retired would read as dropped, stacked on the "vendor the layer" error the
         # page already has.
         if registry is not None:
+            previous_parts = {
+                (rec["attrs"]["id"], part)
+                for rec in prev.lf_elements
+                if rec["attrs"].get("id")
+                for part in visual_parts(rec, registry)
+            }
+            current_parts = {
+                (rec["attrs"]["id"], part)
+                for rec in parser.lf_elements
+                if rec["attrs"].get("id")
+                for part in visual_parts(rec, registry)
+            }
+            dropped_parts = sorted(
+                f"{section} · {part}"
+                for section, part in previous_parts - current_parts
+                if section in parser.ids
+            )
+            if dropped_parts:
+                errors.append(
+                    f"visual parts present in {prev_name} but dropped in {name} "
+                    f"(anchors on them will break): {dropped_parts}"
+                )
             previous_projection = state_projection(
                 events, prev.by_id, was, registry, prev_num
             )

@@ -107,28 +107,17 @@ OVER_WORDS = """(el, id) => {
 # placed from and where the option's own room starts: a joined cell wears the hairline
 # below it as its own border, so measured from the border box, the last cell of every
 # group would sit one pixel apart from the rest while the page shows them level.
-#
-# The gutter the chip stands in comes back with it, because where the chip belongs is a
-# relation to the two boxes either side of it rather than a number. The status rule is the
-# option's own `::before` and the prose opens at the column the option pads to, so
-# `afterStatus` and `opens` are read where the theme spends them. Written as the number
-# they came to, the reading would have to be re-pinned every time either neighbour moved,
-# and a re-pinned number proves only that somebody ran the test.
 INSIDE_ITS_OPTION = """el => {
     const chip = el.getBoundingClientRect();
     const opt = el.parentElement.getBoundingClientRect();
     const s = getComputedStyle(el.parentElement);
-    const status = getComputedStyle(el.parentElement, '::before');
     const top = opt.y + parseFloat(s.borderTopWidth);
     const left = opt.x + parseFloat(s.borderLeftWidth);
     const bottom = opt.bottom - parseFloat(s.borderBottomWidth);
     const above = parseFloat(s.paddingTop), below = parseFloat(s.paddingBottom);
     const words = top + above + (bottom - top - above - below) / 2;
-    return {x: chip.x - left, ends: chip.right - left,
-            y: chip.y - top, past: chip.bottom - bottom,
-            level: (chip.y + chip.height / 2) - words,
-            afterStatus: parseFloat(status.left) + parseFloat(status.width),
-            opens: parseFloat(s.paddingInlineStart)};
+    return {x: chip.x - left, y: chip.y - top, past: chip.bottom - bottom,
+            level: (chip.y + chip.height / 2) - words};
 }"""
 
 

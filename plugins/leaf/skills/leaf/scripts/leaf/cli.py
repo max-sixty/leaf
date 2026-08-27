@@ -447,9 +447,12 @@ def ack(dir: str, seq: int) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.option("--quote", help="passage text from the published version")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
+@click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
 @click.option("--markup", help="widget markup to render after the text, validated here")
-def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
+def comment(
+    dir: str, quote: str, section: str, part: str, text: str, markup: str
+) -> None:
     """Open a thread as the agent (--text or stdin): anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
@@ -457,7 +460,7 @@ def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
     The user answers it in the browser and resolves it there. Refuses a quote the
     published version does not hold, or holds more than once.
     """
-    cmd_comment(resolve_dir(dir), quote, section, text, markup)
+    cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
 
 
 @cli.command(short_help="Reply to a thread as the agent.")

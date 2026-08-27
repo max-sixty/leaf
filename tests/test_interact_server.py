@@ -200,11 +200,11 @@ def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
     silent one cannot pass by refusing the request before it ever writes. The server
     object only supplies the argument; nothing is accepting on it.
 
-    The poll, of everything a page asks for, because it is the request a closing tab
-    is most likely to be holding — the runtime asks again forever — and because a
-    socketpair's buffer is a few kilobytes: nothing drains this one until the handler
-    has returned, so the answered half asks for a response that fits. The runtime is
-    297kB and deadlocks the test rather than the server."""
+    The state read, of everything a page asks for, because it is the request a tab
+    makes most and holds longest of those that end, and because a socketpair's buffer
+    is a few kilobytes: nothing drains this one until the handler has returned, so
+    the answered half asks for a response that fits. The runtime is 297kB and
+    deadlocks the test rather than the server."""
     handler = http_model.handler_for(page_dir, TOKEN)
     httpd = HTTPServer(("127.0.0.1", 0), handler)
     request = f"GET /api/state?t={TOKEN} HTTP/1.0\r\nHost: x\r\n\r\n".encode()
@@ -1463,14 +1463,54 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_a_poll_records_that_the_page_is_open(server, page_dir):
+def _news(server):
+    """An open news stream, and a reader of the next reading it names."""
+    stream = urllib.request.urlopen(f"{server}/api/news?t={TOKEN}", timeout=5)
+
+    def heard():
+        while True:
+            line = stream.readline().decode()
+            assert line, "the stream ended"
+            if line.startswith("data: "):
+                return line[6:].strip()
+
+    return stream, heard
+
+
+def test_an_open_stream_records_that_the_page_is_open(server, page_dir):
     """A page nobody ever opened and one the user studied and left used to be
-    indistinguishable from the agent's side; the poll is the proof a browser
-    holds the page, so the server writes it down."""
+    indistinguishable from the agent's side; a tab's news stream is the proof a
+    browser holds the page, so the server writes it down. A bare read is not
+    that proof — `curl`, the render gate and `page state` all read, and a tab
+    that has no news never reads again."""
     events = event_model.read_events(page_dir)
     assert http_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
+    assert http_model.presence(page_dir, events)["viewed"] is None
+    stream, heard = _news(server)
+    heard()
     assert http_model.presence(page_dir, events)["viewed"] is not None
+    stream.close()
+
+
+def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_dir):
+    """The stream says what reading the page is at, once on arrival and again each
+    time it changes, and the reading it names is the one a state read answers with
+    — that agreement is what lets a tab compare the two and ask only when they
+    differ. Nothing else rides it: an append is news, and the state carrying it
+    still comes by asking."""
+    publish(page_dir)
+    stream, heard = _news(server)
+    first = heard()
+    assert first == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+    event_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
+    )
+    second = heard()
+    assert second != first
+    assert second == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+    stream.close()
 
 
 def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):

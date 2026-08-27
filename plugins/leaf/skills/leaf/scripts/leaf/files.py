@@ -11,6 +11,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
+# The name an atomic write stages under, beside its target, for the moment before the
+# rename (`write_files` below). A reader of the directory looks past it: it is not yet
+# any file the page has, and a look that counted it would see the page move twice for
+# a write that moved it once.
+STAGED = re.compile(r"\.[0-9a-f]{16}\.tmp")
+
 
 def file_stamp(path: Path):
     """What the filesystem says a file is: which file, when it was last written,

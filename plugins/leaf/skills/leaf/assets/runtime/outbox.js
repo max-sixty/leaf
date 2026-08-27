@@ -9,12 +9,12 @@
  * whether any action is unresolved. An accepted entry may remain here after its caller is
  * answered: delivery can be certain while applying the response's state failed locally.
  * A second pending map used to mirror part of the same lifecycle and then needed a
- * protocol of its own to agree with the send queue and the polling loop. */
+ * protocol of its own to agree with the send queue and the reads. */
 export const outbox = [];
 
 export function createOutbox(runtime, dependencies) {
   const {
-    POLL_MS,
+    RETRY_MS,
     elementById,
     newAttempt,
     paintKeys,
@@ -104,9 +104,11 @@ export function createOutbox(runtime, dependencies) {
   // A successful POST returns the server's state through the event it accepted. Acceptance
   // answers the caller and lets the next entry send. The entry itself leaves only after a
   // complete state application accounts for its attempt, keeping replay and undo away from
-  // stale history if rendering the response fails. A periodic poll may account for the
-  // attempt first after a response is lost, or later after a local render fault.
-  const retryPause = () => new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  // stale history if rendering the response fails. A later read may account for the attempt
+  // first after a response is lost, or later after a local render fault — and a lost answer
+  // is the case that read reaches soonest, because the append it lost the answer to is
+  // itself what ends the held request.
+  const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
   let drainingOutbox = false;
   function removeOutbox(entry) {
     const index = outbox.indexOf(entry);
@@ -175,7 +177,7 @@ export function createOutbox(runtime, dependencies) {
       );
       if (res.ok && answer?.ok === true && acceptedEvent) {
         // The send succeeded the moment the answer named the accepted event. A fault
-        // rendering that state is its own news and must not re-send: the next poll
+        // rendering that state is its own news and must not re-send: a later read
         // paints it, and re-posting an attempt the log already holds is a request the
         // server can only answer the same way. Where the throw lands before the events
         // are stored, the retry would not even end at the top of this loop — the
@@ -231,7 +233,7 @@ export function createOutbox(runtime, dependencies) {
         // could not. Comment callers reveal and focus the thread that state creates;
         // tying their continuation to POST delivery made that focus a race. A failed
         // render still resolves with the accepted event and leaves this outbox entry
-        // holding replay and undo for the next complete poll.
+        // holding replay and undo for the next complete read.
         if (settled) void settled.then(() => entry.resolve(answer));
         else entry.resolve(answer);
       }

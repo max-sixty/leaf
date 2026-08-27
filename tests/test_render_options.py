@@ -264,7 +264,7 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
     page = browser.new_page(
         viewport={"width": 460, "height": 900}, color_scheme="light"
     )
-    page.goto(serve(STACKED_OPTIONS_PAGE), wait_until="networkidle")
+    page.goto(serve(STACKED_OPTIONS_PAGE), wait_until="load")
     rail = page.locator("#st-sd > dl.facts").bounding_box()
     prose = page.locator("#st-sd > p").bounding_box()
     card = page.locator("#st-sd").bounding_box()
@@ -2678,7 +2678,7 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
     url = serve(SPECIMEN_PAGE)
     for scheme in ("light", "dark"):
         page = browser.new_page(color_scheme=scheme)
-        page.goto(url, wait_until="networkidle")
+        page.goto(url, wait_until="load")
         gutter = page.locator("#spec").evaluate(
             "el => getComputedStyle(el).borderLeftColor"
         )

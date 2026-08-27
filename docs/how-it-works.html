@@ -304,10 +304,11 @@ $ leaf ack ./review 3</code></pre>
         </p>
         <p id="agent-render">
           So the agent's words reach the screen without the document changing. What the
-          user looks at is the active revision composed with the log, recomposed on a
-          two-second poll: the reply appears in a thread in the injected panel, the
-          passage it answers is lit by the browser's highlight registry — which paints a
-          range and touches no nodes — and the banner's line is whatever
+          user looks at is the active revision composed with the log, recomposed when
+          the server names a change on the stream the tab holds open: the reply appears
+          in a thread in the injected panel, the passage it answers is lit by the
+          browser's highlight registry — which paints a range and touches no nodes — and
+          the banner's line is whatever
           <code>leaf status</code> last wrote. Nothing in the document was rewritten to
           put any of it there, and it is the same composition that shows the user their
           own edits before a later revision carries them.
@@ -320,11 +321,12 @@ $ leaf ack ./review 3</code></pre>
           and shows its diagnostic. <code>version stamp</code> copies the exact current
           source to the next public file, such as <code>v2.html</code>, and records
           which revision it names. A tab at the root follows revisions while a tab
-          pinned to v1 stays there. The next poll moves a live tab onto the new
-          revision, keeping the reader's place, and holds while the user is mid-comment
-          or mid-drag. Coming back the other way, <code>leaf wait</code> starts after
-          the last acknowledged user event, so a comment posted between a wait and its
-          acknowledgement remains beyond the cursor and still lands.
+          pinned to v1 stays there. A live tab hears that the page moved and follows
+          onto the new revision, keeping the reader's place, and holds while the user is
+          mid-comment or mid-drag. Coming back the other way,
+          <code>leaf wait</code> starts after the last acknowledged user event, so a
+          comment posted between a wait and its acknowledgement remains beyond the
+          cursor and still lands.
         </p>
       </section>
 

@@ -36,6 +36,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
@@ -753,18 +754,91 @@ def round_trip(page):
 
 # The other direction of the same trip. Nothing a test writes into the page directory
 # announces itself — a declared status, a changed wait lease, an appended event all reach
-# the page when its next poll asks — so an assertion made straight after the write is
-# waiting out the poll interval on whatever budget expect() happens to carry. Timed, that
-# wait takes 1.8 to 2.3 of the default five seconds, and it takes them every time: an
-# assertion returns just after a poll lands, leaving the next one a whole interval away.
+# the page when it next reads — so an assertion made straight after the write is waiting
+# on whatever budget expect() happens to carry. Timed, that wait takes 1.8 to 2.3 of the
+# default five seconds, and it takes them every time.
 #
-# So the wait is the trip again, watched rather than timed. A poll counted out after the
-# write is one that went looking for it, and its answer is the page being told; the
-# expect that follows only has to read what arrived.
+# So ask the page what it holds. The server names each state it serves with a reading
+# and the runtime paints the one it has completely applied, so "has this page taken in
+# what I just wrote" is one comparison and names no transport. Counting answered
+# requests said the same thing only while a fixed interval made them the same thing:
+# the page now asks when its news stream says the page has moved, so a count of asks
+# started here reaches the answer that carries the news only by luck of the ordering.
+#
+# The wanted reading is re-read each round rather than fixed at entry, because the page
+# is allowed to move past it — a work claim ages, a neighbour writes — and a wait pinned
+# to a reading the page has already overtaken would sit out its whole deadline.
+def _server_reading(page):
+    """What the server would answer with now, asked without disturbing the page.
+
+    Through the context's request API rather than the page: it carries the same cookie,
+    and it is not seen by page routes or by the traffic watcher, so a test that stubs or
+    counts /api/state sees exactly what it did before this call existed.
+    """
+    origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/state")
+    assert answer.ok, f"the server would not say what it holds: {answer.status}"
+    return answer.json()["reading"]
+
+
 def told(page):
-    """Wait for a poll that goes out from here on to come back."""
-    asked = _traffic(page).asked
-    _until(page, lambda t: t.heard > asked, "finished a poll that went out from here")
+    """Wait until the page has taken in everything the server now holds."""
+    deadline = time.monotonic() + 30
+    began = None
+    while True:
+        want = _server_reading(page)
+        if began is None:
+            began = want
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AssertionError(
+                f"the page never took in what the server holds: waiting for {began}, "
+                f"the page last applied "
+                f"{page.evaluate('() => document.body.dataset.lfReading')}"
+            )
+        try:
+            page.wait_for_function(
+                "want => document.body.dataset.lfReading === want",
+                arg=want,
+                timeout=min(500, remaining * 1000),
+                polling=50,
+            )
+            return
+        except PlaywrightTimeout:
+            # Either the page has not caught up yet or the revision moved under this
+            # wait. Both are answered by asking again with what the server holds now.
+            continue
+
+
+def nudge(page_dir):
+    """Give the page a reason to ask, changing nothing it shows.
+
+    The page asks for state when its news stream says the page has moved, and the
+    stream reads file stamps. A test that wants the page's next ask — to park it, or to
+    watch it refused — used to wait for the poll's timer; now it moves a stamp the state
+    does not read. The versions directory's own clock is one: a state reads the files
+    in it and never the directory's time.
+    """
+    os.utime(page_dir / "versions")
+
+
+def ticked(page):
+    """Wait for the page's next re-application of what it holds, by whichever door.
+
+    The poll used to supply this, so a test that wanted the page's next local pass —
+    a deferred correction applied once an editor closed — waited for the next request.
+    The pass is the heartbeat now, or a read, or a POST's answer, and none of them
+    marks the wire for it; `lf-actions` is what every one dispatches when it has run,
+    and the listener is put on before the wait so a pass already past cannot answer.
+    """
+    page.evaluate(
+        """() => {
+          window.__lfTicked = false;
+          document.addEventListener('lf-actions', () => { window.__lfTicked = true; },
+                                    { once: true });
+        }"""
+    )
+    page.wait_for_function("() => window.__lfTicked")
 
 
 def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
@@ -857,7 +931,7 @@ def undo(page):
     round_trip(page)
 
 
-# A poll a test stops is cancelled rather than failed. The page cannot tell the two
+# A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
 # The console can tell them apart, which is what the reason is chosen for:
 # tests/CLAUDE.md, "A test cannot assert over noise it makes itself". A refused event
@@ -867,22 +941,24 @@ def refuse(route):
     route.abort("aborted")
 
 
-# A tab a test holds stale is stale for one poll interval and no longer: every poll
-# reconciles the draft store against shared storage before it settles anything
-# (settleAcceptedDrafts), so a stale view the assertions take their time reaching is a
-# race a loaded runner loses. Refusing the polls states it — but only from before the
-# page exists. `page.route` reaches no request already in the wire, and a poll
-# reconciles when its response lands rather than when its request went out, so a
-# refusal registered on a live page leaves whatever is outstanding free to arrive
-# later, against storage the test has moved in the meantime. Registered through
-# `primed`, the route is on the page before it navigates and no poll is ever unrouted.
+# A tab a test holds stale is stale only while nothing reaches it: every state
+# application reconciles the draft store against shared storage before it settles
+# anything (settleAcceptedDrafts), so a stale view the assertions take their time
+# reaching is a race a loaded runner loses. Refusing the state reads states it — but
+# only from before the page exists. `page.route` reaches no request already in the
+# wire, and a read reconciles when its response lands rather than when its request
+# went out, so a refusal registered on a live page leaves whatever is outstanding free
+# to arrive later, against storage the test has moved in the meantime. Registered
+# through `primed`, the route is on the page before it navigates and no read is ever
+# unrouted. The stream the page hears news on is not a state read and is not refused;
+# what it prompts is, every two seconds, for as long as the route stands.
 #
 # The first is let through because `open_page` waits for the page's readiness facts,
 # including `lf-applied`, which rides on it — and that same wait is what leaves nothing
 # outstanding when the page is handed over. Where the tab has to hear the log again,
 # the test lifts the refusal itself.
 class CutOff:
-    """A page's polls, stopped from outside it until the test says it can hear again."""
+    """A page's state reads, stopped from outside it until the test says it can hear again."""
 
     def __init__(self, lets_through=0):
         self._lets_through = lets_through
@@ -903,13 +979,13 @@ class CutOff:
     def restore(self):
         self._live = True
 
-    # Preserve the initial-poll count when cutting the page off again.
+    # Preserve the initial-read count when cutting the page off again.
     def cut(self):
         self._live = False
 
 
 def held_stale(context):
-    """A context whose next page is refused every poll after the one that stamps it."""
+    """A context whose next page is refused every state read after the one that stamps it."""
     cut = CutOff(lets_through=1)
     stale = primed(context, cut.hold)
     stale.restore = cut.restore
@@ -920,7 +996,7 @@ def held_stale(context):
 # and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
 # pass, and `lf-presented` says a deliberately shown waiting surface has completed its
 # minimum dwell. Applied state is not yet a completed page while that surface stands.
-# The runtime stamps the document in the same breath as it starts that first poll and
+# The runtime stamps the document in the same breath as it starts that first read and
 # never awaits it, so a page can be done becoming itself while knowing nothing of what
 # the reader has decided or which version is newest.
 #
@@ -928,7 +1004,7 @@ def held_stale(context):
 # noticed ever grew the second half. `open_page` took it when a loaded Linux runner
 # dropped three keypresses into pages with nothing yet to answer them; every navigation a
 # test makes for itself kept waiting on the document alone. What that leaves out is not a nicety of
-# the log: the version chooser and the live-pages button are drawn from a poll's answer
+# the log: the version chooser and the live-pages button are drawn from a read's answer
 # and Comments has no count until one lands, so a page at the document's stamp is a page
 # whose banner the reader would not recognize.
 BOTH_STAMPS = (
@@ -974,7 +1050,7 @@ def watched(page):
     return errors
 
 
-def navigate(page, errors, url, *, wait_until="networkidle", ready=BOTH_STAMPS):
+def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
@@ -1020,8 +1096,9 @@ def key_line(page):
     because the repaint's own rAF may be queued behind this one's.
 
     Read once and never retried, which is the point of it: a disclosure's word is either
-    what the watch painted within the press or what the two-second poll paints later, and
-    an assertion that retries goes green on whichever poll lands inside its budget —
+    what the watch painted within the press or what the two-second heartbeat paints
+    later, and an assertion that retries goes green on whichever tick lands inside its
+    budget —
     reading a stale line as an eventually right one.
     """
     page.evaluate(
@@ -1114,7 +1191,7 @@ def opened_tab(page, press, tries=3, each=10_000):
     loaded machine — so a runtime that stopped leaving a real href for the platform to act
     on opens no tab for any of the tries, and the last one says which wait went unanswered.
 
-    A press whose tab is lost still leaves that tab loaded and polling its server, and no
+    A press whose tab is lost still leaves that tab loaded and listening to its server, and no
     caller can close what it was never handed. A test that closes the tab it receives is
     closing only the try that was reported; the rest stand until context teardown. That is
     the standing cost of the repeat, not a leak to chase.
@@ -1157,7 +1234,7 @@ def primed(browser, prepare):
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
     that has earned its keep: the runtime stamps `lf-upgraded` in the same breath as it
-    starts that poll, never awaiting it, so a refusal puts replay on the far side of the
+    starts that read, never awaiting it, so a refusal puts replay on the far side of the
     document's stamp — where a slow machine would have put it — deterministically and in
     a second."""
 

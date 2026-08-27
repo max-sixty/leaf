@@ -74,6 +74,7 @@ from render_support import (
     stale_report,
     stamp_page,
     stamp_version_file,
+    ticked,
     token_colour,
     told,
     trial_family,
@@ -1034,8 +1035,9 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
     )
     assert sent.exit_code == 0, sent.output
     told(page)
-    told(page)
-    # wren heard nothing in either poll, so nothing of wren's may have moved.
+    ticked(page)
+    # wren heard nothing in the read or the tick after it, so nothing of wren's may
+    # have moved.
     assert page.evaluate(
         "() => window.__kept.every((n, i) => n === [...document.querySelectorAll("
         "'#ag-wren .lf-doing, #ag-wren .lf-branch, #ag-wren .lf-state')][i]?.firstChild)"
@@ -1618,7 +1620,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
     failures = rendering_model.render_version(browser, url)
 
     tail = (
-        ". The poll replays every standing action over the state they already "
+        ". Replay lays every standing action over the state they already "
         "produced, so state the whole value from the detail rather than stepping "
         "from what the page shows"
     )

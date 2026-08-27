@@ -55,14 +55,15 @@ one can't end on comments nobody read.
 A session's leaves cost it one long-running command between them, and that
 command is the watcher. The two jobs end in opposite ways: `leaf wait` has to
 exit, because its exit is how what the user said reaches the agent; the server
-has to not exit at all, because the browser polls it between turns and straight
-across every wait. So no single process does both. Only the watcher belongs to
-the session, and one watcher is enough: it watches every page the session
-holds, re-reading the set on each pass, and delivers one page's batch under a
-first line naming the page and carrying the conversations its events land in. `server start` spawns the service into a session of
-its own and hands back the URL that process printed and the lifetime it
-recorded — so a killed background task costs only the watcher and leaves every
-page up, and recovery is one `leaf wait`.
+has to not exit at all, because the browser holds a stream open to it between
+turns and straight across every wait. So no single process does both. Only the
+watcher belongs to the session, and one watcher is enough: it watches every
+page the session holds, re-reading the set on each pass, and delivers one
+page's batch under a first line naming the page and carrying the conversations
+its events land in. `server start` spawns the service into a session of its
+own and hands back the URL that process printed and the lifetime it recorded —
+so a killed background task costs only the watcher and leaves every page up,
+and recovery is one `leaf wait`.
 
 Whether a session's end reaches a server is decided at launch and written in
 service.json as its lifetime. A serve from an agent host records the page's

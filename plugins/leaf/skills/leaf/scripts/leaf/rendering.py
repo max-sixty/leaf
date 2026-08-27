@@ -164,7 +164,7 @@ def _render_version_attempt(
     the page (a declaration is scheme-blind), an attribute a module left standing on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
-    applyAction is relative, so the poll's replay of the sender's own gesture moves the
+    applyAction is relative, so a read's replay of the sender's own gesture moves the
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once, on the premise the
     trapped-margin reading shares: the palettes carry no geometry between them), a box
@@ -209,7 +209,10 @@ def _render_version_attempt(
         )
         page.add_init_script(WINDOW_ERRORS)
         try:
-            page.goto(url, wait_until="networkidle")
+            # `load`, not `networkidle`: the page holds a request open to hear
+            # about news, so the network is never idle and never will be. The
+            # wait that matters is the next line, which asks the runtime itself.
+            page.goto(url, wait_until="load")
             page.wait_for_function(
                 "() => document.querySelector('.lf-banner') !== null"
             )
@@ -283,7 +286,7 @@ def _render_version_attempt(
             e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
         ]
         # Every reading below is of a page at rest, and the upgrade stamp above is
-        # one third of that. The stamp is written without awaiting the first poll, so
+        # one third of that. The stamp is written without awaiting the first read, so
         # a gate reading there reads the authored board, the unanswered question and
         # the body the reader has since rewritten — a page nobody is shown. The
         # caught-up stamp is the log's answer to that, and the frame it lands in is
@@ -519,7 +522,7 @@ def _render_version_attempt(
             # nobody looks at, so the overlap reading is taken here too while it holds.
             on_paper = [f"[print] {c}" for c in page.evaluate(COVERED_WORDS)]
             page.emulate_media(media="screen")
-            # Paired on the words as well as the position: the page is live, and a poll
+            # Paired on the words as well as the position: the page is live, and a state
             # landing between the two readings would otherwise shift one against the
             # other and report whatever happened to line up. A pair that disagrees says
             # nothing, which is the right way round — the next run reads it again.
@@ -880,7 +883,9 @@ def export_page(browser, url: str, page_dir: Path) -> str:
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
     try:
-        page.goto(url, wait_until="networkidle")
+        # See the gate: a page listening for news is never network-idle. The
+        # stamps below are the arrival signal, and they are the precise one.
+        page.goto(url, wait_until="load")
         try:
             page.wait_for_function(UPGRADED)
             page.wait_for_function(

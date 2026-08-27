@@ -300,6 +300,10 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
     assert 0 < version["left"] < 320 < version["right"], (
         f"the next phone destination did not peek past the primary actions: {version}"
     )
+    (serve.page_dir / "versions" / "v2.html").write_text(html)
+    stamp_version_file(serve.page_dir, 2, "two")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    assert page.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") > 0
     assert errors == []
     page.close()
 

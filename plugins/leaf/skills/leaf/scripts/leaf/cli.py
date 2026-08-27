@@ -546,4 +546,8 @@ def transcript(dir: str) -> None:
 @cli.command(hidden=True)
 def hook() -> None:
     """Answer an agent-host hook on stdin."""
-    cmd_hook(json.load(sys.stdin))
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as error:
+        sys.exit(f"hook expects the host's JSON payload on stdin ({error.msg})")
+    cmd_hook(payload)

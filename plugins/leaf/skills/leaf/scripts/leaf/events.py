@@ -227,7 +227,7 @@ def bare_reaction(thread: dict) -> bool:
     return is_reaction(thread["root"]) and not spoken_turns(thread)
 
 
-def undo_error(event: dict, events: list) -> str | None:
+def undo_error(event: dict, events: list, within: dict) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing
@@ -242,7 +242,11 @@ def undo_error(event: dict, events: list) -> str | None:
     would orphan those words, and the reader's move is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the same
-    (conversation.js `reactionStanding`)."""
+    (conversation.js `reactionStanding`).
+
+    `within` is the published page's containment, as every other fold of the
+    threads takes it: a thread an action settled, and a version's `restated`
+    inside that widget reopened, is open here as it is in `page state`."""
     target = next((e for e in events if e["id"] == event["undoes"]), None)
     if target is None:
         return f"unknown undoes {event['undoes']!r}"
@@ -256,7 +260,7 @@ def undo_error(event: dict, events: list) -> str | None:
             )
         thread = next(
             t
-            for t in build_threads(events, {}).values()
+            for t in build_threads(events, within).values()
             if any(m["id"] == target["id"] for m in t["msgs"])
         )
         if any(m.get("parent") == target["id"] for m in spoken_turns(thread)):

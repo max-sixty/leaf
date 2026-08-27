@@ -42,7 +42,7 @@ out. Both kinds set status and enter the wait loop.
 Packages may also carry guidance for roles involved in the page. `leaf page
 guidance <page>` lists the available audiences, and `leaf page guidance <page>
 <audience>` prints one guide. Read the assigned audience before acting in that
-role; `page catalog` already includes the `author` guide.
+role; `page catalog` prints the `author` guide where a package supplies one.
 
 Every ask has a control beside its evidence. A page that needs approval declares
 sign-off; an informative page does not. Publish when the subject changes and use

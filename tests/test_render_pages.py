@@ -1977,8 +1977,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
           left: parseFloat(getComputedStyle(document.body).paddingLeft),
           right: parseFloat(getComputedStyle(document.body).paddingRight),
         },
-        gutter: document.documentElement.clientWidth
-          - document.body.getBoundingClientRect().width,
+        gutter: document.body.offsetWidth - document.body.clientWidth,
         sideways: document.documentElement.scrollWidth
           - document.documentElement.clientWidth,
       };

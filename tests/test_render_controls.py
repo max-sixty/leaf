@@ -2521,19 +2521,13 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
     )
-    # The same reading with the hold defeated, taken while the page is up. The predicate
-    # is turned off rather than the pass rewritten, so what runs is this reading with one
-    # answer changed.
-    unheld = render_checks_model.COVERED_WORDS.replace(
-        "s.position === 'absolute' || s.position === 'fixed'", "false"
+    # The same reading with the hold defeated, taken while the page is up.
+    reported = render_checks_model.evaluate_probe(
+        page, "coveredWords", {"holdFloating": False}
     )
-    reported = page.evaluate(unheld)
     assert errors == []
     page.close()
     assert rendering_model.render_version(browser, url) == []
-    assert unheld != render_checks_model.COVERED_WORDS, (
-        "the pass no longer holds a float out by the predicate this reaches for"
-    )
     assert any("1 comment" in found for found in reported), (
         "the line falls on nobody, so a gate that never looked would pass this too"
     )
@@ -2562,19 +2556,13 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
 
     # The gate's own reading, taken here rather than left to render_version: that opens a
     # fresh page, which is the coin again, and this page is the one holding the layout the
-    # cards kept. Then the same reading with the collapse no longer held out — named out
-    # of the selector rather than cut from it, so this stays the gate's reading however
-    # the things it holds out are ordered or added to.
-    unheld = render_checks_model.COVERED_WORDS.replace("[hidden]", "[lf-holds-nothing]")
+    # cards kept. Then the same named reading with its collapsed-content hold disabled.
     held, reported = (
-        page.evaluate(render_checks_model.COVERED_WORDS),
-        page.evaluate(unheld),
+        render_checks_model.evaluate_probe(page, "coveredWords"),
+        render_checks_model.evaluate_probe(page, "coveredWords", {"holdHidden": False}),
     )
     assert errors == []
     assert held == []
-    assert unheld != render_checks_model.COVERED_WORDS, (
-        "the pass no longer holds collapsed content out by name"
-    )
     assert any("opt-" in found for found in reported), (
         "the cards fell on nobody, so a gate that never looked would pass this too"
     )
@@ -2616,7 +2604,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     del undeclared["lf-suggestion"]["x-inline"]
     assert [
         box
-        for box in page.evaluate(render_checks_model.TINY_BOXES, undeclared)
+        for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
         if box["tag"] == "lf-suggestion"
     ], (
         "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
@@ -2627,7 +2615,9 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     page.add_style_tag(
         content="lf-chip { display: block; height: 2px; overflow: hidden; }"
     )
-    flattened = page.evaluate(render_checks_model.TINY_BOXES, page_registry(page))
+    flattened = render_checks_model.evaluate_probe(
+        page, "tinyBoxes", page_registry(page)
+    )
     page.close()
     assert [box for box in flattened if box["tag"] == "lf-chip"], (
         "a chip with no height left reports nothing, so the floor is gone rather than declared"

@@ -46,6 +46,7 @@ from leaf import events as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import render_checks as render_checks_model
 from leaf import rendering as rendering_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
@@ -1037,7 +1038,8 @@ def watched(page):
     one channel every reader in this file already has, and only for the events with no
     exception, since the rest arrive on `pageerror` already.
 
-    The script is `rendering.WINDOW_ERRORS`, which `render_version` lays in for the same
+    The script is installed by `render_checks.install_window_errors`, which
+    `render_version` lays in for the same
     reason: one implementation with two callers is what keeps `version check --render`
     and this suite holding the same invariants, and a channel read on one side only is
     that drift in its quietest form.
@@ -1046,7 +1048,7 @@ def watched(page):
     errors = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.add_init_script(rendering_model.WINDOW_ERRORS)
+    render_checks_model.install_window_errors(page)
     return errors
 
 

@@ -1,3 +1,8 @@
+let publishedAskModel;
+export const answeredContext = (...args) => publishedAskModel.answeredContext(...args);
+export const askSource = (...args) => publishedAskModel.askSource(...args);
+export const openAsks = (...args) => publishedAskModel.openAsks(...args);
+
 export function createAskModel({
   authoredParentOf,
   awaitsAgent,
@@ -343,7 +348,7 @@ export function createAskModel({
     return answeredAsk(el, projection);
   }
 
-  return {
+  const model = {
     answeredContext,
     askEntry,
     askSource,
@@ -353,4 +358,6 @@ export function createAskModel({
     threadMarkupAwaiting,
     unansweredAsks,
   };
+  publishedAskModel = model;
+  return model;
 }

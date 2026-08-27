@@ -1,5 +1,11 @@
 import { bindings, checked, live, word } from "./bindings.js";
 
+let publishedScopes;
+export const focused = (...args) => publishedScopes.focused(...args);
+export const keys = (...args) => publishedScopes.keys(...args);
+export const paintKeys = (...args) => publishedScopes.paintKeys(...args);
+export const saying = (...args) => publishedScopes.saying(...args);
+
 export function createScopes({ paintHere, upFrom }) {
   // The scopes declared against an element — a WeakMap, so a scope leaves with the element
   // that owns it — and, for the overlay, their rows gathered under each title. A section is
@@ -113,6 +119,7 @@ export function createScopes({ paintHere, upFrom }) {
     paintHere();
     return rows;
   }
+  const paintKeys = () => paintHere();
   /** What a scope answers right now, as a listener hears it read out — key names rather than
    * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
    * so an announcement cannot name a key the rows stopped binding.
@@ -169,16 +176,19 @@ export function createScopes({ paintHere, upFrom }) {
       scope.rows.some((row) => live(row) && bindings(row).includes("Escape")),
     );
 
-  return {
+  const scopes = {
     bySentence,
     claimsEsc,
     elementScopes,
     focused,
     keys,
     merge,
+    paintKeys,
     pruneScopedElements,
     saying,
     scopeRefs,
     scopesFor,
   };
+  publishedScopes = scopes;
+  return scopes;
 }

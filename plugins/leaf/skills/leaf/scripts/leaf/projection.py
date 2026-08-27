@@ -236,7 +236,7 @@ def protected_ids(
     }
     state_ids.update(
         identity
-        for event, _spec in projection.actions.values()
+        for event, _spec in projection.desired.values()
         for identity in action_rests_on(event, within)
     )
     retirement_ids = {holder["id"] for holder in holders}

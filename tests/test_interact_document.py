@@ -1254,6 +1254,42 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
     assert "ids dropped from revision r1: ['card-x']" in undone.output
 
 
+def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-board"]["properties"]["overruled"] = {"type": "boolean"}
+    registry["lf-board"]["x-report"] = registry["lf-board"]["x-state"]
+    registry_path.write_text(json.dumps(registry))
+
+    board = _board([X], [])
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + board)
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "b1",
+            "action": "move",
+            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+        },
+    )
+
+    without_destination = board.replace(
+        '<lf-column id="c-done" label="Done"></lf-column>', ""
+    )
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + without_destination)
+    )
+
+    standing = check(page_dir, version=2)
+    assert standing.exit_code == 1
+    assert "protected ids" in standing.output and "'c-done'" in standing.output
+
+
 def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     """The runtime replays a recorded action onto every later version, so the
     user's edit stands over whatever v2's markup says about that widget.

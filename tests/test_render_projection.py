@@ -1742,6 +1742,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     # The action is in the log and the gate may read it. Both halves of the window are
     # this one fact, so the hold below and the append are the same statement made twice.
     arrived = threading.Event()
+    expired = []
     settle = {
         "kind": "action",
         "author": "user",
@@ -1774,8 +1775,8 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
             # Bounded, and far inside the gate's own deadline for a served document: a
             # runtime that stopped reading state at startup is named by the assertion
             # below rather than by a gate whose server appeared to stop answering.
-            if state_read and not page_read:
-                arrived.wait(10)
+            if state_read and not page_read and not arrived.wait(10):
+                expired.append(self.path)
             super().do_GET()
             if page_read and not landed:
                 landed.append(self.headers["Referer"])
@@ -1794,6 +1795,10 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     assert landed and "/versions/v1.html" in landed[0], (
         "the action never went in behind the page's first read, so the window this "
         f"rests on never opened: {landed}"
+    )
+    assert not expired, (
+        "the gate's read was released by the 10s bound rather than by the append, so "
+        f"it read a log with nothing in it to wait for: {expired}"
     )
     assert failures == []
 

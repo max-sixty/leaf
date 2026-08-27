@@ -584,6 +584,8 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
+    # The browser paints its queued choice immediately. Wait until the authoritative
+    # log holds it before authoring the revision that honors it.
     round_trip(page)
 
     # And the pair the quotable half always comes with. This mark is the one element on
@@ -607,7 +609,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(
         1
-    )  # replay carried the pick
+    )  # the honoring revision carries the pick
     compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-ins-block').length > 0"

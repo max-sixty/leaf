@@ -584,6 +584,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press(" ")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
+    round_trip(page)
 
     # And the pair the quotable half always comes with. This mark is the one element on
     # any page wearing the chrome class and the page-speaking marker at once, so it is the

@@ -1936,9 +1936,10 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     At the ordinary 1152px floor, the sidenote keeps its established right margin and
     the sidebar remains in flow. Giving both their full strips there leaves only 504px
-    for prose. At the combined floor, both may stand outside a full-width column once
-    the window also supplies a live platform's stable scrollbar gutter. A script-free
-    copy has to make the same choice from its viewport alone.
+    for prose. At the combined floor of the page's own box, both may stand outside a
+    full ordinary column; a window short of that floor by a live platform's stable
+    scrollbar gutter has the veto hand the strips back. A script-free copy has to make
+    the same choice from its viewport alone.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -1995,21 +1996,41 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     # The floor is a fact about the page's box, and the window is not that box wherever
     # the platform draws a classic scrollbar: body is the document's scroller, so its bar
-    # comes out of the room the strips and the column divide between them. So the page is
-    # asked for the difference rather than a number being written that is right on one
-    # platform. Either way the column keeps its measure at the floor itself, which is what
-    # the strip is floored to protect: given the room, both strips stand outside a full
-    # column; short of it by the width of a bar, the veto hands them back.
+    # comes out of the room the strips and the column divide between them. The column
+    # keeps its full measure on both sides of that, which is what the strip is floored to
+    # protect: given the room, both strips stand outside a full column, and short of it by
+    # a bar's width the veto hands them back. So neither read subtracts a bar from what it
+    # expects — the widths the page is driven at are where the bar is accounted for, and a
+    # measure that fell short of 720 anywhere here would be the fault this floor exists to
+    # prevent rather than a tolerance to write down.
     resized(page, 1416, 800)
-    bar = page.evaluate(
-        "() => document.documentElement.clientWidth - document.body.clientWidth"
-    )
     at_floor = page.evaluate(reading)
     assert at_floor["column"]["width"] == 720, (
         "the strip came out of the column at the combined floor, which is the one width "
         f"the floor exists to keep it out of: {at_floor}"
     )
 
+    # The runtime's own reading of the gutter, asked of the module that owns it, so the
+    # width this drives at is the one the veto is doing its arithmetic in by construction
+    # rather than by a second spelling that agrees on inspection. Its own evaluate and not
+    # a key on `reading`, which the script-free copy below shares and which has no module
+    # to ask; the window against body's padding box, the other candidate, would agree only
+    # while body carries no margin, and the panel's strip below is a body margin.
+    bar = page.evaluate(
+        "() => import('/runtime/scrolling.js').then(m => m.scrollerGutter())"
+    )
+    # Driving the page at a width the helper chose and then testing the veto that spends
+    # the same helper leaves one thing the reads below cannot see: an error in the helper
+    # itself, which lands on both sides and cancels. A gutter overread as 30 puts the page
+    # at 1446 and has stateStrip take 30 off it, so the floor is met on the nose and every
+    # measure here passes while the band from 1431 up is cramped for nothing. So the two
+    # spellings are held to each other first, at the one viewport both are read at, and
+    # `reading` keeps the key: it is a claim about what the gutter is rather than a second
+    # copy nothing checks, and it is what the failure dumps report a short measure against.
+    assert bar == at_floor["gutter"], (
+        "the module's gutter and the page's own reading of it have come apart, which "
+        f"would leave the widths below chosen and judged by the same error: {at_floor}"
+    )
     resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [

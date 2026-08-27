@@ -19,6 +19,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   replayWrote: "data-lf-replay-wrote",
   reportWrote: "data-lf-report-wrote",
   applied: "data-lf-applied",
+  reading: "data-lf-reading",
   dataRevision: "data-lf-data-revision",
   pending: "data-lf-pending",
   presented: "data-lf-presented",
@@ -47,7 +48,7 @@ export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE)
 // paints a retraction on, and a module has only the parts it builds or the ones no
 // declaration can reach — a suggestion's two slots, a code line. Declaring x-paints on a
 // tag whose module also writes one here would leave both removing the other's word on
-// every poll, which the reader would hear as the element re-reading itself.
+// each state application, which the reader would hear as the element re-reading itself.
 export function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;

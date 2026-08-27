@@ -2067,7 +2067,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))
 
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))

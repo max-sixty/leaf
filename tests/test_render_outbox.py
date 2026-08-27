@@ -28,6 +28,7 @@ from render_support import (
     leaf_page,
     live_url,
     mark_shows_beside_composer,
+    nudge,
     open_page,
     panel_settled,
     pending_text,
@@ -348,7 +349,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
 
     page.route("**/api/state*", hold_older_state)
     with page.expect_request("**/api/state"):
-        pass
+        nudge(serve.page_dir)
     page.wait_for_timeout(0)
     assert len(older) == 1
     old_route = older[0]
@@ -469,18 +470,6 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
     round_trip(page)
     first = actions(serve.page_dir)[0]
 
-    second = events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "sprint",
-            "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
-        },
-    )
-
     malformed_reads = []
 
     def malformed_state(route):
@@ -493,12 +482,24 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
         malformed_reads.append(True)
         route.fulfill(status=response.status, json=state)
 
+    # The route before the append: the page is told of an append as it lands and
+    # asks at once, so a route registered after it is a route the read has passed.
     page.route("**/api/state*", malformed_state)
     with (
-        page.expect_console_message(lambda message: "poll failed" in message.text),
+        page.expect_console_message(lambda message: "read failed" in message.text),
         page.expect_request("**/api/state*"),
     ):
-        pass
+        second = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sprint",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+            },
+        )
 
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
     with page.expect_response(
@@ -517,7 +518,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
     assert logged_undo["undoes"] != second["id"]
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    assert any("poll failed" in error for error in errors)
+    assert any("read failed" in error for error in errors)
     page.close()
 
 
@@ -973,17 +974,17 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     replayed at its log sequence—not overlaid again as though it were newest."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
 
-    def malformed_poll_state(route):
+    def malformed_read_state(route):
         if lifted:
             route.continue_()
             return
-        if malformed_polls:
+        if malformed_reads:
             refuse(route)
             return
         response = route.fetch()
         state = response.json()
         state["others"] = [None]
-        malformed_polls.append(True)
+        malformed_reads.append(True)
         route.fulfill(status=response.status, json=state)
 
     def malformed_event_state(route):
@@ -992,13 +993,18 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         answer["state"]["others"] = [None]
         route.fulfill(status=response.status, json=answer)
 
-    malformed_polls = []
+    malformed_reads = []
     lifted = False
-    page.route("**/api/state*", malformed_poll_state)
+    page.route("**/api/state*", malformed_read_state)
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
-    with page.expect_console_message(
-        lambda message: "leaf: state in event response" in message.text
+    with (
+        page.expect_console_message(
+            lambda message: "leaf: state in event response" in message.text
+        ),
+        # The move's own append is what the page hears next, so the malformed read
+        # it prompts fails here rather than on a later timer.
+        page.expect_console_message(lambda message: "read failed" in message.text),
     ):
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
@@ -1006,22 +1012,18 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     page.unroute("**/api/event")
 
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "sprint",
-            "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
-        },
-    )
-    with (
-        page.expect_console_message(lambda message: "poll failed" in message.text),
-        page.expect_request("**/api/state*"),
-    ):
-        pass
+    with page.expect_request("**/api/state*"):
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "sprint",
+                "action": "move",
+                "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
+            },
+        )
 
     refused = []
 
@@ -1054,13 +1056,13 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
             page.keyboard.press(key)
     assert len(refused) == 1
     # Neither malformed read is a state the projector may consume. The accepted
-    # baffle move remains held until a complete poll can place it in chronology.
+    # baffle move remains held until a complete read can place it in chronology.
     expect(page.locator("#col-done #card-baffle")).to_have_count(0)
     lifted = True
     with page.expect_response(
         lambda response: "/api/state" in response.url and response.ok
     ):
-        pass
+        nudge(serve.page_dir)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
 
@@ -1091,9 +1093,10 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
             page.keyboard.press(key)
     page.wait_for_timeout(0)
     assert len(held) == 1
-    older_answer = held[
-        0
-    ].fetch()  # the server appends A; its browser response stays held
+    # Reads held until B is appended, so one complete state carries A and B: the
+    # stream would otherwise have the page read A alone in the time B takes.
+    cut = CutOff().hold(page)
+    older_answer = held[0].fetch()  # the server appends A; its response stays held
     events_model.append_event(
         serve.page_dir,
         {
@@ -1105,12 +1108,13 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
             "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
         },
     )
+    cut.restore()
     told(page)  # a complete state accounts A and projects A+B before release
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
-    page.route("**/api/state*", refuse)
+    cut.cut()
 
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(response=older_answer)
@@ -1145,6 +1149,8 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
             page.keyboard.press(key)
     page.wait_for_timeout(0)
     assert len(held) == 1
+    # Reads held until the undo is appended, so the first complete read reveals both.
+    cut = CutOff().hold(page)
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
     accepted = next(
@@ -1157,8 +1163,9 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         {"kind": "undo", "author": "user", "undoes": accepted["id"]},
     )
 
+    cut.restore()
     told(page)
-    page.route("**/api/state*", refuse)
+    cut.cut()
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(0)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
@@ -1273,7 +1280,9 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
     with page.expect_request("**/api/event"):
         page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     page.wait_for_timeout(0)
-    # Append the accept while its browser response remains held.
+    # Append the accept while its browser response remains held, with the page's
+    # reads held too, so one complete read accounts the accept and replays the reject.
+    cut = CutOff().hold(page)
     accepted_answer = held[0].fetch()
     events_model.append_event(
         serve.page_dir,
@@ -1287,8 +1296,9 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
         },
     )
 
+    cut.restore()
     told(page)
-    page.route("**/api/state*", refuse)
+    cut.cut()
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
@@ -1306,7 +1316,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
 
 
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
-    """A complete poll containing an attempt is authoritative delivery evidence. Once
+    """A complete read containing an attempt is authoritative delivery evidence. Once
     it accounts for A, the ordered outbox may send queued B even if A's original browser
     response never finishes; the server append A was already observed before B starts."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
@@ -1318,19 +1328,24 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
             page.keyboard.press(key)
     page.wait_for_timeout(0)
     assert len(held) == 1
-    first_answer = held[0].fetch()  # append A, but leave its response unresolved
+    first_attempt = held[0].request.post_data_json["attempt"]
 
+    # B, queued behind A: the outbox is ordered, and A has not been answered.
     page.locator("#card-heater .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
-    first_attempt = held[0].request.post_data_json["attempt"]
     with page.expect_request(
         lambda request: (
             "/api/event" in request.url
             and request.post_data_json.get("attempt") != first_attempt
         )
     ):
-        told(page)
+        # Append A on the server and leave its browser response unresolved. The
+        # stream tells the page the log moved, the read that prompts accounts for A,
+        # and B goes out — within the stream's look, so the listener has to be armed
+        # before the append rather than after it.
+        first_answer = held[0].fetch()
+    page.wait_for_timeout(0)
 
     assert len(held) == 2
     held[0].fulfill(response=first_answer)  # cleanup after B has proved release
@@ -2203,7 +2218,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
     page.wait_for_selector("lf-board.lf-dragging")  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
-    # a poll two seconds out repaints the line whatever this drag did, so an
+    # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-asks passes on the poll and says nothing about the edge.
     assert "z undo" not in _painted_line(page), (
         "the line offered a press the dispatcher refuses for the length of a drag"

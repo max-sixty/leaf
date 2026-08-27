@@ -394,9 +394,16 @@ The main causal helpers are:
   definitive outcome: an accepted or final refusal response, or a state response
   containing the attempt. A request failure alone is not final because the page may
   retry the same attempt.
-- `told(page)` records the current state-request count, then waits for a later poll to
-  receive an answer. Use it after the test writes a version, event, status, or lease
-  that the browser learns through polling.
+- `told(page)` waits until the page has applied the reading the server holds now.
+  Use it after the test writes a version, event, status, or lease that the browser
+  learns by reading. It names no transport: the page reads when its news stream says
+  the page has moved, and `told` compares what the page painted with what the server
+  says, so it is neither early by a request nor late by an interval.
+- `nudge(page_dir)` gives the page a reason to read, changing nothing it shows, for a
+  test that wants the page's next request — to park it, or to watch it refused. The
+  poll's timer used to supply that request; nothing does now unless the page has news.
+- `ticked(page)` waits for the page's next local re-application, the heartbeat that
+  applies a correction an editor deferred. The poll used to carry that pass too.
 - `undo(page)` first waits until the key line offers undo, presses `z`, observes the
   new send enter the wire, and waits for its round trip. A visible changed widget is
   not enough: undo can be refused while the preceding gesture is still unresolved.
@@ -417,9 +424,9 @@ other fact of that press, and its bug-back is run more than once: a wait that is
 sometimes real looks exactly like a wait that is.
 
 The key line is the sharpest case of the rule above, because a second mechanism will
-supply its answer late. Every state poll repaints it, so an auto-retrying assertion on
-what it says goes green on whichever poll lands inside its budget — which is the poll's
-answer, not the writer's. A word that is supposed to turn over within the press is
+supply its answer late. Every state application repaints it, the heartbeat's every
+two seconds included, so an auto-retrying assertion on what it says goes green on
+whichever tick lands inside its budget — which is the tick's answer, not the writer's. A word that is supposed to turn over within the press is
 therefore read once, through `key_line`, and never waited for. The bug-back is what
 says which one a test has: with the runtime's disclosure watch removed, an
 `expect(...).to_contain_text(..., timeout=1500)` on the word still passed, and the
@@ -438,7 +445,7 @@ The fact such an event states is its paint or its card — wait on that
 (`test_render_reactions.py`'s `painted` reads the highlight and the seated glyphs).
 
 After changing a file behind a live page, call `told` before reading the page. Letting
-`expect` absorb the next polling interval hides which mechanism supplied the wait and
+`expect` absorb the page's next read hides which mechanism supplied the wait and
 spends its timeout budget on transport rather than on the assertion.
 
 For layout, animation, and navigation, identify the final fact precisely.
@@ -491,8 +498,14 @@ Keep the three route operations distinct:
   server receives it.
 - `route.fetch()` lets the server answer but still withholds the response from the
   page. The log may therefore advance while the browser remains behind.
-- `refuse(route)` cancels a poll without manufacturing a console error. Use an
+- `refuse(route)` cancels a request without manufacturing a console error. Use an
   ordinary abort only when the failed request and its browser error are the subject.
+
+A route on `**/api/state*` still makes the page deaf: state reaches the page through
+that request and through the answer to a post of its own, and through nothing else.
+The route leaves the news stream alone, so the page goes on hearing that the server
+has news. A read that failed is asked again two seconds later, and again, for as long
+as the route stands.
 
 Every hold has a release path. If the verdict depends on a response remaining lost,
 make the assertion first, then continue or fulfill the route, wait for the handler to

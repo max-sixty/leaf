@@ -1627,6 +1627,32 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
           'rename from old.js',
           'rename to new.js',
         ]),
+        settle('rename-with-missing-hunk-diff', [
+          'diff --git a/old.js b/new.js',
+          'similarity index 100%',
+          'rename from old.js',
+          'rename to new.js',
+          '--- a/old.js',
+          '+++ b/new.js',
+          '-before',
+          '+after',
+        ]),
+        settle('similarity-only-diff', [
+          'diff --git a/old.js b/new.js',
+          'similarity index 100%',
+        ]),
+        settle('empty-rename-paths-diff', [
+          'diff --git a/old.js b/new.js',
+          'similarity index 100%',
+          'rename from ',
+          'rename to ',
+        ]),
+        settle('contradictory-rename-paths-diff', [
+          'diff --git a/header-old.js b/header-new.js',
+          'similarity index 100%',
+          'rename from body-old.js',
+          'rename to body-new.js',
+        ]),
       ]);
     }""")
     assert result == [
@@ -1725,10 +1751,9 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless diff for new.js "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
+                "<lf-diff> failed: unsupported hunkless rename (only an exact "
+                "path-only block with diff --git, similarity index 100%, rename "
+                "from, and rename to lines may omit textual @@ hunks)"
             ),
             "source": (
                 "diff --git a/old.js b/new.js\n"
@@ -1737,6 +1762,61 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
                 "similarity index 100%\n"
                 "rename from old.js\n"
                 "rename to new.js"
+            ),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless rename (only an exact "
+                "path-only block with diff --git, similarity index 100%, rename "
+                "from, and rename to lines may omit textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/old.js b/new.js\n"
+                "similarity index 100%\n"
+                "rename from old.js\n"
+                "rename to new.js\n"
+                "--- a/old.js\n"
+                "+++ b/new.js\n"
+                "-before\n"
+                "+after"
+            ),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless rename (only an exact "
+                "path-only block with diff --git, similarity index 100%, rename "
+                "from, and rename to lines may omit textual @@ hunks)"
+            ),
+            "source": ("diff --git a/old.js b/new.js\nsimilarity index 100%"),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless rename (only an exact "
+                "path-only block with diff --git, similarity index 100%, rename "
+                "from, and rename to lines may omit textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/old.js b/new.js\n"
+                "similarity index 100%\n"
+                "rename from \n"
+                "rename to "
+            ),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless rename (only an exact "
+                "path-only block with diff --git, similarity index 100%, rename "
+                "from, and rename to lines may omit textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/header-old.js b/header-new.js\n"
+                "similarity index 100%\n"
+                "rename from body-old.js\n"
+                "rename to body-new.js"
             ),
         },
     ]
@@ -1762,6 +1842,10 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
         'similarity index 100%',
         'rename from old-name.js',
         'rename to new-name.js',
+        'diff --git "a/old\\\\tname.js" "b/new\\\\tname.js"',
+        'similarity index 100%',
+        'rename from "old\\\\tname.js"',
+        'rename to "new\\\\tname.js"',
       ].join('\\n');
       host.append(pre);
       document.querySelector('main').append(host);
@@ -1776,18 +1860,24 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
         ready();
       });
       const shadow = host.shadowRoot;
-      const rename = shadow?.querySelector('.lf-diff-rename');
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
+      const rename = renames[0];
+      const quotedRename = renames[1];
       const { says, wrote } = await import('/leaf.js');
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        renameCount: renames.length,
         from: rename?.querySelector('.lf-diff-before')?.textContent ?? null,
         to: rename?.querySelector('.lf-diff-after')?.textContent ?? null,
         stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
         generated: rename?.dataset.lfGen === '1',
         saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
+        quotedFrom:
+          quotedRename?.querySelector('.lf-diff-before')?.textContent ?? null,
+        quotedTo: quotedRename?.querySelector('.lf-diff-after')?.textContent ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -1799,11 +1889,14 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
         "error": None,
         "details": 1,
         "diffs": 1,
+        "renameCount": 2,
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
         "generated": True,
         "saidOverride": False,
+        "quotedFrom": '"old\\tname.js"',
+        "quotedTo": '"new\\tname.js"',
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
         "wroteRename": False,

@@ -120,6 +120,33 @@ function renameNode(file) {
   return row;
 }
 
+function headerPath(side, path) {
+  return path.startsWith('"') && path.endsWith('"')
+    ? `"${side}/${path.slice(1)}`
+    : `${side}/${path}`;
+}
+
+function pathOnlyRenames(source) {
+  return source
+    .split(/(?=^diff --git )/m)
+    .filter((section) => section.startsWith("diff --git "))
+    .flatMap((section) => {
+      const lines = section.replace(/\n+$/, "").split("\n");
+      if (lines.length !== 4 || lines[1] !== "similarity index 100%") return [];
+      const prevName = /^rename from (.+)$/.exec(lines[2])?.[1];
+      const name = /^rename to (.+)$/.exec(lines[3])?.[1];
+      if (
+        !prevName ||
+        !name ||
+        prevName === '""' ||
+        name === '""' ||
+        lines[0] !== `diff --git ${headerPath("a", prevName)} ${headerPath("b", name)}`
+      )
+        return [];
+      return [{ prevName, name }];
+    });
+}
+
 async function renderFile(file, sharedStyles) {
   file.lang = langForPath(file.name) ?? "text";
   const template = document.createElement("template");
@@ -175,6 +202,21 @@ customElements.define(
           (patch) => patch.files,
         );
         if (!files.length) throw new Error("empty diff");
+        const pureRenames = files.filter((file) => file.type === "rename-pure");
+        const sourceRenames = pathOnlyRenames(source);
+        if (
+          sourceRenames.length !== pureRenames.length ||
+          sourceRenames.some(
+            (rename, index) =>
+              rename.prevName !== pureRenames[index].prevName ||
+              rename.name !== pureRenames[index].name,
+          )
+        )
+          throw new Error(
+            "unsupported hunkless rename (only an exact path-only block with " +
+              "diff --git, similarity index 100%, rename from, and rename to " +
+              "lines may omit textual @@ hunks)",
+          );
         for (const file of files) {
           const pathOnlyRename =
             file.type === "rename-pure" &&

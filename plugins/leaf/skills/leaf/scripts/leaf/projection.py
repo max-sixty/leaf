@@ -208,6 +208,53 @@ def retirable_ids(
     return licensed
 
 
+def protected_ids(
+    holders: list,
+    events: list,
+    dropped: set,
+    projection,
+    spk: dict,
+    registry: dict,
+) -> set:
+    """Ids the next version must retain.
+
+    Unresolved threads keep their anchor target. Effective standing state keeps
+    its owner and fold unit, plus every page id its canonical liveness reading
+    rests on. An older report hidden by a reader action remains in the log, but
+    the action is the state the page must preserve.
+
+    Declared retirement remains the explicit route for removing decision
+    markup. Its holder and slots stay protected until ``retirable_ids`` licenses
+    the outcome or a complete unanswered withdrawal.
+    """
+    within = enclosing_of(spk)
+    state_ids = {
+        identity
+        for widget, unit, _facet in projection.desired
+        for identity in (widget, unit)
+    }
+    state_ids.update(
+        identity
+        for event, _spec in projection.desired.values()
+        for identity in action_rests_on(event, within)
+    )
+    retirement_ids = {holder["id"] for holder in holders}
+    retirement_ids.update(
+        identity
+        for holder in holders
+        for ids in holder["retires"].values()
+        for identity in ids
+    )
+    licensed = retirable_ids(
+        holders,
+        events,
+        dropped,
+        decisions(projection.actions, registry),
+        spk,
+    )
+    return (anchored_ids(events, within) | state_ids | retirement_ids) - licensed
+
+
 def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> list:
     """What an action was *about*, at the finest grain the vocabulary allows.
 

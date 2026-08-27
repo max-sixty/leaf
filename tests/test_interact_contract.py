@@ -1837,8 +1837,12 @@ def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
     )
     result = check(trial_page, version=3)
     assert result.exit_code == 1
-    assert "log-daily" in result.output
-    assert "log-hourly" not in result.output  # the withdrawal licensed that half
+    issues = "\n".join(
+        line for line in result.output.splitlines() if line.startswith("  -")
+    )
+    assert "log-daily" in issues
+    assert "log-hourly" not in issues
+    assert "ids dropped from revision r1: ['log-hourly', 'trial-log']" in result.output
 
 
 def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(

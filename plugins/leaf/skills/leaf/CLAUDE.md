@@ -493,8 +493,9 @@ conversation current on a pinned page even when the document projection remains
 historical. Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document; the Comments panel
 keeps the complete thread and its interactive replies. A root declared with
-`response: {kind: version, verb: <answer>}` keeps that exact-section view text-only and refuses an agent
-reply because the next authored version is its response. Dropping the owner
+`response: {kind: version, verb: <answer>}` keeps that exact-section view
+text-only and refuses an agent reply because the next authored version is its
+response. Dropping the owner
 drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
@@ -1787,13 +1788,15 @@ So the banner's count and the panel's reading of the same thread cannot disagree
 about whose turn it is. Whose thread it is does not enter into it — the agent may
 open one in the seat too, and once the reader has answered there the question is
 with the agent either way. An ordinary agent reply hands the conversation back.
-A `response: {kind: version, verb: <answer>}` conversation accepts no agent reply; the agent incorporates
-it into a version or opens a separate thread for clarification. While that thread
-waits on the reader in the same seat, it carries the original response through the
-stop gate; their answer hands both threads back to the agent. A version that marks
-the pick `chosen` and changes the declared answer state ends the request, and only
-then may the agent resolve the original thread. Comments owns the reader-facing clarification;
-the page's Ask remains the proposal with the agent rather than counting both.
+A `response: {kind: version, verb: <answer>}` conversation accepts no agent reply;
+the agent incorporates it into a version or opens a separate thread for
+clarification. While that thread waits on the reader in the same seat, it carries
+the original response through the stop gate; their answer hands both threads back
+to the agent. A version that answers an originating open Ask, or changes the
+declared answer when the Ask was already answered, ends the request; only then may
+the agent resolve the original thread. Comments owns the reader-facing
+clarification; the page's Ask remains the proposal with the agent rather than
+counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
 banner, the tray and the `n`/`p` walk all follow it: those three are the reader's

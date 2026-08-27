@@ -207,10 +207,11 @@ export function createAskModel({
   // because standing in a question is what the reader is working and not what they owe.
   //
   // An ordinary reply or resolve hands the conversation back. A version-response
-  // conversation takes no reply; only a later version that changes its target and leaves
-  // the request answered unlocks the agent's resolve. A seat answer that held for good
-  // would let a clarifying question retire a decision nobody made, invisibly to both
-  // sides, which is what the log's own defaults exist to refuse.
+  // conversation takes no reply. Its originating request must become answered; if it was
+  // already answered, the later version must instead change the declared answer record.
+  // A seat answer that held for good would let a clarifying question retire a decision
+  // nobody made, invisibly to both sides, which is what the log's own defaults exist to
+  // refuse.
   //
   // Frozen thread markup seats no conversation of its own — `conversationBox` declines a
   // widget standing inside a thread, whose reply box is already that seat — so this reaches

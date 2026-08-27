@@ -77,7 +77,9 @@ message in that thread. When the change needs clarification, the agent opens a
 separate comment thread in the same exact-section seat. That thread carries the
 version response through the stop gate while it waits on the reader; their answer
 hands both back to the agent. The original remains open until a later published
-version has answered it, which is also when `leaf resolve` first accepts it.
+version answers an originating open request, or changes the declared answer when
+the request was already answered. That is also when `leaf resolve` first accepts
+it.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes

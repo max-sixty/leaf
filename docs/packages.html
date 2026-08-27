@@ -307,16 +307,17 @@ lf-chip {
                 to record what the words settled, and an action's
                 <code>requires</code> reads the request as open. An ordinary reply or
                 resolve hands the conversation back. A version-response conversation
-                takes no reply; only a later version that changes its declared answer
-                state and leaves the request answered unlocks the agent's resolve. A
-                widget inside a thread asks like one on the page, with one bound set by
-                frozen thread markup: the thread's own reply box is already that seat,
-                so only an action can answer it there. <code>when</code> selects asking
-                instances, <code>answers</code> names exactly the x-state verbs that
-                settle one, <code>rollup</code> derives a nested request from ordinary
-                interventions and child roll-ups, <code>until</code> can require a
-                distinct completion verb for a matching thread ask, and
-                <code>all</code> names a blanket answer offered by the banner.
+                takes no reply; only a later version that answers an originating open
+                request, or changes its declared answer when the request was already
+                answered, unlocks the agent's resolve. A widget inside a thread asks
+                like one on the page, with one bound set by frozen thread markup: the
+                thread's own reply box is already that seat, so only an action can
+                answer it there. <code>when</code> selects asking instances,
+                <code>answers</code> names exactly the x-state verbs that settle one,
+                <code>rollup</code> derives a nested request from ordinary interventions
+                and child roll-ups, <code>until</code> can require a distinct completion
+                verb for a matching thread ask, and <code>all</code> names a blanket
+                answer offered by the banner.
               </td>
             </tr>
             <tr>
@@ -348,18 +349,19 @@ lf-chip {
                 the request as open. A conversation with
                 <code>response: {kind: version, verb: &lt;answer&gt;}</code> carries
                 that declaration on its root comment, has no inline reply control, and
-                refuses <code>leaf reply</code>: the agent incorporates it in a later
-                version that changes the named answer's authored record and leaves its
-                request answered, or opens a separate thread when that revision depends
-                on the reader. The named verb must be one of x-awaits' answers with an
-                attribute or value record, so the resolve gate can compare the
-                originating and current versions without naming a widget. A
-                <code>hold</code> comment is such a conversation like any other.
-                <code>hold</code> labels a stronger send route whose comment carries
-                <code>holds</code> naming this widget: that route remains available
-                after ordinary roots, the unresolved held thread is the hold, resolution
-                releases it, and undoing resolution restores it atomically. Dropping the
-                widget drops only the inline view.
+                refuses <code>leaf reply</code>: the agent either incorporates it in a
+                later version or opens a separate thread when that revision depends on
+                the reader. To unlock resolve, the later version must answer an
+                originating open request, or change the named answer's authored record
+                when the request was already answered. The named verb must be one of
+                x-awaits' answers with an attribute or value record, so the resolve gate
+                can compare the originating and current versions without naming a
+                widget. A <code>hold</code> comment is such a conversation like any
+                other. <code>hold</code> labels a stronger send route whose comment
+                carries <code>holds</code> naming this widget: that route remains
+                available after ordinary roots, the unresolved held thread is the hold,
+                resolution releases it, and undoing resolution restores it atomically.
+                Dropping the widget drops only the inline view.
               </td>
             </tr>
             <tr>

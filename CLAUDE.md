@@ -373,12 +373,13 @@ Declarations describe general behavior:
   An ordinary reply hands the conversation back. A conversation declared with
   `response: {kind: version, verb: <answer>}` takes no agent reply: its page seat
   is text-only, the reply door refuses it, and the agent opens a separate thread
-  when the revision needs clarification. While that thread waits on the reader in the same seat, it carries
-  the original response through the stop gate; their answer hands both back to the
-  agent. Comments owns that reader-facing clarification; it is not also counted as
-  a page Ask, whose subject remains the proposal with the agent. A version that
-  changes that Ask's declared answer state ends the request, and only then may the
-  agent resolve the original thread.
+  when the revision needs clarification. While that thread waits on the reader
+  in the same seat, it carries the original response through the stop gate;
+  their answer hands both back to the agent. Comments owns that reader-facing
+  clarification; it is not also counted as a page Ask, whose subject remains
+  the proposal with the agent. A version that answers an originating open Ask,
+  or changes the declared answer when the Ask was already answered, ends the
+  request; only then may the agent resolve the original thread.
   The stop hook reads the same fact, so what leaves the reader's banner lands
   on the agent's own gate rather than nowhere; `awaits_agent` is the one
   spelling of it, beside the runtime's `awaitsAgent`. Which side opened the

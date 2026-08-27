@@ -6,7 +6,7 @@ from pathlib import Path
 
 from leaf.events import append_event, thread_roots
 from leaf.files import latest_published, version_path
-from leaf.passages import capture_anchor, spoken
+from leaf.passages import capture_anchor
 from leaf.projection import (
     decisions,
     markup_facet,
@@ -54,14 +54,26 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     current_entry = registry.get(current["tag"], {})
     if (current_entry.get("x-conversation") or {}).get("response") != response:
         return True
-    spec = current_entry["x-state"][response["verb"]]
-    current_answer = markup_facet(target, spec, parser.by_id, spk, registry)
 
     original_html = version_path(page_dir, root["version"]).read_text(encoding="utf-8")
-    original = parse_version(page_dir, root["version"])
-    original_spk = spoken(original_html, registry)
+    original_events = [event for event in events if event["seq"] <= root["seq"]]
+    original_projection, original, original_spk = page_projection(
+        original_html, original_events, registry, root["version"]
+    )
+    original_awaiting = page_awaiting_values(
+        original_html,
+        original,
+        original_projection,
+        original_spk,
+        registry,
+    )
+    if original_awaiting.get(target, False):
+        return False
+
+    spec = current_entry["x-state"][response["verb"]]
+    current_answer = markup_facet(target, spec, parser.by_id, spk, registry)
     original_answer = markup_facet(target, spec, original.by_id, original_spk, registry)
-    return current_answer in (None, "", []) or current_answer == original_answer
+    return current_answer == original_answer
 
 
 @contract_writer
@@ -194,8 +206,9 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
             and _version_response_unanswered(page_dir, events, root)
         ):
             sys.exit(
-                f"thread {root_id!r} requires a page version that changes its Ask's "
-                "declared answer and leaves it answered before the agent can resolve it"
+                f"thread {root_id!r} requires a page version that answers its "
+                "originating Ask, or changes its declared answer if it was already "
+                "answered, before the agent can resolve it"
             )
         event = {
             "kind": "resolve",

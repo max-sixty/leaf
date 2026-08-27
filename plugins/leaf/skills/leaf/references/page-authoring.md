@@ -90,11 +90,13 @@ none of its own.
 Writing there is the reader dealing with the question, so the group stops being
 one of the page's open asks and the ball is yours. Nothing is recorded by it:
 the group still holds no new pick. Answer what they wrote in the authored page:
-carry their words in as another option and mark the pick it settled. This thread
+carry their words in as another option and mark the pick it settled. If the reader
+explicitly rejects every option, settle the group without a pick. This thread
 takes no agent reply; if the revision needs an answer first, open a separate
-exact-section thread on the same Ask. Only a later version that changes that Ask
-and leaves its request answered lets the agent resolve the proposal. An unrelated
-version cannot close it.
+exact-section thread on the same Ask. Only a later version that answers an
+originating open Ask, or changes its declared answer when the Ask was already
+answered, lets the agent resolve the proposal. An unrelated version cannot close
+it.
 
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own

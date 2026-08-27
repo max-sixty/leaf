@@ -494,8 +494,10 @@ Threads also read the whole log. `retractionFloors(Infinity)` keeps a
 conversation current on a pinned page even when the document projection remains
 historical. Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document; the Comments panel
-keeps the complete thread and its interactive replies. Dropping the owner drops
-only the inline seat.
+keeps the complete thread and its interactive replies. A root declared with
+`response: {kind: version, verb: <answer>}` keeps that exact-section view
+text-only and refuses an agent reply because the next authored version is its
+response. Dropping the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
@@ -599,7 +601,7 @@ The extension keys describe general behavior:
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
 | `x-ask` | the complete reading and arrival region around one nested request |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
-| `x-conversation` | the condition under which the widget owns a conversation seat |
+| `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
 | `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
@@ -1802,22 +1804,30 @@ collects into that seat, and `awaitsAgent` says the next word there is the agent
 So the banner's count and the panel's reading of the same thread cannot disagree
 about whose turn it is. Whose thread it is does not enter into it — the agent may
 open one in the seat too, and once the reader has answered there the question is
-with the agent either way. Finishing with the conversation hands it back, by reply
-or by resolve, and the version that marks the pick `chosen` ends it.
+with the agent either way. An ordinary agent reply hands the conversation back.
+A `response: {kind: version, verb: <answer>}` conversation accepts no agent reply;
+the agent incorporates it into a version or opens a separate thread for
+clarification. While that thread waits on the reader in the same seat, it carries
+the original response through the stop gate; their answer hands both threads back
+to the agent. Authored state in a later version must answer an originating open
+Ask, or change the declared answer when the Ask was already answered; a reader
+action in the log cannot substitute for that revision. Only then may the agent
+resolve the original thread. Comments owns the reader-facing clarification; the
+page's Ask remains the proposal with the agent rather than counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
 banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
-Two readings ask the other question — whether the request is *answered* — and both
+Three readings ask the other question — whether the request is *answered* — and all
 say so by emptying the seats (`answeredContext`, stated beside the shape rather than
 by a caller reaching into it, so a member derived from those conversations later
 cannot escape the emptying). An action's `requires` is one: a conversation does not
 answer a question the widget holds no state for, and refusing a pick over the reader's
-own remark would refuse them the answer they were asked for. Where the reader is
-standing is the other, through `unansweredAsks`; **Standing somewhere** owns it.
-Frozen thread markup seats no conversation of its own, so only an action answers
-there. A `rollup` instance evaluates its own `when`,
+own remark would refuse them the answer they were asked for. The version-response
+resolve gate is another. Where the reader is standing is the third, through
+`unansweredAsks`; **Standing somewhere** owns it. Frozen thread markup seats no
+conversation of its own, so only an action answers there. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the

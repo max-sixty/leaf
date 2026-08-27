@@ -17,9 +17,12 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 MESSAGE_KINDS = {"comment", "reply"}
 ANSWER_ASK_INSTRUCTION = (
     "`leaf page state <page>` prints each thread's exchange, and "
-    "`leaf transcript <page>` prints a long one whole. Answer each with "
-    "`leaf reply <page> --to <id> --text ...`, or close one the work has since "
-    "answered with `leaf resolve <page> --to <id>`."
+    "`leaf transcript <page>` prints a long one whole. A thread with "
+    "`response.kind: version` is answered by revising the page and resolving it; open a "
+    "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
+    "needs an answer first. Reply to other threads with `leaf reply <page> --to "
+    "<id> --text ...`, or close one the work has since answered with `leaf resolve "
+    "<page> --to <id>`."
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
@@ -239,6 +242,15 @@ EXTENSION_SCHEMA = {
             "properties": {
                 "when": ASK_CONDITION,
                 "hold": {"type": "string", "minLength": 1},
+                "response": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {"const": "version"},
+                        "verb": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+                    },
+                    "required": ["kind", "verb"],
+                    "additionalProperties": False,
+                },
             },
             "required": ["when"],
             "additionalProperties": False,

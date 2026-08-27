@@ -4,10 +4,16 @@ import json
 import sys
 from pathlib import Path
 
-from leaf.events import append_event
+from leaf.events import append_event, thread_roots
 from leaf.files import latest_published, version_path
 from leaf.passages import capture_anchor
-from leaf.projection import decisions, page_projection, rewritten_bodies
+from leaf.projection import (
+    decisions,
+    markup_facet,
+    page_awaiting_values,
+    page_projection,
+    rewritten_bodies,
+)
 from leaf.registry import require_registry
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, contract_writer, message_identity
@@ -17,6 +23,66 @@ from leaf.validation import (
     read_text_arg,
     report_contract_error,
 )
+
+
+def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
+    messages = {
+        event["id"]: event for event in events if event["kind"] in MESSAGE_KINDS
+    }
+    if to not in messages:
+        sys.exit(f"unknown comment id {to!r}; known: {sorted(messages)}")
+    root_id = thread_roots(events)[to]
+    return root_id, messages.get(root_id)
+
+
+def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bool:
+    """Whether the page still owes this root the authored answer it asked for.
+
+    Both readings below project markup alone: the empty event lists are the gate's
+    subject rather than an omission. The reader's own pick lives in the log, and
+    folding it in moved whichever side of the comparison it happened to fall on —
+    before the proposal it answered the originating version, after it the current
+    one — so the same markup resolved or refused according to where one press
+    landed in the log. A version is what this thread asked for, so a version is
+    the only thing either reading may hear.
+    """
+    version = latest_published(page_dir, events)
+    if version <= root["version"]:
+        return True
+    registry = require_registry(page_dir)
+    html = version_path(page_dir, version).read_text(encoding="utf-8")
+    projection, parser, spk = page_projection(html, [], registry, version)
+    awaiting = page_awaiting_values(html, parser, projection, spk, registry)
+    target = root["anchor"]["section"]
+    if awaiting.get(target, False):
+        return True
+
+    current = parser.by_id.get(target)
+    if current is None:
+        return True
+    response = root["response"]
+    current_entry = registry.get(current["tag"], {})
+    if (current_entry.get("x-conversation") or {}).get("response") != response:
+        return True
+
+    original_html = version_path(page_dir, root["version"]).read_text(encoding="utf-8")
+    original_projection, original, original_spk = page_projection(
+        original_html, [], registry, root["version"]
+    )
+    original_awaiting = page_awaiting_values(
+        original_html,
+        original,
+        original_projection,
+        original_spk,
+        registry,
+    )
+    if original_awaiting.get(target, False):
+        return False
+
+    spec = current_entry["x-state"][response["verb"]]
+    current_answer = markup_facet(target, spec, parser.by_id, spk, registry)
+    original_answer = markup_facet(target, spec, original.by_id, original_spk, registry)
+    return current_answer == original_answer
 
 
 @contract_writer
@@ -78,9 +144,14 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in MESSAGE_KINDS}
-        if to not in known:
-            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+        root_id, root = _thread_root(events, to)
+        if root and (root.get("response") or {}).get("kind") == "version":
+            sys.exit(
+                f"thread {root_id!r} requires a page version and cannot take a reply; "
+                "incorporate its request in the next version, or open a separate "
+                "thread on the same Ask with `leaf comment --section <ask-id>` if "
+                "you need an answer first"
+            )
         if markup:
             check_markup(page_dir, "reply", markup, events)
         event = {
@@ -147,9 +218,17 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in MESSAGE_KINDS}
-        if to not in known:
-            sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
+        root_id, root = _thread_root(events, to)
+        if (
+            root
+            and (root.get("response") or {}).get("kind") == "version"
+            and _version_response_unanswered(page_dir, events, root)
+        ):
+            sys.exit(
+                f"thread {root_id!r} requires a page version that answers its "
+                "originating Ask, or changes its declared answer if it was already "
+                "answered, before the agent can resolve it"
+            )
         event = {
             "kind": "resolve",
             "author": "claude",

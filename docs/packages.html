@@ -305,9 +305,13 @@ lf-chip {
                 list for as long as it waits on the agent — whoever opened it. That is
                 not an answer: the widget's state is untouched, so a version still has
                 to record what the words settled, and an action's
-                <code>requires</code> reads the request as open. Finishing with the
-                thread hands the question back, by reply or by resolve. A widget inside
-                a thread asks like one on the page, with one bound set by frozen thread
+                <code>requires</code> reads the request as open. An ordinary reply or
+                resolve hands the conversation back. A version-response conversation
+                takes no reply; only authored state in a later version that answers an
+                originating open request, or changes its declared answer when the
+                request was already answered, unlocks the agent's resolve. Reader
+                actions in the log do not substitute for that version. A widget inside a
+                thread asks like one on the page, with one bound set by frozen thread
                 markup: the thread's own reply box is already that seat, so only an
                 action can answer it there. <code>when</code> selects asking instances,
                 <code>answers</code> names exactly the x-state verbs that settle one,
@@ -336,17 +340,26 @@ lf-chip {
                 authored, static <code>when</code> attributes (an attribute written by
                 an x-state or x-report value record cannot drive this predicate). It
                 projects exact-section threads textually from the whole log; Comments
-                keeps the complete view and is the only place interactive reply markup
-                renders. Both views share the reply draft. Thread markup and quoted
-                material take no second view. Where the widget is also a standing
-                request (x-awaits), the seat is where the reader deals with it in words:
-                the request leaves their list while that conversation waits on the
-                agent, rather than being counted a second time under a box they have
-                already used. It is not an answer — the widget's own state is untouched,
-                so its controls still work and an action's <code>requires</code> still
-                reads the request as open — and either way of finishing with the thread
-                hands it back. A <code>hold</code> comment is such a conversation like
-                any other. <code>hold</code> labels a stronger send route whose comment
+                keeps the complete interactive view. Thread markup and quoted material
+                take no second view. Where the widget is also a standing request
+                (x-awaits), the seat is where the reader deals with it in words: the
+                request leaves their list while that conversation waits on the agent,
+                rather than being counted a second time under a box they have already
+                used. It is not an answer — the widget's own state is untouched, so its
+                controls still work and an action's <code>requires</code> still reads
+                the request as open. A conversation with
+                <code>response: {kind: version, verb: &lt;answer&gt;}</code> carries
+                that declaration on its root comment, has no inline reply control, and
+                refuses <code>leaf reply</code>: the agent either incorporates it in a
+                later version or opens a separate thread when that revision depends on
+                the reader. To unlock resolve, authored state in the later version must
+                answer an originating open request, or change the named answer's
+                authored record when the request was already answered. Reader actions in
+                the log do not substitute for that version. The named verb must be one
+                of x-awaits' answers with an attribute or value record, so the resolve
+                gate can compare the originating and current versions without naming a
+                widget. A <code>hold</code> comment is such a conversation like any
+                other. <code>hold</code> labels a stronger send route whose comment
                 carries <code>holds</code> naming this widget: that route remains
                 available after ordinary roots, the unresolved held thread is the hold,
                 resolution releases it, and undoing resolution restores it atomically.

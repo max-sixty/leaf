@@ -56,31 +56,22 @@ def resize_notice_after_last_probe(page):
 
     def with_notice(expression, *args, **kwargs):
         result = evaluate(expression, *args, **kwargs)
-        if expression == render_checks_model.RELATIVE_REPLAYS:
+        call = args[0] if args else kwargs.get("arg")
+        if isinstance(call, dict) and call.get("name") == "relativeReplays":
             evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
         return result
 
     page.evaluate = with_notice
 
 
-# What a returning reader's browser puts back before the page runs, declared by the
-# runtime that puts it back (leaf.js, ARRANGEMENTS). Read from the page rather than
-# listed here: which surfaces remember anything is the runtime's to say, and a list on
-# this side would stop at the ones it was taught.
-ARRANGEMENTS = (
-    "() => import('/runtime/widget-api.js').then((leaf) => leaf.ARRANGEMENTS)"
-)
+def reader_arrangements(page):
+    """The return states declared by the runtime that restores them."""
+    return render_checks_model.evaluate_probe(page, "arrangements")
 
-# One arrangement and no other, written the way a reader's own browser holds it. Both
-# stores are cleared first, so each arrival is the arrangement it names rather than that
-# one plus whatever the last reload left. Nothing is caught: a browser that will not
-# store is a browser this reading cannot make, and swallowing that would turn every
-# arrival into a first visit and every arrival finding into a pass.
-ARRANGE = """(a) => {
-  localStorage.clear();
-  sessionStorage.clear();
-  (a.store === "session" ? sessionStorage : localStorage).setItem(a.key, a.value);
-}"""
+
+def arrange_return(page, arrangement):
+    """Put exactly one declared return state into this reader's stores."""
+    render_checks_model.evaluate_probe(page, "arrange", arrangement)
 
 
 def arrival_findings(browser, url):
@@ -129,7 +120,7 @@ def arrival_findings(browser, url):
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
     )
-    page.add_init_script(rendering_model.WINDOW_ERRORS)
+    render_checks_model.install_window_errors(page)
     found = []
     try:
         # A first visit, to be arranged from and to read the arrangements off. Reported
@@ -145,21 +136,21 @@ def arrival_findings(browser, url):
             # event does over the five navigations here, measured on
             # design-decision.html, and buys this nothing.
             page.goto(url, wait_until="load")
-            page.wait_for_function(rendering_model.UPGRADED)
+            render_checks_model.wait_for_probe(page, "upgraded")
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
                 "arranged — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
             ]
-        for arrangement in page.evaluate(ARRANGEMENTS):
-            page.evaluate(ARRANGE, arrangement)
+        for arrangement in reader_arrangements(page):
+            arrange_return(page, arrangement)
             # A console the last arrangement dirtied is not this one's news.
             errors.clear()
             notices.clear()
             try:
                 page.reload(wait_until="load")
-                page.wait_for_function(rendering_model.UPGRADED)
+                render_checks_model.wait_for_probe(page, "upgraded")
             except PlaywrightTimeout:
                 found.append(
                     f"[{arrangement['name']}] the page never finished coming up — "
@@ -724,7 +715,7 @@ RENDERED = "() => new Promise(done => requestAnimationFrame(() => requestAnimati
 def page_at_rest(page):
     """Render the known edge, finish finite motion, then render its ending."""
     page.evaluate(RENDERED)
-    page.wait_for_function(f"() => ({rendering_model.MOVING})().length === 0")
+    render_checks_model.wait_for_probe(page, "pageSettled")
     page.evaluate(RENDERED)
 
 

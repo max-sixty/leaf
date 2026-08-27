@@ -19,9 +19,11 @@ record the sequence of implementations that led to the current one.
 
 ## Runtime ownership
 
-`leaf.js` is the browser entry module. `runtime/widget-api.js` is the one public
-helper surface for behavior modules and selects capabilities from their runtime
-owners. It temporarily reexports helpers still implemented by the entry module.
+`leaf.js` is the boot-only browser entry module: it composes the runtime owners and
+starts the page, but exports no capability. `runtime/widget-api.js` is the one public
+helper surface for behavior modules and reexports capabilities directly from their
+runtime owners. An owner may publish a factory-built capability after boot wires its
+dependencies; it never reaches back through the entry module or public facade.
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
 `runtime/asks/model.js` owns request discovery and folding;
@@ -35,6 +37,9 @@ and selection-composer state;
 `runtime/data.js` owns widget source-contract subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
+`runtime/keyboard/disclosure.js` owns the shared disclosure bindings;
+`runtime/notifications.js` owns visual and assistive announcements;
+`runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
@@ -65,6 +70,8 @@ highlight rules;
 `runtime/anchors.js` owns anchor geometry, paint, and anchor-specific travel;
 `runtime/conversation/model.js` owns the thread fold;
 `runtime/conversation/messages.js` owns message rendering;
+`runtime/conversation/box.js` owns page-seated first-message boxes;
+`runtime/conversation/landing.js` owns conversation input discovery and focus travel;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
@@ -73,9 +80,6 @@ statements; `runtime/projection/data.js` owns keyed runtime-data DOM
 reconciliation; `runtime/projection/fold.js` owns canonical action and report state;
 `runtime/projection.js` owns projection reconciliation and undo. The entry module
 composes their mutually dependent callbacks.
-TODO: Move the remaining helper implementations to their runtime owners so
-`widget-api.js` no longer reexports the entry module and `leaf.js` becomes
-boot-only.
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
@@ -189,7 +193,7 @@ the vendored layer in turn:
 Do not merge these stamps. A document can finish upgrading while its first state
 read is pending. A projection can commit while finite reconciliation animations
 are still settling. Any consumer that reads final boxes waits for upgraded,
-applied, presented, and no finite animation reported by `MOVING`.
+applied, presented, and no finite animation reported by `moving`.
 
 The authored `main` stays behind the presentation gate until the first state read
 has either applied or established that the server is unavailable. Fixed recovery
@@ -859,7 +863,7 @@ Do not broaden the Python reader by guessing a module's DOM. Declare modelable
 words with `x-says`, `x-paints`, or the appropriate content key. Keep the widget
 fenced when its transformation cannot be represented faithfully.
 
-`COVERED_WORDS` is the render gate for text that is present in a browser reading
+`coveredWords` is the render gate for text that is present in a browser reading
 but unavailable to the reader because of clipping, hiding, generated chrome, or
 another boundary. Keep the runtime's generated markers and the gate's exclusions
 in agreement.
@@ -884,7 +888,7 @@ Choose the reading by the question, not by convenience.
 The page's widget inventory remains the document's declared inventory. Do not
 silently discover nested widget families inside shadow roots as new top-level
 content. A module that stages a declared widget inside a shadow tree still owes
-the visible words promised by that widget's entry. `SILENT_WORDS` examines open
+the visible words promised by that widget's entry. `silentWords` examines open
 roots and catches promised words that are absent, clipped, or hidden. It also
 catches a module that replaces declared words after the shared render passes.
 
@@ -1064,7 +1068,7 @@ Use:
 
 Do not read `getBoundingClientRect()` directly when the target may generate no
 box. A `display: contents` element reports an origin-like zero rectangle that
-does not represent where its contents are. `UNMARKABLE_ITEMS` detects declared
+does not represent where its contents are. `unmarkableItems` detects declared
 items with no visible part on which a mark can land.
 
 A module that needs a number off a live box states the measurement through
@@ -1192,7 +1196,7 @@ show one FLIP from the optimistic state to that result. A live drag defers the
 whole correction.
 
 Finite animations delay final geometry reads. Infinite ambient animation, such
-as the status indicator, does not. `MOVING` is the render gate's shared reading
+as the status indicator, does not. `moving` is the render gate's shared reading
 of that boundary. A component that animates forever must not appear in it; a
 state transition that can still change boxes must.
 
@@ -1234,17 +1238,17 @@ edge. A transparent wrapper that lets a grandchild's margin collapse through it
 declares the frame at the wrapper level only when it is the boundary responsible
 for that flow.
 
-`TRAPPED_MARGINS` reads computed layout in the browser and reports a framed box
+`trappedMargins` reads computed layout in the browser and reports a framed box
 whose visible inset exceeds what its own padding states. Flex and grid item
 margins are placements rather than collapsed block margins and are excluded.
 
 Overflow is acceptable only when the reader can reach it or the box explicitly
 signals the cut. A scroll container may expose content in its scroll direction.
 `text-overflow` may signal omitted text. Plain clipping does not make content
-reachable. `MISPLACED_BOXES`, `CLIPPED_CONTROLS`, and `COVERED_WORDS` enforce
+reachable. `misplacedBoxes`, `clippedControls`, and `coveredWords` enforce
 the distinct geometry, interaction, and text consequences.
 
-`SQUEEZED_TABLES` reports a table that scrolls sideways with a cell in it wrapped.
+`squeezedTables` reports a table that scrolls sideways with a cell in it wrapped.
 A scrolling table's columns are all at their longest unbreakable run, so a cell
 wrapping there wraps at a word a line — beside a name that could not break (an
 identifier written outside `<code>`, a bare URL), or because the table has more
@@ -1255,9 +1259,9 @@ finding lists the wrapping columns with their widths, names the widest, and
 leaves the diagnosis to the author. A table that scrolls with nothing left to
 wrap is the theme's honest third case.
 
-`TINY_BOXES` ensures each declared widget upgrades to a usable box.
-`UNREACHABLE_WORDS` catches rendered words outside reachable flow.
-`MISPLACED_BOXES` asks each container's actual overflow behavior. Do not exempt
+`tinyBoxes` ensures each declared widget upgrades to a usable box.
+`unreachableWords` catches rendered words outside reachable flow.
+`misplacedBoxes` asks each container's actual overflow behavior. Do not exempt
 a box merely because an ancestor declares `overflow`.
 
 A box that scrolls contains what it scrolls. Out-of-flow content inside a scroll
@@ -2145,8 +2149,8 @@ inside it.
 Print asks a stricter question than export because nothing on paper is
 interactive. `data-lf-offer` identifies injected controls to remove, while
 `data-lf-said` preserves a decision word the page speaks through a control.
-`PAPER_WORDS` compares the screen and print readings across the whole page.
-`COVERED_WORDS` runs again in print. A wrong offer/said declaration is fixed
+`paperWords` compares the screen and print readings across the whole page.
+`coveredWords` runs again in print. A wrong offer/said declaration is fixed
 where the label is created, not by naming its widget in print CSS.
 
 The live-page scrolling and chrome reservations stay under the live guard. A
@@ -2165,31 +2169,37 @@ and finite motion boundary, reads screen and print, and reapplies standing state
 A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
-The JavaScript readings owned by `leaf/render_checks.py` and composed
-by `leaf/rendering.py` each answer one failure class:
+The named JavaScript exports in `leaf/render-checks.js`, invoked by
+`leaf/render_checks.py` and composed by `leaf/rendering.py`, each answer one failure
+class. The served module imports the public widget API statically, so the JavaScript
+parser and module loader validate its syntax, dependencies, and named exports.
+`coveredWords` is reexported from the import-free `render-checks-standalone.js`, which
+lets the same implementation inspect an exported `file://` copy after its runtime has
+been removed. `render-checks-init.js` installs the pre-navigation window-error channel.
 
 | Reading | Contract |
 | --- | --- |
-| `WINDOW_ERRORS` | no runtime, module, resource, or ResizeObserver error reached the page |
-| `UPGRADED` and `MOVING` | upgrade completed and final geometry settled |
-| `TINY_BOXES` | every declared widget has a usable rendered box |
-| `UNMARKABLE_ITEMS` | every pointable item has a visible part for an outline |
-| `MISPLACED_BOXES` | boxes stay in the column or in genuinely reachable overflow |
-| `SQUEEZED_TABLES` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `WITHHELD_ROOM` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
-| `CLIPPED_CONTROLS` | actionable controls are visible and reachable |
-| `UNREACHABLE_WORDS` | visible page words remain in reachable flow |
-| `COVERED_WORDS` | browser words are not silently clipped, hidden, or claimed by chrome |
-| `UNREAD_SYNTAX` | syntax highlighting does not erase or alter source words |
-| `SILENT_WORDS` | `x-says` and `x-paints` promises reach the composed rendered page |
-| `UNDECLARED_ATTRS` | modules do not write undeclared author-namespace state |
-| `RETIRED_SLOTS` | declared settlement marks and retired-slot visibility agree with the projection |
-| `TRAPPED_MARGINS` | framed boxes show only their declared inset |
-| `PAPER_WORDS` | print keeps every page statement and removes only affordance |
-| `REPLAY_OVERRIDES` | the log, not conflicting authored markup, determines projected state |
-| `RELATIVE_REPLAYS` | reapplying each standing absolute winner moves nothing |
+| window-error init channel | no runtime, module, resource, or ResizeObserver error reached the page |
+| `upgraded` and `moving` | upgrade completed and final geometry settled |
+| `tinyBoxes` | every declared widget has a usable rendered box |
+| `unmarkableItems` | every pointable item has a visible part for an outline |
+| `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
+| `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
+| `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
+| `clippedControls` | actionable controls are visible and reachable |
+| `unreachableWords` | visible page words remain in reachable flow |
+| `coveredWords` | browser words are not silently clipped, hidden, or claimed by chrome |
+| `unreadSyntax` | syntax highlighting does not erase or alter source words |
+| `silentWords` | `x-says` and `x-paints` promises reach the composed rendered page |
+| `undeclaredAttrs` | modules do not write undeclared author-namespace state |
+| `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |
+| `trappedMargins` | framed boxes show only their declared inset |
+| `paperWords` | print keeps every page statement and removes only affordance |
+| `replayOverrides` | the log, not conflicting authored markup, determines projected state |
+| `relativeReplays` | reapplying each standing absolute winner moves nothing |
 
-`standingState` and `shallowSigs` are exported for these gates. Keep their
+`standingState` and `shallowSigs` are published by their projection owner through the
+widget API for these gates. Keep their
 readings aligned with the runtime's projection and authored-state definitions.
 Do not create a test-only interpretation of a widget's state.
 

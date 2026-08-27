@@ -87,13 +87,13 @@ The same line runs through the render gate's own readings, and what decides it i
 whether a reading needs a box.
 
 A reading of text or attributes may cross into the comment panel, and several do:
-a widget an agent sent in a reply is a widget, and `UNREACHABLE_WORDS`,
-`SILENT_WORDS` and `UNDECLARED_ATTRS` answer for it. A reading of geometry may not,
+a widget an agent sent in a reply is a widget, and `unreachableWords`,
+`silentWords` and `undeclaredAttrs` answer for it. A reading of geometry may not,
 because the gate never opens the panel and a shut one has no boxes at all. Most
 stop there by construction — at `.lf-chrome`, or by starting from `main` — and
-`TINY_BOXES` and `CLIPPED_CONTROLS` stop at `checkVisibility()`.
+`tinyBoxes` and `clippedControls` stop at `checkVisibility()`.
 
-`TRAPPED_MARGINS` is the exception, and it is a box reading wearing a computed
+`trappedMargins` is the exception, and it is a box reading wearing a computed
 style reading's clothes: inside `display: none` an element's own `display` is still
 `block` and its padding and margins still resolve, so it reads the panel and gets
 plausible numbers. They are not the panel's numbers. A size container query does
@@ -101,10 +101,10 @@ not match in there, so a rule that switches a slot between two forms is stuck on
 one of them, and a percentage margin comes back unresolved. It therefore tags each
 finding with which document it is in, and the gate takes the page's half.
 
-What the layer does with a box is the suite's — `TRAPPED_MARGINS` states why at
+What the layer does with a box is the suite's — `trappedMargins` states why at
 the line that splits it. So the suite opens the panel, where such a widget has a
-box at last, and puts the product's own readings to it: `TINY_BOXES` and
-`CLIPPED_CONTROLS` over the open panel, and `TRAPPED_MARGINS`'s layer half. Each
+box at last, and puts the product's own readings to it: `tinyBoxes` and
+`clippedControls` over the open panel, and `trappedMargins`'s layer half. Each
 asserts its population first, and a planted fault is scoped to `.lf-chrome`, so a
 clean result cannot come from a reading that never arrived.
 
@@ -348,8 +348,9 @@ is only for a test whose subject is the interval before those stamps; it waits f
 banner module to exist and must make its later readiness explicit.
 
 `watched` must be installed before navigation. It collects console errors and
-`pageerror`, and installs `leaf.rendering.WINDOW_ERRORS` so browser `error` events without
-an exception, including ResizeObserver delivery failures, reach the same error list.
+`pageerror`, and calls `leaf.render_checks.install_window_errors` so browser `error`
+events without an exception, including ResizeObserver delivery failures, reach the same
+error list.
 That script is shared with `render_version`; the suite and the handover gate must not
 disagree about which browser error channels count.
 
@@ -452,7 +453,7 @@ For layout, animation, and navigation, identify the final fact precisely.
 `panel_settled` waits for the requested panel class and then for the body's finite
 animations to empty. `resized` waits for the resize event to reach listeners; a new
 viewport size says only that the browser resized, not that page layout handled it.
-An observer or protocol record that outlives a motion is read after `MOVING` says finite
+An observer or protocol record that outlives a motion is read after `moving` says finite
 motion has ended; a fixed number of animation frames only guesses when that record will
 be delivered under load.
 When clicking a quote causes an instant scroll followed by a smooth scroll, the first
@@ -648,10 +649,10 @@ widget changes the DOM, make sure the relevant render probe can fail with that c
 reintroduced; a source-only assertion cannot cover a generated attribute or a replay
 that moves on its second application.
 
-The canonical probes are `leaf.render_checks.UNDECLARED_ATTRS` for attributes a module writes
-into the author's namespace without a record declaration, and
-`leaf.render_checks.RELATIVE_REPLAYS` for an action whose second application changes state.
-Call the product probes instead of maintaining test-side variants. Their fixtures
+The canonical named probes are `undeclaredAttrs` for attributes a module writes into the
+author's namespace without a record declaration, and `relativeReplays` for an action whose
+second application changes state. Invoke them through `leaf.render_checks.evaluate_probe`
+instead of maintaining test-side variants. Their fixtures
 must include at least one widget and verb that can trigger the finding; otherwise a
 clean result only says the probe received an empty population.
 

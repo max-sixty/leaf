@@ -47,6 +47,12 @@ from .registry import (
     load_registry,
     reaction_tokens,
 )
+from .render_checks import (
+    PROBE_ROUTE,
+    PROBE_SOURCE,
+    STANDALONE_ROUTE,
+    STANDALONE_SOURCE,
+)
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -619,6 +625,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def _get(self):
         path = urlsplit(self.path).path
+        probe_sources = {
+            PROBE_ROUTE: PROBE_SOURCE,
+            STANDALONE_ROUTE: STANDALONE_SOURCE,
+        }
+        if probe_source := probe_sources.get(path):
+            self._send(
+                200,
+                "text/javascript; charset=utf-8",
+                probe_source.read_bytes(),
+            )
+            return
         if path == "/":
             if self.preview_source is not None:
                 events = read_events(self.page_dir)

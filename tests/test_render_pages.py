@@ -2008,12 +2008,18 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
         f"the floor exists to keep it out of: {at_floor}"
     )
 
-    # The reading's own gutter, which is the runtime's reading (scrollerGutter) off the
-    # scroller's two boxes, so the width this drives at is the one the veto is doing its
-    # arithmetic in. Taken here rather than beside each read because a page has one bar:
-    # the window against body's padding box would say the same number only while body
-    # carries no margin, and the panel's strip below is a body margin.
-    resized(page, 1416 + at_floor["gutter"], 800)
+    # The runtime's own reading of the gutter, asked of the module that owns it, so the
+    # width this drives at is the one the veto is doing its arithmetic in by construction
+    # rather than by a second spelling that agrees on inspection. Its own evaluate and not
+    # a key on `reading`, which the script-free copy below shares and which has no module
+    # to ask; the window against body's padding box, the other candidate, would agree only
+    # while body carries no margin, and the panel's strip below is a body margin. The key
+    # `reading` still carries is the failure dumps', where the bar a short measure was read
+    # against is the first thing to know.
+    bar = page.evaluate(
+        "() => import('/runtime/scrolling.js').then(m => m.scrollerGutter())"
+    )
+    resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
         ("left", "sticky"),

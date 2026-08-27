@@ -637,7 +637,6 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
     display: flex;
     justify-content: safe center;
     overflow-x: auto;
-    position: relative;
   }
   [data-lf-wide="drawing"]::before, [data-lf-wide="drawing"]::after {
     content: ""; flex: 0 1 auto;
@@ -738,17 +737,9 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
  * while lf-code's rendered form builds a plain <pre> that takes this rule. So this
  * number moving alone is lf-code changing size the moment its module runs, and a
  * rendered tree no longer matching the code blocks around it. */
-/* Positioned because it scrolls, which is the layer's rule for every box that does
- * (CLAUDE.md, "A box that scrolls contains what it scrolls"): out-of-flow content inside
- * a scroller that is not a containing block is laid out against the page instead, where
- * the scroller neither carries it nor clips it. The runtime hangs a word clipped to
- * nothing inside the block each comment lands on, so one comment on the far column of a
- * table wider than the window had the page itself scrolling sideways to reach a box no
- * reader can see. Written at each box that declares the scroll, the way --lf-frame is
- * written where a box draws its frame, because no selector asks "does this scroll". */
 pre { background: var(--pre-bg); border: 1px solid var(--rule); border-radius: var(--r);
-      padding: 12px 14px; position: relative; overflow-x: auto; font-size: 13px;
-      line-height: 1.55; font-family: var(--mono); }
+      padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+      font-family: var(--mono); }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
@@ -805,7 +796,7 @@ img, svg, video { max-width: 100%; height: auto; }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-table { display: block; position: relative; overflow-x: auto; border-collapse: collapse;
+table { display: block; overflow-x: auto; border-collapse: collapse;
         font-size: var(--t-5); margin: 18px 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }
@@ -1109,6 +1100,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-work-line .lf-work-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-work-line time { color: var(--muted-2); white-space: nowrap; }
+/* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
+ * for what escaped such a box and why the mark is read from the composed page rather
+ * than declared here beside each overflow), so no rule in this file or a package's
+ * states a position for its scroller's sake. Inside the shadow markers because the
+ * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
+ * relative moves nothing. */
+[data-lf-holds] { position: relative; }
 /* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {

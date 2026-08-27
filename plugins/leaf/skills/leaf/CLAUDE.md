@@ -53,7 +53,8 @@ guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity;
 `runtime/presentation.js` owns runtime paint and the words it projects;
-`runtime/reach.js` owns keyboard access to overflow;
+`runtime/reach.js` owns keyboard access to overflow and the containing block a
+scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
 highlight rules;
 `runtime/storage.js` owns page addressing and browser-backed stores;
@@ -1240,11 +1241,16 @@ container that is not a containing block is positioned against the page instead:
 the scroller neither carries it nor clips it, and the page grows a scrollbar
 reaching for a box that belongs to the scroller. The runtime hangs a word clipped
 to nothing inside the block each comment lands on, so a comment on the far column
-of a table wider than the window scrolled the whole page sideways. Every box the
-layer declares scrollable therefore declares `position: relative` in the same
-rule, the way a box declares `--lf-frame` where it draws its frame — a package
-adding a scroller owes the same declaration, and no selector can ask a box
-whether it scrolls.
+of a table wider than the window scrolled the whole page sideways. The runtime
+answers for the word it hangs: the sweep that gives every scrolling box a tab
+stop (`reachScrollers`) marks each static one `data-lf-holds`, and one theme rule
+positions the mark, in the document and in every declared shadow tree. It reads
+the composed box, so a page author's scroller and a package's are held on the
+same terms as the theme's own, and no stylesheet declares a position beside its
+overflow for the word's sake. The mark is written when a sweep reaches the box —
+at upgrade, on a new version, on a rebuild, on the panel's reconcile — so a
+scroller a module builds outside its own settlement owes the `reachScrollers`
+call it already owes for the stop.
 
 ### Forms follow authored content
 
@@ -2137,6 +2143,7 @@ by `leaf/rendering.py` each answer one failure class:
 | `TINY_BOXES` | every declared widget has a usable rendered box |
 | `UNMARKABLE_ITEMS` | every pointable item has a visible part for an outline |
 | `MISPLACED_BOXES` | boxes stay in the column or in genuinely reachable overflow |
+| `SQUEEZED_TABLES` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `WITHHELD_ROOM` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `CLIPPED_CONTROLS` | actionable controls are visible and reachable |
 | `UNREACHABLE_WORDS` | visible page words remain in reachable flow |

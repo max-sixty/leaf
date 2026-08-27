@@ -218,8 +218,9 @@ export function chromeStyle({
      escape the box it sits in, which it did — an out-of-flow box with no positioned
      ancestor is positioned against the page, so the count on a cell of a table scrolling
      inside itself stood three hundred pixels past the window with the page scrolling
-     sideways to reach it. The answer is the scroller's rather than this rule's: a box
-     that scrolls contains what it scrolls (theme.css, at pre). */
+     sideways to reach it. The scroller answers for it, and the runtime sees to that:
+     reachScrollers marks every static box that scrolls, and the theme positions the
+     mark ([data-lf-holds]). */
   .lf-quiet, .lf-mark-note { position: absolute; width: 1px; height: 1px;
     overflow: hidden; clip-path: inset(50%); user-select: none; -webkit-user-select: none; }
   .lf-quiet { white-space: nowrap; }

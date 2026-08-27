@@ -4005,6 +4005,7 @@ const runtimeProjection = createProjection(runtime, {
   renderQuiet,
   renderRetired,
   reportPageError,
+  settling,
   settlementSlots,
   standOn,
   textNodesUnder,

@@ -33,6 +33,7 @@ from render_support import (
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
     LONG_PAGE,
+    LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
     REPLY_HOST_PAGE,
@@ -855,6 +856,90 @@ def test_a_comment_inside_a_scrolling_table_leaves_the_page_its_own_width(
     assert errors == []
     page.close()
     assert rendering_model.render_version(browser, url) == []
+
+
+def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
+    """The table above is the theme's box. A page writes `overflow-x: auto` on a box
+    of its own, and a package on a widget's, and the word escapes a static one of
+    those the same way. The sweep that gives every scrolling box its tab stop marks
+    each static one (reachScrollers), and one theme rule positions the mark — read
+    from the composed box, so the page was asked to declare nothing.
+
+    Asked three ways. The containing block itself, through offsetParent, which for
+    an out-of-flow box is the positioned ancestor it is laid out against: the
+    scroller now, `main` before. The symptom: the page's width, and the word's
+    distance from its row's end edge before and after the box scrolls, which a word
+    laid out against the page keeps only while the row stands still — at rest that
+    word sits at the row's end too, on the page's own account. And the two boxes the
+    mark must leave and must reach: a scroller the page positioned itself, which
+    holds its own and takes no mark, and a diff's lines, which scroll in a declared
+    shadow tree where a document rule does not go."""
+    url = serve(LOOSE_SCROLLER_PAGE, anchored=[("far", "wider than the box")])
+    page, errors = open_page(browser, url)
+    note = page.locator("#far > .lf-mark-note")
+    expect(note).to_have_count(1)
+    measured = note.evaluate(
+        """(n) => {
+        const box = document.querySelector('#loose');
+        const read = () => {
+            const word = n.getBoundingClientRect();
+            const row = n.parentElement.getBoundingClientRect();
+            return {
+                rowAt: row.left, offset: word.left - row.right,
+                sideways: document.body.scrollWidth - document.body.clientWidth,
+            };
+        };
+        const mark = (el) => ({
+            marked: el.hasAttribute('data-lf-holds'),
+            position: getComputedStyle(el).position,
+        });
+        const out = {
+            against: n.offsetParent.id || n.offsetParent.tagName.toLowerCase(),
+            scrolls: box.scrollWidth - box.clientWidth,
+            loose: mark(box), held: mark(document.querySelector('#held')),
+            rest: read(),
+        };
+        box.scrollLeft = box.scrollWidth;
+        out.scrolled = read();
+        return out;
+    }"""
+    )
+    assert measured["scrolls"] > 0, "this box fits, so it proves nothing"
+    assert measured["against"] == "loose", (
+        f"the word is laid out against {measured['against']}, not the box scrolling it"
+    )
+    assert measured["loose"] == {"marked": True, "position": "relative"}, measured
+    assert measured["held"] == {"marked": False, "position": "relative"}, (
+        f"a box the page positioned holds its own and takes no mark: {measured}"
+    )
+    assert (
+        measured["rest"]["sideways"] == 0 and measured["scrolled"]["sideways"] == 0
+    ), f"the page grew sideways reaching for the word: {measured}"
+    assert measured["scrolled"]["rowAt"] < measured["rest"]["rowAt"], (
+        f"the box did not scroll: {measured}"
+    )
+    assert measured["scrolled"]["offset"] == measured["rest"]["offset"], (
+        f"the word stood still while its row scrolled: {measured}"
+    )
+    assert errors == []
+    page.close()
+
+    example = next(e for e in EXAMPLES if e.stem == "pr-walkthrough")
+    page, errors = open_page(browser, serve(example))
+    diffed = page.evaluate(
+        """() => [...document.querySelectorAll('lf-diff')].map((d) => {
+            const pre = d.shadowRoot.querySelector('pre');
+            return { scrolls: getComputedStyle(pre).overflowX,
+                     marked: pre.hasAttribute('data-lf-holds'),
+                     position: getComputedStyle(pre).position };
+        })"""
+    )
+    assert diffed, "no diff on the page, so nothing here stands in a shadow tree"
+    assert all(
+        d == {"scrolls": "auto", "marked": True, "position": "relative"} for d in diffed
+    ), f"the mark did not reach the diff's lines: {diffed}"
+    assert errors == []
+    page.close()
 
 
 def test_the_render_gate_reports_content_set_past_the_column(browser, serve):

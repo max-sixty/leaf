@@ -220,7 +220,7 @@ import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
-import { FOLD_MS, REDUCED, SCROLL, motion } from "./runtime/motion.js";
+import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
 import {
   actionAvailable,
@@ -1028,6 +1028,9 @@ const traysEdge = drawnEdge({
 const banner = el("div", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
+const bannerStatus = el("div", "lf-banner-status");
+bannerStatus.append(dot, statusText);
+const bannerActions = el("div", "lf-banner-actions");
 // The controls the banner's news arrives as, each present only while it has
 // something to say. Room a control has once taken is room it keeps for the rest of the
 // page's life: before it first appears there is nothing to hold, so a page that never
@@ -1055,7 +1058,7 @@ latestChip.title = "Open the current page";
 // same list n/p step and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
 const asksBtn = el("button", "lf-btn lf-asks", "");
-asksBtn.title = "Go to the next thing this page is waiting on you for";
+asksBtn.title = "Show or hide what this page needs your input on";
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, judged by the same `presented` the banner
 // answers with, from the same facts — `others` on /api/state carries them for every
@@ -1108,6 +1111,11 @@ let trayUp = null;
 const openTray = (key) => trayUp === key;
 function showTray(key) {
   if (trayUp === key) return;
+  // When either edge is a covering sheet, one workspace at a time keeps the page from
+  // ending up behind two independently scrollable layers. Wide layouts still keep the
+  // tray and conversations side by side for cross-reference.
+  if (key && panelOpen && (commentsEdge.over.matches || traysEdge.over.matches))
+    setPanel(false);
   trayUp = key;
   for (const [name, { panel, btn, paint }] of trays) {
     const open = name === key;
@@ -1175,6 +1183,8 @@ function restoreTray() {
   if (!trayUp) return;
   const tray = trays.get(trayUp);
   if (!tray) return;
+  if (panelOpen && (commentsEdge.over.matches || traysEdge.over.matches))
+    setPanel(false);
   tray.btn.setAttribute("aria-expanded", "true");
   tray.paint?.();
   tray.panel.classList.add("open");
@@ -1387,23 +1397,15 @@ const {
 const toggleBtn = el("button", "lf-btn lf-comments", "Comments");
 toggleBtn.title = "Show or hide the comment panel";
 toggleBtn.setAttribute("aria-expanded", "false");
-const approveBtn = el("button", "lf-btn primary lf-signoff", "✓ Looks good");
+const approveBtn = el("button", "lf-btn primary lf-signoff", "Approve version");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's ask is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-banner.append(
-  dot,
-  statusText,
-  el("span", "lf-spacer"),
-  othersBtn,
-  latestChip,
-  asksBtn,
-  versionBtn,
-  toggleBtn,
-);
-if (signoff) banner.append(approveBtn);
+bannerActions.append(othersBtn, latestChip, asksBtn, versionBtn, toggleBtn);
+banner.append(bannerStatus, el("span", "lf-spacer"), bannerActions);
+if (signoff) bannerActions.append(approveBtn);
 
 // Sign-off belongs to the authored version, while the control belongs to the live
 // chrome that survives one. A soft activation can therefore add or remove the same
@@ -1414,8 +1416,8 @@ function stateSignoff(next) {
   if (shown === signoff) return;
   signoff = shown;
   if (signoff) {
-    banner.append(approveBtn);
-    reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+    bannerActions.append(approveBtn);
+    reserve(approveBtn, ["Approve version", "✓ Version approved"]);
     paintApproval();
   } else approveBtn.remove();
   syncLayout();
@@ -1524,10 +1526,9 @@ composer.append(composerQuote, suggestRow, composerInput, composerRow);
 const toastEl = el("div", "lf-ui lf-toast");
 const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
-const helpEl = el("div", "lf-ui lf-help");
-helpEl.setAttribute("role", "dialog");
+const helpEl = document.createElement("dialog");
+helpEl.className = "lf-ui lf-help";
 helpEl.setAttribute("aria-label", "Keyboard reference");
-helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
 // The key line — the register's short rendering. Its two fact chips are aria-hidden (the
 // spoken copies are placeholders, announcements, and the reference); More is a real button
 // because a visible door to the complete list should be a door every reader can work.
@@ -1601,7 +1602,7 @@ document.body.append(chromeRoot);
 // The counters hold the widest they reach anywhere below a thousand, so no count
 // they write can move them — a page with a thousand open threads, or a machine with
 // a thousand live pages, is not one anyone hands a user.
-if (signoff) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
 const draftVersionLabel = "Draft after v999 ▾";
 reserve(versionBtn, [
   versionLabel(false),
@@ -1613,15 +1614,6 @@ reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
 reserve(othersBtn, ["All leaves (999)"]);
-// The room the head of the document leaves for the bar, measured off the bar as
-// rendered rather than stated as a number — --lf-banner-h is what the bar is drawn to
-// and a second copy of it here would be a release behind it the day either moved. What
-// spends this, and why it is spent as a box rather than as body's own padding, is the
-// rule above that reads it. The key line's reservation at the foot is the same
-// arrangement, written by syncLayout because it is the same measurement every time the
-// line's height changes.
-document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
-
 // ---------- state ----------
 
 // Until the first state answer, [] means "not read", not "no comments". Keep that
@@ -1749,11 +1741,11 @@ function syncLayout() {
   // The toast lives in the same corner as the panel's Send button. Beside a wide
   // panel it steps left; over a covering sheet it stays inside the viewport and
   // rises above the whole composer, including a textarea grown by an unsent draft.
-  toastEl.style.right = (panelBeside ? commentsEdge.width() + 18 : 18) + "px";
-  toastEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 18 : 18) + "px";
+  toastEl.style.right = `calc(${panelBeside ? commentsEdge.width() + 18 : 18}px + var(--lf-safe-right))`;
+  toastEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 18 : 18}px + var(--lf-safe-bottom))`;
   // The key line takes the toast's lift over a covering sheet, or the sheet's own
   // composer stands on the words saying what Esc will do to it.
-  keylineEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 14 : 14) + "px";
+  keylineEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 14 : 14}px + var(--lf-safe-bottom))`;
   // Beside the page, the comment panel owns the right strip all the way to its foot. The
   // line starts at the window's left, so cap its room at that strip rather than letting a
   // long computed hint cross into the general comment box. A covering panel is handled by
@@ -1880,6 +1872,8 @@ function syncFloats() {
   }
 }
 function setPanel(open) {
+  if (open && trayUp && (commentsEdge.over.matches || traysEdge.over.matches))
+    showTray(null);
   // Closing while focus is inside would drop it on body, the user's place
   // lost silently; it lands on the one control that reopens what just closed.
   if (!open && panel.contains(document.activeElement))
@@ -2185,7 +2179,7 @@ function paintApproval() {
     runtime.currentStamp === null ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
-  approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
+  approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
 }
 approveBtn.onclick = async () => {
   if (approving) return;
@@ -2579,7 +2573,7 @@ const {
   syncAsks,
 } = createAskView({
   PAGE_PAINT_ATTRIBUTE,
-  SCROLL,
+  scrollBehavior,
   announce,
   askEntry,
   askSource,
@@ -2589,6 +2583,7 @@ const {
   asksPanel,
   banner,
   blocksOnScreen,
+  closeTray: () => showTray(null),
   el,
   elementById: (...args) => elementById(...args),
   inChrome: (node) => inChrome(node),
@@ -2607,6 +2602,7 @@ const {
   showNews,
   shownParts,
   tagsDeclaring,
+  trayCovers: () => traysEdge.over.matches,
   unansweredAsks,
   versionBtn,
 });
@@ -2614,8 +2610,8 @@ const {
 const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
   createNavigation({
     BANNER_CLEAR,
-    REDUCED,
-    SCROLL,
+    reducedMotion,
+    scrollBehavior,
     beside,
     inChrome: (node) => inChrome(node),
     inPanel,
@@ -3981,7 +3977,7 @@ conversationRuntime = createConversation({
   COMMENTS,
   FOLD_MS,
   MARKED_ANYWHERE,
-  SCROLL,
+  scrollBehavior,
   addressLabel,
   addressed,
   agentName,
@@ -4016,6 +4012,7 @@ conversationRuntime = createConversation({
   paintAnchors,
   paintHere,
   panelIsOpen: () => panelOpen,
+  panelCovers,
   panelTitle,
   placedAt: (id) => placed.get(id),
   post,
@@ -4063,7 +4060,7 @@ updateRuntime = createUpdates(runtime, {
 
 anchorRuntime = createAnchors({
   DATUM,
-  SCROLL,
+  scrollBehavior,
   TEXT_BLOCK,
   aimBox,
   aimIsOn,

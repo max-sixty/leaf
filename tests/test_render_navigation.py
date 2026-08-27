@@ -1327,10 +1327,10 @@ def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve)
     The sweep that fixes that asks the box whether it may scroll, and the theme says every
     table may (`table { display: block; overflow-x: auto }`). So pointing it at the
     reference tagged all fourteen of its tables, none of which overflows: leaving the
-    reference by Tab went from one press to fifteen, each stop wearing the browser's own
-    ring rather than the layer's. A rule saying a box *could* scroll is not the same fact
-    as a box that *has* something out of sight, and only the second is somewhere a reader
-    needs to be able to stand.
+    reference by Tab went from its native controls to fifteen extra stops, each wearing
+    the browser's own ring rather than the layer's. A rule saying a box *could* scroll is
+    not the same fact as a box that *has* something out of sight, and only the second is
+    somewhere a reader needs to be able to stand.
 
     Asserted as the whole set rather than a count, because the count was right before and
     the members were wrong: every stop in the overlay has to be a box that really scrolls,
@@ -1349,7 +1349,9 @@ def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve)
                  }))"""
     )
     assert stops, "the reference offers no tab stop at all, not even its search box"
-    dead = [s for s in stops if s["tag"] != "INPUT" and not s["scrolls"]]
+    dead = [
+        s for s in stops if s["tag"] not in {"INPUT", "BUTTON"} and not s["scrolls"]
+    ]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
 
     # And the box that does have something out of sight is one of those stops, which is
@@ -3026,7 +3028,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         page.goto(serve(NOTED_PAGE), wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(page.locator(".lf-status-text")).to_have_text(
-            "Server offline — comments won't send"
+            "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
 
         page.keyboard.press("c")

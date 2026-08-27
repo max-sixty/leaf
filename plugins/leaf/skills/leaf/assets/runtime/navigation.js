@@ -3,8 +3,8 @@ export const scrollerFor = (...args) => publishedNavigation.scrollerFor(...args)
 
 export function createNavigation({
   BANNER_CLEAR,
-  REDUCED,
-  SCROLL,
+  reducedMotion,
+  scrollBehavior,
   beside,
   inChrome,
   inPanel,
@@ -91,7 +91,7 @@ export function createNavigation({
     // half of the press still travels. Both halves therefore go where they were pointed.
     const standing = next === document.activeElement;
     next.focus({ preventScroll: true });
-    if (standing) next.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     scrollToThread(next.dataset.id);
   }
 
@@ -101,7 +101,7 @@ export function createNavigation({
   // reads the list's declared scroll-padding, including its sticky heading and focus-ring
   // room, from the same authority the j/k walk uses.
   function placeThreadEdge(thread, edge) {
-    thread.scrollIntoView({ behavior: SCROLL, block: edge });
+    thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }
 
   // d and u step the reader half a page down and up — less's pair, and half a page rather
@@ -167,7 +167,7 @@ export function createNavigation({
   // back through, and an edge may be asked for as the height it cannot exceed.
   function glideTo(box, goal) {
     goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
-    if (REDUCED) {
+    if (reducedMotion()) {
       box.scrollTo({ top: goal, behavior: "instant" });
       return;
     }

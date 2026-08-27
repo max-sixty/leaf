@@ -14,7 +14,6 @@ export function createProjection(runtime, dependencies) {
     MARKED_IN_PAGE,
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
-    agentName,
     answeredContext,
     askEntry,
     containsAcross,
@@ -398,7 +397,7 @@ export function createProjection(runtime, dependencies) {
     paintKeys();
     try {
       if (await post({ kind: "undo", undoes: e.id }))
-        toast(`${undoWord(e)} — sent to ${agentName()}`);
+        toast(`${undoWord(e)} — recorded`);
     } finally {
       runtime.undoing = false;
       paintKeys();

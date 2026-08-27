@@ -8,7 +8,7 @@ export const shownParts = (...args) => publishedAnchors.shownParts(...args);
 export function createAnchors(dependencies) {
   const {
     DATUM,
-    SCROLL,
+    scrollBehavior,
     TEXT_BLOCK,
     aimBox,
     aimIsOn,
@@ -1093,7 +1093,7 @@ export function createAnchors(dependencies) {
           : Math.max((view.height - rect.height) / 2, clear);
     return rect.top - view.top - place;
   }
-  function scrollToElement(el, behavior = SCROLL, block = "center") {
+  function scrollToElement(el, behavior = scrollBehavior(), block = "center") {
     reveal(el);
     el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
     const box = scrollerFor(el);
@@ -1125,7 +1125,7 @@ export function createAnchors(dependencies) {
     // rendered diagram sits in a box with its own horizontal scroll, which the vertical
     // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
     holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-    jumpBy(centreBy(where), SCROLL);
+    jumpBy(centreBy(where), scrollBehavior());
   }
 
   // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which

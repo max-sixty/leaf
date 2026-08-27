@@ -61,6 +61,85 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
+    """Hoisted decision rows follow the changes they name instead of reversing them."""
+    source = leaf_page(
+        "suggestion-order",
+        """
+<h1>Release wording</h1>
+<section id="shared-block">
+  <p>First <lf-suggestion id="first-change"><lf-new>first proposal</lf-new></lf-suggestion>.</p>
+  <p>Second <lf-suggestion id="second-change"><lf-new>second proposal</lf-new></lf-suggestion>.</p>
+  <p>Third <lf-suggestion id="third-change"><lf-new>third proposal</lf-new></lf-suggestion>.</p>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    expect(page.locator(".lf-sug-actions")).to_have_count(3)
+    assert page.locator(".lf-sug-actions").evaluate_all(
+        "rows => rows.map(row => row.dataset.lfFor)"
+    ) == ["first-change", "second-change", "third-change"]
+    page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
+    walked = []
+    for _ in range(3):
+        walked.append(
+            page.evaluate(
+                "() => document.activeElement.closest('.lf-sug-actions')?.dataset.lfFor"
+            )
+        )
+        # Each row has two controls; walk to the next row's first control.
+        page.keyboard.press("Tab")
+        page.keyboard.press("Tab")
+    assert walked == ["first-change", "second-change", "third-change"]
+    assert errors == []
+    page.close()
+
+
+def test_a_detached_board_releases_and_restores_its_motion_subscription(browser, serve):
+    """Version replacement does not retain a board through a media-query listener."""
+    context = browser.new_context(viewport={"width": 1000, "height": 800})
+    context.add_init_script(
+        """(() => {
+          window.__lfMotionListeners = {added: 0, removed: 0};
+          const add = MediaQueryList.prototype.addEventListener;
+          const remove = MediaQueryList.prototype.removeEventListener;
+          MediaQueryList.prototype.addEventListener = function(type, listener, options) {
+            if (type === 'change' && this.media === '(prefers-reduced-motion: reduce)')
+              window.__lfMotionListeners.added++;
+            return add.call(this, type, listener, options);
+          };
+          MediaQueryList.prototype.removeEventListener = function(type, listener, options) {
+            if (type === 'change' && this.media === '(prefers-reduced-motion: reduce)')
+              window.__lfMotionListeners.removed++;
+            return remove.call(this, type, listener, options);
+          };
+        })()"""
+    )
+    try:
+        page, errors = open_page(browser, serve(BOARD_PAGE), context=context)
+        before = page.evaluate("() => ({...window.__lfMotionListeners})")
+        page.evaluate(
+            """() => {
+              window.__lfDetachedBoard = document.querySelector('lf-board');
+              window.__lfDetachedBoard.remove();
+            }"""
+        )
+        released = page.evaluate("() => ({...window.__lfMotionListeners})")
+        assert released["removed"] > before["removed"], (
+            f"detaching the board retained its motion listener: {before=}, {released=}"
+        )
+        page.evaluate(
+            "() => document.querySelector('main').append(window.__lfDetachedBoard)"
+        )
+        restored = page.evaluate("() => ({...window.__lfMotionListeners})")
+        assert restored["added"] > before["added"], (
+            f"reconnecting the board did not restore live motion changes: {restored=}"
+        )
+        assert errors == []
+    finally:
+        context.close()
+
+
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     browser, serve
 ):
@@ -785,7 +864,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
     page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}").click()
     expect(page.locator(".lf-toast")).to_have_text(
-        f"{verb} “Retry three times.” — sent to Claude"
+        f"{verb} “Retry three times.” — recorded"
     )
     assert errors == []
     page.close()
@@ -2090,7 +2169,10 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     tray are two surfaces showing where the reader is standing, painted from the one
     reading of it (markHere), so neither can say something the other doesn't."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 1200, 620)
+    # Narrow enough that the tray covers the page. A destination selected from a covering
+    # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
+    # correctly behind an opaque surface.
+    resized(page, 560, 620)
     page.keyboard.press("a")
     expect(page.locator(".lf-asks-panel")).to_be_visible()
 
@@ -2104,16 +2186,14 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     )
 
     page.locator("button.lf-asks-row[data-lf-at='t-bath']").click()
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
     # A blocked task has no control of its own to answer it, so the ask itself takes the
     # focus — the landing is a place to stand either way.
     expect(page.locator("#t-bath")).to_be_focused()
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
-    expect(page.locator("button.lf-asks-row[data-lf-at='t-bath']")).to_have_attribute(
-        "data-lf-ask", "1"
-    )
-    # And one ask is standing, not two: the row is another box the same ask shows
-    # through, never a second answer to where the reader is.
+    # The covering tray has gone, so its projected rows go with it. The page carries the
+    # one standing mark rather than leaving a second, hidden authority in the closed tray.
     marked = page.evaluate(
         """() => [...document.querySelectorAll('[data-lf-ask]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""

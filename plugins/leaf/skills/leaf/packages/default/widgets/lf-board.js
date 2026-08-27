@@ -22,7 +22,6 @@
  * once, as the list's name, rather than twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
-  agentName,
   once,
   offer,
   quoted,
@@ -38,8 +37,9 @@ import {
   motion,
   scrollerFor,
   PRESS,
-  REDUCED,
-  SCROLL,
+  onMotionPreferenceChange,
+  reducedMotion,
+  scrollBehavior,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -49,9 +49,15 @@ customElements.define(
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
+    #sortables = new Set();
+    #stopMotion = null;
 
     connectedCallback() {
-      if (!once(this)) return this.#observeNames();
+      if (!once(this)) {
+        this.#observeNames();
+        this.#observeMotion();
+        return;
+      }
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the "?" overlay — it stays the static board the theme renders anyway.
@@ -75,6 +81,7 @@ customElements.define(
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
+      this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit and whether the runtime has
       // marked their move as awaiting a version, so mutations of those two inputs
@@ -148,7 +155,19 @@ customElements.define(
     disconnectedCallback() {
       this.#namesObserver?.disconnect();
       this.#namesObserver = null;
+      this.#stopMotion?.();
+      this.#stopMotion = null;
       if (this.#grabbed) this.#cancel();
+    }
+
+    #observeMotion() {
+      if (this.#stopMotion || !this.#sortables.size) return;
+      for (const sortable of this.#sortables)
+        sortable.option("animation", reducedMotion() ? 0 : 150);
+      this.#stopMotion = onMotionPreferenceChange((reduced) => {
+        for (const sortable of this.#sortables)
+          sortable.option("animation", reduced ? 0 : 150);
+      });
     }
 
     #observeNames() {
@@ -280,7 +299,7 @@ customElements.define(
         this.#place(card, target, this.#cards(col).indexOf(card));
       }
       grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
-      card.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+      card.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
       const now = card.parentElement;
       const cards = this.#cards(now);
       announce(
@@ -352,13 +371,13 @@ customElements.define(
           toast(
             `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(
               "label",
-            )} — sent to ${agentName()}`,
+            )} — recorded`,
           );
       });
     }
 
     #sortable(col) {
-      new Sortable(col, {
+      const sortable = new Sortable(col, {
         group: `board-${this.id}`, // per board: two boards on a page don't cross-drag
         draggable: "lf-card",
         handle: ".lf-grip",
@@ -372,7 +391,7 @@ customElements.define(
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
-        animation: REDUCED ? 0 : 150,
+        animation: reducedMotion() ? 0 : 150,
         direction: "vertical",
         swapThreshold: 0.65, // hysteresis: boundaries don't flip-flop under a still pointer
         emptyInsertThreshold: 12,
@@ -416,6 +435,7 @@ customElements.define(
           this.#send(card, from, to);
         },
       });
+      this.#sortables.add(sortable);
     }
 
     // {card, to, index}: card X sits at index i among column C's cards. #place

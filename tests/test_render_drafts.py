@@ -1009,7 +1009,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    expect(first.locator(".lf-toast")).to_contain_text("Sent to Claude")
+    expect(first.locator(".lf-toast")).to_contain_text("Message recorded")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -1877,6 +1877,9 @@ def test_registered_control_keys_activate_once(browser, serve):
     page.locator("#draft-ops .lf-draft-pencil").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#draft-ops textarea")).to_be_focused()
+    assert page.locator("#draft-ops").evaluate(
+        "el => getComputedStyle(el).outlineStyle !== 'none'"
+    ), "the draft editor received focus without a visible focus indicator"
     page.keyboard.press("Escape")
 
     mark = page.locator("#opts .lf-pick").first

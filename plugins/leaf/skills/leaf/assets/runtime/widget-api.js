@@ -34,7 +34,15 @@ export {
   layerFact,
   matchesWhen,
 } from "./registry.js";
-export { FOLD_MS, REDUCED, SCROLL, motion } from "./motion.js";
+export {
+  FOLD_MS,
+  REDUCED,
+  SCROLL,
+  motion,
+  onMotionPreferenceChange,
+  reducedMotion,
+  scrollBehavior,
+} from "./motion.js";
 export { quietWord } from "./presentation.js";
 export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";

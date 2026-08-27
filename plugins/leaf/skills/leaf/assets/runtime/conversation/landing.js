@@ -1,6 +1,6 @@
 import { shownBox } from "../anchors.js";
 import { focused } from "../keyboard/scopes.js";
-import { SCROLL } from "../motion.js";
+import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
 
 const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
@@ -34,7 +34,7 @@ export function landInConversation(box, route = null) {
 export function createConversationLanding({ scrollToThread }) {
   const focusConversation = ({ held, box }) => {
     box.focus({ preventScroll: true });
-    held.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    held.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     if (held.dataset.id) scrollToThread(held.dataset.id);
   };
   publishedLand = ({ held = null, box, route = null }) => {

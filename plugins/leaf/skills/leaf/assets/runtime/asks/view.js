@@ -1,6 +1,6 @@
 export function createAskView({
   PAGE_PAINT_ATTRIBUTE,
-  SCROLL,
+  scrollBehavior,
   announce,
   askEntry,
   askSource,
@@ -10,6 +10,7 @@ export function createAskView({
   asksPanel,
   banner,
   blocksOnScreen,
+  closeTray,
   el,
   elementById,
   inChrome,
@@ -28,6 +29,7 @@ export function createAskView({
   showNews,
   shownParts,
   tagsDeclaring,
+  trayCovers,
   unansweredAsks,
   versionBtn,
 }) {
@@ -62,7 +64,7 @@ export function createAskView({
       };
       showNews(btn, false);
       bulkButtons.set(verb, { btn, label });
-      banner.insertBefore(btn, versionBtn);
+      versionBtn.before(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncAsks writes, measured in the face it will render in (see reserve).
       reserve(btn, [`✓ ${label} all (999)`]);
@@ -391,6 +393,11 @@ export function createAskView({
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
     if (inChrome(next) && !panelIsOpen()) setPanel(true);
+    // A tray beside the page stays standing as a working index. A covering tray has
+    // become the whole visible surface, so selecting a page destination closes it
+    // before the reveal and focus land; otherwise the correct navigation happens
+    // invisibly behind the very sheet that offered it.
+    if (!inChrome(next) && openTray("asks") && trayCovers()) closeTray();
     reveal(next); // a settled group or an inactive tab has no geometry until it opens
     const source = askSource(next);
     if (source !== next) reveal(source); // let the answering widget settle its own chrome
@@ -403,7 +410,7 @@ export function createAskView({
     // One travel for both, because which box it moves is now the travel's own question
     // (scrollerFor) rather than a second one asked here; what stays is the destination,
     // which is the banner's clearance in the document and the middle of the list.
-    scrollToElement(next, SCROLL, inChrome(next) ? "center" : "start");
+    scrollToElement(next, scrollBehavior(), inChrome(next) ? "center" : "start");
     announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
   }
   function stepAsk(dir) {

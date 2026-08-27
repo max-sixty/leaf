@@ -9,7 +9,7 @@ export function createConversation(dependencies) {
     COMMENTS,
     FOLD_MS,
     MARKED_ANYWHERE,
-    SCROLL,
+    scrollBehavior,
     addressLabel,
     addressed,
     agentName,
@@ -43,6 +43,7 @@ export function createConversation(dependencies) {
     paintAnchors,
     paintHere,
     panelIsOpen,
+    panelCovers,
     panelTitle,
     placedAt,
     post,
@@ -535,7 +536,12 @@ export function createConversation(dependencies) {
       // words, so the travel stands down — the reading `offer` makes of its own
       // controls, which this is not one of.
       quote.onclick = (ev) => {
-        if (ev.detail === 0 || !reachedForWords(quote)) scrollToThread(t.root.id);
+        if (ev.detail !== 0 && reachedForWords(quote)) return;
+        // Beside the page, the panel is a working index and stays standing. As a
+        // covering sheet it would hide the destination it promises to show, so travel
+        // dismisses it first and lands on visible paper.
+        if (panelCovers()) setPanel(false);
+        scrollToThread(t.root.id);
       };
       div.append(quote);
     }
@@ -1114,7 +1120,7 @@ export function createConversation(dependencies) {
   const standing = () => focused()?.closest?.(".lf-thread");
   const land = (thread) => {
     if (thread && threadsBox.contains(thread))
-      thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+      thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   };
   threadsBox.addEventListener("pointerdown", () => (pressing = true));
   addEventListener(
@@ -1178,7 +1184,7 @@ export function createConversation(dependencies) {
     if (!node) return;
     const thread = node.closest(".lf-thread");
     node.scrollIntoView({
-      behavior: SCROLL,
+      behavior: scrollBehavior(),
       block: node === thread ? "center" : "nearest",
     });
     thread.classList.remove("grow");

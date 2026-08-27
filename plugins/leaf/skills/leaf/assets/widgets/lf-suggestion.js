@@ -66,7 +66,6 @@
  * each other, which a translate nudges apart without touching layout. */
 import {
   actionStands,
-  agentName,
   alignText,
   FOLD_MS,
   inChrome,
@@ -357,7 +356,14 @@ customElements.define(
       let perch = this;
       while (perch.parentElement !== col && col.contains(perch.parentElement))
         perch = perch.parentElement;
-      perch.after(this.#row);
+      // Several suggestions can share one top-level block. Inserting every row directly
+      // after that block reverses their source order (each new row takes the same slot),
+      // so the controls for the last sentence appeared first. Walk the already docked run
+      // and append to it; source, reading, and keyboard order now stay one order.
+      let dock = perch;
+      while (dock.nextElementSibling?.classList.contains("lf-sug-actions"))
+        dock = dock.nextElementSibling;
+      dock.after(this.#row);
       rows.set(this.#row, this.#anchor);
       schedule();
     }
@@ -448,7 +454,7 @@ customElements.define(
         // same event list also carried a later undo: authored state then stands.
         if (actionStands(accepted)) this.#settle(outcome);
         toast(
-          `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent to ${agentName()}`,
+          `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — recorded`,
         );
         return true;
       });

@@ -484,7 +484,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
         )
         expect(page.locator("main")).to_be_visible()
         expect(page.locator(".lf-status-text")).to_have_text(
-            "Server offline — comments won't send"
+            "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
         assert page.locator("body").get_attribute("data-lf-applied") is None
         assert page.evaluate("() => window.__lfPresentation.releases") == 1
@@ -1521,13 +1521,13 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
     expect(page.locator(".lf-status-text")).to_have_text(
-        "Server offline — comments won't send"
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     page.unroute("**/api/state*")
     told(page)
     expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
     expect(page.locator(".lf-status-text")).not_to_have_text(
-        "Server offline — comments won't send"
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     assert errors == []
     page.close()
@@ -1547,7 +1547,9 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     port = serve.httpd.server_address[1]
     serve.httpd.shutdown()
     serve.httpd.server_close()
-    expect(status).to_have_text("Server offline — comments won't send")
+    expect(status).to_have_text(
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    )
 
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", port), http_model.handler_for(serve.page_dir, TOKEN)
@@ -1560,7 +1562,9 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     )
     told(page)
     expect(page.locator(".lf-thread", has_text="Back.")).to_have_count(1)
-    expect(status).not_to_have_text("Server offline — comments won't send")
+    expect(status).not_to_have_text(
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    )
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.
     assert all("net::ERR" in error for error in errors), errors

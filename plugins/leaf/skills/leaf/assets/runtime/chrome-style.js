@@ -62,7 +62,7 @@ export function chromeStyle({
          replace it, and it is withheld from paper by the block it sits in: written as
          padding it stayed behind, holding 42px of blank over the first line of every
          printed page for a bar that was not on it. */
-      body::before { content: ""; display: block; height: var(--lf-head, 0px); }
+      body::before { content: ""; display: block; height: var(--lf-banner-h); }
     }
   }
   /* position: relative makes body — the scroll container — the containing block for
@@ -71,8 +71,7 @@ export function chromeStyle({
   /* The banner's height, said once. Everything at the top edge derives from it — the
      bar itself, the panel starting under it, the focus-revealed mark note, the
      scroll padding that keeps an anchored jump out from beneath it (plus air) — and
-     the room the document leaves for it is measured off the rendered bar (see the
-     append below) rather than restated. */
+     the room the document leaves for it. */
   /* The chrome's line box, said once, because one control in the banner cannot be
      told it. Chrome computes a select's inner height from its own metrics and
      refuses line-height outright — the computed value stays normal however the
@@ -82,7 +81,17 @@ export function chromeStyle({
      .lf-btn arrives at through the line box. Stated in one place so the two cannot
      come apart: a third copy of 1.45 is exactly the drift the reserve comment below
      is about, and this one would show as the chooser sinking again. */
-  body { --lf-banner-h: 42px; --lf-ui-lh: 1.45; }
+  body {
+    --lf-safe-top: env(safe-area-inset-top, 0px);
+    --lf-safe-right: env(safe-area-inset-right, 0px);
+    --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --lf-safe-left: env(safe-area-inset-left, 0px);
+    --lf-banner-h: calc(42px + var(--lf-safe-top));
+    --lf-ui-lh: 1.45;
+  }
+  @media screen and ${COVERING} {
+    body { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
+  }
   body { position: relative; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
      can follow the sentence it was reading to where it went. Keyed on the stamp that
@@ -556,9 +565,21 @@ ${MARK_RULES}
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
-      display: flex; align-items: center; gap: 10px; padding: 0 14px;
+      display: flex; align-items: center; gap: 10px;
+      padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
+        calc(14px + var(--lf-safe-left));
       background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
-    .lf-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted-2); flex: none; }
+    .lf-banner-status, .lf-banner-actions { display: flex; align-items: center; gap: 10px; }
+    .lf-banner-status { min-width: 0; }
+    .lf-banner-actions { flex: 0 1 auto; min-width: 0; overflow: visible; }
+    /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
+       mark remains the same one-token status reading — shape is identity, colour is
+       state — and the midrib stays currentColor-independent so every status keeps its
+       registry-owned tone. */
+    .lf-dot { position: relative; width: 14px; height: 14px; border-radius: 80% 0 80% 0;
+      transform: rotate(-45deg); background: var(--muted-2); flex: none; }
+    .lf-dot::after { content: ""; position: absolute; left: 2px; top: 6px; width: 10px;
+      height: 1px; background: var(--card); opacity: .72; transform: rotate(-45deg); }
     .lf-dot.working { background: var(--accent);
       animation: lf-runtime-4f3c2a8d-pulse 1.4s ease-in-out infinite; }
     .lf-dot.listening { background: var(--ok); }
@@ -570,7 +591,7 @@ ${MARK_RULES}
     /* This row is packed to the right against the spacer, and that decides who pays for
        a control changing size: it moves itself and everything to its left, while
        everything to its right keeps its place. Three of these rewrite their own words —
-       "✓ Approved" is narrower than "✓ Looks good", and two of them count something
+       "✓ Version approved" is narrower than "Approve version", and two of them count something
        that gains a digit — so each holds room for the widest it may say, taken from the
        words themselves (the reserve calls where the banner is built) rather than stated
        here as numbers. Three numbers stood here once and all three quietly stopped
@@ -607,7 +628,7 @@ ${MARK_RULES}
       display: none; grid-template-columns: 1fr auto; align-items: start;
       min-width: anchor-size(width);
       max-width: min(360px, calc(100vw - 16px));
-      max-height: calc(100vh - var(--lf-banner-h) - 20px); overflow-y: auto;
+      max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
       overscroll-behavior: contain;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 4px; }
@@ -659,7 +680,8 @@ ${MARK_RULES}
        the other read the constant; what the two trays differ in is the row, below. */
     .lf-tray-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
       z-index: 8900; width: var(${TRAY_PROP}); background: var(--card);
-      border-right: 1px solid var(--rule); display: none; flex-direction: column; }
+      border-right: 1px solid var(--rule); display: none; flex-direction: column;
+      padding-bottom: var(--lf-safe-bottom); padding-left: var(--lf-safe-left); }
     .lf-tray-panel.open { display: flex; }
     /* The rows scroll in a box of their own rather than in the tray, which is the comment
        panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
@@ -716,7 +738,9 @@ ${MARK_RULES}
        which put every reservation above back in play on any narrow enough window. */
     .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(${PANEL_PROP}); z-index: 8900;
-      background: var(--card); border-left: 1px solid var(--rule); display: none; flex-direction: column; }
+      background: var(--card); border-left: 1px solid var(--rule); display: none;
+      flex-direction: column; padding-right: var(--lf-safe-right);
+      padding-bottom: var(--lf-safe-bottom); }
     .lf-panel.open { display: flex; }
     /* An edge, offered as a thing to take hold of — the comment panel's on the right of
        the page, the trays' on the left, and nothing here knows which it is drawing except
@@ -885,6 +909,8 @@ ${MARK_RULES}
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
     .lf-quote:hover { color: var(--ink-2); }
+    .lf-thread > .lf-quote:not(.detached)::after { content: "  ↗ page";
+      color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
        paragraph of it in a 320px column buries the words written about it. So the panel
        names the passage in three lines and the page shows the rest: the mark is already
@@ -1061,18 +1087,26 @@ ${MARK_RULES}
       border-radius: 6px; white-space: pre-wrap; }
     .lf-composer textarea { width: 100%; min-height: 56px; }
     .lf-composer-row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
-    .lf-toast { position: fixed; bottom: 18px; right: 18px; z-index: 9200; max-width: calc(100vw - 36px);
+    .lf-toast { position: fixed; bottom: calc(18px + var(--lf-safe-bottom));
+      right: calc(18px + var(--lf-safe-right)); z-index: 9200;
+      max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
       overflow-wrap: anywhere; background: var(--ink); color: var(--paper); padding: 9px 14px;
       border-radius: var(--r); opacity: 0; transition: opacity .25s, right .18s ease; pointer-events: none; }
     .lf-toast.show { opacity: .95; }
     .lf-toast.clickable { pointer-events: auto; cursor: pointer; }
     .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     .lf-help { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: min(520px, calc(100vw - 32px)); max-height: 80vh; overflow: hidden; display: none;
+      width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
+      max-height: min(80dvh, calc(100dvh - var(--lf-safe-top) - var(--lf-safe-bottom) - 32px));
+      overflow: hidden; display: none; margin: 0;
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 18px; }
     .lf-help.open { display: flex; flex-direction: column; }
-    .lf-help-title { font-weight: 600; margin-bottom: 8px; }
+    .lf-help::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
+    .lf-help-head { display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 8px; }
+    .lf-help-title { font-weight: 600; }
+    .lf-help-close { flex: none; }
     .lf-help-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
       border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
       color: var(--ink); }
@@ -1106,9 +1140,11 @@ ${MARK_RULES}
        covering one, while body reserves its height so the document's last lines never
        end under it. Overflow remains a backstop for a window too narrow to hold even
        the short line. */
-    .lf-keyline { position: fixed; left: 18px; bottom: 14px; z-index: 8940; pointer-events: none;
+    .lf-keyline { position: fixed; left: calc(18px + var(--lf-safe-left));
+      bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
       display: flex; gap: 12px; align-items: baseline;
-      max-width: calc(100vw - var(--lf-keyline-right, 0px) - 36px);
+      max-width: calc(100vw - var(--lf-keyline-right, 0px) - 36px
+        - var(--lf-safe-left) - var(--lf-safe-right));
       overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
       background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
       padding: 5px 10px; }
@@ -1219,6 +1255,56 @@ ${MARK_RULES}
       padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
       background: var(--accent); color: var(--paper); }
     .lf-inspect.lf-shown { display: block; }
+    /* On a phone the banner is a status shelf, not a cropped desktop row. The status
+       gets a quiet first line and the action row scrolls independently underneath it;
+       the two actions that complete the feedback loop are ordered first, so no hidden
+       overflow has to be discovered before a reader can comment or approve. */
+    @media screen and ${COVERING} {
+      .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 40px 48px; gap: 0;
+        padding: var(--lf-safe-top) 0 7px; }
+      .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
+          calc(14px + var(--lf-safe-left)); gap: 9px; }
+      .lf-spacer { display: none; }
+      .lf-banner-actions { grid-row: 2; width: 100%; min-width: 0; overflow-x: auto;
+        overscroll-behavior-inline: contain; scrollbar-width: none;
+        scroll-padding-inline: calc(14px + var(--lf-safe-left));
+        padding: 2px calc(14px + var(--lf-safe-right)) 2px
+          calc(14px + var(--lf-safe-left)); gap: 8px; }
+      .lf-banner-actions::-webkit-scrollbar { display: none; }
+      .lf-comments { order: 0; }
+      .lf-signoff { order: 1; }
+      .lf-latest-chip { order: 2; }
+      .lf-asks { order: 3; }
+      .lf-answer-all { order: 4; }
+      .lf-version { order: 5; }
+      .lf-others { order: 6; }
+      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 12px; }
+      .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
+    }
+    /* Coarse pointers get physical room without making the mouse layout pay for it.
+       Marginal pills and reaction tokens remain visually compact; their boxes, panel
+       controls, and the otherwise eight-pixel resize edge become comfortable aims. */
+    @media (pointer: coarse) {
+      .lf-btn, .lf-pill:is(button, [role="button"]) { min-height: 44px; }
+      .lf-banner-actions > .lf-btn { min-height: 44px; }
+      .lf-panel-head .lf-btn { min-width: 44px; }
+      .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
+      .lf-react { min-width: 44px; }
+      .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
+      .lf-edge { width: 32px; }
+      .lf-edge[data-lf-side="right"] { left: -16px; }
+      .lf-edge[data-lf-side="left"] { right: -16px; }
+    }
+    /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a
+       platform-colour outline for every focused chrome control instead of freezing the
+       product palette with forced-color-adjust. */
+    @media (forced-colors: active) {
+      :scope :focus-visible { outline: 2px solid Highlight !important;
+        outline-offset: 2px !important; box-shadow: none !important; }
+      :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
+        border-color: Highlight !important; }
+    }
   }
 `;
 }

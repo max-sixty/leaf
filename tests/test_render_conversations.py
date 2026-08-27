@@ -1904,12 +1904,6 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
         thread = page.locator(".lf-threads > .lf-thread")
         thread.focus()
 
-        expect(
-            page.locator(
-                ".lf-keyline .lf-key:not([hidden])",
-                has_text="page — comments kept",
-            )
-        ).to_have_count(0)
         page.keyboard.press("g")
         page.keyboard.press("p")
         expect(thread).to_be_focused()

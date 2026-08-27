@@ -52,9 +52,7 @@ def cmd_publish(
         completed = set(completes)
         widget_work = {
             claim["subject"]["id"]: claim
-            for claim in standing_work_claims(
-                page.status, events, include_resolved=True
-            )
+            for claim in standing_work_claims(page.status, events)
             if claim["subject"]["kind"] == "widget"
         }
         unearned = sorted(completed - widget_work.keys())

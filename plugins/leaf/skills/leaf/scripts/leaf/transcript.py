@@ -11,6 +11,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.files import published_versions, version_path
+from leaf.passages import enclosing_of
 from leaf.projection import page_projection, record_lag
 from leaf.registry import load_registry, reaction_tokens
 from leaf.structure import parse_version
@@ -104,7 +105,7 @@ def cmd_transcript(page_dir: Path) -> None:
         projection, parser, spk = page_projection(
             latest, events, registry, published[-1]
         )
-    threads = build_threads(events, spk)
+    threads = build_threads(events, enclosing_of(spk))
     if threads:
         print("\n### Threads\n")
     for t in threads.values():

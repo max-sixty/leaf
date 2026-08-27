@@ -36,7 +36,6 @@ from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
-from leaf import registry as registry_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -488,9 +487,8 @@ def logged(page_dir, *events):
         events_model.append_event(page_dir, dict(event))
     return events_model.build_threads(
         events_model.read_events(page_dir),
-        passages_model.spoken(
-            (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
-            registry_model.require_registry(page_dir),
+        passages_model.enclosing_ids(
+            (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
         ),
     )
 

@@ -14,7 +14,7 @@ from .events import (
 )
 from .files import list_versions, published_versions, version_path
 from .http import presence
-from .passages import page_passages
+from .passages import enclosing_of, page_passages
 from .projection import (
     canonical_updates,
     decisions,
@@ -206,7 +206,7 @@ def _write_page_state(page_dir: Path, events: list) -> None:
     if published:
         html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
         projection, parser, spk = page_projection(html, events, registry, published[-1])
-    threads = build_threads(events, spk)
+    threads = build_threads(events, enclosing_of(spk))
     state = {
         "page": str(page_dir),
         "title": "",

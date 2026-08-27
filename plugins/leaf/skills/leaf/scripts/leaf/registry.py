@@ -426,6 +426,22 @@ def validate_registry(registry: dict, source) -> dict:
                     "must state additionalProperties: false — a verb carries "
                     "only the detail keys it declares"
                 )
+            # And nothing beside those four keys, because that clause closes an
+            # object only against names `properties` does not match: a
+            # `patternProperties` beside it admits a field no declaration
+            # spells, and `resolves` is a field — so a per-part verb could come
+            # to settle a comment thread with every door that reads the name
+            # seeing nothing to read. Each of those doors reads the declaration
+            # rather than the event, so one unnamed key makes all of them
+            # approximate at once.
+            spelled = {"type", "properties", "required", "additionalProperties"}
+            if beyond := sorted(set(spec["detail"]) - spelled):
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    f"declares {beyond}; a detail states its type, properties, "
+                    "required and additionalProperties and nothing else, so the "
+                    "keys a verb can carry are the ones it names"
+                )
             if update := spec.get("update"):
                 detail = spec["detail"]
                 field = detail.get("properties", {}).get(update)

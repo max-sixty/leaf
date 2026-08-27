@@ -14,7 +14,7 @@ from leaf.events import (
     thread_roots,
     thread_structure,
 )
-from leaf.passages import EMPTY, collapse, spoken
+from leaf.passages import EMPTY, collapse, enclosing_of, spoken
 from leaf.registry import retirement_slots, state_specs
 from leaf.structure import _StructParser, parse_structure
 
@@ -193,7 +193,7 @@ def retirable_ids(
     nothing here either — replay hands the widget back as pending, and the
     slots stay needed. `spk` is that same version's reading, so the thread half of
     this answer stands on the page the outcomes were folded against."""
-    anchored = anchored_ids(events, spk)
+    anchored = anchored_ids(events, enclosing_of(spk))
     licensed = set()
     for holder in holders:
         answered = holder["id"] in outcomes
@@ -208,7 +208,7 @@ def retirable_ids(
     return licensed
 
 
-def action_subjects(event: dict, byid: dict, now: dict, registry: dict) -> list:
+def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> list:
     """What an action was *about*, at the finest grain the vocabulary allows.
 
     An action names the widget that sent it, but on a container that is rarely
@@ -226,7 +226,7 @@ def action_subjects(event: dict, byid: dict, now: dict, registry: dict) -> list:
     somewhere, which would let a literal like "approved" collide with an element
     that happens to be called that."""
     widget = event["widget"]
-    parts = action_rests_on(event, now)[1:]
+    parts = action_rests_on(event, within)[1:]
     subjects = [
         v
         for v in parts
@@ -281,6 +281,9 @@ def state_projection(
     reports = {}
     settlement_versions = {}
     classified = {}
+    # Where each id sits: all the retraction test asks of a page, taken once for
+    # the walk rather than per event.
+    within = enclosing_of(spk)
     for event in events:
         if event["kind"] == "action":
             channel = "x-state"
@@ -307,7 +310,7 @@ def state_projection(
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
-            if event["id"] in withdrawn or action_retracted(event, floors, spk):
+            if event["id"] in withdrawn or action_retracted(event, floors, within):
                 continue
             actions[coordinate] = entry
         elif settled_at := settled.get(event["id"]):

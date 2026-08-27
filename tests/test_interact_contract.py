@@ -105,13 +105,17 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
         (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
         registry_model.require_registry(page_dir),
     )
-    threads = events_model.build_threads(events_model.read_events(page_dir), spk)
+    threads = events_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_of(spk)
+    )
     assert threads["c1"]["resolved"]["id"] == "a1"
 
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
     )
-    threads = events_model.build_threads(events_model.read_events(page_dir), spk)
+    threads = events_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_of(spk)
+    )
     assert threads["c1"]["resolved"] is None
 
 
@@ -990,6 +994,26 @@ def test_the_registry_door_refuses_an_open_detail_schema(page_dir):
     assert "additionalProperties: false" in result.output
 
 
+def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
+    """`additionalProperties: false` closes an object only against names
+    `properties` does not match, so a `patternProperties` beside it admits a
+    field no declaration spells — and `resolves` is a field, which is how a
+    per-card verb could come to settle a comment thread with every door that
+    reads the name seeing nothing to read. Each of those doors reads the
+    declaration rather than the event, so one unnamed key makes all of them
+    approximate at once.
+
+    Asked of `lf-board`, whose `move` folds per card: the thread-answer door
+    holds a settling verb to the whole widget, and this is the way past it."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    move = registry["lf-board"]["x-state"]["move"]
+    move["detail"]["patternProperties"] = {"^resolv": {"type": "string"}}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "patternProperties" in result.output
+
+
 def test_the_registry_door_holds_resolves_to_a_string(page_dir):
     """`resolves` is the layer's name for the thread an action answers; a verb
     declaring it as anything else would settle threads with an unhashable key —
@@ -1035,6 +1059,83 @@ def test_the_registry_door_holds_a_thread_answer_to_the_whole_widget(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "resolves" in result.output and "card" in result.output
+
+
+def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
+    """The two halves of a `spoken` reading come from different places. Words are
+    the vocabulary's word — fences, x-says, chrome — but where an element sits is
+    recorded off the tag stack before anything asks the registry what it shows.
+    That is the whole of what liveness asks a page, and it is why the readings
+    that may not raise on the registry gate need give nothing up.
+
+    The words are the control: they must differ, or `spoken({})` would be the
+    whole reading and the distinction this rests on would not exist."""
+    html = (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
+    registry = registry_model.require_registry(page_dir)
+    full = passages_model.spoken(html, registry)
+    assert passages_model.enclosing_ids(html) == passages_model.enclosing_of(full)
+    bare = passages_model.spoken(html, {})
+    assert any(full[wid].words != bare[wid].words for wid in full)
+
+
+SUGGESTION_HOLDING_A_NAMESAKE = PAGE.replace(
+    "<lf-diagram",
+    '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p id="c1">Poll every '
+    "5 minutes.</p></lf-new></lf-suggestion>\n  <lf-diagram",
+)
+
+
+def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
+    """`resolves` names a conversation, and thread ids and page ids are separate
+    namespaces that can spell the same string. Read like any other detail value it
+    would rest the accept on whichever element shared the name — here a paragraph
+    the suggestion itself proposes — and the version that rewrote that paragraph
+    would take back an answer it has nothing to do with.
+
+    Every fold gets the same containment, so `page state` and the transcript,
+    which hold the whole page, answer as the Stop hook and a wait's delivery do,
+    which hold only where each id sits. A decision cannot stand at one and be
+    missing at the other.
+
+    Flooring the widget itself is the control: it retracts in every reading, so a
+    green result cannot come from a floor that never reached this fold."""
+    html = SUGGESTION_HOLDING_A_NAMESAKE
+    (page_dir / "versions" / "v1.html").write_text(html)
+    events_model.append_event(page_dir, dict(COMMENT))
+    events_model.append_event(page_dir, dict(ACCEPT))
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "text": "reworded the poll interval",
+            "restated": ["c1"],
+        },
+    )
+    spk = passages_model.spoken(html, registry_model.require_registry(page_dir))
+    assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
+    folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(html)]
+    events = events_model.read_events(page_dir)
+    for within in folds:
+        assert (
+            events_model.build_threads(events, within)["c1"]["resolved"]["action"]
+            == "accept"
+        )
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 3,
+            "text": "rewrote the suggestion",
+            "restated": ["sug-a"],
+        },
+    )
+    events = events_model.read_events(page_dir)
+    for within in folds:
+        assert events_model.build_threads(events, within)["c1"]["resolved"] is None
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):

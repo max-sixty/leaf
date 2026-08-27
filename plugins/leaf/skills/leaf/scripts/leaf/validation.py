@@ -7,7 +7,14 @@ from pathlib import Path
 from leaf.data import data_binding_errors, read_data_store
 from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
 from leaf.files import list_versions, version_path
-from leaf.passages import EMPTY, collapse, page_passages, spoken
+from leaf.passages import (
+    EMPTY,
+    collapse,
+    enclosing_ids,
+    enclosing_of,
+    page_passages,
+    spoken,
+)
 from leaf.projection import (
     NO_RECORD,
     StateProjection,
@@ -229,7 +236,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
         page_html = version_path(page_dir, version).read_text(encoding="utf-8")
-        threads = build_threads(events, spoken(page_html, registry))
+        threads = build_threads(events, enclosing_ids(page_html))
         settled = {root for root, value in threads.items() if value["resolved"]}
         _, awaiting_values = thread_ask_projection(events, registry, settled)
 
@@ -869,8 +876,9 @@ def restatement_errors(
     byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
+    within = enclosing_of(now)
     for e, _spec in projection.actions.values():
-        for subject in action_subjects(e, byid, now, registry):
+        for subject in action_subjects(e, byid, within, registry):
             if subject in was:
                 decided.setdefault(subject, []).append(e)
 
@@ -912,11 +920,14 @@ def restatement_errors(
         # teaches authors to reach for `restated` by reflex. No verb is special-
         # cased: it is enough that the words on the page are words the user
         # sent.
+        # `resolves` is not among them: the registry reserves it for the thread
+        # an action answers, so its value is a comment id rather than words
+        # anybody sent. `action_rests_on` reads past it for the same reason.
         echoed = {
             collapse(str(v))
             for e in live
-            for v in e["detail"].values()
-            if isinstance(v, str)
+            for field, v in e["detail"].items()
+            if field != "resolves" and isinstance(v, str)
         }
         said = now.get(sid, EMPTY).words
         changed = sid in was and said != was[sid].words and said not in echoed

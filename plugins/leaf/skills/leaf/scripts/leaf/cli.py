@@ -14,6 +14,7 @@ from leaf.hosting import cmd_serve, cmd_stop, start_server
 from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
 from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
+from leaf.passages import published_enclosing
 from leaf.publishing import cmd_publish
 from leaf.rendering import cmd_export
 from leaf.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
@@ -393,7 +394,9 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
         events = page.events
         cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_asks(events, cursor)
+        unanswered = unanswered_asks(
+            events, cursor, published_enclosing(page_dir, events)
+        )
         if pending:
             prefix = (
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "

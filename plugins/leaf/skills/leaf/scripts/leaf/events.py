@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import NamedTuple, Protocol
 
 from leaf.files import read_json
-from leaf.passages import EMPTY
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 from leaf.structure import parse_structure
 
@@ -277,7 +276,7 @@ def undo_error(event: dict, events: list) -> str | None:
     return None
 
 
-def build_threads(events: list, spk: dict) -> dict:
+def build_threads(events: list, within: dict) -> dict:
     """Fold the chronological log into comment threads by root id.
 
     `resolved` is the event that currently closes the thread, or None. Either side
@@ -323,12 +322,14 @@ def build_threads(events: list, spk: dict) -> dict:
     press that confirms rather than answers, Done over a set of picks, would want
     the third value spelled before its widget could settle a thread.
 
-    `spk` is the page the containment half of the retraction test is read against,
-    and it is the reading of the version the outcomes were folded over, so threads
-    and state cannot be settled against two different pages. Required, not
-    defaulted: a caller with no published page passes `{}` and says so, because a
-    default that stood down quietly is exactly where a verb naming a part of its
-    own widget would have gone unfloored."""
+    `within` is where each id sits on the page the outcomes were folded over, so
+    threads and state cannot be settled against two different pages. It is the
+    whole of what the retraction test asks of a page, and `enclosing_ids` answers
+    it with no vocabulary loaded — which is what lets the readings that may not
+    raise on the registry gate settle a thread the way `page state` does rather
+    than approximately. Required, not defaulted: a caller with no published page
+    passes `{}` and says so, that being a fact about the page rather than a
+    reader standing down."""
     floors = retractions(events)
     withdrawn = taken_back(events)
     # widget id -> its last action the log still lets stand: not one the reader
@@ -339,7 +340,7 @@ def build_threads(events: list, spk: dict) -> dict:
         if (
             e["kind"] == "action"
             and e["id"] not in withdrawn
-            and not action_retracted(e, floors, spk)
+            and not action_retracted(e, floors, within)
         ):
             answers[e["widget"]] = e
             if e["detail"].get("resolves"):
@@ -413,13 +414,13 @@ def build_threads(events: list, spk: dict) -> dict:
     return threads
 
 
-def anchored_ids(events: list, spk: dict) -> set:
+def anchored_ids(events: list, within: dict) -> set:
     """Element ids an unresolved thread still points at. A reaction nobody has
     answered is a mark and not a thread, so it holds no id: a reaction never
     gates a version, and its anchor re-resolves or detaches like a comment's."""
     return {
         (t["root"].get("anchor") or {}).get("section")
-        for t in build_threads(events, spk).values()
+        for t in build_threads(events, within).values()
         if not t["resolved"] and not bare_reaction(t)
     } - {None}
 
@@ -502,9 +503,7 @@ def work_claim_version(claim: dict, events: list) -> int:
     )
 
 
-def standing_work_claims(
-    status: dict, events: list, *, include_resolved: bool = False
-) -> list:
+def standing_work_claims(status: dict, events: list) -> list:
     """The transient work claims the durable exchange has not ended.
 
     A claim starts after one exact log sequence. Thread work ends at the agent's
@@ -513,10 +512,12 @@ def standing_work_claims(
     directions: renewing work after an answer creates a new claim, and an old
     answer cannot settle it merely because it names the same subject.
 
-    Resolution only hides a thread claim. An unresolve can make it visible again,
-    so callers carrying status across a rewrite ask to include resolved threads;
-    presence does not. A reply and a widget settlement are permanent log answers and
-    are filtered in both readings.
+    A reply and a widget settlement are permanent log answers, and they are the
+    whole test. Resolution is not one: it only hides a thread claim and an
+    unresolve shows it again, so both callers asked for the resolved threads back
+    and the question was never really being asked. What this reading wants of a
+    conversation is who has spoken in it since the claim, so it reads the
+    messages and never the resolution — which is why it names no page.
     """
     threads = build_threads(events, {})
     standing = []
@@ -533,7 +534,7 @@ def standing_work_claims(
                 and msg["seq"] > after
                 for msg in thread["msgs"]
             )
-            if replied or (thread["resolved"] and not include_resolved):
+            if replied:
                 continue
         elif subject["kind"] == "widget":
             if any(
@@ -720,7 +721,7 @@ def thread_digest(
     }
 
 
-def batch_threads(events: list, batch: list) -> list:
+def batch_threads(events: list, batch: list, within: dict) -> list:
     """The conversations a delivered batch lands in, with what was said before it.
 
     A root comment states its own anchor and needs no history, and that is the
@@ -740,15 +741,14 @@ def batch_threads(events: list, batch: list) -> list:
     list with the thread named, and one fact read twice in one object is a fact
     that can differ from itself.
 
-    Read from the log alone, as the Stop hook reads it: the containment half of
-    the retraction test wants a published page and its vocabulary, and neither
-    is worth a delivery that raises. Today that costs nothing. `action_rests_on`
-    needs the page only for ids a verb's detail names inside its own widget, and
-    the one shipped verb that settles a conversation — `lf-suggestion`'s accept
-    — names the thread and nothing else, so every settling reading here is
-    exact. A package declaring a settling verb whose detail can name a contained
-    id would break that both ways at once, showing a retracted settlement as
-    standing and a retracted superseder as masking one.
+    `within` is the published page's containment, which the caller reads without
+    a vocabulary. A delivery may not raise, and loading a page's vendored
+    registry is a gate — a page vendored before the layer last changed fails it
+    by design — but containment was never the vocabulary's to answer. Folding
+    with no page at all was the alternative, and it would show a settlement a
+    floor had taken back as standing, and a superseder taken back the same way
+    as masking one: the reader sees their question reopened while the agent is
+    told it was answered, and neither side can see the disagreement.
 
     The actions are unfolded because folding wants the declarations that say
     what a verb's unit and facet are, and they need no window: thread markup is
@@ -767,7 +767,7 @@ def batch_threads(events: list, batch: list) -> list:
         for thread in event_threads(subject, roots, widgets) if subject else []:
             if thread not in named:
                 named.append(thread)
-    threads = build_threads(events, {})
+    threads = build_threads(events, within)
     delivered = frozenset(event["seq"] for event in batch)
     withdrawn = taken_back(events)
     gestures: dict = {}
@@ -832,24 +832,36 @@ def report_settlements(events: list, upto=None) -> dict:
     return at
 
 
-def action_rests_on(event: dict, spk: dict) -> list:
+def action_rests_on(event: dict, within: dict) -> list:
     """The runtime's restsOn, read the same way here: the sending widget plus
-    every detail id it contains. This is the one key space for liveness — fold
-    survival, retraction floors, and the earning of `restated` all go through
-    it, in both runtimes — while `action_subjects` stays the words gate's finer,
-    subject-keyed view of the same containment. Two views, one containment test;
-    a third keying would fork the JS/Python twin a third way."""
+    every detail id it contains, `resolves` aside. This is the one key space for
+    liveness — fold survival, retraction floors, and the earning of `restated`
+    all go through it, in both runtimes — while `action_subjects` stays the
+    words gate's finer, subject-keyed view of the same containment. Two views,
+    one containment test; a third keying would fork the JS/Python twin a third
+    way.
+
+    `within` is where each id sits, and nothing else about the page. Liveness
+    never asks what an element says, and the difference is not tidiness: words
+    are the vocabulary's word, where an element sits is not, so a reading that
+    asks only this one can be had without loading a layer.
+
+    `resolves` names a conversation, and a conversation is not on the page to be
+    contained — so the only thing containment could find under that key is an
+    element inside the widget spelled the same, and a floor on it would retract
+    an answer that has nothing to do with it."""
     widget = event["widget"]
     parts = [
         v
-        for field in event["detail"].values()
-        for v in (field if isinstance(field, list) else [field])
-        if isinstance(v, str) and widget in spk.get(v, EMPTY).within
+        for field, named in event["detail"].items()
+        if field != "resolves"
+        for v in (named if isinstance(named, list) else [named])
+        if isinstance(v, str) and widget in within.get(v, ())
     ]
     return [widget, *parts]
 
 
-def action_retracted(event: dict, floors: dict, spk: dict) -> bool:
+def action_retracted(event: dict, floors: dict, within: dict) -> bool:
     """Whether a retraction has taken this action back: true when any id it rests
     on carries a floor from a version later than the one the action was made on.
 
@@ -860,4 +872,6 @@ def action_retracted(event: dict, floors: dict, spk: dict) -> bool:
     and never asked, so a suggestion the next version rewrote came back pending
     with the thread it had answered still filed away, and the user was never asked
     the question again."""
-    return any(floors.get(i, 0) > event["version"] for i in action_rests_on(event, spk))
+    return any(
+        floors.get(i, 0) > event["version"] for i in action_rests_on(event, within)
+    )

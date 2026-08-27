@@ -1618,6 +1618,53 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
     page.close()
 
 
+def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
+    """The documented entity for an empty context line survives wrapper cleanup."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate("""async () => {
+      const host = document.createElement('lf-diff');
+      host.id = 'final-empty-context-diff';
+      const pre = document.createElement('pre');
+      pre.innerHTML = [
+        'diff --git a/example.txt b/example.txt',
+        '--- a/example.txt',
+        '+++ b/example.txt',
+        '@@ -1,2 +1,2 @@',
+        ' visible',
+        '&#32;',
+        '',
+      ].join('\\n');
+      const authored = pre.textContent;
+      host.append(pre);
+      document.querySelector('main').append(host);
+      await new Promise((resolve, reject) => {
+        const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
+        const ready = () => {
+          if (!host.querySelector('.lf-error') && !host.shadowRoot)
+            return requestAnimationFrame(ready);
+          clearTimeout(limit);
+          resolve();
+        };
+        ready();
+      });
+      return {
+        authoredTail: authored.slice(-3),
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        lines: [...(host.shadowRoot?.querySelectorAll('[data-line]') ?? [])]
+          .map(line => line.textContent),
+      };
+    }""")
+    assert result == {
+        "authoredTail": "\n \n",
+        "rendered": True,
+        "error": None,
+        "lines": ["visible", ""],
+    }
+    assert errors == []
+    page.close()
+
+
 def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, serve):
     """A key on screen is a key that works, and its inversion costs just as much: the
     press is real, the reader can make it, and no surface says so.

@@ -136,9 +136,7 @@ customElements.define(
     }
 
     async render() {
-      const source = dataBody(this)
-        .replace(/^\n+/, "")
-        .replace(/\n\s*$/, "");
+      const source = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
       try {
         // Strict parsing keeps a malformed hunk from becoming incomplete evidence.
         const files = parsePatchFiles(source, undefined, true).flatMap(

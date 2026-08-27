@@ -51,7 +51,8 @@ rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
 guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
-`runtime/scrolling.js` owns the document scroller identity;
+`runtime/scrolling.js` owns the document scroller identity and the gutter its bar
+takes;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -1117,7 +1118,11 @@ comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
 strip the chrome holds and the gutter the scroller's own bar takes — a window is
-the page's box on neither count; CSS owns the body's corresponding layout.
+the page's box on neither count; CSS owns the body's corresponding layout. The
+gutter has one reading, `scrollerGutter`, beside the scroller it is a fact about.
+`stateRoom` is restated by the observation of body's box; `stateStrip` writes
+that box's padding, so it is called instead, and its comment records what the
+gutter's freshness costs.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a

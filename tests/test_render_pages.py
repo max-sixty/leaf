@@ -1994,22 +1994,26 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     # The floor is a fact about the page's box, and the window is not that box wherever
     # the platform draws a classic scrollbar: body is the document's scroller, so its bar
-    # comes out of the room the strips and the column divide between them. So the page is
-    # asked for the difference rather than a number being written that is right on one
-    # platform. Either way the column keeps its measure at the floor itself, which is what
-    # the strip is floored to protect: given the room, both strips stand outside a full
-    # column; short of it by the width of a bar, the veto hands them back.
+    # comes out of the room the strips and the column divide between them. The column
+    # keeps its full measure on both sides of that, which is what the strip is floored to
+    # protect: given the room, both strips stand outside a full column, and short of it by
+    # a bar's width the veto hands them back. So neither read subtracts a bar from what it
+    # expects — the widths the page is driven at are where the bar is accounted for, and a
+    # measure that fell short of 720 anywhere here would be the fault this floor exists to
+    # prevent rather than a tolerance to write down.
     resized(page, 1416, 800)
-    bar = page.evaluate(
-        "() => document.documentElement.clientWidth - document.body.clientWidth"
-    )
     at_floor = page.evaluate(reading)
     assert at_floor["column"]["width"] == 720, (
         "the strip came out of the column at the combined floor, which is the one width "
         f"the floor exists to keep it out of: {at_floor}"
     )
 
-    resized(page, 1416 + bar, 800)
+    # The reading's own gutter, which is the runtime's reading (scrollerGutter) off the
+    # scroller's two boxes, so the width this drives at is the one the veto is doing its
+    # arithmetic in. Taken here rather than beside each read because a page has one bar:
+    # the window against body's padding box would say the same number only while body
+    # carries no margin, and the panel's strip below is a body margin.
+    resized(page, 1416 + at_floor["gutter"], 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
         ("left", "sticky"),
@@ -2017,8 +2021,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     ]
     assert roomy["noteFloat"] == "right"
     assert roomy["padding"] == {"left": 264, "right": 384}
-    assert roomy["column"]["width"] == 720 - roomy["gutter"], (
-        f"the two strips cost more than the live page's stable scrollbar gutter: {roomy}"
+    assert roomy["column"]["width"] == 720, (
+        f"the two strips cost the column more than the room they were granted: {roomy}"
     )
     assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1

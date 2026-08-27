@@ -248,7 +248,7 @@ import {
   renderSaid,
 } from "./runtime/presentation.js";
 import { reachScrollers } from "./runtime/reach.js";
-import { pageScroller } from "./runtime/scrolling.js";
+import { pageScroller, scrollerGutter } from "./runtime/scrolling.js";
 import {
   matchesWhen,
   registry,
@@ -1717,9 +1717,20 @@ const trayStrip = () =>
 // Its own function, and not syncLayout's, because the strip it vetoes is body's own
 // padding (theme.css) and syncLayout runs from an observation of that box — CLAUDE.md's
 // "The one writer may not write the box the layout is measured from", and the same reason
-// the strip the panel takes is a rule in the stylesheet above. Moving it costs nothing,
-// because neither fact it turns on is a reading of that box: the window states one and the
-// panel the other, and each arrives on an occasion of its own.
+// the strip the panel takes is a rule in the stylesheet above.
+//
+// So it is called and not observed, and it is only as fresh as its callers. Two of the
+// three facts it turns on arrive on occasions of their own: the window states the cap on
+// a resize, and the panel its strip on the gesture that moves it. The scroller's gutter
+// does not. Body gains or loses its bar whenever the document's height crosses the
+// viewport, and replay retiring a slot, a widget settling late, or an image arriving can
+// each do that with no resize and no chrome gesture behind it, leaving a grant made when
+// there was no bar to pay for. Joining layoutSizes is the fix that isn't available: the
+// rule above is what forbids it, and stateRoom can be observed only because it writes
+// nothing that box is measured from. What is left standing is bounded — one bar wide, in
+// the window band where the floor is met within a bar, and restated by the next resize or
+// chrome gesture either way — which is why this is written down rather than chased with a
+// call from every path that can change the document's height.
 //
 // The strip is stated rather than measured off body, whose clientWidth is the box itself
 // and would be the natural reading. The margin transitions, so a measurement taken during
@@ -1735,16 +1746,18 @@ const trayStrip = () =>
 // scroller's own bar and this can, which is the whole of what the runtime adds; a page with
 // no runtime behind it falls back to the viewport in each rule that reads it.
 function stateStrip() {
-  // The same gutter stateRoom takes off, and taken the same way, for the reason it gives
-  // there: body is the document's scroller, so a classic bar comes out of the room this
+  // The scroller's gutter, which stateRoom takes off for the same reason and by the same
+  // reading: body is the document's scroller, so a classic bar comes out of the room this
   // page has while the window says nothing about it. The coarse answer owes it as much as
   // the fine one. Without it the floor was met by a window with a bar's width less page
   // behind it, and the strip came out of the column the floor exists to keep it out of —
   // a sidenote page at exactly 1152px read at a 705px measure, and a sidebar and a note at
-  // 1416px did the same. Overlay scrollbars are 0 here, which is why a Mac never saw it.
-  const gutter = pageScroller.offsetWidth - pageScroller.clientWidth;
+  // 1416px did the same.
   const avail =
-    document.documentElement.clientWidth - gutter - panelStrip() - trayStrip();
+    document.documentElement.clientWidth -
+    scrollerGutter() -
+    panelStrip() -
+    trayStrip();
   document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
   document.documentElement.style.setProperty("--lf-avail", avail + "px");
 }
@@ -1853,14 +1866,16 @@ function stateRoom() {
   const body = getComputedStyle(document.body);
   const column = getComputedStyle(main);
   // The gutter body reserves for its own scrollbar, which the window does not know about
-  // and the box in front of us has already given up. Read as the difference between the
-  // two boxes rather than asked of the platform, which has no way to be asked; it is a
-  // constant through a slide, both boxes moving with the margin together.
-  const gutter = document.body.offsetWidth - document.body.clientWidth;
+  // and the box in front of us has already given up. One reading (scrolling.js), because
+  // the veto above owes the same number and a second spelling of it here would be true by
+  // inspection rather than by construction.
   const room =
     Math.min(
       document.body.clientWidth,
-      document.documentElement.clientWidth - panelStrip() - trayStrip() - gutter,
+      document.documentElement.clientWidth -
+        panelStrip() -
+        trayStrip() -
+        scrollerGutter(),
     ) -
     parseFloat(body.paddingLeft) -
     parseFloat(body.paddingRight) -

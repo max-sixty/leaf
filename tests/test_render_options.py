@@ -594,10 +594,14 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     # mark are different ones — with the pick on the reworded card there is nothing to
     # see, which is how this passed while reading the mark as text.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
-        SETTLED_PAGE.replace("arrives logged out", "arrives logged out every time")
+    next_page = (
+        SETTLED_PAGE.replace(
+            '<lf-option id="opt-lax" chosen>', '<lf-option id="opt-lax">'
+        )
+        .replace('<lf-option id="opt-bearer">', '<lf-option id="opt-bearer" chosen>')
+        .replace("arrives logged out", "arrives logged out every time")
     )
-    stamp_version_file(d, 2, "two")
+    stamp_page(d, next_page, "two")
     wait_for_revision(page, 2)
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(
         1

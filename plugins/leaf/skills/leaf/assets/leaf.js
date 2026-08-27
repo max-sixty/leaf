@@ -2787,26 +2787,33 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, scrollerFor, seenScroller, stepPage, stepThread } =
-  createNavigation({
-    BANNER_CLEAR,
-    REDUCED,
-    SCROLL,
-    beside,
-    inChrome: (node) => inChrome(node),
-    inPanel,
-    openOnItem,
-    openThreads,
-    pageScroller,
-    panelCovers,
-    panelIsOpen: () => panelOpen,
-    scrollToElement,
-    scrollToThread,
-    setPanel,
-    shownBox,
-    shownRect,
-    threadsBox,
-  });
+const {
+  commentOnItem,
+  glideTo,
+  placeThreadEdge,
+  scrollerFor,
+  seenScroller,
+  stepPage,
+  stepThread,
+} = createNavigation({
+  BANNER_CLEAR,
+  REDUCED,
+  SCROLL,
+  beside,
+  inChrome: (node) => inChrome(node),
+  inPanel,
+  openOnItem,
+  openThreads,
+  pageScroller,
+  panelCovers,
+  panelIsOpen: () => panelOpen,
+  scrollToElement,
+  scrollToThread,
+  setPanel,
+  shownBox,
+  shownRect,
+  threadsBox,
+});
 export { scrollerFor };
 
 const {
@@ -2828,6 +2835,7 @@ const {
   claimsEsc,
   el,
   focused,
+  focusedThread,
   glideTo,
   goToAsk,
   keylineEl,
@@ -2837,6 +2845,7 @@ const {
   pageParts,
   paintHere,
   panelIsOpen: () => panelOpen,
+  placeThreadEdge,
   saying,
   seenScroller,
   setPanel,
@@ -3246,6 +3255,18 @@ const PANEL = {
     // this landing exists to expose going unadvertised at the one place they work. The
     // second press has a surface of its own: the box says the key in its placeholder.
     PANEL_SAY,
+    {
+      // Deliberately leave the panel standing while returning to the document. This is
+      // not an Escape rung: it removes no layer, so it has its own shifted row and says
+      // what remains open. It reaches through the panel's text boxes because neither
+      // FINDING nor TYPING claims a shifted Escape. After the list's own rows so this
+      // occasional crossing does not displace w and / from the short key line readers
+      // arrive on the list to use; the complete reference still names it.
+      keys: ["Shift+Escape"],
+      does: "Return to the page, keeping the comment panel open",
+      line: "page — comments kept",
+      run: letGo,
+    },
   ],
 };
 

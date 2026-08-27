@@ -92,6 +92,15 @@ export function createNavigation({
     scrollToThread(next.dataset.id);
   }
 
+  // Put the comment the reader is standing on against one edge of its list. This is
+  // placement inside the panel, not travel to the passage the comment is about, so it
+  // moves only the thread scroller and keeps the card's focus. Native scroll placement
+  // reads the list's declared scroll-padding, including its sticky heading and focus-ring
+  // room, from the same authority the j/k walk uses.
+  function placeThreadEdge(thread, edge) {
+    thread.scrollIntoView({ behavior: SCROLL, block: edge });
+  }
+
   // d and u step the reader half a page down and up — less's pair, and half a page rather
   // than a whole one so the lines they were reading are still on screen to read on from.
   // The browser's own keys are left to the browser (Space, Home/End, PageUp/Down all reach
@@ -187,6 +196,7 @@ export function createNavigation({
   return {
     commentOnItem,
     glideTo,
+    placeThreadEdge,
     scrollerFor,
     seenScroller,
     stepPage,

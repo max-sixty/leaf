@@ -202,42 +202,48 @@ def select_text(page: Page, selector: str, text: str) -> None:
     page.dispatch_event("body", "mouseup")
 
 
-def start_waiter(page_dir: Path) -> subprocess.Popen[str]:
-    return subprocess.Popen(
-        [str(LEAF), "wait", str(page_dir)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+class DemoWaiter:
+    """Own the one waiting process as wait delivery hands off to ack."""
 
-
-def receive(
-    waiter: subprocess.Popen[str], page_dir: Path
-) -> tuple[list[dict], subprocess.Popen[str]]:
-    """Read one complete wait result and re-arm after it reaches this driver.
-
-    Every way a wait ends without user events is one it has already explained
-    on stderr — a page closed under it, a server it can't reach and won't
-    restart twice — so the empty result is the symptom and that line is the
-    reason."""
-    stdout, stderr = waiter.communicate(timeout=10)
-    events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
-    if not events:
-        raise RuntimeError(
-            f"the demo waiter exited {waiter.returncode} with no user events\n"
-            f"{stderr}".rstrip()
+    def __init__(self, page_dir: Path) -> None:
+        self.page_dir = page_dir
+        self.process = subprocess.Popen(
+            [str(LEAF), "wait", str(page_dir)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
-    acknowledged = subprocess.Popen(
-        [str(LEAF), "ack", str(page_dir), str(events[-1]["seq"])],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return events, acknowledged
+
+    def receive(self) -> list[dict]:
+        """Read one complete result and re-arm after it reaches this driver.
+
+        Every way a wait ends without user events is one it has already explained
+        on stderr — a page closed under it, a server it can't reach and won't
+        restart twice — so the empty result is the symptom and that line is the
+        reason."""
+        stdout, stderr = self.process.communicate(timeout=10)
+        events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        if not events:
+            raise RuntimeError(
+                f"the demo waiter exited {self.process.returncode} with no user events\n"
+                f"{stderr}".rstrip()
+            )
+        self.process = subprocess.Popen(
+            [str(LEAF), "ack", str(self.page_dir), str(events[-1]["seq"])],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return events
+
+    def stop(self) -> None:
+        if self.process.poll() is None:
+            self.process.terminate()
+            self.process.wait(timeout=5)
 
 
 def record(
-    page: Page, waiters: list[subprocess.Popen[str]], page_dir: Path
+    page: Page, waiter: DemoWaiter, page_dir: Path
 ) -> tuple[list[Image.Image], list[int]]:
     frames: list[Image.Image] = []
     durations: list[int] = []
@@ -281,7 +287,7 @@ def record(
     shot(1500)
 
     comment_id = wait_for_comment(page_dir)
-    _, waiters[0] = receive(waiters[0], page_dir)
+    waiter.receive()
     run_leaf(
         "status",
         str(page_dir),
@@ -346,14 +352,13 @@ def record(
         "() => document.querySelector('.lf-toast').classList.contains('show')"
     )
     shot(2400)
-    _, waiters[-1] = receive(waiters[-1], page_dir)
+    waiter.receive()
     return frames, durations
 
 
 def shoot_stills(
     browser,
     url: str,
-    waiters: list[subprocess.Popen[str]],
     page_dir: Path,
     into: Path,
 ) -> None:
@@ -511,9 +516,9 @@ def main() -> None:
         # the URL, so there is nothing to poll for here and no second child to
         # hold: the recording's one long-running process is the waiter.
         url = run_leaf("server", "start", str(page_dir))
-        waiters: list[subprocess.Popen[str]] = []
+        waiter: DemoWaiter | None = None
         try:
-            waiters.append(start_waiter(page_dir))
+            waiter = DemoWaiter(page_dir)
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(channel="chrome")
                 context = browser.new_context(
@@ -523,18 +528,16 @@ def main() -> None:
                 )
                 page = context.new_page()
                 page.goto(url)
-                frames, durations = record(page, waiters, page_dir)
+                frames, durations = record(page, waiter, page_dir)
                 # The GIF is written before the stills are shot, so a still that
                 # can't be staged costs only itself. The other order lost a good
                 # recording to a timeout in the shot after it.
                 write_gif(frames, durations, output)
-                shoot_stills(browser, url, waiters, page_dir, output.parent)
+                shoot_stills(browser, url, page_dir, output.parent)
                 browser.close()
         finally:
-            for waiter in waiters:
-                if waiter.poll() is None:
-                    waiter.terminate()
-                    waiter.wait(timeout=5)
+            if waiter is not None:
+                waiter.stop()
             stop_server(page_dir)
     finally:
         shutil.rmtree(page_dir)

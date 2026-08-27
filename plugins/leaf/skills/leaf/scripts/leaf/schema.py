@@ -24,6 +24,11 @@ ANSWER_ASK_INSTRUCTION = (
     "<id> --text ...`, or close one the work has since answered with `leaf resolve "
     "<page> --to <id>`."
 )
+WAIT_BATCH_OUTPUT_INSTRUCTION = (
+    "A wait result prints one page's unacknowledged user events and worker reports "
+    "as JSON lines under a first line naming the page and carrying the conversations "
+    "those events land in."
+)
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After the complete batch reaches its next durable "

@@ -165,9 +165,12 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
 
     assert result.exit_code == 0
     assert "--forward" not in result.output
-    assert " ".join(schema_model.ACK_BATCH_INSTRUCTION.split()) in " ".join(
-        result.output.split()
-    )
+    normalized = " ".join(result.output.split())
+    for instruction in (
+        schema_model.WAIT_BATCH_OUTPUT_INSTRUCTION,
+        schema_model.ACK_BATCH_INSTRUCTION,
+    ):
+        assert " ".join(instruction.split()) in normalized
 
 
 def test_the_skill_routes_every_reference_it_ships():

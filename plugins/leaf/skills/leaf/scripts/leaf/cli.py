@@ -17,7 +17,11 @@ from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
 from leaf.rendering import cmd_export
-from leaf.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
+from leaf.schema import (
+    ACK_BATCH_INSTRUCTION,
+    ANSWER_ASK_INSTRUCTION,
+    WAIT_BATCH_OUTPUT_INSTRUCTION,
+)
 from leaf.service import (
     PageTransaction,
     host_identity,
@@ -409,9 +413,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     short_help="Print one page's unacknowledged events and reports, then exit.",
     help=(
         "Watch every page this session holds — plus PAGE, claimed first, when "
-        "given — and print one page's unacknowledged user events and worker "
-        "reports as JSON lines under a first line naming the page and carrying "
-        "the conversations those events land in.\n\n" + ACK_BATCH_INSTRUCTION
+        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)
@@ -422,7 +424,7 @@ def wait(dir: str | None) -> None:
 
 @cli.command(
     short_help="Acknowledge one batch, then wait for the next.",
-    help=ACK_BATCH_INSTRUCTION,
+    help=WAIT_BATCH_OUTPUT_INSTRUCTION + "\n\n" + ACK_BATCH_INSTRUCTION,
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("seq", type=click.IntRange(min=1), metavar="SEQ")

@@ -206,13 +206,15 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     One watcher covers the session. The watch set is every page the session
     holds, re-read each pass, so a page served mid-wait joins the running watch
     without a second command, and a page another session has since picked up
-    drops out on its own. Naming PAGE claims it first — how a session picks up
-    a leaf it didn't serve — and holds it in the set, which is also the whole
-    set outside a host session (a bare shell, the tests). A batch is one page's
-    events, so its first line names the page and carries the conversations they
-    land in, and `leaf ack` goes back to that page. The JSON envelope says nothing about what consumes it. The wait owner
-    advances the cursor only after the complete batch reaches that next durable
-    consumer.
+    drops out on its own. With `claim_named`, naming PAGE claims it first — how
+    a session picks up a leaf it didn't serve — and holds it in the set. Without
+    that flag, an ack re-arm uses PAGE only as the delivered batch's coordinate:
+    a host resumes the session-wide set it already owns, while outside a host
+    the named page remains the whole watch set. A batch is one page's events, so
+    its first line names the page and carries the conversations they land in,
+    and `leaf ack` goes back to that page. The JSON envelope says nothing about
+    what consumes it. The wait owner advances the cursor only after the complete
+    batch reaches that next durable consumer.
 
     A wait ends on someone speaking, on the last watched leaf ending, or on a
     server being down with no restart to make. It puts no clock on how long a

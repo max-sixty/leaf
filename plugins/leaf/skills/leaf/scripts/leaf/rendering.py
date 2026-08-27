@@ -146,6 +146,7 @@ def _render_version_attempt(
     there would outline nothing and the ask walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     a drawing scrolling beside an empty margin the page had room in,
+    a table that scrolls sideways with a cell in it wrapped,
     words the user can read and can't select, words drawn on top of other words, code
     coloured in an ink the reader cannot tell from the code around it — each
     in both color schemes, because the dark theme is real CSS nobody otherwise
@@ -157,9 +158,8 @@ def _render_version_attempt(
     page again (none of the three is CSS), a settled holder whose mark or still-showing
     slot words disagree with the log's decision (read once, on the premise the
     trapped-margin reading shares: the palettes carry no geometry between them), a box
-    drawing one inset and showing another,
-    and, on paper, words the page drops that it says on screen, or draws over each other
-    (print is scheme-blind). Returns human-readable failures; [] is a pass.
+    drawing one inset and showing another, and, on paper, words the page drops that
+    it says on screen, or draws over each other (print is scheme-blind). Returns human-readable failures; [] is a pass.
 
     One implementation with two callers — `version check --render` on the page an agent
     just wrote, and the render suite on the shipped examples

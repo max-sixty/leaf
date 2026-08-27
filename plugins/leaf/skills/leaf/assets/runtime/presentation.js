@@ -28,6 +28,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   wide: "data-lf-wide",
   exhibit: "data-lf-exhibit",
   yield: "data-lf-yield",
+  holds: "data-lf-holds",
 });
 export const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 

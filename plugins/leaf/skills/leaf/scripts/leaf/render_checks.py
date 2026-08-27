@@ -1565,6 +1565,25 @@ BAKE = """() => {
     // each removal empties rather than of an empty box, since a widget's own empty box is
     // a real thing: that row hangs off an anchor span which takes no space and says
     // nothing, and `anchor(top)` is measured from it.
+    // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
+    // keeps a chosen option's word: the glyph stays in the margin with its press taken
+    // off — the tab stop, the role, the marker, and the title that promised a press —
+    // and the wash on the words, which is a highlight-registry entry no serialization
+    // carries, is written into the words as a <mark> for this copy alone (the theme's
+    // html.lf-copy rule paints it). Each painted range lies within one text node
+    // (anchors.js paints a range per segment), which is what lets surroundContents
+    // wrap it; the ranges are live, so an earlier wrap moves a later one's offsets.
+    for (const mark of document.querySelectorAll('.lf-react-mark')) {
+        for (const attr of ['tabindex', 'role', 'data-lf-offer', 'title']) mark.removeAttribute(attr);
+        mark.setAttribute('aria-label', mark.dataset.token);
+    }
+    // Two reactions on overlapping words leave the second range straddling the first's
+    // mark, which no element can wrap; that range keeps its glyph and loses its wash.
+    for (const range of CSS.highlights.get('lf-react') ?? []) {
+        const wrap = document.createElement('mark');
+        wrap.className = 'lf-react';
+        try { range.surroundContents(wrap); } catch { /* straddles a mark */ }
+    }
     for (const control of
             document.querySelectorAll('[data-lf-offer][tabindex]:not([data-lf-said])')) {
         let dead = control, box = dead.parentElement?.closest('[data-lf-offer]');
@@ -1608,7 +1627,9 @@ BAKE = """() => {
     // scrolling needs no handler (the lf-shot bargain). The live page's one grantor
     // is reachScrollers; its predicate is restated here because the runtime's
     // module scope left with the scripts, and this pass runs where the removals
-    // have already settled what remains.
+    // have already settled what remains. Of its two products only the stop is
+    // restated: the hold it marks rides into the copy as the attribute and the
+    // theme rule reading it, and nothing removed above turns a box into a scroller.
     for (const el of document.querySelectorAll('*')) {
         if (el.tabIndex >= 0) continue;
         const style = getComputedStyle(el);

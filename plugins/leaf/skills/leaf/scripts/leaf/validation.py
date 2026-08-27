@@ -7,7 +7,14 @@ from pathlib import Path
 from leaf.data import data_binding_errors, read_data_store
 from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
 from leaf.files import list_versions, version_path
-from leaf.passages import EMPTY, collapse, page_passages, spoken
+from leaf.passages import (
+    EMPTY,
+    collapse,
+    enclosing_ids,
+    enclosing_of,
+    page_passages,
+    spoken,
+)
 from leaf.projection import (
     NO_RECORD,
     StateProjection,
@@ -229,7 +236,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
         page_html = version_path(page_dir, version).read_text(encoding="utf-8")
-        threads = build_threads(events, spoken(page_html, registry))
+        threads = build_threads(events, enclosing_ids(page_html))
         settled = {root for root, value in threads.items() if value["resolved"]}
         _, awaiting_values = thread_ask_projection(events, registry, settled)
 
@@ -425,14 +432,16 @@ def incoming_registry(packages: list) -> dict:
 
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
-    events its $events record schemas reject; held comments whose conversation
-    contract changed; or actions and reports whose sending tag, verb, or detail
-    the incoming x-state or x-report contract rejects. Empty for a fresh page.
+    events its $events record schemas reject; reactions on a token its
+    $reactions drops; held comments whose conversation contract changed; or
+    actions and reports whose sending tag, verb, or detail the incoming x-state
+    or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
     would never replay again."""
     if not events:
         return []
     contracts = incoming["$events"]["kinds"]
+    tokens = incoming.get("$reactions", {}).get("tokens", {})
     thread = thread_structure(events)
     versions = {}
 
@@ -448,6 +457,11 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             key = f"kind `{kind}`"
         elif error := event_record_error(contracts[kind], e):
             key = f"kind `{kind}` record: {error}"
+        elif e.get("token") and e["token"] not in tokens:
+            # A token the layer drops has no glyph to paint and no pill to withdraw
+            # it by, so a standing reaction on it would fall silent — the verb rule
+            # (`declared_action_error`) read for the reaction vocabulary.
+            key = f"reaction token `{e['token']}` no longer declared by $reactions"
         elif (
             kind == "comment"
             and e.get("holds")
@@ -862,8 +876,9 @@ def restatement_errors(
     byid = cur.by_id
 
     decided = {}  # subject id → the actions resting on it
+    within = enclosing_of(now)
     for e, _spec in projection.actions.values():
-        for subject in action_subjects(e, byid, now, registry):
+        for subject in action_subjects(e, byid, within, registry):
             if subject in was:
                 decided.setdefault(subject, []).append(e)
 
@@ -905,11 +920,14 @@ def restatement_errors(
         # teaches authors to reach for `restated` by reflex. No verb is special-
         # cased: it is enough that the words on the page are words the user
         # sent.
+        # `resolves` is not among them: the registry reserves it for the thread
+        # an action answers, so its value is a comment id rather than words
+        # anybody sent. `action_rests_on` reads past it for the same reason.
         echoed = {
             collapse(str(v))
             for e in live
-            for v in e["detail"].values()
-            if isinstance(v, str)
+            for field, v in e["detail"].items()
+            if field != "resolves" and isinstance(v, str)
         }
         said = now.get(sid, EMPTY).words
         changed = sid in was and said != was[sid].words and said not in echoed

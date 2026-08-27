@@ -187,6 +187,13 @@ predicate. `x-content: prose` alone is not permission: that prose may itself be
 a holder gesture or may stand in a hidden panel. Core must refuse an undeclared
 target rather than branch on a tag name or infer a safe insertion point.
 
+An agent revises one of its messages with an append-only `edit` event naming the
+original comment or reply. The raw log therefore retains the original and every
+revision; conversation folds replace only that message's text and mark it edited.
+The message keeps its id, author, place, timestamp, anchor, and frozen markup, so
+the revision neither takes another turn nor rebuilds a widget a reader may already
+have acted on. Only the agent session recorded on the message may revise it.
+
 Page-widget actions and reports are bounded by their document version when the
 projection asks what that version showed. Thread-widget actions live in frozen
 log markup and take the whole conversation window. That markup is a second
@@ -228,6 +235,30 @@ accounts for them; retries keep the same attempt id and cannot reorder later
 events. The runtime's detailed contract lives in its own `CLAUDE.md`.
 
 Registry declarations choose these routes. Core does not branch on widget names.
+
+### A reaction is a comment that starts as a mark
+
+A `comment` or `reply` carrying `token` in place of `text` is a reaction: one
+word from `$reactions`, aimed where the comment's anchor or the reply's parent
+points, or with neither at the page whole. It opens no thread. It paints — a
+glyph in the margin and a wash fainter than a comment's on the words — and the
+reader takes it back with the ordinary `undo` naming it, which is what makes it
+cheap. Someone replying to it is what turns it into a conversation; from then on
+it is a thread whose root is a mark, and the reaction can no longer be withdrawn.
+`resolve` is its floor: after it the reaction stops painting. No note member
+absorbs one, and no version is gated by one — its anchor re-resolves or
+detaches like a comment's.
+
+The vocabulary is configuration, not contract. The kernel declares the
+`$reactions` namespace and no token; the default package ships the working set,
+and layers reshape it merge-patch style. Behavior rides the entry: a token's
+`glyph` is what the page paints, its `means` is what `leaf wait` prints beside
+the event, and `settles` says a reaction of that kind on the latest agent
+message of a thread takes the thread out of "waiting on you" — a reading of the
+log, never a second event. Core never names a token; POST refuses one the merged
+vocabulary lacks. Both runtimes read "who spoke last" over a thread's turns,
+never its marks, so a reaction is neither the reader speaking nor an unanswered
+ask.
 
 ### The host supplies what leaf runs on
 
@@ -484,9 +515,12 @@ prose enumeration.
   about as long as main's landing cadence, so re-running it forfeits the race as
   often as it wins, and it is the branch being tested rather than the merge. CI
   runs the same suite on every push to main, which is where a skipped hook is
-  recovered. Finish with `git push origin main:main`: `wt merge` fast-forwards
-  the local branch and stops there, and its `✗ Can't push to local main branch`
-  names that fast-forward failing rather than a remote refusing.
+  recovered. Finish with `git push origin main:main`, because the push is
+  itself a hook — `~/.config/worktrunk/config.toml` runs `git push` after a
+  merge whose target is the default branch — so the flag that skips the suite
+  skips the landing with it, and the merge reports success having gone no
+  further than local main. `✗ Can't push to local main branch` is a different
+  failure: that one is the fast-forward, not a remote refusing.
 - Sessions load host caches, not the checkout. Both marketplaces install from
   GitHub main. Claude Code keys an unversioned manifest by commit and updates on
   its marketplace sweep. Codex requires

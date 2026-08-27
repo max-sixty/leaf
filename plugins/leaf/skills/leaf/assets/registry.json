@@ -72,7 +72,7 @@
     "contracts": {}
   },
   "$events": {
-    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement.",
+    "description": "The event contract this layer's runtime and CLI speak. Each kind carries a closed `record` schema for the complete event read from the log. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions; a record contract alone opens no browser door. `page init` checks the existing log against the incoming record schemas before it re-vendors, so a recorded event never becomes unreadable. Kind contracts replace whole when layers merge: a half-old, half-new schema is no layer's statement. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a conversation: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the reader takes it back with an ordinary `undo` naming it.",
     "kinds": {
       "comment": {
         "record": {
@@ -85,6 +85,7 @@
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
+            "token": {"type": "string", "minLength": 1},
             "anchor": {
               "type": "object",
               "properties": {
@@ -111,11 +112,15 @@
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
             "holds": {"type": "string", "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
-          "additionalProperties": false
+          "required": ["id", "ts", "author", "kind", "seq", "version"],
+          "additionalProperties": false,
+          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "dependentSchemas": {
+            "token": {"not": {"anyOf": [{"required": ["suggestion"]}, {"required": ["holds"]}, {"required": ["markup"]}]}}
+          }
         },
         "browser": {
-          "required": ["kind", "version", "text"],
+          "required": ["kind", "version"],
           "not": {"required": ["markup"]}
         }
       },
@@ -131,17 +136,38 @@
             "parent": {"type": "string", "minLength": 1},
             "version": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
+            "token": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "parent", "text"],
-          "additionalProperties": false
+          "required": ["id", "ts", "author", "kind", "seq", "parent"],
+          "additionalProperties": false,
+          "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
+          "dependentSchemas": {"token": {"not": {"required": ["markup"]}}}
         },
         "browser": {
-          "required": ["kind", "parent", "version", "text"],
+          "required": ["kind", "parent", "version"],
           "not": {"required": ["markup"]}
+        }
+      },
+      "edit": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "ts": {"type": "string", "minLength": 1},
+            "author": {"const": "claude"},
+            "kind": {"const": "edit"},
+            "seq": {"type": "integer", "minimum": 1},
+            "message": {"type": "string", "minLength": 1},
+            "text": {"type": "string", "minLength": 1},
+            "agent": {"type": "string", "minLength": 1},
+            "session": {"type": "string", "minLength": 1}
+          },
+          "required": ["id", "ts", "author", "kind", "seq", "message", "text", "agent", "session"],
+          "additionalProperties": false
         }
       },
       "resolve": {
@@ -372,6 +398,10 @@
     "description": "The categorical steps this layer paints a chart's series in, and how many of them there are. It is a property of the page rather than of any widget: the colours are --series-1 through --series-N in the theme, so a project that restates the palette with a step more says so once, here and beside the tokens, and every consumer reads the same number. `steps` is what a chart refuses a series past — two series in one colour is worse than a drawing that says it will not draw — and what the palette's own check counts the tokens against. The list is short on purpose: past five, the steps stop clearing the separation a reader with colour-vision deficiency needs, and a sixth is a chart that lies to some readers and to no others.",
     "steps": 5
   },
+  "$reactions": {
+    "description": "The reaction vocabulary: the one-press words a reader can put on a passage, an element, a message in a thread, or the page whole, each recorded as a `comment` or `reply` carrying `token` in place of `text` ($events). The kernel declares the namespace and no word; the default package ships the working set, and any layer — a project's .leaf/, the user's ~/.config/leaf/ — reshapes it merge-patch style: an entry under a token's name replaces that token, a new name adds one, `null` removes one. Core never names a token. Everything a consumer needs rides the entry: `glyph` is the mark the page paints for it — one or two characters — in the margin, on the bar and on a thread's strip; `means` is the sentence `leaf wait` prints beside the event, so a custom token is self-describing to whichever agent reads it; `settles`, where true, says a reaction of this kind standing on the latest agent message of a thread takes that thread out of \"waiting on you\" — a projection rule the panel reads, never a second event. POST refuses a token outside the merged set, the way $languages gates a language name. Tokens stand independently on one target; the armed keyboard bar numbers them 1–n in this declared order, so a digit survives any layer's renaming.",
+    "tokens": {}
+  },
   "$tones": {
     "description": "The semantic tints this layer paints, and the whole vocabulary an author may declare: what the lint refuses a word outside, and what the theme has a rule for. It is a property of the page rather than of any widget, which is why it lives here and not under the schema of whichever tag happens to take a `tone` — a widget declares that one of its attributes names one (x-tone) and the lint reads the list from here, so a second tag taking a tone costs a declaration and no new reader. The list is short on purpose: a page that can paint anything paints nothing, and three is what the palette already answers for. Which facts earn a tint is never the theme's to decide — `ok` on one page's chip and `danger` on another's may be the same word, because the author is the only one who knows whether the answer is good news.",
     "names": ["ok", "warn", "danger"]
@@ -393,6 +423,10 @@
     ".callout": {
       "description": "An aside set off from the prose — a tinted field with a hairline border. For something the reader must not miss; a note they lose nothing by skipping goes in the margin (aside.sidenote).",
       "example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
+    },
+    "aside.sidebar": {
+      "description": "Page-level supporting material in the left margin: local navigation, a compact legend, or stable reference facts that remain useful while the reader moves through a long page. Use one, as a direct child of main near the page's opening, rather than beside the one paragraph it concerns; that local annotation is an aside.sidenote. On a roomy screen the first such child sits left of the prose and sticks beneath Leaf's banner; where the page's own box has no room for that strip — a narrow window, a second margin resident, or a comment panel or asks tray taking part of a middling one — and on paper, it returns to ordinary flow where it was authored. An accidental second sidebar also stays in flow instead of occupying the first. Keep the contents compact enough to scan in about 240px. The wrapper supplies placement, not a visual panel, so what it holds keeps its own voice; an lf-toc is the usual navigation occupant but the idiom is not coupled to that widget. Its content remains part of the page and may be selected or commented on unless the occupant itself declares apparatus.",
+      "example": "<aside class=\"sidebar\" id=\"page-route\">\n  <nav aria-label=\"On this page\"><strong>On this page</strong><ol><li><a href=\"#prepare\">Prepare</a></li><li><a href=\"#move\">Move</a></li></ol></nav>\n</aside>"
     },
     "aside.sidenote": {
       "description": "A note in the page's right margin: a caveat, a provenance, a figure the sentence had no room for. It is read where it stands and skipped at no cost, where a .callout sits in the column the reader is reading down and a <details> asks for a click. Write it immediately before the paragraph, list or block it annotates, and it comes out level with that block's first line; before a heading it sits above the heading instead, a heading carrying more room over it than the block before it leaves. A second note written soon after the first stacks under it, so a long note pushes the next one down the margin and away from its own block. It reaches the margin through any box that doesn't clip — a section, a tab panel, a disclosure; written inside one that does, a choose group or a board or a table, it is drawn nowhere at all, and `version check --render` refuses the version rather than letting it ship. Where the page's box has no room for the strip — a narrow window, or the comment panel taking its side of a middling one — and on paper, it is a small indented block where it was written, so nothing it says rests on the margin being there. A suggestion's accept and reject controls hang in the same margin, level with the change they decide, and are drawn over a note that stands level with them: write the note a paragraph clear of a change if its first line has to be read. These are the page's own words, so the reader can select, quote and comment on one. A stable id lets Alt-click point at the whole note. The margin holds about fifty-six characters to the line; a note running past a few lines wants to be a paragraph in the column instead.",

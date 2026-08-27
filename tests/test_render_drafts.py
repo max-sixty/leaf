@@ -2207,6 +2207,106 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     page.close()
 
 
+def test_the_half_page_keys_follow_the_reader_into_the_panel(browser, serve):
+    """Which region the keys move is where the reader is standing, and covering is only
+    one of the two ways they come to be standing in the list. Beside the page — the wide
+    window, where the panel takes a strip of its own — a reader working down a long
+    conversation presses d and the page behind them steps instead, which is the same
+    nothing the covering case was written to prevent: the region they are reading does
+    not move, and the document is somewhere else when they look back at it.
+
+    One factor separates the two halves here. The window, the layout, the panel and the
+    list are the same at both presses; only where the focus stands changes. So the first
+    press is the control that says the layout is beside — the banner's own button is
+    chrome the reader is standing on outside the panel, and the document is theirs to
+    step — and the second is the subject. The address chord then supplies the neighboring
+    contrast: focus changes which region d/u page through, but `g g` still names the
+    document's edge while both regions have somewhere observable to move."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    assert page.evaluate(
+        "() => { const t = document.querySelector('.lf-threads');"
+        " return t.scrollHeight > t.clientHeight; }"
+    ), "the thread list does not overflow, so it could not be seen to scroll below"
+
+    def offsets():
+        return page.evaluate(
+            "() => [document.body.scrollTop,"
+            " document.querySelector('.lf-threads').scrollTop]"
+        )
+
+    # The control, and the wait that makes the subject's baseline a resting one: the
+    # document's own step is a glide, and the position it is going to is the one place
+    # it does not pass through early (the half-page test says the rest).
+    half = page.evaluate(
+        "() => (document.body.clientHeight"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+    )
+    page_was, threads_was = offsets()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "e => Math.abs(document.body.scrollTop - e) < 1", arg=half, timeout=5000
+    )
+    page_now, threads_now = offsets()
+    assert page_now > page_was, (
+        "the document did not move for a key pressed from outside the panel, so the "
+        "panel is not beside the page here and the case below is not the one named"
+    )
+    assert threads_now == threads_was, "the panel took a key aimed at the document"
+
+    # Into the panel, standing on its list rather than in a box — `c`'s own landing,
+    # which travels nothing, so the baseline below is the one the control left.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    page_was, threads_was = offsets()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "w => { const t = document.querySelector('.lf-threads');"
+        " return document.body.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
+        arg=[page_was, threads_was],
+    )
+    thread_half = page.locator(".lf-threads").evaluate(
+        "t => (t.clientHeight - parseFloat(getComputedStyle(t).scrollPaddingTop)) / 2"
+    )
+    page.wait_for_function(
+        "w => { const t = document.querySelector('.lf-threads');"
+        " return Math.abs(t.scrollTop - w[0]) < 1"
+        " || Math.abs(document.body.scrollTop - w[1]) >= 1; }",
+        arg=[thread_half, page_was],
+        timeout=5000,
+    )
+    page_now, threads_now = offsets()
+    assert threads_now > threads_was, (
+        "the list the reader is standing in did not move for the key they pressed"
+    )
+    assert page_now == pytest.approx(page_was, abs=1), (
+        "the page stepped behind a reader who was working down the comment list"
+    )
+
+    # Both regions now stand away from their top edge. A correct g g returns the page;
+    # the shared-scroller regression returns the panel instead. Wait for either answer so
+    # the failure reports both offsets rather than timing out while expecting only one.
+    assert page_now > 0 and threads_now > 0
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    page.wait_for_function(
+        "() => { const t = document.querySelector('.lf-threads');"
+        " return document.body.scrollTop < 1 || t.scrollTop < 1; }",
+        timeout=5000,
+    )
+    edge_page, edge_threads = offsets()
+    assert edge_page == pytest.approx(0, abs=1), (
+        f"g g left the page at {edge_page} and moved the panel to {edge_threads}"
+    )
+    assert edge_threads == pytest.approx(threads_now, abs=1), (
+        f"g g moved the panel from {threads_now} to {edge_threads}"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_the_page_has_one_door_to_a_comparison(browser, serve):
     """`=` marked what changed since the previous version from anywhere on the page, and
     the case for it was that it named no version — "since the last one I saw" is a

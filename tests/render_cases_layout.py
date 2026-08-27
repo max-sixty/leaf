@@ -448,6 +448,18 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "hundred over that one.</div></div></div></div>"
     "\n</main>",
 )
+# A scroller the page wrote and did not position, beside one it did. The commented
+# words stand at the far end of the first, since a word laid out against the page from
+# the near end lands inside the window and escapes nothing anyone can measure.
+LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
+    "</main>",
+    "<div id='loose' style='width: 300px; overflow-x: auto'>"
+    "<div id='far' style='width: 2000px; text-align: right'>A row wider than the box "
+    "that scrolls it.</div></div>"
+    "<div id='held' style='width: 300px; overflow-x: auto; position: relative'>"
+    "<div style='width: 2000px'>The same row, in a box that holds its own.</div></div>"
+    "\n</main>",
+)
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='rolled' style='width: 300px; overflow-x: auto'>"

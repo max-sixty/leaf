@@ -2529,11 +2529,20 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     work_line = page.locator("#job-mounts > .lf-work-line")
     expect(work_line).to_be_visible()
     work_line.click()
-    page.wait_for_timeout(250)
 
-    assert not any(
-        e["kind"] == "action" for e in events_model.read_events(serve.page_dir)
-    )
+    # A press that does nothing states no fact to wait on, so the control is the same
+    # gesture where it is supposed to work: pick the neighbouring option and let its
+    # send settle. One outbox in gesture order means a pick the work line had taken
+    # would already stand ahead of this one, so the whole log can be read once.
+    page.locator("#job-heater").click()
+    round_trip(page)
+
+    picks = [
+        (e["widget"], e["detail"])
+        for e in sent_events(serve.page_dir)
+        if e["kind"] == "action"
+    ]
+    assert picks == [("jobs", {"options": ["job-heater"]})], picks
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
     assert errors == []
     page.close()

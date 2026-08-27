@@ -778,6 +778,14 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     assert page.evaluate(settled) == "paragraph carrying"
     expect(page.locator(".lf-fab")).to_be_visible()
 
+    # The bar the selection raised stands above it, over the line the next drag starts
+    # on; a press in the margin beside the paragraph is the reader's own move that
+    # takes it down, and moves nothing else. Read back before the drag, because the
+    # bar comes down in the press's own handler and the drag must not race it.
+    beside = page.locator("#p").bounding_box()
+    page.mouse.click(beside["x"] - 40, beside["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert page.evaluate(settled) == ""
     select(page, spot("#p", "inside", 2), spot("#p", "it,", 1))
     assert page.evaluate(settled) == "inside it"
 

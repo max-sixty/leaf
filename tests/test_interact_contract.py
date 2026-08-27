@@ -105,13 +105,17 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
         (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
         registry_model.require_registry(page_dir),
     )
-    threads = events_model.build_threads(events_model.read_events(page_dir), spk)
+    threads = events_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_of(spk)
+    )
     assert threads["c1"]["resolved"]["id"] == "a1"
 
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
     )
-    threads = events_model.build_threads(events_model.read_events(page_dir), spk)
+    threads = events_model.build_threads(
+        events_model.read_events(page_dir), passages_model.enclosing_of(spk)
+    )
     assert threads["c1"]["resolved"] is None
 
 
@@ -146,7 +150,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
             {"kind": "undo", "undoes": agent_closed["id"]},
             "not the reader's own gesture",
         ),
-        ({"kind": "undo", "undoes": posted["id"]}, "comment events cannot be taken"),
+        ({"kind": "undo", "undoes": posted["id"]}, "is not a reaction"),
         # The one field it carries, and the door refuses it in any other shape.
         ({"kind": "undo"}, "'undoes' is a required property"),
         (
@@ -350,6 +354,32 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "decide" in result.output
+
+
+def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
+    page_dir, monkeypatch
+):
+    """A layer may take a token off its bar (merge-patch `null`), and a page whose log
+    already holds a reaction on it is refused a re-vendor the way one holding a
+    retired verb is: the standing mark would have no glyph and no pill to take it
+    back by. A token the layer keeps re-vendors as before."""
+    publish(page_dir)
+    events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+    )
+    assert (
+        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        == 0
+    )
+    layer = page_dir.parent / ".leaf"
+    layer.mkdir()
+    (layer / "registry.json").write_text(
+        json.dumps({"$reactions": {"tokens": {"cut": None}}})
+    )
+    monkeypatch.chdir(page_dir.parent)
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output and "`cut`" in result.output
 
 
 def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
@@ -964,6 +994,26 @@ def test_the_registry_door_refuses_an_open_detail_schema(page_dir):
     assert "additionalProperties: false" in result.output
 
 
+def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
+    """`additionalProperties: false` closes an object only against names
+    `properties` does not match, so a `patternProperties` beside it admits a
+    field no declaration spells — and `resolves` is a field, which is how a
+    per-card verb could come to settle a comment thread with every door that
+    reads the name seeing nothing to read. Each of those doors reads the
+    declaration rather than the event, so one unnamed key makes all of them
+    approximate at once.
+
+    Asked of `lf-board`, whose `move` folds per card: the thread-answer door
+    holds a settling verb to the whole widget, and this is the way past it."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    move = registry["lf-board"]["x-state"]["move"]
+    move["detail"]["patternProperties"] = {"^resolv": {"type": "string"}}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "patternProperties" in result.output
+
+
 def test_the_registry_door_holds_resolves_to_a_string(page_dir):
     """`resolves` is the layer's name for the thread an action answers; a verb
     declaring it as anything else would settle threads with an unhashable key —
@@ -1009,6 +1059,83 @@ def test_the_registry_door_holds_a_thread_answer_to_the_whole_widget(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "resolves" in result.output and "card" in result.output
+
+
+def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
+    """The two halves of a `spoken` reading come from different places. Words are
+    the vocabulary's word — fences, x-says, chrome — but where an element sits is
+    recorded off the tag stack before anything asks the registry what it shows.
+    That is the whole of what liveness asks a page, and it is why the readings
+    that may not raise on the registry gate need give nothing up.
+
+    The words are the control: they must differ, or `spoken({})` would be the
+    whole reading and the distinction this rests on would not exist."""
+    html = (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
+    registry = registry_model.require_registry(page_dir)
+    full = passages_model.spoken(html, registry)
+    assert passages_model.enclosing_ids(html) == passages_model.enclosing_of(full)
+    bare = passages_model.spoken(html, {})
+    assert any(full[wid].words != bare[wid].words for wid in full)
+
+
+SUGGESTION_HOLDING_A_NAMESAKE = PAGE.replace(
+    "<lf-diagram",
+    '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p id="c1">Poll every '
+    "5 minutes.</p></lf-new></lf-suggestion>\n  <lf-diagram",
+)
+
+
+def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
+    """`resolves` names a conversation, and thread ids and page ids are separate
+    namespaces that can spell the same string. Read like any other detail value it
+    would rest the accept on whichever element shared the name — here a paragraph
+    the suggestion itself proposes — and the version that rewrote that paragraph
+    would take back an answer it has nothing to do with.
+
+    Every fold gets the same containment, so `page state` and the transcript,
+    which hold the whole page, answer as the Stop hook and a wait's delivery do,
+    which hold only where each id sits. A decision cannot stand at one and be
+    missing at the other.
+
+    Flooring the widget itself is the control: it retracts in every reading, so a
+    green result cannot come from a floor that never reached this fold."""
+    html = SUGGESTION_HOLDING_A_NAMESAKE
+    (page_dir / "versions" / "v1.html").write_text(html)
+    events_model.append_event(page_dir, dict(COMMENT))
+    events_model.append_event(page_dir, dict(ACCEPT))
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "text": "reworded the poll interval",
+            "restated": ["c1"],
+        },
+    )
+    spk = passages_model.spoken(html, registry_model.require_registry(page_dir))
+    assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
+    folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(html)]
+    events = events_model.read_events(page_dir)
+    for within in folds:
+        assert (
+            events_model.build_threads(events, within)["c1"]["resolved"]["action"]
+            == "accept"
+        )
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 3,
+            "text": "rewrote the suggestion",
+            "restated": ["sug-a"],
+        },
+    )
+    events = events_model.read_events(page_dir)
+    for within in folds:
+        assert events_model.build_threads(events, within)["c1"]["resolved"] is None
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
@@ -2245,6 +2372,27 @@ def test_the_strip_floor_is_one_number():
     )
 
 
+def test_the_sidebar_and_note_floor_is_their_sum():
+    """Two opposite margin residents need both strips as well as the ordinary floor.
+
+    Media queries cannot read custom properties, so the combined breakpoint is written
+    as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
+    it represents instead of letting a later width change silently squeeze the prose."""
+    css = (schema_model.ASSETS / "theme.css").read_text()
+    floor = re.search(r"--strip-min:\s*(\d+)px", css)
+    sidebar = re.search(r"--sidebar:\s*(\d+)px", css)
+    assert floor and sidebar
+    combined = int(floor[1]) + int(sidebar[1])
+    assert re.search(rf"@media screen and \(min-width:\s*{combined}px\)\s*\{{", css), (
+        f"a sidebar and sidenote need {combined}px together, but no media query grants "
+        "their composed posture at that floor"
+    )
+    assert re.search(rf"--strip-min:\s*{combined}px", css), (
+        f"the static query grants the pair at {combined}px but the runtime has no "
+        "composed floor to read after a panel narrows that viewport"
+    )
+
+
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
     """An image reaches a page by reference, because the page's author is a language
     model and a screenshot is a megabyte of base64 it cannot type. The name is the
@@ -2584,3 +2732,87 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
     )
     assert "/media/nope.png isn't in the page directory" in posted.output, posted.output
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
+
+
+def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
+    server, page_dir
+):
+    """A reaction is a comment or reply carrying `token` in place of `text`: one of
+    the two and never both, a word the merged vocabulary declares, and no
+    suggestion, hold, or markup riding beside it. What the door lets through it
+    also lets the reader take back — while it is still a mark. An answer under it
+    makes it a conversation, and a message with words in it was never a mark."""
+    publish(page_dir)
+    root = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps({"kind": "comment", "version": 1, "text": "why?"}).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    for bad, says in [
+        (
+            {"kind": "comment", "version": 1, "token": "shrug"},
+            "unknown reaction token 'shrug'",
+        ),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "text": "and"},
+            "valid under each of",
+        ),
+        ({"kind": "comment", "version": 1}, "not valid under any"),
+        (
+            {"kind": "comment", "version": 1, "token": "ok", "suggestion": True},
+            "suggestion",
+        ),
+        (
+            {"kind": "reply", "version": 1, "parent": root["id"], "token": "nope"},
+            "unknown",
+        ),
+    ]:
+        status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
+        assert status == 400, (bad, body)
+        assert says in json.loads(body)["error"], (bad, body)
+
+    reaction = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "version": 1,
+                    "token": "cut",
+                    "anchor": {"section": "plan", "quote": "Ship dark"},
+                }
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert reaction["author"] == "user" and "text" not in reaction
+    nod = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {"kind": "reply", "version": 1, "parent": root["id"], "token": "ok"}
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert nod["token"] == "ok" and nod["parent"] == root["id"]
+
+    # A message with words in it is said rather than unsaid.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
+    )
+    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    # The mark on the thread comes off with one press.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
+    )
+    assert status == 200, body
+    # Answered, the page reaction is a conversation, and the withdrawal would orphan
+    # the answer; the reader's move is in the thread it opened.
+    conversation_model.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
+    )
+    assert status == 400 and "has been answered" in json.loads(body)["error"]

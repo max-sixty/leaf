@@ -9,6 +9,7 @@ from leaf.files import latest_published, version_path
 from leaf.passages import capture_anchor
 from leaf.projection import decisions, page_projection, rewritten_bodies
 from leaf.registry import require_registry
+from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, contract_writer, message_identity
 from leaf.structure import parse_version
 from leaf.validation import (
@@ -67,7 +68,7 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+        known = {e["id"] for e in events if e["kind"] in MESSAGE_KINDS}
         if to not in known:
             sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
         if markup:
@@ -85,13 +86,58 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
 
 
 @contract_writer
+def cmd_edit(page_dir: Path, to: str, text) -> dict:
+    """Append a text revision to one message authored by this agent session.
+
+    The message event is immutable: the edit points back to it, so the log retains
+    every wording while thread folds project the latest one. Markup stays frozen with
+    the original message because reader actions may already rest on widgets it sent.
+    """
+    body = read_text_arg(text)
+    with PageTransaction(page_dir) as page:
+        require_registry(page_dir)
+        events = page.events
+        target = next(
+            (
+                event
+                for event in events
+                if event["kind"] in {"comment", "reply"} and event["id"] == to
+            ),
+            None,
+        )
+        if target is None:
+            known = sorted(
+                event["id"] for event in events if event["kind"] in {"comment", "reply"}
+            )
+            sys.exit(f"unknown comment id {to!r}; known: {known}")
+        if target["author"] != "claude":
+            sys.exit(f"message {to!r} is not agent-authored")
+        identity = message_identity()
+        owner = target.get("session")
+        if not owner:
+            sys.exit(f"message {to!r} has no agent session identity")
+        if owner != identity.get("session"):
+            sys.exit(f"message {to!r} belongs to agent session {owner!r}")
+        return append_event(
+            page,
+            {
+                "kind": "edit",
+                "author": "claude",
+                **identity,
+                "message": to,
+                "text": body,
+            },
+        )
+
+
+@contract_writer
 def cmd_resolve(page_dir: Path, to: str) -> None:
     """Close a thread, as the reader's own ✓ Resolve does. Same event, same rule on
     `parent` — any message in the thread names it — and `author` the whole
     difference, which is how the panel can say who closed it."""
     with PageTransaction(page_dir) as page:
         events = page.events
-        known = {e["id"] for e in events if e["kind"] in {"comment", "reply"}}
+        known = {e["id"] for e in events if e["kind"] in MESSAGE_KINDS}
         if to not in known:
             sys.exit(f"unknown comment id {to!r}; known: {sorted(known)}")
         event = {

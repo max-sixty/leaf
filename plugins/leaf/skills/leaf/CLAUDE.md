@@ -53,7 +53,8 @@ guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity;
 `runtime/presentation.js` owns runtime paint and the words it projects;
-`runtime/reach.js` owns keyboard access to overflow;
+`runtime/reach.js` owns keyboard access to overflow and the containing block a
+scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
 highlight rules;
 `runtime/storage.js` owns page addressing and browser-backed stores;
@@ -970,6 +971,52 @@ pointer keeps its own wash and its own ink and takes nothing from the hover.
 Pointing at one comment while standing in another therefore says both, in two
 washes a reader can tell apart.
 
+### Reactions
+
+A bare reaction — a token comment nobody has replied to — is paint, not a
+thread. `paintAnchors` resolves its anchor like any comment's and records it in
+`reacted` rather than `marked`: a wash through the `lf-react` highlight on a
+passage, `lf-react-el` on an element's shown parts, and a glyph seated by
+`seatReactions`. The seat is one `.lf-reacts` span per block, prepended so its
+static position is the block's first line, and positioned into the right margin
+the way a suggestion's controls are; the pill inside is the reaction's own
+eraser, posting the ordinary `undo` through `withdraw`. It wears `lf-ui` and
+`data-lf-gen`, so no reading takes it for the page's words and a frame's
+first-child trim ignores it. `markAt` does not see it: a reaction takes no press
+to a card and has no hover. Export keeps the glyph with its press taken off and
+writes the wash into the words as a `<mark>` (BAKE), the highlight registry
+being script state no file can hold.
+
+The bar the selection raises is `.lf-fab-bar`: the layer's tokens in declared
+order, then `.lf-fab`, the Comment press every route into the composer still
+goes through. `showFab` shows and places the bar; `raiseOnItem` raises it on an
+element from the ⌥ press; `PAGE_WHOLE` is its target for the page itself, with
+Comment hidden because the page's comment box is the panel's general one. `r`
+arms it (`setReact`): a digit on each token in the address-chip style, the
+surface being the bar — raised on the standing item, or the page, where none
+stood — or the strip under the latest agent message when the reader is standing
+in a thread. `REACT` is the armed scope and claims everything, as the address
+chord does; a stray key disarms and keeps its meaning, and a bar the arming
+raised goes down with it.
+
+`conversation/model.js` reads the log by `isReaction`, `spoken`, `turns`, and
+`bareReaction`, the names `events.py` reads it by, and answers `reactionsOn` and
+`reactionStanding` from the fold it last built. The panel lists `conversational`
+threads only; a card shows its turns and its root, so a thread that grew out of a
+reaction opens on the mark, whose body `conversation/messages.js` writes as the
+glyph and its word. `paintReactStrips` puts the token strip under each agent
+message of an open thread and marks the latest one `lf-open`; `paintPageStrip`
+is the same strip, open, above the general box for the page whole. Which of them
+offer their tokens is the stylesheet's: the open ones always, and every strip in
+a thread the reader is standing in, so a thread at rest shows only the tokens
+standing on it, pressed and wearing their word. Standing in the thread is when
+the reader presses, so nothing they can reach by pointer is out of the keyboard's
+reach either, and a row cannot empty itself out from under the press that emptied
+it. At rest an offered token is a muted glyph with no box; the box is paint that
+arrives under the pointer, under focus, armed, or while a press is in flight.
+`awaitsReader` reads the last turn and then the one declared exception, a
+`settles` token standing on it.
+
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
 sideways scroller, then `jumpBy` glides the exact mark to its final position in
@@ -1195,11 +1242,16 @@ container that is not a containing block is positioned against the page instead:
 the scroller neither carries it nor clips it, and the page grows a scrollbar
 reaching for a box that belongs to the scroller. The runtime hangs a word clipped
 to nothing inside the block each comment lands on, so a comment on the far column
-of a table wider than the window scrolled the whole page sideways. Every box the
-layer declares scrollable therefore declares `position: relative` in the same
-rule, the way a box declares `--lf-frame` where it draws its frame — a package
-adding a scroller owes the same declaration, and no selector can ask a box
-whether it scrolls.
+of a table wider than the window scrolled the whole page sideways. The runtime
+answers for the word it hangs: the sweep that gives every scrolling box a tab
+stop (`reachScrollers`) marks each static one `data-lf-holds`, and one theme rule
+positions the mark, in the document and in every declared shadow tree. It reads
+the composed box, so a page author's scroller and a package's are held on the
+same terms as the theme's own, and no stylesheet declares a position beside its
+overflow for the word's sake. The mark is written when a sweep reaches the box —
+at upgrade, on a new version, on a rebuild, on the panel's reconcile — so a
+scroller a module builds outside its own settlement owes the `reachScrollers`
+call it already owes for the stop.
 
 ### Forms follow authored content
 
@@ -1953,6 +2005,12 @@ vendored registry, while the browser event schema refuses it. A widget in that
 markup is instantiated once in the panel; inline conversation seats show a
 textual projection rather than copying interactive ids.
 
+An agent message edit is a later event folded onto the original message id. The
+panel and an inline conversation update the existing message node and show
+`edited`; the text wrapper alone is replaced. The message's cached markup nodes
+stay connected because their widget state and authored baseline belong to the
+original event, not to the prose revision.
+
 Fragment links in messages use the browser's `hidden="until-found"` behavior to
 reveal authored disclosures and tabs. `paintAnchors` marks a link detached when
 this version no longer has the id and refuses its press. A thread outlives its
@@ -2086,6 +2144,7 @@ by `leaf/rendering.py` each answer one failure class:
 | `TINY_BOXES` | every declared widget has a usable rendered box |
 | `UNMARKABLE_ITEMS` | every pointable item has a visible part for an outline |
 | `MISPLACED_BOXES` | boxes stay in the column or in genuinely reachable overflow |
+| `SQUEEZED_TABLES` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `WITHHELD_ROOM` | a drawing scrolls only when the room, net of margin residents at its band, ran short |
 | `CLIPPED_CONTROLS` | actionable controls are visible and reachable |
 | `UNREACHABLE_WORDS` | visible page words remain in reachable flow |

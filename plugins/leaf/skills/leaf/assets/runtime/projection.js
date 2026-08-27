@@ -32,11 +32,13 @@ export function createProjection(runtime, dependencies) {
     projectedParent,
     quoteFrom,
     reachScrollers,
+    reactionStanding,
     rememberPassageParts,
     removeOutbox,
     renderQuiet,
     renderRetired,
     reportPageError,
+    settling,
     settlementSlots,
     standOn,
     textNodesUnder,
@@ -317,6 +319,15 @@ export function createProjection(runtime, dependencies) {
       const e = runtime.events[i];
       if (e.author !== "user" || e.kind === "undo" || withdrawn.has(e.id)) continue;
       if (e.kind === "resolve" || e.kind === "unresolve") return e;
+      // A reaction, while it is still a mark: a message with words in it is said rather
+      // than unsaid, and a token someone has answered is a conversation now — the
+      // reader's move is in the thread the answer opened. One standing on a resolved
+      // thread paints nothing, so there is nothing to offer the press. The server
+      // refuses the same three (undo_error), this being the offer and that the door.
+      if (e.token) {
+        if (reactionStanding(e)) return e;
+        continue;
+      }
       // On the version it was made against: a later version may have been written
       // around the decision, and a press that paints nothing is not one to offer. What
       // *hearing* such an undo owes is reconciliation's, and is not the same answer.
@@ -340,6 +351,9 @@ export function createProjection(runtime, dependencies) {
     unresolve: "Resolved the thread again",
     action: "Took back your last change",
   };
+  // A reaction's word is the token, which is the layer's word rather than a widget's
+  // verb — read off the event, as the bar and the strip read it.
+  const undoWord = (e) => (e.token ? `Took back your ${e.token}` : UNDO_WORDS[e.kind]);
 
   // This press's own record of being in flight, read by unaccountedGesture with the
   // layer's other two.
@@ -352,12 +366,17 @@ export function createProjection(runtime, dependencies) {
   // keypress has nothing on screen waiting on the frame.
   async function undoLast() {
     const e = undoable();
-    if (!e) return;
+    if (e) await withdraw(e);
+  }
+  // Naming the gesture rather than walking to it: a standing mark is its own eraser — a
+  // reaction's glyph in the margin, its pill on a strip — and a press there takes back
+  // exactly that event, which need not be the newest. Same door, same toast.
+  async function withdraw(e) {
     runtime.undoing = true;
     paintKeys();
     try {
       if (await post({ kind: "undo", undoes: e.id }))
-        toast(`${UNDO_WORDS[e.kind]} — sent to ${agentName()}`);
+        toast(`${undoWord(e)} — sent to ${agentName()}`);
     } finally {
       runtime.undoing = false;
       paintKeys();
@@ -396,12 +415,16 @@ export function createProjection(runtime, dependencies) {
     // there the width half stays off for the reason that function gives, the room being
     // the panel's rather than the document's.
     markDeclared(fresh, inChrome(el) ? MARKED_ANYWHERE : MARKED_IN_PAGE);
+    const settlingFrom = settling.length;
     el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
     // The rest of what the upgrade gives every subtree beyond its module's own work. Not
     // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
-    // widget with async work of its own settles it the way it always does.
+    // widget with async work of its own settles it the way it always does. The scroller
+    // sweep does wait, on what this insertion queued: the box a widget scrolls is one its
+    // module builds, and swept before that build returns it is neither reachable nor
+    // held (reach.js, on what every caller owes it).
     dress(fresh);
-    reachScrollers(fresh);
+    Promise.allSettled(settling.slice(settlingFrom)).then(() => reachScrollers(fresh));
     // The fences the passage reading walks are node identities, and these are new nodes
     // holding the same markup — so the index is taken again rather than left naming a
     // subtree the page no longer has.
@@ -790,5 +813,6 @@ export function createProjection(runtime, dependencies) {
     undoLast,
     undoable,
     unitOf,
+    withdraw,
   };
 }

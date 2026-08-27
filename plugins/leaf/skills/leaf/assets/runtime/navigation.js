@@ -4,6 +4,7 @@ export function createNavigation({
   SCROLL,
   beside,
   inChrome,
+  inPanel,
   openOnItem,
   openThreads,
   pageScroller,
@@ -96,10 +97,10 @@ export function createNavigation({
   // The browser's own keys are left to the browser (Space, Home/End, PageUp/Down all reach
   // it untouched, and a test pins that); these are the runtime's.
   //
-  // They move the region the reader's own scrolling moves, which under a covering sheet is
-  // its thread list rather than the page behind it — the rule syncLayout already states for
-  // the wheel, and a key is no different. Scrolling a page nobody can see reads to the user
-  // as the key doing nothing, and then the document is somewhere else when the sheet closes.
+  // They move the region the reader is reading, which is the thread list wherever the
+  // reader stands in the panel or the panel covers the page. Scrolling a region the
+  // reader is not in reads to them as the key doing nothing, and then the document is
+  // somewhere else when they look back at it.
   //
   // The step moves at the pace of the browser's own paging keys. Native paging is a quick
   // glide — PageDown covers a page here in ~140ms, and Space and the arrows ride the same
@@ -130,10 +131,13 @@ export function createNavigation({
   // in that gap otherwise measures from a goal the box has already left.
   const holding = (box) =>
     glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
-  // The box these motions move is the one the reader can see: the document's, or the
-  // thread list where the panel covers the page — a key is no different from a wheel
-  // there, and a page scrolling behind the sheet shows the reader nothing.
+  // The visible box used by page-edge navigation. A covering panel replaces the page;
+  // beside it, the document keeps its own top and bottom.
   const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
+  // Half-page keys follow the region the reader is working in. Focus can put them in a
+  // panel beside the page; a covering panel remains the only visible region even when
+  // focus is still on the banner control that opened it.
+  const stepScroller = () => (inPanel() || panelCovers() ? threadsBox : pageScroller);
   // Which box scrolls a given element, for anything that has to name its scroller rather
   // than search for one. The document's for everything the document holds — and the
   // panel's own list for a widget an agent put in a reply, which is scrolled by that and
@@ -141,7 +145,7 @@ export function createNavigation({
   // that never comes.
   const scrollerFor = (el) => (inChrome(el) ? threadsBox : pageScroller);
   function stepPage(fraction) {
-    const box = seenScroller();
+    const box = stepScroller();
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     const from = holding(box) ? glide.goal : box.scrollTop;
     glideTo(box, from + fraction * (box.clientHeight - clear));

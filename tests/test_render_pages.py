@@ -48,6 +48,7 @@ from render_support import (
     WIDE_DIAGRAM_PAGE,
     author_test_widget,
     composer_quote,
+    leaf_page,
     open_page,
     page_registry,
     panel_settled,
@@ -115,18 +116,49 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
 
         page, errors = open_page(browser, url)
-        anchored = [e for e in events if e.get("anchor")]
+        # A reaction nobody has answered is a mark and not a thread: its anchor paints
+        # through its own registry entry and a glyph seated at its block, and it takes
+        # no card. Split here so each half is read against the paint it owes.
+        answered = {e["parent"] for e in events if e.get("parent")}
+        reacted = [
+            e
+            for e in events
+            if e["kind"] == "comment" and e.get("token") and e["id"] not in answered
+        ]
+        anchored = [e for e in events if e.get("anchor") and e not in reacted]
         # The thread node first, because it arrives whether or not the quote found a
         # home — a stranded one renders wearing `detached`. Waiting on the mark here
         # instead spends the whole timeout on exactly the failure this gate is for
         # and then reports it as "wait_for_function timed out", which says nothing
         # about the anchor.
-        # Every comment opens a thread; an anchor only decides whether it also paints
-        # a mark. Counting threads against the anchored ones would red this gate the
-        # day a seed carries a general comment, which is a thing a page may hold.
+        # Every comment with words opens a thread; an anchor only decides whether it
+        # also paints a mark. Counting threads against the anchored ones would red
+        # this gate the day a seed carries a general comment, which is a thing a page
+        # may hold.
         expect(page.locator(".lf-thread")).to_have_count(
-            len([e for e in events if e["kind"] == "comment"])
+            len([e for e in events if e["kind"] == "comment" and not e.get("token")])
         )
+        for reaction in reacted:
+            glyph = page.locator(
+                f'.lf-reacts > .lf-react-mark[data-event="{reaction["id"]}"]'
+            )
+            expect(glyph).to_be_visible()
+            expect(glyph.locator("..")).to_have_attribute(
+                "data-lf-for", reaction["anchor"]["section"]
+            )
+            if reaction["anchor"].get("quote"):
+                painted = re.sub(
+                    r"\s",
+                    "",
+                    page.evaluate(
+                        "() => [...CSS.highlights.get('lf-react')]"
+                        ".map(r => r.toString()).join('')"
+                    ),
+                )
+                assert re.sub(r"\s", "", reaction["anchor"]["quote"]) in painted, (
+                    f"{example.stem}: the reaction's passage is painted nowhere; the "
+                    f"wash reads {painted[:120]!r}"
+                )
         detached = page.eval_on_selector_all(
             ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
         )
@@ -1803,6 +1835,208 @@ def test_a_note_sets_the_page_axis_with_its_whole_strip(browser, serve):
 
     assert errors == []
     page.close()
+
+
+def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
+    """The sidebar is a page-level margin resident rather than a narrower prose column.
+
+    On a roomy page it takes an explicit left strip, stands wholly outside the prose, and
+    stays below the fixed banner while the page scrolls. The release-notes shot is the
+    wide exhibit in the control: it may use the other margins but not the one the sticky
+    sidebar can occupy at any scroll position.
+
+    Opening the comment panel narrows the page without changing the viewport, which a
+    media query cannot see. The shared cramped veto must return the aside to the flow and
+    give its strip back. A narrow viewport proves the same fallback comes from CSS alone,
+    and print proves paper reserves no blank margin for a posture it cannot use."""
+    example = next(p for p in EXAMPLES if p.stem == "release-notes")
+    page, errors = open_page(browser, serve(example))
+    sidebar = page.locator("aside.sidebar")
+
+    reading = """() => {
+      const sidebar = document.querySelector('aside.sidebar');
+      const main = document.querySelector('main');
+      const exhibit = document.querySelector('lf-shot');
+      const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
+      const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
+      const eb = exhibit.getBoundingClientRect();
+      return {
+        cramped: document.body.hasAttribute('data-lf-cramped'),
+        strip: parseFloat(getComputedStyle(document.body).paddingLeft),
+        float: ss.float, position: ss.position,
+        sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
+        column: {
+          left: mb.left + parseFloat(ms.paddingLeft),
+          right: mb.right - parseFloat(ms.paddingRight),
+        },
+        exhibit: {left: eb.left, right: eb.right},
+        sideways: document.documentElement.scrollWidth
+          - document.documentElement.clientWidth,
+      };
+    }"""
+
+    resized(page, 1400, 900)
+    roomy = page.evaluate(reading)
+    assert not roomy["cramped"]
+    assert roomy["strip"] == 264
+    assert roomy["float"] == "left" and roomy["position"] == "sticky"
+    assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
+        f"the sidebar entered the prose column: {roomy}"
+    )
+    assert roomy["sidebar"]["width"] == 240
+    assert roomy["exhibit"]["left"] >= roomy["sidebar"]["right"] - 1, (
+        f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
+    )
+    assert roomy["sideways"] == 0
+
+    page.evaluate(
+        "document.body.style.scrollBehavior = 'auto'; document.body.scrollTo(0, 900)"
+    )
+    page.wait_for_function("() => document.body.scrollTop > 800")
+    stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
+    assert 64 <= stuck <= 68, (
+        f"the sidebar stuck at {stuck:.0f}px, not below the banner"
+    )
+
+    page.evaluate("document.body.scrollTo(0, 0)")
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    cramped = page.evaluate(reading)
+    assert cramped["cramped"]
+    assert cramped["strip"] == 0
+    assert cramped["float"] == "none" and cramped["position"] == "static"
+    assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
+    assert cramped["sideways"] == 0
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, serve(example))
+    resized(page, 700, 900)
+    narrow = page.evaluate(reading)
+    assert narrow["strip"] == 0
+    assert narrow["float"] == "none" and narrow["position"] == "static"
+    assert abs(narrow["sidebar"]["left"] - narrow["column"]["left"]) <= 1
+    assert narrow["sideways"] == 0
+
+    resized(page, 1400, 900)
+    page.emulate_media(media="print")
+    printed = page.evaluate(reading)
+    assert printed["strip"] == 0
+    assert printed["float"] == "none" and printed["position"] == "static"
+    assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
+    assert errors == []
+    page.close()
+
+
+def test_opposite_margin_residents_wait_for_the_room_they_need(
+    browser, serve, tmp_path
+):
+    """One margin floor buys one resident, not two strips at once.
+
+    At the ordinary 1152px floor, the sidenote keeps its established right margin and
+    the sidebar remains in flow. Giving both their full strips there leaves only 504px
+    for prose. At the combined floor, both may stand outside the ordinary column, less
+    only a live platform's stable scrollbar gutter. A script-free copy has to make the
+    same choice from its viewport alone.
+
+    The second sidebar is the other composition case: only the first direct child of
+    main may take the sticky page-level slot, so an accidental second one remains in
+    flow rather than covering the first after a scroll."""
+    source = leaf_page(
+        "margin residents",
+        """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
+<aside class="sidebar" id="extra">Secondary reference</aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+<div style="height: 1500px"></div>
+""",
+    )
+    url = serve(source)
+    out = tmp_path / "margin-residents.html"
+    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+
+    reading = """() => {
+      const main = document.querySelector('main'), ms = getComputedStyle(main);
+      const mb = main.getBoundingClientRect();
+      return {
+        sidebars: [...document.querySelectorAll('aside.sidebar')].map(node => {
+          const s = getComputedStyle(node), b = node.getBoundingClientRect();
+          return {float: s.float, position: s.position, left: b.left,
+                  right: b.right, top: b.top, bottom: b.bottom};
+        }),
+        noteFloat: getComputedStyle(document.querySelector('aside.sidenote')).float,
+        column: {
+          left: mb.left + parseFloat(ms.paddingLeft),
+          right: mb.right - parseFloat(ms.paddingRight),
+          width: mb.width - parseFloat(ms.paddingLeft) - parseFloat(ms.paddingRight),
+        },
+        padding: {
+          left: parseFloat(getComputedStyle(document.body).paddingLeft),
+          right: parseFloat(getComputedStyle(document.body).paddingRight),
+        },
+        gutter: document.documentElement.clientWidth
+          - document.body.getBoundingClientRect().width,
+        sideways: document.documentElement.scrollWidth
+          - document.documentElement.clientWidth,
+      };
+    }"""
+
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 800)
+    tight = page.evaluate(reading)
+    assert [side["float"] for side in tight["sidebars"]] == ["none", "none"]
+    assert tight["noteFloat"] == "right"
+    assert tight["padding"] == {"left": 0, "right": 384}
+    assert tight["column"]["width"] == 720
+    assert tight["sideways"] == 0
+
+    resized(page, 1416, 800)
+    roomy = page.evaluate(reading)
+    assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
+        ("left", "sticky"),
+        ("none", "static"),
+    ]
+    assert roomy["noteFloat"] == "right"
+    assert roomy["padding"] == {"left": 264, "right": 384}
+    assert roomy["column"]["width"] == 720 - roomy["gutter"], (
+        f"the two strips cost more than the live page's stable scrollbar gutter: {roomy}"
+    )
+    assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
+    assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1
+    assert roomy["sideways"] == 0
+
+    resized(page, 1700, 800)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    panelled = page.evaluate(reading)
+    assert page.locator("body").get_attribute("data-lf-cramped") == ""
+    assert [side["float"] for side in panelled["sidebars"]] == ["none", "none"]
+    assert panelled["noteFloat"] == "none"
+    assert panelled["padding"] == {"left": 0, "right": 0}
+    assert panelled["column"]["width"] == 720
+    assert panelled["sideways"] == 0
+    resized(page, 1699, 800)
+    resized(page, 1700, 800)
+    repeated = page.evaluate(reading)
+    assert page.locator("body").get_attribute("data-lf-cramped") == ""
+    assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
+    assert repeated["noteFloat"] == "none"
+    assert repeated["column"]["width"] == 720
+    assert errors == []
+    page.close()
+
+    copy = browser.new_page(viewport={"width": 1200, "height": 800})
+    copy.goto(out.as_uri(), wait_until="load")
+    copied = copy.evaluate(reading)
+    assert [side["float"] for side in copied["sidebars"]] == ["none", "none"]
+    assert copied["noteFloat"] == "right"
+    assert copied["padding"] == {"left": 0, "right": 384}
+    assert copied["column"]["width"] == 720
+    assert copied["sideways"] == 0
+    copy.close()
 
 
 def test_the_handed_over_url_opens_the_latest_version(browser, serve):

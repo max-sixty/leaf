@@ -3,10 +3,17 @@
 import sys
 from pathlib import Path
 
-from leaf.events import build_threads, jsonl_line, read_events, taken_back
+from leaf.events import (
+    build_threads,
+    is_reaction,
+    jsonl_line,
+    read_events,
+    taken_back,
+)
 from leaf.files import published_versions, version_path
+from leaf.passages import enclosing_of
 from leaf.projection import page_projection, record_lag
-from leaf.registry import load_registry
+from leaf.registry import load_registry, reaction_tokens
 from leaf.structure import parse_version
 
 
@@ -98,7 +105,7 @@ def cmd_transcript(page_dir: Path) -> None:
         projection, parser, spk = page_projection(
             latest, events, registry, published[-1]
         )
-    threads = build_threads(events, spk)
+    threads = build_threads(events, enclosing_of(spk))
     if threads:
         print("\n### Threads\n")
     for t in threads.values():
@@ -123,8 +130,19 @@ def cmd_transcript(page_dir: Path) -> None:
         print(head)
         for m in t["msgs"]:
             who = m.get("agent", "Agent") if m["author"] == "claude" else "User"
+            if is_reaction(m):
+                # A mark rather than a turn: the token's glyph and word, and the
+                # meaning the layer gave it, since a transcript is read where no
+                # bar is there to explain the glyph.
+                entry = reaction_tokens(registry).get(m["token"]) or {}
+                said = f"{entry.get('glyph', '')} {m['token']}".strip()
+                if entry.get("means"):
+                    said += f" — {entry['means']}"
+                print(f"- **{who}** reacted: {said}")
+                continue
+            edited = " *(edited)*" if m.get("edited") else ""
             body = m["text"] + (f"\n{m['markup']}" if m.get("markup") else "")
-            print(f"- **{who}**: " + body.replace("\n", "\n  "))
+            print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
         print()
     for e in events:
         if e["kind"] == "done":

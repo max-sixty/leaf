@@ -8,6 +8,8 @@ from typing import NamedTuple
 from .events import batch_threads, jsonl_line
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
+from .passages import published_enclosing
+from .registry import RegistryError, described, load_registry
 from .service import (
     PageTransaction,
     claim_page,
@@ -266,14 +268,31 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                             {
                                 "page": str(reading.page_dir),
                                 "threads": batch_threads(
-                                    reading.transaction.events, reading.batch
+                                    reading.transaction.events,
+                                    reading.batch,
+                                    published_enclosing(
+                                        reading.page_dir, reading.transaction.events
+                                    ),
                                 ),
                             }
                         ),
                         flush=True,
                     )
+                    # A reaction's word explained beside it (`means`), off the
+                    # page's own vendored vocabulary, so a token a project added
+                    # reaches the agent already saying what it asks for. Read
+                    # only where a batch carries one: the registry is a gate a
+                    # page vendored before the layer last moved fails, and a
+                    # wait that cannot deliver a comment over that would be a
+                    # wait that delivers nothing.
+                    registry = None
+                    if any(e.get("token") for e in reading.batch):
+                        try:
+                            registry = load_registry(reading.page_dir)
+                        except RegistryError:
+                            registry = None  # the token still reaches the agent
                     for event in reading.batch:
-                        print(jsonl_line(event), flush=True)
+                        print(jsonl_line(described(event, registry)), flush=True)
                     if reading.status["state"] != "working":
                         # Flip before the agent handles the batch: the handoff
                         # gap between this exit and pickup must not show

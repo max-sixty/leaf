@@ -7,13 +7,14 @@ from pathlib import Path
 import click
 
 from leaf.checking import cmd_check
-from leaf.conversation import cmd_comment, cmd_reply, cmd_report, cmd_resolve
+from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
 from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.hooks import cmd_hook, unanswered_asks
 from leaf.hosting import cmd_serve, cmd_stop, start_server
 from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
 from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
+from leaf.passages import published_enclosing
 from leaf.publishing import cmd_publish
 from leaf.rendering import cmd_export
 from leaf.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
@@ -393,7 +394,9 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
         events = page.events
         cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_asks(events, cursor)
+        unanswered = unanswered_asks(
+            events, cursor, published_enclosing(page_dir, events)
+        )
         if pending:
             prefix = (
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
@@ -465,6 +468,19 @@ def comment(dir: str, quote: str, section: str, text: str, markup: str) -> None:
 def reply(dir: str, to: str, text: str, markup: str) -> None:
     """Post a threaded reply as the agent (--text or stdin)."""
     print(json.dumps(cmd_reply(resolve_dir(dir), to, text, markup), ensure_ascii=False))
+
+
+@cli.command(short_help="Edit one of this agent session's messages.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--to", required=True, metavar="ID", help="comment or reply ID to edit")
+@click.option("--text", help="replacement text (default: stdin)")
+def edit(dir: str, to: str, text: str) -> None:
+    """Replace the visible text of an agent-authored comment or reply.
+
+    The original and every revision remain in the append-only event log. Frozen
+    widget markup is not editable.
+    """
+    print(json.dumps(cmd_edit(resolve_dir(dir), to, text), ensure_ascii=False))
 
 
 @cli.command(short_help="Close a thread as the agent.")

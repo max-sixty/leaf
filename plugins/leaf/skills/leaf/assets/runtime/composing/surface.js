@@ -6,6 +6,8 @@ export function createSelectionSurface({
   designIsOn,
   designTarget,
   fab,
+  fabBar,
+  fabSep,
   hideComposer,
   hideReference,
   inChrome,
@@ -20,10 +22,14 @@ export function createSelectionSurface({
   paintHere,
   panel,
   panelCovers,
+  paintStanding,
   pendingMarks,
   pointerAt,
+  reactionTokens,
+  reactionsOn,
   referenceIsOpen,
   selectionAnchor,
+  setReact,
   showThread,
   showVersionMenu,
   snapSelection,
@@ -180,10 +186,32 @@ export function createSelectionSurface({
     if (y !== box.top) place(node, left, y);
   }
   let fabAnchor = null;
-  function showFab(anchor, left, top) {
+  // `avoid` is the box the bar was raised for — a selection's — and the bar stands off
+  // it: beside it where the column has the room, and above its first line where it has
+  // not, because a bar clamped back from the edge landed on the very words the reader
+  // had just picked out, and the next press there was the bar's rather than the page's.
+  function showFab(anchor, left, top, avoid = null) {
     fabAnchor = anchor;
+    fabBar.style.display = anchor ? "inline-flex" : "none";
+    // Comment's own display is stated beside the bar's, being what the passage sweeps
+    // read to know a passage raised the button.
     fab.style.display = anchor ? "block" : "none";
-    if (anchor) placeClear(fab, left, top);
+    fabSep.style.display = reactionTokens().length ? "" : "none";
+    if (anchor) {
+      // The tokens already standing on this very anchor read pressed, and a press on one
+      // takes it back (reactHere): the bar is the strip's shape on the page.
+      paintStanding(fabBar, reactionsOn(anchor));
+      placeClear(fabBar, left, top);
+      const box = fabBar.getBoundingClientRect();
+      if (
+        avoid &&
+        box.left < avoid.right &&
+        box.right > avoid.left &&
+        box.top < avoid.bottom &&
+        box.bottom > avoid.top
+      )
+        placeClear(fabBar, avoid.right - box.width, avoid.top - box.height - 6);
+    }
     paintHere(); // the c row names this anchor, so the line is one more rendering of it
   }
   // The one way an item under a gesture becomes the composer's anchor, so no two routes
@@ -191,6 +219,11 @@ export function createSelectionSurface({
   function openOnItem(item, from) {
     showFab(null);
     openComposer({ section: item.id }, "", from.left, from.top);
+  }
+  // The ⌥ press takes the item whole rather than opening the composer on it: the bar
+  // offers the cheap answers first, and its own Comment is the way through to the box.
+  function raiseOnItem(item, from) {
+    showFab({ section: item.id }, from.left, from.top);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
@@ -212,9 +245,10 @@ export function createSelectionSurface({
     }
     const sel = pageSelection();
     const anchor = sel ? selectionAnchor(sel) : null;
-    if (anchor?.quote.length >= MIN_QUOTE)
-      showFab(anchor, ...beside(pageRange(sel).getBoundingClientRect()));
-    else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
+    if (anchor?.quote.length >= MIN_QUOTE) {
+      const picked = pageRange(sel).getBoundingClientRect();
+      showFab(anchor, ...beside(picked), picked);
+    } else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
     else if (fabAnchor?.quote) showFab(null);
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
@@ -251,8 +285,10 @@ export function createSelectionSurface({
   // through a click all the more — a tray any press removes cannot be watched while
   // working, which is the tray's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
-    if (!target.closest?.(".lf-fab, .lf-composer")) {
+    if (!target.closest?.(".lf-fab-bar, .lf-react-strip, .lf-composer")) {
       showFab(null);
+      // The armed react press goes with the bar it was armed on.
+      setReact(false);
       // Keep a composer that holds unsent text open so a stray click can't drop it;
       // Cancel discards explicitly, and the draft is persisted regardless. Asked only of a
       // composer that is up, so an ordinary press in the page repaints nothing.
@@ -327,6 +363,7 @@ export function createSelectionSurface({
     beside,
     fabAnchorAt,
     openOnItem,
+    raiseOnItem,
     placeClear,
     placeComposer,
     showFab,

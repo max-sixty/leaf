@@ -1097,6 +1097,13 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
         "lf-over-item",
         "lf-quiet",
+        # A standing reaction's paint on the page: the element outline, the seat in the
+        # margin and the glyph in it, and the wash a copy carries as a <mark>.
+        "lf-react-el",
+        "lf-reacts",
+        "lf-react-mark",
+        "lf-react",
+        "lf-docked",  # a seat's measured fallback, the word a suggestion row docks under
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )

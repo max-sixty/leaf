@@ -1792,6 +1792,90 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
     page.close()
 
 
+def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
+    browser, serve
+):
+    """The edit is one log arrival and both views fold it onto the original message.
+
+    Neither view gains a second message. Their standing message nodes survive the
+    arrival, so an edit cannot disturb a reader working elsewhere in the same thread;
+    only the prose inside changes, and both heads disclose that it changed.
+    """
+    url = serve(CONVERSATION_DIFF_PAGE)
+    d = serve.page_dir
+    message = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "id": "edited-agent-message",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "version": 1,
+            "text": "The north bracket fit.",
+            "anchor": {"section": "cd-q"},
+            "markup": (
+                '<lf-options id="edited-message-choice" choose>'
+                '<lf-option id="edited-message-now">Fit it now</lf-option>'
+                "</lf-options>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    inline = page.locator(f'#cd-q .lf-conversation-msg[data-event="{message["id"]}"]')
+    expect(inline.locator(".lf-conversation-body")).to_have_text(
+        "The north bracket fit."
+    )
+    page.locator(".lf-comments").click()
+    panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
+    expect(panel.locator(".lf-msg-text")).to_have_text("The north bracket fit.")
+    page.evaluate(
+        """([message]) => {
+          window.__editedInline = document.querySelector(
+            `#cd-q .lf-conversation-msg[data-event="${message}"]`);
+          window.__editedPanel = document.querySelector(`.lf-msg[data-mid="${message}"]`);
+          window.__editedWidget = document.querySelector('#edited-message-choice');
+        }""",
+        [message["id"]],
+    )
+
+    revision = events_model.append_event(
+        d,
+        {
+            "kind": "edit",
+            "author": "claude",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "message": message["id"],
+            "text": (
+                "The north bracket fits.\n\n"
+                "```python\n"
+                "def fitted():\n"
+                "    return True\n"
+                "```"
+            ),
+        },
+    )
+    told(page)
+
+    expect(inline.locator(".lf-conversation-body")).to_contain_text(
+        "The north bracket fits."
+    )
+    expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
+    expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
+    expect(inline.locator(".lf-edited")).to_have_text("edited")
+    expect(panel.locator(".lf-edited")).to_have_text("edited")
+    expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
+    assert page.evaluate(
+        "() => window.__editedInline.isConnected && window.__editedPanel.isConnected"
+        " && window.__editedWidget.isConnected"
+    ), "the edit replaced a standing message or its frozen widget"
+    assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
     """A question the agent asked is not one of the runtime's own buttons.
 
@@ -2505,6 +2589,46 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     )
     page.close()
     assert rendering_model.render_version(browser, url) == []
+
+
+def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_other(
+    browser, serve
+):
+    """The other half of the exemption above, put back as a bug: a label's own lines are
+    one run of words the drawing lays out together, and two labels landing on each other
+    is the fault this pass exists to report. Arranged by standing one whole <text> on
+    another rather than by spreading a label's lines, because the hold asks which <text>
+    drew a line and not how far a line was moved.
+
+    `<text>` is the case it is written for, being the near-miss that reads as one label
+    and is not: every tick of an axis is a <text> inside one <g> inside one <svg>, so a
+    hold reaching for either of those carries the whole drawing with it — every word of a
+    chart stops being read against every other word of that chart — and nothing else in
+    the suite would say so. The corpus sweeps and the copy assert this pass returns
+    nothing, which a wider hold only makes more true; the chart's own collision test reads
+    CHART_COLLISIONS, which compares whole <text> boxes and never sees this pass; and the
+    exemption above defeats the predicate wholesale, so it reports the same either way.
+    The only standing bug-back on this pass reporting is the float's, and that is an HTML
+    page whose runs never get an SVG label at all."""
+    page, errors = open_page(browser, serve(CHART_PAGE))
+    # Two ticks the drawing places by transform, one stood on the other. The labels stay
+    # whole, so what lands is two <text> elements rather than two lines of one.
+    moved = page.evaluate(
+        """() => {
+            const ticks = [...document.querySelectorAll('#c-line text')]
+                .filter((t) => t.hasAttribute('transform') && !t.querySelector('tspan'));
+            if (ticks.length < 2) return null;
+            ticks[1].setAttribute('transform', ticks[0].getAttribute('transform'));
+            return [ticks[0].textContent, ticks[1].textContent];
+        }"""
+    )
+    assert moved, "no two ticks the drawing places by transform, so nothing was stacked"
+    covered = page.evaluate(render_checks_model.COVERED_WORDS)
+    assert errors == []
+    assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
+        f"two of a chart's labels stood on each other unreported: {covered}"
+    )
+    page.close()
 
 
 def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):

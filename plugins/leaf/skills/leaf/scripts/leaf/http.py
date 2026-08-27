@@ -217,6 +217,16 @@ def full_state(
         # neither side can tell from the timestamp alone. Sent so the reading is
         # against the writer's clock rather than the reader's.
         "now": now_iso(),
+        # The moment this answer was taken, for a tab holding two. Answers cross — two
+        # sockets, one held by a proxy or a test while a later one lands, a POST's
+        # answer beside a read — and the log's sequence and the data's revision order
+        # everything in a state but the reading, which is a hash with no order of its
+        # own. Stamped inside the page transaction every served answer is built under,
+        # so the order of these is the order the answers were taken in, whichever
+        # order they land. The wall clock rather than a counter: a counter starts over
+        # with the server, and a tab open across that restart would refuse every
+        # answer until the count caught up.
+        "taken": time.time(),
         "active": active,
         "versions": version_descriptors(page_dir, events),
         "source_error": source_error,

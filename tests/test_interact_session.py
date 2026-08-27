@@ -2162,6 +2162,16 @@ def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page
     assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
 
+def test_the_state_payload_says_when_it_was_taken(page_dir):
+    """Two answers can cross on the wire, and nothing the log orders tells them apart
+    when neither carries a new event. Each says when the server took it, so a tab
+    keeps the later one whichever lands last."""
+    first = http_model.full_state(page_dir, [], [])
+    second = http_model.full_state(page_dir, [], [])
+    assert first["taken"] < second["taken"]
+    assert abs(time.time() - second["taken"]) < 60
+
+
 def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
     """Between turns a page is either watched or idle. The failure this prevents:
     a `leaf wait` exits, its notification is buried behind the next thing the

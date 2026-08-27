@@ -497,7 +497,12 @@ Keep the three route operations distinct:
 - Returning from a handler without resolving the route holds the request before the
   server receives it.
 - `route.fetch()` lets the server answer but still withholds the response from the
-  page. The log may therefore advance while the browser remains behind.
+  page. The log may therefore advance while the browser remains behind — behind, not
+  deaf: the stream names the append within its look and the page reads at once, so
+  a listener for what that read sets off (the next send of an ordered outbox, say)
+  is armed before the `fetch`, never after it. Where one read has to carry the
+  append and something appended after it, hold the reads (`CutOff`) until both are
+  on disk.
 - `refuse(route)` cancels a request without manufacturing a console error. Use an
   ordinary abort only when the failed request and its browser error are the subject.
 

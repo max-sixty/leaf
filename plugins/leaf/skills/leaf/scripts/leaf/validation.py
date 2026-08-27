@@ -12,7 +12,6 @@ from leaf.passages import (
     collapse,
     enclosing_ids,
     enclosing_of,
-    page_passages,
     spoken,
 )
 from leaf.projection import (
@@ -20,11 +19,10 @@ from leaf.projection import (
     StateProjection,
     action_subjects,
     asking,
-    decisions,
     enclosing_widgets,
     folded_facet,
     markup_facet,
-    page_ask_projection,
+    page_awaiting_values,
     page_projection,
     projected_action_holders,
     quoted_in,
@@ -185,6 +183,31 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     return None
 
 
+def version_response_comment_error(event: dict, page_by_id: dict, registry: dict):
+    """Why a comment cannot require the authored response it names."""
+    response = event.get("response")
+    if not response:
+        return None
+    anchor = event.get("anchor")
+    target = anchor.get("section") if isinstance(anchor, dict) else None
+    rec = page_by_id.get(target)
+    conversation = (
+        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
+    )
+    if (
+        rec is None
+        or not conversation
+        or conversation.get("response") != response
+        or not asking(rec["attrs"], conversation.get("when"))
+        or anchor != {"section": target}
+    ):
+        return (
+            "comment response must match its exact-section x-conversation "
+            "response target"
+        )
+    return None
+
+
 def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
     """Why a semantic visual coordinate is not authored on its section."""
     anchor = event.get("anchor") or {}
@@ -236,22 +259,11 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         projection, parser, spk = page_projection(html, events, registry, version)
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
-        passages = page_passages(
-            html, registry, decisions(projection.actions, registry)
-        )
-        _, awaiting_values = page_ask_projection(
-            parser,
-            projection,
-            byid,
-            spk,
-            registry,
-            set(passages.retired) | set(passages.gone),
-            # This door asks whether the request is answered, not whether it is the
-            # reader's to deal with: a conversation standing in the widget's seat
-            # takes it off their list without answering it, and refusing their pick
-            # over their own remark would refuse them the answer they were asked for.
-            set(),
-        )
+        # This door asks whether the request is answered, not whether it is the
+        # reader's to deal with: a conversation standing in the widget's seat
+        # takes it off their list without answering it, and refusing their pick
+        # over their own remark would refuse them the answer they were asked for.
+        awaiting_values = page_awaiting_values(html, parser, projection, spk, registry)
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.
@@ -455,7 +467,7 @@ def incoming_registry(packages: list) -> dict:
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
     events its $events record schemas reject; reactions on a token its
-    $reactions drops; held comments whose conversation contract changed; or
+    $reactions drops; comments whose conversation contract changed; or
     actions and reports whose sending tag, verb, or detail the incoming x-state
     or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
@@ -489,6 +501,15 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
                 kind == "comment"
                 and e.get("holds")
                 and (error := held_comment_error(e, page_by_id(e["version"]), incoming))
+            )
+            or (
+                kind == "comment"
+                and e.get("response")
+                and (
+                    error := version_response_comment_error(
+                        e, page_by_id(e["version"]), incoming
+                    )
+                )
             )
             or kind == "comment"
             and (error := visual_anchor_error(e, page_by_id(e["version"]), incoming))

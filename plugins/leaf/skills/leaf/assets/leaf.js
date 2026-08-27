@@ -479,6 +479,7 @@ export function conversationBox(el, hint) {
           anchor: { section: el.id },
           text,
           attempt,
+          ...(declaration.response && { response: declaration.response }),
           ...(holds && { holds: el.id }),
         }),
     );

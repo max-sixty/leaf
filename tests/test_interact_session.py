@@ -2366,6 +2366,79 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     lease.close()
 
 
+def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns_it(
+    claimed, capsys
+):
+    version = claimed / "versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    publish(claimed)
+    session_model.cmd_status(claimed, "waiting", "")
+    session = service_model.page_claim(claimed)
+    lease = service_model.take_waiter_lease(
+        service_model.waiter_lease_path(claimed, session)
+    )
+    assert lease
+    older_question = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "anchor": {"section": "choice"},
+            "text": "Should the existing camera job include mounting?",
+        },
+    )
+    proposal = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+            "text": "Add the camera first.",
+        },
+    )
+    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
+    events_model.append_event(
+        claimed,
+        {"kind": "resolve", "author": "claude", "parent": older_question["id"]},
+    )
+
+    question = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "version": 1,
+            "anchor": {"section": "choice"},
+            "text": "Should the mounting cost be part of the option?",
+        },
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    events_model.append_event(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": question["id"],
+            "text": "Yes.",
+        },
+    )
+    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert proposal["id"] in reason
+    assert question["id"] in reason
+
+    lease.close()
+
+
 def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, capsys):
     """A page directory holds the copy of the layer it was created with, and the
     stamp refuses a copy the current layer has outgrown — by design, since that

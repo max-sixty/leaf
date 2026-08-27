@@ -120,11 +120,12 @@ export function createAskModel({
   // too. Stated here rather than by a caller writing the spread inline, so the two answers
   // cannot drift apart.
   //
-  // Two callers ask it. An action's `requires`: a conversation does not answer a question
-  // the widget holds no state for, and refusing a pick over the reader's own remark would
-  // refuse them the answer they were asked for. And `unansweredAsks`, for where the reader
-  // is standing: the ring and `c`'s destination say what they are working, not what they
-  // owe.
+  // Three callers ask it. An action's `requires`: a conversation does not answer a
+  // question the widget holds no state for, and refusing a pick over the reader's own
+  // remark would refuse them the answer they were asked for. The version-response resolve
+  // gate asks the same projection on the file side. And `unansweredAsks`, for where the
+  // reader is standing: the ring and `c`'s destination say what they are working, not what
+  // they owe.
   function answeredContext(projection) {
     return { ...askContext(projection), seatsWithAgent: new Set() };
   }
@@ -198,18 +199,19 @@ export function createAskModel({
   // put under the question. That was the panel and the banner telling one fact two ways.
   //
   // So this is the reader's-list reading, and it is what the banner, the asks tray and the
-  // `n`/`p` walk want. Two readings want the other one — whether the request is answered at
-  // all — and both say so by asking with no seats in their context. An action's `requires`
-  // is one: a pick refused because the reader had remarked on the question would be
-  // refusing them the very answer they were asked for. Where the reader is standing is the
-  // other (`unansweredAsks`), because standing in a question is what the reader is working
-  // and not what they owe.
+  // `n`/`p` walk want. Three readings want the other one — whether the request is answered
+  // at all — and all say so by asking with no seats in their context. An action's
+  // `requires` is one: a pick refused because the reader had remarked on the question would
+  // be refusing them the very answer they were asked for. The file-side version-response
+  // resolve gate is another. Where the reader is standing is the third (`unansweredAsks`),
+  // because standing in a question is what the reader is working and not what they owe.
   //
-  // Finishing with the conversation hands the question back, by reply or by resolve, and
-  // the version that marks the pick `chosen` ends it. That is the whole re-arm, and it
-  // costs nothing to make. A seat answer that held for good would let a clarifying question
-  // retire a decision nobody made, invisibly to both sides, which is what the log's own
-  // defaults exist to refuse.
+  // An ordinary reply or resolve hands the conversation back. A version-response
+  // conversation takes no reply. Authored state in a later version must answer its
+  // originating request; if it was already answered, that state must instead change the
+  // declared answer record. A log action cannot stand in for the revision. A seat answer
+  // that held for good would let a clarifying question retire a decision nobody made,
+  // invisibly to both sides, which is what the log's own defaults exist to refuse.
   //
   // Frozen thread markup seats no conversation of its own — `conversationBox` declines a
   // widget standing inside a thread, whose reply box is already that seat — so this reaches

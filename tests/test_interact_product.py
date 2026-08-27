@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -465,6 +466,259 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["author"] == "claude"
     assert event["text"] == "See:"
     assert event["markup"].startswith("<lf-diagram")
+
+
+def test_a_version_response_cannot_take_an_agent_reply(page_dir):
+    version = page_dir / "versions" / "v1.html"
+    unchosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    version.write_text(unchosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Add the camera as the first job.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    follow_up = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": proposal["id"],
+            "text": "Include the mounting cost.",
+        },
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            follow_up["id"],
+            "--text",
+            "I will add it.",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires a page version and cannot take a reply" in result.output
+    assert "leaf comment" in result.output
+    assert [event["kind"] for event in events_model.read_events(page_dir)] == [
+        "note",
+        "comment",
+        "reply",
+    ]
+
+    unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unresolved.output
+    )
+
+    unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    (page_dir / "versions" / "v2.html").write_text(unrelated)
+    publish(page_dir, version=2)
+    still_unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert still_unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask"
+        in still_unresolved.output
+    )
+
+    v3 = unchosen.replace(
+        "</lf-options>",
+        '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+        1,
+    )
+    (page_dir / "versions" / "v3.html").write_text(v3)
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
+    chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
+    )
+    (page_dir / "versions" / "v1.html").write_text(chosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Also consider doing the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    (page_dir / "versions" / "v2.html").write_text(
+        chosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    )
+    publish(page_dir, version=2)
+    unrelated = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert unrelated.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unrelated.output
+    )
+
+    answered = chosen.replace(" chosen", "", 1).replace(
+        "</lf-options>",
+        '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+        1,
+    )
+    (page_dir / "versions" / "v3.html").write_text(answered)
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_a_version_response_can_settle_a_standing_ask(page_dir):
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(asking)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "None of these.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    (page_dir / "versions" / "v2.html").write_text(
+        asking.replace(
+            '<lf-options id="choice" choose>',
+            '<lf-options id="choice" choose settled>',
+        )
+    )
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
+    chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
+    )
+    (page_dir / "versions" / "v1.html").write_text(chosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "None of these.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    settled = chosen.replace(" chosen", "", 1).replace(
+        '<lf-options id="choice" choose>',
+        '<lf-options id="choice" choose settled>',
+    )
+    (page_dir / "versions" / "v2.html").write_text(settled)
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+@pytest.mark.parametrize(
+    "pick_after_proposal",
+    [False, True],
+    ids=["pick-before-proposal", "pick-after-proposal"],
+)
+def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
+    page_dir, pick_after_proposal
+):
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(asking)
+    publish(page_dir)
+    pick = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"options": ["flag-first"]},
+    }
+    if not pick_after_proposal:
+        events_model.append_event(page_dir, pick)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Also consider doing the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    if pick_after_proposal:
+        events_model.append_event(page_dir, pick)
+
+    (page_dir / "versions" / "v2.html").write_text(
+        asking.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    )
+    publish(page_dir, version=2)
+    unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+
+    assert unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unresolved.output
+    )
+
+    (page_dir / "versions" / "v3.html").write_text(
+        asking.replace(
+            "</lf-options>",
+            '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+            1,
+        )
+    )
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):

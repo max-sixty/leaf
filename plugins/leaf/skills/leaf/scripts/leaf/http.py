@@ -60,6 +60,7 @@ from .validation import (
     action_contract_error,
     event_record_error,
     held_comment_error,
+    version_response_comment_error,
     visual_anchor_error,
 )
 
@@ -625,13 +626,16 @@ class Handler(BaseHTTPRequestHandler):
                             f"layer declares {sorted(tokens)}",
                         )
                 anchor = event.get("anchor") or {}
-                if kind == "comment" and (event.get("holds") or anchor.get("visual")):
+                if kind == "comment" and (
+                    event.get("holds") or event.get("response") or anchor.get("visual")
+                ):
                     registry, rejection = registry_or_rejection()
                     if rejection:
                         return rejection
                     page_by_id = parse_version(self.page_dir, event["version"]).by_id
                     for error in (
                         held_comment_error(event, page_by_id, registry),
+                        version_response_comment_error(event, page_by_id, registry),
                         visual_anchor_error(event, page_by_id, registry),
                     ):
                         if error:

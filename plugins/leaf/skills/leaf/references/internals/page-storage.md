@@ -68,16 +68,17 @@ A page directory holds:
                          the command's life. A host session holds one lease at
                          sessions/<id>.wait instead, because one wait watches all
                          of that session's pages
-    viewed.json          when a browser last polled the page, bumped (throttled)
-                         by the server on /api/state; absent for a page nobody
-                         has ever opened, which would otherwise be
-                         indistinguishable from one the user studied and left
+    viewed.json          when a browser last held the page open, bumped
+                         (throttled) by the server while a tab's news stream
+                         stands; absent for a page nobody has ever opened, which
+                         would otherwise be indistinguishable from one the user
+                         studied and left
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
                          `leaf ack`
     service.json         {"host", "bind", "port", "enabled", "lifetime"}: the
                          durable desired service. It preserves the exact URL an
-                         open browser polls and whether a session may end it.
+                         open browser holds and whether a session may end it.
                          A crash leaves it enabled so `leaf wait` can revive it;
                          `server stop` disables it and leaves the address and
                          lifetime ready for a later start. The key in the URL is

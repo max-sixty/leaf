@@ -79,7 +79,8 @@ boot-only.
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
-words, and reconciles recorded state. The comment layer polls `GET /api/state`,
+words, and reconciles recorded state. The comment layer listens on `GET /api/news`
+for the page's reading, reads `GET /api/state` when that reading moves,
 posts to `POST /api/event`, renders the status and conversation chrome, captures
 anchors, and handles keyboard navigation. Both layers share the same registry,
 passage model, event list, layout readings, and helper surface.
@@ -93,6 +94,7 @@ Each mutable fact has one writer:
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
+| the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
@@ -133,7 +135,7 @@ through a class or attribute that changes that box.
 A vendored runtime and registry are one generation. The runtime contains the
 `"__LEAF_LAYER_GENERATION__"` placeholder and the registry carries the same
 epoch after `page init`. `sameLayer` checks every successful state read and POST
-response. If the server speaks a newer layer, the tab reloads before it polls or
+response. If the server speaks a newer layer, the tab reloads before it reads or
 posts again. Do not let one generation interpret another generation's registry
 or events.
 
@@ -277,7 +279,7 @@ absolute detail includes the state the reader just chose.
 `deliver` races the POST against `entry.read`. A poll can account for an attempt
 whose POST response was lost, and the accepted POST state can account for it
 without another GET. Transport errors, undecodable answers, and incomplete
-answers retry the same attempt after `POLL_MS`. A response with `final: true`
+answers retry the same attempt after `RETRY_MS`. A response with `final: true`
 and `ok: false` is a definitive refusal only when it names this attempt, or
 omits an attempt. A layer-generation refusal reloads instead of retrying a body
 under the wrong vocabulary.
@@ -388,8 +390,9 @@ baseline.
 
 ### Reconciliation
 
-`receiveState` is the only door for a complete server state, whether it came
-from polling or an accepted POST. It:
+`receiveState` is the only door for a complete server state. Three callers use
+it: a read of `GET /api/state`, an accepted POST answer, and the heartbeat
+re-applying the state the page already holds. It:
 
 1. verifies the layer generation;
 2. rejects an event sequence older than `lastEventSeq`;
@@ -407,9 +410,9 @@ wakeups must not consume a log tail the page did not adopt.
 
 `reconcileKnownState` protects those wakeups. It permits reconciliation only
 from the last complete sequence, or from the authored-only initial state before
-any events have been installed. Poll failure is allowed to retry a deferred
-correction against that known state. It must not project a newer candidate whose
-surrounding render failed.
+any events have been installed. A read that brought nothing is allowed to retry
+a deferred correction against that known state. It must not project a newer
+candidate whose surrounding render failed.
 
 `reconcileState` works at widget scope. When any coordinate in a widget is dirty,
 it restores that widget's complete authored recorded composition, then applies
@@ -427,8 +430,8 @@ one.
 
 `watchProjectionDrag` waits for the last `.lf-dragging` marker to clear, then
 reconciles, releases eligible outbox entries, repaints keys, and dispatches
-`lf-actions`. Do not let polling fight the pointer by applying projection during
-a drag.
+`lf-actions`. Do not let a read or the heartbeat fight the pointer by applying
+projection during a drag.
 
 `rememberWrites` compares `shallowSigs` before and after each projected action
 or report and records the ids replay changed. The render gate reads those marks
@@ -551,9 +554,10 @@ the two public readings to `lf-actions` and invoke the callback immediately. The
 same rendering function therefore handles a module connected before the first
 state and one constructed by a later thread reconcile.
 
-`lf-actions` fires after a complete state has reconciled, including a poll whose
-event list did not grow. This lets a module refresh elapsed time and retry a
-render deferred by live input without owning a timer or a second event cursor.
+`lf-actions` fires after a complete state has reconciled, including a read whose
+event list did not grow and the heartbeat's re-application of the state the page
+already holds. This lets a module refresh elapsed time and retry a render
+deferred by live input without owning a timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchUpdates` when their element disconnects.
 
@@ -1193,7 +1197,7 @@ state transition that can still change boxes must.
 The movement tests ask both paths that can shift a target:
 
 - press a control and compare the rest of its line;
-- let a poll introduce news and compare all persistent chrome controls.
+- let news arrive and compare all persistent chrome controls.
 
 A pixel diff is required for borders, outlines, and shadows that can paint
 outside unchanged rectangles. Box comparisons alone cannot see those changes.
@@ -1765,9 +1769,9 @@ the menu lands on the current base, and walking to the version being read clears
 the comparison because it has no earlier base to mark against.
 
 The live root follows the newest version without navigating. It begins fetching
-as soon as the poll announces the version, but `midComposition` or an open version
-menu defers activation and leaves the newest-version chip visible. Ending the
-composition releases the version on the ordinary next poll; pressing the chip is
+as soon as a state read announces the version, but `midComposition` or an open
+version menu defers activation and leaves the newest-version chip visible. Ending
+the composition releases the version on the next heartbeat; pressing the chip is
 an explicit override and still keeps the live address. `goVersion` is the one door
 for both that in-place newest-version request and travel to an older immutable
 version.
@@ -1943,14 +1947,14 @@ and `data-lf-gen`:
 it is an account of the widget, not authored words of the widget, so selection
 and diff readings skip it. Reconcile widget state first and paint work afterward,
 because a module may rebuild the subtree that seats it. Keep surviving nodes
-across polls so an unchanged claim is not re-announced.
+across state applications so an unchanged claim is not re-announced.
 
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still
-stands. Polling must not discard a reader's caret, focus, reply text, disclosure
-state, or scroll anchor. The browser's scroll anchoring keeps the visible thread
-steady when a message is inserted above it; tests pin the thread's box rather
-than a particular scroll offset.
+stands. Applying a state must not discard a reader's caret, focus, reply text,
+disclosure state, or scroll anchor. The browser's scroll anchoring keeps the
+visible thread steady when a message is inserted above it; tests pin the
+thread's box rather than a particular scroll offset.
 
 ### The order the list reads in
 
@@ -2211,8 +2215,8 @@ Named journey tests retain behaviors that a generic render reading cannot drive:
   boundary rather than only the two readiness stamps.
 
 Keep causal fixtures narrow, but retain a distinct case when only a real gesture,
-poll, reload, second tab, storage fault, shadow root, print medium, or animation
-can expose the behavior.
+state read, reload, second tab, storage fault, shadow root, print medium, or
+animation can expose the behavior.
 
 ## Working on the runtime
 

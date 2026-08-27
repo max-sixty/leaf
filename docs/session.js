@@ -2,9 +2,10 @@
  *
  * A page directory is files plus a process. The files a static host serves perfectly —
  * the vendored layer sits at this site's root, and every example under /examples is the
- * file in the tree — and the process answers two paths: GET /api/state, which hands the
- * page the log and who is behind it, and POST /api/event, which appends. So that is what
- * this is: those two paths, answered in the tab.
+ * file in the tree — and the process answers three paths: GET /api/state, which hands
+ * the page the log and who is behind it, POST /api/event, which appends, and GET
+ * /api/news, a stream on which the page hears that the log has moved. So that is what
+ * this is: those three paths, answered in the tab.
  *
  * Which makes the pages on this site live rather than pictures of live ones. Every
  * control is the shipped runtime's own — the banner and its counts, the comment panel,
@@ -105,6 +106,11 @@ const events =
         .map((line, i) => ({ ...JSON.parse(line), seq: i + 1 })),
     ));
 
+// The streams open on this tab's log, told directly when it moves. A served page's
+// stream finds that out by looking at files; this log is in memory, and `append` is
+// the one place it changes.
+const ears = new Set();
+
 // append_event's work, minus the durability: identity, authorship and time belong to
 // whoever holds the log, and seq is the line number the reader would have had.
 function append(event, author, agent) {
@@ -122,6 +128,7 @@ function append(event, author, agent) {
   } catch {
     /* a demo that cannot remember still takes the next comment */
   }
+  for (const ear of ears) ear.speak();
   return events.at(-1);
 }
 
@@ -182,6 +189,10 @@ const state = () => ({
   // full-state field as a live host and therefore exercises the same package modules.
   data: DATA,
   events,
+  // The reading a served page stamps on its state and names on its stream, so a tab
+  // can tell whether the stream is telling it something it already holds. The log is
+  // the whole of what moves here, so its length is the reading.
+  reading: String(events.length),
 });
 
 const json = (body, status = 200) =>
@@ -212,10 +223,10 @@ window.fetch = (input, init) => {
       return Promise.resolve(json({ ok: true, state: state() }));
     }
     const minted = append(event, event.kind === "error" ? "page" : "user");
-    // The reply is written after the send has been answered, and lands on a later poll,
-    // because that is when an answer arrives: written into the same response, it would
-    // appear in the panel in the same frame as the comment, over the reader's own words
-    // still settling.
+    // The reply is written after the send has been answered, and lands on the read its
+    // own append prompts, because that is when an answer arrives: written into the same
+    // response, it would appear in the panel in the same frame as the comment, over the
+    // reader's own words still settling.
     if (event.kind === "comment" && !answered) {
       answered = true;
       setTimeout(
@@ -235,4 +246,35 @@ window.fetch = (input, init) => {
     return Promise.resolve(json({ ok: true, state: state() }));
   }
   return realFetch(input, init);
+};
+
+// The third door. A served page holds GET /api/news open and hears the page's reading
+// named each time it moves, then asks for state. Nothing here looks at a file: `append`
+// speaks to every open stream, and what it says is the reading `state` carries. No
+// `error` is ever dispatched, there being no server to lose, and no `alive`: the
+// runtime's watchdog reopens a silent stream after half a minute, which lands here
+// again.
+window.EventSource = class EventSource extends EventTarget {
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 2;
+  constructor() {
+    super();
+    this.readyState = EventSource.CONNECTING;
+    ears.add(this);
+    queueMicrotask(() => {
+      if (this.readyState === EventSource.CLOSED) return;
+      this.readyState = EventSource.OPEN;
+      this.dispatchEvent(new Event("open"));
+      this.speak();
+    });
+  }
+  speak() {
+    if (this.readyState !== EventSource.OPEN) return;
+    this.dispatchEvent(new MessageEvent("message", { data: String(events.length) }));
+  }
+  close() {
+    this.readyState = EventSource.CLOSED;
+    ears.delete(this);
+  }
 };

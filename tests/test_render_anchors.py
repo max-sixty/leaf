@@ -51,6 +51,7 @@ from render_support import (
     round_trip,
     select,
     stamp_version_file,
+    ticked,
     told,
     wait_for_revision,
 )
@@ -2552,11 +2553,11 @@ def test_the_current_page_is_the_chooser_key_twice(browser, serve):
     expect(help_el).to_contain_text("Open the current page")
     page.keyboard.press("Escape")
 
-    # The first press opens and goes nowhere. A whole poll passes before the reading,
+    # The first press opens and goes nowhere. A whole tick passes before the reading,
     # which is far longer than a navigation would take to start.
     page.keyboard.press("v")
     expect(menu).to_be_visible()
-    told(page)
+    ticked(page)
     assert page.url.endswith("pin"), "the press that opens the menu navigated"
 
     # Walk off the version being read, so the row under the focus is not the current one and

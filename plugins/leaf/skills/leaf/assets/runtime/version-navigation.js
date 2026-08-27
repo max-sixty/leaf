@@ -13,7 +13,7 @@ export function createVersionNavigation({
   midComposition,
   paintDiff,
   paintHere,
-  poll,
+  readAndApply,
   pressComparison,
   setDiff,
   showComparison,
@@ -241,7 +241,7 @@ export function createVersionNavigation({
       if (runtime.active.revision === runtime.currentRevision) return;
       forceActivation = true;
       showVersionMenu(false);
-      poll();
+      readAndApply();
       return;
     }
     location.href = PAGE_SCOPE || "/";

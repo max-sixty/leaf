@@ -10,15 +10,15 @@ double as specimens of the theme.
 
 The examples are the files in the tree too, and they are live. A leaf page is a
 directory — the vendored layer at a root, the versions under it — and a static host
-serves every part of that; the one thing it hasn't got is the process behind
-/api/state and /api/event. So the build lays one vendored layer at the site's root,
+serves every part of that; the one thing it hasn't got is the process behind /api/state,
+/api/event, and /api/news. So the build lays one vendored layer at the site's root,
 where a page's absolute /theme.css and /leaf.js resolve, and puts each example at its
-own examples/<name>/versions/v1.html, which is where the runtime reads a version
-number from. What answers the two paths is `docs/session.js`, loaded in front of the
-runtime by `docs/leaf.js`: the log lives in the reader's own tab. Every control on the
-page is then the shipped one, working — the banner, the comment panel, a board that
-takes a drag and holds it. The half no host can supply is the agent at the other end: the
-page reports itself unattended and the banner says so in the runtime's own words, and
+own examples/<name>/versions/v1.html, which is where the runtime reads a version number
+from. What answers the three paths is `docs/session.js`, loaded in front of the runtime
+by `docs/leaf.js`: the log lives in the reader's own tab. Every control on the page is
+then the shipped one, working — the banner, the comment panel, a board that takes a drag
+and holds it. The half no host can supply is the agent at the other end: the page
+reports itself unattended and the banner says so in the runtime's own words, and
 `docs/sitenote.js` says the whole of it in the site's own label above the document.
 
 A dead link is the failure a static host cannot report, so the build resolves every

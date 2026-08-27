@@ -42,6 +42,7 @@ from render_support import (
     round_trip,
     sent_events,
     stamp_version_file,
+    ticked,
     told,
     wait_for_revision,
 )
@@ -366,10 +367,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
 
     page.route("**/api/state*", refuse)
     page.keyboard.press("Escape")
-    with page.expect_event(
-        "requestfailed", predicate=lambda request: "/api/state" in request.url
-    ):
-        pass
+    ticked(page)
     expect(draft.locator(".lf-draft-body")).to_have_text("Foreign committed words.")
     expect(draft.locator(".lf-draft-history > summary")).to_have_text(
         "Changes · 2 edits"

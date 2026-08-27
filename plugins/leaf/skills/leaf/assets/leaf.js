@@ -1242,9 +1242,8 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-bannerActions.append(toggleBtn);
-if (signoff) bannerActions.append(approveBtn);
-bannerActions.append(latestChip, asksBtn, versionBtn, othersBtn);
+bannerActions.append(toggleBtn, latestChip, asksBtn, versionBtn, othersBtn);
+if (signoff) toggleBtn.after(approveBtn);
 banner.append(bannerStatus, el("span", "lf-spacer"), bannerActions);
 
 // Sign-off belongs to the authored version, while the control belongs to the live

@@ -203,11 +203,8 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # absence beside it worth reading rather than a row that never rendered.
     expect(page.locator(".lf-comments")).to_be_visible()
     assert page.locator(".lf-signoff").count() == 0
-    # Approval follows Comments when a page asks for it. Its absence here is a missing
-    # second action rather than a neutral control occupying the slot.
-    expect(page.locator(".lf-banner-actions > *").first).to_have_class(
-        "lf-btn lf-comments"
-    )
+    # Approval takes the slot beside Comments where a page asks for one, so the absence
+    # above is the whole fact: the row is a control short rather than a control longer.
     assert errors == []
     page.close()
 

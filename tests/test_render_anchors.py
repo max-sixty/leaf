@@ -1279,8 +1279,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           roles: [...l.querySelectorAll('[data-lf-syn]')]
             .map(s => [s.dataset.lfSyn, s.textContent]),
         })),
-        separators: [...d.querySelectorAll('[data-separator]')]
-          .map(s => s.textContent.trim()),
+        separators: [...d.querySelectorAll('[data-separator]')].map(s => ({
+          text: s.textContent.trim(),
+          chrome: s.classList.contains('lf-ui'),
+        })),
       };
     })""")
     by_path = {f["path"]: f["lines"] for f in files}
@@ -1292,12 +1294,23 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(file["summaryAligned"] for file in files), (
         "a file path and its change counts split across summary rows"
     )
+    separators = [separator for file in files for separator in file["separators"]]
+    assert separators, "the fixture exercised no Pierre hunk separator"
+    assert all(separator["chrome"] for separator in separators), separators
 
     reading = page.evaluate("""async () => {
       const { says, textNodesUnder, wrote } = await import('/leaf.js');
       const diff = document.querySelector('#patch');
+      const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
-        .filter(({node}) => node.getRootNode() === diff.shadowRoot);
+        .filter(({node}) => node.getRootNode() === shadow);
+      const reference = document.createElement('pre');
+      reference.textContent = 'literal evidence';
+      document.querySelector('main').append(reference);
+      const rendered = shadow.querySelector('pre[data-diff]');
+      const leafFont = getComputedStyle(reference).fontFamily;
+      const leafBackground = getComputedStyle(reference).backgroundColor;
+      reference.remove();
       return {
         segmentCount: segments.length,
         saysPath: says(document).includes('gateway/limits.py'),
@@ -1305,6 +1318,15 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         hiddenNumbers: segments
           .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
           .map(({node}) => node.data),
+        separatorText: segments
+          .filter(({node}) => node.parentElement?.closest('[data-separator]'))
+          .map(({node}) => node.data),
+        coreSheets: shadow.querySelectorAll('style[data-core-css]').length,
+        themeSheets: shadow.querySelectorAll('style[data-theme-css]').length,
+        font: getComputedStyle(rendered).fontFamily,
+        background: getComputedStyle(rendered).backgroundColor,
+        leafFont,
+        leafBackground,
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
@@ -1312,6 +1334,12 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["hiddenNumbers"] == [], (
         f"hidden line numbers entered the page reading: {reading}"
     )
+    assert reading["separatorText"] == [], (
+        f"Pierre separator chrome entered the page reading: {reading}"
+    )
+    assert (reading["coreSheets"], reading["themeSheets"]) == (1, 1), reading
+    assert reading["font"] == reading["leafFont"], reading
+    assert reading["background"] == reading["leafBackground"], reading
 
     py = by_path["gateway/limits.py"]
     assert any(["kw", "if"] in line["roles"] for line in py), py
@@ -1512,53 +1540,80 @@ def test_a_diff_keeps_source_markup_inert(browser, serve):
     page.close()
 
 
-def test_a_diff_rejects_hunks_whose_counts_omit_source(browser, serve):
-    """Malformed range counts must fail visibly instead of truncating review evidence."""
+def test_a_diff_rejects_incomplete_hunks(browser, serve):
+    """Missing or wrong hunk ranges must fail instead of hiding review evidence."""
     page, errors = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate("""async () => {
-      const host = document.createElement('lf-diff');
-      host.id = 'malformed-diff';
-      const pre = document.createElement('pre');
-      pre.textContent = [
-        'diff --git a/example.js b/example.js',
-        '--- a/example.js',
-        '+++ b/example.js',
-        '@@ -1 +1 @@',
-        '-old',
-        '+new',
-        '+silently-lost',
-      ].join('\\n');
-      host.append(pre);
-      document.querySelector('main').append(host);
-      await new Promise((resolve, reject) => {
-        const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
-        const ready = () => {
-          if (!host.querySelector('.lf-error') && !host.shadowRoot)
-            return requestAnimationFrame(ready);
-          clearTimeout(limit);
-          resolve();
+      const settle = async (id, lines) => {
+        const host = document.createElement('lf-diff');
+        host.id = id;
+        const pre = document.createElement('pre');
+        pre.textContent = lines.join('\\n');
+        host.append(pre);
+        document.querySelector('main').append(host);
+        await new Promise((resolve, reject) => {
+          const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
+          const ready = () => {
+            if (!host.querySelector('.lf-error') && !host.shadowRoot)
+              return requestAnimationFrame(ready);
+            clearTimeout(limit);
+            resolve();
+          };
+          ready();
+        });
+        return {
+          rendered: host.classList.contains('lf-rendered'),
+          error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+          source: host.querySelector('.lf-error pre')?.textContent ?? null,
         };
-        ready();
-      });
-      return {
-        rendered: host.classList.contains('lf-rendered'),
-        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
-        source: host.querySelector('.lf-error pre')?.textContent ?? null,
       };
+      return Promise.all([
+        settle('wrong-count-diff', [
+          'diff --git a/example.js b/example.js',
+          '--- a/example.js',
+          '+++ b/example.js',
+          '@@ -1 +1 @@',
+          '-old',
+          '+new',
+          '+silently-lost',
+        ]),
+        settle('missing-hunk-diff', [
+          'diff --git a/example.js b/example.js',
+          '--- a/example.js',
+          '+++ b/example.js',
+          '-old',
+          '+new',
+        ]),
+      ]);
     }""")
-    assert result == {
-        "rendered": False,
-        "error": "<lf-diff> failed: parsePatchContent: hunk has more lines than expected",
-        "source": (
-            "diff --git a/example.js b/example.js\n"
-            "--- a/example.js\n"
-            "+++ b/example.js\n"
-            "@@ -1 +1 @@\n"
-            "-old\n"
-            "+new\n"
-            "+silently-lost"
-        ),
-    }
+    assert result == [
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: parsePatchContent: hunk has more lines than expected"
+            ),
+            "source": (
+                "diff --git a/example.js b/example.js\n"
+                "--- a/example.js\n"
+                "+++ b/example.js\n"
+                "@@ -1 +1 @@\n"
+                "-old\n"
+                "+new\n"
+                "+silently-lost"
+            ),
+        },
+        {
+            "rendered": False,
+            "error": "<lf-diff> failed: no hunk for example.js (a diff needs its @@ headers)",
+            "source": (
+                "diff --git a/example.js b/example.js\n"
+                "--- a/example.js\n"
+                "+++ b/example.js\n"
+                "-old\n"
+                "+new"
+            ),
+        },
+    ]
     assert errors == []
     page.close()
 

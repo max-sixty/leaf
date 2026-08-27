@@ -110,7 +110,7 @@ async function renderFile(file, sharedStyles) {
   for (const style of [...rendered.children].filter(
     (child) => child.localName === "style",
   )) {
-    const kind = style.hasAttribute("data-core") ? "core" : "theme";
+    const kind = style.hasAttribute("data-core-css") ? "core" : "theme";
     if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
     else style.remove();
   }
@@ -145,6 +145,11 @@ customElements.define(
           (patch) => patch.files,
         );
         if (!files.length) throw new Error("empty diff");
+        for (const file of files)
+          if (!file.hunks.length)
+            throw new Error(
+              `no hunk for ${file.name || "a file"} (a diff needs its @@ headers)`,
+            );
         const sharedStyles = new Map();
         const details = [];
         for (const file of files) details.push(await renderFile(file, sharedStyles));

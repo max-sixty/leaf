@@ -114,7 +114,7 @@ const result = await build({
   minify: true,
   legalComments: "inline",
   banner: {
-    js: "/*! @pierre/diffs 1.3.6 — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */",
+    js: `/*! @pierre/diffs ${process.argv[4]} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
   },
   plugins: [{
     name: "leaf-pierre-bounds",
@@ -160,6 +160,6 @@ fs.writeFileSync(
 EOF
 
 mkdir -p "$(dirname "$OUT")"
-(cd "$work" && node build.mjs "$OUT" "$NOTICES")
+(cd "$work" && node build.mjs "$OUT" "$NOTICES" "$PIERRE_VERSION")
 printf 'wrote %s (%s bytes) and %s\n' \
   "$OUT" "$(wc -c <"$OUT" | tr -d ' ')" "$NOTICES"

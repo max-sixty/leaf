@@ -91,18 +91,20 @@ an `xfail` or `skip` added to a failing test, an `expect(...)` relaxed to a bare
 `dispatchEvent`. Each removes the safety net while looking like a fix. If a fix
 reaches for one, the question to answer instead is what behaviour actually broke.
 
-## Weekly: the two vendored bundles
+## Weekly: vendored browser dependencies
 
 `.github/dependabot.yml` watches the action refs and `uv.lock`. It cannot watch
-the bundles under `plugins/leaf/skills/leaf/assets/vendor/`, because neither is
-resolved from a manifest — each is produced by a script holding the version as a
-shell variable. So they drift silently, and this is the step that catches it.
+the browser dependencies produced by the vendor scripts, because their versions
+live in shell variables rather than a manifest. They drift silently, and this is
+the step that catches it.
 
-Read the pinned version out of each script and compare it against upstream:
+Read the pinned versions out of the scripts and compare them against upstream:
 
 ```bash
 grep HLJS_VERSION scripts/vendor-highlight.sh    # against: npm view highlight.js version
 grep MARKED_VERSION scripts/vendor-marked.sh     # against: npm view marked version
+grep PIERRE_VERSION scripts/vendor-pierre.sh     # against: npm view @pierre/diffs version
+grep SHIKI_VERSION scripts/vendor-pierre.sh      # against: npm view shiki version
 ```
 
 On drift, bump the variable and rerun that script — the rebuilt bundle is the
@@ -112,6 +114,9 @@ single ESM file, so its output tracks the version directly.
 registry's `$languages.names`, so its output is a function of both the pin and
 the registry: rerunning it after an unrelated registry change is how the bundle
 and the lint stay unable to disagree.
+`vendor-pierre.sh` likewise builds Pierre and its bounded Shiki language set from
+that registry, and both pins must move together when their compatibility requires
+it.
 
-Run the suite afterwards. The browser tests load both bundles, so a bad rebuild
+Run the suite afterwards. The browser tests load the bundles, so a bad rebuild
 surfaces there rather than in review.

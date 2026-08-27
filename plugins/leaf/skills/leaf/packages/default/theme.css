@@ -1433,7 +1433,7 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
 .lf-diff-path { font-family: var(--mono); font-size: var(--t-6); }
 .lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); }
-:host(.lf-rendered) [data-theme] {
+:host(.lf-rendered) {
   --diffs-font-family: var(--mono);
   --diffs-font-size: 13px;
   --diffs-line-height: 20px;

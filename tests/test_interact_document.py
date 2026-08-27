@@ -1289,6 +1289,21 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     assert standing.exit_code == 1
     assert "protected ids" in standing.output and "'c-done'" in standing.output
 
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "b1",
+            "action": "move",
+            "detail": {"card": "card-x", "to": "c-todo", "index": 0},
+        },
+    )
+    outranked = check(page_dir, version=2)
+    assert outranked.exit_code == 0, outranked.output
+    assert "ids dropped from revision r1: ['c-done']" in outranked.output
+
 
 def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     """The runtime replays a recorded action onto every later version, so the

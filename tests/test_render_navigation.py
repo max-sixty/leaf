@@ -1839,6 +1839,32 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     )
     assert "Ctrl is no modifier" in modified, modified
     assert "Mod, Alt, Shift" in modified, modified
+
+    # A registered result may deliberately precede the platform's own half of a press.
+    # It still enters through the same register — and therefore the same surfaces and
+    # scoping — but the dispatcher must not cancel that native result. The versions menu
+    # uses this for the Tab that closes it before the browser moves focus past its door.
+    native = page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          const owner = document.createElement('div');
+          owner.tabIndex = -1;
+          document.body.append(owner);
+          owner.focus();
+          let ran = 0;
+          keys(owner, 'A native companion', [
+            { keys: ['F2'], does: 'Run before the browser', line: 'run first',
+              native: true, run: () => ran++ },
+          ]);
+          const event = new KeyboardEvent(
+            'keydown', {key: 'F2', bubbles: true, cancelable: true}
+          );
+          owner.dispatchEvent(event);
+          owner.remove();
+          return {ran, prevented: event.defaultPrevented};
+        }"""
+    )
+    assert native == {"ran": 1, "prevented": False}, native
     assert errors == []
     page.close()
 

@@ -2930,8 +2930,40 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     compared.keyboard.press("v")
     compared.locator('.lf-version-row[data-lf-version="1"]').focus()
     compared.keyboard.press("Tab")
-    expect(compared.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
+    comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
+    expect(comparison).to_be_focused()
     expect(compared.locator(".lf-version-menu")).to_be_visible()
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave versions")
+    compared.keyboard.press("?")
+    expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")
+    compared.keyboard.press("Escape")
+    expect(comparison).to_be_focused()
+
+    # Holding Tab sends repeated keydowns after the first stop. The boundary action must
+    # repeat too: leaving the browser's focus move native does not mean leaving the menu
+    # painted over the control that move reaches.
+    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    compared.keyboard.up("Tab")
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
+
+    compared.keyboard.press("v")
+    compared.locator('.lf-version-row[data-lf-version="2"]').focus()
+    compared.keyboard.down("Shift")
+    compared.keyboard.down("Tab")
+    expect(comparison).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    compared.keyboard.up("Tab")
+    compared.keyboard.up("Shift")
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     assert compared_errors == []
     compared.close()
 

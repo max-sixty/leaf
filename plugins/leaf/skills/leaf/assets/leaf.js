@@ -503,8 +503,11 @@ function post(...args) {
 //           double-click.
 //   when  — its liveness. The one predicate every surface asks.
 //   run   — the press, taking the binding that fired.
+//   native— whether the platform completes its default after `run`. Off by default: a
+//           row normally owns the press it answers.
 //   repeat— whether holding the key repeats the press. Off by default: a held `]` was a
-//           page navigation per repeat, and a held pick a `choose` per repeat.
+//           page navigation per repeat, and a held pick a `choose` per repeat. It applies
+//           to native rows too, independently of whether their platform default repeats.
 //
 // A scope is where the keyboard means something particular — the page, a focused thread,
 // a card grip, a box being typed in. It declares its rows and where it holds, and where it

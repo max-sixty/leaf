@@ -115,6 +115,10 @@ export function answers(binding, ev) {
 // nothing was reading the half of a binding that decides which key it is.
 export function checked(rows, where) {
   rows.forEach((row, i) => {
+    if (row.native && !row.run)
+      throw new Error(
+        `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
+      );
     if (row.run && !row.line)
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,

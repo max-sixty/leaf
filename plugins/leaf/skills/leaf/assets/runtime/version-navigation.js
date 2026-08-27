@@ -86,6 +86,18 @@ export function createVersionNavigation({
   const versionsToWalk = () => versionCount() > 1;
   // The walk is the versions, not every press in the menu.
   const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
+  const versionStops = () =>
+    [...versionMenu.querySelectorAll("button:not(:disabled)")].filter(
+      (control) => control.getClientRects().length,
+    );
+  // A menu is a transient reading of the chooser, not a layer over the next control a
+  // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
+  // exit only from the boundary control in the direction being travelled. The native row
+  // below closes the menu first and then leaves the browser to complete that same Tab.
+  const atVersionBoundary = (end) => {
+    const stops = versionStops();
+    return document.activeElement === stops.at(end);
+  };
   // One setter stating the whole outcome, per showComposer and showFab: nothing reads
   // the class back to find out whether the menu is up.
   function showVersionMenu(open) {
@@ -117,21 +129,6 @@ export function createVersionNavigation({
   // nothing could close would put the trap back for the reader who never touches the
   // keyboard.
   versionBtn.onclick = () => showVersionMenu(versionsOffered() && !versionMenuOpen);
-  // A menu is a transient reading of the chooser, not a layer over the next control a
-  // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so close only
-  // from the boundary control in the direction being travelled. showVersionMenu hands
-  // focus to the door, then the browser's unprevented Tab continues naturally from that
-  // stable place. Arrow keys remain the version-row walk. Closing only after focusin would
-  // be too late for a modal opened from the menu: the modal would remember a row that had
-  // since become hidden and restore focus to nowhere when it closed.
-  versionMenu.addEventListener("keydown", (event) => {
-    if (event.key !== "Tab") return;
-    const stops = [...versionMenu.querySelectorAll("button:not(:disabled)")].filter(
-      (control) => control.getClientRects().length,
-    );
-    const leaving = event.shiftKey ? stops[0] : stops.at(-1);
-    if (event.target === leaving) showVersionMenu(false);
-  });
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
@@ -226,6 +223,27 @@ export function createVersionNavigation({
     // statement rather than a suspension the surfaces have to be told about separately.
     claims: allButTheReference,
     rows: [
+      {
+        keys: ["Tab"],
+        does: "Leave the versions menu forward",
+        line: "leave versions",
+        native: true,
+        // A held Tab is still one continuous trip through the controls. When its repeated
+        // keydown reaches the boundary, closing is part of that press just as it is for a
+        // fresh Tab; only the platform's focus move remains native.
+        repeat: true,
+        when: () => atVersionBoundary(-1),
+        run: () => showVersionMenu(false),
+      },
+      {
+        keys: ["Shift+Tab"],
+        does: "Leave the versions menu backward",
+        line: "leave versions",
+        native: true,
+        repeat: true,
+        when: () => atVersionBoundary(0),
+        run: () => showVersionMenu(false),
+      },
       {
         keys: ["Escape"],
         does: "Close the versions menu",

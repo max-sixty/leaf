@@ -1530,6 +1530,10 @@ A row has these meanings:
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
   platform's own on a link, or one another scope's row already runs.
+- `native: true` performs `run` without preventing the platform default. Use it
+  when Leaf must change state before the browser completes the same press, not
+  to leave an otherwise owned press half-handled. It still follows the ordinary
+  `repeat` policy; declare `repeat: true` when repeated keydowns must also run.
 
 `live` answers the declared liveness once for every projection. Do not repeat a
 guard inside `run` if the guard changes whether the key should be shown. When
@@ -1554,8 +1558,9 @@ fact used by a word or liveness predicate changes.
 Scopes nest by focus. `scopesFor` produces the active stack and element scopes
 are spliced where their elements stand. The dispatcher walks innermost first.
 The first live row answering the event runs, prevents the platform default when
-it owns the press, and stops. A focused widget may shadow a page key without
-either scope naming the other.
+it owns the press, and stops. A `native` row runs and stops the scope walk but
+leaves that default intact. A focused widget may shadow a page key without either
+scope naming the other.
 
 `claims` lists platform keys a scope consumes even when no registered row
 answers them. A text entry scope uses `takesLetters` and claims only keys that

@@ -283,7 +283,7 @@ customElements.define(
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         if (actionStands(accepted)) this.#answered(true);
-        toast("Picks saved");
+        toast("Marked answered — recorded");
         return true;
       });
       this.#sending(sent);

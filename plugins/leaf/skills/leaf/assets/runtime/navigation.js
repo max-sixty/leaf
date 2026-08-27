@@ -126,7 +126,7 @@ export function createNavigation({
   // at the foot banks no debt for u to press back through; and the step stands down the
   // moment the box moves under another hand — a wheel, a centering — because the reader's
   // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
-  // rest of the runtime's motion already gives (SCROLL).
+  // rest of the runtime's motion already gives (scrollBehavior()).
   //
   // The page the step halves is the one the reader can see. The document's box lends its
   // top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read

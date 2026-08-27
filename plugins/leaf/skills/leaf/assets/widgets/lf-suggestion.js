@@ -356,12 +356,16 @@ customElements.define(
       let perch = this;
       while (perch.parentElement !== col && col.contains(perch.parentElement))
         perch = perch.parentElement;
-      // Several suggestions can share one top-level block. Inserting every row directly
-      // after that block reverses their source order (each new row takes the same slot),
-      // so the controls for the last sentence appeared first. Walk the already docked run
-      // and append to it; source, reading, and keyboard order now stay one order.
+      // Several suggestions can share one top-level block. Insert among the rows already
+      // docked there by source position, so both first mount and reconnection preserve the
+      // page's reading and keyboard order.
       let dock = perch;
-      while (dock.nextElementSibling?.classList.contains("lf-sug-actions"))
+      while (
+        dock.nextElementSibling?.classList.contains("lf-sug-actions") &&
+        rows.has(dock.nextElementSibling) &&
+        this.#anchor.compareDocumentPosition(rows.get(dock.nextElementSibling)) &
+          Node.DOCUMENT_POSITION_PRECEDING
+      )
         dock = dock.nextElementSibling;
       dock.after(this.#row);
       rows.set(this.#row, this.#anchor);

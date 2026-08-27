@@ -1270,7 +1270,7 @@ ${MARK_RULES}
         overscroll-behavior-inline: contain; scrollbar-width: none;
         scroll-padding-inline: calc(14px + var(--lf-safe-left));
         padding: 2px calc(14px + var(--lf-safe-right)) 2px
-          calc(14px + var(--lf-safe-left)); gap: 8px; }
+          calc(14px + var(--lf-safe-left)); gap: 6px; }
       .lf-banner-actions::-webkit-scrollbar { display: none; }
       .lf-comments { order: 0; }
       .lf-signoff { order: 1; }
@@ -1279,7 +1279,7 @@ ${MARK_RULES}
       .lf-answer-all { order: 4; }
       .lf-version { order: 5; }
       .lf-others { order: 6; }
-      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 12px; }
+      .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 10px; }
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.

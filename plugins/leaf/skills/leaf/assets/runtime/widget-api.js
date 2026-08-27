@@ -36,8 +36,6 @@ export {
 } from "./registry.js";
 export {
   FOLD_MS,
-  REDUCED,
-  SCROLL,
   motion,
   onMotionPreferenceChange,
   reducedMotion,

@@ -391,7 +391,6 @@ customElements.define(
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
-        animation: reducedMotion() ? 0 : 150,
         direction: "vertical",
         swapThreshold: 0.65, // hysteresis: boundaries don't flip-flop under a still pointer
         emptyInsertThreshold: 12,

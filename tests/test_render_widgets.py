@@ -62,7 +62,7 @@ pytestmark = pytest.mark.nightly
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
-    """Hoisted decision rows follow the changes they name instead of reversing them."""
+    """Hoisted decision rows keep source order through upgrade and reconnection."""
     source = leaf_page(
         "suggestion-order",
         """
@@ -79,6 +79,15 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     assert page.locator(".lf-sug-actions").evaluate_all(
         "rows => rows.map(row => row.dataset.lfFor)"
     ) == ["first-change", "second-change", "third-change"]
+    page.locator("#first-change").evaluate(
+        "el => { const parent = el.parentNode; const next = el.nextSibling;"
+        "        el.remove(); parent.insertBefore(el, next); }"
+    )
+    assert page.locator(".lf-sug-actions").evaluate_all(
+        "rows => rows.map(row => row.dataset.lfFor)"
+    ) == ["first-change", "second-change", "third-change"], (
+        "reconnecting the first suggestion moved its controls after later source rows"
+    )
     page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
     walked = []
     for _ in range(3):

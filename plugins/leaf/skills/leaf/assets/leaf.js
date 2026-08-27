@@ -3911,6 +3911,7 @@ anchorRuntime = createAnchors({
   anchorLabel,
   anchorsReady: () => anchoringReady,
   bareReaction: (t) => conversationRuntime.bareReaction(t),
+  banner,
   blockAt,
   buildThreads,
   closestAcross,

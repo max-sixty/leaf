@@ -2126,7 +2126,7 @@ def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve)
 
 def test_the_half_page_keys_jump_under_reduced_motion(browser, serve):
     """Under reduced motion the step forgoes its glide and jumps, like every other
-    motion here (SCROLL) — read straight after the press, since a jump leaves nothing
+    motion here (scrollBehavior()) — read straight after the press, since a jump leaves nothing
     to wait for and a glide would read as wherever its first frame had got to."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},

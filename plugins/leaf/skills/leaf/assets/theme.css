@@ -1490,7 +1490,7 @@ html.lf-versioning::view-transition-new(root) {
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so
  * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and SCROLL, which answer the same preference themselves.
+ * motion() and the live motion readings, which answer the same preference themselves.
  *
  * The two halves are not written alike, because a duration is a way of keeping
  * an animation and no way at all of keeping a transition. An animation is

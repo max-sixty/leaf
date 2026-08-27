@@ -6,8 +6,6 @@ import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 // this instead.
 const preference = matchMedia("(prefers-reduced-motion: reduce)");
 const active = new Set();
-export let REDUCED = preference.matches;
-export let SCROLL = REDUCED ? "instant" : "smooth";
 export const reducedMotion = () => preference.matches;
 export const scrollBehavior = () => (preference.matches ? "instant" : "smooth");
 export function onMotionPreferenceChange(listener) {
@@ -16,8 +14,6 @@ export function onMotionPreferenceChange(listener) {
   return () => preference.removeEventListener("change", changed);
 }
 preference.addEventListener("change", (event) => {
-  REDUCED = event.matches;
-  SCROLL = event.matches ? "instant" : "smooth";
   // Preference changes apply to motion already under the reader as well as the next
   // gesture. Finishing reaches each caller's ordinary cleanup path; cancelling here
   // would reject `finished` and strand folds whose end state is installed there.

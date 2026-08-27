@@ -57,6 +57,8 @@ from render_support import (
     PAGE_MARKUP,
     PAINTED_IN_SILENCE_PAGE,
     PANEL_DIFF_MARKUP,
+    PART_DIAGRAM_PAGE,
+    PART_DIAGRAM_V2,
     PICTURE_PAGE,
     PRESS,
     PRINT_LOSS_PAGE,
@@ -1216,6 +1218,136 @@ def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, ser
     node.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-diagram · flow")
     assert errors == []
+    page.close()
+
+
+def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
+    """The authored Mermaid id, rather than its generated SVG id, is the anchor.
+
+    An unlisted node is the control: it still takes the whole diagram. A listed node
+    outlines only its current SVG group, while the diagram holds the accessible note
+    and the panel place. Reloading makes Mermaid generate the SVG again and proves the
+    stable token resolves to that new box.
+    """
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    diagram = page.locator("#flow")
+
+    unlisted = diagram.locator('g[id^="flowchart-U-"]')
+    unlisted.click()
+    page.locator(".lf-fab").click()
+    expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+    page.get_by_role("button", name="Cancel").click()
+
+    start = diagram.locator('g[id^="flowchart-S-"]')
+    start.click()
+    page.locator(".lf-fab").click()
+    expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+    expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
+    page.locator(".lf-composer textarea").fill("name the retry path here")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+
+    posted = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["anchor"] for event in posted] == [
+        {"section": "flow", "visual": "node:S"}
+    ]
+    expect(page.locator(".lf-thread .lf-quote")).to_have_text(
+        "§ diagram · Start request"
+    )
+    expect(diagram.locator(":scope > .lf-mark-note")).to_have_count(1)
+    expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
+
+    (serve.page_dir / "versions" / "v2.html").write_text(PART_DIAGRAM_V2)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "note", "author": "claude", "version": 2, "text": "reordered"},
+    )
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(diagram.locator('g[id^="flowchart-S-"]')).to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(diagram.locator(":scope > .lf-mark-note")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_linked_flowchart_node_uses_the_item_aim_for_its_comment(browser, serve):
+    """A link keeps plain navigation while Alt-click claims only the node comment."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    diagram = page.locator("#flow")
+    handler = diagram.locator('g[id^="flowchart-H-"]')
+    expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
+
+    handler.click(modifiers=["Alt"])
+    expect(handler).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+    expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
+    page.locator(".lf-composer textarea").fill("keep this linked step visible")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+
+    posted = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["anchor"] for event in posted] == [
+        {"section": "flow", "visual": "node:H"}
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
+    """A design-control label is not reinterpreted as a semantic visual token."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    diagram = page.locator("#flow")
+    handler = diagram.locator('g[id^="flowchart-H-"]')
+    page.keyboard.press("i")
+    handler.click()
+
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · Handle request · lf-diagram · flow"
+    )
+    page.locator(".lf-composer textarea").fill("the link needs a stronger affordance")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    posted = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [(event["about"], event["anchor"]) for event in posted] == [
+        ("layer", {"section": "flow", "part": "Handle request"})
+    ]
+    expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(handler).not_to_have_class(re.compile(r"\blf-mark-el\b"))
+    assert errors == []
+    page.close()
+
+
+def test_visual_parts_refuse_a_mermaid_type_the_adapter_cannot_address(browser, serve):
+    """An unsupported promise is visible instead of producing detached anchors later."""
+    unsupported = leaf_page(
+        "unsupported diagram parts",
+        """
+<h1 id="t">Exchange</h1>
+<lf-diagram id="exchange" parts="node:A"><pre>
+sequenceDiagram
+  A->>B: Request
+</pre></lf-diagram>
+""",
+    )
+    page, _ = open_page(browser, serve(unsupported))
+
+    expect(page.locator("#exchange .lf-error")).to_contain_text(
+        "commentable flowchart nodes not found: node:A"
+    )
     page.close()
 
 

@@ -86,7 +86,9 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
 
 
 @contract_writer
-def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> None:
+def cmd_comment(
+    page_dir: Path, quote: str, section: str, part: str, text, markup: str
+) -> None:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
     anchorless shape the browser's general box posts, which is where a question about
@@ -101,14 +103,22 @@ def cmd_comment(page_dir: Path, quote: str, section: str, text, markup: str) -> 
         events = page.events
         version = latest_published(page_dir, events)
         anchor = None
-        if quote or section:
+        if quote or section or part:
             html = version_path(page_dir, version).read_text(encoding="utf-8")
             registry = require_registry(page_dir)
             projection, _, _ = page_projection(html, events, registry, version)
             decided = decisions(projection.actions, registry)
             edited = rewritten_bodies(projection.actions)
             try:
-                anchor = capture_anchor(html, registry, quote, section, decided, edited)
+                anchor = capture_anchor(
+                    html,
+                    registry,
+                    quote,
+                    section,
+                    decided,
+                    edited,
+                    part,
+                )
             except ValueError as err:
                 sys.exit(f"can't anchor in v{version}: {err}")
         if markup:

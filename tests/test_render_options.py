@@ -1135,7 +1135,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 
 
 def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
-    """A cell says its status in a bar beside its words, and the aim is a wash: two
+    """A cell says its status in the leading gutter, and the aim is a wash: two
     facts about the same box, so both are true at once and the pointer arriving changes
     only its own.
 
@@ -1154,10 +1154,10 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     the recommended cell and its plain neighbour, since "unchanged" is also what a cell
     with nothing to say returns.
 
-    The bar's own place is held too. It stands in the column the group reserves for a
-    keyboard address, clear of the leading edge, because the ask around a control wears
-    the reader's band three pixels outside that edge and a second accent bar just inside
-    it cannot be told from the first."""
+    The gutter holds the status bar first and the keyboard address second. This keeps
+    the bar away from both the reader's band outside the group and the option's words.
+    The address appears only while the keyboard is in the group, but its room is held at
+    rest so neither signal moves the prose."""
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
     page.wait_for_function(
         """() => document.querySelector('#live-group')
@@ -1188,7 +1188,7 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     )
     assert 0 < left and left + width < column, (
         f"the bar at {left}…{left + width} does not stand inside the {column}px the "
-        "group reserves, so it is back on the edge the reader's band runs down"
+        "group reserves"
     )
     marked.hover()
     expect(marked).not_to_have_css("background-color", fill)
@@ -1197,12 +1197,11 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
         f"against {[stripe, [left, width], border, radius]} at rest"
     )
 
-    # The column holds two things, and the other one arrives only for the keyboard. Both
-    # terms of the column follow the type — the chip's box does by declaration
-    # (--lf-key-box), and the bar hangs off the column's trailing edge — so this is what
-    # says the column is still the sum of what stands in it. A package redeclaring the
-    # ladder is the case: written as a number, the column stayed the size the chip was
-    # when somebody measured it, and the chip grew into the bar's three pixels.
+    # The address arrives between the status and the prose. Read all three boundaries:
+    # a status after the address sits beside the sentence and looks like a text caret
+    # whenever the keyboard chip is hidden. The chip follows the type through
+    # --lf-key-box, so this also catches a fixed gutter that lets a larger address collide
+    # with either neighbour.
     page.mouse.move(0, 0)
     mark = page.locator("#l-stage .lf-pick").first
     mark.focus()
@@ -1210,14 +1209,17 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     page.keyboard.press("Tab")
     chip = page.locator("#l-stage .lf-address")
     expect(chip).to_be_visible()
-    ends = chip.evaluate(
-        """el => el.getBoundingClientRect().right
-                 - el.closest('lf-option').getBoundingClientRect().left"""
+    starts, ends = chip.evaluate(
+        """el => { const chip = el.getBoundingClientRect();
+                     const option = el.closest('lf-option').getBoundingClientRect();
+                     return [chip.left - option.left, chip.right - option.left]; }"""
     )
-    assert ends < left, (
-        f"the keyboard address runs to {ends} and the status bar opens at {left}, so "
-        "the column is holding one of them in the other's room"
+    assert left + width < starts < ends < column, (
+        f"the {column}px gutter places the status at {left}…{left + width} and the "
+        f"address at {starts}…{ends}; it must read status, address, then prose"
     )
+    page.evaluate("document.documentElement.classList.add('lf-copy')")
+    expect(chip).to_be_hidden()
     assert errors == []
     page.close()
 

@@ -73,6 +73,7 @@ export function createConversation(dependencies) {
     threadsBox,
     toggleBtn,
     updateSequence,
+    visualPartLabel,
     wireInput,
     withdraw,
   } = dependencies;
@@ -121,6 +122,7 @@ export function createConversation(dependencies) {
     renderQuiet,
     renderSaid,
     reportPageError,
+    visualPartLabel,
     tokenEntry,
   });
 

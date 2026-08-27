@@ -61,6 +61,7 @@ from .validation import (
     event_record_error,
     held_comment_error,
     version_response_comment_error,
+    visual_anchor_error,
 )
 
 
@@ -624,17 +625,23 @@ class Handler(BaseHTTPRequestHandler):
                             f"unknown reaction token {event['token']!r}; this "
                             f"layer declares {sorted(tokens)}",
                         )
-                if kind == "comment" and (event.get("holds") or event.get("response")):
+                anchor = event.get("anchor") or {}
+                if kind == "comment" and (
+                    event.get("holds")
+                    or event.get("response")
+                    or anchor.get("visual")
+                ):
                     registry, rejection = registry_or_rejection()
                     if rejection:
                         return rejection
                     page_by_id = parse_version(self.page_dir, event["version"]).by_id
-                    if error := held_comment_error(event, page_by_id, registry):
-                        return self.event_rejection(event, error)
-                    if error := version_response_comment_error(
-                        event, page_by_id, registry
+                    for error in (
+                        held_comment_error(event, page_by_id, registry),
+                        version_response_comment_error(event, page_by_id, registry),
+                        visual_anchor_error(event, page_by_id, registry),
                     ):
-                        return self.event_rejection(event, error)
+                        if error:
+                            return self.event_rejection(event, error)
                 if "parent" in event and event["parent"] not in {
                     e["id"] for e in events if e["kind"] in MESSAGE_KINDS
                 }:

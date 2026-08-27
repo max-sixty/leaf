@@ -123,12 +123,11 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             expect(chip).to_be_visible()
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
-            # Never on the hairline the outer corner would have shared with the cells
-            # around it: the column the option reserves starts 6px in, in both forms.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
-            assert round(sits["x"]) == 6, (
-                f"{id_}'s digit sits {sits['x']} in from its option's left edge"
-            )
+            # The status/address/prose order has its own focused geometry test. Here the
+            # address only has to stay wholly inside its option and off the option's
+            # words; pinning its old 6px inset made this test reject that new gutter.
+            assert sits["x"] > 0, f"{id_}'s digit sits on its option's outer edge"
             if sitting == "in the corner":
                 assert round(sits["y"]) == 8, (
                     f"{id_}'s digit sits {sits['y']} down from its option's top, not in "

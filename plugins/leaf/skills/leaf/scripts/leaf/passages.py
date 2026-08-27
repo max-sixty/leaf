@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .files import published_versions, version_path
-from .structure import VOID_TAGS, implicit_closes
+from .registry import visual_parts
+from .structure import VOID_TAGS, implicit_closes, parse_structure
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf comment` writes one down
@@ -504,7 +505,13 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
 
 
 def capture_anchor(
-    html: str, registry, quote: str, section: str, decided=None, rewrites=None
+    html: str,
+    registry,
+    quote: str,
+    section: str,
+    decided=None,
+    rewrites=None,
+    part: str | None = None,
 ) -> dict:
     """The anchor a quote makes, written the way a selection's is. Raises ValueError with
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
@@ -514,6 +521,10 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
+    if part and not section:
+        raise ValueError("--part needs --section to name its visual")
+    if part and quote:
+        raise ValueError("--part names a visual box; use it without --quote")
     text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
         html, registry, decided, rewrites
     )
@@ -535,6 +546,18 @@ def capture_anchor(
                 "it — the decision removed everything it held from the page, and an anchor "
                 "on it would reach nobody. Anchor on the surrounding text instead."
             )
+    if part:
+        record = parse_structure(html).by_id.get(section)
+        available = visual_parts(record or {}, registry)
+        if not available:
+            raise ValueError(
+                f"§ {section} declares no commentable visual parts in this version"
+            )
+        if part not in available:
+            raise ValueError(
+                f"§ {section} has no visual part {part!r}; known: {list(available)}"
+            )
+        return {"section": section, "visual": part}
     if not quote:
         return {"section": section}
 

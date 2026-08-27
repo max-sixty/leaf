@@ -56,6 +56,42 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
     assert event_model.read_events(page_dir) == before
 
 
+def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
+    parted = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(parted)
+    publish(page_dir)
+
+    valid = {
+        "kind": "comment",
+        "version": 1,
+        "text": "where does this retry?",
+        "anchor": {"section": "flow", "visual": "node:A"},
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
+
+    for conflicting in ({"quote": "A"}, {"datum": "row-1"}):
+        mixed = {
+            **valid,
+            "text": "conflicting target",
+            "anchor": {**valid["anchor"], **conflicting},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(mixed).encode())
+        assert status == 400
+        assert b"names a box rather than a passage" in body
+
+    invalid = {
+        **valid,
+        "text": "unknown target",
+        "anchor": {"section": "flow", "visual": "node:Missing"},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
+    assert status == 400
+    assert b"known: ['node:A', 'node:B']" in body
+
+
 def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     declare_data_input(
         page_dir,

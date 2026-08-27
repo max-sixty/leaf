@@ -529,7 +529,7 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     url = serve(PICTURE_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-tree"]["x-visual"] = True  # a widget the runtime has never heard of
+    registry["lf-tree"]["x-visual"] = "whole"  # a widget core has never heard of
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     page, errors = open_page(browser, url)
 
@@ -2018,7 +2018,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert roomy["noteFloat"] == "right"
     assert roomy["padding"] == {"left": 264, "right": 384}
     assert roomy["column"]["width"] == 720, (
-        f"the live page's stable scrollbar gutter came out of the column: {roomy}"
+        f"the two strips took the live page's stable scrollbar gutter from the column: {roomy}"
     )
     assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1

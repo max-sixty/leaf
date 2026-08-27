@@ -593,9 +593,15 @@ lf-chip {
             <tr>
               <td><code>x-visual</code></td>
               <td>
-                The rendered element takes a whole-widget comment by click, there being
-                no text in it to select, and the click's anchor is the widget rather
-                than a generated part inside it.
+                How a rendered picture takes comments. <code>whole</code> anchors every
+                click on the authored widget. <code>{parts: ATTR}</code> lets its module
+                map tokens from ATTR to stable generated parts through
+                <code>lfVisualPartAt(target)</code> and <code>lfVisualPart(part)</code>,
+                which returns <code>{element, label}</code>. A click on a mapped part
+                stores its token as <code>anchor.visual</code> while the widget remains
+                the semantic seat. A missing token or provider detaches on replay rather
+                than widening to the whole picture. The render gate requires both
+                provider methods on every matching instance.
               </td>
             </tr>
             <tr>

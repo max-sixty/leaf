@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     SUGGESTED,
     SUGGESTION,
+    check,
     comment,
     decide,
     drafted,
@@ -196,6 +197,63 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     )
     assert element.exit_code == 0, element.output
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
+
+
+def test_a_comment_may_name_a_declared_visual_part(page_dir):
+    parted = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(parted)
+    published(page_dir)
+
+    result = comment(
+        page_dir,
+        "--section",
+        "flow",
+        "--part",
+        "node:A",
+        "--text",
+        "where does this retry?",
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["anchor"] == {
+        "section": "flow",
+        "visual": "node:A",
+    }
+
+    unknown = comment(
+        page_dir,
+        "--section",
+        "flow",
+        "--part",
+        "node:Missing",
+        "--text",
+        "x",
+    )
+    assert unknown.exit_code != 0
+    assert "known: ['node:A', 'node:B']" in unknown.output
+
+    unseated = comment(page_dir, "--part", "node:A", "--text", "x")
+    assert unseated.exit_code != 0
+    assert "--part needs --section" in unseated.output
+
+
+def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
+    parted = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(parted)
+    published(page_dir)
+    (page_dir / "versions" / "v2.html").write_text(
+        parted.replace(' parts="node:A node:B"', ' parts="node:B"')
+    )
+
+    result = check(page_dir, 2)
+    assert result.exit_code != 0
+    assert "visual parts present in v1.html but dropped in v2.html" in result.output
+    assert "flow · node:A" in result.output
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

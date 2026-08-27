@@ -1098,7 +1098,12 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 def test_export_prints_threads_and_versions(page_dir):
     # The heading is the page's title as a reader sees it, entities and all.
     (page_dir / "versions" / "v1.html").write_text(
-        PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
+        PAGE.replace(
+            "<title>t</title>", "<title>Cutoff &amp; backfill</title>"
+        ).replace(
+            '<lf-diagram id="flow">',
+            '<lf-diagram id="flow" parts="node:A node:B">',
+        )
     )
     CliRunner().invoke(
         cli_model.cli,
@@ -1137,6 +1142,16 @@ def test_export_prints_threads_and_versions(page_dir):
             "author": "user",
             "anchor": {"section": "flow"},
             "text": "arrow?",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c-visual",
+            "author": "user",
+            "anchor": {"section": "flow", "visual": "node:A"},
+            "text": "start here?",
         },
     )
     events_model.append_event(
@@ -1194,6 +1209,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # The widget rides its message into the transcript, indented under the words.
     assert "- **Claude**: reversibility\n  <lf-diagram" in result.output
     assert "> § flow" in result.output  # element-anchored comments keep their target
+    assert "> § flow · node:A" in result.output
     assert long_quote not in result.output, "the whole passage went into the transcript"
     head = next(
         ln for ln in result.output.splitlines() if ln.startswith("> “The batch")

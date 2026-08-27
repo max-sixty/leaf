@@ -479,30 +479,17 @@ lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
 lf-option .lf-pick:focus-visible { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
-/* The digit a keyboard pick answers by, worn as the address chip the runtime dresses
- * (.lf-address) — the g chord's own chips are that same fact and wear the same chip,
- * two keys wider for carrying the leader and the list's letter as well.
- * Two things are this rule's: where it sits and when it shows.
- *
- * Where: in the column the option reserves for it (the joined control's rules above).
- * It sat on the option's outer corner once, which is half outside a group that clips
- * itself — that is how its cells' fills stop at its rounded corners — so no address the
- * page ever painted was whole, and a first row's was a sliver.
- *
- * How far down the column it stands is each form's own answer, and each states it — the
- * shared rule below holds only the column, the way the pick mark's shared rule holds only
- * its face. A card's digit rides at the head of that column, its top up in the padding and
- * the case clear to its right; a row's is centred on the row, which needs no number at
- * all. Written as one 8px for both it was level with a 15px row and two pixels too high on
- * a 17px one, and nothing said so: the digit moved with a size it had never been written
- * against.
- *
- * When: while one of the group's marks holds keyboard focus, so an address appears
- * exactly when a key could use it and a pointer pick never summons one. */
-lf-option > .lf-address { position: absolute; left: 6px; }
+/* The digit a keyboard pick answers by, worn as the shared address chip. The option's
+ * gutter reads status, address, then prose, so the digit starts after the status rule
+ * and ends before the option's words. A card aligns it with the top of its content; a
+ * row centres it on the complete row. It appears only while one of the group's marks
+ * holds keyboard focus, when the digit can take a press. */
+lf-option > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
-lf-options[choose]:has(> lf-option > .lf-pick:focus-visible) > lf-option > .lf-address {
-                     display: block; }
+@media screen {
+ html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:focus-visible)
+                    > lf-option > .lf-address { display: block; }
+}
 /* The thread multi-question's submit (the module adds it there alone): one press
  * stating the set is whole, since every toggle already reached the agent as it
  * landed. Answered is paint, never a wider word — the pressed control's own line
@@ -647,23 +634,15 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * and a cell redefining it for a different fact was one name meaning two
      * things.) */
     & > lf-option { --stripe: transparent; --fill: var(--card); background: var(--fill); }
-    /* The stripe stands in the column the group already reserves for a keyboard address,
-     * so it is a rule beside this option's own words rather than a line on the group's
-     * edge. On the edge it was the second accent bar in six pixels: the ask around a
-     * control wears the reader's band three pixels outside that same edge, and between
-     * the two lay three pixels of paper and a hairline nobody can see against it. Which
-     * bar was the recommendation could not be read at all, exactly while the reader was
-     * arriving at the question — and the recommendation has no other carrier.
-     *
-     * Every cell draws it, transparent until a status names a colour, so a status added
-     * later needs no rule of its own here. It hangs off the column's trailing edge, so
-     * it stands with the words it is about; the column is what holds it clear of the
-     * digit, which ends at 23px and is centred on a row where it rides the top of a
-     * card. */
+    /* The status rule is the first mark in the option's gutter. Its inset separates it
+     * from the ask's focus band outside the group, while the address and a final gap
+     * separate it from the prose. Every cell draws the same transparent rule until a
+     * status supplies its colour. */
     & > lf-option::before { content: ""; position: absolute;
-                     left: calc(var(--lf-address-col) - 6px);
+                     inset-inline-start: var(--sp-2);
                      top: var(--sp-2); bottom: var(--sp-2);
-                     width: 3px; border-radius: 2px; background: var(--stripe); }
+                     inline-size: var(--lf-status-bar-w);
+                     border-radius: 2px; background: var(--stripe); }
     /* The aim wash. The cell under the pointer and the cell under the keyboard are the
      * same fact to the reader — this one is being weighed — so both wear one paint. It
      * deepens whatever the cell is filled with, rather than lifting it: a cell that
@@ -749,39 +728,18 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      outline-offset: var(--here-ring-gap); }
     & > lf-option > .lf-pick:focus-visible { outline: none; }
   }
-  /* The column an option's keyboard address and its status bar stand in: 6px, the chip,
-   * 5px, a 3px bar, and 3px before the words. Both are held whether or not anyone
-   * reaches for the keyboard and whether or not the option has a status, because the
-   * alternative is one of them arriving into room the option hasn't got — which is what
-   * a bar taking the column the digit already filled did, on a row, where the digit is
-   * centred and the two came out touching.
+  /* The leading column holds a status rule, a keyboard address, and the gap before the
+   * option's words. The rule starts at the ordinary 8px inset. The address follows one
+   * small gap later and takes --lf-key-box, so changing the utility type grows the
+   * column with the chip. The final 6px keeps the chip off the prose. This room is held
+   * before the keyboard address appears, so focusing an option moves nothing.
    *
-   * The chip's own term is --lf-key-box (theme.css) rather than the width it comes to
-   * today, for the reason that token exists: the chip follows the type, so a package
-   * redeclaring the ladder grows it, and a column stated as a number is the room it was
-   * measured against rather than the room it holds. The chip's floor
-   * rather than a width now, and what keeps the chip at it is that a pick answers one
-   * digit (lf-options.js caps the group at nine); a two-key address is the chord's, and
-   * the chord draws in a layer of its own. The first drafts all borrowed room
-   * from somewhere — from the cell's corner, where a corner belongs to the cells around
-   * it and the group's own border ran through it, and from the page margin beside the
-   * group, which in the grid of that day was another cell's words as soon as the group
-   * had two columns. Reserved, the digit has one place in every form and lands on
-   * nothing.
-   *
-   * Live pages only, with the group's own shape: a copy and paper are handed no keys, so
-   * they keep the options the markup describes rather than a rail held for an address
-   * nothing can type.
-   *
-   * Named, because the column is where the group's words begin and more than one thing in
-   * it has to begin there — the options spend it below, the question spends it above
-   * (the joined control's rules). Written as a number in each, the two agreed until one
-   * of them was edited. The floors below spend it, and so does the pseudo the
-   * question is also written as: no selector reaches an element child and a
-   * pseudo-element at once, so that one is stated twice and the column is the part
-   * that must not drift. */
+   * Live pages only: copies and paper receive no keyboard address. The column is named
+   * because options, the group's question, and generated cells all begin on it. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *) {
-                     --lf-address-col: calc(var(--lf-key-box) + 17px); }
+                     --lf-status-bar-w: 3px;
+                     --lf-address-start: calc(var(--sp-2) + var(--lf-status-bar-w) + var(--sp-1));
+                     --lf-address-col: calc(var(--lf-address-start) + var(--lf-key-box) + 6px); }
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
                      padding-inline-start: var(--lf-address-col); }
  }

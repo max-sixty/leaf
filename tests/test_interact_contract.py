@@ -575,6 +575,41 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     assert "lf-task" in result.output and "status" in result.output
 
 
+def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
+    """A re-vendored provider must keep every semantic target the log names."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            '<lf-diagram id="flow">',
+            '<lf-diagram id="flow" parts="node:A node:B">',
+        )
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "anchor": {"section": "flow", "visual": "node:A"},
+            "text": "keep this target",
+        },
+    )
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    diagram = registry["lf-diagram"]
+    diagram.pop("x-visual")
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-diagram": diagram}))
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "visual anchor 'node:A'" in result.output
+
+
 def test_report_validation_and_append_cannot_straddle_revendoring(
     page_dir, monkeypatch
 ):

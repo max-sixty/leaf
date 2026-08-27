@@ -1857,7 +1857,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
 
 
 def test_shift_escape_returns_to_the_page_without_unwinding_the_panel(browser, serve):
-    """Leaving the panel to compare a comment with the document is not backing out:
+    """Leaving a panel beside the document to compare a comment is not backing out:
     the panel and its narrowing stay exactly as the reader left them, while focus goes
     to the page. The shifted press remains reachable from the find box, whose ordinary
     Escape still owns one rung of the panel stack."""
@@ -1883,6 +1883,36 @@ def test_shift_escape_returns_to_the_page_without_unwinding_the_panel(browser, s
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
     assert errors == []
     page.close()
+
+
+def test_shift_escape_is_not_offered_while_the_panel_covers_the_page(browser, serve):
+    """A covering panel locks the page scroller, so focus cannot honestly return to
+    that page while keeping the panel open. Its ordinary Escape rung remains the one
+    route back and closes the covering panel."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
+
+    context = browser.new_context(viewport={"width": 800, "height": 900})
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        thread = page.locator(".lf-threads > .lf-thread")
+        thread.focus()
+
+        expect(
+            page.locator(
+                ".lf-keyline .lf-key:not([hidden])",
+                has_text="page — comments kept",
+            )
+        ).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-panel")).to_be_hidden()
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
 
 
 def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser, serve):

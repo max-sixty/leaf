@@ -3265,6 +3265,10 @@ const PANEL = {
       keys: ["Shift+Escape"],
       does: "Return to the page, keeping the comment panel open",
       line: "page — comments kept",
+      // A covering panel locks the document scroller, so returning focus to the
+      // covered page would promise a page the reader cannot move. There the ordinary
+      // Escape rung closes the panel and is the one truthful route back.
+      when: () => !panelCovers(),
       run: letGo,
     },
   ],

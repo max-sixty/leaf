@@ -36,8 +36,8 @@ export function createAddress({
   // and an edge is one more place it names rather than a second leader. Naming a list shows
   // it — the panel opens for the comments — and each of its addressable members then wears
   // its digit as a chip, so the addresses are on screen wherever the reader is looking. A
-  // digit consumes the mode; so
-  // does Escape, and so does focus entering a box. Any other key disarms and then runs with
+  // digit consumes the mode; so does Escape, and so does focus entering a box. Any other
+  // key disarms and then runs with
   // its ordinary meaning, which the dispatcher spells as disarming and walking the stack
   // again rather than as a rule of its own — a mistyped g therefore costs the reader nothing
   // beyond the press their next key was going to make anyway.

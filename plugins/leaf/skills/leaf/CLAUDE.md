@@ -1406,8 +1406,9 @@ drops it — or the two capabilities cannot differ in liveness under one heading
 
 A press may deliberately leave layers standing while moving focus outside them. That is
 not an Escape rung, because it gives no layer back. It earns a separate modified row that
-states what remains open; the comment panel's `Shift+Escape` returns to the document and
-keeps both the panel and its narrowing.
+states what remains open. Beside the document, the comment panel's `Shift+Escape` returns
+to the document and keeps both the panel and its narrowing. A panel covering the document
+cannot make that promise, so its ordinary Escape rung remains the route back.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The

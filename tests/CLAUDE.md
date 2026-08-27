@@ -280,7 +280,8 @@ whose missing boundary is the condition under test. A shared shell must not repa
 the malformed case a test is meant to present.
 
 The browser fixture `serve` is the normal owner of a specimen. It runs `page init`
-to vendor the current layer, writes the document as v1, copies example media, adds
+once per worker for the ordinary layer, clones that initialized page for each test,
+writes the document as v1, copies the example media that document names, adds
 the publishing note and any requested comments, then serves the directory with the
 real HTTP handler and page key. Handed an example's path rather than its markup it
 also lays in the log that example ships, and sets the cursor past it: a page is
@@ -289,9 +290,12 @@ message carries — exists nowhere else. Pass the markup where the log would be
 noise for the subject, and say which in a comment. Reach its page directory through `serve.page_dir`
 when a test needs to publish v2 or inspect the log; do not construct a parallel
 directory whose relationship to the served URL is implicit. `page_dir` in
-`interact_support.py` owns command-level files without starting a browser. Keeping
-those roles separate makes it clear whether a failure belongs to the file/CLI
-boundary or to the served runtime.
+`interact_support.py` owns command-level files without starting a browser and clones
+its ordinary initialized layer the same way. Runtime and vendor files are immutable
+fixture inputs and may be shared; state, contracts, theme, and modules remain private.
+Tests of initialization, re-vendoring, or a custom overlay still cross the real
+`page init` boundary. Keeping those roles separate makes it clear whether a failure
+belongs to the file/CLI boundary or to the served runtime.
 
 ## Drive the browser a reader gets
 

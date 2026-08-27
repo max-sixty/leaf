@@ -35,6 +35,7 @@ their direct readers;
 and selection-composer state;
 `runtime/drawn-edge.js` owns the shared resizable boundary used by the comment panel
 and tray panels;
+`runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns widget source-contract subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;

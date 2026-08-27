@@ -4,7 +4,7 @@
 # resolved by `uv` through the host's own index — that is what lets the plugin
 # install with no build step and no venv, and this file does not change it. What
 # `uv.lock` pins below is the developer's reproducibility; the payload carries
-# floors and no lock of its own, per the root `CLAUDE.md`.
+# floors and no lock of its own, per `plugins/leaf/CLAUDE.md`.
 #
 # What is here is what the *suite* needs: that same set, because the tests import
 # the payload modules into their own process,

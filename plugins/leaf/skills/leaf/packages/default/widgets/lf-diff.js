@@ -217,21 +217,14 @@ customElements.define(
               "diff --git, similarity index 100%, rename from, and rename to " +
               "lines may omit textual @@ hunks)",
           );
-        for (const file of files) {
-          const pathOnlyRename =
-            file.type === "rename-pure" &&
-            file.prevMode === undefined &&
-            file.mode === undefined &&
-            file.prevObjectId === undefined &&
-            file.newObjectId === undefined;
-          if (!file.hunks.length && !pathOnlyRename)
+        for (const file of files)
+          if (!file.hunks.length && file.type !== "rename-pure")
             throw new Error(
               `unsupported hunkless diff for ${file.name || "a file"} ` +
                 "(only path-only renames may omit @@ hunks; binary, mode-only, " +
                 "and empty added/deleted entries belong in prose; changed files " +
                 "need textual @@ hunks)",
             );
-        }
         const sharedStyles = new Map();
         const rendered = [];
         for (const file of files)

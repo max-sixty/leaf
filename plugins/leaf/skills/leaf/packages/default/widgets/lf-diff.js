@@ -96,6 +96,8 @@ function summaryNode(file) {
 function renameNode(file) {
   const row = document.createElement("div");
   row.className = "lf-diff-rename";
+  row.dataset.lfGen = "1";
+  row.toggleAttribute("data-lf-said", true);
   row.append(
     Object.assign(document.createElement("span"), {
       className: "lf-diff-path lf-diff-before",
@@ -172,13 +174,21 @@ customElements.define(
           (patch) => patch.files,
         );
         if (!files.length) throw new Error("empty diff");
-        for (const file of files)
-          if (!file.hunks.length && file.type !== "rename-pure")
+        for (const file of files) {
+          const pathOnlyRename =
+            file.type === "rename-pure" &&
+            file.prevMode === undefined &&
+            file.mode === undefined &&
+            file.prevObjectId === undefined &&
+            file.newObjectId === undefined;
+          if (!file.hunks.length && !pathOnlyRename)
             throw new Error(
               `unsupported hunkless diff for ${file.name || "a file"} ` +
-                "(binary, mode-only, and empty added/deleted entries belong in prose; " +
-                "changed files need textual @@ hunks)",
+                "(only path-only renames may omit @@ hunks; binary, mode-only, " +
+                "and empty added/deleted entries belong in prose; changed files " +
+                "need textual @@ hunks)",
             );
+        }
         const sharedStyles = new Map();
         const rendered = [];
         for (const file of files)

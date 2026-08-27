@@ -1611,6 +1611,14 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
           'copy from source.js',
           'copy to copied.js',
         ]),
+        settle('rename-and-mode-diff', [
+          'diff --git a/old.js b/new.js',
+          'old mode 100644',
+          'new mode 100755',
+          'similarity index 100%',
+          'rename from old.js',
+          'rename to new.js',
+        ]),
       ]);
     }""")
     assert result == [
@@ -1633,8 +1641,9 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             "rendered": False,
             "error": (
                 "<lf-diff> failed: unsupported hunkless diff for example.js "
-                "(binary, mode-only, and empty added/deleted entries belong in prose; "
-                "changed files need textual @@ hunks)"
+                "(only path-only renames may omit @@ hunks; binary, mode-only, "
+                "and empty added/deleted entries belong in prose; changed files "
+                "need textual @@ hunks)"
             ),
             "source": (
                 "diff --git a/example.js b/example.js\n"
@@ -1648,8 +1657,9 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             "rendered": False,
             "error": (
                 "<lf-diff> failed: unsupported hunkless diff for logo.png "
-                "(binary, mode-only, and empty added/deleted entries belong in prose; "
-                "changed files need textual @@ hunks)"
+                "(only path-only renames may omit @@ hunks; binary, mode-only, "
+                "and empty added/deleted entries belong in prose; changed files "
+                "need textual @@ hunks)"
             ),
             "source": (
                 "diff --git a/app.js b/app.js\n"
@@ -1667,8 +1677,9 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             "rendered": False,
             "error": (
                 "<lf-diff> failed: unsupported hunkless diff for empty.txt "
-                "(binary, mode-only, and empty added/deleted entries belong in prose; "
-                "changed files need textual @@ hunks)"
+                "(only path-only renames may omit @@ hunks; binary, mode-only, "
+                "and empty added/deleted entries belong in prose; changed files "
+                "need textual @@ hunks)"
             ),
             "source": (
                 "diff --git a/empty.txt b/empty.txt\n"
@@ -1680,8 +1691,9 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             "rendered": False,
             "error": (
                 "<lf-diff> failed: unsupported hunkless diff for empty.txt "
-                "(binary, mode-only, and empty added/deleted entries belong in prose; "
-                "changed files need textual @@ hunks)"
+                "(only path-only renames may omit @@ hunks; binary, mode-only, "
+                "and empty added/deleted entries belong in prose; changed files "
+                "need textual @@ hunks)"
             ),
             "source": (
                 "diff --git a/empty.txt b/empty.txt\n"
@@ -1702,13 +1714,30 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
                 "copy to copied.js"
             ),
         },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless diff for new.js "
+                "(only path-only renames may omit @@ hunks; binary, mode-only, "
+                "and empty added/deleted entries belong in prose; changed files "
+                "need textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/old.js b/new.js\n"
+                "old mode 100644\n"
+                "new mode 100755\n"
+                "similarity index 100%\n"
+                "rename from old.js\n"
+                "rename to new.js"
+            ),
+        },
     ]
     assert errors == []
     page.close()
 
 
-def test_a_diff_shows_a_pure_rename_without_an_empty_disclosure(browser, serve):
-    """Pierre identifies pure renames, so they remain evidence without invented hunks."""
+def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
+    """A path-only rename remains evidence without an invented textual hunk."""
     page, errors = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate("""async () => {
       const host = document.createElement('lf-diff');
@@ -1765,7 +1794,7 @@ def test_a_diff_shows_a_pure_rename_without_an_empty_disclosure(browser, serve):
         "stat": "renamed",
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
-        "wroteRename": True,
+        "wroteRename": False,
     }
     assert errors == []
     page.close()

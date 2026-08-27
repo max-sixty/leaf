@@ -512,6 +512,12 @@ def validate_registry(registry: dict, source) -> dict:
                     f"{path}: <{tag}> x-measured input `{input_name}` is not one "
                     "of its x-data inputs"
                 )
+            source_attr = entry["x-data"][input_name]["source"]
+            if source_attr not in entry.get("required", []):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-measured input `{input_name}` source "
+                    f"attribute `{source_attr}` must be required"
+                )
             at_attr = measured["at"]
             at_schema = properties.get(at_attr)
             if not (
@@ -670,6 +676,12 @@ def validate_registry(registry: dict, source) -> dict:
             raise RegistryError(
                 f"{path}: <{tag}> x-data source attributes are authored bindings, "
                 f"but {dynamic} are written by value records"
+            )
+        if measured and measured["at"] in mutable_values:
+            raise RegistryError(
+                f"{path}: <{tag}> x-measured timestamp attribute "
+                f"`{measured['at']}` is an authored capture instant, but is written "
+                "by a value record"
             )
         work = entry.get("x-work")
         if work and work["seat"] == "content":

@@ -959,6 +959,10 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
             "is not one of its x-data inputs",
         ),
         (
+            lambda entry: entry["required"].remove("source"),
+            "source attribute `source` must be required",
+        ),
+        (
             lambda entry: entry["required"].remove("at"),
             "must be required and declare a date-time string",
         ),
@@ -978,6 +982,35 @@ def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
     change(registry["lf-num"])
 
     with pytest.raises(registry_model.RegistryError, match=message):
+        registry_model.validate_registry(registry, "test registry")
+
+
+def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
+    """The capture instant belongs to the authored version. Letting replay write it
+    would give the browser a newer freshness boundary than file checks and page state
+    read from the immutable document."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    widget = registry["lf-num"]
+    widget["x-upgrade"] = True
+    widget["properties"]["restated"] = {"type": "boolean"}
+    widget["x-state"] = {
+        "retime": {
+            "detail": {
+                "type": "object",
+                "properties": {"at": widget["properties"]["at"]},
+                "required": ["at"],
+                "additionalProperties": False,
+            },
+            "facet": "capture",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "at", "value": "at"},
+        }
+    }
+
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="x-measured timestamp attribute `at` is an authored capture instant",
+    ):
         registry_model.validate_registry(registry, "test registry")
 
 

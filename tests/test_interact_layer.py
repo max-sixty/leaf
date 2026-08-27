@@ -617,7 +617,12 @@ def test_behavior_modules_use_the_widget_api_boundary():
         )
 
 
+ENTRY_MODULE = "/leaf.js"
 PROBE_BOUNDARY = "/runtime/widget-api.js"
+# The three server-side modules that name the entry module's path for the document's own
+# sake rather than to reach a helper: the boot tag `version check` requires, the server's
+# reading of that same tag, and the note about a page's asset URLs carrying no query.
+ENTRY_MODULE_NAMED_BY = {"checking.py", "http.py", "service.py"}
 
 
 def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
@@ -629,36 +634,29 @@ def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
     element runtime` moved `quoted` to `runtime/widget-elements.js` and eleven browser
     tests failed on `leaf.quoted is not a function`.
 
-    The reading is the module's text and the guarantee is the narrow one text can carry:
-    a module holding a browser probe import does not name the entry module's path. The
-    population is what holds such an import rather than what already reaches the
-    boundary — asked the second way, a module wholly on the entry module never enters the
-    reading at all, which is `render_checks.py` at the commit above, where eight of the
-    nine offending probes stood and no boundary path did. It does not
-    prove that the boundary still exports what a probe goes on to call, and no file-side
-    reading here will. The probes are JavaScript inside Python strings, and every reading
-    of that short of a real JavaScript parser is a partial one — it reports clean for the
-    spellings it was not written for, so it answers the same way whether the probes are
-    right or merely unread, which is the failure a guard exists to remove rather than to
-    reproduce. The render suite proves that half by running them, which is how the failure
-    above surfaced in the first place.
+    The convention is flat and has no population to pick: outside the three modules named
+    above, nothing under `scripts/` spells the entry module's path — not in a payload, not
+    in a comment. So the reading recognises no JavaScript at all, and there is no
+    selector for a valid spelling to fall outside of. It cost one comment in
+    `render_checks.py`, which says "the entry module" in prose; that is the whole price,
+    and the exemptions are a set here rather than a shape a string can accidentally take.
 
-    Prose in a probe module therefore says "the entry module" rather than spelling its
-    path, because a text reading cannot tell a comment from a payload. An `import(` on a
-    quoted absolute path is a payload in a way a sentence is not, which is what keeps the
-    boot tag in `checking.py` and the asset paths in `http.py` and `service.py` out of the
-    population while they go on naming the entry module for their own reasons."""
-    probes = {
-        module.name: source
-        for module in sorted((SKILL_ROOT / "scripts" / "leaf").glob("*.py"))
-        if re.search(r"""import\(\s*["'`]/""", source := module.read_text())
-    }
-    assert probes, "no module under scripts/leaf holds a browser probe import"
-    named = sorted(name for name, source in probes.items() if "/leaf.js" in source)
-    assert not named, (
-        f"render-gate probes import past the widget API boundary: {named} name the "
-        f"entry module, and the helpers a probe reaches for are published by "
-        f"{PROBE_BOUNDARY}"
+    It does not prove that the boundary still exports what a probe goes on to call, and no
+    file-side reading here will. The probes are JavaScript inside Python strings, and
+    every reading of that short of a real JavaScript parser is a partial one — it reports
+    clean for the spellings it was not written for, so it answers the same way whether the
+    probes are right or merely unread, which is the failure a guard exists to remove
+    rather than to reproduce. The render suite proves that half by running them, which is
+    how the failure above surfaced in the first place."""
+    modules = sorted((SKILL_ROOT / "scripts").rglob("*.py"))
+    assert modules, "no server modules were read"
+    named = {module.name for module in modules if ENTRY_MODULE in module.read_text()}
+    assert named == ENTRY_MODULE_NAMED_BY, (
+        f"{sorted(named - ENTRY_MODULE_NAMED_BY)} name {ENTRY_MODULE} and "
+        f"{sorted(ENTRY_MODULE_NAMED_BY - named)} no longer do. A browser program reaches "
+        f"the page's own readings through {PROBE_BOUNDARY}, which is where the runtime "
+        "publishes them; say 'the entry module' in prose, and add a module here only when "
+        "it names the path for the document's own contract."
     )
 
 

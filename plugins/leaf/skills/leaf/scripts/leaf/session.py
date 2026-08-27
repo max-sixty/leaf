@@ -245,9 +245,9 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
             for reading in watch.tick():
                 readings.append(reading)
                 if reading.watch_state == "lost":
-                    if page_dir is not None and paths_same(reading.page_dir, page_dir):
+                    if named is not None and paths_same(reading.page_dir, named):
                         print(
-                            f"stopped watching {page_dir}: this session no longer owns it",
+                            f"stopped watching {named}: this session no longer owns it",
                             file=sys.stderr,
                         )
                         return 2
@@ -321,15 +321,26 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
             # A leaf the agent idled has nobody left to carry a comment to, so it
             # leaves the watch, and the last one gone ends the wait too.
             if not live:
-                if not readings:
+                held = [r for r in readings if r.watch_state != "lost"]
+                if not held:
+                    transferred = [r for r in readings if r.watch_state == "lost"]
+                    if transferred:
+                        one = len(transferred) == 1
+                        names = ", ".join(str(r.page_dir) for r in transferred)
+                        print(
+                            f"stopped watching {names}: this session no longer owns "
+                            f"{'it' if one else 'them'}",
+                            file=sys.stderr,
+                        )
+                        return 2
                     print(
                         "nothing to watch: no page named and none claimed by "
                         "this session",
                         file=sys.stderr,
                     )
                     return 2
-                one = len(readings) == 1
-                names = ", ".join(str(r.page_dir) for r in readings)
+                one = len(held) == 1
+                names = ", ".join(str(r.page_dir) for r in held)
                 print(
                     f"the {'leaf' if one else 'leaves'} ended; {names} "
                     f"{'is' if one else 'are'} idle",

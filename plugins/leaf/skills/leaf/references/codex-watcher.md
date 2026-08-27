@@ -32,10 +32,22 @@ page path, and resolved Leaf launcher. Its job is:
 4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
    unified exec. Retain and poll that command's session id: after advancing the
    cursor, ack stays active as the next wait. A successful ack exits 0 whether that
-   wait delivered or the page went idle, so read its output rather than its status:
-   a batch on stdout is the next delivery, and an empty stdout with the idle line on
-   stderr is where the watcher exits. The watcher does not author, reply, resolve,
-   stamp, change status, or handle an event itself.
+   wait delivered or ended, so read its streams rather than its status:
+
+   - A batch on stdout is the next delivery; return to step 3.
+   - Empty stdout with `the leaf ended` or `nothing to watch` on stderr ends the
+     watcher normally.
+   - `server is not running` gives the recovery command. After recovery, resume
+     with an unnamed `leaf wait`, which cannot reclaim a page transferred meanwhile.
+   - `this session no longer owns` means a successor has the page. End without
+     starting a named wait.
+   - Stderr saying another `leaf wait` is already active means that existing
+     process owns the lease. Do not start a second watcher.
+
+   Empty stdout alone is not permission to rerun the named wait. If the host itself
+   canceled the command, resume with an unnamed wait. Step 3's named-wait retry is
+   only for a batch lost or truncated before its cursor advanced. The watcher does
+   not author, reply, resolve, stamp, change status, or handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
 that `leaf page state <page>` reports `listening: true` before ending the page task's

@@ -73,11 +73,27 @@ it.
 An optional Codex watcher requires the user's explicit authorization because it
 creates a visible task. Its separate route is in the main skill.
 
-`leaf wait` revives a dead server under its recorded lifetime and reports that on
-stderr. Exit 2 means revival failed, every watched page is idle, or an earlier wait
-of this session's still holds the watch — leave that one running. A wait that
-ends on its own prints its batch or says why on stderr; one that stopped with
-nothing printed was stopped by the host, so start another.
+The initial `leaf wait` revives a dead server under its recorded lifetime and
+reports that on stderr. Its exit 2 means stderr names an ending rather than a
+batch. After `leaf ack` advances the cursor, however, its exit stays 0 whether
+the rearmed wait delivered or ended; read its streams rather than branching on
+that status:
+
+- JSON lines on stdout are the next batch.
+- `the leaf ended` or `the leaves ended` on stderr means every page left in the
+  watch is idle; `nothing to watch` means the session holds none. End the loop.
+- `server is not running` gives the recovery command. After recovery, resume
+  the session-wide loop with an unnamed `leaf wait`.
+- `this session no longer owns` means a successor has the page. Do not name or
+  reclaim it. A rearm keeps watching any other live page; when the observed
+  transfer empties that set, it exits with this line.
+- Stderr saying another `leaf wait` is already active means the existing
+  process still owns the session lease. Leave that watcher running rather than
+  starting another.
+
+Empty stdout alone is not evidence that the host stopped the process. Start a
+replacement unnamed wait only when the host itself reports that it canceled or
+killed the command.
 
 ## Batch delivery and acknowledgement
 

@@ -1074,6 +1074,77 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
 
+def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
+    page_dir, tmp_path, spawn, monkeypatch
+):
+    """The acknowledged page is a delivery coordinate, not the rearm's target.
+
+    Hold its status read after the session-wide watcher selected both pages,
+    then transfer that page and speak on the other one. The transfer must drop
+    only its page: ending the rearm there leaves the other page silently
+    unwatched until a later hook repairs it.
+    """
+    other = tmp_path / "second-page"
+    shutil.copytree(page_dir, other)
+    serving(page_dir, 1)
+    serving(other, 2)
+    service_model.claim_page(page_dir)
+    service_model.claim_page(other)
+    session_model.cmd_status(page_dir, "waiting", "first page")
+    session_model.cmd_status(other, "waiting", "second page")
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "first", "author": "user", "text": "one"},
+    )
+
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    acknowledging = spawn(
+        [launcher, "ack", str(page_dir), "1"],
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    identity = service_model.host_identity()
+    lease_path = service_model.waiter_lease_path(page_dir, identity)
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if files_model.read_json(page_dir / "cursor.json") == {
+            "seq": 1
+        } and service_model.lock_is_held(lease_path):
+            break
+        if acknowledging.poll() is not None:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("ack did not advance the cursor and take the session watch")
+    assert acknowledging.poll() is None
+
+    status_path = page_dir / "status.json"
+    status = status_path.read_bytes()
+    status_path.unlink()
+    os.mkfifo(status_path)
+    writer = fifo_writer(status_path, "the rearm never selected its batch page")
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    service_model.claim_page(page_dir)
+    events_model.append_event(
+        other,
+        {"kind": "comment", "id": "second", "author": "user", "text": "two"},
+    )
+    os.write(writer, status)
+    os.close(writer)
+
+    out, err = acknowledging.communicate(timeout=10)
+    assert acknowledging.returncode == 0, f"{out}{err}"
+    header, event = [json.loads(line) for line in out.splitlines()]
+    assert header == {"page": str(other), "threads": []}
+    assert (event["id"], event["text"]) == ("second", "two")
+    assert files_model.read_json(other / "cursor.json") is None
+    assert service_model.page_claim(page_dir)["id"] == "successor"
+
+
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "working", "running the browser suite")

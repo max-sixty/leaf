@@ -1543,11 +1543,13 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     Escape removes one entered digit. The page's chips and key line make that temporary
     ambiguity visible, so the extra reach does not turn short addresses into a timeout or
     an implicit guess."""
-    links = " ".join(
-        f'<a id="link-{n}" href="#link-{n}">link {n}</a>' for n in range(1, 13)
+    # One row per member keeps this test about decimal addressing. The crowded-address
+    # test above deliberately leaves collision survival to the platform's font metrics.
+    links = "".join(
+        f'<li><a id="link-{n}" href="#link-{n}">link {n}</a></li>' for n in range(1, 13)
     )
     page, errors = open_page(
-        browser, serve(leaf_page("Twelve links", f"<p>{links}</p>"))
+        browser, serve(leaf_page("Twelve links", f"<ol>{links}</ol>"))
     )
     line = page.locator(".lf-keyline")
 

@@ -630,7 +630,11 @@ def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
     tests failed on `leaf.quoted is not a function`.
 
     The reading is the module's text and the guarantee is the narrow one text can carry:
-    a module that reaches the boundary does not name the entry module's path. It does not
+    a module holding a browser probe import does not name the entry module's path. The
+    population is what holds such an import rather than what already reaches the
+    boundary — asked the second way, a module wholly on the entry module never enters the
+    reading at all, which is `render_checks.py` at the commit above, where eight of the
+    nine offending probes stood and no boundary path did. It does not
     prove that the boundary still exports what a probe goes on to call, and no file-side
     reading here will. The probes are JavaScript inside Python strings, and every reading
     of that short of a real JavaScript parser is a partial one — it reports clean for the
@@ -640,13 +644,16 @@ def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
     above surfaced in the first place.
 
     Prose in a probe module therefore says "the entry module" rather than spelling its
-    path, because a text reading cannot tell a comment from a payload."""
+    path, because a text reading cannot tell a comment from a payload. An `import(` on a
+    quoted absolute path is a payload in a way a sentence is not, which is what keeps the
+    boot tag in `checking.py` and the asset paths in `http.py` and `service.py` out of the
+    population while they go on naming the entry module for their own reasons."""
     probes = {
         module.name: source
         for module in sorted((SKILL_ROOT / "scripts" / "leaf").glob("*.py"))
-        if PROBE_BOUNDARY in (source := module.read_text())
+        if re.search(r"""import\(\s*["'`]/""", source := module.read_text())
     }
-    assert probes, f"no module under scripts/leaf reaches {PROBE_BOUNDARY}"
+    assert probes, "no module under scripts/leaf holds a browser probe import"
     named = sorted(name for name, source in probes.items() if "/leaf.js" in source)
     assert not named, (
         f"render-gate probes import past the widget API boundary: {named} name the "

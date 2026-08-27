@@ -247,7 +247,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         == ""
     ), "the retired version's authored inline property survived"
     assert page.locator("html").evaluate(
-        "el => el.style.getPropertyValue('--lf-avail').trim()"
+        "el => el.style.getPropertyValue('--lf-panel-w').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
     assert errors == []

@@ -192,7 +192,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """A page that only informs ends its banner at Comments.
+    """A page that only informs starts its action sequence with Comments.
 
     The slot the approve button takes on a sign-off page stays empty here rather than
     picking up a neutral control, which is the fact a reader can see: an informational
@@ -203,10 +203,9 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # absence beside it worth reading rather than a row that never rendered.
     expect(page.locator(".lf-comments")).to_be_visible()
     assert page.locator(".lf-signoff").count() == 0
-    # The approve button is the row's last control where a page asks for one, and a
-    # blanket-answer control inserts ahead of the version chooser, so the row ending
-    # at Comments is the slot standing empty rather than merely unnamed.
-    expect(page.locator(".lf-banner-actions > *").last).to_have_class(
+    # Approval follows Comments when a page asks for it. Its absence here is a missing
+    # second action rather than a neutral control occupying the slot.
+    expect(page.locator(".lf-banner-actions > *").first).to_have_class(
         "lf-btn lf-comments"
     )
     assert errors == []
@@ -255,6 +254,16 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
 
     for width in (320, 390):
         assert_primary_reach(width)
+
+    resized(page, 320, 844)
+    actions = page.locator(".lf-banner-actions")
+    actions.evaluate("el => { el.scrollLeft = 0; el.tabIndex = -1; el.focus(); }")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-comments")).to_be_focused()
+    assert actions.evaluate("el => el.scrollLeft") == 0
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-signoff")).to_be_focused()
+    assert actions.evaluate("el => el.scrollLeft") == 0
 
     # Simulate the row's reachable busy state at the upper covering breakpoint. The
     # identities do not matter to the layout contract; the product controls all carry
@@ -331,6 +340,28 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
 
     page.emulate_media(reduced_motion="no-preference")
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
+
+    page.evaluate(
+        """() => {
+          window.__lfFrames = [];
+          window.requestAnimationFrame = callback =>
+            (window.__lfFrames.push(callback), window.__lfFrames.length);
+          window.cancelAnimationFrame = () => {};
+          document.body.scrollTo({top: 0, behavior: 'instant'});
+        }"""
+    )
+    page.keyboard.press("d")
+    assert page.evaluate("() => window.__lfFrames.length") > 0
+    page.emulate_media(reduced_motion="reduce")
+    page.evaluate(
+        """() => {
+          const frames = window.__lfFrames.splice(0);
+          for (const callback of frames) callback(performance.now() + 16);
+        }"""
+    )
+    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(
+        half, abs=1
+    ), "an active glide kept moving after the reader asked for reduced motion"
     assert errors == []
     page.close()
 
@@ -2221,43 +2252,6 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     page.close()
 
 
-def test_esc_in_the_comment_panel_stays_the_panels_while_the_tray_stands(
-    browser, serve, other_leaf
-):
-    """With both panels standing, Esc takes the leaves tray first — but only
-    while focus stands outside the comment panel. A reader backing out of the
-    general box is standing on the panel's list, and their next Esc used to close
-    the tray on the far side of the screen instead: the key left the work it was
-    unwinding, and the reader watching the right edge saw nothing happen. The rung
-    asks where focus is, not which things are open, and there is one definition of
-    it for the thread, the list and the page scenes alike."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("l")  # the tray first, then the panel over it
-    page.keyboard.press("c")  # which stands the reader on the panel's list
-    expect(page.locator(".lf-threads")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("close comments")
-    page.keyboard.press("Escape")  # the panel the reader stands in, not the tray
-    expect(page.locator(".lf-panel")).to_be_hidden()
-    expect(page.locator(".lf-others-panel")).to_be_visible()
-    # Focus lands on the panel's reopening control, outside both panels, so the
-    # ladder's next rung is the tray's — the glance closes last.
-    expect(page.locator(".lf-comments")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("close leaves")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-others-panel")).not_to_be_visible()
-    # The last rung, and the reason the ladder does not end at the last panel: closing
-    # one lands the reader on the control that reopens it, so pressing Esc until nothing
-    # happens has to end on the page rather than on the machinery.
-    expect(page.locator(".lf-comments")).to_be_focused()
-    expect(page.locator(".lf-keyline")).to_contain_text("back to the page")
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.activeElement === document.body")
-    expect(page.locator(".lf-keyline")).not_to_contain_text("back to the page")
-    assert errors == []
-    page.close()
-
-
 def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
     """`html` is `overflow: hidden` here so the document scrolls in `body`, and the
     browser scrolls whichever box it last saw the reader put themselves in. On a fresh
@@ -2366,10 +2360,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page.close()
 
 
-def test_covering_workspaces_replace_each_other_instead_of_stacking(browser, serve):
-    """A narrow page has one covering workspace while wide pages may compare two."""
+@pytest.mark.parametrize("width", [500, 1200])
+def test_workspaces_replace_each_other_instead_of_stacking(browser, serve, width):
+    """Comments and trays are alternate workspaces at every width."""
     page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
-    resized(page, 500, 700)
+    resized(page, width, 700)
     asks = page.locator(".lf-asks-panel")
     comments = page.locator(".lf-panel")
 

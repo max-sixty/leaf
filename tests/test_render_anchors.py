@@ -61,9 +61,8 @@ pytestmark = pytest.mark.nightly
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
     """The document reserves exactly the head covered by the painted banner.
 
-    The same edge decides which passage becomes the reader's saved landmark and where an
-    ask walk starts. A missing reservation or a banner whose box has grown past it would
-    silently classify hidden text as visible.
+    A missing reservation puts the first block under the banner. A mismatched reservation
+    also makes anchored browser scrolls stop above or below the visible page.
     """
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
@@ -76,13 +75,12 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     page.close()
 
     assert stated > 0, (
-        "the banner no longer reserves a measurable head, so the anchor pass reads its "
-        f"on-screen line as {stated} and every block on the page counts as one the "
-        "reader is looking at"
+        f"the banner reserves {stated}px, so the page's first block is no longer held "
+        "clear of its painted chrome"
     )
     assert drawn == stated, (
-        f"the banner is drawn to {drawn}px and states {stated}px, so the line the "
-        "anchor pass draws between read and unread is in neither place"
+        f"the banner is drawn to {drawn}px but the page reserves {stated}px, so the "
+        "first block and anchored scrolls land against different edges"
     )
     assert errors == [], errors
 

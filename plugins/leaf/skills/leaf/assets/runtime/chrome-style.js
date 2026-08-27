@@ -1272,13 +1272,6 @@ ${MARK_RULES}
         padding: 2px calc(14px + var(--lf-safe-right)) 2px
           calc(14px + var(--lf-safe-left)); gap: 6px; }
       .lf-banner-actions::-webkit-scrollbar { display: none; }
-      .lf-comments { order: 0; }
-      .lf-signoff { order: 1; }
-      .lf-latest-chip { order: 2; }
-      .lf-asks { order: 3; }
-      .lf-answer-all { order: 4; }
-      .lf-version { order: 5; }
-      .lf-others { order: 6; }
       .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 10px; }
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }

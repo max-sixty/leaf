@@ -953,11 +953,9 @@ let trayUp = null;
 const openTray = (key) => trayUp === key;
 function showTray(key) {
   if (trayUp === key) return;
-  // When either edge is a covering sheet, one workspace at a time keeps the page from
-  // ending up behind two independently scrollable layers. Wide layouts still keep the
-  // tray and conversations side by side for cross-reference.
-  if (key && panelOpen && (commentsEdge.over.matches || traysEdge.over.matches))
-    setPanel(false);
+  // Comments and trays are alternate workspaces. Retire the standing one before another
+  // opens so layout, focus, and persisted state never have to reconcile two of them.
+  if (key && panelOpen) setPanel(false);
   trayUp = key;
   for (const [name, { panel, btn, paint }] of trays) {
     const open = name === key;
@@ -1025,8 +1023,7 @@ function restoreTray() {
   if (!trayUp) return;
   const tray = trays.get(trayUp);
   if (!tray) return;
-  if (panelOpen && (commentsEdge.over.matches || traysEdge.over.matches))
-    setPanel(false);
+  if (panelOpen) setPanel(false);
   tray.btn.setAttribute("aria-expanded", "true");
   tray.paint?.();
   tray.panel.classList.add("open");
@@ -1245,9 +1242,10 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-bannerActions.append(othersBtn, latestChip, asksBtn, versionBtn, toggleBtn);
-banner.append(bannerStatus, el("span", "lf-spacer"), bannerActions);
+bannerActions.append(toggleBtn);
 if (signoff) bannerActions.append(approveBtn);
+bannerActions.append(latestChip, asksBtn, versionBtn, othersBtn);
+banner.append(bannerStatus, el("span", "lf-spacer"), bannerActions);
 
 // Sign-off belongs to the authored version, while the control belongs to the live
 // chrome that survives one. A soft activation can therefore add or remove the same
@@ -1258,7 +1256,7 @@ function stateSignoff(next) {
   if (shown === signoff) return;
   signoff = shown;
   if (signoff) {
-    bannerActions.append(approveBtn);
+    toggleBtn.after(approveBtn);
     reserve(approveBtn, ["Approve version", "✓ Version approved"]);
     paintApproval();
   } else approveBtn.remove();
@@ -1714,8 +1712,7 @@ function syncFloats() {
   }
 }
 function setPanel(open) {
-  if (open && trayUp && (commentsEdge.over.matches || traysEdge.over.matches))
-    showTray(null);
+  if (open && trayUp) showTray(null);
   // Closing while focus is inside would drop it on body, the user's place
   // lost silently; it lands on the one control that reopens what just closed.
   if (!open && panel.contains(document.activeElement))

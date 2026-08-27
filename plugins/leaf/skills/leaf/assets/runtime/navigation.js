@@ -179,6 +179,11 @@ export function createNavigation({
         glide = null; // the box moved under another hand; theirs wins
         return;
       }
+      if (reducedMotion()) {
+        box.scrollTo({ top: goal, behavior: "instant" });
+        glide = null;
+        return;
+      }
       // Floored as well as capped: a rAF timestamp is its frame's start, which can precede
       // the press that scheduled the tick, and an unfloored t walks the ease out past the
       // start — to a write the box clamps, which the next tick then read as another hand.

@@ -515,6 +515,11 @@ prose enumeration.
   both palettes on every nightly run and toured by `gallery.html`, and stayed for
   three days. Nothing was missing from the corpus and no reading was wrong. The
   skill exists for exactly that class and this is the only thing that points at it.
+- Hand off a user-visible change with the smallest preview that shows it. A static
+  change takes one sentence and an `lf-shot` before/after captured from the same
+  fixture, viewport, and state. Add another width or state, or a short recording,
+  only when it proves behavior the first comparison cannot; link the live example
+  when interaction itself is the change.
 - Land with `wt merge`, a direct local squash merge to main, never a PR. This
   chooses the landing form, not whether landing was requested. Finished work
   waits for the user's authorization unless the task already granted it.

@@ -61,21 +61,39 @@ page only to pick up a page this session did not serve; `leaf wait <page>` claim
 it.
 
 - **Claude Code:** start `leaf wait` as a background task and end the turn. Its
-  completion becomes host input. Start a fresh background wait after each batch.
+  completion becomes host input. After each batch, start `leaf ack` as the next
+  background task; it acknowledges that batch and waits for another.
 - **Codex:** send the URL in an intermediate update, start `leaf wait` in unified
   exec, retain that exact session id, and keep the turn active. Poll the same
-  session with empty `write_stdin` calls and long yields. Never detach the wait
-  or end the turn expecting completion to start another turn. Start a fresh wait
-  after each batch.
+  session with empty `write_stdin` calls and long yields. After each batch, run
+  `leaf ack` in unified exec and retain its session id in the same way. Never
+  detach either command or end the turn expecting completion to start another
+  turn.
 
 An optional Codex watcher requires the user's explicit authorization because it
 creates a visible task. Its separate route is in the main skill.
 
-`leaf wait` revives a dead server under its recorded lifetime and reports that on
-stderr. Exit 2 means revival failed, every watched page is idle, or an earlier wait
-of this session's still holds the watch — leave that one running. A wait that
-ends on its own prints its batch or says why on stderr; one that stopped with
-nothing printed was stopped by the host, so start another.
+The initial `leaf wait` revives a dead server under its recorded lifetime and
+reports that on stderr. Its exit 2 means stderr names an ending rather than a
+batch. After `leaf ack` advances the cursor, however, its exit stays 0 whether
+the rearmed wait delivered or ended; read its streams rather than branching on
+that status:
+
+- JSON lines on stdout are the next batch.
+- `the leaf ended` or `the leaves ended` on stderr means every page left in the
+  watch is idle; `nothing to watch` means the session holds none. End the loop.
+- `server is not running` gives the recovery command. After recovery, resume
+  the session-wide loop with an unnamed `leaf wait`.
+- `this session no longer owns` means a successor has the page. Do not name or
+  reclaim it. A rearm keeps watching any other live page; when the observed
+  transfer empties that set, it exits with this line.
+- Stderr saying another `leaf wait` is already active means the existing
+  process still owns the session lease. Leave that watcher running rather than
+  starting another.
+
+Empty stdout alone is not evidence that the host stopped the process. Start a
+replacement unnamed wait only when the host itself reports that it canceled or
+killed the command.
 
 ## Batch delivery and acknowledgement
 
@@ -101,16 +119,16 @@ consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the
 batch's first line names. If output is lost, follow the same rule. A scalar cursor
 cannot represent a missing event in the middle. Acknowledgement is monotonic and
 idempotent; an event posted between wait and ack has a higher sequence and stays
-pending. Until ack, wait repeats the batch. `leaf events` reads the full log
-without acking it.
+pending. Ack then waits in the same process. Until ack, wait repeats the batch.
+`leaf events` reads the full log without acking it.
 
 Treat a page-and-sequence pair already handled in this task as a retry, even if a
 later delivery also includes newer events.
 
 ## Process every event
 
-After acknowledging a direct batch, set the page `working` and address every
-event the wait printed:
+Start `leaf ack` for a direct batch, set the page `working`, and address every
+event the wait printed while ack waits for the next batch:
 
 - **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
   it in the next version, then resolve it. If the revision depends on the reader,

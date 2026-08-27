@@ -200,19 +200,21 @@ class Watch:
             self.lease = None
 
 
-def cmd_wait(page_dir: Path | None = None) -> int:
+def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     """Hold until a user speaks or a worker reports, and deliver what was said.
 
     One watcher covers the session. The watch set is every page the session
     holds, re-read each pass, so a page served mid-wait joins the running watch
     without a second command, and a page another session has since picked up
-    drops out on its own. Naming PAGE claims it first — how a session picks up
-    a leaf it didn't serve — and holds it in the set, which is also the whole
-    set outside a host session (a bare shell, the tests). A batch is one page's
-    events, so its first line names the page and carries the conversations they
-    land in, and `leaf ack` goes back to that page. The JSON envelope says nothing about what consumes it. The wait owner
-    advances the cursor only after the complete batch reaches that next durable
-    consumer.
+    drops out on its own. With `claim_named`, naming PAGE claims it first — how
+    a session picks up a leaf it didn't serve — and holds it in the set. Without
+    that flag, an ack re-arm uses PAGE only as the delivered batch's coordinate:
+    a host resumes the session-wide set it already owns, while outside a host
+    the named page remains the whole watch set. A batch is one page's events, so
+    its first line names the page and carries the conversations they land in,
+    and `leaf ack` goes back to that page. The JSON envelope says nothing about
+    what consumes it. The wait owner advances the cursor only after the complete
+    batch reaches that next durable consumer.
 
     A wait ends on someone speaking, on the last watched leaf ending, or on a
     server being down with no restart to make. It puts no clock on how long a
@@ -224,10 +226,14 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     the URL from the turn that handed it over, so the report comes from them;
     references/serving-pages.md's "Unreachable URLs and `--host`" carries the
     recourse."""
-    if page_dir is not None:
+    if page_dir is not None and claim_named:
         claim_page(page_dir)
     identity = host_identity()
-    watch = Watch(identity, named=page_dir)
+    # A host re-arm resumes its session-wide watch. The page stays named only
+    # for a public wait that claims it, or for the bare shell whose named page
+    # is its whole watch set.
+    named = page_dir if claim_named or identity is None else None
+    watch = Watch(identity, named=named)
     if not watch.acquire():
         target = "this session" if identity else str(page_dir)
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
@@ -239,9 +245,9 @@ def cmd_wait(page_dir: Path | None = None) -> int:
             for reading in watch.tick():
                 readings.append(reading)
                 if reading.watch_state == "lost":
-                    if page_dir is not None and paths_same(reading.page_dir, page_dir):
+                    if named is not None and paths_same(reading.page_dir, named):
                         print(
-                            f"stopped watching {page_dir}: this session no longer owns it",
+                            f"stopped watching {named}: this session no longer owns it",
                             file=sys.stderr,
                         )
                         return 2
@@ -315,15 +321,33 @@ def cmd_wait(page_dir: Path | None = None) -> int:
             # A leaf the agent idled has nobody left to carry a comment to, so it
             # leaves the watch, and the last one gone ends the wait too.
             if not live:
-                if not readings:
-                    print(
-                        "nothing to watch: no page named and none claimed by "
-                        "this session",
-                        file=sys.stderr,
-                    )
+                held = [r for r in readings if r.watch_state != "lost"]
+                if not held:
+                    transferred = [r for r in readings if r.watch_state == "lost"]
+                    if transferred:
+                        one = len(transferred) == 1
+                        names = ", ".join(str(r.page_dir) for r in transferred)
+                        print(
+                            f"stopped watching {names}: this session no longer owns "
+                            f"{'it' if one else 'them'}",
+                            file=sys.stderr,
+                        )
+                        return 2
+                    if page_dir is None:
+                        print(
+                            "nothing to watch: no page named and none claimed by "
+                            "this session",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"nothing to watch: {page_dir} is not claimed by this "
+                            "session",
+                            file=sys.stderr,
+                        )
                     return 2
-                one = len(readings) == 1
-                names = ", ".join(str(r.page_dir) for r in readings)
+                one = len(held) == 1
+                names = ", ".join(str(r.page_dir) for r in held)
                 print(
                     f"the {'leaf' if one else 'leaves'} ended; {names} "
                     f"{'is' if one else 'are'} idle",

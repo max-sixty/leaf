@@ -1731,11 +1731,20 @@ const trayStrip = () =>
 // owes. The width is published rather than spent here for the reason the floor is read
 // blind — the runtime says how wide the page's box is and never learns which idiom hangs
 // something in the margin, so an idiom's own rule does its own arithmetic against it, the
-// way the wide rules already spend --lf-room. A query cannot see the panel and this can,
-// which is the whole of what the runtime adds; a page with no runtime behind it falls back
-// to the viewport in each rule that reads it.
+// way the wide rules already spend --lf-room. A query cannot see the panel or the
+// scroller's own bar and this can, which is the whole of what the runtime adds; a page with
+// no runtime behind it falls back to the viewport in each rule that reads it.
 function stateStrip() {
-  const avail = document.documentElement.clientWidth - panelStrip() - trayStrip();
+  // The same gutter stateRoom takes off, and taken the same way, for the reason it gives
+  // there: body is the document's scroller, so a classic bar comes out of the room this
+  // page has while the window says nothing about it. The coarse answer owes it as much as
+  // the fine one. Without it the floor was met by a window with a bar's width less page
+  // behind it, and the strip came out of the column the floor exists to keep it out of —
+  // a sidenote page at exactly 1152px read at a 705px measure, and a sidebar and a note at
+  // 1416px did the same. Overlay scrollbars are 0 here, which is why a Mac never saw it.
+  const gutter = pageScroller.offsetWidth - pageScroller.clientWidth;
+  const avail =
+    document.documentElement.clientWidth - gutter - panelStrip() - trayStrip();
   document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
   document.documentElement.style.setProperty("--lf-avail", avail + "px");
 }

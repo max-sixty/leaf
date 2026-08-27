@@ -1990,7 +1990,24 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert tight["column"]["width"] == 720
     assert tight["sideways"] == 0
 
+    # The floor is a fact about the page's box, and the window is not that box wherever
+    # the platform draws a classic scrollbar: body is the document's scroller, so its bar
+    # comes out of the room the strips and the column divide between them. So the page is
+    # asked for the difference rather than a number being written that is right on one
+    # platform. Either way the column keeps its measure at the floor itself, which is what
+    # the strip is floored to protect: given the room, both strips stand outside a full
+    # column; short of it by the width of a bar, the veto hands them back.
     resized(page, 1416, 800)
+    bar = page.evaluate(
+        "() => document.documentElement.clientWidth - document.body.clientWidth"
+    )
+    at_floor = page.evaluate(reading)
+    assert at_floor["column"]["width"] == 720, (
+        "the strip came out of the column at the combined floor, which is the one width "
+        f"the floor exists to keep it out of: {at_floor}"
+    )
+
+    resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
         ("left", "sticky"),

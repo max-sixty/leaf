@@ -9,9 +9,8 @@ from leaf.events import flocked, read_events, retractions, thread_structure
 from leaf.files import list_revisions, revision_path
 from leaf.passages import spoken
 from leaf.projection import (
-    decisions,
+    protected_ids,
     record_lag,
-    retirable_ids,
     retirement_holders,
     state_projection,
 )
@@ -179,6 +178,7 @@ def check_source(
     )
     previous = parse_structure("")
     was = {}
+    dropped_advice = []
     if predecessor:
         previous_html = revision_path(page_dir, predecessor).read_text(encoding="utf-8")
         previous = parse_structure(previous_html)
@@ -256,20 +256,21 @@ def check_source(
         previous_projection = state_projection(
             events, previous.by_id, was, registry, predecessor
         )
-        dropped = sorted(
-            gone
-            - retirable_ids(
-                retirement_holders(previous, registry),
-                events,
-                gone,
-                decisions(previous_projection.actions, registry),
-                was,
-            )
+        protected = protected_ids(
+            retirement_holders(previous, registry),
+            events,
+            gone,
+            previous_projection,
+            was,
+            registry,
         )
+        dropped = sorted(gone & protected)
+        dropped_advice = sorted(gone - protected)
         if dropped:
             errors.append(
-                f"ids present in revision r{predecessor} but dropped in index.html "
-                f"(anchors on them will break): {dropped}"
+                f"protected ids present in revision r{predecessor} but dropped in "
+                "index.html (unresolved threads, standing state, or widget "
+                f"retirement still need them): {dropped}"
             )
 
     now = spoken(html, registry or {})
@@ -328,6 +329,11 @@ def check_source(
     )
     advice = [
         *(
+            [f"ids dropped from revision r{predecessor}: {dropped_advice}"]
+            if dropped_advice
+            else []
+        ),
+        *(
             f"record behind the log: {line}"
             for line in record_lag(
                 current_projection, parser.by_id, now, registry or {}
@@ -371,10 +377,13 @@ def cmd_check(
         print(f"✗ index.html: {len(result.errors)} issue(s)", file=sys.stderr)
         for error in result.errors:
             print(f"  - {error}", file=sys.stderr)
+        for line in result.advice:
+            print(f"  · {line}", file=sys.stderr)
         return 1
     print(
         "✓ index.html: parses, widgets validate, one module script + theme link, "
-        f"ids and decisions carried over, nothing overflows the {result.column}px column"
+        "protected ids and decisions carried over, nothing overflows the "
+        f"{result.column}px column"
     )
     for line in result.advice:
         print(f"  · {line}")

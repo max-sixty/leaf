@@ -211,8 +211,10 @@ def start_waiter(page_dir: Path) -> subprocess.Popen[str]:
     )
 
 
-def receive(waiter: subprocess.Popen[str], page_dir: Path) -> list[dict]:
-    """Read one complete wait result and acknowledge exactly what entered this driver.
+def receive(
+    waiter: subprocess.Popen[str], page_dir: Path
+) -> tuple[list[dict], subprocess.Popen[str]]:
+    """Read one complete wait result and re-arm after it reaches this driver.
 
     Every way a wait ends without user events is one it has already explained
     on stderr — a page closed under it, a server it can't reach and won't
@@ -225,8 +227,13 @@ def receive(waiter: subprocess.Popen[str], page_dir: Path) -> list[dict]:
             f"the demo waiter exited {waiter.returncode} with no user events\n"
             f"{stderr}".rstrip()
         )
-    run_leaf("ack", str(page_dir), str(events[-1]["seq"]))
-    return events
+    acknowledged = subprocess.Popen(
+        [str(LEAF), "ack", str(page_dir), str(events[-1]["seq"])],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return events, acknowledged
 
 
 def record(
@@ -274,7 +281,7 @@ def record(
     shot(1500)
 
     comment_id = wait_for_comment(page_dir)
-    receive(waiters[0], page_dir)
+    _, waiters[0] = receive(waiters[0], page_dir)
     run_leaf(
         "status",
         str(page_dir),
@@ -303,7 +310,6 @@ def record(
         "Backfill stays online; rehearsal progress is now 3 of 4",
     )
     run_leaf("status", str(page_dir), "waiting")
-    waiters.append(start_waiter(page_dir))
     page.wait_for_function(
         "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === '2'",
@@ -340,7 +346,7 @@ def record(
         "() => document.querySelector('.lf-toast').classList.contains('show')"
     )
     shot(2400)
-    receive(waiters[-1], page_dir)
+    _, waiters[-1] = receive(waiters[-1], page_dir)
     return frames, durations
 
 
@@ -373,12 +379,9 @@ def shoot_stills(
     at load, so a flipped page would carry the other scheme's diagrams.
 
     Getting the banner to say "Claude awaits" takes stating both halves of it.
-    `record` has received and acknowledged the board action through the waiter it
-    started, so no user event remains to make this fresh waiter return immediately.
-    State the scene, then start that waiter: its held lease is the proof the browser
-    renders."""
+    `record` has received and acknowledged the board action. Ack has already re-armed
+    the wait, whose held lease is the proof the browser renders."""
     run_leaf("status", str(page_dir), "waiting")
-    waiters.append(start_waiter(page_dir))
     # The user's board move has to have landed in each shot, or it shows a page
     # mid-replay — the same wait `version export` takes for the same reason. Counted
     # once: neither shot posts anything, so the log is the same for both.

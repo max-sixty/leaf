@@ -586,9 +586,9 @@ def test_an_aim_on_a_seam_promises_and_takes_the_same_item(browser, serve):
 def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     """The aim holds its claim until the next press starts, and a key is not one.
 
-    `offer` supplies the keys a span doesn't come with by calling click(), so a control
-    worked from the keyboard sends a click with no press behind it. Taken for the aim's
-    own, it goes nowhere at all: the user presses Enter on a pick mark and nothing is
+    The option scope works its selection toggle by calling click(), so a control worked
+    from the keyboard sends a click with no press behind it. Taken for the aim's own, it
+    goes nowhere at all: the user presses Space on a pick mark and nothing is
     picked, on a page where the last thing they did with the mouse was aim."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
@@ -604,7 +604,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     expect(composer).to_be_hidden()
 
     page.locator("#opt-shim .lf-pick").focus()
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
     round_trip(page)
     assert [
@@ -770,7 +770,7 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     )
     page, errors = open_page(browser, url)
 
-    page.get_by_role("button", name=re.compile(r"^choose one: A")).click()
+    page.get_by_role("checkbox", name=re.compile(r"^choose one: A")).click()
     round_trip(page)
 
     expect(page.locator("#pick-a")).to_have_attribute("chosen", "")
@@ -822,7 +822,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
     # Off the reader's list, which is the whole reason the two readings differ here.
     expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
 
-    page.get_by_role("button", name=re.compile(r"^choose one: A")).click()
+    page.get_by_role("checkbox", name=re.compile(r"^choose one: A")).click()
     round_trip(page)
 
     expect(page.locator("#pick-a")).to_have_attribute("chosen", "")

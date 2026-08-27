@@ -1873,10 +1873,10 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
 
 
 def test_the_reference_names_the_space_that_works_a_control(browser, serve):
-    """`offer` builds every press as a span wearing role="button", so the keys the
-    platform would have given a real button are the runtime's to supply — and it supplied
-    them through a listener no surface could see. Space activated nine classes of control
-    across core and five widgets, and exactly one of them said so anywhere.
+    """`offer` builds each button-contract press as a span wearing role="button", so the
+    keys the platform would have given a real button are the runtime's to supply — and it
+    supplied them through a listener no surface could see. Space activated nine classes
+    of control across core and five widgets, and exactly one of them said so anywhere.
 
     The activation is a scope now, so the reference names it once for all of them, and a
     widget whose press means more than "work this control" says so in its own words and

@@ -2590,6 +2590,12 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
+    reply = page.locator(".lf-thread:has(#tq-one) > .lf-compose textarea")
+    page.keyboard.press("Enter")
+    expect(reply).to_be_focused()
+    expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread:has(#tq-one)")).to_be_focused()
 
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
     # own frame whole. Drawn by the lower neighbour instead, the divider recolored the
@@ -3050,7 +3056,7 @@ def test_command_hub_an_absorbed_intervention_does_not_stop_again(browser, serve
     d = serve.page_dir
     page, errors = open_page(browser, live_url(url))
     page.locator("#dedupe-snooze").get_by_role(
-        "button", name=re.compile("choose one: Park it for tomorrow")
+        "checkbox", name=re.compile("choose one: Park it for tomorrow")
     ).click()
     round_trip(page)
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
@@ -3176,7 +3182,7 @@ def test_command_hub_disposition_refolds_stopped_work(browser, serve):
     expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
 
     page.locator("#dedupe-snooze").get_by_role(
-        "button", name=re.compile("choose one: Park it for tomorrow")
+        "checkbox", name=re.compile("choose one: Park it for tomorrow")
     ).click()
     round_trip(page)
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")

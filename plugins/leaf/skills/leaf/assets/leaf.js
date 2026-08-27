@@ -862,11 +862,11 @@ const {
   openTray,
   othersBtn,
   othersPanel,
+  reserveListClearance,
   restoreTray,
   restoreTrays,
   showTray,
-  trayLists,
-  trays,
+  trayNames,
   traysEdge,
   trayStrip,
 } = createTrays({
@@ -1332,10 +1332,7 @@ function syncLayout() {
   // line standing there. Stepping the line clear instead was the other answer, and it
   // takes the tray's width off the line's: a busy scope already fills a laptop's, so
   // the room it gives up is chips clipped off the right-hand end.
-  for (const list of trayLists) {
-    list.style.paddingBottom = clear;
-    list.style.scrollPaddingBottom = clear;
-  }
+  reserveListClearance(clear);
   stateRoom();
   syncFloats();
   anchorRuntime?.dockSeats();
@@ -4147,7 +4144,7 @@ createArrangements({
   commentsEdge,
   readerStore,
   tabStore,
-  trays,
+  trayNames,
   traysEdge,
 });
 // Where the reader stands, which is the half of an arrival the browser cannot answer on

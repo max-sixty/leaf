@@ -48,17 +48,24 @@ export function createTrays({
   syncLayout,
   walkRows,
 }) {
-  // The rows' own box, one per tray. Collected as they are made, because what syncLayout
-  // reserves at the foot of one it reserves at the foot of every one — and a second place
-  // to remember that is exactly where the asks tray was left out of it: its walk parked
-  // the last row 47px under the key line, on the one tray nothing had ever walked to the
-  // end of.
+  // The rows' own box, one per tray. Collected privately as they are made, because what
+  // the layout reserves at the foot of one it reserves at the foot of every one — and a
+  // second place to remember that is exactly where the asks tray was left out of it: its
+  // walk parked the last row 47px under the key line, on the one tray nothing had ever
+  // walked to the end of. Callers state the clearance; this owner decides which lists it
+  // reaches and how each one spends it.
   const trayLists = [];
   function trayList(panel) {
     const list = el("div", "lf-tray-list");
     panel.append(list);
     trayLists.push(list);
     return list;
+  }
+  function reserveListClearance(clear) {
+    for (const list of trayLists) {
+      list.style.paddingBottom = clear;
+      list.style.scrollPaddingBottom = clear;
+    }
   }
 
   const traysEdge = drawnEdge({
@@ -181,6 +188,7 @@ export function createTrays({
   }
   trayIs("leaves", othersPanel, othersBtn);
   trayIs("asks", asksPanel, asksBtn, renderAsks);
+  const trayNames = Object.freeze([...trays.keys()]);
 
   // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
   // the first state response. Keep the remembered intent in trayUp, but restore its pixels
@@ -243,11 +251,11 @@ export function createTrays({
     openTray,
     othersBtn,
     othersPanel,
+    reserveListClearance,
     restoreTray,
     restoreTrays,
     showTray,
-    trayLists,
-    trays,
+    trayNames,
     traysEdge,
     trayStrip,
   };

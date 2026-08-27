@@ -8,7 +8,7 @@ export function createArrangements({
   commentsEdge,
   readerStore,
   tabStore,
-  trays,
+  trayNames,
   traysEdge,
 }) {
   publishedArrangements = [
@@ -23,7 +23,7 @@ export function createArrangements({
       ...readerStore.where(traysEdge.key),
       value: "260",
     },
-    ...[...trays.keys()].map((tray) => ({
+    ...trayNames.map((tray) => ({
       name: `the ${tray} tray standing`,
       ...readerStore.where(TRAY_KEY),
       value: tray,

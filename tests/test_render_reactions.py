@@ -188,6 +188,7 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
     panel_settled(page, open=False)
     page.keyboard.press("r")
     panel_settled(page)
+    expect(page.locator(".lf-page-strip.lf-armed")).to_be_visible()
     page.keyboard.press("5")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]

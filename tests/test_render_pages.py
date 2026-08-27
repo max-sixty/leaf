@@ -2017,8 +2017,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     ]
     assert roomy["noteFloat"] == "right"
     assert roomy["padding"] == {"left": 264, "right": 384}
-    assert roomy["column"]["width"] == 720 - roomy["gutter"], (
-        f"the two strips cost more than the live page's stable scrollbar gutter: {roomy}"
+    assert roomy["column"]["width"] == 720, (
+        f"the two strips took the live page's stable scrollbar gutter from the column: {roomy}"
     )
     assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1

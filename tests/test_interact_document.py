@@ -1139,7 +1139,7 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert "lf-review" in result.output  # the error names the known vocabulary
 
 
-def test_check_rejects_duplicate_ids_and_dropped_ids(page_dir):
+def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     publish(page_dir)
@@ -1149,8 +1149,109 @@ def test_check_rejects_duplicate_ids_and_dropped_ids(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "duplicate ids" in result.output
-    assert "dropped in index.html" in result.output
-    assert "backfill-first" in result.output
+
+
+def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
+    publish(page_dir)
+    without_item = PAGE.replace(
+        '    <lf-option id="backfill-first" recommended><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>\n'
+        "      <strong>Backfill first</strong> Verify, then flip.\n"
+        "    </lf-option>\n",
+        "",
+    )
+    (page_dir / "versions" / "v2.html").write_text(
+        without_item.replace('<section id="plan">', "<section>")
+    )
+
+    result = check(page_dir, version=2)
+
+    assert result.exit_code == 0, result.output
+    assert "ids dropped from revision r1: ['backfill-first', 'plan']" in result.output
+
+
+def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir):
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c1",
+            "author": "user",
+            "anchor": {"section": "flow"},
+            "text": "Keep this diagram addressable.",
+        },
+    )
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace(
+            '  <lf-diagram id="flow"><pre>\n'
+            "graph LR\n"
+            "  A --> B\n"
+            "  </pre></lf-diagram>\n",
+            "",
+        )
+    )
+
+    unresolved = check(page_dir, version=2)
+    assert unresolved.exit_code == 1
+    assert "protected ids" in unresolved.output and "'flow'" in unresolved.output
+
+    events_model.append_event(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
+    )
+    resolved = check(page_dir, version=2)
+    assert resolved.exit_code == 0, resolved.output
+    assert "ids dropped from revision r1: ['flow']" in resolved.output
+
+
+def test_a_standing_action_protects_its_id_until_it_is_retracted(page_dir):
+    v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
+    (page_dir / "versions" / "v2.html").write_text(PAGE)
+
+    standing = check(page_dir, version=2)
+    assert standing.exit_code == 1
+    assert "protected ids" in standing.output and "'d1'" in standing.output
+
+    v2("Ship the flag dark, then backfill. Roll back with one flag.", attrs=" restated")
+    retracted = stamp(page_dir, 2, "replace the draft")
+    assert retracted.exit_code == 0, retracted.output
+    (page_dir / "versions" / "v3.html").write_text(PAGE)
+
+    dropped = check(page_dir, version=3)
+    assert dropped.exit_code == 0, dropped.output
+    assert "ids dropped from revision r2: ['d1']" in dropped.output
+
+
+def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
+    def write(version, todo):
+        (page_dir / "versions" / f"v{version}.html").write_text(
+            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board(todo, []))
+        )
+
+    write(1, [X])
+    publish(page_dir)
+    moved = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "b1",
+            "action": "move",
+            "detail": {"card": "card-x", "to": "c-done", "index": 0},
+        },
+    )
+    write(2, [])
+
+    standing = check(page_dir, version=2)
+    assert standing.exit_code == 1
+    assert "protected ids" in standing.output and "'card-x'" in standing.output
+
+    events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
+    )
+    undone = check(page_dir, version=2)
+    assert undone.exit_code == 0, undone.output
+    assert "ids dropped from revision r1: ['card-x']" in undone.output
 
 
 def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
@@ -1463,19 +1564,26 @@ def test_an_unearned_overruled_is_refused(page_dir):
     assert "writes the reported state" in result.output
 
 
-def test_a_stamp_cannot_drop_a_reported_unit_before_overruling_it(page_dir):
-    """Every live revision passes id survival, so a reported unit cannot vanish
-    into an unreachable intermediate revision and later return as overruled."""
+def test_an_effective_report_protects_its_unit_until_a_stamp_settles_it(page_dir):
+    """An effective report keeps its unit addressable until a stamp settles it."""
     _tasks_version(page_dir, 1, "active")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
 
-    # The attempted next source drops the task's id outright. It never becomes
-    # a live revision, keeping the later report gate on reachable state only.
     (page_dir / "versions" / "v2.html").write_text(PAGE)
-    result = check(page_dir, version=2)
-    assert result.exit_code == 1
-    assert "t-parser" in result.output and "dropped in index.html" in result.output
+    standing = check(page_dir, version=2)
+    assert standing.exit_code == 1
+    assert "protected ids" in standing.output and "'t-parser'" in standing.output
+    assert "ids dropped from revision r1: ['tree']" in standing.output
+
+    _tasks_version(page_dir, 2, "review")
+    settled = stamp(page_dir, 2, "absorb the report")
+    assert settled.exit_code == 0, settled.output
+    (page_dir / "versions" / "v3.html").write_text(PAGE)
+
+    dropped = check(page_dir, version=3)
+    assert dropped.exit_code == 0, dropped.output
+    assert "ids dropped from revision r2: ['t-parser', 'tree']" in dropped.output
 
 
 def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir):

@@ -12,11 +12,14 @@ body paint; every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
-comment); ids are unique and every id from the previous revision survives
-unless the log settled the widget holding it; no fixed-pixel-width element
-is wider than the readable column (the rule that draws that column claims it with
-`--lf-column: 1`, so the width and the claim come from one block). Near-free and deterministic is what makes
-running it on every save affordable, so keep a new check that way; anything
+comment); ids are unique, and ids needed by unresolved threads, standing reader
+actions, or effective standing reports survive from the previous revision. A
+declared retirement protects its holder and slots until its outcome licenses
+their removal. Other dropped ids are reported as advice. No fixed-pixel-width
+element is wider than the readable column (the rule that draws that column claims
+it with `--lf-column: 1`, so the width and the claim come from one block). Near-free
+and deterministic is what makes running it on every save affordable, so keep a new
+check that way; anything
 needing a browser belongs in `--render`.
 
 ## Browser validation

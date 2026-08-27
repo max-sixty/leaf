@@ -198,12 +198,11 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
-def test_settling_a_decision_drops_no_ids(page_dir):
-    """Retiring a settled decision is a collapse, not a deletion — which is the
-    whole reason it's expressible: `version check` forbids dropping an id, and
-    the alternatives behind the disclosure keep both their ids and the anchors
-    on them. A group can't be settled without an id either; the reader's
-    open/closed state is remembered against it."""
+def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
+    page_dir, capsys
+):
+    """A settled group needs an id for its disclosure state. Once the whole
+    unreferenced group leaves, its ids are advisory rather than an error."""
     registry = registry_model.load_registry(page_dir)
     assert "'id' is a dependency of 'settled'" in " ".join(
         fragment_errors(
@@ -225,13 +224,16 @@ def test_settling_a_decision_drops_no_ids(page_dir):
         (page_dir / "versions" / "v2.html").read_bytes()
     )
     assert checking_model.cmd_check(page_dir) == 0
+    capsys.readouterr()
 
-    # Deleting the alternatives instead is what check is there to stop.
     (page_dir / "versions" / "v2.html").write_text(PAGE)
     (page_dir / "index.html").write_bytes(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
-    assert checking_model.cmd_check(page_dir) == 1
+    assert checking_model.cmd_check(page_dir) == 0
+    assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick']" in (
+        capsys.readouterr().out
+    )
 
 
 def test_registry_examples_validate(page_dir):

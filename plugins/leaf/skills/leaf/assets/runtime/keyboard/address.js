@@ -12,12 +12,15 @@ export function createAddress({
   focusedThread,
   glideTo,
   goToAsk,
+  inPanel,
   keylineEl,
   landIn,
+  letGo,
   openAsks,
   openThreads,
   pageParts,
   paintHere,
+  panelCovers,
   panelIsOpen,
   placeThreadEdge,
   saying,
@@ -31,16 +34,16 @@ export function createAddress({
   // it: `g c 2` is the second open comment's reply box, `g a 1` the first thing the page is
   // waiting on, `g l 3` the third link. Completions that name one place take no digit:
   // `g g` is the top of the page and `g G` the bottom, while `g t` / `g b` put the focused
-  // comment at either edge of its list. Each edge is one place, so the second key is the
-  // whole address. `g G` rather than vim's bare G because g is the page's one go-to prefix,
-  // and an edge is one more place it names rather than a second leader. Naming a list shows
-  // it — the panel opens for the comments — and each of its addressable members then wears
-  // its digit as a chip, so the addresses are on screen wherever the reader is looking. A
-  // digit consumes the mode; so does Escape, and so does focus entering a box. Any other
-  // key disarms and then runs with
-  // its ordinary meaning, which the dispatcher spells as disarming and walking the stack
-  // again rather than as a rule of its own — a mistyped g therefore costs the reader nothing
-  // beyond the press their next key was going to make anyway.
+  // comment at either edge of its list and `g p` returns from a beside-panel to the page.
+  // Each edge is one place, so the second key is the whole address. `g G` rather than vim's
+  // bare G because g is the page's one go-to prefix, and an edge is one more place it names
+  // rather than a second leader. Naming a list shows it — the panel opens for the comments
+  // — and each of its addressable members then wears its digit as a chip, so the addresses
+  // are on screen wherever the reader is looking. A digit consumes the mode; so does Escape,
+  // and so does focus entering a box. Any other key disarms and then runs with its ordinary
+  // meaning, which the dispatcher spells as disarming and walking the stack again rather
+  // than as a rule of its own — a mistyped g therefore costs the reader nothing beyond the
+  // press their next key was going to make anyway.
   //
   // The chord was one list deep once — g then a digit, and the digit meant a reply box —
   // which spent the whole of a leader on the one list that had asked for it first. The letter
@@ -446,6 +449,21 @@ export function createAddress({
           placeThreadEdge(thread, binding === "t" ? "start" : "end");
         },
       },
+      {
+        // This is travel from the panel to the page, not an Escape rung: every layer
+        // remains standing, so the address says what stays open. A covering panel locks
+        // the document scroller and has no page to hand back; ordinary Escape remains
+        // the truthful route there. It follows the focused comment's own placements so
+        // they keep the short line a reader standing on that card arrived to use.
+        keys: ["p"],
+        does: "Return to the page, keeping the comment panel open",
+        line: "page — comments kept",
+        when: () => !aimedList && inPanel() && !panelCovers(),
+        run: () => {
+          setChord(false);
+          letGo();
+        },
+      },
       ...ADDRESSES.map((entry) => ({
         keys: () =>
           aimedList === entry
@@ -511,7 +529,7 @@ export function createAddress({
   // press stands up names them all, one chip each.
   const GOTO = {
     keys: ["g"],
-    does: "Go by address — the next key names a list, a page edge, or a focused comment edge",
+    does: "Go by address — the next key names a list, the page, or an edge",
     line: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setChord(true),

@@ -1405,10 +1405,10 @@ sharing its title, so a contributor the page hasn't got must bring none — `mer
 drops it — or the two capabilities cannot differ in liveness under one heading.
 
 A press may deliberately leave layers standing while moving focus outside them. That is
-not an Escape rung, because it gives no layer back. It earns a separate modified row that
-states what remains open. Beside the document, the comment panel's `Shift+Escape` returns
-to the document and keeps both the panel and its narrowing. A panel covering the document
-cannot make that promise, so its ordinary Escape rung remains the route back.
+not an Escape rung, because it gives no layer back. The address chord states what remains
+open: beside the document, `g p` returns from the comment panel to the document and keeps
+both the panel and its narrowing. A panel covering the document cannot make that promise,
+so its ordinary Escape rung remains the route back.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
@@ -1855,9 +1855,10 @@ needs the actionable widget rather than the reader-facing region.
 `g` opens one address mode. A second letter names a list, and a digit names a
 member. `g g` and `g G` complete the chord themselves, gliding to the top and
 bottom of the visible scroller. When a comment holds focus, `g t` and `g b`
-place that card at the top or bottom of its list without moving the page. An edge
-is one place, so the second key is the whole address; because every page has a top,
-the mode never arms empty and the page-level `g` row needs no capability gate.
+place that card at the top or bottom of its list without moving the page. From a
+beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
+An edge is one place, so the second key is the whole address; because every page has a
+top, the mode never arms empty and the page-level `g` row needs no capability gate.
 `ADDRESSES` is the whole list vocabulary. Each entry declares:
 
 - its letter and user-facing name;

@@ -1856,11 +1856,11 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         context.close()
 
 
-def test_shift_escape_returns_to_the_page_without_unwinding_the_panel(browser, serve):
+def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     """Leaving a panel beside the document to compare a comment is not backing out:
     the panel and its narrowing stay exactly as the reader left them, while focus goes
-    to the page. The shifted press remains reachable from the find box, whose ordinary
-    Escape still owns one rung of the panel stack."""
+    to the page. The address starts from the found comment after Enter leaves the find
+    box, whose ordinary Escape still owns one rung of the panel stack."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
@@ -1873,10 +1873,13 @@ def test_shift_escape_returns_to_the_page_without_unwinding_the_panel(browser, s
     find.focus()
     page.keyboard.type("capacity")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-threads > .lf-thread")).to_be_focused()
 
-    page.keyboard.press("Shift+Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("p")
     assert page.evaluate("() => document.activeElement === document.body"), (
-        "Shift+Escape left the reader in the panel"
+        "g p left the reader in the panel"
     )
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(find).to_have_value("capacity")
@@ -1885,7 +1888,7 @@ def test_shift_escape_returns_to_the_page_without_unwinding_the_panel(browser, s
     page.close()
 
 
-def test_shift_escape_is_not_offered_while_the_panel_covers_the_page(browser, serve):
+def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     """A covering panel locks the page scroller, so focus cannot honestly return to
     that page while keeping the panel open. Its ordinary Escape rung remains the one
     route back and closes the covering panel."""
@@ -1907,6 +1910,10 @@ def test_shift_escape_is_not_offered_while_the_panel_covers_the_page(browser, se
                 has_text="page — comments kept",
             )
         ).to_have_count(0)
+        page.keyboard.press("g")
+        page.keyboard.press("p")
+        expect(thread).to_be_focused()
+        expect(page.locator(".lf-panel")).to_be_visible()
         page.keyboard.press("Escape")
         expect(page.locator(".lf-panel")).to_be_hidden()
         assert errors == []

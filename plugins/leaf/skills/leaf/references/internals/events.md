@@ -47,6 +47,13 @@ so the voice is read from the poster's environment rather than from the current
 watcher's claim record — and identity is the session id, because a display name
 is anyone's to choose and two workers may share one.
 
+An agent comment opens a question. A reply answers without closing the thread;
+when its prose leaves another question for the reader, `leaf reply --awaits`
+records `awaits: true`. The browser cannot write that field. A reader reply always
+hands the thread back to the agent, so it needs no parallel declaration. When a
+reply carries an `x-awaits` widget, the widget's standing projection declares the
+request instead; the CLI refuses a parallel `--awaits` flag on that markup.
+
 `leaf edit` may revise only a comment or reply whose recorded session matches the
 posting session. It appends rather than rewriting: the original message and every
 revision remain visible in `leaf events`, while the panel, `page state`, wait

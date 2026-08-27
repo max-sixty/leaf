@@ -1030,8 +1030,10 @@ the reader presses, so nothing they can reach by pointer is out of the keyboard'
 reach either, and a row cannot empty itself out from under the press that emptied
 it. At rest an offered token is a muted glyph with no box; the box is paint that
 arrives under the pointer, under focus, armed, or while a press is in flight.
-`awaitsReader` reads the last turn and then the one declared exception, a
-`settles` token standing on it.
+`awaitsReader` reads an agent comment as a question, an agent reply's explicit
+`awaits` field for prose, or the standing `x-awaits` projection of a request carried
+in that reply's markup. A `settles` token standing on that latest request answers it
+without closing the thread.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
@@ -2005,8 +2007,9 @@ and stands until then; the property is unset until the first open, where the
 
 Two narrowings compose: the words the reader is looking for (`finding`, over each
 thread's messages, its anchor label, and the part of the page it is on) and
-whether the agent spoke last (`needsYou`, through `awaitsReader`). Both are the
-panel's own view. The page's marks, the inline conversation seats and the
+whether the latest agent message asks the reader to answer (`needsYou`, through
+`awaitsReader`). Both are the panel's own view. The page's marks, the inline
+conversation seats and the
 banner's count go on saying what the log says, and the panel's head says
 `Showing N of M` for as long as a narrowing stands, because a list that goes
 quiet about what it is hiding is a trap.

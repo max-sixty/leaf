@@ -154,6 +154,7 @@
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
+            "awaits": {"const": true},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
           "required": ["id", "ts", "author", "kind", "seq", "parent"],
@@ -163,7 +164,7 @@
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"required": ["markup"]}
+          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}]}
         }
       },
       "edit": {

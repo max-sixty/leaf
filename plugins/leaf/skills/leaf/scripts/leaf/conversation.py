@@ -149,7 +149,7 @@ def cmd_comment(
 
 
 @contract_writer
-def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
+def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) -> dict:
     """Post one complete threaded reply."""
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
@@ -162,8 +162,22 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
                 "thread on the same Ask with `leaf comment --section <ask-id>` if "
                 "you need an answer first"
             )
-        if markup:
-            check_markup(page_dir, "reply", markup, events)
+        fragment = check_markup(page_dir, "reply", markup, events) if markup else None
+        if awaits and fragment:
+            registry = require_registry(page_dir)
+            structural = sorted(
+                {
+                    rec["tag"]
+                    for rec in fragment.lf_elements
+                    if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+                }
+            )
+            if structural:
+                sys.exit(
+                    "--awaits is for a prose question; reply markup already declares "
+                    "whether its request is open through x-awaits "
+                    f"({', '.join(f'<{tag}>' for tag in structural)})"
+                )
         event = {
             "kind": "reply",
             "author": "claude",
@@ -171,6 +185,8 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
             "parent": to,
             "text": body,
         }
+        if awaits:
+            event["awaits"] = True
         if markup:
             event["markup"] = markup
         return append_event(page, event)

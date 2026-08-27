@@ -5,18 +5,55 @@ event log, and a returning reader. Most failures in that boundary are not hard t
 assert once they are visible. The difficult part is arranging the test so that a
 green result could only have come from the behavior named by the test.
 
-This file owns those testing mechanics. The repository-level `CLAUDE.md` owns
-environment setup, suite inventory, and the normal run. The runtime's
+This file owns test setup, suite structure, and testing mechanics. The runtime's
 `CLAUDE.md` and `plugins/leaf/skills/leaf/references/internals/` own the product
-protocols. Keep their implementation rules there; state here only what a test
-must observe or control.
+protocols. Keep implementation rules there; state here only what a test must
+observe or control.
 
 ## Run the narrowest useful surface
 
-The repository guide's "The suite" section owns setup and test commands. During
-development, select the owning file or one named case and use `-n 0` so the trace
-and process tree stay local. Before landing a browser-facing change, run its
-complete browser file and the repository's normal suite.
+A new cloud container needs the pinned environment and both browsers before the
+suite can run:
+
+```sh
+uv sync --frozen
+uv run playwright install chromium --only-shell
+uv run playwright install chrome
+uv tool install pre-commit
+```
+
+A container without IPv6 cannot run the two tests that bind the stated-host
+wildcard `::`; run those from a workstation.
+
+The everyday suite needs no network after setup and runs one shipped page through
+the browser gate:
+
+```sh
+uv run pytest tests
+```
+
+The `test_render_*.py` modules and `test_site.py` are marked nightly. Broad
+discovery skips them. An explicit file, node id, `-k`, `-m`, or `--lf` selection
+runs what it names. During development, select the owning file or one named case
+and use `-n 0` so the trace and process tree stay local:
+
+```sh
+uv run pytest tests/test_render_widgets.py -q -n0 -k board
+uv run pytest --lf --lfnf=none -x -n0
+```
+
+Before handing over a browser-facing change, run its complete browser file and
+the everyday suite. `pre-commit run --all-files` runs Ruff and Prettier. The full
+landing gate runs both plus `uv run pytest tests --run-nightly` after rebasing.
+
+`scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
+and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run
+`linux/amd64`.
+
+The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's
+installed dependencies remain in `interact.py`'s PEP 723 header. Pytest adds
+`plugins/leaf/skills/leaf/scripts` to the import path so tests can import the
+`leaf` owner modules directly.
 
 ## Put each assertion at the boundary that owns it
 

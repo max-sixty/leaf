@@ -1083,12 +1083,13 @@ settlement has emptied, and what a quote may name cannot come apart. An area gre
 either: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
 
-A control containing a page word is built by `offer` as a selectable
-`span[role="button"]`. The shared listener supplies Enter and Space semantics.
-`offer` distinguishes a click from the mouseup ending an active text selection
-by comparing the selection's focus end with the release. It does not suppress a
-press merely because an older selection contains the control or because the
-pointer landed beside selected text.
+A control containing a page word is built by `offer` as a selectable span carrying
+its control role. A button gets Enter and Space from the shared scope; a specialised
+role such as a checkbox registers its own keys while `offer` still owns its role,
+tab stop, and chrome markers. `offer` distinguishes a click from the mouseup ending
+an active text selection by comparing the selection's focus end with the release. It
+does not suppress a press merely because an older selection contains the control or
+because the pointer landed beside selected text.
 
 `placeClear` moves floating controls away from selectable or interactive content
 they would cover. It reads the general `data-lf-offer` marker, not a list of
@@ -1551,12 +1552,12 @@ rung `c` came down. `backFromBox` climbs `SAYS_IN` from the box where
 `standingConversation` climbs it from where the reader stands, so the press in
 and the press out name one element and one word — "comment on the thread" going
 in, "back to thread" coming out. The panel's general box has no conversation and
-lands on the list. A box with neither leaves the row dead and the page's own
-"let go" standing, which is the honest rung when there is nothing outside the
-box to stand on: a seat holding no thread yet is that case whole, so it wears no
-seat of its own rather than being named as an exception. Asking whether the
-container can take focus is what keeps this a relation rather than a list of the
-containers that happen to be focusable.
+lands on the list. A page-owned first-message seat has no standing place of its
+own; a widget control that explicitly enters its box supplies both the return
+control and the caller-owned word for that route through `landInConversation`.
+A visit reached by Tab supplies neither and leaves the page's own "let go"
+standing. Asking whether the container can take focus is what keeps every other
+route a relation rather than a list of containers that happen to be focusable.
 
 A key may repeat across nesting scopes to mean the same intent one scope further
 in. `c` reads that way: from
@@ -1579,10 +1580,10 @@ and return to the page cannot cascade from one keypress. A scope does not need a
 private `keydown` listener or hand-written `preventDefault` to protect that
 contract.
 
-`offer` supplies the two press keys for injected span controls at the shared
-bubble listener. A widget that already handled the event can prevent its default
-before that listener. A link stays the browser's, and its run-less row only
-projects the platform press into help.
+`offer` marks an injected span control with the contract that owns its keys.
+Button offers enter the shared `CONTROL` scope and receive `PRESS`; specialised
+controls such as a checkbox register their own rows. A link stays the browser's,
+and its run-less row only projects the platform press into help.
 
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one

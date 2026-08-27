@@ -1856,6 +1856,139 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         context.close()
 
 
+def test_go_page_returns_without_unwinding_the_panel(browser, serve):
+    """Leaving a panel beside the document to compare a comment is not backing out:
+    the panel and its narrowing stay exactly as the reader left them, while focus goes
+    to the page. The address starts from the found comment after Enter leaves the find
+    box, whose ordinary Escape still owns one rung of the panel stack."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
+    panel_comment(d, "The storage rule is settled.", {"section": "how-store"})
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    find = page.locator(".lf-find-box")
+    find.focus()
+    page.keyboard.type("capacity")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-threads > .lf-thread")).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    assert page.evaluate("() => document.activeElement === document.body"), (
+        "g p left the reader in the panel"
+    )
+    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(find).to_have_value("capacity")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
+    """A covering panel locks the page scroller, so focus cannot honestly return to
+    that page while keeping the panel open. Its ordinary Escape rung remains the one
+    route back and closes the covering panel."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    panel_comment(d, "The capacity needs another look.", {"section": "how-cap"})
+
+    context = browser.new_context(viewport={"width": 800, "height": 900})
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        thread = page.locator(".lf-threads > .lf-thread")
+        thread.focus()
+
+        page.keyboard.press("g")
+        page.keyboard.press("p")
+        expect(thread).to_be_focused()
+        expect(page.locator(".lf-panel")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-panel")).to_be_hidden()
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser, serve):
+    """A focused comment is one addressable place with two useful placements. `g t`
+    and `g b` move that card inside the panel without moving focus or the document,
+    and the list's own scroll padding keeps the landing clear of its pinned heading
+    and focus ring."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(16):
+        panel_comment(d, f"Comment {i} about storage.", {"section": "how-store"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        box = page.locator(".lf-threads")
+        target = page.locator(".lf-threads > .lf-thread").nth(8)
+        assert box.evaluate("el => el.scrollHeight > el.clientHeight"), (
+            "the list does not scroll, so its edges are not distinct places"
+        )
+        target.evaluate("el => el.focus({preventScroll: true})")
+
+        before_page = page.evaluate("() => document.body.scrollTop")
+        page.keyboard.press("g")
+        expect(
+            page.locator(
+                ".lf-keyline .lf-key:not([hidden])",
+                has_text="comment top / bottom",
+            )
+        ).to_have_count(1)
+        page.keyboard.press("t")
+        top = page.evaluate(
+            """() => {
+              const box = document.querySelector('.lf-threads');
+              const thread = document.activeElement;
+              const view = box.getBoundingClientRect();
+              const card = thread.getBoundingClientRect();
+              const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+              return {gap: card.top - view.top, clear};
+            }"""
+        )
+        assert abs(top["gap"] - top["clear"]) < 2, (
+            f"g t left the card {top['gap']:.1f}px from the list top; "
+            f"the landable edge is {top['clear']:.1f}px"
+        )
+        expect(target).to_be_focused()
+
+        page.keyboard.press("g")
+        page.keyboard.press("b")
+        bottom = page.evaluate(
+            """() => {
+              const box = document.querySelector('.lf-threads');
+              const thread = document.activeElement;
+              const view = box.getBoundingClientRect();
+              const card = thread.getBoundingClientRect();
+              const clear = parseFloat(getComputedStyle(box).scrollPaddingBottom) || 0;
+              return {gap: view.bottom - card.bottom, clear};
+            }"""
+        )
+        assert abs(bottom["gap"] - bottom["clear"]) < 2, (
+            f"g b left the card {bottom['gap']:.1f}px from the list bottom; "
+            f"the landable edge is {bottom['clear']:.1f}px"
+        )
+        expect(target).to_be_focused()
+        assert page.evaluate("() => document.body.scrollTop") == before_page
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
 # What the burial below is aiming at: how deep the heading stands over the first card,
 # the ring that depth has to match, and the box the press is aimed into. `COVERED_TOP`
 # answers the covered question afterwards, by hit test and about the focused card.

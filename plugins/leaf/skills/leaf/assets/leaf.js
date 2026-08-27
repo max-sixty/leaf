@@ -2611,8 +2611,8 @@ const {
   versionBtn,
 });
 
-const { commentOnItem, glideTo, seenScroller, stepPage, stepThread } = createNavigation(
-  {
+const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
+  createNavigation({
     BANNER_CLEAR,
     REDUCED,
     SCROLL,
@@ -2630,8 +2630,7 @@ const { commentOnItem, glideTo, seenScroller, stepPage, stepThread } = createNav
     shownBox,
     shownRect,
     threadsBox,
-  },
-);
+  });
 
 const {
   COMMENTS,
@@ -2652,15 +2651,20 @@ const {
   claimsEsc,
   el,
   focused,
+  focusedThread,
   glideTo,
   goToAsk,
+  inPanel,
   keylineEl,
   landIn,
+  letGo,
   openAsks,
   openThreads,
   pageParts,
   paintHere,
+  panelCovers,
   panelIsOpen: () => panelOpen,
+  placeThreadEdge,
   saying,
   seenScroller,
   setPanel,

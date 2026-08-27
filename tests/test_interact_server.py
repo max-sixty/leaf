@@ -36,6 +36,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import publishing as publishing_model
 from leaf import registry as registry_model
+from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 
@@ -274,7 +275,14 @@ def test_server_round_trip(server, page_dir):
         < body.index(b'<script type="module" src="/leaf.js"></script>')
     )
     # Vendored files serve; the log and directory paths don't.
-    for path in ["/leaf.js", "/theme.css", "/registry.json", "/widgets/lf-tabs.js"]:
+    for path in [
+        "/leaf.js",
+        "/theme.css",
+        "/registry.json",
+        "/widgets/lf-tabs.js",
+        render_checks_model.PROBE_ROUTE,
+        render_checks_model.STANDALONE_ROUTE,
+    ]:
         assert fetch(server + path)[0] == 200, path
     for path in [
         "/comments.jsonl",

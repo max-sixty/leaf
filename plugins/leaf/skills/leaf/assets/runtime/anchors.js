@@ -1,4 +1,10 @@
 /* Anchor resolution, geometry, painting, and navigation. */
+let publishedAnchors;
+export const itemWord = (...args) => publishedAnchors.itemWord(...args);
+export const shownBand = (...args) => publishedAnchors.shownBand(...args);
+export const shownBox = (...args) => publishedAnchors.shownBox(...args);
+export const shownParts = (...args) => publishedAnchors.shownParts(...args);
+
 export function createAnchors(dependencies) {
   const {
     DATUM,
@@ -1299,7 +1305,7 @@ export function createAnchors(dependencies) {
   // the one place every scroller's event passes.
   document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
 
-  return {
+  const anchors = {
     VIEW_KEY,
     blocksOnScreen,
     captureView,
@@ -1336,4 +1342,6 @@ export function createAnchors(dependencies) {
       return pendingMarks;
     },
   };
+  publishedAnchors = anchors;
+  return anchors;
 }

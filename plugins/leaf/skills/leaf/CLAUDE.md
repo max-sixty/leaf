@@ -35,6 +35,8 @@ their direct readers;
 and selection-composer state;
 `runtime/drawn-edge.js` owns the shared resizable boundary used by the comment panel
 and tray panels;
+`runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
+shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns widget source-contract subscriptions;
@@ -113,7 +115,7 @@ Each mutable fact has one writer:
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
-| tray visibility | `trayUp` | `showTray` |
+| tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |

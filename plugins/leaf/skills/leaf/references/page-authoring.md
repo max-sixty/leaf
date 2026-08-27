@@ -196,6 +196,22 @@ reason it holds, and the question the page is asking. A few sentences hold all
 three. A section that runs longer is carrying either a structure with a shape of
 its own or backing that belongs under `<details>`.
 
+When one measured scalar belongs inside a sentence, freeze it with its provenance:
+
+```html
+The import takes <lf-num source="import-latency"
+  at="2026-08-27T09:00:00Z" via="uv run bench-import">184 ms</lf-num> at p95.
+```
+
+Set that source after every run with `leaf data set PAGE import-latency`, then pin
+`at` to that write's `updated` instant. The element's words and `at` remain part of the
+authored version; the replaceable source is only the freshness channel. If its `updated`
+instant moves past `at`, `version check` advises that the pinned number needs another
+look. `leaf data set` stamps `updated` at wall-clock, so an `at` naming when the
+measurement itself ran is already behind the write that recorded it and reads as stale
+the moment it is authored. This detects a rerun the version missed, not a measurement
+that is merely old. Use one source id for one stable measurement definition.
+
 Write for what the reader has seen, which is this conversation and the page so
 far. Introduce the names a decision depends on, put evidence on the page for a
 claim they could doubt, and drop the journey once the conclusion replaces it.

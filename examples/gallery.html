@@ -1574,8 +1574,16 @@ chimney with no cap, 120
         <p id="heat-weather-note">
           Every week sits at its own average outside temperature, so a colder winter
           cannot be mistaken for a leakier house. The two runs are the same house six
-          weeks apart: the second sits about 40 kWh a week below the first at the same
-          temperature, which is the draught-proofing showing up.
+          weeks apart: the second sits about
+          <lf-num
+            id="heat-weather-gap"
+            source="heat-weather-gap"
+            at="2026-02-01T12:00:00Z"
+            via="uv run analyse-heat --weather-normalise"
+            >40 kWh a week</lf-num
+          >
+          below the first at the same temperature, which is the draught-proofing showing
+          up.
         </p>
         <lf-chart id="heat-response" kind="dots" y="gas, kWh a week">
           <pre>

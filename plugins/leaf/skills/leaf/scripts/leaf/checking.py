@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.data import data_binding_errors, read_data_store
+from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
 from leaf.events import flocked, read_events, retractions, thread_structure
 from leaf.files import list_revisions, revision_path
 from leaf.passages import spoken
@@ -184,7 +184,9 @@ def check_source(
         previous = parse_structure(previous_html)
         was = spoken(previous_html, registry or {})
 
+    stored_data = empty_data()
     if registry is not None:
+        stored_data = read_data_store(page_dir)
         errors.extend(widget_errors(parser.lf_elements, registry))
         errors.extend(visual_part_errors(parser.lf_elements, registry))
         history = [
@@ -200,7 +202,7 @@ def check_source(
             data_binding_errors(
                 page_dir,
                 registry,
-                read_data_store(page_dir),
+                stored_data,
                 events,
                 [*history, (parser.lf_elements, "index.html")],
             )
@@ -337,6 +339,14 @@ def check_source(
             f"record behind the log: {line}"
             for line in record_lag(
                 current_projection, parser.by_id, now, registry or {}
+            )
+        ),
+        *(
+            f"measurement behind its source: {line}"
+            for line in measurement_lag(
+                parser.lf_elements,
+                registry or {},
+                stored_data,
             )
         ),
         *unpointable_blocks(parser),

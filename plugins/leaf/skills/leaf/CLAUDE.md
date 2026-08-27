@@ -109,7 +109,7 @@ Each mutable fact has one writer:
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
-| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, and `revealThread` for a deliberate centring |
+| where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
@@ -602,6 +602,7 @@ The extension keys describe general behavior:
 | `x-upgrade` | import this tag's module |
 | `x-content` | the element contains prose, items, data, or no authored content |
 | `x-inline` | the widget stands in an inline run |
+| `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
 | `x-verbatim` | authored data must agree with the rendered words |
@@ -1410,6 +1411,12 @@ whose Escape no scope was live to bind. A section merges the rows of every scope
 sharing its title, so a contributor the page hasn't got must bring none — `merge`
 drops it — or the two capabilities cannot differ in liveness under one heading.
 
+A press may deliberately leave layers standing while moving focus outside them. That is
+not an Escape rung, because it gives no layer back. The address chord states what remains
+open: beside the document, `g p` returns from the comment panel to the document and keeps
+both the panel and its narrowing. A panel covering the document cannot make that promise,
+so its ordinary Escape rung remains the route back.
+
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
 panel's list and the thread `j` walks to are the same rung, which is why `c` from
@@ -1854,10 +1861,12 @@ needs the actionable widget rather than the reader-facing region.
 
 `g` opens one address mode. A second letter names a list, and a digit names a
 member. `g g` and `g G` complete the chord themselves, gliding to the top and
-bottom of the visible scroller: an edge is one place, so the second key is the
-whole address, and because every page has a top the mode never arms empty and
-the page-level `g` row needs no capability gate. `ADDRESSES` is the whole list
-vocabulary. Each entry declares:
+bottom of the visible scroller. When a comment holds focus, `g t` and `g b`
+place that card at the top or bottom of its list without moving the page. From a
+beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
+An edge is one place, so the second key is the whole address; because every page has a
+top, the mode never arms empty and the page-level `g` row needs no capability gate.
+`ADDRESSES` is the whole list vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;

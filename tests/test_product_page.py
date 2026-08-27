@@ -9,6 +9,7 @@ from pathlib import Path
 
 import click
 import pytest
+from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import schema as schema_model
 
@@ -87,6 +88,17 @@ def test_package_guide_sits_beside_how_it_works():
     assert 'href="how-it-works.html"' in packages
     for source in ("index.html", "how-it-works.html"):
         assert 'href="packages.html"' in (DOCS / source).read_text()
+
+
+def test_how_it_works_quotes_the_real_check_success_line(page_dir):
+    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    assert checked.exit_code == 0, checked.output
+    success = next(
+        line for line in checked.output.splitlines() if line.startswith("✓ index.html:")
+    )
+
+    transcript = html.unescape((DOCS / "how-it-works.html").read_text())
+    assert success in transcript
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():

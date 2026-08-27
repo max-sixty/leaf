@@ -1,4 +1,14 @@
 {
+  "$data": {
+    "contracts": {
+      "measured-scalar": {
+        "description": "The latest scalar emitted by a repeatable measurement source. Authored lf-num text freezes the value a version states; the source snapshot records whether that measurement ran again.",
+        "schema": {
+          "type": ["number", "string"]
+        }
+      }
+    }
+  },
   "lf-ask": {
     "description": "One complete request to the reader: the heading, context, evidence, and answer control they need to consider it as a unit. It wraps exactly one non-quoted widget whose entry declares x-awaits; that nested widget still owns the action and determines whether the request is open. Use this when the request begins before its actionable widget — most often a section's heading and introductory prose above an lf-options group — so the Asks tray names the whole region and `n`/`p` arrives at its opening rather than dropping the reader straight into the answers. Keep the ordinary semantic section around it when the surrounding document needs a section landmark. The wrapper adds no frame or caption of its own.",
     "type": "object",
@@ -37,6 +47,44 @@
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "Deploy through a <lf-gloss tip=\"A thin, end-to-end path through the real system.\">walking skeleton</lf-gloss> before parallelizing."
+  },
+  "lf-num": {
+    "description": "One measured scalar frozen into the sentence that states it. Write the displayed value, unit included, as the element text; bind `source` to the repeatable measurement feed and set `at` to that source snapshot's recorded `updated` instant. A later `leaf data set` on the same source makes `version check` advise that this number is stale without replacing what an older version says. `via` may preserve the human-readable command or query in markup when the source id alone is not enough provenance. Use lf-metric instead when the number is a headline KPI in a metric row, and ordinary text for a number that is not produced by a repeatable measurement.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "via": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["source", "at"],
+    "additionalProperties": false,
+    "x-content": "prose",
+    "x-data": {
+      "measurement": {
+        "contract": "measured-scalar",
+        "source": "source"
+      }
+    },
+    "x-inline": true,
+    "x-measured": {
+      "input": "measurement",
+      "at": "at"
+    },
+    "x-upgrade": false,
+    "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-toc": {
     "description": "A compact table of contents derived from the page's h2-h6 headings. Add one near the opening of a page whose sections are long enough that a reader benefits from seeing the route before reading it; short pages and pages with only one or two sections need no contents block. The runtime lists the headings in document order and indents deeper levels, so the headings remain the one authored outline. Existing heading ids become link targets. For an id-less heading, the widget adds a position-derived target beside it without changing the authored heading. Live links reveal headings inside disclosures or tabs, a copied link returns to the same version's section, and a standalone export keeps the same ordinary fragment links. A stable authored heading id keeps that target across versions. The generated labels are link apparatus rather than a second commentable copy of each heading, and version diffs ignore them as generated navigation. Write the element empty and give it a stable id.",

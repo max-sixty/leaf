@@ -1077,12 +1077,13 @@ export function createConversation(dependencies) {
   // having remembered the line.
   //
   // Focus is the one fact all of them share, so the landing hangs off that and each of
-  // them gives up its copy. Three callers still write this list's scroll, and each says
+  // them gives up its copy. Four callers still write this list's scroll, and each says
   // something focus cannot: `stepThread` for the press at either end of the walk, which
   // moves no focus at all; `revealThread` for a deliberate centring, which runs after
-  // the focus it follows and wins; and `landIn`, which puts the reader in a thread's box
-  // and lands the thread around it, the same correction this makes and the reason a
-  // reply box reached by key was never the case that was wrong.
+  // the focus it follows and wins; `placeThreadEdge` for an explicit edge placement;
+  // and `landIn`, which puts the reader in a thread's box and lands the thread around it,
+  // the same correction this makes and the reason a reply box reached by key was never
+  // the case that was wrong.
   //
   // The thread holding the focus, not the card alone: the ring is the thread's, drawn
   // for `:focus-within`, so it is cut in the same place whether the reader is standing

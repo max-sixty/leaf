@@ -1,4 +1,5 @@
 {
+  "heat-weather-gap": 38,
   "atlas-worktrees": {
     "tree-w-1": {
       "branch": "atlas/xml-declarations",

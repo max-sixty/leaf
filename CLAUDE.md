@@ -377,9 +377,10 @@ Declarations describe general behavior:
   in the same seat, it carries the original response through the stop gate;
   their answer hands both back to the agent. Comments owns that reader-facing
   clarification; it is not also counted as a page Ask, whose subject remains
-  the proposal with the agent. A version that answers an originating open Ask,
-  or changes the declared answer when the Ask was already answered, ends the
-  request; only then may the agent resolve the original thread.
+  the proposal with the agent. Authored state in a later version must answer an
+  originating open Ask, or change the declared answer when the Ask was already
+  answered; a reader action in the log cannot substitute for that revision.
+  Only then may the agent resolve the original thread.
   The stop hook reads the same fact, so what leaves the reader's banner lands
   on the agent's own gate rather than nowhere; `awaits_agent` is the one
   spelling of it, beside the runtime's `awaitsAgent`. Which side opened the

@@ -496,8 +496,7 @@ textual view while the owner exists in the current document; the Comments panel
 keeps the complete thread and its interactive replies. A root declared with
 `response: {kind: version, verb: <answer>}` keeps that exact-section view
 text-only and refuses an agent reply because the next authored version is its
-response. Dropping the owner
-drops only the inline seat.
+response. Dropping the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
@@ -1798,9 +1797,10 @@ A `response: {kind: version, verb: <answer>}` conversation accepts no agent repl
 the agent incorporates it into a version or opens a separate thread for
 clarification. While that thread waits on the reader in the same seat, it carries
 the original response through the stop gate; their answer hands both threads back
-to the agent. A version that answers an originating open Ask, or changes the
-declared answer when the Ask was already answered, ends the request; only then may
-the agent resolve the original thread. Comments owns the reader-facing
+to the agent. Authored state in a later version must answer an originating open
+Ask, or change the declared answer when the Ask was already answered; a reader
+action in the log cannot substitute for that revision. Only then may the agent
+resolve the original thread. Comments owns the reader-facing
 clarification; the page's Ask remains the proposal with the agent rather than
 counting both.
 

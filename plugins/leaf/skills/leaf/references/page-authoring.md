@@ -93,10 +93,10 @@ the group still holds no new pick. Answer what they wrote in the authored page:
 carry their words in as another option and mark the pick it settled. If the reader
 explicitly rejects every option, settle the group without a pick. This thread
 takes no agent reply; if the revision needs an answer first, open a separate
-exact-section thread on the same Ask. Only a later version that answers an
-originating open Ask, or changes its declared answer when the Ask was already
-answered, lets the agent resolve the proposal. An unrelated version cannot close
-it.
+exact-section thread on the same Ask. Only authored state in a later version can
+answer an originating open Ask, or change its declared answer when the Ask was
+already answered. Reader actions before or after the proposal do not substitute
+for that revision, and an unrelated version cannot close it.
 
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own

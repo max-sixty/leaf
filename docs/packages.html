@@ -307,12 +307,13 @@ lf-chip {
                 to record what the words settled, and an action's
                 <code>requires</code> reads the request as open. An ordinary reply or
                 resolve hands the conversation back. A version-response conversation
-                takes no reply; only a later version that answers an originating open
-                request, or changes its declared answer when the request was already
-                answered, unlocks the agent's resolve. A widget inside a thread asks
-                like one on the page, with one bound set by frozen thread markup: the
-                thread's own reply box is already that seat, so only an action can
-                answer it there. <code>when</code> selects asking instances,
+                takes no reply; only authored state in a later version that answers an
+                originating open request, or changes its declared answer when the
+                request was already answered, unlocks the agent's resolve. Reader
+                actions in the log do not substitute for that version. A widget inside a
+                thread asks like one on the page, with one bound set by frozen thread
+                markup: the thread's own reply box is already that seat, so only an
+                action can answer it there. <code>when</code> selects asking instances,
                 <code>answers</code> names exactly the x-state verbs that settle one,
                 <code>rollup</code> derives a nested request from ordinary interventions
                 and child roll-ups, <code>until</code> can require a distinct completion
@@ -351,11 +352,12 @@ lf-chip {
                 that declaration on its root comment, has no inline reply control, and
                 refuses <code>leaf reply</code>: the agent either incorporates it in a
                 later version or opens a separate thread when that revision depends on
-                the reader. To unlock resolve, the later version must answer an
-                originating open request, or change the named answer's authored record
-                when the request was already answered. The named verb must be one of
-                x-awaits' answers with an attribute or value record, so the resolve gate
-                can compare the originating and current versions without naming a
+                the reader. To unlock resolve, authored state in the later version must
+                answer an originating open request, or change the named answer's
+                authored record when the request was already answered. Reader actions in
+                the log do not substitute for that version. The named verb must be one
+                of x-awaits' answers with an attribute or value record, so the resolve
+                gate can compare the originating and current versions without naming a
                 widget. A <code>hold</code> comment is such a conversation like any
                 other. <code>hold</code> labels a stronger send route whose comment
                 carries <code>holds</code> naming this widget: that route remains

@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -654,6 +655,56 @@ def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
         ["resolve", str(page_dir), "--to", proposal["id"]],
     )
     assert resolved.exit_code == 0, resolved.output
+
+
+@pytest.mark.parametrize(
+    "pick_after_proposal",
+    [False, True],
+    ids=["pick-before-proposal", "pick-after-proposal"],
+)
+def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
+    page_dir, pick_after_proposal
+):
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(asking)
+    publish(page_dir)
+    pick = {
+        "kind": "action",
+        "author": "user",
+        "version": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"options": ["flag-first"]},
+    }
+    if not pick_after_proposal:
+        events_model.append_event(page_dir, pick)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Also consider doing the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    if pick_after_proposal:
+        events_model.append_event(page_dir, pick)
+
+    (page_dir / "versions" / "v2.html").write_text(
+        asking.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    )
+    publish(page_dir, version=2)
+    unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+
+    assert unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unresolved.output
+    )
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):

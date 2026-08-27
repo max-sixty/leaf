@@ -41,7 +41,7 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
         return True
     registry = require_registry(page_dir)
     html = version_path(page_dir, version).read_text(encoding="utf-8")
-    projection, parser, spk = page_projection(html, events, registry, version)
+    projection, parser, spk = page_projection(html, [], registry, version)
     awaiting = page_awaiting_values(html, parser, projection, spk, registry)
     target = root["anchor"]["section"]
     if awaiting.get(target, False):
@@ -56,9 +56,8 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
         return True
 
     original_html = version_path(page_dir, root["version"]).read_text(encoding="utf-8")
-    original_events = [event for event in events if event["seq"] <= root["seq"]]
     original_projection, original, original_spk = page_projection(
-        original_html, original_events, registry, root["version"]
+        original_html, [], registry, root["version"]
     )
     original_awaiting = page_awaiting_values(
         original_html,

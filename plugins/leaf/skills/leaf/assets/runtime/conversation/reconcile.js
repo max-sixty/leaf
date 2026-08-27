@@ -73,6 +73,7 @@ export function createConversation(dependencies) {
     threadsBox,
     toggleBtn,
     updateSequence,
+    visualPartLabel,
     wireInput,
     withdraw,
   } = dependencies;
@@ -121,6 +122,7 @@ export function createConversation(dependencies) {
     renderQuiet,
     renderSaid,
     reportPageError,
+    visualPartLabel,
     tokenEntry,
   });
 
@@ -297,7 +299,7 @@ export function createConversation(dependencies) {
       post({
         kind: "reply",
         parent: id,
-        version: runtime.currentVersion,
+        revision: runtime.currentRevision,
         text,
         attempt,
       }),
@@ -409,6 +411,10 @@ export function createConversation(dependencies) {
           : "✓ Resolved";
       if (!tail) tail = offer("div", "lf-conversation-resolved");
       if (tail.textContent !== settledBy) tail.textContent = settledBy;
+    } else if (t.root.response?.kind === "version") {
+      // The page seat shows what the reader proposed. Their reply workspace remains
+      // in Comments; the agent's response is the next authored version.
+      tail = null;
     } else {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
@@ -420,7 +426,11 @@ export function createConversation(dependencies) {
       }
     }
     const work = thread.querySelector(":scope > .lf-work-line");
-    setChildren(thread, [...messages, ...(work ? [work] : []), tail]);
+    setChildren(thread, [
+      ...messages,
+      ...(work ? [work] : []),
+      ...(tail ? [tail] : []),
+    ]);
     return thread;
   }
 
@@ -652,7 +662,7 @@ export function createConversation(dependencies) {
     if (pill.lfReaction) await withdraw(pill.lfReaction);
     else
       await sendReaction(
-        { kind: "reply", parent: m.id, version: runtime.currentVersion, token: name },
+        { kind: "reply", parent: m.id, revision: runtime.currentRevision, token: name },
         pill,
         `${m.agent || "the agent"}'s reply`,
       );
@@ -686,7 +696,7 @@ export function createConversation(dependencies) {
       reactDone();
       return;
     }
-    const event = { kind: "comment", version: runtime.currentVersion, token: name };
+    const event = { kind: "comment", revision: runtime.currentRevision, token: name };
     if (designIsOn()) event.about = "layer";
     await sendReaction(event, pill, "the page");
     reactDone();

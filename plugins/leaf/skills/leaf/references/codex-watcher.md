@@ -31,7 +31,7 @@ page path, and resolved Leaf launcher. Its job is:
    cursor has not moved.
 4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>`, then start
    the next wait. Exit when wait returns 2 because the page is idle. The watcher
-   does not author, reply, resolve, publish, change status, or handle an event itself.
+   does not author, reply, resolve, stamp, change status, or handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
 that `leaf page state <page>` reports `listening: true` before ending the page task's

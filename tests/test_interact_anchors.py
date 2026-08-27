@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     SUGGESTED,
     SUGGESTION,
+    check,
     comment,
     decide,
     drafted,
@@ -15,10 +16,10 @@ from interact_support import (
     page_state,
     publish,
     published,
+    stamp,
     state_json,
     suggested,
 )
-from leaf import checking as checking_model
 from leaf import cli as cli_model
 from leaf import events as events_model
 from leaf import hooks as hooks_model
@@ -33,7 +34,7 @@ def test_comment_anchors_on_a_quote_and_posts_as_claude(page_dir, sessionless):
     assert (
         event["kind"] == "comment"
         and event["author"] == "claude"
-        and event["version"] == 1
+        and event["revision"] == 1
     )
     # A bare run has no host session behind it, so the event carries no voice
     # fields — readers' generic label covers it — rather than a stored
@@ -198,6 +199,65 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
 
 
+def test_a_comment_may_name_a_declared_visual_part(page_dir):
+    parted = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(parted)
+    published(page_dir)
+
+    result = comment(
+        page_dir,
+        "--section",
+        "flow",
+        "--part",
+        "node:A",
+        "--text",
+        "where does this retry?",
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["anchor"] == {
+        "section": "flow",
+        "visual": "node:A",
+    }
+
+    unknown = comment(
+        page_dir,
+        "--section",
+        "flow",
+        "--part",
+        "node:Missing",
+        "--text",
+        "x",
+    )
+    assert unknown.exit_code != 0
+    assert "known: ['node:A', 'node:B']" in unknown.output
+
+    unseated = comment(page_dir, "--part", "node:A", "--text", "x")
+    assert unseated.exit_code != 0
+    assert "--part needs --section" in unseated.output
+
+
+def test_a_version_keeps_each_declared_visual_part_addressable(page_dir):
+    parted = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(parted)
+    published(page_dir)
+    (page_dir / "versions" / "v2.html").write_text(
+        parted.replace(' parts="node:A node:B"', ' parts="node:B"')
+    )
+
+    result = check(page_dir, 2)
+    assert result.exit_code != 0
+    assert (
+        "visual parts present in revision r1 but dropped in index.html" in result.output
+    )
+    assert "flow · node:A" in result.output
+
+
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     """A module can replace or insert words the file's reading cannot model. A quote
     spanning one of those joins would resolve to nothing in the
@@ -277,18 +337,7 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
         '<lf-draft id="note" restated><pre>\nOnly purge gets a dry-run; the rest apply live.',
     )
     (page_dir / "versions" / "v2.html").write_text(revised)
-    noted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "2",
-            "--text",
-            "took the pen back",
-        ],
-    )
+    noted = stamp(page_dir, 2, "took the pen back")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "the rest apply live", "--text", "x")
     assert kept.exit_code == 0, kept.output
@@ -310,7 +359,7 @@ def test_a_verb_the_registry_no_longer_speaks_moves_nothing(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "note",
             "action": "scribble",
             "detail": {"text": "Words no layer speaks."},
@@ -329,19 +378,10 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     words the page stopped showing a version ago."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
-    (page_dir / "versions" / "v2.html").write_text(DRAFTED)
-    noted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "2",
-            "--text",
-            "changes elsewhere",
-        ],
+    (page_dir / "versions" / "v2.html").write_text(
+        DRAFTED.replace("<title>t</title>", "<title>t · revised</title>")
     )
+    noted = stamp(page_dir, 2, "changes elsewhere")
     assert noted.exit_code == 0, noted.output
     kept = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
     assert kept.exit_code == 0, kept.output
@@ -480,18 +520,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
         '<lf-suggestion id="sug-refill">', '<lf-suggestion id="sug-refill" restated>'
     )
     (page_dir / "versions" / "v2.html").write_text(revised)
-    noted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "2",
-            "--text",
-            "revised the proposal",
-        ],
-    )
+    noted = stamp(page_dir, 2, "revised the proposal")
     assert noted.exit_code == 0, noted.output
     result = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
@@ -538,7 +567,7 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
     )
     assert "sug-refill" not in honored and "refill-rule" not in honored
     (page_dir / "versions" / "v2.html").write_text(honored)
-    assert checking_model.cmd_check(page_dir, 2) == 0
+    assert check(page_dir, 2).exit_code == 0
 
     accepted = next(
         e for e in events_model.read_events(page_dir) if e["kind"] == "action"
@@ -546,7 +575,7 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    assert checking_model.cmd_check(page_dir, 2) == 1
+    assert check(page_dir, 2).exit_code == 1
 
 
 def test_what_the_reader_never_sees_is_not_quotable(page_dir):
@@ -562,10 +591,10 @@ def test_what_the_reader_never_sees_is_not_quotable(page_dir):
     assert "doesn't say" in result.output
 
 
-def test_a_comment_needs_a_published_version_to_point_at(page_dir):
+def test_a_comment_can_point_at_an_unstamped_live_revision(page_dir):
     result = comment(page_dir, "--quote", "Ship dark", "--text", "x")
-    assert result.exit_code != 0
-    assert "no published version" in result.output
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["revision"] == 1
 
 
 def test_a_comment_without_an_anchor_asks_the_page_whole(page_dir):
@@ -600,7 +629,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "cameras are flaky",
         },
     )
@@ -646,7 +675,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Still relevant?",
         },
     )
@@ -674,7 +703,7 @@ def test_a_closed_thread_stops_asking(page_dir):
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "Which mitigations?",
             "markup": '<lf-ask id="gm-ask"><p>The retry budget is shared.</p>'
             '<lf-options id="gm" choose>'
@@ -702,7 +731,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 {
                     "kind": "comment",
                     "author": "claude",
-                    "version": 1,
+                    "revision": 1,
                     "text": f"Choose {suffix}",
                     "markup": (
                         f'<lf-options id="group-{suffix}" choose>'
@@ -722,7 +751,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "group-a",
             "action": "choose",
             "detail": {"options": ["option-a"]},
@@ -813,7 +842,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "ps-q",
             "action": "choose",
             "detail": {"options": ["ps-cookie"]},

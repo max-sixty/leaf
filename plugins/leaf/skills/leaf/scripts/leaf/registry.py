@@ -73,6 +73,19 @@ EXTENSION_READER = json_validator(EXTENSION_SCHEMA)
 GUIDANCE_READER = json_validator(GUIDANCE_SCHEMA)
 
 
+def visual_part_attribute(entry: dict) -> str | None:
+    """The authored token-list attribute behind a part-addressable visual."""
+    visual = entry.get("x-visual")
+    return visual.get("parts") if isinstance(visual, dict) else None
+
+
+def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
+    """Stable visual-part ids declared by one authored widget instance."""
+    attribute = visual_part_attribute(registry.get(record.get("tag"), {}))
+    value = record.get("attrs", {}).get(attribute) if attribute else None
+    return tuple(value.split()) if value else ()
+
+
 def unresolved_schema_reference(schema: dict) -> str | None:
     """Return the first operative ref not supplied by this schema resource graph.
 
@@ -509,6 +522,31 @@ def validate_registry(registry: dict, source) -> dict:
                 raise RegistryError(
                     f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
                 )
+        if part_attribute := visual_part_attribute(entry):
+            if not (
+                "id" in entry.get("required", [])
+                and isinstance(properties.get("id"), dict)
+                and properties["id"].get("type") == "string"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> has addressable visual parts but does not "
+                    "require a string `id` for their anchor"
+                )
+            part_schema = properties.get(part_attribute)
+            if not (
+                isinstance(part_schema, dict)
+                and part_schema.get("type") == "string"
+                and part_schema.get("minLength", 0) >= 1
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-visual parts attribute `{part_attribute}` "
+                    "must be a non-empty string"
+                )
+            if not entry["x-upgrade"]:
+                raise RegistryError(
+                    f"{path}: <{tag}> declares addressable visual parts but has no "
+                    "upgraded handler to resolve them"
+                )
         # A drawing's box is the clip around something drawn at a size of its own, and
         # the theme lays it out as a row so the drawing keeps the column's axis and
         # scrolls only past the room. Every child of that element is an item in the row,
@@ -602,6 +640,12 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-conversation predicate attributes are authored "
                 f"and static, but {dynamic} are written by value records"
             )
+        response = conversation.get("response")
+        if response and entry.get("x-awaits") is None:
+            raise RegistryError(
+                f"{path}: <{tag}> x-conversation requires a version response but "
+                "declares no x-awaits standing request"
+            )
         data_sources = {spec["source"] for spec in entry.get("x-data", {}).values()}
         if dynamic := sorted(data_sources & mutable_values):
             raise RegistryError(
@@ -657,6 +701,19 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-awaits holds asks open until `{until['verb']}`, "
                 "which it does not declare as an x-state verb"
             )
+        if response:
+            verb = response["verb"]
+            if verb not in answers:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-conversation version response names `{verb}`, "
+                    "which x-awaits does not declare as an answer verb"
+                )
+            record = entry.get("x-state", {}).get(verb, {}).get("record") or {}
+            if record.get("kind") not in {"attribute", "value"}:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-conversation version response verb `{verb}` "
+                    "has no attribute or value record for a version to change"
+                )
         needs_upgrade = [
             key
             for key in (

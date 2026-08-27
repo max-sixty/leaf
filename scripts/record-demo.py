@@ -294,21 +294,19 @@ def record(
         "--text",
         "Yes. The fixed rate limit keeps the backfill online.",
     )
-    (page_dir / "versions" / "v2.html").write_text(demo_page(2), encoding="utf-8")
+    (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")
     run_leaf(
         "version",
-        "publish",
+        "stamp",
         str(page_dir),
-        "--version",
-        "2",
         "--text",
         "Backfill stays online; rehearsal progress is now 3 of 4",
     )
     run_leaf("status", str(page_dir), "waiting")
     waiters.append(start_waiter(page_dir))
     page.wait_for_function(
-        "() => document.querySelector('meta[name=lf-version][data-lf-runtime]')"
-        ".content === '2'",
+        "() => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
+        "?.content === '2'",
         timeout=15_000,
     )
     if page.url != live_url:
@@ -363,7 +361,7 @@ def shoot_stills(
     work out whether the diff is theirs.
 
     By this point the log holds the whole round — a comment on a marked passage, the
-    reply, v2 published, the state back to waiting — so a fresh context loading the
+    reply, the second revision stamped as v2, the state back to waiting — so a fresh context loading the
     page arrives at exactly the picture docs/index.html describes in its alt text.
     Fresh is the point: the panel's open state lives in localStorage, so a reused
     context would restore whatever the last gesture left rather than the shot's own
@@ -497,13 +495,11 @@ def main() -> None:
     # only once the server is up.
     try:
         run_leaf("page", "init", str(page_dir))
-        (page_dir / "versions" / "v1.html").write_text(demo_page(1), encoding="utf-8")
+        (page_dir / "index.html").write_text(demo_page(1), encoding="utf-8")
         run_leaf(
             "version",
-            "publish",
+            "stamp",
             str(page_dir),
-            "--version",
-            "1",
             "--text",
             "Migration rehearsal started; 2 of 4 checks complete",
         )

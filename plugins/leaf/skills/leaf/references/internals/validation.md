@@ -2,8 +2,8 @@
 
 ## Static validation
 
-`version check` is a deterministic pre-handover lint (no browser, near-free;
-`version publish` re-runs it on every version): the HTML parses with balanced
+`version check` is a deterministic check of the exact mutable `index.html` (no
+browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; the page carries
 exactly one external script
 (<script type="module" src="/leaf.js">) and one stylesheet link
@@ -12,17 +12,17 @@ body paint; every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
-comment); ids are unique and every id from the previous version survives
+comment); ids are unique and every id from the previous revision survives
 unless the log settled the widget holding it; no fixed-pixel-width element
 is wider than the readable column (the rule that draws that column claims it with
 `--lf-column: 1`, so the width and the claim come from one block). Near-free and deterministic is what makes
-running it on every version affordable, so keep a new check that way; anything
+running it on every save affordable, so keep a new check that way; anything
 needing a browser belongs in `--render`.
 
 ## Browser validation
 
 `version check --render` adds the browser half, run once before a page's URL is first
-handed over: the version loads in the machine's installed Chrome (Playwright
+handed over: the exact current source loads in the machine's installed Chrome (Playwright
 `channel="chrome"` — the caller supplies playwright, which `bin/leaf` does
 on seeing `--render`) and the render invariants the static lint cannot reach run
 against it — no console or page errors, no fail-soft error box, every visible
@@ -35,7 +35,7 @@ end-to-end render-check tests cover the installed Chrome launch used here.
 ## Passages
 
 An anchor is resolved in the browser and recorded in the event log, so
-`leaf comment` reads a version the way the anchor pass reads the DOM — text in
+`leaf comment` reads the active revision the way the anchor pass reads the DOM — text in
 document order, minus the runtime's own words, plus the words a widget says
 through an x-says attribute, with one space wherever the enclosing text block
 changes and whitespace collapsed. What the file cannot know is what a widget's
@@ -49,10 +49,10 @@ in the user's browser. Anchor on an opaque widget's element instead
 
 ## Parsed source
 
-A version is written in more than one language, and each language is read by a
+A page source is written in more than one language, and each language is read by a
 parser for that language: _StructParser for what the markup declares,
 page_passages for what it says, tinycss2 for the CSS a <style> block holds. A
-new question about a version becomes a field on one of those readings rather
+new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something
 adjacent to the question asked — `leaf.styles._overwide_elements`
 carries the evidence of that cost.

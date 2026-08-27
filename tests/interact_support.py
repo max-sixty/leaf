@@ -36,6 +36,7 @@ from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
+from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -126,15 +127,41 @@ def page_dir(tmp_path, monkeypatch):
         cli_model.cli, ["page", "init", "--package", package, str(d)]
     )
     assert result.exit_code == 0, result.output
+    (d / "index.html").write_text(PAGE)
+    activated = revisioning_model.activate_source(d, [])
+    assert activated.error is None and activated.revision == 1
     (d / "versions" / "v1.html").write_text(PAGE)
     return d
 
 
+def stage_fixture_source(d, version, *, reset_unstamped=False):
+    """Make an unstamped fixture version the page's initial working source.
+
+    The shared page fixture starts with a live baseline for server tests. Tests
+    that author their own first document are describing a fresh page instead,
+    so discard only that unstamped fixture revision before staging their bytes.
+    """
+    events = events_model.read_events(d)
+    revisions = files_model.list_revisions(d)
+    unstamped = not any(event["kind"] == "note" for event in events)
+    if unstamped and reset_unstamped:
+        for revision in revisions:
+            files_model.revision_path(d, revision).unlink()
+    elif (
+        unstamped
+        and revisions == [1]
+        and files_model.revision_path(d, 1).read_bytes() == PAGE.encode()
+    ):
+        files_model.revision_path(d, 1).unlink()
+    (d / "index.html").write_bytes(files_model.version_path(d, version).read_bytes())
+
+
 def check(d, version=None):
-    args = ["version", "check", str(d)] + (
-        ["--version", str(version)] if version else []
-    )
-    return CliRunner().invoke(cli_model.cli, args)
+    versions = files_model.list_versions(d)
+    target = version if version is not None else (versions[-1] if versions else None)
+    if target is not None:
+        stage_fixture_source(d, target)
+    return CliRunner().invoke(cli_model.cli, ["version", "check", str(d)])
 
 
 def declare_data_input(
@@ -168,23 +195,58 @@ def declare_data_input(
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))
-    versions = files_model.list_versions(page_dir)
-    version_path = files_model.version_path(page_dir, versions[-1])
-    html = version_path.read_text()
-    version_path.write_text(
+    source_path = page_dir / "index.html"
+    html = source_path.read_text()
+    source_path.write_text(
         html.replace(
             "</main>",
             f'<{tag} id="test-data" source="{source}"></{tag}>\n</main>',
         )
     )
+    if versions := files_model.list_versions(page_dir):
+        files_model.version_path(page_dir, versions[-1]).write_bytes(
+            source_path.read_bytes()
+        )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None
 
 
 def publish(d, version=1):
     """Append the note event that makes a version the user-seen baseline:
     `version check` compares against the last *published* version, and an action
     can only ever be made against one the server exposed."""
+    stage_fixture_source(d, version, reset_unstamped=True)
+    activated = revisioning_model.activate_source(
+        d, events_model.read_events(d), allow_transition=True
+    )
+    assert activated.error is None and activated.revision is not None
     events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": version, "text": "published"}
+        d,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": version,
+            "revision": activated.revision,
+            "text": "published",
+        },
+    )
+
+
+def stamp(d, version, text="stamped", completes=()):
+    """Stage one legacy fixture file and stamp its exact bytes through the CLI."""
+    stage_fixture_source(d, version, reset_unstamped=True)
+    return CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "stamp",
+            str(d),
+            "--text",
+            text,
+            *(arg for widget in completes for arg in ("--completes", widget)),
+        ],
     )
 
 
@@ -383,7 +445,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": files_model.latest_revision(page_dir),
             "widget": widget,
             "action": outcome,
             "detail": {},
@@ -406,7 +468,7 @@ def _decided(page_dir, words):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": files_model.latest_revision(page_dir),
             "widget": "d1",
             "action": "edit",
             "detail": {"text": "Cut the flag; backfill first."},
@@ -475,7 +537,7 @@ COMMENT = {"kind": "comment", "id": "c1", "author": "user", "text": "cameras are
 ACCEPT = {
     "kind": "action",
     "author": "user",
-    "version": 1,
+    "revision": 1,
     "widget": "sug-a",
     "action": "accept",
     "detail": {"resolves": "c1"},
@@ -832,14 +894,24 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
 def neighbour_page(directory, title=None, dead=False, published=True):
     """A page with desired service state and, unless dead, a live lease."""
     (directory / "versions").mkdir(parents=True)
+    (directory / "revisions").mkdir()
     head = f"<title>{title}</title>" if title else ""
-    (directory / "versions" / "v1.html").write_text(
+    html = (
         f"<!doctype html><html><head>{head}</head>"
         "<body><main><p>words</p></main></body></html>"
     )
+    (directory / "versions" / "v1.html").write_text(html)
+    files_model.write_revision(directory, 1, html.encode())
     if published:
         events_model.append_event(
-            directory, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
+            directory,
+            {
+                "kind": "note",
+                "author": "claude",
+                "version": 1,
+                "revision": 1,
+                "text": "t",
+            },
         )
     record = {"port": 59999}
     if dead:
@@ -1097,15 +1169,8 @@ def standing_server(spawn, sessionless):
 
 
 def published(page_dir):
-    assert (
-        CliRunner()
-        .invoke(
-            cli_model.cli,
-            ["version", "publish", str(page_dir), "--version", "1", "--text", "first"],
-        )
-        .exit_code
-        == 0
-    )
+    result = stamp(page_dir, 1, "first")
+    assert result.exit_code == 0, result.output
     return page_dir
 
 
@@ -1122,16 +1187,21 @@ DRAFTED = PAGE.replace(
 def drafted(page_dir):
     """A published v1 carrying the note draft, its body still Claude's."""
     (page_dir / "versions" / "v1.html").write_text(DRAFTED)
+    (page_dir / "index.html").write_text(DRAFTED)
     return published(page_dir)
 
 
 def edit(page_dir, text, widget="note", version=1):
+    events = events_model.read_events(page_dir)
+    revision = files_model.version_revisions(events).get(
+        version, files_model.latest_revision(page_dir)
+    )
     events_model.append_event(
         page_dir,
         {
             "kind": "action",
             "author": "user",
-            "version": version,
+            "revision": revision,
             "widget": widget,
             "action": "edit",
             "detail": {"text": text},

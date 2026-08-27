@@ -12,7 +12,12 @@ from .events import (
     seats_with_agent,
     thread_digest,
 )
-from .files import list_versions, published_versions, version_path
+from .files import (
+    active_descriptor,
+    latest_revision,
+    revision_path,
+    version_descriptors,
+)
 from .http import presence
 from .passages import enclosing_of, page_passages
 from .projection import (
@@ -24,9 +29,9 @@ from .projection import (
     thread_asks,
 )
 from .registry import described, require_registry
+from .revisioning import activate_source
 from .schema import GUIDANCE_DIR
 from .service import PageTransaction, running_server, unacknowledged
-from .structure import parse_version
 from .validation import thread_state
 
 CATALOG_PREAMBLE = """\
@@ -152,7 +157,7 @@ def cmd_catalog(page_dir: Path) -> None:
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
     """One standing action, in the shape `page state` reports every one of them.
 
-    `version` is the version the action was taken on, which for a widget an agent
+    `revision` is the exact document the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
     frozen in the log, so no version bounds one of these and none can ever record
     it, which is why `lag` says nothing about them.
@@ -164,7 +169,7 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
         "facet": facet,
         "action": e["action"],
         "detail": e["detail"],
-        "version": e["version"],
+        "revision": e["revision"],
         "seq": e["seq"],
         "thread": thread,
     }
@@ -173,44 +178,53 @@ def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
 def cmd_page_state(page_dir: Path) -> None:
     """Print the agent-side state from one transaction-consistent snapshot."""
     with PageTransaction(page_dir) as page:
-        _write_page_state(page_dir, page.events)
+        activation = activate_source(page_dir, page.events)
+        _write_page_state(page_dir, page.events, activation.error)
 
 
-def _write_page_state(page_dir: Path, events: list) -> None:
+def _write_page_state(
+    page_dir: Path, events: list, source_error: str | None = None
+) -> None:
     """Where the page stands, as one JSON object — the agent-side twin of the
     browser's /api/state, folded rather than raw. /api/state ships the log and
     lets the runtime replay it; a session picking a page up owes the same
     reading, and doing it in-head over `leaf events` is how a standing decision
     gets missed. So this prints the readings the runtime derives, from the same
-    constructions it derives them with: the published markup's elements, the
+    constructions it derives them with: the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), the open asks
     on the page and in threads (the banner's own count), each comment thread's
     exchange,
     and presence beside what answers for it. Computed on demand from the log,
-    version, registry, and source store — no derived reading is stored, so there
+    revision, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.
 
-    Every markup-derived reading is of the latest *published* version, because
-    that is the page the user sees and acts on; a written draft shows up in
-    `versions.written` and nowhere else."""
+    Every markup-derived reading is of the latest valid revision, because that
+    is the page the live root shows and the user acts on. An invalid source save
+    appears only as `source_error` while that revision remains active."""
     registry = require_registry(page_dir)
-    published = published_versions(page_dir, events)
-    written = list_versions(page_dir)
+    versions = version_descriptors(page_dir, events)
+    try:
+        revision = latest_revision(page_dir)
+        active = active_descriptor(page_dir, events)
+    except SystemExit:
+        revision, active = None, None
     pres = presence(page_dir, events)
     claims = pres.pop("claims")
-    # The published page's readings, up front and through the one construction
+    # The active page's readings, up front and through the one construction
     # (page_projection) every consumer of declared state reads, so the threads
     # settle against the same page the projection was built over rather than no page.
     parser, projection, spk = None, None, {}
-    if published:
-        html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        projection, parser, spk = page_projection(html, events, registry, published[-1])
+    if revision is not None:
+        html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+        projection, parser, spk = page_projection(html, events, registry, revision)
     threads = build_threads(events, enclosing_of(spk))
     state = {
         "page": str(page_dir),
         "title": "",
-        "versions": {"published": published, "written": written},
+        "active": active,
+        "versions": versions,
+        "source_error": source_error,
         **pres,
         # The watcher's number where `pending` is the reader's: everything a
         # wait would still print, workers' reports included.
@@ -242,7 +256,7 @@ def _write_page_state(page_dir: Path, events: list) -> None:
                     "about": m.get("about"),
                     "parent": m.get("parent"),
                     "thread": root,
-                    "version": m.get("version"),
+                    "revision": m.get("revision"),
                     "seq": m["seq"],
                 },
                 registry,
@@ -254,7 +268,7 @@ def _write_page_state(page_dir: Path, events: list) -> None:
         ],
         "lag": [],
     }
-    if published:
+    if revision is not None:
         byid = parser.by_id
         state["title"] = parser.title.strip()
         state["elements"] = [
@@ -289,8 +303,6 @@ def _write_page_state(page_dir: Path, events: list) -> None:
             seats_with_agent(threads),
         )
         state["lag"] = record_lag_entries(projection, byid, spk, registry)
-    elif written:
-        state["title"] = parse_version(page_dir, written[-1]).title.strip()
     state["asks"] += thread_asks(
         events, registry, {rid for rid, t in threads.items() if t["resolved"]}
     )

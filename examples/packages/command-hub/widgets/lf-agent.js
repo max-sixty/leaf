@@ -79,8 +79,8 @@ function heard(el, updates) {
   // before its own message existed.
   //
   // A fallback and pointedly not the later of the two: the question is how long the
-  // *worker* has been silent, and a republish is the orchestrator speaking, not them.
-  // Taking the newer would let a version published this minute certify a worker three
+  // *worker* has been silent, and a page revision is the orchestrator speaking, not them.
+  // Taking the newer would let a revision activated this minute certify a worker three
   // hours dead, which is the failure this line exists to catch wearing the fix for its
   // twin.
   // The feed itself is chronological across sources. A report's durable log sequence

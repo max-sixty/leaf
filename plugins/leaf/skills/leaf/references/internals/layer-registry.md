@@ -10,7 +10,7 @@ than deep-merging its schema; runtime, widget, and vendor files replace by path.
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, noted in the next version's changelog. A served page
+is the explicit re-vendor, noted in the next stamped version's changelog. A served page
 is first stopped, which disables its desired service and waits for the process
 and every accepted connection to retire. After re-vendoring, `server start`
 restores its URL and lifetime; its status needs no maintenance copy. One

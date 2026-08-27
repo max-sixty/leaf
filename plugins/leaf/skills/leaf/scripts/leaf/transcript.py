@@ -10,11 +10,11 @@ from leaf.events import (
     read_events,
     taken_back,
 )
-from leaf.files import published_versions, version_path
+from leaf.files import latest_revision, revision_label, revision_path
 from leaf.passages import enclosing_of
 from leaf.projection import page_projection, record_lag
 from leaf.registry import load_registry, reaction_tokens
-from leaf.structure import parse_version
+from leaf.structure import parse_revision
 
 
 def cmd_events(page_dir: Path, after: int) -> None:
@@ -42,11 +42,14 @@ def shown(quote: str) -> str:
 def cmd_transcript(page_dir: Path) -> None:
     """The page's exchange as Markdown, for reuse in a PR description."""
     events = read_events(page_dir)
-    published = published_versions(page_dir, events)
     registry = load_registry(page_dir) or {}
     title = ""
-    if published:
-        title = parse_version(page_dir, published[-1]).title.strip()
+    try:
+        revision = latest_revision(page_dir)
+    except SystemExit:
+        revision = None
+    if revision is not None:
+        title = parse_revision(page_dir, revision).title.strip()
     print(f"## Leaf: {title or page_dir.name}")
 
     notes = [e for e in events if e["kind"] == "note"]
@@ -82,29 +85,29 @@ def cmd_transcript(page_dir: Path) -> None:
                 # A worker's provisional news is an outcome too, under its own name.
                 print(
                     f"- `{e['widget']}`: {e.get('agent', 'a worker')} reported "
-                    f"{verb} (on v{e['version']})"
+                    f"{verb} (on {revision_label(events, e['revision'])})"
                 )
             else:
                 # An edit the reader took back is an outcome too, and the same
                 # understatement the other way round: shown as it stands it reads
                 # as final, and left out it reads as never made.
                 took = " — taken back" if e["id"] in withdrawn else ""
-                print(f"- `{e['widget']}`: {verb} (on v{e['version']}){took}")
+                print(
+                    f"- `{e['widget']}`: {verb} "
+                    f"(on {revision_label(events, e['revision'])}){took}"
+                )
 
-    # Against the newest published version — the page as it now stands, which is
-    # what a transcript is an account of. A page with nothing published yet has no
-    # reading to give, and no action can have been made against one either.
+    # Against the active revision — the page as it now stands, which is what a
+    # transcript is an account of. A page with no valid revision has no reading.
     latest = (
-        version_path(page_dir, published[-1]).read_text(encoding="utf-8")
-        if published
+        revision_path(page_dir, revision).read_text(encoding="utf-8")
+        if revision
         else ""
     )
     projection = parser = None
     spk = {}
-    if published:
-        projection, parser, spk = page_projection(
-            latest, events, registry, published[-1]
-        )
+    if revision is not None:
+        projection, parser, spk = page_projection(latest, events, registry, revision)
     threads = build_threads(events, enclosing_of(spk))
     if threads:
         print("\n### Threads\n")
@@ -114,6 +117,8 @@ def cmd_transcript(page_dir: Path) -> None:
             head = f"> “{shown(anchor['quote'])}”"
         elif anchor.get("section"):
             head = f"> § {anchor['section']}"
+            if anchor.get("visual"):
+                head += f" · {anchor['visual']}"
             if anchor.get("part"):
                 head += f" · {anchor['part']}"
         else:

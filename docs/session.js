@@ -35,6 +35,12 @@
 const KEY = `leaf-demo:${location.pathname.replace(/\/versions\/v[1-9]\d*\.html$/, "")}`;
 // Which version this document is, read the way the runtime reads it.
 const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
+const REVISION = 1;
+const revisionMarker = document.createElement("meta");
+revisionMarker.name = "lf-revision";
+revisionMarker.content = String(REVISION);
+revisionMarker.dataset.lfRuntime = "";
+document.head.append(revisionMarker);
 const LAYER = await fetch("/registry.json")
   .then((response) => response.json())
   .then((registry) => registry.$layer.generation);
@@ -128,7 +134,21 @@ const state = () => ({
   // The versions this page has, which here is the one being read: the site publishes a
   // single version of each example. A second would want the list handed to this file
   // rather than guessed from a path, since a reader on v1 has to be offered v2.
-  versions: [VERSION],
+  active: {
+    revision: REVISION,
+    version: VERSION,
+    url: `/versions/v${VERSION}.html`,
+    label: `v${VERSION}`,
+    activated_at: null,
+  },
+  versions: [
+    {
+      version: VERSION,
+      revision: REVISION,
+      url: `/versions/v${VERSION}.html`,
+    },
+  ],
+  source_error: null,
   // Nobody is behind this page and nobody is coming, which the runtime has a word for
   // and reads before it weighs anything else. Everything below it is then the honest
   // nothing a page outside a session loop has to report: no claim was ever written, no
@@ -201,7 +221,7 @@ window.fetch = (input, init) => {
       setTimeout(
         () =>
           append(
-            { kind: "reply", parent: minted.id, version: VERSION, text: ANSWER },
+            { kind: "reply", parent: minted.id, revision: REVISION, text: ANSWER },
             "claude",
             AGENT,
           ),

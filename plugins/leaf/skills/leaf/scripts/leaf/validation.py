@@ -6,13 +6,12 @@ from pathlib import Path
 
 from leaf.data import data_binding_errors, read_data_store
 from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
-from leaf.files import list_versions, version_path
+from leaf.files import list_revisions, revision_path
 from leaf.passages import (
     EMPTY,
     collapse,
     enclosing_ids,
     enclosing_of,
-    page_passages,
     spoken,
 )
 from leaf.projection import (
@@ -20,11 +19,10 @@ from leaf.projection import (
     StateProjection,
     action_subjects,
     asking,
-    decisions,
     enclosing_widgets,
     folded_facet,
     markup_facet,
-    page_ask_projection,
+    page_awaiting_values,
     page_projection,
     projected_action_holders,
     quoted_in,
@@ -39,13 +37,14 @@ from leaf.registry import (
     require_registry,
     retirement_slots,
     validate_registry,
+    visual_parts,
 )
 from leaf.structure import (
     OPTIONAL_END,
     SECTIONING_TAGS,
     _StructParser,
+    parse_revision,
     parse_structure,
-    parse_version,
 )
 from leaf.styles import inline_presentation_override_errors
 
@@ -137,13 +136,14 @@ def declared_action_error(
     event: dict, page_by_id: dict, thread_by_id: dict, registry: dict
 ):
     """Why a stored action violates its sending widget's durable declaration."""
-    # Page widgets come from the action's own published version. Thread widgets
+    # Page widgets come from the action's own immutable revision. Thread widgets
     # inhabit the panel's other live document. Either record answers both which
     # tag sent the action and whether it stands inside an exhibit.
     rec = page_by_id.get(event["widget"]) or thread_by_id.get(event["widget"])
     if rec is None:
         return (
-            f"unknown action widget {event['widget']!r} in v{event['version']} "
+            f"unknown action widget {event['widget']!r} in revision "
+            f"r{event['revision']} "
             "or agent-authored thread markup"
         )
     tag = rec["tag"]
@@ -184,6 +184,52 @@ def held_comment_error(event: dict, page_by_id: dict, registry: dict):
     return None
 
 
+def version_response_comment_error(event: dict, page_by_id: dict, registry: dict):
+    """Why a comment cannot require the authored response it names."""
+    response = event.get("response")
+    if not response:
+        return None
+    anchor = event.get("anchor")
+    target = anchor.get("section") if isinstance(anchor, dict) else None
+    rec = page_by_id.get(target)
+    conversation = (
+        (registry.get(rec["tag"]) or {}).get("x-conversation") if rec else None
+    )
+    if (
+        rec is None
+        or not conversation
+        or conversation.get("response") != response
+        or not asking(rec["attrs"], conversation.get("when"))
+        or anchor != {"section": target}
+    ):
+        return (
+            "comment response must match its exact-section x-conversation "
+            "response target"
+        )
+    return None
+
+
+def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
+    """Why a semantic visual coordinate is not authored on its section."""
+    anchor = event.get("anchor") or {}
+    visual = anchor.get("visual")
+    if not visual:
+        return None
+    if anchor.get("quote") or anchor.get("datum"):
+        return (
+            f"visual anchor {visual!r} names a box rather than a passage, "
+            "so it cannot also carry a quote or a datum"
+        )
+    section = anchor["section"]
+    available = visual_parts(page_by_id.get(section) or {}, registry)
+    if visual not in available:
+        return (
+            f"visual anchor {visual!r} is not declared on section {section!r}; "
+            f"known: {list(available)}"
+        )
+    return None
+
+
 def action_contract_error(page_dir: Path, event: dict, events: list, registry: dict):
     """Why a fresh action violates its declaration or current applicability.
 
@@ -192,8 +238,8 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     declaration for honest controls, but its possibly stale reading never
     authorizes this boundary.
     """
-    version = event["version"]
-    page = parse_version(page_dir, version)
+    revision = event["revision"]
+    page = parse_revision(page_dir, revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection the requirement is judged
     # against are the same frozen fragments, and parsing them twice was two
@@ -210,32 +256,21 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         return None
 
     if page_rec:
-        html = version_path(page_dir, version).read_text(encoding="utf-8")
-        projection, parser, spk = page_projection(html, events, registry, version)
+        html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+        projection, parser, spk = page_projection(html, events, registry, revision)
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
-        passages = page_passages(
-            html, registry, decisions(projection.actions, registry)
-        )
-        _, awaiting_values = page_ask_projection(
-            parser,
-            projection,
-            byid,
-            spk,
-            registry,
-            set(passages.retired) | set(passages.gone),
-            # This door asks whether the request is answered, not whether it is the
-            # reader's to deal with: a conversation standing in the widget's seat
-            # takes it off their list without answering it, and refusing their pick
-            # over their own remark would refuse them the answer they were asked for.
-            set(),
-        )
+        # This door asks whether the request is answered, not whether it is the
+        # reader's to deal with: a conversation standing in the widget's seat
+        # takes it off their list without answering it, and refusing their pick
+        # over their own remark would refuse them the answer they were asked for.
+        awaiting_values = page_awaiting_values(html, parser, projection, spk, registry)
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.
         projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
-        page_html = version_path(page_dir, version).read_text(encoding="utf-8")
+        page_html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         threads = build_threads(events, enclosing_ids(page_html))
         settled = {root for root, value in threads.items() if value["resolved"]}
         _, awaiting_values = thread_ask_projection(events, registry, settled)
@@ -267,7 +302,8 @@ def report_contract_error(event: dict, page_by_id: dict, registry: dict):
     tag = rec["tag"] if rec else None
     if tag is None:
         return (
-            f"unknown report widget {event['widget']!r} in v{event['version']} — "
+            f"unknown report widget {event['widget']!r} in revision "
+            f"r{event['revision']} — "
             "reports name page widgets only; thread markup is frozen, so no "
             "version could ever answer a report made there"
         )
@@ -276,8 +312,8 @@ def report_contract_error(event: dict, page_by_id: dict, registry: dict):
 
 def version_ids(page_dir: Path) -> set:
     ids = set()
-    for version in list_versions(page_dir):
-        ids |= parse_version(page_dir, version).ids
+    for revision in list_revisions(page_dir):
+        ids |= parse_revision(page_dir, revision).ids
     return ids
 
 
@@ -433,7 +469,7 @@ def incoming_registry(packages: list) -> dict:
 def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     """What the page's log says that the *incoming* layer no longer speaks:
     events its $events record schemas reject; reactions on a token its
-    $reactions drops; held comments whose conversation contract changed; or
+    $reactions drops; comments whose conversation contract changed; or
     actions and reports whose sending tag, verb, or detail the incoming x-state
     or x-report contract rejects. Empty for a fresh page.
     Counted, because the number is the cost — each is a recorded event that
@@ -443,12 +479,12 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
     contracts = incoming["$events"]["kinds"]
     tokens = incoming.get("$reactions", {}).get("tokens", {})
     thread = thread_structure(events)
-    versions = {}
+    revisions = {}
 
-    def page_by_id(version):
-        if version not in versions:
-            versions[version] = parse_version(page_dir, version).by_id
-        return versions[version]
+    def page_by_id(revision):
+        if revision not in revisions:
+            revisions[revision] = parse_revision(page_dir, revision).by_id
+        return revisions[revision]
 
     missing = {}
     for e in events:
@@ -463,19 +499,34 @@ def vocabulary_gaps(page_dir: Path, events: list, incoming: dict) -> list:
             # (`declared_action_error`) read for the reaction vocabulary.
             key = f"reaction token `{e['token']}` no longer declared by $reactions"
         elif (
-            kind == "comment"
-            and e.get("holds")
-            and (error := held_comment_error(e, page_by_id(e["version"]), incoming))
+            (
+                kind == "comment"
+                and e.get("holds")
+                and (
+                    error := held_comment_error(e, page_by_id(e["revision"]), incoming)
+                )
+            )
+            or (
+                kind == "comment"
+                and e.get("response")
+                and (
+                    error := version_response_comment_error(
+                        e, page_by_id(e["revision"]), incoming
+                    )
+                )
+            )
+            or kind == "comment"
+            and (error := visual_anchor_error(e, page_by_id(e["revision"]), incoming))
         ):
             key = f"comment contract: {error}"
         elif kind == "action" and (
             error := declared_action_error(
-                e, page_by_id(e["version"]), thread.by_id, incoming
+                e, page_by_id(e["revision"]), thread.by_id, incoming
             )
         ):
             key = f"action contract: {error}"
         elif kind == "report" and (
-            error := report_contract_error(e, page_by_id(e["version"]), incoming)
+            error := report_contract_error(e, page_by_id(e["revision"]), incoming)
         ):
             key = f"report contract: {error}"
         elif e.get("markup") and (
@@ -565,6 +616,19 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 )
             if rec["text"]:
                 errors.append(f"{where}: loose text between its items isn't allowed")
+    return errors
+
+
+def visual_part_errors(lf_elements: list, registry: dict) -> list:
+    """A visual's authored part tokens each name one stable generated target."""
+    errors = []
+    for rec in lf_elements:
+        parts = visual_parts(rec, registry)
+        duplicates = sorted({part for part in parts if parts.count(part) > 1})
+        if duplicates:
+            errors.append(
+                f"{at(rec)}: visual part ids must be unique, repeated {duplicates}"
+            )
     return errors
 
 
@@ -839,7 +903,7 @@ def restatement_errors(
     projection: StateProjection,
     floors: dict,
 ) -> list:
-    """The other half of the id-survival rule. That one keeps a republish from
+    """The other half of the id-survival rule. That one keeps a revision from
     dropping the anchors a user hung on the page; this one keeps it from
     dropping the decisions they recorded on it. CLAUDE.md carries why the log
     outranks the markup and what that cost.
@@ -871,7 +935,7 @@ def restatement_errors(
     errors = []
     declared = cur.restated
     # Retractions up to prev — never this version's own, which is what it is
-    # here to declare, so re-checking a published version reaches the same
+    # here to declare, so re-checking a stamped revision reaches the same
     # verdict as checking it did.
     byid = cur.by_id
 
@@ -905,10 +969,10 @@ def restatement_errors(
         where = at(rec, f"id={unit!r}")
         errors.append(
             f"{where}: its state changed under the user's decision — the markup "
-            f"shows {f_cur!r} where their {e['action']} (on v{e.get('version', 0)}) "
+            f"shows {f_cur!r} where their {e['action']} (on r{e['revision']}) "
             f"left {f_fold!r}. Their decision is what the page shows, so this state "
             f"would never reach them — add `restated` to retract it and ask again, "
-            f"or leave it as v{prev_num} had it."
+            f"or leave it as r{prev_num} had it."
         )
 
     for sid, rec in sorted(byid.items()):
@@ -943,13 +1007,13 @@ def restatement_errors(
             # nothing.
             if sid in floors:
                 errors.append(
-                    f"{where}: restated, but v{floors[sid]} already took that "
-                    f"back — a retraction is recorded when it is published and holds "
+                    f"{where}: restated, but r{floors[sid]} already took that "
+                    f"back — a retraction is recorded when it is stamped and holds "
                     f"without being repeated. Drop the attribute."
                 )
             else:
                 why = (
-                    f"its words are unchanged since v{prev_num}"
+                    f"its words are unchanged since r{prev_num}"
                     if live
                     else "the user has recorded nothing on it"
                 )
@@ -958,12 +1022,12 @@ def restatement_errors(
                     f"Drop the attribute; `restated` discards their decision."
                 )
         elif changed and live and not restated:
-            did = ", ".join(f"{e['action']} on v{e.get('version')}" for e in live[-3:])
+            did = ", ".join(f"{e['action']} on r{e['revision']}" for e in live[-3:])
             errors.append(
                 f"{where}: its words changed, and the user has already acted "
                 f"on it ({did}). Their decision is what the page shows, so these "
                 f"words would never reach them — add `restated` to retract it and "
-                f"ask again, or leave the text as v{prev_num} had it."
+                f"ask again, or leave the text as r{prev_num} had it."
             )
     return errors
 
@@ -978,10 +1042,10 @@ def report_errors(
 ) -> list:
     """The report gate, beside the reviewer one — the same shape with the
     precedence reversed. A report is a worker's provisional news: the runtime
-    paints it onto every version published before it, and it stands only until
+    paints it onto every revision activated before it, and it stands only until
     a version settles its typed id on the note (the agent-side counterpart to
     `restated`). Three outcomes are legal. Writing the reported state is
-    honoring — publishing records it as absorption. Leaving the markup as the
+    honoring — stamping records it as absorption. Leaving the markup as the
     previous version had it is blessed silence — the report keeps painting.
     Marking the element `overruled` keeps this version's own state and retires
     the report, with the why in the note's text. What is refused is the fourth
@@ -992,7 +1056,7 @@ def report_errors(
     would make the gate meaningless.
 
     Standing is read up to prev — never this version's own note, which is what
-    publishing is about to record — so re-checking a published version reaches
+    stamping is about to record — so re-checking a stamped version reaches
     the same verdict as checking it did."""
     errors = []
     declared = cur.overruled
@@ -1021,7 +1085,7 @@ def report_errors(
         if rec is None or unit not in prev_byid:
             continue
         if f_cur == f_rep:
-            continue  # honoring: publishing absorbs the report by id
+            continue  # honoring: stamping absorbs the report by id
         if f_cur == markup_facet(unit, spec, prev_byid, was, registry):
             continue  # blessed silence: the report keeps painting
         where = at(rec, f"id={unit!r}")
@@ -1029,17 +1093,17 @@ def report_errors(
         errors.append(
             f"{where}: its markup contradicts a standing report — it shows "
             f"{f_cur!r} where {who}'s {e['action']} (report {e['id']}, on "
-            f"v{e['version']}) left {f_rep!r}. Adjudicate it: write the reported "
+            f"r{e['revision']}) left {f_rep!r}. Adjudicate it: write the reported "
             f"state to absorb the report, or add `overruled` to keep this state "
             f"and retire it (say why in the note)."
         )
     unearned = declared - earned
-    # Where an attribute is spent past its version: which version already
+    # Where an attribute is spent past its revision: which revision already
     # answered the unit's reports, for the message that says to drop it.
     answered_at = {}
     if unearned:
-        for (_widget, unit, _facet), version in projection.report_settlements.items():
-            answered_at[unit] = max(answered_at.get(unit, 0), version)
+        for (_widget, unit, _facet), revision in projection.report_settlements.items():
+            answered_at[unit] = max(answered_at.get(unit, 0), revision)
     for sid in sorted(unearned):
         rec = byid.get(sid)
         if rec is None:
@@ -1048,13 +1112,13 @@ def report_errors(
         if any(unit == sid for _widget, unit, _facet in effective_standing):
             errors.append(
                 f"{where}: overruled, but this version writes the reported state — "
-                f"that is absorption, which publishing records on its own. "
+                f"that is absorption, which stamping records on its own. "
                 f"Drop the attribute."
             )
         elif sid in answered_at:
             errors.append(
-                f"{where}: overruled, but v{answered_at[sid]} already answered the "
-                f"reports on it — an answer is recorded when it is published and "
+                f"{where}: overruled, but r{answered_at[sid]} already answered the "
+                f"reports on it — an answer is recorded when it is stamped and "
                 f"holds without being repeated. Drop the attribute."
             )
         else:
@@ -1163,6 +1227,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
     return (
         structure_errors(parser)
         + widget_errors(parser.lf_elements, registry)
+        + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_region_errors(parser.lf_elements, registry)
         + language_class_errors(parser.language_blocks, registry)

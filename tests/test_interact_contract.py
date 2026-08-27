@@ -43,6 +43,7 @@ from interact_support import (
     logged,
     publish,
     published,
+    stamp,
     styled,
     trial_version,
     widget_entry,
@@ -95,7 +96,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
             "kind": "action",
             "id": "a1",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": "c1"},
@@ -130,7 +131,7 @@ def test_server_takes_back_only_a_standing_gesture_of_the_readers_own(server, pa
     posted = json.loads(
         fetch(
             f"{server}/api/event",
-            data=json.dumps({"kind": "comment", "version": 1, "text": "hi"}).encode(),
+            data=json.dumps({"kind": "comment", "revision": 1, "text": "hi"}).encode(),
         )[1]
     )["state"]["events"][-1]
     resolved = json.loads(
@@ -192,7 +193,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
         fetch(
             f"{server}/api/event",
             data=json.dumps(
-                {"kind": "comment", "version": 1, "text": "close this"}
+                {"kind": "comment", "revision": 1, "text": "close this"}
             ).encode(),
         )[1]
     )["state"]["events"][-1]
@@ -344,7 +345,7 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "d1",
             "action": "decide",
             "detail": {"decision": "approved"},
@@ -365,7 +366,7 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     back by. A token the layer keeps re-vendors as before."""
     publish(page_dir)
     events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "cut"}
     )
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
@@ -396,7 +397,7 @@ def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
             "author": "claude",
             "agent": "Codex",
             "mood": "uncertain",
-            "version": 1,
+            "revision": 1,
             "text": "Does this still mean anything?",
         },
     )
@@ -422,7 +423,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "feeder-board",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -469,7 +470,7 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "feeder-board",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -501,7 +502,11 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
     and replay it rather than applying today's admission policy retroactively.
     """
     registry = json.loads((page_dir / "registry.json").read_text())
-    options = registry["lf-options"]["x-example"]
+    options = (
+        '<lf-options id="run-status" choose>'
+        '<lf-option id="rs-column">Column</lf-option>'
+        "</lf-options>"
+    )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", options + "\n</section>")
@@ -512,7 +517,7 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "run-status",
             "action": "choose",
             "detail": {"options": ["rs-column"]},
@@ -573,6 +578,41 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     assert "no longer speaks" in result.output
     assert "report contract" in result.output
     assert "lf-task" in result.output and "status" in result.output
+
+
+def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
+    """A re-vendored provider must keep every semantic target the log names."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            '<lf-diagram id="flow">',
+            '<lf-diagram id="flow" parts="node:A node:B">',
+        )
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "flow", "visual": "node:A"},
+            "text": "keep this target",
+        },
+    )
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    diagram = registry["lf-diagram"]
+    diagram.pop("x-visual")
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(json.dumps({"lf-diagram": diagram}))
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "visual anchor 'node:A'" in result.output
 
 
 def test_report_validation_and_append_cannot_straddle_revendoring(
@@ -697,7 +737,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
     action = json.dumps(
         {
             "kind": "action",
-            "version": 1,
+            "revision": 1,
             "widget": "feeder-board",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -1100,7 +1140,6 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     Flooring the widget itself is the control: it retracts in every reading, so a
     green result cannot come from a floor that never reached this fold."""
     html = SUGGESTION_HOLDING_A_NAMESAKE
-    (page_dir / "versions" / "v1.html").write_text(html)
     events_model.append_event(page_dir, dict(COMMENT))
     events_model.append_event(page_dir, dict(ACCEPT))
     events_model.append_event(
@@ -1109,6 +1148,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "kind": "note",
             "author": "claude",
             "version": 2,
+            "revision": 2,
             "text": "reworded the poll interval",
             "restated": ["c1"],
         },
@@ -1129,6 +1169,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "kind": "note",
             "author": "claude",
             "version": 3,
+            "revision": 3,
             "text": "rewrote the suggestion",
             "restated": ["sug-a"],
         },
@@ -1285,6 +1326,43 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
 
     assert result.exit_code != 0
     assert message in result.output
+
+
+def test_a_version_response_requires_a_standing_request(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-diagram"]["x-conversation"] = {
+        "when": {"id": ["flow"]},
+        "response": {"kind": "version", "verb": "draw"},
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "version response but declares no x-awaits standing request" in result.output
+
+    del registry["lf-diagram"]["x-conversation"]["response"]
+    registry["lf-diagram"]["x-awaits"] = {}
+    assert registry_model.validate_registry(registry, "test registry") is registry
+
+
+def test_a_version_response_names_an_authored_answer_record(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    response = registry["lf-options"]["x-conversation"]["response"]
+    response["verb"] = "answer"
+
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="x-awaits does not declare as an answer verb",
+    ):
+        registry_model.validate_registry(registry, "test registry")
+
+    registry["lf-options"]["x-awaits"]["answers"].append("answer")
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="has no attribute or value record for a version to change",
+    ):
+        registry_model.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize(
@@ -1736,10 +1814,7 @@ def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
 
     decide(trial_page, "adopt", widget="trial-cache")
 
-    honored = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(trial_page), "--version", "2", "--text", "adopted"],
-    )
+    honored = stamp(trial_page, 2, "adopted")
     assert honored.exit_code == 0, honored.output
     assert live_versions(trial_page) == [1, 2]
 
@@ -2637,7 +2712,7 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Pause after this pass.",
             "anchor": {"section": "goal"},
             "holds": "goal",
@@ -2653,6 +2728,36 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "x-conversation hold target" in result.output
+
+
+def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Add the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["lf-options"]["x-conversation"]["response"]
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir()
+    (overlay / "registry.json").write_text(
+        json.dumps({"lf-options": registry["lf-options"]})
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "x-conversation response target" in result.output
 
 
 def test_shared_package_declarations_compose_by_member():
@@ -2746,25 +2851,27 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     root = json.loads(
         fetch(
             f"{server}/api/event",
-            data=json.dumps({"kind": "comment", "version": 1, "text": "why?"}).encode(),
+            data=json.dumps(
+                {"kind": "comment", "revision": 1, "text": "why?"}
+            ).encode(),
         )[1]
     )["state"]["events"][-1]
     for bad, says in [
         (
-            {"kind": "comment", "version": 1, "token": "shrug"},
+            {"kind": "comment", "revision": 1, "token": "shrug"},
             "unknown reaction token 'shrug'",
         ),
         (
-            {"kind": "comment", "version": 1, "token": "ok", "text": "and"},
+            {"kind": "comment", "revision": 1, "token": "ok", "text": "and"},
             "valid under each of",
         ),
-        ({"kind": "comment", "version": 1}, "not valid under any"),
+        ({"kind": "comment", "revision": 1}, "not valid under any"),
         (
-            {"kind": "comment", "version": 1, "token": "ok", "suggestion": True},
+            {"kind": "comment", "revision": 1, "token": "ok", "suggestion": True},
             "suggestion",
         ),
         (
-            {"kind": "reply", "version": 1, "parent": root["id"], "token": "nope"},
+            {"kind": "reply", "revision": 1, "parent": root["id"], "token": "nope"},
             "unknown",
         ),
     ]:
@@ -2778,7 +2885,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
             data=json.dumps(
                 {
                     "kind": "comment",
-                    "version": 1,
+                    "revision": 1,
                     "token": "cut",
                     "anchor": {"section": "plan", "quote": "Ship dark"},
                 }
@@ -2790,7 +2897,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         fetch(
             f"{server}/api/event",
             data=json.dumps(
-                {"kind": "reply", "version": 1, "parent": root["id"], "token": "ok"}
+                {"kind": "reply", "revision": 1, "parent": root["id"], "token": "ok"}
             ).encode(),
         )[1]
     )["state"]["events"][-1]

@@ -1117,7 +1117,8 @@ message is scrolled by the panel's own list and by nothing else. The open
 comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
-strip the chrome holds; CSS owns the body's corresponding layout.
+strip the chrome holds and the gutter the scroller's own bar takes — a window is
+the page's box on neither count; CSS owns the body's corresponding layout.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a

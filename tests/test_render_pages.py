@@ -49,12 +49,15 @@ from render_support import (
     author_test_widget,
     composer_quote,
     leaf_page,
+    live_url,
     open_page,
     page_registry,
     panel_settled,
     record_claim,
     resized,
+    stamp_version_file,
     told,
+    wait_for_revision,
     watched,
     written_anchors,
 )
@@ -366,13 +369,13 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
             {
                 "kind": "comment",
                 "author": "claude",
-                "version": 1,
+                "revision": 1,
                 "id": f"written{i}",
                 "anchor": anchor,
                 "text": f"note {i}",
             },
         )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     # The runtime's own record of which threads it found a home for.
@@ -422,13 +425,11 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         f"nothing stored to tell copies apart: {anchor}"
     )
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     (d / "versions" / "v2.html").write_text(TWIN_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "a twin"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "a twin")
+    wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     where = page.evaluate(
         "() => [...CSS.highlights.get('lf-mark')][0].startContainer.parentElement.id"
@@ -496,7 +497,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "which host answers?",
         },
     )
@@ -943,7 +944,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
             "kind": "action",
             "id": "a-accept",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug-copy",
             "action": "accept",
             "detail": {},
@@ -1203,7 +1204,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
             "kind": "action",
             "id": "a-accept",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug-card",
             "action": "accept",
             "detail": {},
@@ -1335,7 +1336,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "kind": "comment",
             "id": "c-fix",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "How does the fallback read?",
         },
     )
@@ -1346,7 +1347,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "id": "r-fix",
             "author": "claude",
             "parent": "c-fix",
-            "version": 1,
+            "revision": 1,
             "text": "Like this:",
             "markup": '<lf-diagram id="fallback-flow"><pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
@@ -1395,7 +1396,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "kind": "comment",
             "id": "c-stores",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What did the two stores cost us?",
         },
     )
@@ -1406,7 +1407,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "id": "r-stores",
             "author": "claude",
             "parent": "c-stores",
-            "version": 1,
+            "revision": 1,
             "text": "Side by side:",
             "markup": INLINE_REPLY_MARKUP,
         },

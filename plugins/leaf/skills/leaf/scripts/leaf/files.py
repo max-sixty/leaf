@@ -1,11 +1,13 @@
-"""Immutable version paths and filesystem change stamps."""
+"""Mutable source and immutable revision and version paths."""
 
 import ctypes
+import hashlib
 import json
 import os
 import re
 import secrets
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
@@ -24,6 +26,8 @@ def file_stamp(path: Path):
 
 
 VERSION_FILE = re.compile(r"v([1-9][0-9]*)\.html")
+REVISION_FILE = re.compile(r"r([1-9][0-9]*)-([a-f0-9]{16})\.html")
+SOURCE_FILE = "index.html"
 
 
 def version_num(name: str) -> int:
@@ -55,22 +59,151 @@ def list_versions(page_dir: Path) -> list:
     )
 
 
+def revision_num(name: str) -> int:
+    """The ordered identity carried by an immutable revision file."""
+    return int(REVISION_FILE.fullmatch(name).group(1))
+
+
+def revision_digest(data: bytes) -> str:
+    """The short content address recorded beside a revision's order."""
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def revision_name(revision: int, data: bytes) -> str:
+    return f"r{revision}-{revision_digest(data)}.html"
+
+
+def list_revisions(page_dir: Path) -> list[int]:
+    revisions_dir = page_dir / "revisions"
+    if not revisions_dir.exists():
+        return []
+    revisions = sorted(
+        revision_num(path.name)
+        for path in revisions_dir.iterdir()
+        if path.is_file() and REVISION_FILE.fullmatch(path.name)
+    )
+    if len(revisions) != len(set(revisions)):
+        sys.exit("more than one immutable revision has the same order")
+    return revisions
+
+
+def revision_path(page_dir: Path, revision: int) -> Path:
+    """Resolve one ordered revision to its content-addressed immutable file."""
+    matches = sorted((page_dir / "revisions").glob(f"r{revision}-*.html"))
+    matches = [path for path in matches if REVISION_FILE.fullmatch(path.name)]
+    if len(matches) != 1:
+        if not matches:
+            sys.exit(f"no revision r{revision} in {page_dir / 'revisions'}")
+        sys.exit(f"more than one immutable file records revision r{revision}")
+    return matches[0]
+
+
+def latest_revision(page_dir: Path) -> int:
+    revisions = list_revisions(page_dir)
+    if not revisions:
+        sys.exit(f"no active revision; write {page_dir / 'index.html'} first")
+    return revisions[-1]
+
+
+def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
+    """Write one new immutable revision after its caller has validated it.
+
+    Page transactions serialize order assignment. Refusing an existing target
+    keeps a revision immutable even if a caller is accidentally repeated.
+    """
+    path = page_dir / "revisions" / revision_name(revision, data)
+    path.parent.mkdir(exist_ok=True)
+    if path.exists() or revision in list_revisions(page_dir):
+        sys.exit(f"revision r{revision} already exists")
+    replace_files([(path, data, False)])
+    return path
+
+
+def version_revisions(events: list) -> dict[int, int]:
+    """Public version number to the exact revision each note stamped."""
+    return {
+        event["version"]: event["revision"]
+        for event in events
+        if event["kind"] == "note"
+    }
+
+
+def stamped_version(events: list, revision: int) -> int | None:
+    """The public stamp on a revision, if it has one."""
+    return next(
+        (
+            event["version"]
+            for event in events
+            if event["kind"] == "note" and event["revision"] == revision
+        ),
+        None,
+    )
+
+
+def version_descriptors(page_dir: Path, events: list) -> list[dict]:
+    """The public stamps whose note and immutable copy both exist."""
+    mappings = version_revisions(events)
+    return [
+        {
+            "version": version,
+            "revision": mappings[version],
+            "url": f"/versions/{version_name(version)}",
+        }
+        for version in sorted(mappings)
+        if version_path(page_dir, version).is_file()
+        and mappings[version] in list_revisions(page_dir)
+    ]
+
+
+def active_descriptor(page_dir: Path, events: list) -> dict:
+    """The exact immutable document shown at the live root."""
+    revision = latest_revision(page_dir)
+    path = revision_path(page_dir, revision)
+    version = stamped_version(events, revision)
+    previous = [
+        descriptor["version"]
+        for descriptor in version_descriptors(page_dir, events)
+        if descriptor["revision"] <= revision
+    ]
+    label = (
+        f"v{version}"
+        if version is not None
+        else (f"Draft after v{previous[-1]}" if previous else "Draft")
+    )
+    return {
+        "revision": revision,
+        "version": version,
+        "url": f"/revisions/{path.name}",
+        "label": label,
+        "activated_at": datetime.fromtimestamp(
+            path.stat().st_mtime, timezone.utc
+        ).isoformat(),
+    }
+
+
+def revision_label(events: list, revision: int) -> str:
+    """A working revision named in the public vocabulary available at that point."""
+    if version := stamped_version(events, revision):
+        return f"v{version}"
+    earlier = [
+        event["version"]
+        for event in events
+        if event["kind"] == "note" and event["revision"] < revision
+    ]
+    return f"Draft after v{max(earlier)}" if earlier else "Draft"
+
+
 def published_versions(page_dir: Path, events: list) -> list:
-    """Versions the server exposes: those whose `note` event has landed. `version
-    publish` runs `version check` first, so a half-written or failing version is
-    never live to an open browser — the file existing is not enough."""
+    """Stamped versions: those whose immutable file and `note` both exist."""
     noted = {e["version"] for e in events if e["kind"] == "note"}
     return [version for version in list_versions(page_dir) if version in noted]
 
 
 def latest_published(page_dir: Path, events: list) -> int:
-    """The page the reader is looking at, for a message the agent makes against it — a
-    comment, or a report. A version no `note` has released is a page nobody has seen, so
-    there is nothing to speak about and the command says so rather than picking a file
-    off disk."""
+    """The newest stamped version, for callers that specifically need a stamp."""
     published = published_versions(page_dir, events)
     if not published:
-        sys.exit("no published version; run `leaf version publish` first")
+        sys.exit("no stamped version; run `leaf version stamp` first")
     return published[-1]
 
 

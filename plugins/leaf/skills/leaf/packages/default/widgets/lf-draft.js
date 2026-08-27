@@ -80,6 +80,7 @@ import {
   once,
   offer,
   quoted,
+  revisionLabel,
   sendAction,
   sendDraft,
   toast,
@@ -280,7 +281,7 @@ customElements.define(
       const key = JSON.stringify([
         this.#raw,
         standing,
-        actions.map((event) => [event.seq, event.version, event.detail.text]),
+        actions.map((event) => [event.seq, event.revision, event.detail.text]),
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
@@ -319,7 +320,7 @@ customElements.define(
         const text = event.detail.text;
         list.append(
           this.#snapshot(
-            `Edit ${index + 1} · v${event.version}`,
+            `Edit ${index + 1} · ${revisionLabel(event.revision)}`,
             text,
             previous,
             standing,

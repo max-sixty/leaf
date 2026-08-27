@@ -109,7 +109,7 @@ export function createAnchors(dependencies) {
   // filtered to a section the text isn't in and can only ever fail — restore then falls back
   // to the section, which doesn't absorb content added above the reader inside it.
   function captureView() {
-    const view = { v: runtime.currentVersion, y: pageScroller.scrollTop };
+    const view = { revision: runtime.currentRevision, y: pageScroller.scrollTop };
     // Where the ask walk left off, which is the reader's place stated more exactly than
     // any block can state it — the walk put them there on purpose. Its element identity
     // does not survive an authored-main replacement, and the module variable does not

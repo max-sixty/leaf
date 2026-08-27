@@ -21,21 +21,29 @@ from .events import (
     undo_error,
 )
 from .files import (
+    active_descriptor,
+    latest_revision,
+    list_revisions,
     list_versions,
     path_is_within,
     published_versions,
     read_json,
-    version_name,
+    revision_num,
+    revision_path,
+    stamped_version,
+    version_descriptors,
     version_num,
+    version_revisions,
     write_json,
 )
-from .passages import published_enclosing
+from .passages import active_enclosing
 from .registry import (
     RegistryError,
     layer_generation,
     load_registry,
     reaction_tokens,
 )
+from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
     CONTENT_TYPES,
@@ -55,7 +63,7 @@ from .service import (
     unacknowledged,
     wait_is_live,
 )
-from .structure import parse_structure, parse_version, version_review_mode
+from .structure import parse_revision, parse_structure, revision_review_mode
 from .validation import (
     action_contract_error,
     event_record_error,
@@ -76,8 +84,8 @@ def other_leaves(page_dir: Path) -> list:
     and dead claims stay useful here as provenance. Liveness is the held
     server.lock lease, the same answer `running_server` gives everything else,
     and the URL is the one in durable service state, key included. The title is the
-    newest published version's — the version that page's own root URL answers
-    with — read the way `transcript` reads it.
+    active revision's — the document that page's own root URL answers with —
+    read the way `transcript` reads it.
 
     The whole scan runs on every /api/state; what it reads of each neighbour is
     kept per file, so a poll costs the scan and the presence reads rather than a
@@ -103,11 +111,10 @@ def other_leaves(page_dir: Path) -> list:
             if not info:
                 continue
             events = read_events(candidate)
-            published = published_versions(candidate, events)
-            # A server up before its page's first publish serves nothing to link.
-            if not published:
+            if not list_revisions(candidate):
                 continue
-            parser = parse_version(candidate, published[-1])
+            revision = latest_revision(candidate)
+            parser = parse_revision(candidate, revision)
             present = presence(candidate, events)
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
@@ -188,9 +195,14 @@ def presence(page_dir: Path, events: list) -> dict:
 def full_state(
     page_dir: Path,
     events: list,
-    versions: list,
+    _versions: list | None = None,
     layer: str | None = None,
+    source_error: str | None = None,
 ) -> dict:
+    try:
+        active = active_descriptor(page_dir, events)
+    except SystemExit:
+        active = None
     return {
         "layer": layer or layer_generation(page_dir),
         # The clock every timestamp below was written by. A seat dating one reads
@@ -199,7 +211,9 @@ def full_state(
         # neither side can tell from the timestamp alone. Sent so the reading is
         # against the writer's clock rather than the reader's.
         "now": now_iso(),
-        "versions": versions,
+        "active": active,
+        "versions": version_descriptors(page_dir, events),
+        "source_error": source_error,
         "data": read_data(page_dir),
         **presence(page_dir, events),
         # As logged: a message's text is Markdown the page's vendored runtime renders,
@@ -210,6 +224,26 @@ def full_state(
     }
 
 
+def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
+    """Inject the exact immutable identity beside the canonical runtime script."""
+    parsed = parse_structure(source)
+    scripts = [
+        script
+        for script in parsed.external_scripts
+        if script["attrs"] == {"src": "/leaf.js", "type": "module"}
+    ]
+    if len(scripts) != 1:
+        raise ValueError("document has no canonical script")
+    line, column = scripts[0]["position"]
+    offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+    markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
+        f'<meta name="lf-version" data-lf-runtime content="{version}">'
+        if version is not None
+        else ""
+    )
+    return (source[:offset] + markers + source[offset:]).encode()
+
+
 class Handler(BaseHTTPRequestHandler):
     page_dir = None
     token = None
@@ -218,13 +252,11 @@ class Handler(BaseHTTPRequestHandler):
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
-    # The render gate previews a version before its `note` publishes it —
-    # refusing the note is the gate's whole job. Set to that version's number,
-    # the handler exposes on-disk versions up to it, previewed one included as
-    # latest, so the runtime neither 404s the preview nor follows the published
-    # latest away from it mid-check. None — every server a user reaches —
-    # exposes noted versions only.
+    # The legacy stamped-version preview widens the public version window for one
+    # render process. Exact mutable-source previews use `preview_source` instead.
+    # Every server a user reaches exposes noted versions only.
     preview_upto = None
+    preview_source = None
 
     def versions_live(self, events):
         if self.preview_upto is None:
@@ -235,13 +267,13 @@ class Handler(BaseHTTPRequestHandler):
             if version <= self.preview_upto
         ]
 
-    def _page_state(self, events: list) -> dict:
+    def _page_state(self, events: list, source_error: str | None = None) -> dict:
         """The page's own state from a caller's transaction-consistent log."""
         state = full_state(
             self.page_dir,
             events,
-            self.versions_live(events),
             layer=self.layer,
+            source_error=source_error,
         )
         return state
 
@@ -253,7 +285,12 @@ class Handler(BaseHTTPRequestHandler):
         files.
         """
         with PageTransaction(self.page_dir) as page:
-            state = self._page_state(page.events)
+            if self.preview_source is None:
+                activation = activate_source(self.page_dir, page.events)
+                state = self._page_state(page.events, activation.error)
+            else:
+                state = self._page_state(page.events)
+                state["active"] = self.preview_source["active"]
         # Every URL in `others` carries the machine key (`host_key`), so the list
         # reaches neighbouring pages without creating another authorization path.
         # Scan neighbours after releasing this page's lease: they are independent
@@ -303,7 +340,10 @@ class Handler(BaseHTTPRequestHandler):
         # Every response ends here — answered, redirected, or refused — so the
         # cookie has one writer rather than one per path that sends a header.
         path = urlsplit(self.path).path
-        if path.startswith(("/api/", "/versions/")) or path in {"/registry.json", "/"}:
+        if path.startswith(("/api/", "/versions/", "/revisions/")) or path in {
+            "/registry.json",
+            "/",
+        }:
             self.send_header("Leaf-Layer", self.layer)
         if self.set_cookie:
             self.send_header(
@@ -402,34 +442,31 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self):
         path = urlsplit(self.path).path
         if path == "/":
-            versions = self.versions_live(read_events(self.page_dir))
-            if not versions:
-                self._json({"error": "no published versions yet"}, 404)
+            if self.preview_source is not None:
+                events = read_events(self.page_dir)
+                revision = self.preview_source["active"]["revision"]
+                source = self.preview_source["data"].decode("utf-8")
+                version = None
+            else:
+                with PageTransaction(self.page_dir) as page:
+                    activate_source(self.page_dir, page.events)
+                    events = page.events
+                try:
+                    revision = latest_revision(self.page_dir)
+                except SystemExit:
+                    self._json(
+                        {"error": "no active revision; write index.html first"}, 404
+                    )
+                    return
+                source = revision_path(self.page_dir, revision).read_text(
+                    encoding="utf-8"
+                )
+                version = stamped_version(events, revision)
+            try:
+                projected = runtime_document(source, revision, version)
+            except ValueError as error:
+                self._json({"error": str(error)}, 500)
                 return
-            version = versions[-1]
-            source = (self.page_dir / "versions" / version_name(version)).read_text(
-                encoding="utf-8"
-            )
-            # The live address serves one immutable version but does not become that
-            # version's address. The marker tells the runtime exactly which file this
-            # response projected; deriving it from the next state poll would race a
-            # publish between the document response and that poll.
-            parsed = parse_structure(source)
-            scripts = [
-                script
-                for script in parsed.external_scripts
-                if script["attrs"] == {"src": "/leaf.js", "type": "module"}
-            ]
-            if len(scripts) != 1:
-                self._json({"error": "published version has no canonical script"}, 500)
-                return
-            line, column = scripts[0]["position"]
-            # Match `_StructParser`, which counts only "\n"; splitlines() also treats
-            # Unicode separators and form feeds as lines, shifting the marker.
-            offset = sum(len(part) + 1 for part in source.split("\n")[: line - 1])
-            offset += column
-            marker = f'<meta name="lf-version" data-lf-runtime content="{version}">'
-            projected = (source[:offset] + marker + source[offset:]).encode()
             self._send(200, "text/html; charset=utf-8", projected)
             return
         if path == "/api/state":
@@ -461,13 +498,29 @@ class Handler(BaseHTTPRequestHandler):
         if SERVED_PATH.fullmatch(path):
             if path.startswith("/versions/"):
                 version = version_num(Path(path).name)
-                if version not in self.versions_live(read_events(self.page_dir)):
+                events = read_events(self.page_dir)
+                mapping = version_revisions(events)
+                if version not in self.versions_live(events) or version not in mapping:
                     self._json(
-                        {
-                            "error": "not published yet; run `leaf version publish` first"
-                        },
+                        {"error": "not stamped yet; run `leaf version stamp` first"},
                         404,
                     )
+                    return
+                source = (self.page_dir / path.lstrip("/")).read_text(encoding="utf-8")
+                self._send(
+                    200,
+                    "text/html; charset=utf-8",
+                    runtime_document(source, mapping[version], version),
+                )
+                return
+            if path.startswith("/revisions/"):
+                name = Path(path).name
+                revision = revision_num(name)
+                if (
+                    revision not in list_revisions(self.page_dir)
+                    or revision_path(self.page_dir, revision).name != name
+                ):
+                    self._json({"error": "unknown revision"}, 404)
                     return
             file = self.page_dir / path.lstrip("/")
             # The allowlist rejects traversal spellings; containment is the second
@@ -566,18 +619,26 @@ class Handler(BaseHTTPRequestHandler):
                     accepted = True
             if not accepted:
                 events = page.events
-                if "version" in event:
-                    live_versions = self.versions_live(events)
-                    if event["version"] not in live_versions:
+                if "revision" in event:
+                    live_revisions = list_revisions(self.page_dir)
+                    if event["revision"] not in live_revisions:
                         return self.event_rejection(
-                            event, f"{kind} version must be one of {live_versions}"
+                            event,
+                            f"{kind} revision must be one of {live_revisions}",
                         )
                 if kind == "done":
-                    mode = version_review_mode(self.page_dir, event["version"])
+                    mapped = version_revisions(events).get(event["version"])
+                    if mapped != event["revision"]:
+                        return self.event_rejection(
+                            event,
+                            f"v{event['version']} does not stamp revision "
+                            f"r{event['revision']}",
+                        )
+                    mode = revision_review_mode(self.page_dir, event["revision"])
                     if mode != "sign-off":
                         return self.event_rejection(
                             event,
-                            f"version {event['version']} does not declare "
+                            f"v{event['version']} does not declare "
                             '<meta name="lf-review" content="sign-off">, so it has no '
                             "approval to record",
                         )
@@ -632,7 +693,7 @@ class Handler(BaseHTTPRequestHandler):
                     registry, rejection = registry_or_rejection()
                     if rejection:
                         return rejection
-                    page_by_id = parse_version(self.page_dir, event["version"]).by_id
+                    page_by_id = parse_revision(self.page_dir, event["revision"]).by_id
                     for error in (
                         held_comment_error(event, page_by_id, registry),
                         version_response_comment_error(event, page_by_id, registry),
@@ -647,9 +708,7 @@ class Handler(BaseHTTPRequestHandler):
                         event, f"unknown parent {event['parent']!r}"
                     )
                 if kind == "undo" and (
-                    error := undo_error(
-                        event, events, published_enclosing(self.page_dir, events)
-                    )
+                    error := undo_error(event, events, active_enclosing(self.page_dir))
                 ):
                     return self.event_rejection(event, error)
                 event["author"] = "page" if kind == "error" else "user"
@@ -662,7 +721,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         # Preview requests have passed authentication and body preparation, so
         # their refusal can name the attempt without writing to the real log.
-        if self.preview_upto is not None:
+        if self.preview_upto is not None or self.preview_source is not None:
             self._refuse("the preview server is read-only", 403)
             return
         current_layer = self.layer
@@ -703,7 +762,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def handler_for(
-    page_dir: Path, token: str, preview_upto=None, protocol_version="HTTP/1.0"
+    page_dir: Path,
+    token: str,
+    preview_upto=None,
+    preview_source=None,
+    protocol_version="HTTP/1.0",
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
@@ -715,6 +778,7 @@ def handler_for(
             "page_dir": page_dir,
             "token": token,
             "preview_upto": preview_upto,
+            "preview_source": preview_source,
             "protocol_version": protocol_version,
             "event_attempts": {},
             "event_attempts_lock": threading.Lock(),

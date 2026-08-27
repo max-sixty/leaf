@@ -231,7 +231,7 @@ rendering as a labelled snapshot and drops the code that could refresh it.
 
 After the main skill's re-vendoring route restores the recorded URL, run
 `leaf version check <page> --render` on the version that uses the replacement
-layer. Note the re-vendor in the next version's changelog.
+layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface â€” an upgrade that defines no element, a widget of no
 size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
@@ -259,6 +259,6 @@ selected. The anchor's `section` is a widget's id, or the id of a runtime part â
 ```
 
 Answer it with the layer: change it where the table above says, `page init` the page,
-publish the version, and reply in-thread saying where the fix landed. The new version is
+stamp the version, and reply in-thread saying where the fix landed. The new version is
 the answer, on the element the comment was made on. A comment naming leaf itself is the
 hand-off above.

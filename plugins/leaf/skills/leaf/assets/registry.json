@@ -83,7 +83,7 @@
             "author": {"type": "string", "minLength": 1},
             "kind": {"const": "comment"},
             "seq": {"type": "integer", "minimum": 1},
-            "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
             "token": {"type": "string", "minLength": 1},
             "anchor": {
@@ -126,7 +126,7 @@
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
             "holds": {"type": "string", "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "version"],
+          "required": ["id", "ts", "author", "kind", "seq", "revision"],
           "additionalProperties": false,
           "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
           "dependentSchemas": {
@@ -134,7 +134,7 @@
           }
         },
         "browser": {
-          "required": ["kind", "version"],
+          "required": ["kind", "revision"],
           "not": {"required": ["markup"]}
         }
       },
@@ -148,7 +148,7 @@
             "kind": {"const": "reply"},
             "seq": {"type": "integer", "minimum": 1},
             "parent": {"type": "string", "minLength": 1},
-            "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
             "token": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
@@ -162,7 +162,7 @@
           "dependentSchemas": {"token": {"not": {"required": ["markup"]}}}
         },
         "browser": {
-          "required": ["kind", "parent", "version"],
+          "required": ["kind", "parent", "revision"],
           "not": {"required": ["markup"]}
         }
       },
@@ -230,13 +230,14 @@
             "kind": {"const": "done"},
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "required": ["id", "ts", "author", "kind", "seq", "version", "revision", "text"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "version", "text"]}
+        "browser": {"required": ["kind", "version", "revision", "text"]}
       },
       "action": {
         "record": {
@@ -250,13 +251,13 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "version"],
+          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "revision"],
           "additionalProperties": false
         },
-        "browser": {"required": ["kind", "widget", "action", "detail", "version"]}
+        "browser": {"required": ["kind", "widget", "action", "detail", "revision"]}
       },
       "undo": {
         "record": {
@@ -287,11 +288,11 @@
             "widget": {"type": "string", "minLength": 1},
             "action": {"type": "string", "minLength": 1},
             "detail": {"type": "object"},
-            "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "version"],
+          "required": ["id", "ts", "author", "kind", "seq", "widget", "action", "detail", "revision"],
           "additionalProperties": false
         }
       },
@@ -305,6 +306,7 @@
             "kind": {"const": "note"},
             "seq": {"type": "integer", "minimum": 1},
             "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1},
             "restated": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
             "settles": {
@@ -323,7 +325,7 @@
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
-          "required": ["id", "ts", "author", "kind", "seq", "version", "text"],
+          "required": ["id", "ts", "author", "kind", "seq", "version", "revision", "text"],
           "additionalProperties": false
         }
       },
@@ -336,7 +338,7 @@
             "author": {"type": "string", "minLength": 1},
             "kind": {"const": "error"},
             "seq": {"type": "integer", "minimum": 1},
-            "version": {"type": "integer", "minimum": 1},
+            "revision": {"type": "integer", "minimum": 1},
             "text": {"type": "string", "minLength": 1}
           },
           "required": ["id", "ts", "author", "kind", "seq", "text"],
@@ -383,15 +385,15 @@
     "record": "How the state reads in markup: {kind: \"attribute\", attr, value} — every element inside the unit carrying attr, sorted, vs the ids the detail field `value` lists, which is why that field is an array however many the widget allows at once; {kind: \"position\", within, value, order} — the enclosing `within` element, compared at that granularity (indexes compose across cards, so column is the whole comparison) while `order` names the integer detail field counting the unit's siblings, which is what a reader stating a placement rather than comparing one needs; {kind: \"body\", value} — the unit's own words; {kind: \"value\", attr, value} — the unit's own attr holding one scalar, whose detail field carries the attribute's own schema so the log's contract and the markup's cannot drift. Within one tag and unit, body and position are each one physical slot; value slots are keyed by their host attr, and attribute-set slots by their descendant attr. Distinct facets cannot claim the same slot. A record is also how a gesture is taken back cheaply: the runtime reads the version's authored state through it before replay touches the page, so `z` can state what stood before the first action at a coordinate and the page moves rather than being rebuilt. A verb with no record (accept/reject) folds for the runtime's pending mark and is taken back the other way — the widget rebuilt from the version's own markup, since “undecided” is a value no verb carries — and retirement stays retirable_ids' business."
   },
   "$report": {
-    "answering": "Explicit, by typed id. `version publish` puts a `report` target in the note's `settles` relation for every standing report the version answered: one whose recorded state the markup writes is absorbed, and one on an element marked `overruled` is overruled — the why belongs in the note's text. Replay stops a settled report at that version. Silence — markup unchanged — settles nothing, so the report keeps painting. `version check` refuses the third thing, markup that contradicts a standing report it never settles, and refuses an `overruled` with nothing to overrule, exactly as the reviewer gate polices `restated`.",
-    "overruled": "A boolean attribute on the reported element, declared by every x-report widget: this version keeps its own state over the standing report. It belongs to the one version that does the overruling — publishing records the answer on the note, so later versions leave it off.",
+    "answering": "Explicit, by typed id. `version stamp` puts a `report` target in the note's `settles` relation for every standing report the stamped revision answered: one whose recorded state the markup writes is absorbed, and one on an element marked `overruled` is overruled — the why belongs in the note's text. Replay stops a settled report at that revision. Silence — markup unchanged — settles nothing, so the report keeps painting. `version check` refuses the third thing, markup that contradicts a standing report it never settles, and refuses an `overruled` with nothing to overrule, exactly as the reviewer gate polices `restated`.",
+    "overruled": "A boolean attribute on the reported element, declared by every x-report widget: this revision keeps its own state over the standing report. It belongs to the revision whose stamp does the overruling — stamping records the answer on the note, so later revisions leave it off.",
     "updates": "Reports and replace-in-place work claims share one derived update feed in log-causal order. Every entry has a typed target (`widget` or `thread`), source (`report` or `claim`), action, structured detail, optional declared text, speaker, timestamp, and one closed disposition: `effective` contributes to current state on its semantic coordinate, `standing` still awaits source-specific settlement but is presently outranked, and `settled` has been answered by that authority. A claim also carries `log_floor`, the log sequence it followed, so an agent reply after that floor or a resolution settles it without comparing wall clocks; a version note settles a report by id. The stores stay different because those authorities are different; consumers do not read either store directly.",
     "wakes": "A report joins the watcher's batch: `leaf wait` prints it beside user events, the same `ack` acknowledges it, and idling is refused over one nobody read. The reader's banner counts none of this — a report is news the agent owes the page, not something the reader owes an answer."
   },
   "$settlement": {
     "description": "The typed `settles` relation on a version note ends provisional agent facts. Each target is `{kind, id}` so independently allocated id namespaces cannot collide and adding a kind does not add another parallel note field. The relation is explicit and durable: chronology alone ends nothing, and a later note need not repeat a settlement.",
-    "report": "The id is a report event. Publishing derives these targets from reported state the new markup absorbs or explicitly overrules.",
-    "work": "The id is a page-widget work subject. `version publish --completes` accepts only standing work claimed before that version and writes this target; it also licenses the version to remove the subject's local seat.",
+    "report": "The id is a report event. Stamping derives these targets from reported state the source absorbs or explicitly overrules.",
+    "work": "The id is a page-widget work subject. `version stamp --completes` accepts only standing work claimed before that revision and writes this target; it also licenses the revision to remove the subject's local seat.",
     "why-restated-is-separate": "`restated` is not a settlement. It retracts a reader decision because authored words or state invalidated what the decision rested on, while `settles` completes provisional information supplied by the agent. Conflating them would make ending work look like taking back the reader's action."
   },
   "$awaits": {
@@ -402,10 +404,10 @@
     "all": "The verb a blanket yes takes, where one press can answer every ask of this kind at once: the banner carries one control per declared verb (`✓ Accept all (3)`) and the `A` key presses every one of them, and the widget exposes a method of that name answering one instance, so the log records each decision separately rather than one blanket consent. Leave it off and the ask is answered where the reader is, one at a time."
   },
   "$restated": {
-    "description": "A boolean attribute saying this version has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
-    "why": "A move, pick, edit or accept is recorded in the log against the version it was made on, and the page reconciles every standing action onto every later version. A decision therefore survives a republish on its own — you never carry one into the next version's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
-    "when": "Only where a later version has to change what the user decided about: an error you found in a draft they rewrote, a picked option whose prose was wrong. Write the new words, mark that element, and say why in the note — to the user this reads as a decision undone, and the note is where a version explains itself. `version check` refuses a version that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
-    "once": "It belongs to the one version that does the rewriting. Publishing records the retraction in the log, so it holds for good — later versions leave the attribute off, and `version check` refuses one that repeats it.",
+    "description": "A boolean attribute saying this revision has rewritten words the user already decided on, so what they decided no longer applies and they are being asked again. It goes on the element the decision rests on — a lf-draft or lf-suggestion, or the lf-card or lf-option inside a board or group — and retracts every action that named it: a move names one card, so a rewritten card drops that card's moves, leaving the rest of the board arranged as the user left it; a pick names every option chosen at once, so a rewritten option takes back the whole answer it was part of.",
+    "why": "A move, pick, edit or accept is recorded in the log against the revision it was made on, and the page reconciles every standing action onto every later revision. A decision therefore survives a new save on its own — you never carry one into the next revision's markup, and re-emitting a widget as you first wrote it does not undo it. The cost is that your markup cannot quietly overrule them either, which is what this attribute is for.",
+    "when": "Only where a later revision has to change what the user decided about: an error you found in a draft they rewrote, a picked option whose prose was wrong. Write the new words, mark that element, and say why in the next stamp's note — to the user this reads as a decision undone, and the note is where a version explains itself. `version check` refuses a revision that changes those words without it and a `restated` that retracts nothing, so it can be neither forgotten nor spent as a reflex; when it names the wrong element, the error says which one it wanted.",
+    "once": "It belongs to the one revision that does the rewriting. Stamping records the retraction in the log, so it holds for good — later revisions leave the attribute off, and `version check` refuses one that repeats it.",
     "example": "<lf-draft id=\"note-cli\" restated><pre>\nAdds --dry-run to every mutating command. It defaults on for `purge`.\n</pre></lf-draft>"
   },
   "$series": {

@@ -76,7 +76,7 @@ export function createAskModel({
   }
   const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
 
-  function askContext(projection = stateProjection(runtime.currentVersion)) {
+  function askContext(projection = stateProjection(runtime.currentRevision)) {
     const positionedParents = new Map();
     for (const { unit, e, spec } of projection.desired.values()) {
       if (spec.record?.kind !== "position") continue;

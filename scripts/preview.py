@@ -20,7 +20,7 @@ values. The first lets a page arrive mid-conversation; the second supplies the
 same page-bound external data a real host would replace through `leaf data set`.
 
 Vendoring runs fresh each time, so an edit to the theme, the registry, or a
-widget shows up on the next run. `version publish` lints the example on the way past. The
+widget shows up on the next run. `version stamp` lints the example on the way past. The
 browser gate a page normally passes before its URL goes out is left to the
 suite: `version check --render` and `test_example_renders` drive the same
 `render_version` over the same files, so running it here would only repeat what
@@ -65,7 +65,7 @@ def seed_log(source: Path, page: Path) -> None:
 
     A thread is log state — no markup describes one — so an example that wants to
     show a conversation ships the events beside it, the way one that wants a
-    screenshot ships the bytes beside it. Appended after `version publish`, so the
+    screenshot ships the bytes beside it. Appended after `version stamp`, so the
     note announcing v1 stays the log's first line and the exchange reads in the
     order it happened.
 
@@ -104,16 +104,14 @@ def main() -> None:
         shutil.rmtree(PAGE)
     selection_args = [arg for package in PACKAGES for arg in ("--package", package)]
     leaf("page", "init", *selection_args, str(PAGE))
-    (PAGE / "versions" / "v1.html").write_text(
+    (PAGE / "index.html").write_text(
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )
     shutil.copytree(ROOT / "examples" / "media", PAGE / "media", dirs_exist_ok=True)
     leaf(
         "version",
-        "publish",
+        "stamp",
         str(PAGE),
-        "--version",
-        "1",
         "--text",
         f"{source.name}, as it stands in the tree",
     )

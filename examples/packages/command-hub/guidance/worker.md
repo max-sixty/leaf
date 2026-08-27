@@ -30,5 +30,5 @@ The reconnect drops the queue, so the retry sends against a closed socket.
 EOF
 ```
 
-Do not run `leaf wait` or `leaf ack`, change page status, publish a version, or
+Do not run `leaf wait` or `leaf ack`, change page status, stamp a version, or
 handle an event the coordinator did not route to you.

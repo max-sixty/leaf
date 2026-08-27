@@ -100,7 +100,7 @@ export function createSelectionComposer(runtime, dependencies) {
         (attempt) => {
           const event = {
             kind: "comment",
-            version: runtime.currentVersion,
+            revision: runtime.currentRevision,
             anchor,
             text,
             attempt,

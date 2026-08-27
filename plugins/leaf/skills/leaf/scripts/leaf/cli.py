@@ -14,8 +14,8 @@ from leaf.hosting import cmd_serve, cmd_stop, start_server
 from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
 from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
-from leaf.passages import published_enclosing
-from leaf.publishing import cmd_publish
+from leaf.passages import active_enclosing
+from leaf.publishing import cmd_stamp
 from leaf.rendering import cmd_export
 from leaf.schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
 from leaf.service import (
@@ -66,8 +66,8 @@ def page() -> None:
 def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     """Create or re-vendor a page directory.
 
-    Creates PAGE/versions/ for authored vN.html files and vendors the widget
-    layer. Re-running preserves the page's explicit packages unless --package or
+    Creates PAGE/revisions/ and PAGE/versions/, then vendors the widget layer.
+    The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
     --no-packages replaces them, and refuses vocabulary the page log can no longer
     read. A package may contain any subset of the package layout, including zero,
     one, or many widgets.
@@ -146,7 +146,7 @@ def guidance(dir: str, audience: str | None) -> None:
 @page.command(short_help="Print where the page stands, as JSON.")
 @click.argument("dir", metavar="PAGE")
 def state(dir: str) -> None:
-    """Fold the log onto the published page and print the result as one JSON
+    """Fold the log onto the active revision and print the result as one JSON
     object: elements, standing state and reports, record lag, open asks,
     threads, versions, presence, external data and its page bindings."""
     cmd_page_state(resolve_dir(dir))
@@ -186,35 +186,25 @@ def data_clear(dir: str, source: str) -> None:
     cmd_data_clear(resolve_dir(dir), source)
 
 
-@cli.group(short_help="Check, publish, and export versions.")
+@cli.group(short_help="Check, stamp, and export versions.")
 def version() -> None:
-    """Check, publish, and export versions."""
+    """Check, stamp, and export versions."""
 
 
-@version.command(short_help="Check a page version.")
+@version.command(short_help="Check the mutable page source.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--version",
-    type=int,
-    default=None,
-    metavar="N",
-    help="version to check (default: latest)",
-)
 @click.option("--render", is_flag=True, help="also check the rendered page in Chrome")
-def check(dir: str, version: int, render: bool) -> None:
-    """Check a page version.
+def check(dir: str, render: bool) -> None:
+    """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in
     the installed Chrome.
     """
-    sys.exit(cmd_check(resolve_dir(dir), version, render))
+    sys.exit(cmd_check(resolve_dir(dir), render))
 
 
-@version.command(short_help="Publish a checked version with a changelog.")
+@version.command(short_help="Stamp the current source as the next version.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--version", type=int, required=True, metavar="N", help="version to publish"
-)
 @click.option("--text", help="changelog text (default: stdin)")
 @click.option(
     "--completes",
@@ -222,18 +212,18 @@ def check(dir: str, version: int, render: bool) -> None:
     metavar="WIDGET",
     help="active widget work this version completes (repeatable)",
 )
-def publish(dir: str, version: int, text: str, completes: tuple[str, ...]) -> None:
-    """Publish a checked version with a changelog.
+def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
+    """Stamp PAGE/index.html with a changelog.
 
-    Checks the version first, then makes it visible to the page server. Repeat
+    Checks the exact source first, then records it as the next public version. Repeat
     --completes for each active widget work claim this version completes. A
     widget claim otherwise survives unrelated versions, and a version cannot
     silently remove its local seat.
     """
-    cmd_publish(resolve_dir(dir), version, text, completes)
+    cmd_stamp(resolve_dir(dir), text, completes)
 
 
-@version.command(short_help="Export a published version to one HTML file.")
+@version.command(short_help="Export a stamped version to one HTML file.")
 @click.argument("dir", metavar="PAGE")
 @click.option(
     "-o",
@@ -246,10 +236,10 @@ def publish(dir: str, version: int, text: str, completes: tuple[str, ...]) -> No
     "--version",
     type=int,
     metavar="N",
-    help="published version to export (default: latest)",
+    help="stamped version to export (default: latest)",
 )
 def export(dir: str, out: Path, version: int) -> None:
-    """Export a published version to one HTML file.
+    """Export a stamped version to one HTML file.
 
     Renders the version in Chrome, then writes a standalone copy.
     """
@@ -373,7 +363,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     --on names the open comment thread or local page widget that detail is about,
     and the reader sees it beside that subject as well as in the banner. Thread
     work stands until your next reply there. Widget work stands until a later
-    version publish explicitly names it with --completes. Work in flight — a
+    version stamp explicitly names it with --completes. Work in flight — a
     delegate, a long tool run — therefore reads as picked up rather than as
     silence. A `working` claim is believed while the turn that wrote it is open;
     the page is told when that turn ends, so something has to renew the claim
@@ -394,9 +384,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
         events = page.events
         cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_asks(
-            events, cursor, published_enclosing(page_dir, events)
-        )
+        unanswered = unanswered_asks(events, cursor, active_enclosing(page_dir))
         if pending:
             prefix = (
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
@@ -445,7 +433,7 @@ def ack(dir: str, seq: int) -> None:
 
 @cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")
 @click.argument("dir", metavar="PAGE")
-@click.option("--quote", help="passage text from the published version")
+@click.option("--quote", help="passage text from the active revision")
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @click.option("--text", help="comment text (default: stdin)")
@@ -458,7 +446,7 @@ def comment(
     the work as a whole.
 
     The user answers it in the browser and resolves it there. Refuses a quote the
-    published version does not hold, or holds more than once.
+    active revision does not hold, or holds more than once.
     """
     cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
 

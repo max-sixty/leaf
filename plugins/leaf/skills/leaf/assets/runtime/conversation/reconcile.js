@@ -299,7 +299,7 @@ export function createConversation(dependencies) {
       post({
         kind: "reply",
         parent: id,
-        version: runtime.currentVersion,
+        revision: runtime.currentRevision,
         text,
         attempt,
       }),
@@ -662,7 +662,7 @@ export function createConversation(dependencies) {
     if (pill.lfReaction) await withdraw(pill.lfReaction);
     else
       await sendReaction(
-        { kind: "reply", parent: m.id, version: runtime.currentVersion, token: name },
+        { kind: "reply", parent: m.id, revision: runtime.currentRevision, token: name },
         pill,
         `${m.agent || "the agent"}'s reply`,
       );
@@ -696,7 +696,7 @@ export function createConversation(dependencies) {
       reactDone();
       return;
     }
-    const event = { kind: "comment", version: runtime.currentVersion, token: name };
+    const event = { kind: "comment", revision: runtime.currentRevision, token: name };
     if (designIsOn()) event.about = "layer";
     await sendReaction(event, pill, "the page");
     reactDone();

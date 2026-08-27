@@ -45,14 +45,17 @@ from render_support import (
     actions,
     compare_with,
     leaf_page,
+    live_url,
     open_page,
     panel_settled,
     refuse,
     resized,
     round_trip,
     select,
+    stamp_version_file,
     told,
     undo,
+    wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
@@ -491,7 +494,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "feeders",
             "action": "move",
             "detail": {"card": "card-heater", "to": "col-done", "index": 0},
@@ -1530,7 +1533,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
             "kind": "comment",
             "id": "c-which",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Either would do. Which are you leaning towards?",
         },
     )
@@ -1540,7 +1543,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
             "kind": "reply",
             "author": "claude",
             "parent": "c-which",
-            "version": 1,
+            "revision": 1,
             "text": "The second, but the cost lands on you either way:",
             "markup": (
                 '<lf-options id="rp-ask" choose '
@@ -1595,7 +1598,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "kind": "comment",
             "id": "c-room",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Anything else worth adding?",
         },
     )
@@ -1605,7 +1608,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "kind": "reply",
             "author": "claude",
             "parent": "c-room",
-            "version": 1,
+            "revision": 1,
             "text": "These, and who is on them:",
             "markup": ROOM_WIDGETS.format(id="mr-msg"),
         },
@@ -1668,7 +1671,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
             "kind": "comment",
             "id": "c-store",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Which store?",
         },
     )
@@ -1678,7 +1681,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
             "kind": "reply",
             "author": "claude",
             "parent": "c-store",
-            "version": 1,
+            "revision": 1,
             "text": "Depends what you want to keep:",
             "markup": (
                 '<lf-options id="ps-ask" choose label="Which store should I write up?">'
@@ -1747,7 +1750,7 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
             "kind": "comment",
             "id": "cd-thread",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Does the tray fit the north bracket?",
             "anchor": {"section": "cd-q"},
         },
@@ -1758,11 +1761,11 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
             "kind": "reply",
             "author": "claude",
             "parent": "cd-thread",
-            "version": 1,
+            "revision": 1,
             "text": "It does, with the wider plate.",
         },
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     resized(page, 1200, 900)
     # The seat is filled before the diff runs, or this asserts over a page that never
     # had the blocks in question.
@@ -1775,10 +1778,8 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
             '<p id="cd-new">The north pair waits on brackets.</p>',
         )
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "two")
+    wait_for_revision(page, 2)
     expect(page.locator("#cd-q .lf-conversation-msg")).to_have_count(2)
 
     compare_with(page)
@@ -1811,7 +1812,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
             "author": "claude",
             "agent": "Indexer",
             "session": "worker-1",
-            "version": 1,
+            "revision": 1,
             "text": "The north bracket fit.",
             "anchor": {"section": "cd-q"},
             "markup": (
@@ -1901,7 +1902,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "kind": "comment",
             "id": "c-sent",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Which store?",
         },
     )
@@ -1911,7 +1912,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "kind": "reply",
             "author": "claude",
             "parent": "c-sent",
-            "version": 1,
+            "revision": 1,
             "text": "Depends what you want to keep:",
             "markup": (
                 '<lf-options id="ps-ask" choose label="Which store should I write up?">'
@@ -1928,7 +1929,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "kind": "comment",
             "id": "c-on-sent",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Redis, and say why in the patch.",
             "anchor": {"section": "ps-ask"},
         },
@@ -2383,7 +2384,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Does this hold when the camera is offline?",
             "anchor": {"section": "sug-refill"},
         },
@@ -2832,7 +2833,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
             "kind": "comment",
             "id": "c-chart",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "How did the quarter go?",
         },
     )
@@ -2842,7 +2843,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
             "kind": "reply",
             "author": "claude",
             "parent": "c-chart",
-            "version": 1,
+            "revision": 1,
             "text": "Like this:",
             "markup": CHART_MARKUP.format(id="msg-chart"),
         },

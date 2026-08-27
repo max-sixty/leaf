@@ -55,7 +55,7 @@ Commands:
   server      Start, run, or stop the local server.
   status      Set the agent's banner state.
   transcript  Print the page's exchange as Markdown.
-  version     Check, publish, and export versions.
+  version     Check, stamp, and export versions.
   wait        Print one page's unacknowledged events and reports, then exit.
 """,
             id="root",
@@ -112,15 +112,15 @@ Commands:
             ["version", "--help"],
             """Usage: leaf version [OPTIONS] COMMAND [ARGS]...
 
-  Check, publish, and export versions.
+  Check, stamp, and export versions.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  check    Check a page version.
-  export   Export a published version to one HTML file.
-  publish  Publish a checked version with a changelog.
+  check   Check the mutable page source.
+  export  Export a stamped version to one HTML file.
+  stamp   Stamp the current source as the next version.
 """,
             id="version",
         ),
@@ -192,7 +192,7 @@ def test_hidden_hook_remains_callable():
     assert result.output == ""
 
 
-def test_init_help_names_the_version_file_layout():
+def test_init_help_names_the_source_revision_and_version_layout():
     result = CliRunner().invoke(
         cli_model.cli,
         ["page", "init", "--help"],
@@ -201,7 +201,8 @@ def test_init_help_names_the_version_file_layout():
     )
 
     assert result.exit_code == 0
-    assert "Creates PAGE/versions/ for authored vN.html files" in result.output
+    assert "Creates PAGE/revisions/ and PAGE/versions/" in result.output
+    assert "author writes PAGE/index.html" in result.output
     assert "--package" in result.output
 
 
@@ -336,15 +337,13 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
         check=False,
     )
     assert init_result.returncode == 0, init_result.stderr
-    (page / "versions" / "v1.html").write_text(PAGE)
+    (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
             launcher,
             "version",
-            "publish",
+            "stamp",
             page,
-            "--version",
-            "1",
             "--text",
             "installed-payload smoke",
         ],

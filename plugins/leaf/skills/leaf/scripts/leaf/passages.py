@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
 
-from .files import published_versions, version_path
+from .files import latest_revision, revision_path
 from .registry import visual_parts
 from .structure import VOID_TAGS, implicit_closes, parse_structure
 
@@ -470,15 +470,16 @@ def enclosing_ids(html: str) -> dict:
     return page_passages(html, {}).enclosing
 
 
-def published_enclosing(page_dir: Path, events: list) -> dict:
+def active_enclosing(page_dir: Path) -> dict:
     """Where every id sits on the page the reader is looking at.
 
-    The newest published version, because that is the page a decision was made
-    against, and nothing published yet is nowhere for anything to sit."""
-    published = published_versions(page_dir, events)
-    if not published:
+    The newest valid revision is the live page. A page with no valid revision has
+    nowhere for an element to sit."""
+    try:
+        revision = latest_revision(page_dir)
+    except SystemExit:
         return {}
-    html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
     return enclosing_ids(html)
 
 

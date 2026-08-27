@@ -309,8 +309,8 @@ that sends that generation. A refusal does not mint a new attempt. Pressing Send
 again re-evaluates the same attempt against current server state.
 
 This is why the server does not retain refusal receipts. The condition behind a
-refusal can change without the reader changing the words: a referenced version
-can be published, a parent thread can arrive, or a layer can be re-vendored.
+refusal can change without the reader changing the words: a referenced revision
+can be activated, a parent thread can arrive, or a layer can be re-vendored.
 Caching the refusal would strand a valid draft behind an obsolete answer.
 
 A new edit, including replacing text with the same characters, creates a new
@@ -526,7 +526,7 @@ also retain their version and sequence; a claim carries `log_floor`, the log
 sequence it followed.
 
 The source discriminator is semantic, not an implementation leak. A report
-stands until a version note absorbs or overrules it; a claim stands until the
+stands until a stamped revision's note absorbs or overrules it; a claim stands until the
 thread receives an agent reply after that sequence or is resolved. The closed
 disposition is `effective` when an update contributes to current state on its
 semantic coordinate, `standing` when it still needs source-specific settlement
@@ -534,7 +534,7 @@ but is presently outranked, and `settled` when that authority answers it. An
 older unabsorbed report can therefore be standing, and a reader action can mask
 a report that a version still owes an answer. Settled entries remain in the feed
 when their source retains history. A module showing freshness therefore still
-sees when the log last heard from a worker after publishing absorbs the worker's
+sees when the log last heard from a worker after a stamp absorbs the worker's
 report.
 
 An x-report verb may name one required non-empty string detail field with
@@ -556,9 +556,12 @@ render deferred by live input without owning a timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchUpdates` when their element disconnects.
 
-`publishedAt` is the timestamp of the note that published `currentVersion`. It is the
-freshness floor for authored state when no report exists. A page that reports no
-worker update is not timeless; its authored assertion is as old as its version.
+`active.revision` identifies the immutable document currently shown;
+`active.version` is its public stamp when it has one, otherwise null, and
+`active.label` is `vN`, `Draft after vN`, or `Draft`. The timestamp of the latest
+note for that revision is the freshness floor for authored state when no report
+exists. A page that reports no worker update is not timeless; its authored
+assertion is as old as its revision.
 
 `actionStands` answers whether one accepted action is still the reader's winner
 for its semantic coordinate. It treats a newly accepted event as standing when

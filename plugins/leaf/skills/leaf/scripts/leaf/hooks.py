@@ -3,9 +3,8 @@
 import json
 
 from .events import awaits_agent, build_threads, read_events, seat_root, spoken_turns
-from .files import published_versions
 from .http import full_state
-from .passages import published_enclosing
+from .passages import active_enclosing
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
 from .service import PageTransaction, owned_pages, unacknowledged
 
@@ -44,7 +43,7 @@ def unanswered_asks(events: list, cursor: int, within: dict) -> list:
     work while its last word is the agent's; once the reader answers there, both
     roots return to this gate.
 
-    `within` is where each id sits on the published page, read without the page's
+    `within` is where each id sits on the active revision, read without the page's
     vendored registry, which this reader may not touch. That load is a gate — a
     page vendored before the layer last changed fails it by design — and this one
     is reached from the Stop hook, which fails open, so a raise here would stand
@@ -102,16 +101,14 @@ def unattended_pages(session_id: str) -> list:
         page_reasons = []
         try:
             events = read_events(page_dir)
-            state = full_state(page_dir, events, published_versions(page_dir, events))
+            state = full_state(page_dir, events)
         except FileNotFoundError:
             continue
         codex = state["host"] == "codex"
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = unanswered_asks(
-            events, state["cursor"], published_enclosing(page_dir, events)
-        )
+        stale = unanswered_asks(events, state["cursor"], active_enclosing(page_dir))
         if stale:
             ids = ", ".join(t["id"] for t in stale)
             page_reasons.append(

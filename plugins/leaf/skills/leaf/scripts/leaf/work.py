@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from .events import build_threads, standing_work_claims
-from .files import published_versions, version_path
+from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
@@ -71,18 +71,20 @@ def widget_work_without_seats(
 def work_subject(page_dir: Path, events: list, target: str) -> dict:
     """Resolve one bare CLI id to a typed, locally renderable work subject."""
     widget = None
-    widget_version = None
+    widget_revision = None
     widget_projection = None
     registry = None
     html = None
     spk: dict = {}
-    published = published_versions(page_dir, events)
-    if published:
-        widget_version = published[-1]
-        html = version_path(page_dir, widget_version).read_text(encoding="utf-8")
+    try:
+        widget_revision = latest_revision(page_dir)
+    except SystemExit:
+        widget_revision = None
+    if widget_revision is not None:
+        html = revision_path(page_dir, widget_revision).read_text(encoding="utf-8")
         registry = require_registry(page_dir)
         widget_projection, parser, spk = page_projection(
-            html, events, registry, widget_version
+            html, events, registry, widget_revision
         )
         rec = parser.by_id.get(target)
         if rec and rec["tag"] in registry:
@@ -131,5 +133,6 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
         return {
             "subject": {"kind": "widget", "id": target},
             "after": events[-1]["seq"] if events else 0,
+            "revision": widget_revision,
         }
     sys.exit(f"{target} is not a comment thread or local page widget on this page")

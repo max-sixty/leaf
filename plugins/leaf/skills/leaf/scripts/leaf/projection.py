@@ -55,7 +55,7 @@ def canonical_updates(
                     "detail": event["detail"],
                     "text": event["detail"][update_field] if update_field else None,
                     "ts": event["ts"],
-                    "version": event["version"],
+                    "revision": event["revision"],
                     "seq": event["seq"],
                     "agent": event.get("agent"),
                     "session": event.get("session"),
@@ -264,7 +264,7 @@ def state_projection(
     """Project both durable channels onto owner-unit-facet coordinates.
 
     `actions` holds the last surviving reader action per coordinate. `reports`
-    keeps every live report there because publishing retires all of them.
+    keeps every live report there because stamping retires all of them.
     `desired` gives a reader action precedence over provisional agent news on
     the same coordinate.
 
@@ -291,7 +291,7 @@ def state_projection(
             channel = "x-report"
         else:
             continue
-        if upto is not None and event["version"] > upto:
+        if upto is not None and event["revision"] > upto:
             continue
         rec = byid.get(event["widget"])
         if rec is None:

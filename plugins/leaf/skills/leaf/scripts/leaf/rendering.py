@@ -11,8 +11,8 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.data import read_data
-from leaf.events import flocked, read_events
-from leaf.files import published_versions, version_name, version_num
+from leaf.events import flocked, now_iso, read_events
+from leaf.files import published_versions, revision_label, version_name, version_num
 from leaf.hosting import LeafHTTPServer
 from leaf.http import handler_for
 from leaf.passages import EMPTY, spoken
@@ -62,13 +62,23 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
 
-def previous_version(here: int, versions: list) -> int | None:
-    """The newest version this server lists before this one, or None where there is
-    none — a first version, or one the server does not list at all, which is the
-    same answer for the same reason: the conflict reading compares this file against
-    what a reader could have seen before it."""
-    earlier = [version for version in versions if version < here]
-    return max(earlier) if earlier else None
+def previous_stamp(revision: int, versions: list[dict]) -> dict | None:
+    """The newest stamped revision before ``revision``, if one exists."""
+    earlier = [version for version in versions if version["revision"] < revision]
+    return max(earlier, key=lambda version: version["revision"]) if earlier else None
+
+
+def rendered_revision(url: str, state: dict) -> int:
+    """Resolve the immutable revision shown at ``url`` from the public state."""
+    name = Path(urlsplit(url).path).name
+    if not name:
+        return state["active"]["revision"]
+    version = version_num(name)
+    return next(
+        stamped["revision"]
+        for stamped in state["versions"]
+        if stamped["version"] == version
+    )
 
 
 # The window's third error channel, which neither of the two below carries: an `error`
@@ -244,18 +254,12 @@ def _render_version_attempt(
             widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
             state = served_here("/api/state").json()
             markup = served_here(urlsplit(url).path).text()
-            # Which version this is, parsed once for every reading that needs it:
-            # the gate is always pointed at a version file, so the path stating
-            # which one is a fact to read rather than something to test for.
-            here = version_num(Path(urlsplit(url).path).name)
-            # The version before this one, for the conflict reading below: which
-            # pair it compares is a question about the log and the URL, both of
-            # which are held out here. A first version has no predecessor to have
-            # authored anything against.
-            before = previous_version(here, state["versions"])
-            earlier = (
-                served_here(f"/versions/v{before}.html").text() if before else None
-            )
+            # Every replay and conflict check is bounded by immutable revision.
+            # A stamped URL resolves through the stamp map; an exact source preview
+            # uses the synthetic active revision exposed only by its preview server.
+            here = rendered_revision(url, state)
+            before = previous_stamp(here, state["versions"])
+            earlier = served_here(before["url"]).text() if before else None
         except PlaywrightTimeout as e:
             page.close()
             # The first line only: the rest is playwright's call log, which says
@@ -705,10 +709,55 @@ def preview_server(
             httpd.shutdown()
 
 
+@contextlib.contextmanager
+def preview_source_server(
+    page_dir: Path,
+    source: bytes,
+    revision: int,
+    *,
+    handler_factory=None,
+    server_type=None,
+    transition_held: bool = False,
+):
+    """Serve exact candidate source without making it a durable revision."""
+    handler_factory = handler_for if handler_factory is None else handler_factory
+    server_type = LeafHTTPServer if server_type is None else server_type
+    transition = (
+        contextlib.nullcontext()
+        if transition_held
+        else flocked(transition_lock(page_dir))
+    )
+    with transition:
+        token = secrets.token_urlsafe(16)
+        events = read_events(page_dir)
+        active = {
+            "revision": revision,
+            "version": None,
+            "url": "/",
+            "label": revision_label(events, revision),
+            "activated_at": now_iso(),
+        }
+        httpd = server_type(
+            ("127.0.0.1", 0),
+            handler_factory(
+                page_dir,
+                token,
+                preview_source={"data": source, "active": active},
+            ),
+        )
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            yield f"http://127.0.0.1:{httpd.server_address[1]}/?t={token}"
+        finally:
+            httpd.shutdown()
+
+
 def render_check(
     page_dir: Path,
-    version: int,
+    version: int | None = None,
     *,
+    source: bytes | None = None,
+    revision: int | None = None,
     preview=None,
     render=None,
     transition_held: bool = False,
@@ -718,10 +767,16 @@ def render_check(
 
     Playwright is the gate's own extra, not the script's: declaring it in the
     PEP 723 header would put its wheel in every `server run`, `leaf wait`, and
-    `version publish`, so the import happens here and its absence names the
+    `version stamp`, so the import happens here and its absence names the
     invocation that supplies it. Chrome is part of this gate: if it cannot
     launch, the gate fails."""
-    preview = preview_server if preview is None else preview
+    if source is not None and revision is None:
+        raise ValueError("a source preview needs its candidate revision")
+    preview = (
+        (preview_source_server if source is not None else preview_server)
+        if preview is None
+        else preview
+    )
     render = render_version if render is None else render
     try:
         from playwright.sync_api import Error as PlaywrightError
@@ -735,9 +790,12 @@ def render_check(
             file=sys.stderr,
         )
         return 1
-    name = version_name(version)
+    name = "index.html" if source is not None else version_name(version)
+    preview_args = (
+        (page_dir, source, revision) if source is not None else (page_dir, version)
+    )
     with (
-        preview(page_dir, version, transition_held=transition_held) as url,
+        preview(*preview_args, transition_held=transition_held) as url,
         sync_playwright() as p,
     ):
         try:
@@ -851,7 +909,7 @@ def export_page(browser, url: str, page_dir: Path) -> str:
 
 
 def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
-    """One published version as a standalone HTML file.
+    """One stamped version as a standalone HTML file.
 
     The copy is the page as the browser finished drawing it, which is the only way to
     get one: half the document is written by the widget layer at runtime, a mermaid
@@ -873,13 +931,13 @@ def cmd_export(page_dir: Path, out: Path, version, *, preview=None) -> int:
     published = published_versions(page_dir, read_events(page_dir))
     if not published:
         sys.exit(
-            f"{page_dir} has no published version to export; "
-            "run `leaf version publish` first"
+            f"{page_dir} has no stamped version to export; "
+            "run `leaf version stamp` first"
         )
     version = version if version else published[-1]
     if version not in published:
         sys.exit(
-            f"v{version} is not published — published: "
+            f"v{version} is not stamped — stamped: "
             + ", ".join(f"v{v}" for v in published)
         )
     name = version_name(version)

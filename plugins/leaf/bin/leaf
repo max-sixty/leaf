@@ -5,7 +5,7 @@
 # Two subcommands open a browser: `version check --render` looks at the page and
 # `version export` copies it. Both need Playwright, and declaring it in the script's
 # PEP 723 header would put its wheel behind every `server run`, `leaf wait`, and
-# `version publish`, so it is supplied here on exactly the invocations that launch
+# `version stamp`, so it is supplied here on exactly the invocations that launch
 # Chrome, under the floor the suite holds it to in `pyproject.toml`. Those two
 # dispatches let uv narrate the 40 MiB download; the rest pass `-q`, because an
 # agent reads their stderr back and an ordinary resolve has nothing to say on it.

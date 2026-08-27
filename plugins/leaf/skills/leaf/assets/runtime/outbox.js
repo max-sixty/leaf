@@ -61,7 +61,7 @@ export function createOutbox(runtime, dependencies) {
     if (!actionMatches(el, action)) return null;
     return post({
       kind: "action",
-      version: runtime.currentVersion,
+      revision: runtime.currentRevision,
       widget: el.id,
       action,
       detail,
@@ -84,7 +84,7 @@ export function createOutbox(runtime, dependencies) {
     const unit = unitOf(event, spec);
     if (typeof unit !== "string") return false;
     return (
-      stateProjection(runtime.currentVersion).actions.get(
+      stateProjection(runtime.currentRevision).actions.get(
         stateCoordinate(event.widget, unit, spec),
       )?.e.id === event.id
     );

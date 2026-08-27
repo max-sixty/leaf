@@ -72,15 +72,17 @@ function summaryNode(file) {
   const summary = document.createElement("summary");
   const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
+  const stat = Object.assign(document.createElement("span"), {
+    className: "lf-diff-stat",
+    textContent: `+${adds} −${dels}`,
+  });
+  stat.dataset.lfGen = "1";
   summary.append(
     Object.assign(document.createElement("span"), {
       className: "lf-diff-path",
       textContent: path,
     }),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-stat",
-      textContent: `+${adds} −${dels}`,
-    }),
+    stat,
   );
   keys(summary, "On a diff", [
     {
@@ -97,7 +99,6 @@ function renameNode(file) {
   const row = document.createElement("div");
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
-  row.toggleAttribute("data-lf-said", true);
   row.append(
     Object.assign(document.createElement("span"), {
       className: "lf-diff-path lf-diff-before",

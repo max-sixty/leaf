@@ -1269,6 +1269,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       const stat = d.querySelector('.lf-diff-stat');
       return {
         path: path.textContent,
+        statGenerated: stat.dataset.lfGen === '1',
         summaryAligned: Math.abs(path.getBoundingClientRect().top
           - stat.getBoundingClientRect().top) < 1,
         lines: [...d.querySelectorAll('[data-line]')].map(l => ({
@@ -1294,6 +1295,9 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(file["summaryAligned"] for file in files), (
         "a file path and its change counts split across summary rows"
     )
+    assert all(file["statGenerated"] for file in files), (
+        "derived change counts should be said but not read as authored words"
+    )
     separators = [separator for file in files for separator in file["separators"]]
     assert separators, "the fixture exercised no Pierre hunk separator"
     assert all(separator["chrome"] for separator in separators), separators
@@ -1308,6 +1312,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       reference.textContent = 'literal evidence';
       document.querySelector('main').append(reference);
       const rendered = shadow.querySelector('pre[data-diff]');
+      const statText = shadow.querySelector('.lf-diff-stat').textContent;
       const leafFont = getComputedStyle(reference).fontFamily;
       const leafBackground = getComputedStyle(reference).backgroundColor;
       reference.remove();
@@ -1315,6 +1320,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
         segmentCount: segments.length,
         saysPath: says(document).includes('gateway/limits.py'),
         wrotePath: wrote(document).includes('gateway/limits.py'),
+        saysStat: says(document).includes(statText),
+        wroteStat: wrote(document).includes(statText),
         hiddenNumbers: segments
           .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
           .map(({node}) => node.data),
@@ -1331,6 +1338,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
     assert reading["saysPath"] and reading["wrotePath"], reading
+    assert reading["saysStat"] and not reading["wroteStat"], reading
     assert reading["hiddenNumbers"] == [], (
         f"hidden line numbers entered the page reading: {reading}"
     )
@@ -1778,6 +1786,8 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
         from: rename?.querySelector('.lf-diff-before')?.textContent ?? null,
         to: rename?.querySelector('.lf-diff-after')?.textContent ?? null,
         stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
+        generated: rename?.dataset.lfGen === '1',
+        saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -1792,6 +1802,8 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
+        "generated": True,
+        "saidOverride": False,
         "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
         "wroteRename": False,

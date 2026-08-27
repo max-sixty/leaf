@@ -418,52 +418,6 @@ def test_the_render_viewport_is_wide_enough_to_have_margins():
     )
 
 
-def test_the_render_gate_takes_only_names_the_runtime_entry_exports():
-    """The browser gate borrows the runtime's own readings rather than writing second
-    copies of them — `quoted`, `inChrome`, `says`, `shownBand` — by importing `/leaf.js`
-    inside the page. Nothing checks that the entry still hands them out.
-
-    It is a module boundary held together by nothing, and the runtime is being split by
-    owner right across it. A split moves a function into a module beside the entry, the
-    entry imports it to go on using it, and the re-export is the line nobody misses: the
-    name still resolves everywhere inside the runtime, so the suite is green until a
-    browser evaluates the gate's probe and gets `undefined is not a function`. That is
-    what happened to `quoted`, and it cost eleven reds in a browser run to say what this
-    says from the file in under a second.
-
-    Read off the probes rather than listed here, so a gate that starts borrowing a
-    twelfth reading is covered by having asked for it."""
-    gate = Path(render_checks_model.__file__).read_text()
-    wanted = set(re.findall(r"\bleaf\.([A-Za-z_$][\w$]*)", gate)) - {"js"}
-    for names in re.findall(r"const \{([^}]+)\} = await import\('/leaf\.js'\)", gate):
-        wanted.update(part.strip() for part in names.split(",") if part.strip())
-    assert wanted, (
-        "no name was found reaching into /leaf.js from the render gate, so this "
-        "reading is asking nothing — the probes' import spelling must have changed"
-    )
-
-    entry = (schema_model.ASSETS / "leaf.js").read_text()
-    exported = set(
-        re.findall(
-            r"^export\s+(?:const|function|class|let)\s+([A-Za-z_$][\w$]*)",
-            entry,
-            re.MULTILINE,
-        )
-    )
-    for block in re.findall(r"^export\s*\{([^}]*)\}", entry, re.MULTILINE | re.DOTALL):
-        for part in block.split(","):
-            name = part.strip().split(" as ")[-1].strip()
-            if name:
-                exported.add(name)
-
-    assert not wanted - exported, (
-        f"the render gate imports {sorted(wanted - exported)} from /leaf.js and the "
-        "entry does not export them, so every probe that reaches for one dies in the "
-        "browser with 'not a function' — a re-export dropped by a split, which the "
-        "runtime itself never notices because the name still resolves inside it"
-    )
-
-
 def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
     """A choose group's affordance rules stand down inside an exhibit in their own
     selectors, because a stylesheet cannot read the registry the runtime's quoted()

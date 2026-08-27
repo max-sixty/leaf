@@ -1449,6 +1449,60 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     page.close()
 
 
+def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
+    """Two reads cross on two sockets: the earlier ask is answered later, with the
+    newer state. Nothing the log orders tells such answers apart when neither carries
+    a new event — the status is not in the log — and the order the asks went out in
+    is the wrong order. Each answer says when the server took it, and the page keeps
+    the later one without asking again."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    d = serve.page_dir
+    text = page.locator(".lf-status-text")
+
+    def declare(detail):
+        files_model.write_json(
+            d / "status.json",
+            {"state": "working", "detail": detail, "ts": events_model.now_iso()},
+        )
+
+    # Every ask is held; the test answers them by hand, in the order that goes wrong.
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    with page.expect_request("**/api/state*"):
+        declare("first")
+    with page.expect_request("**/api/state*"):
+        declare("second")
+    page.wait_for_timeout(0)  # yield from the request event to its route callback
+    # The stream restates its word every few seconds, and each restatement is an ask
+    # while these stay unanswered, so there may be more than two. The first and the
+    # last went out in that order, which is all that is asked of them.
+    assert len(held) >= 2
+    earlier, later = held[0], held[-1]
+    # The later ask is answered first; the earlier one after the page moves again.
+    second = later.fetch().json()
+    with page.expect_request("**/api/state*"):
+        declare("third")
+    page.wait_for_timeout(0)
+    stale_ask = held[-1]
+    assert stale_ask is not later
+    third = earlier.fetch().json()
+    later.fulfill(json=second)
+    expect(text).to_have_text(re.compile(r"^Claude is working — second"))
+    earlier.fulfill(json=third)
+    told(page)
+    expect(text).to_have_text(re.compile(r"^Claude is working — third"))
+    # And an answer taken before the one the page holds is turned away however late
+    # it lands and whichever ask it answers: the third ask, answered with the second
+    # answer, must not put the status back.
+    with page.expect_response("**/api/state*"):
+        stale_ask.fulfill(json=second)
+    page.title()  # let the stale answer settle before reading the page again
+    expect(text).to_have_text(re.compile(r"^Claude is working — third"))
+    told(page)
+    assert errors == []
+    page.close()
+
+
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     """A wake-up the page could not act on is not lost. The stream says when the
     page has moved and cannot say it twice, so a read that failed — refused here, a

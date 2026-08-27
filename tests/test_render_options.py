@@ -659,48 +659,55 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     page.close()
 
 
-def test_enter_does_not_drift_into_an_existing_option_thread(browser, serve):
-    """A re-armed Ask never borrows an earlier option thread's reply box.
+def test_enter_does_not_drift_into_a_clarification_thread(browser, serve):
+    """An Ask's Enter binding never borrows a clarification thread's reply box.
 
-    Once a reader has written an option, its page seat holds that thread instead of the
-    pristine first-message box. An agent reply returns the Ask to the reader. Enter has
-    no unambiguous new-option box in that state, so the binding is absent; it must not
-    choose whichever existing thread happens to come first. The numbered options remain
-    one press away.
+    A reader's proposed option is a version response, so it leaves the Ask with the
+    agent and has no reply box of its own. If the agent opens a clarification on that
+    same section, the clarification owns the only box in the page seat. Direct focus can
+    still put an option mark under the keyboard; Enter has no new-option box there and
+    must not drift into the clarification. The numbered options remain one press away.
     """
     url = serve(ASK_WITH_CONTEXT_PAGE)
-    for text in ("First option I wrote.", "Second option I wrote."):
-        root = events_model.append_event(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "version": 1,
-                "anchor": {"section": "storage-options"},
-                "text": text,
-            },
-        )
-        events_model.append_event(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "author": "claude",
-                "version": 1,
-                "parent": root["id"],
-                "text": "Understood.",
-            },
-        )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "storage-options"},
+            "text": "Neither — archive the oldest documents first.",
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    clarification = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "anchor": {"section": "storage-options"},
+            "text": "Archive them locally or remotely?",
+        },
+    )
 
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
     mark = page.locator("#storage-evict .lf-pick")
+    mark.focus()
     expect(mark).to_be_focused()
     seat = page.locator("#storage-options > .lf-conversation")
     expect(seat.locator(":scope > .lf-say textarea")).to_have_count(0)
-    expect(seat.locator(".lf-conversation-thread textarea")).to_have_count(2)
+    expect(
+        seat.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"] textarea')
+    ).to_have_count(0)
+    clarification_box = seat.locator(
+        f'.lf-conversation-thread[data-thread="{clarification["id"]}"] textarea'
+    )
+    expect(clarification_box).to_have_count(1)
 
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
+    expect(clarification_box).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")

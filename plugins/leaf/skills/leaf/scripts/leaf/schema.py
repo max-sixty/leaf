@@ -277,7 +277,17 @@ EXTENSION_SCHEMA = {
         "x-tone": _ATTRIBUTE_NAME,
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
-        "x-visual": {"type": "boolean"},
+        "x-visual": {
+            "oneOf": [
+                {"const": "whole"},
+                {
+                    "type": "object",
+                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "required": ["parts"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "x-wide": {"enum": ["box", "drawing"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},

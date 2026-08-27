@@ -16,6 +16,7 @@ export function createConversationMessages(dependencies) {
     renderQuiet,
     renderSaid,
     reportPageError,
+    visualPartLabel,
     tokenEntry,
   } = dependencies;
 
@@ -206,6 +207,10 @@ export function createConversationMessages(dependencies) {
     if (anchor?.quote) return `“${anchor.quote}”`;
     if (!anchor?.section) return "";
     const item = elementById(anchor.section);
+    if (anchor.visual) {
+      const part = visualPartLabel(item, anchor.visual) ?? anchor.visual;
+      return `§ ${item ? `${itemWord(item)} · ${part}` : `${anchor.section} · ${part}`}`;
+    }
     const says = itemSays(item);
     return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
   }

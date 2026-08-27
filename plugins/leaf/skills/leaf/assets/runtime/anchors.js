@@ -193,6 +193,32 @@ export function createAnchors(dependencies) {
   // of the line saying a passage carries a comment are all this question.
   const sectionOf = (anchor) => (anchor.section ? elementById(anchor.section) : null);
 
+  // A generated picture part keeps two identities. The authored widget is its semantic
+  // seat; the module supplies only the current box that one stable authored token paints.
+  // Core verifies the token against the declaration before trusting either module method,
+  // so a renderer's generated id never escapes into the event log.
+  const visualPartAttribute = (visual) => {
+    const declaration = registry[visual?.localName]?.["x-visual"];
+    return declaration && typeof declaration === "object" ? declaration.parts : null;
+  };
+  const declaredVisualParts = (visual) => {
+    const attribute = visualPartAttribute(visual);
+    const value = attribute ? visual?.getAttribute(attribute) : "";
+    return new Set(value?.trim().split(/\s+/).filter(Boolean) ?? []);
+  };
+  function visualPart(visual, part) {
+    if (!declaredVisualParts(visual).has(part)) return null;
+    const answer = visual.lfVisualPart?.(part);
+    const element = answer?.element;
+    if (!(element instanceof Element) || !containsAcross(visual, element)) return null;
+    return { part, element, label: answer.label || part };
+  }
+  function visualPartAt(visual, target) {
+    const part = visual?.lfVisualPartAt?.(target);
+    return typeof part === "string" ? visualPart(visual, part) : null;
+  }
+  const visualPartLabel = (visual, part) => visualPart(visual, part)?.label ?? null;
+
   // ---------- pointing at an item ----------
   // One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
   // only route to an item whose words are all inside controls. A plain click reaches the
@@ -203,11 +229,9 @@ export function createAnchors(dependencies) {
   // enclosing chain ("⬚ paragraph", "⬚ section") — a correction nobody had asked for,
   // paid in chrome beside every selection a user made.
   //
-  // What both write is the anchor leaf already has. A comment on an element is
-  // {section: <id>} with no quote — the shape a click on a diagram has made since the
-  // beginning — so none of this is a new representation, a new event field, or a second
-  // thing for a version to carry. What is missing is only the gesture, and how the panel
-  // says which item a thread is on.
+  // A whole item writes {section: <id>} with no quote. A declared picture part adds its
+  // authored `visual` token; the section remains the durable seat. Both coordinates come
+  // from markup rather than from whatever ids a renderer generated for this load.
   //
   // An item is an element the author gave an id, outside the runtime's own layer and
   // outside the panel (a reply's frozen widget markup carries ids of its own). `version
@@ -216,7 +240,7 @@ export function createAnchors(dependencies) {
   // prefix is not the author's — a module coins one for what it draws (a diagram's svg
   // wears `lf-mermaid-N`, numbered by draw order) — so an anchor on it names nothing a
   // version holds and something the next load may number differently. The item is the
-  // element around it, which is the widget.
+  // element around it unless its declaration maps the generated box to an authored token.
   const ITEM = '[id]:not(.lf-ui):not([id^="lf-"])';
   // Whether an element is an item: what the aim walks up to, and what the legend draws a
   // box for — one predicate, so the two cannot disagree about what is on the page. Never
@@ -224,10 +248,9 @@ export function createAnchors(dependencies) {
   // and a press answered by a different predicate anchored a composer to a retired
   // element — a box about nothing, promised by nothing. And never one inside a widget
   // that renders as a picture (x-visual): a diagram's nodes carry the ids its renderer
-  // coined — `root-1`, `actor0`, under no prefix of ours — and an anchor on one names
-  // nothing a version holds. The entry says the click's anchor is the widget rather than
-  // a generated part inside it, and the aim is a click; the plain-click path already
-  // took the outermost visual, and the aim named the node under the pointer.
+  // coined — `root-1`, `actor0`, under no prefix of ours — and `itemAt` must never return
+  // one. The visual-part provider is the only route that may turn that generated box
+  // into an authored coordinate.
   function isItem(at) {
     if (!at.matches(ITEM) || inChrome(at) || inUi(at) || settledAway(at)) return false;
     const visual = tagsDeclaring((e) => e["x-visual"]).join(",");
@@ -347,6 +370,16 @@ export function createAnchors(dependencies) {
       if (!anchor.quote) return { element: datum[0] };
       const segments = findQuote(text, anchor.quote, anchor, datum[0]);
       return segments.length ? { segments } : { element: datum[0] };
+    }
+    if (anchor.visual) {
+      const section = sectionOf(anchor);
+      // A semantic visual coordinate is deliberately distinct from `part`, the
+      // free-form control label design mode records. Losing either the declaration or
+      // its provider therefore detaches instead of silently widening to the widget.
+      if (!section || !visualPartAttribute(section) || settledAway(section))
+        return null;
+      const found = visualPart(section, anchor.visual);
+      return found ? { element: section, marks: [found.element] } : null;
     }
     if (!anchor.quote) {
       const section = sectionOf(anchor);
@@ -698,7 +731,7 @@ export function createAnchors(dependencies) {
         let at;
         let before;
         if (found.element) {
-          const parts = shownParts(found.element);
+          const parts = found.marks ?? shownParts(found.element);
           for (const part of parts) part.classList.add("lf-react-el");
           reacted.set(t.root.id, parts);
           [at, before] = [found.element, true];
@@ -726,7 +759,7 @@ export function createAnchors(dependencies) {
         // to the document's origin and drew nothing there. The record is what the pass
         // clears, what the pointer hit-tests, and what the composer stands off, so all
         // three follow the paint by holding the parts rather than the element.
-        const parts = shownParts(found.element);
+        const parts = found.marks ?? shownParts(found.element);
         for (const part of parts) part.classList.add("lf-mark-el");
         marked.set(t.root.id, parts);
       } else {
@@ -771,7 +804,7 @@ export function createAnchors(dependencies) {
     // in the record too — it is marked, just in the posted colour rather than the accent.
     pendingMarks = draft
       ? draft.element
-        ? shownParts(draft.element)
+        ? (draft.marks ?? shownParts(draft.element))
         : draft.segments.map((seg) => rangeOf([seg]))
       : [];
     const pending = [];
@@ -1277,6 +1310,8 @@ export function createAnchors(dependencies) {
     itemAt,
     itemWord,
     itemSays,
+    visualPartAt,
+    visualPartLabel,
     resolveAnchor,
     NOTE,
     marked,

@@ -1722,23 +1722,26 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     """A page finishes twice, and the second ending arrives moving.
 
     `lf-upgraded` is the first: every widget upgraded, the geometry final. The
-    runtime writes it in the same breath as it *starts* the first poll and never
-    awaits that poll, so a gate reading there reads the authored page — here, a
+    runtime writes it in the same breath as it *starts* the first read and never
+    awaits that read, so a gate reading there reads the authored page — here, a
     widget standing 120px out of place with its words over the paragraphs below it.
     `lf-applied` is the second, and the frame it lands in is the first frame of the
-    move it describes: a poll that brings nothing presents the authored page
+    move it describes: a read that brings nothing presents the authored page
     deliberately, so the replay after it crosses the presentation boundary and moves
     rather than teleports.
 
     Both windows are load-shaped — a busy server, a few hundred milliseconds — which
     is how this page passed at a desk and reported words drawn over words under a
-    full suite. Holding the action back until the first poll has answered makes the
-    window the same every run: the page reads as broken for about three seconds, and
-    the gate must have nothing to say about it. Either wait on its own leaves this
-    failing."""
+    full suite. Holding the action back until the page's first read has answered, and
+    the gate's own read until the action is in, makes the window the same every run:
+    the page reads as broken for about three seconds, and the gate must have nothing
+    to say about it. Either wait on its own leaves this failing."""
     # For the page directory and its vendored layer; this test serves it itself.
     serve(drifting_widget(tmp_path, monkeypatch))
     landed = []
+    # The action is in the log and the gate may read it. Both halves of the window are
+    # this one fact, so the hold below and the append are the same statement made twice.
+    arrived = threading.Event()
     settle = {
         "kind": "action",
         "author": "user",
@@ -1749,35 +1752,50 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     }
 
     class TheLogArrivesLate(http_model.handler_for(serve.page_dir, TOKEN)):
-        """The action reaches the log after the page's first poll has answered.
+        """The action reaches the log between the page's first read and the gate's.
 
-        A page whose first poll brings nothing is presented on the authored markup
+        A page whose first read brings nothing is presented on the authored markup
         deliberately, so the replay that follows is past the presentation boundary
-        and moves rather than teleports. A poll is told from the gate's own reading
-        of the same document by the Referer a page fetch carries and an
-        APIRequestContext does not, so the gate always sees a log with the action
-        in it and always has a caught-up stamp to wait for."""
+        and moves rather than teleports. The page's read is told from the gate's own
+        reading of the same document by the Referer a page fetch carries and an
+        APIRequestContext does not: the action goes in behind the page's read, and
+        the gate's is held until it has, so the gate always sees a log with the action
+        in it and always has a caught-up stamp to wait for.
+
+        Holding it is the whole arrangement rather than a margin. The page stamps
+        itself upgraded without awaiting its first read, so the gate is free to reach
+        `/api/state` while that read is still in flight — and under a busy server it
+        does, whereupon it counts an empty log, waits for nothing, and reads the page
+        mid-move. That is this test's own failure and not the gate's."""
 
         def do_GET(self):
+            state_read = self.path.startswith("/api/state")
+            page_read = state_read and self.headers.get("Referer")
+            # Bounded, and far inside the gate's own deadline for a served document: a
+            # runtime that stopped reading state at startup is named by the assertion
+            # below rather than by a gate whose server appeared to stop answering.
+            if state_read and not page_read:
+                arrived.wait(10)
             super().do_GET()
-            page_fetch = self.headers.get("Referer") and self.path.startswith(
-                "/api/state"
-            )
-            if page_fetch and not landed:
+            if page_read and not landed:
                 landed.append(self.headers["Referer"])
                 events_model.append_event(serve.page_dir, settle)
+                arrived.set()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
-        assert rendering_model.render_version(browser, late) == []
+        failures = rendering_model.render_version(browser, late)
     finally:
         httpd.shutdown()
+    # The window first, because the gate's verdict on a window that never opened says
+    # nothing: an empty log is a page with nothing to replay and nothing to report.
     assert landed and "/versions/v1.html" in landed[0], (
-        "the action went in behind the gate's own reading rather than behind the "
-        f"page's first poll, so the window this rests on never opened: {landed}"
+        "the action never went in behind the page's first read, so the window this "
+        f"rests on never opened: {landed}"
     )
+    assert failures == []
 
 
 def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, serve):

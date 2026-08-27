@@ -12,7 +12,7 @@
  * Actions: an interactive widget (lf-board) reports the user editing the document
  * through it as an `action` event — sendAction posts it, `leaf wait` prints it,
  * and `leaf ack` records that the complete wait batch reached model context. The
- * live view is the version plus every action recorded up to it, replayed on each poll:
+ * live view is the version plus every action recorded up to it, replayed on each applied state:
  * authored markup is what a widget was before anyone touched it, the log is every
  * transition since, and the log wins. A decision therefore outlives the version it
  * was made on, without the page's author having to copy it into the next one by
@@ -22,9 +22,10 @@
  * applyAction(action, detail) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
- * Comment layer: talks to interact.py's server — polls GET /api/state, posts events to
- * POST /api/event. Everything it injects is namespaced .lf-* and marked .lf-ui, and it
- * styles itself from the theme's tokens so it themes with the page.
+ * Comment layer: talks to interact.py's server — listens on GET /api/news and reads
+ * GET /api/state when that stream says the page moved, posts events to POST /api/event.
+ * Everything it injects is namespaced .lf-* and marked .lf-ui, and it styles itself
+ * from the theme's tokens so it themes with the page.
  *
  * .lf-ui is the chrome face — the system-ui look that says "this is not the document" —
  * and it is anchoring's answer only where nothing nearer speaks. A label the widget
@@ -735,7 +736,20 @@ servedStampMarker?.remove();
 let signoffDeclared =
   document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
 let signoff = signoffDeclared && runtime.currentStamp !== null;
-const POLL_MS = 2000;
+// How often the page re-renders what it already holds: a time that reads "4m ago", a
+// claim ageing toward the threshold that makes it stale. Local — no request is made for
+// it, and it keeps its cadence whether or not there is a server to talk to.
+const TICK_MS = 2000;
+// How long the outbox waits before re-sending, and how long the page waits before
+// reopening a news stream the server refused. Both are the same "try again shortly",
+// and neither is a cadence: a page with news gets it without waiting for either.
+const RETRY_MS = 2000;
+// How long the news stream may say nothing before the page takes it for dead. The
+// server speaks at least every five seconds, so half a minute of silence is a
+// connection something between them has quietly lost — a proxy, a laptop that slept —
+// which is the one failure the browser cannot see for itself and would otherwise wait
+// on forever.
+const SILENCE_MS = 30_000;
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
 // scale its width away, and 360 crowded them. A default rather than the width, because
@@ -1109,7 +1123,7 @@ asksBtn.title = "Go to the next thing this page is waiting on you for";
 // live page, and every URL in the list carries only the key this reader already
 // holds, since there is one key for the machine (`host_key`). The current page heads
 // the list as a marked, unlinked row, so the panel reads as the whole machine. A
-// status tray's point is being live, so rows reconcile on every poll, keyed by URL —
+// status tray's point is being live, so rows reconcile on every applied state, keyed by URL —
 // the stable identity, since address, port and key all survive a restart — and a
 // status change repaints the row's own dot and words without moving it.
 const othersBtn = el("button", "lf-btn lf-others", "");
@@ -1425,7 +1439,7 @@ const {
   midComposition: (...args) => midComposition(...args),
   paintDiff: (...args) => paintDiff(...args),
   paintHere,
-  poll,
+  readAndApply,
   pressComparison: (...args) => pressComparison(...args),
   setDiff: (...args) => setDiff(...args),
   showComparison: (...args) => showComparison(...args),
@@ -1688,7 +1702,7 @@ let agentTurnClosed = null;
 // The exact session the turn-closed evidence belongs to. A delegate's update must not
 // be called abandoned merely because the orchestrator's turn ended under it.
 let claimingSession = null;
-// The threads the panel last reconciled. A work line repaints on the poll's clock and
+// The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
 // not only on the log's, because its age is half of what it says and a claim nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
 // makes that cheap: buildThreads walks the log and the page, and a second walk every two
@@ -3856,7 +3870,7 @@ const midComposition = () =>
 // page it is ordinary version travel.
 latestChip.onclick = () => goActive();
 
-// ---------- polling ----------
+// ---------- reading ----------
 // Rendering version V means making its DOM equal the log's desired projection.
 // Each `(owner widget, unit, facet)` keeps its last surviving action or report, with
 // a reader action outranking provisional agent news on the same coordinate. Widgets state
@@ -4159,7 +4173,7 @@ const {
 } = runtimeProjection;
 
 outboxRuntime = createOutbox(runtime, {
-  POLL_MS,
+  RETRY_MS,
   elementById,
   newAttempt,
   paintKeys,
@@ -4346,7 +4360,18 @@ designRuntime = createDesign({
 
 export { shallowSigs, standingState };
 
-async function poll() {
+// The answer, decoded, with nothing applied yet.
+//
+// Reading and applying are separate acts because the page must stay free to ask again
+// while an application is still running. Applying can take arbitrarily long and can be
+// held open deliberately — a version activation runs inside a view transition, which
+// waits on a frame and on whatever a module does during one — and an ear that waited
+// for that would stop hearing. The page would then go silent for a reason none of its
+// news is about, which is a wedge rather than a delay: nothing else would ever ask.
+let asksMade = 0;
+let askApplied = 0;
+async function readState() {
+  const asked = ++asksMade;
   let res;
   try {
     res = await fetch("/api/state");
@@ -4354,41 +4379,103 @@ async function poll() {
     // Network absence is a completed answer: there is no log to replay, so the offline
     // authored page is honest. A successful but malformed response is different — let
     // JSON or processing errors escape so the caller retains the recovery boundary.
-    res = null;
+    return null;
   }
   const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
-  if (responseGeneration && !sameLayer(responseGeneration)) return;
+  if (responseGeneration && !sameLayer(responseGeneration)) return null;
   // A refusal is not state: the server answers a missing key with error-shaped JSON at
   // 403. A live server refusing the key and a dead one both leave the page unreachable
   // from here, and the terminal link is the recourse for both.
-  const state = res?.ok ? await res.json() : null;
+  if (!res?.ok) return null;
+  const state = await res.json();
+  // Which ask this is the answer to. Reads may overlap — one held by a slow proxy, or
+  // by a test, while a later one answers — and the log's sequence and the data's
+  // revision order everything in a state but the reading, which is a hash with no
+  // order of its own. So the ask's number stands in: an answer to an earlier ask than
+  // the one already applied is judged as a stale sequence is (receiveState). The
+  // number orders the asks, not the moments the server answered them — two sockets
+  // can cross — so what the gate turns away is occasionally the newer answer; the
+  // stream's next word names the reading the page then lacks, and it is asked for.
+  state.asked = asked;
+  return state;
+}
+
+// Whether the page's last read ended in a whole reading applied. Two things turn on
+// it. The heartbeat is a re-application of the reading the page holds, and a page whose
+// reads are failing must not re-apply: its last complete reading is what replay and
+// undo are still standing on. And a read that failed is asked again on the tick — the
+// stream says when the page has moved and cannot say it twice, so a wake-up the page
+// could not act on would otherwise be lost, leaving it under an offline banner until
+// something else happened to the page. That is the spacing a failed exchange has
+// always had, the outbox's included; a healthy page still never asks without news.
+let readAnswered = false;
+
+// What the page does with an answer that brought no state.
+function readNothing() {
+  readAnswered = false;
+  if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
+  renderStatus(null);
+  if (panelOpen) renderPanel();
+  tick();
+}
+
+// A read and its application together, for the callers that want to be told when the
+// page has taken the answer in: the first read, which presentation waits on, and a
+// version activation, which asks for the state it is about to show.
+async function readAndApply() {
+  const state = await readState();
   if (!state) {
-    const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
-    if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
-    renderStatus(null);
-    if (panelOpen) renderPanel();
-    // The sequence consumers still hear the tick. A poll that brought nothing changes
-    // no history, so they re-render what they already held — but anything of theirs
-    // that reads a clock rather than the log has to keep moving, and a dead server is
-    // exactly when it matters: the banner says the server is gone while a roster row
-    // froze its "last heard 4m ago" at the moment the answers stopped, which is the
-    // authored freshness this widget layer exists to replace, produced by the layer
-    // itself. A first failed read has no projection to claim. Once a complete read has
-    // installed one, though, an offline tick is still the wake-up for a correction a
-    // live editor deferred; a definitively refused local action has the same authored
-    // correction even when no read has succeeded yet. Never project a newer event list
-    // whose surrounding state threw before lastEventSeq advanced.
-    if (
-      (runtime.statePhase === "ready" || refusedCorrection) &&
-      reconcileKnownState() &&
-      releaseProjectedOutbox()
-    )
-      paintKeys();
-    document.dispatchEvent(new Event("lf-actions"));
-    notifyDataSubscribers();
+    readNothing();
     return;
   }
-  return receiveState(state);
+  await receiveState(state);
+  readAnswered = true;
+}
+
+// The heartbeat: everything a poll did, with the fetch taken out of it.
+//
+// A poll that brought nothing still re-applied the state the page already held, and the
+// runtime has a lot hanging off that — a clock ageing toward a threshold, a claim going
+// quiet, a work line, an activation a live editor deferred and nothing else will ask
+// about again. None of those needed the network; they rode it because a request was the
+// only thing that happened regularly, which made a round trip the page's clock.
+//
+// Re-applying the held reading is deliberately the whole of it rather than a list of the
+// jobs that need re-running. That list is not knowable by reading the code — the first
+// attempt at this enumerated it, found three by breaking them, and still missed one —
+// and it would have to be maintained by everyone who adds a fourth.
+function heartbeat() {
+  if (runtime.statePhase !== "ready" || !runtime.state) return;
+  void receiveState(runtime.state).catch((error) => {
+    // What the page holds cannot be re-applied, so what it holds is no longer a
+    // whole reading: the next tick reads afresh rather than failing the same way
+    // every two seconds for the rest of the page's life.
+    readAnswered = false;
+    reportPageError(`tick failed: ${error?.message ?? error}`);
+  });
+}
+
+// What the page owes itself when nothing arrived, and the sequence consumers still hear
+// it. A read that brought nothing changes no history, so they re-render what they already
+// held — but anything of theirs that reads a clock rather than the log has to keep moving,
+// and a dead server is exactly when it matters: the banner says the server is gone while a
+// roster row froze its "last heard 4m ago" at the moment the answers stopped, which is the
+// authored freshness this widget layer exists to replace, produced by the layer itself. A
+// first failed read has no projection to claim. Once a complete read has installed one,
+// though, a tick is still the wake-up for a correction a live editor deferred; a
+// definitively refused local action has the same authored correction even when no read has
+// succeeded yet. Never project a newer event list whose surrounding state threw before
+// lastEventSeq advanced.
+function tick() {
+  const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
+  if (
+    (runtime.statePhase === "ready" || refusedCorrection) &&
+    reconcileKnownState() &&
+    releaseProjectedOutbox()
+  )
+    paintKeys();
+  document.dispatchEvent(new Event("lf-actions"));
+  notifyDataSubscribers();
 }
 
 function acceptData(candidate) {
@@ -4439,9 +4526,20 @@ async function receiveState(state) {
   };
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
-  // post() and the timer can poll together. The log is append-only, so a response
+  // A read answered out of order is judged as a stale sequence is: the ask that
+  // produced it went out before one whose answer the page has already applied
+  // (readState, on what that does and does not order). Before the sequence gate
+  // because a stale read may carry the same sequence as the newer one and differ in
+  // everything the sequence does not order — status, claims, the reading itself.
+  if (state.asked !== undefined && state.asked < askApplied) {
+    const activation = currentActivation();
+    if (activation) await activation;
+    notifyChangedData();
+    return;
+  }
+  // A POST's answer and a read can cross. The log is append-only, so a response
   // behind one already rendered is unambiguously stale; accepting it would move
-  // every event-derived view backwards until the next poll.
+  // every event-derived view backwards until the next read.
   if (eventSeq < runtime.lastEventSeq) {
     const activation = currentActivation();
     if (activation) await activation;
@@ -4506,7 +4604,10 @@ async function receiveState(state) {
   // judge this candidate against the version and sequence the winner installed.
   activationInFlight = currentActivation();
   if (activationInFlight) await activationInFlight;
-  if (eventSeq < runtime.lastEventSeq) {
+  if (
+    eventSeq < runtime.lastEventSeq ||
+    (state.asked !== undefined && state.asked < askApplied)
+  ) {
     notifyChangedData();
     return;
   }
@@ -4523,6 +4624,8 @@ async function receiveState(state) {
   const priorEvents = runtime.events;
   const priorStatePhase = runtime.statePhase;
   const priorLastEventSeq = runtime.lastEventSeq;
+  const priorReading = runtime.reading;
+  const priorState = runtime.state;
   const priorActive = runtime.active;
   const priorVersions = runtime.versions;
   const priorCurrentLabel = runtime.currentLabel;
@@ -4584,6 +4687,19 @@ async function receiveState(state) {
     // already have changed some local surfaces, but it has not made a state safe to use
     // for replay or undo; leaving the sequence unresolved retries the whole read.
     runtime.lastEventSeq = Math.max(runtime.lastEventSeq, eventSeq);
+    // Stamped in the same place, because it answers the same question about a
+    // wider subject: the sequence says how much of the log the page holds, the
+    // reading how much of the page's whole state — status, data, claims, versions
+    // — none of which moves the sequence at all. Not by the same rule: a hash has
+    // no order, so the ask's number is what keeps a stale answer from writing it,
+    // and that answer was turned away at the door above.
+    if (state.asked !== undefined) askApplied = state.asked;
+    runtime.reading = state.reading ?? null;
+    // Kept so the heartbeat can re-render time-dependent chrome without asking
+    // the server for a copy of what the page already has.
+    runtime.state = state;
+    if (runtime.reading !== null)
+      document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
     // Accounting changes no hold by itself. It first projects this complete log plus
     // every surviving optimistic action, then releases the entries whose attempts the
     // read contained. A same-widget event later in this state can therefore never be
@@ -4634,6 +4750,11 @@ async function receiveState(state) {
     runtime.events = priorEvents;
     runtime.statePhase = priorStatePhase;
     runtime.lastEventSeq = priorLastEventSeq;
+    runtime.reading = priorReading;
+    runtime.state = priorState;
+    if (priorReading === null)
+      document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.reading);
+    else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, priorReading);
     runtime.active = priorActive;
     runtime.versions = priorVersions;
     runtime.currentLabel = priorCurrentLabel;
@@ -4857,7 +4978,7 @@ async function startPage() {
     );
   // Start replay before stamping the document, preserving the two readiness facts, but
   // present neither half on its own. The first completed read — state or offline — is the
-  // presentation boundary; only after it settles does the ordinary polling cadence begin,
+  // presentation boundary; only after it settles do the heartbeat and the stream begin,
   // so a held first request cannot be overtaken by a second answer and leave presentation
   // waiting on the wrong call.
   let presentationAttempt;
@@ -4868,17 +4989,122 @@ async function startPage() {
       });
     return presentationAttempt;
   };
-  const pollAndPresent = async () => {
+  const present = async () => {
+    if (!document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
+      await ensurePresentation();
+  };
+  const readAndPresent = async () => {
     try {
-      await poll();
-      if (!document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
-        await ensurePresentation();
+      await readAndApply();
+      await present();
     } catch (error) {
-      reportPageError(`poll failed: ${error?.message ?? error}`);
+      readAnswered = false;
+      reportPageError(`read failed: ${error?.message ?? error}`);
       renderStatus(error);
     }
   };
-  pollAndPresent().finally(() => setInterval(pollAndPresent, POLL_MS));
+  // What the page does when the stream says it has moved. Every wake-up is a read of
+  // its own, and reads may overlap: one held by a slow proxy while the next answers
+  // is the case receiveState orders by sequence, revision and ask, and a gate that let
+  // one read out at a time would have made a held read a held page. Application is
+  // deliberately not awaited — see readState — and a fault applying one answer is
+  // reported and does not stop the next from arriving. Presentation is chained onto
+  // the application rather than onto the read, because it is a fact about applied
+  // state: a page whose first answer did not present must still present on a later
+  // one. An answer with nothing in it — an unreachable server, a refused key, a layer
+  // that has moved on and is reloading — still presents, since the authored page under
+  // an unreachable server is a page, and saying so is the banner's job.
+  const ask = async () => {
+    try {
+      const state = await readState();
+      if (state)
+        void receiveState(state)
+          .then(
+            () => {
+              readAnswered = true;
+            },
+            (error) => {
+              readAnswered = false;
+              reportPageError(`read failed: ${error?.message ?? error}`);
+              renderStatus(error);
+            },
+          )
+          // Presentation's own fault is reported as its own: the read behind it
+          // stands, and the tick retries the presentation rather than the read.
+          .then(present)
+          .catch((error) => {
+            reportPageError(`presentation failed: ${error?.message ?? error}`);
+          });
+      else {
+        readNothing();
+        await present();
+      }
+    } catch (error) {
+      readAnswered = false;
+      reportPageError(`read failed: ${error?.message ?? error}`);
+      renderStatus(error);
+    }
+  };
+  // The page's ear: one stream, open for the page's life, on which the server names the
+  // page's reading each time it changes, and again every five seconds whether or
+  // not it did — nothing else rides it. State still comes by asking, so every reader
+  // of a state request — in the page, or a test standing outside it with a route on
+  // the request — keeps its meaning; the stream only says when asking is worth it.
+  // The reading compared is the one the page has applied: a wake-up naming what the
+  // page already shows, which a page's own POST response leaves it holding, is no
+  // reason to ask. The repeated word is what makes the comparison safe to rest on: a
+  // reading that reached the page some other way, or that the server's own memory of
+  // this stream missed, differs from the next word here and is asked for then.
+  //
+  // The browser reopens a stream that drops. One the server refused — a key it no
+  // longer honours, a server too old to have the door — is closed for good, and is
+  // reopened from here at the spacing a failed read always had. Either way, whether
+  // the server is there is put to a read, which is what the banner answers from: a
+  // dropped stream is a prompt to ask, not a verdict. Coming back after a silence, the
+  // page asks if its last read failed, since whatever it is showing about the server
+  // is from before the silence.
+  const listen = () => {
+    const news = new EventSource("/api/news");
+    let quiet;
+    const alive = () => {
+      clearTimeout(quiet);
+      quiet = setTimeout(() => {
+        news.close();
+        listen();
+      }, SILENCE_MS);
+    };
+    news.addEventListener("open", () => {
+      alive();
+      if (!readAnswered) void ask();
+    });
+    news.addEventListener("message", (event) => {
+      alive();
+      if (event.data !== runtime.reading) void ask();
+    });
+    news.addEventListener("error", () => {
+      clearTimeout(quiet);
+      if (news.readyState === EventSource.CLOSED) setTimeout(listen, RETRY_MS);
+      void ask();
+    });
+  };
+  // Presentation waits on the first read, and the ear opens after it: the page then
+  // holds a reading for the stream's first word to be compared with, so an unchanged
+  // page is not asked for twice.
+  readAndPresent().finally(() => {
+    // Two mechanisms now, where there was one. The heartbeat is local and keeps its
+    // cadence whatever the network is doing; the news arrives when there is news. They
+    // were the same timer for as long as a request was the only thing that happened
+    // regularly, which made a round trip the page's clock and put every local job on
+    // the far side of it.
+    setInterval(() => {
+      if (readAnswered) heartbeat();
+      else void ask();
+      // A presentation that failed is retried here as the poll retried it, since
+      // a quiet page may see no read to chain it onto.
+      void present();
+    }, TICK_MS);
+    listen();
+  });
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

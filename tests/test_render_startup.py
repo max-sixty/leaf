@@ -5,6 +5,7 @@ import itertools
 import json
 import os
 import re
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -14,6 +15,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import events as events_model
 from leaf import files as files_model
+from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import rendering as rendering_model
@@ -35,13 +37,16 @@ from render_support import (
     SUGGEST_BLOCK,
     TAB_AND_DOT,
     TAB_TONE,
+    TOKEN,
     _card_done,
     _draft_says,
     _publish,
+    _traffic,
     compare_with,
     data_projection_page,
     live_url,
     live_watcher,
+    nudge,
     open_page,
     panel_settled,
     record_claim,
@@ -810,7 +815,7 @@ def test_a_malformed_first_state_never_presents_unapplied_authored_state(
     )
     try:
         with page.expect_console_message(
-            predicate=lambda message: "poll failed" in message.text
+            predicate=lambda message: "read failed" in message.text
         ):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
@@ -1334,6 +1339,11 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     page.get_by_role("button", name=re.compile("^Comments")).click()
     page.locator(".lf-general textarea").fill("Starts the slow poll")
     page.locator(".lf-general button").click()
+    round_trip(page)
+    # The second read, which the script above holds. The post's own append would
+    # usually prompt it, but the post's answer can apply first and leave the stream
+    # naming a reading the page already holds; this is a cause of its own.
+    nudge(serve.page_dir)
     page.wait_for_function("() => window.lfDelayedPollCaptured === true")
 
     events_model.append_event(
@@ -1411,6 +1421,95 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
     assert errors == []
+    page.close()
+
+
+def test_a_page_hears_news_without_asking_for_it(browser, serve):
+    """The page asks for state when its news stream says the page has moved, and
+    otherwise not at all. A quiet page therefore makes no request — the poll made
+    one every two seconds whether or not anything had happened — and an append
+    reaches it in the time the stream takes to look (fifty milliseconds, where the
+    poll left it up to two seconds), which `told` below waits through. The quiet
+    three seconds are the half of this no faster poll could pass."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    panel_settled(page)
+    asked = _traffic(page).asked
+    page.wait_for_timeout(3000)
+    assert _traffic(page).asked == asked, "a quiet page asked for state on a timer"
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
+    )
+    told(page)
+    assert _traffic(page).asked == asked + 1
+    expect(page.locator(".lf-thread", has_text="News.")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
+    """A wake-up the page could not act on is not lost. The stream says when the
+    page has moved and cannot say it twice, so a read that failed — refused here, a
+    dropped request in the world — is asked again on the page's own tick, the
+    spacing a failed exchange has always had. Without that a page would sit under
+    an offline banner until something else happened to it."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    panel_settled(page)
+    page.route("**/api/state*", refuse)
+    with page.expect_event(
+        "requestfailed", predicate=lambda request: "/api/state" in request.url
+    ):
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
+        )
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Server offline — comments won't send"
+    )
+    page.unroute("**/api/state*")
+    told(page)
+    expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
+    expect(page.locator(".lf-status-text")).not_to_have_text(
+        "Server offline — comments won't send"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
+    """A server is stopped and started under an open tab whenever its layer is
+    re-vendored, and the tab finds the new one on its own: the stream it held ended
+    with the old server, and the browser reopens it. The page says the server is
+    gone while it is, and reads again when the stream comes back, because the last
+    thing it knew about the server is from before the silence."""
+    url = serve(LONG_PAGE)
+    page, errors = open_page(browser, url)
+    page.get_by_role("button", name=re.compile("^Comments")).click()
+    panel_settled(page)
+    status = page.locator(".lf-status-text")
+    port = serve.httpd.server_address[1]
+    serve.httpd.shutdown()
+    serve.httpd.server_close()
+    expect(status).to_have_text("Server offline — comments won't send")
+
+    httpd = hosting_model.LeafHTTPServer(
+        ("127.0.0.1", port), http_model.handler_for(serve.page_dir, TOKEN)
+    )
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    serve.servers.append(httpd)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Back."},
+    )
+    told(page)
+    expect(page.locator(".lf-thread", has_text="Back.")).to_have_count(1)
+    expect(status).not_to_have_text("Server offline — comments won't send")
+    # The requests that failed while the server was down are the one thing the
+    # console may hold; a page fault of the runtime's own would say something else.
+    assert all("net::ERR" in error for error in errors), errors
     page.close()
 
 
@@ -2114,7 +2213,7 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
 
 
 def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
-    """Overlapping polls order data by its own revision, not by arrival time."""
+    """Overlapping reads order data by its own revision, not by arrival time."""
     delay_second_state = """
       const nativeFetch = window.fetch.bind(window);
       let stateCalls = 0;
@@ -2139,6 +2238,8 @@ def test_an_older_data_response_cannot_replace_a_newer_snapshot(browser, serve):
     page, errors = open_page(
         browser, data_projection_page(serve), init_script=delay_second_state
     )
+    # The second read, which the script above holds: the page reads when told to.
+    nudge(serve.page_dir)
     page.wait_for_function("() => window.lfOldDataCaptured === true")
 
     data_model.cmd_data_set(

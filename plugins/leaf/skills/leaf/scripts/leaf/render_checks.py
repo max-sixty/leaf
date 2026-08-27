@@ -810,7 +810,7 @@ REPLAY_OVERRIDES = """async ({ curHtml, prevHtml }) => {
 # built on them rest on and the one thing about a widget module no gate could see. A
 # relative implementation — a card shifted one column along, a pick toggled rather than
 # set — is invisible to every other reading here: it renders perfectly, and what it
-# costs arrives later, in the poll that replays the sender's own action over the state
+# costs arrives later, in the read that replays the sender's own action over the state
 # that gesture already painted. The user drags a card once and watches it walk.
 #
 # So the page is asked rather than the code. Each standing action is applied a second
@@ -861,8 +861,8 @@ RELATIVE_REPLAYS = """async () => {
             widget.applyAction(s.action, s.detail);
         } catch (error) {
             found.push(`${at(widget)} applyAction(${s.action}) threw when the recorded `
-                + `action was applied a second time: ${error?.message ?? error} — the `
-                + `poll replays the sender's own action, so it has to arrive twice`);
+                + `action was applied a second time: ${error?.message ?? error} — `
+                + `replay lays the sender's own action down again, so it has to arrive twice`);
         }
     }
     const now = shallowSigs(document.body);
@@ -896,7 +896,7 @@ RELATIVE_REPLAYS = """async () => {
         const said = verbs.get(who);
         const named = said?.size ? `applyAction(${[...said].join(', ')})` : 'applyAction';
         return `${who} ${named} is relative — re-applying the standing log moved `
-            + `${[...moved].join(', ')}. The poll replays every standing action over the `
+            + `${[...moved].join(', ')}. Replay lays every standing action over the `
             + `state they already produced, so state the whole value from the detail `
             + `rather than stepping from what the page shows`;
     })];

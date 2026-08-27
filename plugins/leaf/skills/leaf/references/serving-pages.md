@@ -30,7 +30,7 @@ Leaf serves only on networks the machine already joins and creates no public
 tunnel. Binding beyond loopback exposes the port to that network.
 
 `<page>/service.json` records address, bind, port, enabled state, and lifetime so
-a restart reproduces the URL an open tab is polling. Delete it only when
+a restart reproduces the URL an open tab holds. Delete it only when
 intentionally deriving a new address and lifetime. The access key lives in
 Leaf's state home rather than in the page.
 
@@ -65,7 +65,7 @@ listening socket, accepted connections, and live lease. Initialization preserves
 the recorded address, port, lifetime, and page status; restarting restores the
 same URL. Each successful initialization writes a new layer epoch into the
 runtime and registry, so an open or half-loaded tab from the previous contract
-reloads before its next poll or event enters the replacement server.
+reloads before its next read or event enters the replacement server.
 
 ## Page lifetime
 

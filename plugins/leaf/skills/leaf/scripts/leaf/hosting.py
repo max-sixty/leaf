@@ -52,6 +52,15 @@ class LeafHTTPServer(ThreadingHTTPServer):
 
     request_queue_size = socket.SOMAXCONN
 
+    # Whether this server has been told to stop. `socketserver` keeps that fact in a
+    # name-mangled private, and a news stream held open for a tab needs to see it:
+    # the stream otherwise outlives the stop for as long as the tab stays.
+    stopping = False
+
+    def shutdown(self):
+        self.stopping = True
+        super().shutdown()
+
     def serve_forever(self, poll_interval=0.01):
         """How long `shutdown` may take to be noticed.
 

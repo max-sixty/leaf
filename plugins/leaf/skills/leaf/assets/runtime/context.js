@@ -1,7 +1,8 @@
 /* The mutable facts shared across the public runtime's internal domains.
 
-   Collections keep stable identities so a projection can hold them while polling
-   replaces their contents. Scalar transitions go through this record directly. */
+   Collections keep stable identities so a projection can hold them while a state
+   application replaces their contents. Scalar transitions go through this record
+   directly. */
 export const runtime = {
   active: null,
   agent: "Claude",
@@ -11,6 +12,8 @@ export const runtime = {
   data: { revision: -1, sources: {} },
   events: [],
   lastEventSeq: -1,
+  reading: null,
+  state: null,
   projectingState: false,
   registry: {},
   statePhase: "waiting",

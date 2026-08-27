@@ -1,7 +1,9 @@
 """HTTP transport and state responses for one served page."""
 
+import hashlib
 import json
 import secrets
+import select
 import threading
 import time
 from http.cookies import SimpleCookie
@@ -21,7 +23,9 @@ from .events import (
     undo_error,
 )
 from .files import (
+    STAGED,
     active_descriptor,
+    file_stamp,
     latest_revision,
     list_revisions,
     list_versions,
@@ -55,6 +59,7 @@ from .schema import (
 from .service import (
     PageTransaction,
     claim_is_active,
+    claim_path,
     claim_records,
     claim_update_sources,
     page_claim,
@@ -88,7 +93,7 @@ def other_leaves(page_dir: Path) -> list:
     read the way `transcript` reads it.
 
     The whole scan runs on every /api/state; what it reads of each neighbour is
-    kept per file, so a poll costs the scan and the presence reads rather than a
+    kept per file, so a state read costs the scan and the presence reads rather than a
     parse of every live neighbour's page (`parse_version`)."""
     candidates = []
     pages = state_home() / "pages"
@@ -105,7 +110,7 @@ def other_leaves(page_dir: Path) -> list:
         # A neighbour's fault stays its own. This is the one read of state some
         # other page owns: a directory deleted mid-scan (stale pages are deleted
         # and made again) or a log a disk fault corrupted would otherwise 500
-        # every open page's poll on the machine, blaming the page that asked.
+        # every open page's state read on the machine, blaming the page that asked.
         try:
             info = running_server(candidate)
             if not info:
@@ -132,7 +137,7 @@ def presence(page_dir: Path, events: list) -> dict:
     """What a seat showing this page says about it: the agent's claim, everything
     the directory holds that can answer for it, and where that agent is working.
     One gatherer for every such seat — `full_state` spreads it into the page's own
-    poll answer, and `other_leaves` attaches it to each entry — so the runtime's one
+    state answer, and `other_leaves` attaches it to each entry — so the runtime's one
     claim-against-proof judgment reads the same fields whichever page it judges,
     and the tray's account of a neighbour is the account this page gives of
     itself."""
@@ -178,9 +183,10 @@ def presence(page_dir: Path, events: list) -> dict:
         # an hour after it. Read with .get like the rest of the claim's fields,
         # since a record written before this existed is still a valid claim.
         "turn_closed": claim.get("turn_closed") if claim else None,
-        # When a browser last polled the page (the server bumps viewed.json,
-        # throttled), or None for a page nobody has ever opened — which used to
-        # be indistinguishable from one the user studied and left.
+        # When a browser last held the page open (the server bumps viewed.json,
+        # throttled, while a tab's news stream stands), or None for a page nobody
+        # has ever opened — which used to be indistinguishable from one the user
+        # studied and left.
         "viewed": (read_json(page_dir / "viewed.json") or {"t": None})["t"],
         # Where the claimant is working (claim_page), for the tray's hover: what
         # tells one leaf from another is the work behind it, and neither the title
@@ -222,6 +228,80 @@ def full_state(
         # log's own, which $events already stamps.
         "events": events,
     }
+
+
+# The one thing a reading must not be built from. The server writes `viewed.json` for
+# as long as a tab holds the page open, so counting it would make the page's own
+# presence change the page's token: a stream asking "has anything changed?" would be
+# told yes, by its own listener.
+UNWATCHED = frozenset({"viewed.json"})
+
+# How often an open news stream re-reads the page, and how long it may go without a
+# word before saying it is still there. The look is a re-stat rather than an in-process
+# signal because an append does not have to come from this process — `leaf reply` and
+# every other command write these same files from outside it — so one mechanism covers
+# a browser's POST and an agent's command alike. Measured at 70us a look, 0.14% of a
+# core per open tab, against the full state read and log parse a timed poll cost every
+# two seconds whether or not anything had happened. (The neighbour scan the poll also
+# ran is still run, on `PRESENCE_S` below.)
+LOOK_S = 0.05
+ALIVE_S = 5.0
+# How often the stream re-reads what no stamp shows. Three facts in a state come from
+# somewhere other than the page's files: whether a wait lease is held is a lock, whether
+# the claimant lives is a pid, and the neighbours are other pages' directories and
+# servers. Each is cheap to read once and dear to read twenty times a second, and two
+# seconds is the staleness the poll gave every fact, so it is the staleness these keep.
+PRESENCE_S = 2.0
+
+
+def page_reading(page_dir: Path) -> str:
+    """A short token naming this reading of the page.
+
+    Every direct child of the page directory, rather than the files a state response is
+    known to read. The known-list is unmaintainable in the way that does not fail
+    loudly: leave one out and the page simply stops hearing about that kind of news,
+    with nothing red to say so. Directories are stamped without descending, which is
+    enough — a new version file moves `versions/`, and the vendored layer cannot change
+    under a served page at all, since re-vendoring restarts the server.
+
+    Stat stamps rather than contents: the question is only whether anything moved, and
+    the answer has to be cheap enough to ask many times a second.
+    """
+    stamps = sorted(
+        (entry.name, file_stamp(entry))
+        for entry in page_dir.iterdir()
+        if entry.name not in UNWATCHED and not STAGED.fullmatch(entry.name)
+    )
+    stamps.append(("", file_stamp(claim_path(page_dir))))
+    return hashlib.sha256(repr(stamps).encode()).hexdigest()[:16]
+
+
+def presence_fingerprint(listening: bool, session_alive, others: list) -> str:
+    """The half of a reading that file stamps cannot supply, from the facts a state
+    already carries: the lease, the claimant's life, and the neighbours as the tray
+    shows them. A neighbour's `viewed` is left out, since it moves every half minute
+    that tab stays open and changes nothing this page shows."""
+    facts = (
+        listening,
+        session_alive,
+        [{k: v for k, v in other.items() if k != "viewed"} for other in others],
+    )
+    return hashlib.sha256(
+        json.dumps(facts, sort_keys=True, default=str).encode()
+    ).hexdigest()[:8]
+
+
+def presence_reading(page_dir: Path) -> str:
+    """`presence_fingerprint` read fresh, for a stream between states. The three facts
+    are read the way `presence` and `full_state` read them, so the stream and the
+    state it prompts name the same reading."""
+    claim = page_claim(page_dir)
+    active = claim if claim_is_active(claim) else None
+    return presence_fingerprint(
+        wait_is_live(page_dir, active),
+        active is not None if claim else None,
+        other_leaves(page_dir),
+    )
 
 
 def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
@@ -283,12 +363,24 @@ class Handler(BaseHTTPRequestHandler):
         A claim's ``log_floor`` is meaningful only beside the same log snapshot it
         followed. Every response therefore keeps the page transaction through both
         files.
+
+        The reading is taken after the activation this response performs and
+        before any file the state is built from is read, and that order is the whole
+        of its correctness. Taken after the reads, it could name a write this response
+        does not carry, and a tab comparing it with what the stream says would never
+        ask for that write — the one way a reading like this loses an update rather
+        than merely repeating one. Taken before the activation, it would miss the
+        write this response itself made, and the tab would be told to ask again for
+        what it was just handed. Between the two, the worst case is a token already
+        stale on arrival, which costs one more request and no news.
         """
         with PageTransaction(self.page_dir) as page:
             if self.preview_source is None:
                 activation = activate_source(self.page_dir, page.events)
+                reading = page_reading(self.page_dir)
                 state = self._page_state(page.events, activation.error)
             else:
+                reading = page_reading(self.page_dir)
                 state = self._page_state(page.events)
                 state["active"] = self.preview_source["active"]
         # Every URL in `others` carries the machine key (`host_key`), so the list
@@ -296,10 +388,86 @@ class Handler(BaseHTTPRequestHandler):
         # Scan neighbours after releasing this page's lease: they are independent
         # snapshots, and one slow neighbour must not block this page's writers.
         state["others"] = other_leaves(self.page_dir)
+        state["reading"] = (
+            reading
+            + "."
+            + presence_fingerprint(
+                state["listening"], state["session_alive"], state["others"]
+            )
+        )
         return state
 
     def log_message(self, *args):
         pass
+
+    def _news(self):
+        """The page's reading, named on an open stream each time it changes.
+
+        What a tab listens on instead of asking on a timer. The stream carries no
+        state: it says the page has a new reading, and the tab then asks
+        `/api/state` the way it always did — so everything that reads, stubs, or
+        counts a state request, in the page or in a test standing outside it, keeps
+        its meaning, and a caller that never learns this door reads the page as
+        before. A look is `LOOK_S` of stat calls per open tab. The reading is said
+        again every `ALIVE_S` whether or not it moved: that keeps a quiet page
+        distinguishable from a dead stream, and it puts right a tab whose reading came
+        to differ from what this stream last said — an answer that crossed another,
+        a presence that moved between a word here and the read it prompted.
+
+        The stream is also the one proof a browser holds the page open, and before
+        it the poll was: a page nobody ever opened and one the user studied and left
+        looked identical from the agent's side. A tab whose page has no news never
+        asks again, so presence is written from here, throttled — it needs a
+        recency, not a request log — and never from a preview, whose browser is the
+        render gate's rather than the reader's.
+
+        Ends on the server stopping, or on the peer going: a closed tab makes the
+        socket readable with nothing to read, which the wait between looks sees at
+        once rather than on the next write into it.
+        """
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        cls = type(self)
+        said = files_said = presence = None
+        looked = spoke = 0.0
+        try:
+            while not self.server.stopping:
+                now = time.monotonic()
+                files = page_reading(self.page_dir)
+                # Presence is re-read on its own clock, and again whenever the files
+                # move. The tab is about to ask, and the answer it gets is built from
+                # fresh presence, so what this stream remembers saying has to be too:
+                # said with a stale presence, a presence that then moved back before
+                # the next look would leave the tab holding a reading this stream
+                # never disagreed with, and never spoke again.
+                if files != files_said or now - looked >= PRESENCE_S:
+                    presence = presence_reading(self.page_dir)
+                    looked = now
+                reading = f"{files}.{presence}"
+                # Before the word goes out, so a listener that has heard the first
+                # one is a browser the page already counts as holding it open.
+                if (
+                    self.preview_upto is None
+                    and time.time() - getattr(cls, "viewed_at", 0) > 30
+                ):
+                    cls.viewed_at = time.time()
+                    write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
+                if reading != said or now - spoke >= ALIVE_S:
+                    self.wfile.write(f"data: {reading}\n\n".encode())
+                    said, files_said, spoke = reading, files, now
+                readable, _, _ = select.select([self.connection], [], [], LOOK_S)
+                if readable and not self.connection.recv(1024):
+                    return
+        except (FileNotFoundError, NotADirectoryError):
+            # The page directory going away under an open tab ends the stream, as a
+            # peer going away does. The answer boundary this runs inside would
+            # otherwise write a status line and a JSON fault into the middle of it.
+            # A peer gone mid-write is `handle`'s, and any other fault is a fault.
+            return
 
     def handle(self):
         """The exchange, ending quietly when the reader is no longer there.
@@ -469,20 +637,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send(200, "text/html; charset=utf-8", projected)
             return
+        if path == "/api/news":
+            self._news()
+            return
         if path == "/api/state":
-            # A poll is the one proof a browser holds the page open, and before
-            # this nothing recorded it: a page nobody ever opened and one the
-            # user studied and left looked identical from the agent's side.
-            # Throttled — presence needs a recency, not a request log. Never
-            # from a preview: the render gate's own browser is not the reader,
-            # and its polls would leave no page "never opened" again.
-            cls = type(self)
-            if (
-                self.preview_upto is None
-                and time.time() - getattr(cls, "viewed_at", 0) > 30
-            ):
-                cls.viewed_at = time.time()
-                write_json(self.page_dir / "viewed.json", {"t": cls.viewed_at})
             # Versions pass through the handler's own view, so a preview state
             # agrees with the version it serves.
             self._json(self.page_state())

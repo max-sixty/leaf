@@ -98,6 +98,7 @@ from render_support import (
     live_url,
     live_watcher,
     mark_edges,
+    nudge,
     open_page,
     opened_tab,
     page_at_rest,
@@ -697,9 +698,10 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     page, errors = open_page(browser, url)
     old_layer = page_registry(page)["$layer"]["generation"]
     cut = CutOff().hold(page)
-    page.wait_for_event(
-        "request", predicate=lambda request: "/api/state" in request.url
-    )
+    # A read that meets the cut-off, so the page's reads are known refused before the
+    # server changes under it. The page reads when told the page moved, so tell it.
+    with page.expect_request("**/api/state*"):
+        nudge(serve.page_dir)
 
     old_server = serve.httpd
     address = old_server.server_address

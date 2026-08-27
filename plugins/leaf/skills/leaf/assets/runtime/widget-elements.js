@@ -177,9 +177,8 @@ export function offer(tag, cls, label) {
   node.className = cls ? `${cls} lf-ui` : "lf-ui";
   node.dataset.lfGen = "1";
   // Which control contract owns its keys, said in the one marker a widget has no reason
-  // to touch. The
-  // tabindex cannot say it — every focus target wears one, and a conversation thread wears
-  // one so j/k can land on it, which had the key line leading with "press it" over an
+  // to touch. The tabindex cannot say it — every focus target wears one, and a conversation
+  // thread wears one so j/k can land on it, which had the key line leading with "press it" over an
   // element that answers nothing. Nor can the role: `offer` writes `button` and a widget is
   // free to specialise it, which `lf-tabs` does (`role="tab"`), and reading the role took
   // Enter and Space off every tab — Space then scrolling the page out from under the

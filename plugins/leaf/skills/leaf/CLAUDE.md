@@ -1511,10 +1511,10 @@ and return to the page cannot cascade from one keypress. A scope does not need a
 private `keydown` listener or hand-written `preventDefault` to protect that
 contract.
 
-`offer` supplies the two press keys for injected span controls at the shared
-bubble listener. A widget that already handled the event can prevent its default
-before that listener. A link stays the browser's, and its run-less row only
-projects the platform press into help.
+`offer` marks an injected span control with the contract that owns its keys.
+Button offers enter the shared `CONTROL` scope and receive `PRESS`; specialised
+controls such as a checkbox register their own rows. A link stays the browser's,
+and its run-less row only projects the platform press into help.
 
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one

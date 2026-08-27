@@ -31,9 +31,11 @@ page path, and resolved Leaf launcher. Its job is:
    cursor has not moved.
 4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
    unified exec. Retain and poll that command's session id: after advancing the
-   cursor, ack stays active as the next wait. Exit when it reports that the page is
-   idle. The watcher does not author, reply, resolve, stamp, change status, or
-   handle an event itself.
+   cursor, ack stays active as the next wait. A successful ack exits 0 whether that
+   wait delivered or the page went idle, so read its output rather than its status:
+   a batch on stdout is the next delivery, and an empty stdout with the idle line on
+   stderr is where the watcher exits. The watcher does not author, reply, resolve,
+   stamp, change status, or handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
 that `leaf page state <page>` reports `listening: true` before ending the page task's

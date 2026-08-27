@@ -88,9 +88,12 @@ export const MARK_RULES = `
 // look, and it would look right in exactly the session where someone remembered. Same
 // reasoning as renderSaid — a rule each widget has to remember is a rule that gets
 // forgotten, and the forgetting is invisible until a page ships without it.
+let publishedShadowStage;
+export const shadowStage = (...args) => publishedShadowStage(...args);
+
 export function createShadowStage(watchDisclosures) {
   let markSheet;
-  return function shadowStage(host, nodes) {
+  publishedShadowStage = function stageShadow(host, nodes) {
     if (!markSheet) {
       markSheet = new CSSStyleSheet();
       markSheet.replaceSync(MARK_RULES);
@@ -112,4 +115,5 @@ export function createShadowStage(watchDisclosures) {
     root.replaceChildren(style, ...nodes);
     return root;
   };
+  return publishedShadowStage;
 }

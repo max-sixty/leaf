@@ -1675,7 +1675,9 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
         )
         == 0
     ), "the document tree already answers for this one, so the reading proves nothing"
-    assert page.evaluate(rendering_model.MOVING) == ["<lf-drift id=drift-note>"]
+    assert render_checks_model.evaluate_probe(page, "moving") == [
+        "<lf-drift id=drift-note>"
+    ]
     assert errors == []
     page.close()
 
@@ -2670,7 +2672,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # consumer but shallowSigs, which reads what no version can assert as state one
     # authored.
     assert (
-        page.evaluate(render_checks_model.UNDECLARED_ATTRS, page_registry(page)) == []
+        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        == []
     ), "the Done press left an attribute on a widget its entry never declared"
     round_trip(page)
     actions = [
@@ -2687,7 +2690,10 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(other.locator(".lf-asks")).to_be_hidden()
     assert (
-        other.evaluate(render_checks_model.UNDECLARED_ATTRS, page_registry(other)) == []
+        render_checks_model.evaluate_probe(
+            other, "undeclaredAttrs", page_registry(other)
+        )
+        == []
     ), "replaying the answer left an attribute the entry never declared"
     assert other_errors == []
     other.close()

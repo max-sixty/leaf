@@ -2211,9 +2211,9 @@ def test_a_comment_follows_one_runtime_datum_through_reconciliation(browser, ser
         re.compile(r"\bdetached\b")
     )
 
-    screen = page.evaluate(render_checks_model.PAPER_WORDS)
+    screen = render_checks_model.evaluate_probe(page, "paperWords")
     page.emulate_media(media="print")
-    paper = page.evaluate(render_checks_model.PAPER_WORDS)
+    paper = render_checks_model.evaluate_probe(page, "paperWords")
     assert paper == screen, "paper dropped or rewrote projected data"
     assert errors == []
     page.close()

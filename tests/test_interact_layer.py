@@ -579,92 +579,23 @@ def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
     assert after == before
 
 
-def test_behavior_modules_use_the_widget_api_boundary():
-    """Every module the layer can compose, asked per root rather than in one heap: the
-    kernel's, the bundled package's, and the corpus's own. `PLUGIN_ROOT` is the payload
-    (`plugins/leaf`) and the six parts sit a skill directory below it, so the first two
-    globs were spelled a level short and matched nothing at all. The heap was non-empty —
-    the corpus supplies six modules — so `assert modules` held while every module the
-    payload ships went unread: the kernel's one and the bundled package's thirteen. That
-    is the shape a population assertion is written to catch, and the reason each root now
-    answers for itself rather than being counted into one heap."""
-    roots = {
-        "kernel": [*(SKILL_ROOT / "assets" / "widgets").glob("*.js")],
-        "packages": [*(SKILL_ROOT / "packages").glob("*/widgets/*.js")],
-        "corpus": [*(ROOT / "examples" / "packages").glob("*/widgets/*.js")],
-    }
-    empty = sorted(name for name, found in roots.items() if not found)
-    assert not empty, f"no behavior modules were read under: {empty}"
-    for module in [module for found in roots.values() for module in found]:
-        source = module.read_text()
-        specifiers = [
-            match[1]
-            for match in re.findall(
-                r"""(?:from\s+|import\s*(?:\(\s*)?)(["'])(/[^"']+)\1""",
-                source,
-            )
-        ]
-        assert "/leaf.js" not in specifiers, module
-        private_imports = [
-            specifier
-            for specifier in specifiers
-            if specifier.startswith("/runtime/")
-            and specifier != "/runtime/widget-api.js"
-        ]
-        assert private_imports == [], (
-            f"{module} imports private runtime owners: {private_imports}"
-        )
-
-
-ENTRY_MODULE = "/leaf.js"
-PROBE_BOUNDARY = "/runtime/widget-api.js"
-# The three server-side modules that name the entry module's path for the document's own
-# sake rather than to reach a helper: the boot tag `version check` requires, the server's
-# reading of that same tag, and the note about a page's asset URLs carrying no query.
-ENTRY_MODULE_NAMED_BY = {
-    "leaf/checking.py",
-    "leaf/http.py",
-    "leaf/service.py",
-}
-
-
-def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
-    """A probe that needs the page's own reading of a box, a passage or a settlement asks
-    the same helper surface a behavior module asks, and spelling that reach as the entry
-    module asserts something else besides: which file the runtime currently keeps the
-    helper in. The runtime is moving those helpers out to their owners a domain at a time,
-    so the second assertion breaks for a commit that changed no behaviour — `Split widget
-    element runtime` moved `quoted` to `runtime/widget-elements.js` and eleven browser
-    tests failed on `leaf.quoted is not a function`.
-
-    The convention is flat and has no population to pick: outside the three modules named
-    above, nothing under `scripts/` spells the entry module's path — not in a payload, not
-    in a comment. So the reading recognises no JavaScript at all, and there is no
-    selector for a valid spelling to fall outside of. It cost one comment in
-    `render_checks.py`, which says "the entry module" in prose; that is the whole price,
-    and the exemptions are a set here rather than a shape a string can accidentally take.
-
-    It does not prove that the boundary still exports what a probe goes on to call, and no
-    file-side reading here will. The probes are JavaScript inside Python strings, and
-    every reading of that short of a real JavaScript parser is a partial one — it reports
-    clean for the spellings it was not written for, so it answers the same way whether the
-    probes are right or merely unread, which is the failure a guard exists to remove
-    rather than to reproduce. The render suite proves that half by running them, which is
-    how the failure above surfaced in the first place."""
-    modules = sorted((SKILL_ROOT / "scripts").rglob("*.py"))
-    assert modules, "no server modules were read"
-    named = {
-        module.relative_to(SKILL_ROOT / "scripts").as_posix()
-        for module in modules
-        if ENTRY_MODULE in module.read_text()
-    }
-    assert named == ENTRY_MODULE_NAMED_BY, (
-        f"{sorted(named - ENTRY_MODULE_NAMED_BY)} name {ENTRY_MODULE} and "
-        f"{sorted(ENTRY_MODULE_NAMED_BY - named)} no longer do. A browser program reaches "
-        f"the page's own readings through {PROBE_BOUNDARY}, which is where the runtime "
-        "publishes them; say 'the entry module' in prose, and add a module here only when "
-        "it names the path for the document's own contract."
+def test_the_layer_composer_is_the_browser_module_population():
+    """The registry and composed layer, not independent filesystem globs, decide which
+    browser modules a page receives. The JavaScript parser/linter owns import legality;
+    this assertion owns the population it checks and includes dependency-only modules."""
+    command_hub = ROOT / "examples" / "packages" / "command-hub"
+    composition = layer_model.compose_layer(
+        [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, command_hub]
     )
+    widgets = composition.directory_files["widgets"]
+    upgraded = {
+        f"{tag}.js"
+        for tag, entry in composition.registry.items()
+        if tag.startswith("lf-") and entry["x-upgrade"]
+    }
+
+    assert upgraded <= widgets.keys()
+    assert "command-model.js" in widgets
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):

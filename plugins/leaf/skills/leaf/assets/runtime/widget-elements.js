@@ -1,4 +1,5 @@
 import { tagsDeclaring } from "./registry.js";
+import { paintKeys } from "./keyboard/scopes.js";
 
 // How a widget collapses content it may need to show again (lf-tabs' inactive
 // panels, a settled lf-options' cards): hidden="until-found", so find-in-page
@@ -9,6 +10,11 @@ import { tagsDeclaring } from "./registry.js";
 // which the theme hides itself; the widget still collapses and reopens, ⌘F
 // just can't see in.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
+
+export const dragging = (el, on) => {
+  el.classList.toggle("lf-dragging", on);
+  paintKeys();
+};
 
 let publishedMeasure;
 export { publishedMeasure as measure };

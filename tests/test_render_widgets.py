@@ -2571,20 +2571,15 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
              .flatMap((t) => [...t.querySelectorAll('tspan')].slice(1))
              .forEach((line) => line.setAttribute('dy', '0'))"""
     )
-    # The hold defeated by its own predicate rather than the pass rewritten, so what runs
-    # is this reading with one answer changed.
-    unheld = render_checks_model.COVERED_WORDS.replace(
-        "a.label && a.label === b.label", "false"
-    )
+    # The same named reading with its same-label hold disabled.
     held, reported = (
-        page.evaluate(render_checks_model.COVERED_WORDS),
-        page.evaluate(unheld),
+        render_checks_model.evaluate_probe(page, "coveredWords"),
+        render_checks_model.evaluate_probe(
+            page, "coveredWords", {"holdLabelLines": False}
+        ),
     )
     assert errors == []
     assert held == []
-    assert unheld != render_checks_model.COVERED_WORDS, (
-        "the pass no longer holds a label's own lines out by the predicate this reaches for"
-    )
     assert any("c-line" in found for found in reported), (
         "the lines land on nothing, so a gate that never looked would pass this too"
     )
@@ -2624,7 +2619,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
         }"""
     )
     assert moved, "no two ticks the drawing places by transform, so nothing was stacked"
-    covered = page.evaluate(render_checks_model.COVERED_WORDS)
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
     assert errors == []
     assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
         f"two of a chart's labels stood on each other unreported: {covered}"

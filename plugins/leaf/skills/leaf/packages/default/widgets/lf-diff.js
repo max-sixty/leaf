@@ -162,6 +162,11 @@ customElements.define(
     async render() {
       const source = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
       try {
+        if (/^copy (?:from|to) /m.test(source))
+          throw new Error(
+            "unsupported copy diff (copy entries belong in prose; omit " +
+              "copy metadata and use textual @@ hunks for an edited destination)",
+          );
         // Strict parsing keeps a malformed hunk from becoming incomplete evidence.
         const files = parsePatchFiles(source, undefined, true).flatMap(
           (patch) => patch.files,
@@ -171,7 +176,7 @@ customElements.define(
           if (!file.hunks.length && file.type !== "rename-pure")
             throw new Error(
               `unsupported hunkless diff for ${file.name || "a file"} ` +
-                "(binary and mode-only entries belong in prose; " +
+                "(binary, mode-only, and empty added/deleted entries belong in prose; " +
                 "changed files need textual @@ hunks)",
             );
         const sharedStyles = new Map();

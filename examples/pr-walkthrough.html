@@ -135,6 +135,10 @@ diff --git a/gateway/migrations/0042_token_buckets.sql b/gateway/migrations/0042
 +  tokens integer not null,
 +  refilled_at timestamptz not null
 +);
+diff --git a/gateway/token_limit.py b/gateway/request_limit.py
+similarity index 100%
+rename from gateway/token_limit.py
+rename to gateway/request_limit.py
 </pre>
         </lf-diff>
       </section>

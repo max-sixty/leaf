@@ -1595,6 +1595,22 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
           'index 1234567..89abcde 100644',
           'Binary files a/logo.png and b/logo.png differ',
         ]),
+        settle('empty-added-diff', [
+          'diff --git a/empty.txt b/empty.txt',
+          'new file mode 100644',
+          'index 0000000..e69de29',
+        ]),
+        settle('empty-deleted-diff', [
+          'diff --git a/empty.txt b/empty.txt',
+          'deleted file mode 100644',
+          'index e69de29..0000000',
+        ]),
+        settle('copy-diff', [
+          'diff --git a/source.js b/copied.js',
+          'similarity index 100%',
+          'copy from source.js',
+          'copy to copied.js',
+        ]),
       ]);
     }""")
     assert result == [
@@ -1617,7 +1633,7 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             "rendered": False,
             "error": (
                 "<lf-diff> failed: unsupported hunkless diff for example.js "
-                "(binary and mode-only entries belong in prose; "
+                "(binary, mode-only, and empty added/deleted entries belong in prose; "
                 "changed files need textual @@ hunks)"
             ),
             "source": (
@@ -1632,7 +1648,7 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
             "rendered": False,
             "error": (
                 "<lf-diff> failed: unsupported hunkless diff for logo.png "
-                "(binary and mode-only entries belong in prose; "
+                "(binary, mode-only, and empty added/deleted entries belong in prose; "
                 "changed files need textual @@ hunks)"
             ),
             "source": (
@@ -1645,6 +1661,45 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
                 "diff --git a/logo.png b/logo.png\n"
                 "index 1234567..89abcde 100644\n"
                 "Binary files a/logo.png and b/logo.png differ"
+            ),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless diff for empty.txt "
+                "(binary, mode-only, and empty added/deleted entries belong in prose; "
+                "changed files need textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/empty.txt b/empty.txt\n"
+                "new file mode 100644\n"
+                "index 0000000..e69de29"
+            ),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless diff for empty.txt "
+                "(binary, mode-only, and empty added/deleted entries belong in prose; "
+                "changed files need textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/empty.txt b/empty.txt\n"
+                "deleted file mode 100644\n"
+                "index e69de29..0000000"
+            ),
+        },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported copy diff (copy entries belong in prose; "
+                "omit copy metadata and use textual @@ hunks for an edited destination)"
+            ),
+            "source": (
+                "diff --git a/source.js b/copied.js\n"
+                "similarity index 100%\n"
+                "copy from source.js\n"
+                "copy to copied.js"
             ),
         },
     ]

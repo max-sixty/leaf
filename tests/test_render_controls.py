@@ -223,7 +223,8 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
     )
-    page, errors = open_page(browser, serve(html))
+    url = serve(html)
+    page, errors = open_page(browser, url)
 
     def assert_primary_reach(width):
         resized(page, width, 844)
@@ -283,6 +284,22 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
           return actions.scrollWidth > actions.clientWidth;
         }"""
     ), "the crowded tablet row had no independent horizontal shelf"
+    assert errors == []
+    page.close()
+
+    # A pinned wide page reserves the Latest chip before it first has news, but the same
+    # invisible slot on a phone would be a blank stretch of the horizontal shelf. The next
+    # real destination peeking into view is both the collapse witness and the overflow cue.
+    page, errors = open_page(browser, url, pin=True)
+    resized(page, 320, 844)
+    expect(page.locator(".lf-latest-chip")).to_be_hidden()
+    assert page.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") == 0
+    version = page.locator(".lf-version").evaluate(
+        "el => { const r = el.getBoundingClientRect(); return {left: r.left, right: r.right}; }"
+    )
+    assert 0 < version["left"] < 320 < version["right"], (
+        f"the next phone destination did not peek past the primary actions: {version}"
+    )
     assert errors == []
     page.close()
 

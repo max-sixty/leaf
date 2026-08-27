@@ -412,6 +412,8 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
             "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
         )
         assert held, "the positive control did not hold the first state response"
+        body = page.locator("body")
+        expect(body).to_have_attribute("data-lf-tray", "asks")
         expect(page.locator(".lf-asks")).to_be_hidden()
         expect(page.locator(".lf-asks-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
@@ -419,6 +421,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         comments = page.get_by_role("button", name=re.compile("^Comments"))
         expect(comments).to_be_enabled()
         comments.click()
+        expect(body).not_to_have_attribute("data-lf-tray", "asks")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()

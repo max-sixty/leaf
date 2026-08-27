@@ -883,10 +883,13 @@ const bannerActions = el("div", "lf-banner-actions");
 // One setter stating the whole outcome, per showComposer and showFab, so no caller has
 // to know which of the two ways of being absent this control is currently in.
 const showNews = (control, on) => {
-  if (on) control.dataset.lfStood = "1";
-  control.style.display = on || control.dataset.lfStood ? "" : "none";
+  if (on) control.dataset.lfReserved = "1";
+  control.classList.toggle("lf-news-shown", on);
+  control.style.display = on || control.dataset.lfReserved ? "" : "none";
   control.style.visibility = on ? "" : "hidden";
 };
+// The hidden pinned slot carries representative words as well as a measured width: an
+// empty button is shorter, so its first real label would still move vertically.
 const latestChip = el(
   "button",
   "lf-ui lf-btn lf-latest-chip",
@@ -896,7 +899,7 @@ const latestChip = el(
 // the letter again takes the current page. The chip names that motion, spelled from the
 // two rows that make it rather than typed out beside them.
 latestChip.title = "Open the current page";
-if (!LIVE_ROOT) latestChip.dataset.lfStood = "1";
+if (!LIVE_ROOT) latestChip.dataset.lfReserved = "1";
 // What the page is still waiting on the reader for, and the way to the next one — the
 // same list n/p step and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.

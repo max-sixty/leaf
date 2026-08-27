@@ -1584,6 +1584,17 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
           '-old',
           '+new',
         ]),
+        settle('mixed-binary-diff', [
+          'diff --git a/app.js b/app.js',
+          '--- a/app.js',
+          '+++ b/app.js',
+          '@@ -1 +1 @@',
+          '-const value = 1;',
+          '+const value = 2;',
+          'diff --git a/logo.png b/logo.png',
+          'index 1234567..89abcde 100644',
+          'Binary files a/logo.png and b/logo.png differ',
+        ]),
       ]);
     }""")
     assert result == [
@@ -1604,7 +1615,11 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         },
         {
             "rendered": False,
-            "error": "<lf-diff> failed: no hunk for example.js (a diff needs its @@ headers)",
+            "error": (
+                "<lf-diff> failed: unsupported hunkless diff for example.js "
+                "(binary and mode-only entries belong in prose; "
+                "changed files need textual @@ hunks)"
+            ),
             "source": (
                 "diff --git a/example.js b/example.js\n"
                 "--- a/example.js\n"
@@ -1613,7 +1628,90 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
                 "+new"
             ),
         },
+        {
+            "rendered": False,
+            "error": (
+                "<lf-diff> failed: unsupported hunkless diff for logo.png "
+                "(binary and mode-only entries belong in prose; "
+                "changed files need textual @@ hunks)"
+            ),
+            "source": (
+                "diff --git a/app.js b/app.js\n"
+                "--- a/app.js\n"
+                "+++ b/app.js\n"
+                "@@ -1 +1 @@\n"
+                "-const value = 1;\n"
+                "+const value = 2;\n"
+                "diff --git a/logo.png b/logo.png\n"
+                "index 1234567..89abcde 100644\n"
+                "Binary files a/logo.png and b/logo.png differ"
+            ),
+        },
     ]
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_shows_a_pure_rename_without_an_empty_disclosure(browser, serve):
+    """Pierre identifies pure renames, so they remain evidence without invented hunks."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate("""async () => {
+      const host = document.createElement('lf-diff');
+      host.id = 'mixed-rename-diff';
+      const pre = document.createElement('pre');
+      pre.textContent = [
+        'diff --git a/app.js b/app.js',
+        '--- a/app.js',
+        '+++ b/app.js',
+        '@@ -1 +1 @@',
+        '-const value = 1;',
+        '+const value = 2;',
+        'diff --git a/old-name.js b/new-name.js',
+        'similarity index 100%',
+        'rename from old-name.js',
+        'rename to new-name.js',
+      ].join('\\n');
+      host.append(pre);
+      document.querySelector('main').append(host);
+      await new Promise((resolve, reject) => {
+        const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
+        const ready = () => {
+          if (!host.querySelector('.lf-error') && !host.shadowRoot)
+            return requestAnimationFrame(ready);
+          clearTimeout(limit);
+          resolve();
+        };
+        ready();
+      });
+      const shadow = host.shadowRoot;
+      const rename = shadow?.querySelector('.lf-diff-rename');
+      const { says, wrote } = await import('/leaf.js');
+      return {
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        details: shadow?.querySelectorAll('details').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        from: rename?.querySelector('.lf-diff-before')?.textContent ?? null,
+        to: rename?.querySelector('.lf-diff-after')?.textContent ?? null,
+        stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
+        lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
+          .map(line => line.textContent),
+        saysRename: says(document).includes('old-name.js → new-name.js'),
+        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+      };
+    }""")
+    assert result == {
+        "rendered": True,
+        "error": None,
+        "details": 1,
+        "diffs": 1,
+        "from": "old-name.js",
+        "to": "new-name.js",
+        "stat": "renamed",
+        "lines": ["const value = 1;", "const value = 2;"],
+        "saysRename": True,
+        "wroteRename": True,
+    }
     assert errors == []
     page.close()
 

@@ -1418,10 +1418,13 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
    looks like. Everything inside the markers is written for the shadow tree — :host is
    the widget element itself — so nothing in here matches anything at document level. */
 /* lf-shadow:start */
-:host(.lf-rendered) details { margin: 8px 0; padding: 0; overflow: hidden;
+:host(.lf-rendered) details,
+:host(.lf-rendered) .lf-diff-rename { margin: 8px 0; padding: 0; overflow: hidden;
                               background: var(--card); border: 1px solid var(--border-2);
                               border-radius: var(--r); }
-:host(.lf-rendered) summary { padding: 6px 12px; font-size: var(--t-5); font-family: var(--sans); }
+:host(.lf-rendered) summary,
+:host(.lf-rendered) .lf-diff-rename { padding: 6px 12px; font-size: var(--t-5);
+                                     font-family: var(--sans); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost

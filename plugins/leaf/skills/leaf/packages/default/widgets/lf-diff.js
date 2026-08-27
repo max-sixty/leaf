@@ -93,6 +93,30 @@ function summaryNode(file) {
   return details;
 }
 
+function renameNode(file) {
+  const row = document.createElement("div");
+  row.className = "lf-diff-rename";
+  row.append(
+    Object.assign(document.createElement("span"), {
+      className: "lf-diff-path lf-diff-before",
+      textContent: file.prevName,
+    }),
+    Object.assign(document.createElement("span"), {
+      className: "lf-diff-arrow",
+      textContent: " → ",
+    }),
+    Object.assign(document.createElement("span"), {
+      className: "lf-diff-path lf-diff-after",
+      textContent: file.name,
+    }),
+    Object.assign(document.createElement("span"), {
+      className: "lf-diff-stat",
+      textContent: "renamed",
+    }),
+  );
+  return row;
+}
+
 async function renderFile(file, sharedStyles) {
   file.lang = langForPath(file.name) ?? "text";
   const template = document.createElement("template");
@@ -144,15 +168,22 @@ customElements.define(
         );
         if (!files.length) throw new Error("empty diff");
         for (const file of files)
-          if (!file.hunks.length)
+          if (!file.hunks.length && file.type !== "rename-pure")
             throw new Error(
-              `no hunk for ${file.name || "a file"} (a diff needs its @@ headers)`,
+              `unsupported hunkless diff for ${file.name || "a file"} ` +
+                "(binary and mode-only entries belong in prose; " +
+                "changed files need textual @@ hunks)",
             );
         const sharedStyles = new Map();
-        const details = [];
-        for (const file of files) details.push(await renderFile(file, sharedStyles));
+        const rendered = [];
+        for (const file of files)
+          rendered.push(
+            file.type === "rename-pure"
+              ? renameNode(file)
+              : await renderFile(file, sharedStyles),
+          );
         this.replaceChildren();
-        shadowStage(this, [...sharedStyles.values(), ...details]);
+        shadowStage(this, [...sharedStyles.values(), ...rendered]);
         this.classList.add("lf-rendered");
       } catch (err) {
         failSoft(this, err, source);

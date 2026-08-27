@@ -13,8 +13,6 @@ from leaf import schema as schema_model
 from leaf import validation as validation_model
 from playwright.sync_api import expect
 from render_support import (
-    ARRANGE,
-    ARRANGEMENTS,
     ASK_PAGE,
     ASKS_PAGE,
     AUTHORED_LINES_PAGE,
@@ -50,6 +48,7 @@ from render_support import (
     WIDE_TABLE_PAGE,
     _traffic,
     _until,
+    arrange_return,
     arrival_findings,
     author_test_widget,
     draw_edge,
@@ -62,6 +61,7 @@ from render_support import (
     page_at_rest,
     panel_settled,
     primed,
+    reader_arrangements,
     resize_notice_after_last_probe,
     resized,
     round_trip,
@@ -91,6 +91,76 @@ def test_a_traffic_wait_stops_when_responses_outlive_its_deadline(monkeypatch):
 
     with pytest.raises(AssertionError, match="never reached a false fact"):
         _until(BusyPage(), lambda _traffic: False, "reached a false fact")
+
+
+def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
+    """A missing public export names the browser boundary instead of raising a traceback."""
+
+    def break_probe(page):
+        page.route(
+            "**/_leaf/render-checks.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body='import { missingForTest } from "/runtime/widget-api.js";',
+            ),
+        )
+
+    failures = rendering_model.render_version(
+        primed(browser, break_probe), serve(LONG_PAGE), served_timeout_ms=500
+    )
+
+    assert failures
+    assert all("browser probe module failed" in failure for failure in failures)
+    assert all("missingForTest" in failure for failure in failures)
+
+
+def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser, serve):
+    """A Promise is not a readiness fact, even when JavaScript treats it as truthy."""
+
+    def make_readiness_async(page):
+        page.route(
+            "**/_leaf/render-checks.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body="export const runtimeStarted = async () => false;",
+            ),
+        )
+
+    failures = rendering_model.render_version(
+        primed(browser, make_readiness_async),
+        serve(LONG_PAGE),
+        served_timeout_ms=500,
+    )
+
+    assert failures
+    assert all("must be synchronous" in failure for failure in failures)
+
+
+def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
+    """The module loader has the gate's deadline even though page.evaluate has none."""
+    asked = []
+
+    def hold_probe(page):
+        def never_finishes(route):
+            asked.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body="await new Promise(() => {});",
+            )
+
+        page.route("**/_leaf/render-checks.js", never_finishes)
+
+    failures = rendering_model.render_version(
+        primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=100
+    )
+
+    assert asked, "the probe route was never requested, so no module load stalled"
+    assert failures
+    assert all("did not load" in failure for failure in failures)
+    assert all("within 100ms" in failure for failure in failures)
 
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
@@ -160,8 +230,8 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
     url = serve(LONG_PAGE)
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
-    declared.wait_for_function(rendering_model.UPGRADED)
-    arrangements = declared.evaluate(ARRANGEMENTS)
+    render_checks_model.wait_for_probe(declared, "upgraded")
+    arrangements = reader_arrangements(declared)
     declared.close()
     assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
 
@@ -260,7 +330,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
             lambda route: held.append(route) if next(polls) == 0 else route.continue_(),
         )
         page.goto(url, wait_until="load")
-        page.wait_for_function(rendering_model.UPGRADED)
+        render_checks_model.wait_for_probe(page, "upgraded")
         # The page's own statement that it is waiting: the surface it shows while the
         # log is outstanding has finished its dwell and is painting. Waiting for it is
         # what makes every load here the same load, so what a return moves can be held
@@ -277,7 +347,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         page.unroute("**/api/state*")
         return moved()
 
-    arrangements = page.evaluate(ARRANGEMENTS)
+    arrangements = reader_arrangements(page)
     assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
@@ -294,7 +364,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     first_visit = arrive()
 
     for arrangement in arrangements:
-        page.evaluate(ARRANGE, arrangement)
+        arrange_return(page, arrangement)
         extra = {k: v for k, v in arrive().items() if k not in first_visit}
         assert not extra, (
             f"returning to {arrangement['name']} moved what a first visit does not: "
@@ -1079,7 +1149,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
                 down: Math.min(note.bottom, b.bottom) - Math.max(note.top, b.top)};
     }"""
     level = page.evaluate(geometry)
-    covered = page.evaluate(render_checks_model.COVERED_WORDS)
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
     # The same row, docked: the theme releases the rail below its breakpoint, and the
     # module observes the resulting body geometry on its next layout frame. What the
     # gate asks is the computed position, so narrowing the window is how the other half
@@ -1128,7 +1198,7 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
         "element => element.setAttribute('data-lf-offer', '')"
     )
     page.locator("#under").scroll_into_view_if_needed()
-    covered = page.evaluate(render_checks_model.COVERED_WORDS)
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
     page.close()
     assert [f for f in covered if "id=under" in f and "id=over" in f], (
         f"a control the page put in the flow covered a paragraph unreported: {covered}"
@@ -1297,7 +1367,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     page.locator(".lf-comments").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
-    misplaced = page.evaluate(render_checks_model.MISPLACED_BOXES)
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     # Wide enough that the panel's 420px still leaves the floor a clear margin rather
     # than the twenty-odd pixels 1600 leaves it: the reading is meant to say the strip
     # survives a window with room for both, not to sit on the boundary and report which
@@ -1712,7 +1782,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
              document.head.append(s);
            }"""
     )
-    found = page.evaluate(render_checks_model.TRAPPED_MARGINS)
+    found = render_checks_model.evaluate_probe(page, "trappedMargins")
     planted = [t for t in found if t["chrome"]]
     assert planted, (
         "a margin trapped inside the panel went unreported, so this reading is not "
@@ -1728,7 +1798,9 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     page.evaluate("() => document.getElementById('trap').remove()")
 
     trapped = [
-        t for t in page.evaluate(render_checks_model.TRAPPED_MARGINS) if t["chrome"]
+        t
+        for t in render_checks_model.evaluate_probe(page, "trappedMargins")
+        if t["chrome"]
     ]
     assert trapped == [], "the layer traps a margin in its own chrome: " + "; ".join(
         f"<{t['tag']} class={t['cls']!r}> draws {t['drawn']:g}px of inset and "

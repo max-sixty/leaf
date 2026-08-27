@@ -1,6 +1,10 @@
 import { createAuthoredProjection } from "./projection/authored.js";
 import { createProjectionFold } from "./projection/fold.js";
 
+let publishedProjection;
+export const shallowSigs = (...args) => publishedProjection.shallowSigs(...args);
+export const standingState = (...args) => publishedProjection.standingState(...args);
+
 /* Declaration-driven state projection and reconciliation. */
 export function createProjection(runtime, dependencies) {
   const {
@@ -795,7 +799,7 @@ export function createProjection(runtime, dependencies) {
     }
   }
 
-  return {
+  const projection = {
     authoredDetails,
     authoredFacets,
     authoredMarkup,
@@ -833,4 +837,6 @@ export function createProjection(runtime, dependencies) {
     unitOf,
     withdraw,
   };
+  publishedProjection = projection;
+  return projection;
 }

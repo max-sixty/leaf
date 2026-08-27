@@ -1304,7 +1304,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert all(separator["chrome"] for separator in separators), separators
 
     reading = page.evaluate("""async () => {
-      const { says, textNodesUnder, wrote } = await import('/leaf.js');
+      const { says, textNodesUnder, wrote } = await import('/runtime/widget-api.js');
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
@@ -1864,7 +1864,7 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
       const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
-      const { says, wrote } = await import('/leaf.js');
+      const { says, wrote } = await import('/runtime/widget-api.js');
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,

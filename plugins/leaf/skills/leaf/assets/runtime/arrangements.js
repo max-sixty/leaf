@@ -1,0 +1,34 @@
+let publishedArrangements = [];
+export { publishedArrangements as ARRANGEMENTS };
+
+export function createArrangements({
+  DESIGN_KEY,
+  PANEL_KEY,
+  TRAY_KEY,
+  commentsEdge,
+  readerStore,
+  tabStore,
+  trays,
+  traysEdge,
+}) {
+  publishedArrangements = [
+    { name: "the comment panel open", ...readerStore.where(PANEL_KEY), value: "1" },
+    {
+      name: "the comment panel at the width the reader drew it to",
+      ...readerStore.where(commentsEdge.key),
+      value: "560",
+    },
+    {
+      name: "the tray panel at the width the reader drew it to",
+      ...readerStore.where(traysEdge.key),
+      value: "260",
+    },
+    ...[...trays.keys()].map((tray) => ({
+      name: `the ${tray} tray standing`,
+      ...readerStore.where(TRAY_KEY),
+      value: tray,
+    })),
+    { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
+  ];
+  return publishedArrangements;
+}

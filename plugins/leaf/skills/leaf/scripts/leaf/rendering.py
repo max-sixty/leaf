@@ -19,26 +19,11 @@ from leaf.passages import EMPTY, spoken
 from leaf.projection import decisions, page_projection, retirement_holders
 from leaf.registry import retirement_slots
 from leaf.render_checks import (
-    BAKE,
-    CLIPPED_CONTROLS,
-    COVERED_WORDS,
-    MISPLACED_BOXES,
-    OPEN_ROOTS,
-    PAPER_WORDS,
-    RELATIVE_REPLAYS,
     RENDER_VIEWPORT,
-    REPLAY_OVERRIDES,
-    RETIRED_SLOTS,
     SERVED_TIMEOUT_MS,
-    SILENT_WORDS,
-    SQUEEZED_TABLES,
-    TINY_BOXES,
-    TRAPPED_MARGINS,
-    UNDECLARED_ATTRS,
-    UNMARKABLE_ITEMS,
-    UNREACHABLE_WORDS,
-    UNREAD_SYNTAX,
-    WITHHELD_ROOM,
+    evaluate_probe,
+    install_window_errors,
+    wait_for_probe,
 )
 from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.service import transition_lock
@@ -81,26 +66,7 @@ def rendered_revision(url: str, state: dict) -> int:
     )
 
 
-# The window's third error channel, which neither of the two below carries: an `error`
-# event with no exception behind it reaches `pageerror` on nobody's account and was never
-# written to the console either. Chrome reports a ResizeObserver loop that way — a page
-# saying on every load that a piece of its own layout is going undelivered, and every
-# reader of it calling the page clean. Routed into the console, which both callers already
-# collect, and only for the events with no exception, since the rest arrive as exceptions
-# already and one fault should not be two strings.
-WINDOW_ERRORS = (
-    "addEventListener('error', (e) => {\n"
-    "  if (!e.error) console.error('window error: ' + e.message);\n"
-    "});"
-)
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
-
-# The page's own word for "I have finished becoming myself", which every pass here
-# waits on before reading anything (the stamp's reasons are at the foot of leaf.js).
-UPGRADED = "() => document.body.dataset.lfUpgraded === '1'"
-DATA_APPLIED = (
-    "(revision) => Number(document.body.dataset.lfDataRevision ?? -1) >= revision"
-)
 
 
 def resize_observer_error(text: str) -> bool:
@@ -109,40 +75,6 @@ def resize_observer_error(text: str) -> bool:
 
 def recurring_resize_observer_error(unit: str) -> str:
     return f"{RESIZE_OBSERVER_ERROR} notice recurred on the confirming {unit}"
-
-
-# What the page is still doing, named by what it moves. A finite end is what separates a
-# page settling from a page living: the banner's dot pulses for as long as the tab is
-# open, and a wait that asked for no animation at all would never be answered.
-#
-# Every open root, because a document answers for its own tree alone. `getAnimations`
-# on the document returns nothing for an element inside a widget's shadow root, and
-# `{subtree: true}` on the root element returns nothing either (measured on Chrome
-# 151) — so a widget drawing itself into place inside its own tree would leave the
-# wait satisfied while the host box it grows is still moving, which is the one thing
-# this reading exists to prevent.
-MOVING = (
-    """() => {"""
-    + OPEN_ROOTS
-    + """
-    // Named by the nearest thing the reader can point at, climbing out of a tree the
-    // way the runtime's own walks do: an element a widget staged in its root has no
-    // id in there, and `<div>` names nothing a fix could start from.
-    const at = (el) => {
-        for (let n = el; n; n = n.getRootNode?.()?.host) {
-            const named = n.closest?.('[id]');
-            if (named) return `<${named.tagName.toLowerCase()} id=${named.id}>`;
-        }
-        return `<${el?.tagName?.toLowerCase() ?? '?'}>`;
-    };
-    return roots(document)
-        .flatMap(root => root.getAnimations())
-        .filter(a => a.playState === 'running'
-                     && Number.isFinite(a.effect?.getComputedTiming().endTime))
-        .map(a => a.animationName ? `${at(a.effect?.target)} ${a.animationName}`
-                                  : at(a.effect?.target));
-}"""
-)
 
 
 def _render_version_attempt(
@@ -177,14 +109,18 @@ def _render_version_attempt(
     invariants. Returns ordinary failures, ResizeObserver notices, and whether every
     reading completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""
+    from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
     )
+    opened_pages = []
 
     def in_scheme(scheme):
         page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
+        opened_pages.append(page)
+        page._leaf_probe_timeout_ms = served_timeout_ms
         errors = []
         resize_notices = []
 
@@ -198,6 +134,19 @@ def _render_version_attempt(
                 message.text
             )
 
+        def probe_failure(error):
+            page.close()
+            return (
+                [
+                    (
+                        f"[{scheme}] the browser probe module failed: "
+                        f"{str(error).strip().splitlines()[0]}"
+                    )
+                ],
+                [],
+                False,
+            )
+
         page.on("console", console_message)
         page.on("pageerror", lambda e: errors.append(str(e)))
         # The console's own word for a bad response is "Failed to load resource",
@@ -207,15 +156,13 @@ def _render_version_attempt(
             "response",
             lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
         )
-        page.add_init_script(WINDOW_ERRORS)
+        install_window_errors(page)
         try:
             # `load`, not `networkidle`: the page holds a request open to hear
             # about news, so the network is never idle and never will be. The
             # wait that matters is the next line, which asks the runtime itself.
             page.goto(url, wait_until="load")
-            page.wait_for_function(
-                "() => document.querySelector('.lf-banner') !== null"
-            )
+            wait_for_probe(page, "runtimeStarted")
         except PlaywrightTimeout:
             page.close()
             explanations = [*errors, *resize_notices]
@@ -227,11 +174,13 @@ def _render_version_attempt(
                 [],
                 False,
             )
+        except PlaywrightError as error:
+            return probe_failure(error)
         # Every reading below is of a settled page. The widget layer writes half the
         # document, so a box measured while it is still drawing belongs to no version of
         # the page — which is the stamp `version export` waits on for the same reason.
         try:
-            page.wait_for_function(UPGRADED)
+            wait_for_probe(page, "upgraded")
         except PlaywrightTimeout:
             page.close()
             explanations = [*errors, *resize_notices]
@@ -243,6 +192,8 @@ def _render_version_attempt(
                 [],
                 False,
             )
+        except PlaywrightError as error:
+            return probe_failure(error)
         # The served documents every reading below is asked against, read once each
         # (`served` says why they are read from out here rather than fetched inside
         # the page). The registry alone used to be fetched seven times a scheme, to
@@ -299,7 +250,7 @@ def _render_version_attempt(
         unsettled = []
         replayed = True
         try:
-            page.wait_for_function(DATA_APPLIED, arg=state["data"]["revision"])
+            wait_for_probe(page, "dataApplied", state["data"]["revision"])
         except PlaywrightTimeout:
             replayed = False
             unsettled = [
@@ -311,11 +262,7 @@ def _render_version_attempt(
         if replayed and touched:
             applied = len(touched)
             try:
-                page.wait_for_function(
-                    "(applied) => Number(document.body.dataset.lfApplied ?? -1)"
-                    " >= applied",
-                    arg=applied,
-                )
+                wait_for_probe(page, "logApplied", applied)
             except PlaywrightTimeout:
                 replayed = False
                 stalled = (
@@ -325,56 +272,32 @@ def _render_version_attempt(
                 unsettled = [stalled]
         if replayed:
             try:
-                page.wait_for_function(f"() => ({MOVING})().length === 0")
+                wait_for_probe(page, "pageSettled")
             except PlaywrightTimeout:
                 unsettled = [
-                    "the page never stopped moving: " + ", ".join(page.evaluate(MOVING))
+                    "the page never stopped moving: "
+                    + ", ".join(evaluate_probe(page, "moving"))
                 ]
-        failsoft = page.evaluate(
-            "[...document.querySelectorAll('.lf-error')].map(e => e.textContent.trim())"
+        failsoft = evaluate_probe(page, "failSoftErrors")
+        missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
+        missing_visual_providers = evaluate_probe(
+            page, "missingVisualProviders", widgets
         )
-        missing_upgrades = page.evaluate(
-            """(widgets) => Object.entries(widgets)
-                .filter(([tag, entry]) => entry['x-upgrade'] && !customElements.get(tag))
-                .map(([tag]) => tag)""",
-            widgets,
-        )
-        missing_visual_providers = page.evaluate(
-            """(widgets) => Object.entries(widgets)
-                .filter(([, entry]) => entry['x-visual']
-                    && typeof entry['x-visual'] === 'object')
-                .flatMap(([tag]) => [...document.querySelectorAll(tag)]
-                    .map(el => ({
-                        tag,
-                        id: el.id,
-                        missing: ['lfVisualPart', 'lfVisualPartAt']
-                            .filter(name => typeof el[name] !== 'function'),
-                    })))
-                .filter(instance => instance.missing.length)""",
-            widgets,
-        )
-        tiny = page.evaluate(TINY_BOXES, widgets)
-        unmarkable = page.evaluate(UNMARKABLE_ITEMS)
-        overflow = page.evaluate(
-            "document.body.scrollWidth - document.body.clientWidth"
-        )
-        misplaced = page.evaluate(MISPLACED_BOXES)
-        withheld = page.evaluate(WITHHELD_ROOM)
-        squeezed = page.evaluate(SQUEEZED_TABLES)
-        clipped = page.evaluate(CLIPPED_CONTROLS)
-        unreachable = page.evaluate(UNREACHABLE_WORDS)
-        covered = page.evaluate(COVERED_WORDS)
-        unread = page.evaluate(UNREAD_SYNTAX)
+        tiny = evaluate_probe(page, "tinyBoxes", widgets)
+        unmarkable = evaluate_probe(page, "unmarkableItems")
+        overflow = evaluate_probe(page, "bodyOverflow")
+        misplaced = evaluate_probe(page, "misplacedBoxes")
+        withheld = evaluate_probe(page, "withheldRoom")
+        squeezed = evaluate_probe(page, "squeezedTables")
+        clipped = evaluate_probe(page, "clippedControls")
+        unreachable = evaluate_probe(page, "unreachableWords")
+        covered = evaluate_probe(page, "coveredWords")
+        unread = evaluate_probe(page, "unreadSyntax")
         # Shadow roots the registry doesn't declare: the passage walk, the
         # capture and the id lookups cross exactly the declared ones, so an
         # undeclared root's words silently anchor quotes astray. UA shadow roots
         # are closed and invisible here; anything open was attached by a module.
-        undeclared_shadow = page.evaluate(
-            """(registry) => [...new Set([...document.querySelectorAll('*')]
-                .filter(el => el.shadowRoot && !registry[el.localName]?.['x-shadow'])
-                .map(el => `<${el.localName}>`))]""",
-            registry,
-        )
+        undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
         # Replay is scheme-blind, so one scheme's reading covers both.
         conflicts = []
         dishonest_verbatim = []
@@ -387,23 +310,8 @@ def _render_version_attempt(
             # thread chrome already has the thread's reply surface and conversationBox
             # deliberately returns none there. Everywhere else, ask the merged registry
             # for the instances and the module's own marker for the host it placed.
-            missing_conversations = page.evaluate(
-                """(widgets) => import('/runtime/widget-api.js').then(leaf =>
-                    Object.entries(widgets)
-                        .filter(([, entry]) => entry['x-conversation'])
-                        .flatMap(([tag, entry]) => [...document.querySelectorAll(tag)]
-                            .filter(el => !leaf.inChrome(el) && !leaf.quoted(el)
-                                && leaf.matchesWhen(
-                                    el, entry['x-conversation'].when))
-                            .map(el => ({
-                                tag,
-                                id: el.id,
-                                hosts: [...el.querySelectorAll('.lf-conversation')]
-                                    .filter(host =>
-                                        host.dataset.lfConversation === el.id).length,
-                            })))
-                        .filter(instance => instance.hosts !== 1))""",
-                widgets,
+            missing_conversations = evaluate_probe(
+                page, "missingConversations", widgets
             )
             # x-verbatim honesty: the entry claims the body reaches the reader
             # as its own words, and the two readings built on that claim — the
@@ -420,14 +328,8 @@ def _render_version_attempt(
             # x-verbatim widget in a message could render something other than
             # its own words with nothing saying so, which is the one thing the
             # declaration promises and the reason a quote may rest on it.
-            shown = page.evaluate(
-                """({widgets, touched}) => import('/runtime/widget-api.js').then(leaf =>
-                    Object.entries(widgets)
-                        .filter(([tag, entry]) => entry['x-verbatim'])
-                        .flatMap(([tag]) => [...document.querySelectorAll(tag)]
-                            .filter(el => el.id && !touched.includes(el.id))
-                            .map(el => ({tag, id: el.id, says: leaf.says(el)}))))""",
-                {"widgets": widgets, "touched": touched},
+            shown = evaluate_probe(
+                page, "shownVerbatim", {"widgets": widgets, "touched": touched}
             )
             if shown:
                 _byid, thread_spk, _threads = thread_universe(state["events"], registry)
@@ -440,8 +342,9 @@ def _render_version_attempt(
                     if s["says"] != spk.get(s["id"], EMPTY).words
                 ]
             if touched and replayed and earlier is not None:
-                conflicts = page.evaluate(
-                    REPLAY_OVERRIDES,
+                conflicts = evaluate_probe(
+                    page,
+                    "replayOverrides",
                     {"curHtml": markup, "prevHtml": earlier},
                 )
             # Behind the caught-up wait above: a report moves a painted attribute and
@@ -449,11 +352,11 @@ def _render_version_attempt(
             # earlier asks after a word the page has not been asked to say yet. A page
             # that never caught up is already reported there and read no further.
             if replayed:
-                silent = page.evaluate(SILENT_WORDS, widgets)
+                silent = evaluate_probe(page, "silentWords", widgets)
                 # Behind the same wait, because reconciliation is one of the two
                 # writers: an applyAction states one declared fact whole, and a
                 # record form is exactly the attribute it may state that fact in.
-                undeclared_attrs = page.evaluate(UNDECLARED_ATTRS, widgets)
+                undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", widgets)
                 # Behind it too: the settlement mark is replay's own write, so a
                 # reading taken earlier asks after paint the page has not been
                 # asked to make yet. The expected outcomes are the file's, scoped
@@ -483,7 +386,7 @@ def _render_version_attempt(
                             }
                         )
                     if holders:
-                        retired = page.evaluate(RETIRED_SLOTS, holders)
+                        retired = evaluate_probe(page, "retiredSlots", holders)
         # One scheme, the palettes carrying no geometry between them, and before the
         # medium moves: a box's inset is what it declared in either.
         #
@@ -507,7 +410,7 @@ def _render_version_attempt(
         # own to hold, and the suite holds it with the panel open, where the styles are
         # the panel's and the margin is one somebody can see.
         trapped = (
-            [t for t in page.evaluate(TRAPPED_MARGINS) if not t["chrome"]]
+            [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
             if scheme == "light"
             else []
         )
@@ -515,12 +418,12 @@ def _render_version_attempt(
         # put back before anything else reads a box.
         on_paper = []
         if scheme == "light":
-            screen = page.evaluate(PAPER_WORDS)
+            screen = evaluate_probe(page, "paperWords")
             page.emulate_media(media="print")
-            paper = page.evaluate(PAPER_WORDS)
+            paper = evaluate_probe(page, "paperWords")
             # Paper is laid out by rules no other medium runs, and it is the medium
             # nobody looks at, so the overlap reading is taken here too while it holds.
-            on_paper = [f"[print] {c}" for c in page.evaluate(COVERED_WORDS)]
+            on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
             page.emulate_media(media="screen")
             # Paired on the words as well as the position: the page is live, and a state
             # landing between the two readings would otherwise shift one against the
@@ -538,11 +441,11 @@ def _render_version_attempt(
         # finished producing the state the second application is measured against.
         relative = []
         if scheme == "light" and replayed:
-            relative = page.evaluate(RELATIVE_REPLAYS)
+            relative = evaluate_probe(page, "relativeReplays")
         # The print reset and replay above can resize what an observer watches. Chrome
         # delivers that notice in the next rendering turn, so closing on the write
         # would call an attempt complete before its last error channel had spoken.
-        page.evaluate("() => new Promise(requestAnimationFrame)")
+        evaluate_probe(page, "nextFrame")
         page.close()
         found = [f"[{scheme}] console: {e}" for e in errors]
         found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
@@ -624,8 +527,14 @@ def _render_version_attempt(
         notices = [f"[{scheme}] console: {e}" for e in resize_notices]
         return found, notices, True
 
-    light, light_notices, light_complete = in_scheme("light")
-    dark, dark_notices, dark_complete = in_scheme("dark")
+    try:
+        light, light_notices, light_complete = in_scheme("light")
+        dark, dark_notices, dark_complete = in_scheme("dark")
+    except PlaywrightError:
+        for page in opened_pages:
+            if not page.is_closed():
+                page.close()
+        raise
     return (
         [*light, *dark],
         [*light_notices, *dark_notices],
@@ -646,14 +555,29 @@ def render_version(browser, url: str, served_timeout_ms: int | None = None) -> l
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
     )
+    from playwright.sync_api import Error as PlaywrightError
+
     failures = []
 
     def retain(found):
         failures.extend(failure for failure in found if failure not in failures)
 
-    found, notices, complete = _render_version_attempt(
-        browser, url, served_timeout_ms=served_timeout_ms
-    )
+    def attempt():
+        try:
+            return _render_version_attempt(
+                browser, url, served_timeout_ms=served_timeout_ms
+            )
+        except PlaywrightError as error:
+            return (
+                [
+                    "the browser gate failed while running its probe module: "
+                    + str(error).strip().splitlines()[0]
+                ],
+                [],
+                False,
+            )
+
+    found, notices, complete = attempt()
     retain(found)
     if not complete:
         retain(notices)
@@ -661,9 +585,7 @@ def render_version(browser, url: str, served_timeout_ms: int | None = None) -> l
     if not notices:
         return failures
 
-    found, confirming_notices, complete = _render_version_attempt(
-        browser, url, served_timeout_ms=served_timeout_ms
-    )
+    found, confirming_notices, complete = attempt()
     retain(found)
     if not complete:
         for notice in [*notices, *confirming_notices]:
@@ -879,6 +801,7 @@ def export_page(browser, url: str, page_dir: Path) -> str:
     The user's decisions come with it. Replay is what puts them on the page, so
     this waits for the runtime's caught-up stamp exactly as the gate does, and a page
     whose board was rearranged copies rearranged."""
+    from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
@@ -887,11 +810,8 @@ def export_page(browser, url: str, page_dir: Path) -> str:
         # stamps below are the arrival signal, and they are the precise one.
         page.goto(url, wait_until="load")
         try:
-            page.wait_for_function(UPGRADED)
-            page.wait_for_function(
-                DATA_APPLIED,
-                arg=read_data(page_dir)["revision"],
-            )
+            wait_for_probe(page, "upgraded")
+            wait_for_probe(page, "dataApplied", read_data(page_dir)["revision"])
             # Both replayed kinds, as the render gate counts them: the caught-up
             # stamp counts reports beside actions, and a page whose only recorded
             # state is a worker's report would otherwise copy before it painted.
@@ -899,16 +819,20 @@ def export_page(browser, url: str, page_dir: Path) -> str:
                 [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
             )
             if n_replayed:
-                page.wait_for_function(
-                    f"() => Number(document.body.dataset.lfApplied ?? -1) >= {n_replayed}"
-                )
+                wait_for_probe(page, "logApplied", n_replayed)
+            return inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(
                 f"{url.rsplit('/', 1)[-1]} never finished applying its live state in "
                 "the browser, so a copy would be half-drawn. `leaf version check "
                 "<page> --render` says what is wrong with it."
             )
-        return inline_assets(page.evaluate(BAKE), page_dir)
+        except PlaywrightError as error:
+            sys.exit(
+                f"{url.rsplit('/', 1)[-1]} could not load its browser probe module "
+                f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
+                "trustworthy copy."
+            )
     finally:
         page.close()
 

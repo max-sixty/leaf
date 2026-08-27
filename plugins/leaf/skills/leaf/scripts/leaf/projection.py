@@ -219,10 +219,9 @@ def protected_ids(
     """Ids the next version must retain.
 
     Unresolved threads keep their anchor target. Effective standing state keeps
-    its owner and fold unit. Actions additionally keep every page id their
-    canonical liveness reading rests on. An older report hidden by a reader
-    action remains in the log, but the action is the state the page must
-    preserve.
+    its owner and fold unit, plus every page id its canonical liveness reading
+    rests on. An older report hidden by a reader action remains in the log, but
+    the action is the state the page must preserve.
 
     Declared retirement remains the explicit route for removing decision
     markup. Its holder and slots stay protected until ``retirable_ids`` licenses

@@ -2013,11 +2013,21 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     # rather than by a second spelling that agrees on inspection. Its own evaluate and not
     # a key on `reading`, which the script-free copy below shares and which has no module
     # to ask; the window against body's padding box, the other candidate, would agree only
-    # while body carries no margin, and the panel's strip below is a body margin. The key
-    # `reading` still carries is the failure dumps', where the bar a short measure was read
-    # against is the first thing to know.
+    # while body carries no margin, and the panel's strip below is a body margin.
     bar = page.evaluate(
         "() => import('/runtime/scrolling.js').then(m => m.scrollerGutter())"
+    )
+    # Driving the page at a width the helper chose and then testing the veto that spends
+    # the same helper leaves one thing the reads below cannot see: an error in the helper
+    # itself, which lands on both sides and cancels. A gutter overread as 30 puts the page
+    # at 1446 and has stateStrip take 30 off it, so the floor is met on the nose and every
+    # measure here passes while the band from 1431 up is cramped for nothing. So the two
+    # spellings are held to each other first, at the one viewport both are read at, and
+    # `reading` keeps the key: it is a claim about what the gutter is rather than a second
+    # copy nothing checks, and it is what the failure dumps report a short measure against.
+    assert bar == at_floor["gutter"], (
+        "the module's gutter and the page's own reading of it have come apart, which "
+        f"would leave the widths below chosen and judged by the same error: {at_floor}"
     )
     resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)

@@ -778,6 +778,93 @@ def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, caps
     assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
 
 
+# One authored id for the group, so an action can name it. Its options already
+# carry ids, which is what lets a floor land inside the widget rather than on it.
+PICKS_PAGE = PAGE.replace("<lf-options>", '<lf-options id="picks">')
+
+
+@pytest.mark.parametrize("rewritten", [True, False])
+def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
+    page_dir, capsys, rewritten
+):
+    """An answer rests on the widget that sent it and on the ids that widget's
+    detail names inside itself, so a version rewriting one of those takes the
+    answer back and the question stands open again. `page state` has always read
+    it that way, holding the whole page. A delivery holds the log and may not
+    raise on the gate that loading a page's vendored registry is — but where an
+    element sits was never the vocabulary's to answer, so it reads that much and
+    agrees.
+
+    Told otherwise the two disagree silently, and in the worst direction: the
+    reader watches their question reopen while the agent is told, in the same
+    breath as their follow-up, that they had already answered it.
+
+    The floor lands on the option rather than on the group, which is the whole
+    arrangement — a floor on `picks` itself is in the action's own name and needs
+    no page to be seen. Both arms assert the two readings agree; the arms differ
+    in what they agree on, so neither can be passing on a delivery that never
+    settles anything."""
+    versions = page_dir / "versions"
+    versions.joinpath("v1.html").write_text(PICKS_PAGE)
+    versions.joinpath("v2.html").write_text(PICKS_PAGE)
+    serving(page_dir, 1)
+    opened = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "which of these?",
+            "anchor": {"section": "picks"},
+        },
+    )
+    publish(page_dir, 1)
+    answered = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"], "resolves": opened["id"]},
+        },
+    )
+    # Rewriting the option they picked retracts the pick: the thing they chose is
+    # not the thing on the page any more. Leaving it alone is the other arm.
+    note = {
+        "kind": "note",
+        "author": "claude",
+        "version": 2,
+        "text": "rewrote the first option" if rewritten else "tidied the prose",
+    }
+    if rewritten:
+        note["restated"] = ["flag-first"]
+    events_model.append_event(page_dir, note)
+    # By seq off the log: `append_event` hands back what it was given plus an id,
+    # and a seq is the line the log gave it.
+    logged_seq = {e["id"]: e["seq"] for e in events_model.read_events(page_dir)}
+    session_model.cmd_ack(page_dir, logged_seq[answered["id"]])
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": opened["id"],
+            "text": "so which is it now?",
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header, *_ = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    [delivered] = header["threads"]
+    assert delivered["id"] == opened["id"]
+    [standing] = state_json(page_dir)["threads"]
+    assert delivered["resolved"] == standing["resolved"]
+    assert (delivered["resolved"] is None) is rewritten
+
+
 def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
     """A delivery reprints the whole thread every time, because the agent it is
     for may hold none of it. Unbounded, the header grows with the conversation
@@ -2098,6 +2185,78 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
 
     assert not hook.is_alive()
     assert answers == [[]]
+
+
+@pytest.mark.parametrize("rewritten", [True, False])
+def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
+    claimed, capsys, rewritten
+):
+    """A pick answers the question it was asked in, and a version that rewrites
+    the option picked takes that answer back — so the question is open again and
+    nobody has been told. This is the guard's whole subject, and it is the one
+    reading that cannot load the page's vendored registry: that load is a gate,
+    and the Stop hook fails open, so a raise here stands the guard down on any
+    page a little older than the code and says nothing.
+
+    Where each id sits is not the vocabulary's to answer, so the hook reads that
+    much and holds the turn exactly when `page state` says the thread is open.
+    The floor lands on the option rather than on the group, which is what makes
+    the reading matter — a floor on the group is in the action's own name.
+
+    The unrewritten arm is the control: the pick still stands, the thread reads
+    answered, and the hook must say nothing. Without it a guard that blocked on
+    every acknowledged comment would pass the other arm."""
+    versions = claimed / "versions"
+    versions.joinpath("v1.html").write_text(PICKS_PAGE)
+    versions.joinpath("v2.html").write_text(PICKS_PAGE)
+    session_model.cmd_status(claimed, "waiting", "")
+    # Watched, so the guard's other clause is clear and what fires below can only
+    # be this one.
+    lease = service_model.take_waiter_lease(
+        service_model.waiter_lease_path(claimed, service_model.page_claim(claimed))
+    )
+    assert lease
+    asked = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "which of these?"}
+    )
+    publish(claimed, 1)
+    events_model.append_event(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "version": 1,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"options": ["flag-first"], "resolves": asked["id"]},
+        },
+    )
+    note = {
+        "kind": "note",
+        "author": "claude",
+        "version": 2,
+        "text": "rewrote the first option" if rewritten else "tidied the prose",
+    }
+    if rewritten:
+        note["restated"] = ["flag-first"]
+    events_model.append_event(claimed, note)
+    session_model.cmd_ack(
+        claimed,
+        next(
+            e["seq"]
+            for e in reversed(events_model.read_events(claimed))
+            if e["kind"] == "action"
+        ),
+    )
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    printed = capsys.readouterr().out
+    if rewritten:
+        answer = json.loads(printed)
+        assert answer["decision"] == "block"
+        assert asked["id"] in answer["reason"]
+    else:
+        assert printed == ""
 
 
 def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys):

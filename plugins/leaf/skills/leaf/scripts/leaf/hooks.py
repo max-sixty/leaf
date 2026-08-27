@@ -5,11 +5,12 @@ import json
 from .events import awaits_agent, build_threads, read_events, seat_root, spoken_turns
 from .files import published_versions
 from .http import full_state
+from .passages import published_enclosing
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
 from .service import PageTransaction, owned_pages, unacknowledged
 
 
-def unanswered_asks(events: list, cursor: int) -> list:
+def unanswered_asks(events: list, cursor: int, within: dict) -> list:
     """The comments this session took delivery of and left with no answer under
     them.
 
@@ -37,23 +38,21 @@ def unanswered_asks(events: list, cursor: int) -> list:
     this one need an answer" is a question the agent is holding the context to
     settle, and settling it costs one command.
 
-    A `response.kind: version` root cannot take that command's ordinary reply. It stays
-    here until a later version lets the agent resolve it. If the agent opens an
-    ordinary thread in the same exact-section seat, that thread carries the work
-    while its last word is the agent's; once the reader answers there, both roots
-    return to this gate.
+    A `response.kind: version` root cannot take that command's ordinary reply. It
+    stays here until a later version lets the agent resolve it. If the agent opens
+    an ordinary thread in the same exact-section seat, that thread carries the
+    work while its last word is the agent's; once the reader answers there, both
+    roots return to this gate.
 
-    The log alone, with no reading of the page: `build_threads` is told there is
-    no published page to settle against, which is the one thing this reader may
-    not ask for. Reading the page means loading the page's vendored registry,
-    and that load is a gate — a page vendored before the layer last changed
-    fails it by design. Every other caller may raise on that; this one is
-    reached from the Stop hook, which fails open, so a raise here would stand
+    `within` is where each id sits on the published page, read without the page's
+    vendored registry, which this reader may not touch. That load is a gate — a
+    page vendored before the layer last changed fails it by design — and this one
+    is reached from the Stop hook, which fails open, so a raise here would stand
     the whole guard down on any page a little older than the code, watch clause
-    included, and say nothing. What the log alone costs is that a pick retracted
-    by a floor on one of its parts, rather than on the widget it named, still
-    reads as settling its thread — an ask that goes unmentioned, never a turn
-    blocked over an answer the reader already gave.
+    included, and say nothing. Containment is not the vocabulary's to answer, so
+    keeping clear of the gate costs nothing: a pick a floor took back by one of
+    the ids it named settles no thread here, exactly as it settles none in `page
+    state`.
     """
     # The last *word*: a reaction is a mark on a message, not a turn, so an `ok`
     # the reader put on the agent's answer does not hand the thread back to the
@@ -61,7 +60,7 @@ def unanswered_asks(events: list, cursor: int) -> list:
     # answers those by acting (a version, a resolve), not by a reply under each.
     # The cursor is read against the last word too: a mark the reader left after
     # their question is not the question arriving again.
-    threads = list(build_threads(events, {}).values())
+    threads = list(build_threads(events, within).values())
     clarifications = [
         (thread["root"]["seq"], seat)
         for thread in threads
@@ -110,7 +109,9 @@ def unattended_pages(session_id: str) -> list:
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = unanswered_asks(events, state["cursor"])
+        stale = unanswered_asks(
+            events, state["cursor"], published_enclosing(page_dir, events)
+        )
         if stale:
             ids = ", ".join(t["id"] for t in stale)
             page_reasons.append(

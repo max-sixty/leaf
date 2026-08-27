@@ -8,6 +8,7 @@ from typing import NamedTuple
 from .events import batch_threads, jsonl_line
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
+from .passages import published_enclosing
 from .registry import RegistryError, described, load_registry
 from .service import (
     PageTransaction,
@@ -267,7 +268,11 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                             {
                                 "page": str(reading.page_dir),
                                 "threads": batch_threads(
-                                    reading.transaction.events, reading.batch
+                                    reading.transaction.events,
+                                    reading.batch,
+                                    published_enclosing(
+                                        reading.page_dir, reading.transaction.events
+                                    ),
                                 ),
                             }
                         ),

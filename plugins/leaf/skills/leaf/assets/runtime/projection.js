@@ -38,6 +38,7 @@ export function createProjection(runtime, dependencies) {
     renderQuiet,
     renderRetired,
     reportPageError,
+    settling,
     settlementSlots,
     standOn,
     textNodesUnder,
@@ -414,12 +415,16 @@ export function createProjection(runtime, dependencies) {
     // there the width half stays off for the reason that function gives, the room being
     // the panel's rather than the document's.
     markDeclared(fresh, inChrome(el) ? MARKED_ANYWHERE : MARKED_IN_PAGE);
+    const settlingFrom = settling.length;
     el.replaceWith(fresh); // defined already, so connectedCallback runs on insertion
     // The rest of what the upgrade gives every subtree beyond its module's own work. Not
     // awaited as the upgrade awaits it: nothing is holding a first paint here, and a
-    // widget with async work of its own settles it the way it always does.
+    // widget with async work of its own settles it the way it always does. The scroller
+    // sweep does wait, on what this insertion queued: the box a widget scrolls is one its
+    // module builds, and swept before that build returns it is neither reachable nor
+    // held (reach.js, on what every caller owes it).
     dress(fresh);
-    reachScrollers(fresh);
+    Promise.allSettled(settling.slice(settlingFrom)).then(() => reachScrollers(fresh));
     // The fences the passage reading walks are node identities, and these are new nodes
     // holding the same markup — so the index is taken again rather than left naming a
     // subtree the page no longer has.

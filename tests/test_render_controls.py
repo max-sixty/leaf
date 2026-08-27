@@ -378,6 +378,9 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     page.mouse.click(seam["x"], seam["y"])
     page.keyboard.up("Alt")
 
+    # The press raises the bar on the item the aim held; Comment on it is the composer.
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == seam["at"]
     assert errors == []

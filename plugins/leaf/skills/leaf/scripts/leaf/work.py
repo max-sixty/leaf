@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .events import build_threads, standing_work_claims
 from .files import published_versions, version_path
-from .passages import page_passages
+from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
     asking,
@@ -50,7 +50,7 @@ def widget_work_without_seats(
         html, registry, decided, rewritten_bodies(projection.actions)
     )
     missing = []
-    for claim in standing_work_claims(status, events, include_resolved=True):
+    for claim in standing_work_claims(status, events):
         subject = claim["subject"]
         if subject["kind"] != "widget" or subject["id"] in ignored:
             continue
@@ -70,25 +70,29 @@ def widget_work_without_seats(
 
 def work_subject(page_dir: Path, events: list, target: str) -> dict:
     """Resolve one bare CLI id to a typed, locally renderable work subject."""
-    threads = build_threads(events, {})
-    thread = threads.get(target)
-
     widget = None
     widget_version = None
     widget_projection = None
     registry = None
     html = None
+    spk: dict = {}
     published = published_versions(page_dir, events)
     if published:
         widget_version = published[-1]
         html = version_path(page_dir, widget_version).read_text(encoding="utf-8")
         registry = require_registry(page_dir)
-        widget_projection, parser, _spk = page_projection(
+        widget_projection, parser, spk = page_projection(
             html, events, registry, widget_version
         )
         rec = parser.by_id.get(target)
         if rec and rec["tag"] in registry:
             widget = rec
+
+    # Against the page this command has already read: it loads the vendored
+    # registry above and raises where that gate refuses, so folding threads
+    # against no page here bought nothing and could answer differently from
+    # `page state` for the same conversation.
+    thread = build_threads(events, enclosing_of(spk)).get(target)
 
     if thread is not None and widget is not None:
         sys.exit(

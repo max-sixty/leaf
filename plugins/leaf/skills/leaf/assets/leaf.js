@@ -793,10 +793,13 @@ const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
 // the number the theme states and never learns which idiom spends it. A theme without
 // the token leaves this NaN, every comparison against it false, and the media query
-// alone deciding — which is the same answer a page with no runtime already gets.
-const STRIP_MIN = parseFloat(
-  getComputedStyle(document.documentElement).getPropertyValue("--strip-min"),
-);
+// alone deciding — which is the same answer a page with no runtime already gets. Read
+// from body at the moment of the question rather than caching root's default: a composed
+// margin posture may override the floor under the media query that grants it, and an
+// arriving panel must ask that composed value without the runtime learning which idioms
+// contributed it.
+const stripMin = () =>
+  parseFloat(getComputedStyle(document.body).getPropertyValue("--strip-min"));
 
 // ---------- styles ----------
 /* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
@@ -1689,6 +1692,12 @@ const PANEL_KEY = "lf-panel-open";
 // reader's own scrolling moves. Asked of the edge's query rather than stored, so no reader
 // of it can hold an answer from a window that has gone.
 const panelCovers = () => panelOpen && commentsEdge.over.matches;
+// Whether the reader is standing in the panel rather than merely looking at it — focus,
+// not visibility, the same line PANEL draws for its own scope and the one every surface
+// here reads. A press that acts on where the reader is standing has to ask it of the
+// focus: beside the page the panel is a column of its own, and a reader working down the
+// list is in it whatever the window is wide enough to show behind them.
+const inPanel = () => panelOpen && containsAcross(panel, focused());
 // The strip each side of the page yields, which is that edge's width until the window is
 // too narrow to give one up — one expression each, because the margin the rule takes and
 // the room measured against it have to mean the same thing by it. The tray panel yields
@@ -1728,7 +1737,7 @@ const trayStrip = () =>
 // to the viewport in each rule that reads it.
 function stateStrip() {
   const avail = document.documentElement.clientWidth - panelStrip() - trayStrip();
-  document.body.toggleAttribute("data-lf-cramped", avail < STRIP_MIN);
+  document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
   document.documentElement.style.setProperty("--lf-avail", avail + "px");
 }
 // A window that has changed is a cap that has changed, so the width each edge stands at
@@ -2676,6 +2685,7 @@ const { commentOnItem, glideTo, scrollerFor, seenScroller, stepPage, stepThread 
     SCROLL,
     beside,
     inChrome: (node) => inChrome(node),
+    inPanel,
     openOnItem,
     openThreads,
     pageScroller,
@@ -3067,7 +3077,7 @@ const TYPING = {
 
 const PANEL = {
   title: "In the comment panel",
-  at: () => panelOpen && containsAcross(panel, focused()),
+  at: inPanel,
   rows: [
     {
       // `w` for the words the control says, the way `l` spells the leaves and `a` the
@@ -3999,6 +4009,7 @@ const runtimeProjection = createProjection(runtime, {
   renderQuiet,
   renderRetired,
   reportPageError,
+  settling,
   settlementSlots,
   standOn,
   textNodesUnder,

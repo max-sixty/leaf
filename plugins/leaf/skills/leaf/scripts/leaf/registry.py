@@ -63,6 +63,16 @@ def json_validator(schema: dict) -> Draft202012Validator:
     )
 
 
+# A reader over a schema that never changes is itself a constant. Built where they
+# were used, these two were compiled once per widget and once per data contract: a
+# layer of twenty-eight widgets built the extension reader twenty-eight times on
+# every `page init`, of the ninety-one schema resource graphs an init built at all.
+# Every other reader in this codebase reads a schema its caller supplies, so these
+# are the whole of the case.
+EXTENSION_READER = json_validator(EXTENSION_SCHEMA)
+GUIDANCE_READER = json_validator(GUIDANCE_SCHEMA)
+
+
 def unresolved_schema_reference(schema: dict) -> str | None:
     """Return the first operative ref not supplied by this schema resource graph.
 
@@ -324,9 +334,7 @@ def validate_registry(registry: dict, source) -> dict:
                 "schema, with optional guidance"
             )
         guidance_errors = sorted(
-            json_validator(GUIDANCE_SCHEMA).iter_errors(
-                declaration.get("guidance", {})
-            ),
+            GUIDANCE_READER.iter_errors(declaration.get("guidance", {})),
             key=str,
         )
         if guidance_errors:
@@ -389,9 +397,7 @@ def validate_registry(registry: dict, source) -> dict:
         extensions = {
             key: value for key, value in entry.items() if key.startswith("x-")
         }
-        errors = sorted(
-            json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
-        )
+        errors = sorted(EXTENSION_READER.iter_errors(extensions), key=str)
         if errors:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
@@ -419,6 +425,22 @@ def validate_registry(registry: dict, source) -> dict:
                     f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
                     "must state additionalProperties: false — a verb carries "
                     "only the detail keys it declares"
+                )
+            # And nothing beside those four keys, because that clause closes an
+            # object only against names `properties` does not match: a
+            # `patternProperties` beside it admits a field no declaration
+            # spells, and `resolves` is a field — so a per-part verb could come
+            # to settle a comment thread with every door that reads the name
+            # seeing nothing to read. Each of those doors reads the declaration
+            # rather than the event, so one unnamed key makes all of them
+            # approximate at once.
+            spelled = {"type", "properties", "required", "additionalProperties"}
+            if beyond := sorted(set(spec["detail"]) - spelled):
+                raise RegistryError(
+                    f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
+                    f"declares {beyond}; a detail states its type, properties, "
+                    "required and additionalProperties and nothing else, so the "
+                    "keys a verb can carry are the ones it names"
                 )
             if update := spec.get("update"):
                 detail = spec["detail"]

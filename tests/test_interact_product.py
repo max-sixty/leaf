@@ -218,13 +218,12 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     )
 
 
-def test_every_path_a_diff_resolves_names_a_language_the_bundle_carries(page_dir):
+def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir):
     """The language vocabulary has two halves and they have to agree. `names` is the half
-    an author writes and the half scripts/vendor-highlight.sh builds the tokenizer bundle
-    from; `paths` is what a filename means, which is how a diff colours a file nobody
-    declared a language for. A path resolving outside `names` would resolve to a language
-    the vendored bundle doesn't carry, and the whole hunk would fall back to plain text
-    with a console error — visible only on a page that happens to diff that extension."""
+    an author writes and the half both vendor scripts build their language bundles from;
+    `paths` is what a filename means, which is how a diff colours a file nobody declared
+    a language for. A path resolving outside `names` would resolve to a language neither
+    bundle is required to carry."""
     reg = json.loads((page_dir / "registry.json").read_text())
     names = set(reg["$languages"]["names"])
     paths = reg["$languages"]["paths"]

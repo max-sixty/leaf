@@ -41,6 +41,7 @@ from render_support import (
     CORNER_PAGE,
     DEEP_FOCUS,
     DEFINE_BOXES,
+    DIFF_PAGE,
     DRAFT_MARK,
     EDGES,
     EXAMPLE_MEDIA,
@@ -2175,9 +2176,9 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     resized(page, 420, 900)
     measured = page.locator("#wide-diff").evaluate(
         """(d) => {
-        const pre = d.shadowRoot.querySelector('pre');
-        return { scrolls: Math.round(pre.scrollWidth - pre.clientWidth),
-                 tab: pre.tabIndex };
+        const viewport = d.shadowRoot.querySelector('code[data-code]');
+        return { scrolls: Math.round(viewport.scrollWidth - viewport.clientWidth),
+                 tab: viewport.tabIndex };
     }"""
     )
     # The reach, then that there was anything to reach: a diff narrow enough to fit
@@ -2185,6 +2186,21 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     # while saying nothing about the rule.
     assert measured["scrolls"] > 0, "this diff fits, so it proves nothing"
     assert measured["tab"] == 0, "a diff that scrolls is unreachable from the keyboard"
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    resized(page, 1200, 900)
+    fitted = page.locator("#patch").evaluate(
+        """(d) => [...d.shadowRoot.querySelectorAll('code[data-code]')].map(viewport => ({
+          scrolls: Math.round(viewport.scrollWidth - viewport.clientWidth),
+          tab: viewport.tabIndex,
+        }))"""
+    )
+    assert fitted and all(item["scrolls"] == 0 for item in fitted), fitted
+    assert all(item["tab"] == -1 for item in fitted), (
+        "a diff that fits added a keyboard stop with nowhere to scroll"
+    )
     assert errors == []
     page.close()
 
@@ -2237,13 +2253,14 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     page.wait_for_function(
         """() => {
         const d = document.querySelector('#rp-diff');
-        const pre = d && d.shadowRoot && d.shadowRoot.querySelector('pre');
-        return Boolean(pre) && pre.tabIndex === 0;
+        const viewport = d && d.shadowRoot
+          && d.shadowRoot.querySelector('code[data-code]');
+        return Boolean(viewport) && viewport.tabIndex === 0;
     }"""
     )
     scrolls = page.locator("#rp-diff").evaluate(
-        "(d) => Math.round(d.shadowRoot.querySelector('pre').scrollWidth"
-        " - d.shadowRoot.querySelector('pre').clientWidth)"
+        "(d) => { const viewport = d.shadowRoot.querySelector('code[data-code]');"
+        " return Math.round(viewport.scrollWidth - viewport.clientWidth); }"
     )
     assert scrolls > 0, "this diff fits the panel, so it proves nothing"
     assert errors == []

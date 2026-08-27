@@ -632,6 +632,11 @@ scripts/site.py
 `$languages.names` from the registry so the browser bundle and lint accept the
 same languages.
 
+`scripts/vendor-pierre.sh` rebuilds the bounded Pierre renderer and its license
+notices under `plugins/leaf/skills/leaf/packages/default/vendor/`. It reads the
+same language vocabulary and includes the two themes `lf-diff` maps onto Leaf's
+syntax roles.
+
 `scripts/vendor-marked.sh` copies the pinned, dependency-free
 `vendor/marked.esm.js` used for thread Markdown.
 

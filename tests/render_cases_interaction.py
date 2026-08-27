@@ -27,7 +27,7 @@ PANEL_PAGE = leaf_page(
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
-@@ -1,3 +1,4 @@
+@@ -1,2 +1,3 @@
  def ceiling(limit, approvals):
 -    return limit
 +    # the ceiling doubles per approval

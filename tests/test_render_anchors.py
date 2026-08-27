@@ -25,7 +25,6 @@ from render_support import (
     FENCED_CAPTURE_PAGE,
     INLINE_PAGE,
     LONG_PAGE,
-    MOVED_WORDS_PAGE,
     NATIVE_CONTROL_PAGE,
     REPLY_HOST_PAGE,
     SAID_PAGE,
@@ -1216,314 +1215,352 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         [langs, samples],
     )
     assert bad == [], f"the tokenizer changed the source: {bad}"
+
+    pierre_bad = page.evaluate(
+        """async (langs) => {
+          const { parsePatchFiles, preloadDiffHTML } =
+            await import('/vendor/pierre-diffs.esm.js');
+          const source = [
+            'diff --git a/example.txt b/example.txt',
+            '--- a/example.txt',
+            '+++ b/example.txt',
+            '@@ -1 +1 @@',
+            '-old',
+            '+new',
+          ].join('\\n');
+          const bad = [];
+          for (const lang of langs) {
+            try {
+              const file = parsePatchFiles(source, undefined, true)[0].files[0];
+              file.lang = lang;
+              const html = await preloadDiffHTML({
+                fileDiff: file,
+                options: {theme: {light: 'github-light', dark: 'github-dark'}},
+              });
+              if (!html.includes('new')) bad.push([lang, 'rendered no source']);
+            } catch (error) {
+              bad.push([lang, String(error)]);
+            }
+          }
+          return bad;
+        }""",
+        langs,
+    )
+    assert pierre_bad == [], f"Pierre lacks a declared language: {pierre_bad}"
     assert errors == []
     page.close()
 
 
 def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
-    """A diff is the page's most code-dense shape and it sits beside lf-code on the pages
-    that carry both, so leaving it plain said the evidence was not code. It has no `language`
-    to read — a unified diff spans files — so each file's path is what says what it holds,
-    and a path naming nothing leaves that file the colour of its own ink.
+    """Pierre renders each file in its own language without changing copyable source.
 
-    Three things that were each wrong in a draft of this. The +/−/space column is the
-    diff's word about a line and not the file's: yaml lexes a leading `-` as a sequence
-    bullet and a leading `+` as a string, so a prefix left on restates the widget's own
-    signal in the wrong ink. A hunk is tokenized one side at a time, because read straight
-    through it interleaves two versions that never coexisted. And each side is tokenized
-    whole, because a docstring spans lines — coloured a line at a time, the prose inside
-    one comes back as code."""
+    A unified diff has no one language, so the file path chooses it and an unknown path
+    stays plain. The indicator column is presentation, not source: it must be absent from
+    both syntax input and selection text. Pierre still tokenizes each reconstructed side
+    as a whole, so a Python string spanning changed lines remains a string."""
     page, errors = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
 
-    # Through the shadow root, because that is where lf-diff renders (x-shadow): its
-    # lines are in the composed tree the reader sees and in no querySelectorAll over the
-    # document. Reaching for them by hand here is the test paying the same crossing the
-    # runtime pays in textNodesUnder.
+    # Through the declared shadow root, where the static Pierre DOM remains visible to
+    # Leaf's passage reader and to a standalone export.
     files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
-      .querySelectorAll('details')].map(d => ({
-      path: d.querySelector('summary code').textContent,
-      lines: [...d.querySelectorAll('pre > span')].map(l => ({
-        kind: l.className,
-        text: l.textContent,
-        // Whether the line opens inside a syntax span — which is where the +/− column
-        // would have gone if it had been handed to the tokenizer along with the source.
-        signInSpan: l.firstChild?.nodeType === Node.ELEMENT_NODE,
-        roles: [...l.querySelectorAll('[data-lf-syn]')].map(s => [s.dataset.lfSyn, s.textContent]),
-      })),
-    }))""")
+      .querySelectorAll('details')].map(d => {
+      const path = d.querySelector('.lf-diff-path');
+      const stat = d.querySelector('.lf-diff-stat');
+      return {
+        path: path.textContent,
+        summaryAligned: Math.abs(path.getBoundingClientRect().top
+          - stat.getBoundingClientRect().top) < 1,
+        lines: [...d.querySelectorAll('[data-line]')].map(l => ({
+          kind: l.dataset.lineType,
+          text: l.textContent,
+          indicator: getComputedStyle(l, '::before').content,
+          indicatorSelect: getComputedStyle(l, '::before').userSelect,
+          roles: [...l.querySelectorAll('[data-lf-syn]')]
+            .map(s => [s.dataset.lfSyn, s.textContent]),
+        })),
+        separators: [...d.querySelectorAll('[data-separator]')]
+          .map(s => s.textContent.trim()),
+      };
+    })""")
     by_path = {f["path"]: f["lines"] for f in files}
     assert set(by_path) == {
         "gateway/limits.py",
         "gateway/config.yaml",
         "deploy/Dockerfile",
     }
+    assert all(file["summaryAligned"] for file in files), (
+        "a file path and its change counts split across summary rows"
+    )
+
+    reading = page.evaluate("""async () => {
+      const { says, textNodesUnder, wrote } = await import('/leaf.js');
+      const diff = document.querySelector('#patch');
+      const segments = textNodesUnder(document)
+        .filter(({node}) => node.getRootNode() === diff.shadowRoot);
+      return {
+        segmentCount: segments.length,
+        saysPath: says(document).includes('gateway/limits.py'),
+        wrotePath: wrote(document).includes('gateway/limits.py'),
+        hiddenNumbers: segments
+          .filter(({node}) => node.parentElement?.closest('[data-line-number-content]'))
+          .map(({node}) => node.data),
+      };
+    }""")
+    assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
+    assert reading["saysPath"] and reading["wrotePath"], reading
+    assert reading["hiddenNumbers"] == [], (
+        f"hidden line numbers entered the page reading: {reading}"
+    )
 
     py = by_path["gateway/limits.py"]
     assert any(["kw", "if"] in line["roles"] for line in py), py
     assert {r for line in py for r, _ in line["roles"]} >= {"kw", "st", "fn"}
 
-    # The docstring the second hunk rewrites: every line of it is string, on both sides.
-    # Colouring line by line instead, `and` inside the prose came back a keyword.
+    # The docstring the second hunk rewrites: every line of it is string on both sides.
     doc = [line for line in py if "Called on logout" in line["text"]]
     assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
-        # How many spans carry it is the word marks' business — a mark re-cuts the tokens
-        # it covers, and this pair's closing `\"\"\"` moved to a line of its own — so what
-        # is asserted is the role and the text those spans hold between them, sign column
-        # and trailing newline off, neither of which any re-cutting may change.
         assert {r for r, _ in line["roles"]} == {"st"}, line
-        assert "".join(t for _, t in line["roles"]) == line["text"][1:-1], line
+        assert "".join(t for _, t in line["roles"]) == line["text"], line
 
-    # yaml, the grammar that would have eaten the prefix: with the column left on, the
-    # `-` came back a bullet in keyword ink and the `+` a string. No span opens a line
-    # here, and the key is still an attr — so the prefix came off before the lexer looked.
+    # The yaml key keeps its key role rather than tokenizing the deleted line as a list
+    # item or the added line as an arbitrary string.
     yml = [
         line
         for line in by_path["gateway/config.yaml"]
-        if line["kind"] in ("add", "del")
+        if line["kind"] in ("change-addition", "change-deletion")
     ]
     assert len(yml) == 2
     for line in yml:
-        assert not line["signInSpan"], line
-        assert ["ty", "burst:"] in line["roles"], line
+        assert any(role == "ty" and "burst" in text for role, text in line["roles"]), (
+            line
+        )
+    assert {
+        (line["kind"], line["indicator"], line["indicatorSelect"]) for line in yml
+    } == {
+        ("change-addition", '"+"', "none"),
+        ("change-deletion", '"-"', "none"),
+    }, "changed lines need visible indicators that selection leaves behind"
 
-    # `\\ No newline at end of file` is git remarking on the line above, not a line of
-    # the file. Shown, because the diff says it, but its own kind — read as context it
-    # would go into both reconstructed sides as source the file never held.
-    note = [line for line in py if line["kind"] == "note"]
-    assert [line["text"] for line in note] == ["\\ No newline at end of file\n"], py
-    assert note[0]["roles"] == [], note
+    # `\\ No newline at end of file` is diff metadata, not selectable source.
+    assert not any("No newline at end of file" in line["text"] for line in py)
 
     # No extension the table names: plain, the way a lf-code with no `language` is.
     assert all(line["roles"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
 
-    # Every displayed source line still reads exactly as authored, sign column and all.
-    # File headers are metadata already represented by the summary, so the widget drops
-    # them instead of leaving hidden text in the DOM for anchoring to find.
+    # The visible indicator is generated presentation, so the DOM and a full-line
+    # selection still contain exact source. File headers are metadata already represented
+    # by the summary, so the widget drops them instead of leaving hidden anchor text.
     assert [line["text"] for line in by_path["gateway/config.yaml"]] == [
-        "@@ -4,6 +4,6 @@ ratelimit:\n",
-        "-  burst: 20\n",
-        "+  burst: 40\n",
-        "   window: 60\n",
+        "  burst: 20",
+        "  burst: 40",
+        "  window: 60",
     ]
+    selected = page.evaluate("""() => {
+      const lines = document.querySelector('#patch').shadowRoot.querySelectorAll('[data-line]');
+      const line = [...lines].find(l => l.dataset.lineType === 'change-addition'
+        && l.textContent.includes('burst'));
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const selection = getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return selection.toString();
+    }""")
+    assert selected == "  burst: 40"
     assert errors == []
     page.close()
 
 
 def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
-    """A tint says a line changed and stops there, so a line that changed by one argument
-    asked the reader to eyeball-diff it against the line above.
+    """Pierre owns changed-line pairing; Leaf preserves its useful visual hierarchy.
 
-    Which line answers which is the whole of what had to be settled: a word-level mark
-    compares one deletion against one addition and a hunk offers a block of each, and a
-    unified diff records no correspondence between its two sides. Reading straight down
-    — the i-th deletion against the i-th addition — is the pairing a reader's eye makes,
-    and it is right until a line is added. The last Python block grows by two, standing
-    the addition that answers `return self.tokens[key].take()` three lines under it, and
-    read straight down that deletion met `if key not in self.tokens:` — a pair sharing
-    eleven characters of ink where the real answer shares twenty-five, and one the gate
-    passes, so `return` and `[key].take()` were ruled as words that had moved.
-
-    So the correspondence is worked out from the ink the lines hold in common, which is
-    the number the gate already reads, and the search slides by the block's own count
-    difference and no further. The Dockerfile's second block is that bound: it reorders
-    without growing, so nothing the search may reach answers either deletion, and the
-    tint stands as the whole statement.
-
-    The gate is the layer's own (`movedWords`, which lf-suggestion asks the same
-    question of): a pair sharing too little ink swapped wholesale rather than being
-    edited, and marking every word of both says nothing the tint already did. A pair it
-    refuses is no candidate either, so a deletion left without one is unmarked.
-
-    The marks are spans here where the document paints Ranges, ::highlight() reaching no
-    shadow tree — so what they must not do is move a character. Each line's text is
-    asserted whole, coloured and uncoloured alike, because a mark nested wrongly into
-    the token spans would still look right on screen while every quote into that file
-    stopped resolving."""
-    page, errors = open_page(browser, serve(MOVED_WORDS_PAGE))
+    A changed line gets a full semantic background and a brighter inline span where
+    Pierre can identify the changed words. The spans must preserve both source text and
+    Leaf's syntax roles, and a file with no declared language still gets the same diff
+    treatment without gaining invented syntax colour.
+    """
+    page, errors = open_page(browser, serve(DIFF_PAGE))
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
     )
 
-    # Through the shadow root, as the colour test above reaches for the same lines.
     files = page.evaluate("""() => [...document.querySelector('#patch').shadowRoot
       .querySelectorAll('details')].map(d => ({
-      path: d.querySelector('summary code').textContent,
-      lines: [...d.querySelectorAll('pre > span')].map(l => ({
-        kind: l.className,
-        text: l.textContent,
-        marks: [...l.querySelectorAll('[data-lf-diff]')]
-                 .map(s => [s.dataset.lfDiff, s.textContent]),
-        // A marked word on a coloured line keeps the file's own ink: the mark wraps
-        // the token spans rather than replacing them.
-        inked: [...l.querySelectorAll('[data-lf-diff] [data-lf-syn]')]
-                 .map(s => [s.dataset.lfSyn, s.textContent]),
+      path: d.querySelector('.lf-diff-path').textContent,
+      lines: [...d.querySelectorAll('[data-line]')].map(line => ({
+        kind: line.dataset.lineType,
+        text: line.textContent,
+        marks: [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent),
+        inked: [...line.querySelectorAll('[data-diff-span] [data-lf-syn]')]
+          .map(span => [span.dataset.lfSyn, span.textContent]),
+        linePaint: getComputedStyle(line).backgroundColor,
+        prePaint: getComputedStyle(line.closest('pre')).backgroundColor,
+        markPaint: [...line.querySelectorAll('[data-diff-span]')].map(span => {
+          const style = getComputedStyle(span);
+          return [style.backgroundColor, style.textDecorationLine];
+        }),
       })),
     }))""")
-    by_path = {f["path"]: f["lines"] for f in files}
-    assert set(by_path) == {"gateway/limits.py", "deploy/Dockerfile"}
+    by_path = {file["path"]: file["lines"] for file in files}
+    assert set(by_path) == {
+        "gateway/limits.py",
+        "gateway/config.yaml",
+        "deploy/Dockerfile",
+    }
 
-    py = by_path["gateway/limits.py"]
-    # Every line as authored, sign column and all — the reading the page hands a quote.
-    assert [line["text"] for line in py] == [
-        "@@ -3,4 +3,4 @@ class Limiter:\n",
-        "     def reset(self, key):\n",
-        "-        self.buckets.pop(key, None)\n",
-        "\\ No newline at end of file\n",
-        "+        self.buckets.pop(key, 0)\n",
-        "         return None\n",
-        "@@ -20,8 +20,7 @@ class Limiter:\n",
-        "-        alpha = compute(one, two)\n",
-        "-        beta = compute(three, four)\n",
-        "-        limit = 3\n",
-        "+        alpha = compute(one, five)\n",
-        "+        beta = compute(nine, four)\n",
-        "         self.reset(key)\n",
-        "-        limit = 8\n",
-        "+        limit = 9\n",
-        "@@ -40,3 +39,3 @@ class Limiter:\n",
-        "-        return self.buckets[key].take()\n",
-        '+        raise RuntimeError("no such thing")\n',
-        "@@ -60,4 +59,4 @@ class Limiter:\n",
-        "-        window = 60\n",
-        "+        window = 90\n",
-        "-        burst = 20\n",
-        "+        burst = 40\n",
-        "@@ -80,2 +79,4 @@ class Limiter:\n",
-        "-        return self.tokens[key].take()\n",
-        "+        if key not in self.tokens:\n",
-        "+            self.tokens[key] = Bucket()\n",
-        "+        return self.tokens[key].fill(rate)\n",
-        "@@ -100,4 +99,4 @@ class Limiter:\n",
-        "-        return None\n",
-        "-        soft = 60\n",
-        "-        hard = 20\n",
-        "+\n",
-        "+        soft = 90\n",
-        "+        hard = 40\n",
-    ]
+    def changed(path, kind, text):
+        return next(
+            line
+            for line in by_path[path]
+            if line["kind"] == kind and text in line["text"]
+        )
 
-    assert [(line["kind"], line["marks"]) for line in py] == [
-        ("hunk", []),
-        ("ctx", []),
-        # The one argument that moved, and git's remark between the pair changed
-        # nothing: a note is no line of the file, so it neither closes the block nor
-        # takes a place in it.
-        ("del", [["del", "None"]]),
-        ("note", []),
-        ("add", [["add", "0"]]),
-        ("ctx", []),
-        ("hunk", []),
-        # Three deletions under two additions: the first two are answered, and the
-        # third is compared against nothing and so marked with nothing.
-        ("del", [["del", "two"]]),
-        ("del", [["del", "three"]]),
-        ("del", []),
-        ("add", [["add", "five"]]),
-        ("add", [["add", "nine"]]),
-        # A context line ends the block, so what follows it is a pair of its own and
-        # the leftover deletion above stays unanswered.
-        ("ctx", []),
-        ("del", [["del", "8"]]),
-        ("add", [["add", "9"]]),
-        ("hunk", []),
-        # A wholesale swap: the tint is the whole statement, and marking every word of
-        # both lines would be the same statement made twice and no more precise.
-        ("del", []),
-        ("add", []),
-        ("hunk", []),
-        # Two pairs written one under the other, with nothing between them: the
-        # deletion after an addition is what ends the block, so `burst` answers `burst`
-        # and not the `window` two lines above it.
-        ("del", [["del", "60"]]),
-        ("add", [["add", "90"]]),
-        ("del", [["del", "20"]]),
-        ("add", [["add", "40"]]),
-        ("hunk", []),
-        # Two lines added, so the answer is three lines down rather than beside it. The
-        # two additions the block grew by are compared against nothing and marked with
-        # nothing, exactly as a leftover deletion is.
-        ("del", [["del", "take"]]),
-        ("add", []),
-        ("add", []),
-        ("add", [["add", "fill"], ["add", "rate"]]),
-        ("hunk", []),
-        # A line answered by a blank one shares no ink at all, and a ratio taken against
-        # the smaller side cannot say so — with nothing on one side the bar stands at zero
-        # and any pair clears it. Refused, so the deleted body is not ruled a set of words
-        # that moved into a line holding none of them.
-        ("del", []),
-        # And the pairs under it are still found, though reaching them means stepping off
-        # the diagonal in a block whose counts match: the deletion above answers nothing,
-        # so the walk leaves the band by a column and comes back to `soft` and `hard`.
-        ("del", [["del", "60"]]),
-        ("del", [["del", "20"]]),
-        ("add", []),
-        ("add", [["add", "90"]]),
-        ("add", [["add", "40"]]),
-    ]
-    # The marked words keep the file's ink, which is what nesting the marks inside the
-    # token spans is for: `None` is still a keyword and `0` still a number under the
-    # mark. An identifier the tokenizer gives no role of its own carries none here
-    # either, which is the same statement from the other side — the mark is not painting
-    # over the colouring, it is standing around it.
-    assert [(line["text"].strip(), line["inked"]) for line in py if line["marks"]] == [
-        ("-        self.buckets.pop(key, None)", [["kw", "None"]]),
-        ("+        self.buckets.pop(key, 0)", [["nu", "0"]]),
-        ("-        alpha = compute(one, two)", []),
-        ("-        beta = compute(three, four)", []),
-        ("+        alpha = compute(one, five)", []),
-        ("+        beta = compute(nine, four)", []),
-        ("-        limit = 8", [["nu", "8"]]),
-        ("+        limit = 9", [["nu", "9"]]),
-        ("-        window = 60", [["nu", "60"]]),
-        ("+        window = 90", [["nu", "90"]]),
-        ("-        burst = 20", [["nu", "20"]]),
-        ("+        burst = 40", [["nu", "40"]]),
-        ("-        return self.tokens[key].take()", []),
-        ("+        return self.tokens[key].fill(rate)", []),
-        ("-        soft = 60", [["nu", "60"]]),
-        ("-        hard = 20", [["nu", "20"]]),
-        ("+        soft = 90", [["nu", "90"]]),
-        ("+        hard = 40", [["nu", "40"]]),
-    ]
+    before = changed("gateway/config.yaml", "change-deletion", "burst: 20")
+    after = changed("gateway/config.yaml", "change-addition", "burst: 40")
+    assert before["marks"] and any("20" in mark for mark in before["marks"])
+    assert after["marks"] and any("40" in mark for mark in after["marks"])
+    assert ["nu", "20"] in before["inked"]
+    assert ["nu", "40"] in after["inked"]
 
-    # A path naming no language: nothing tokenizes the line, and the marks land on it
-    # the same way — one branch here, not two, so a plain file cannot go quietly
-    # unmarked while a coloured one works.
-    docker = by_path["deploy/Dockerfile"]
-    assert [line["text"] for line in docker] == [
-        "@@ -9,2 +9,2 @@ COPY gateway /srv/gateway\n",
-        "-RUN pip install -r requirements.txt\n",
-        "+RUN pip install -r reqs.txt\n",
-        "@@ -20,2 +20,2 @@ WORKDIR /srv\n",
-        "-EXPOSE 8080\n",
-        '-CMD ["gunicorn", "gateway:app"]\n',
-        '+CMD ["gunicorn", "gateway:app", "-w", "4"]\n',
-        "+EXPOSE 9090\n",
+    changed_lines = [
+        line
+        for lines in by_path.values()
+        for line in lines
+        if line["kind"] in ("change-addition", "change-deletion")
     ]
-    assert [line["marks"] for line in docker] == [
-        [],
-        [["del", "requirements"]],
-        [["add", "reqs"]],
-        [],
-        # The block reorders and does not grow, so the search slides nowhere: read
-        # straight down, `CMD …` answers `EXPOSE 8080` and `EXPOSE 9090` answers
-        # `CMD …`, the gate refuses both, and the line each addition really came from is
-        # a step off a line the counts give it no room to take. Unmarked is the honest
-        # end of that, since a mark would be saying the line above is this line's before.
-        [],
-        [],
-        [],
-        [],
-    ]
-    assert all(line["inked"] == [] for line in docker), docker
+    assert changed_lines
+    assert all(line["linePaint"] != line["prePaint"] for line in changed_lines)
+    assert before["linePaint"] != after["linePaint"], (
+        "additions and deletions need distinct semantic fills"
+    )
 
+    inline_paint = [paint for line in changed_lines for paint in line["markPaint"]]
+    assert inline_paint
+    assert all(background != "rgba(0, 0, 0, 0)" for background, _ in inline_paint)
+    assert {decoration for _, decoration in inline_paint} == {"none"}
+    assert all(
+        background != line["linePaint"]
+        for line in changed_lines
+        for background, _ in line["markPaint"]
+    ), "inline changes need a stronger fill than their changed line"
+
+    # Pierre's inline comparison is language-independent. Dockerfile is intentionally
+    # plain in Leaf's registry, but the edited dependency is still called out.
+    docker_before = changed("deploy/Dockerfile", "change-deletion", "requirements.txt")
+    docker_after = changed("deploy/Dockerfile", "change-addition", "--no-cache-dir")
+    assert docker_before["marks"] or docker_after["marks"]
+    assert not any(line["inked"] for line in by_path["deploy/Dockerfile"])
+
+    # The generated indicators never prefix the rendered source on any file.
+    assert all(
+        not line["text"].startswith(("+", "-"))
+        for lines in by_path.values()
+        for line in lines
+    )
+
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_keeps_source_markup_inert(browser, serve):
+    """Pierre returns HTML, but the diff remains data rather than a markup door."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate("""async () => {
+      const payload = '<img src=x onerror=globalThis.__lfDiffPwned=1>';
+      const host = document.createElement('lf-diff');
+      host.id = 'inert-diff';
+      const pre = document.createElement('pre');
+      pre.textContent = [
+        'diff --git a/example.html b/example.html',
+        '--- a/example.html',
+        '+++ b/example.html',
+        '@@ -1 +1 @@',
+        '-old',
+        '+' + payload,
+      ].join('\\n');
+      host.append(pre);
+      document.querySelector('main').append(host);
+      await new Promise((resolve, reject) => {
+        const limit = setTimeout(() => reject(new Error('diff did not render')), 2000);
+        const ready = () => {
+          if (!host.classList.contains('lf-rendered')) return requestAnimationFrame(ready);
+          clearTimeout(limit);
+          resolve();
+        };
+        ready();
+      });
+      const added = [...host.shadowRoot.querySelectorAll('[data-line]')]
+        .find(line => line.dataset.lineType === 'change-addition');
+      return {
+        text: added.textContent,
+        images: host.shadowRoot.querySelectorAll('img').length,
+        handlers: host.shadowRoot.querySelectorAll('[onerror]').length,
+        executed: globalThis.__lfDiffPwned === 1,
+      };
+    }""")
+    assert result == {
+        "text": "<img src=x onerror=globalThis.__lfDiffPwned=1>",
+        "images": 0,
+        "handlers": 0,
+        "executed": False,
+    }
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_rejects_hunks_whose_counts_omit_source(browser, serve):
+    """Malformed range counts must fail visibly instead of truncating review evidence."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    result = page.evaluate("""async () => {
+      const host = document.createElement('lf-diff');
+      host.id = 'malformed-diff';
+      const pre = document.createElement('pre');
+      pre.textContent = [
+        'diff --git a/example.js b/example.js',
+        '--- a/example.js',
+        '+++ b/example.js',
+        '@@ -1 +1 @@',
+        '-old',
+        '+new',
+        '+silently-lost',
+      ].join('\\n');
+      host.append(pre);
+      document.querySelector('main').append(host);
+      await new Promise((resolve, reject) => {
+        const limit = setTimeout(() => reject(new Error('diff did not settle')), 2000);
+        const ready = () => {
+          if (!host.querySelector('.lf-error') && !host.shadowRoot)
+            return requestAnimationFrame(ready);
+          clearTimeout(limit);
+          resolve();
+        };
+        ready();
+      });
+      return {
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        source: host.querySelector('.lf-error pre')?.textContent ?? null,
+      };
+    }""")
+    assert result == {
+        "rendered": False,
+        "error": "<lf-diff> failed: parsePatchContent: hunk has more lines than expected",
+        "source": (
+            "diff --git a/example.js b/example.js\n"
+            "--- a/example.js\n"
+            "+++ b/example.js\n"
+            "@@ -1 +1 @@\n"
+            "-old\n"
+            "+new\n"
+            "+silently-lost"
+        ),
+    }
     assert errors == []
     page.close()
 

@@ -371,7 +371,7 @@ WIDE_AND_NARROW_PAGE = leaf_page(
 diff --git a/feeders/mount.py b/feeders/mount.py
 --- a/feeders/mount.py
 +++ b/feeders/mount.py
-@@ -1,3 +1,3 @@
+@@ -1,2 +1,2 @@
  def bracket():
 -    return "plastic"
 +    return "steel"

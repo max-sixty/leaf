@@ -98,14 +98,14 @@ gateway/
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
-@@ -38,9 +38,11 @@ class Limiter:
+@@ -38,6 +38,8 @@ class Limiter:
 -    def bucket_key(self, request):
 -        return request.remote_addr
 +    def bucket_key(self, request):
 +        if request.token:
 +            return f"tok:{request.token.id}"
 +        return f"ip:{request.remote_addr}"
-
+&#32;
      def allow(self, request):
          key = self.bucket_key(request)
          return self.buckets[key].take()

@@ -67,11 +67,11 @@
 import {
   actionStands,
   agentName,
+  alignText,
   FOLD_MS,
   inChrome,
   measure,
   motion,
-  movedWords,
   offer,
   once,
   quietWord,
@@ -126,11 +126,38 @@ function observeLayout() {
 // that moved. The slots' whole tints stay — they are what a dead copy keeps — and on
 // the live page the words that differ deepen, painted through the highlight registry
 // so no node is wrapped (Paint; don't wrap) and cleared when the suggestion settles.
-// movedWords is the layer's one answer to which words differ (lf-diff marks a paired
-// diff line through it), so a second differ here would be a second answer to one
-// question — and a second threshold to tune.
+// `movedWords` keeps alignment and the similarity threshold in one reading before
+// this module turns its offsets into highlight ranges.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
 const emphasized = new Map(); // suggestion element → {del: Range[], ins: Range[]}
+
+function movedWords(before, after) {
+  const runs = alignText(before, after);
+  const ink = (text) => text.replace(/\s+/g, "").length;
+  const shared = runs
+    .filter((run) => run.kind === "same")
+    .reduce((total, run) => total + ink(run.text), 0);
+  if (!shared || shared * 3 < Math.min(ink(before), ink(after))) return null;
+
+  const del = [];
+  const ins = [];
+  let oldOffset = 0;
+  let newOffset = 0;
+  for (const run of runs) {
+    const length = run.text.length;
+    if (run.kind !== "insert") {
+      if (run.kind === "delete" && run.text.trim())
+        del.push([oldOffset, oldOffset + length]);
+      oldOffset += length;
+    }
+    if (run.kind !== "delete") {
+      if (run.kind === "insert" && run.text.trim())
+        ins.push([newOffset, newOffset + length]);
+      newOffset += length;
+    }
+  }
+  return { del, ins };
+}
 
 function repaintEmphasis() {
   for (const [kind, name] of Object.entries(EMPHASIS)) {
@@ -561,9 +588,7 @@ customElements.define(
 
     // The words that moved, as ranges over both slots' own text nodes. Which words
     // those are, and whether the pair shares enough ink to be worth marking at all,
-    // is `movedWords` — one answer for every widget that deepens a change, since
-    // lf-diff asks the same question of every diff line it might pair, and settles the
-    // pairing on the same reading (blockPairs).
+    // is `movedWords`.
     #emphasize() {
       if (this.dataset.lfState) return;
       const oldSlot = this.querySelector(":scope > lf-old");

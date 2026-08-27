@@ -22,7 +22,6 @@ export {
   itemWord,
   keys,
   labelOf,
-  movedWords,
   openAsks,
   paintKeys,
   quietSince,

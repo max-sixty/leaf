@@ -416,7 +416,7 @@
     "x-upgrade": false
   },
   "lf-diff": {
-    "description": "A unified diff rendered with per-file collapse, add/del tints, per-file +/− counts, and the words that moved marked on a deletion paired with the addition answering it. The body is data: the diff verbatim inside its <pre>, at column 0 (context lines keep their leading space), HTML-escaped — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt;, or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
+    "description": "A unified diff rendered by Pierre with native per-file collapse, full add/delete line backgrounds, brighter inline word changes, and per-file +/− counts. The indicator column is not drawn, so selecting a source line copies only its code. The body is data: the diff verbatim inside its <pre>, at column 0 (context lines keep their leading space), HTML-escaped — & as &amp;amp; first, then < and > as &amp;lt; and &amp;gt;, or a diff whose lines carry entity text (&amp;amp; in source, say) is silently altered before rendering. Comments anchor to the required id. Takes no language: each file's own path is read for one ($languages), so keep the `diff --git` or ---/+++ headers rather than pasting bare hunks, and a path naming no language leaves that file plain.",
     "type": "object",
     "properties": {
       "id": {
@@ -431,7 +431,7 @@
     "x-content": "data",
     "x-upgrade": true,
     "x-shadow": true,
-    "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,3 +1,3 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
+    "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
   },
   "lf-tree": {
     "description": "A file tree from an indent-notation body: one node per line, children indented deeper, a trailing / marking a directory, trailing +N/-N tokens rendering as change badges. Body is data — text inside its <pre>, HTML-escaped (& first, then < and >).",

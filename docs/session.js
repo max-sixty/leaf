@@ -193,6 +193,9 @@ const state = () => ({
   // can tell whether the stream is telling it something it already holds. The log is
   // the whole of what moves here, so its length is the reading.
   reading: String(events.length),
+  // When this answer was taken, which orders answers that cross. None cross here —
+  // the store answers in the tab, in turn — so the clock is only the honest value.
+  taken: Date.now() / 1000,
 });
 
 const json = (body, status = 200) =>

@@ -44,6 +44,11 @@ from leaf import validation as validation_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
+# The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
+# sit one skill directory below it. Both are wanted often enough to be worth naming, and
+# spelled by hand the two are one plausible typo apart — a glob a level short matches
+# nothing and reports nothing.
+SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 
 PROBE_BOOTSTRAP = """\

@@ -10,6 +10,18 @@
 # code: 24 of the 41 coloured spans on pr-walkthrough. The rest sweep the document because
 # the one root on the page holds none of what they ask about — no .lf-ui, no declared
 # label, nothing past the column — which is a fact about today's widget, not about them.
+#
+# A probe that needs the page's own reading of something imports it from
+# /runtime/widget-api.js, which is the boundary a behavior module is held to and the one
+# this gate is held to for the same reason. What the entry module happens to hold is the
+# runtime's own composition, and the runtime is mid-way through moving those helpers out to
+# their owners: a probe naming the entry module asserts that composition on every page it
+# reads, so a split that changed no behaviour took quoted() out from under eight probes at
+# once and reddened eleven tests with `leaf.quoted is not a function`. The boundary names
+# capabilities, and a capability that leaves it is a decision somebody made rather than a
+# file a function moved between. The entry module's own path is not spelled anywhere in
+# this file, comments included, because the test that holds this is a text reading and
+# cannot tell a comment from a payload.
 
 RENDER_VIEWPORT = {"width": 1200, "height": 900}
 

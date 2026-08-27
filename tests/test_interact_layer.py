@@ -13,6 +13,7 @@ from interact_support import (
     PAGE,
     PLUGIN_ROOT,
     ROOT,
+    SKILL_ROOT,
     add_test_widget,
     case_alias,
     check,
@@ -175,7 +176,7 @@ def test_the_skill_routes_every_reference_it_ships():
     The set comes from the directory rather than a list here, because a list is the
     second copy: adding a reference and forgetting to route it would leave it green.
     """
-    root = PLUGIN_ROOT / "skills" / "leaf"
+    root = SKILL_ROOT
     skill = (root / "SKILL.md").read_text()
     references = sorted((root / "references").rglob("*.md"))
 
@@ -580,13 +581,22 @@ def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
 
 
 def test_behavior_modules_use_the_widget_api_boundary():
-    modules = [
-        *(PLUGIN_ROOT / "assets" / "widgets").glob("*.js"),
-        *(PLUGIN_ROOT / "packages").glob("*/widgets/*.js"),
-        *(ROOT / "examples" / "packages").glob("*/widgets/*.js"),
-    ]
-    assert modules
-    for module in modules:
+    """Every module the layer can compose, asked per root rather than in one heap: the
+    kernel's, the bundled package's, and the corpus's own. `PLUGIN_ROOT` is the payload
+    (`plugins/leaf`) and the six parts sit a skill directory below it, so the first two
+    globs were spelled a level short and matched nothing at all. The heap was non-empty —
+    the corpus supplies six modules — so `assert modules` held while every module the
+    payload ships went unread: the kernel's one and the bundled package's thirteen. That
+    is the shape a population assertion is written to catch, and the reason each root now
+    answers for itself rather than being counted into one heap."""
+    roots = {
+        "kernel": [*(SKILL_ROOT / "assets" / "widgets").glob("*.js")],
+        "packages": [*(SKILL_ROOT / "packages").glob("*/widgets/*.js")],
+        "corpus": [*(ROOT / "examples" / "packages").glob("*/widgets/*.js")],
+    }
+    empty = sorted(name for name, found in roots.items() if not found)
+    assert not empty, f"no behavior modules were read under: {empty}"
+    for module in [module for found in roots.values() for module in found]:
         source = module.read_text()
         specifiers = [
             match[1]
@@ -605,6 +615,44 @@ def test_behavior_modules_use_the_widget_api_boundary():
         assert private_imports == [], (
             f"{module} imports private runtime owners: {private_imports}"
         )
+
+
+PROBE_BOUNDARY = "/runtime/widget-api.js"
+
+
+def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
+    """A probe that needs the page's own reading of a box, a passage or a settlement asks
+    the same helper surface a behavior module asks, and spelling that reach as the entry
+    module asserts something else besides: which file the runtime currently keeps the
+    helper in. The runtime is moving those helpers out to their owners a domain at a time,
+    so the second assertion breaks for a commit that changed no behaviour — `Split widget
+    element runtime` moved `quoted` to `runtime/widget-elements.js` and eleven browser
+    tests failed on `leaf.quoted is not a function`.
+
+    The reading is the module's text and the guarantee is the narrow one text can carry:
+    a module that reaches the boundary does not name the entry module's path. It does not
+    prove that the boundary still exports what a probe goes on to call, and no file-side
+    reading here will. The probes are JavaScript inside Python strings, and every reading
+    of that short of a real JavaScript parser is a partial one — it reports clean for the
+    spellings it was not written for, so it answers the same way whether the probes are
+    right or merely unread, which is the failure a guard exists to remove rather than to
+    reproduce. The render suite proves that half by running them, which is how the failure
+    above surfaced in the first place.
+
+    Prose in a probe module therefore says "the entry module" rather than spelling its
+    path, because a text reading cannot tell a comment from a payload."""
+    probes = {
+        module.name: source
+        for module in sorted((SKILL_ROOT / "scripts" / "leaf").glob("*.py"))
+        if PROBE_BOUNDARY in (source := module.read_text())
+    }
+    assert probes, f"no module under scripts/leaf reaches {PROBE_BOUNDARY}"
+    named = sorted(name for name, source in probes.items() if "/leaf.js" in source)
+    assert not named, (
+        f"render-gate probes import past the widget API boundary: {named} name the "
+        f"entry module, and the helpers a probe reaches for are published by "
+        f"{PROBE_BOUNDARY}"
+    )
 
 
 def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):

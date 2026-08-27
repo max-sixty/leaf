@@ -421,14 +421,19 @@ def wait(dir: str | None) -> None:
 
 
 @cli.command(
-    short_help="Acknowledge one complete, untruncated wait batch.",
+    short_help="Acknowledge one batch, then wait for the next.",
     help=ACK_BATCH_INSTRUCTION,
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("seq", type=click.IntRange(min=1), metavar="SEQ")
 def ack(dir: str, seq: int) -> None:
-    """Acknowledge one complete, untruncated wait batch."""
-    cmd_ack(resolve_dir(dir), seq)
+    """Acknowledge one complete batch and wait for the next one."""
+    page_dir = resolve_dir(dir)
+    cmd_ack(page_dir, seq)
+    # Ack already succeeded, so ignore the following wait's delivery/end code.
+    # The delivering wait established ownership; re-arm observes a successor
+    # instead of reclaiming the page.
+    cmd_wait(page_dir, claim_named=False)
 
 
 @cli.command(short_help="Open an agent thread — on a passage, or on the page whole.")

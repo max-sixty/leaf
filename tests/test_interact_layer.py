@@ -43,7 +43,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  ack         Acknowledge one complete, untruncated wait batch.
+  ack         Acknowledge one batch, then wait for the next.
   comment     Open an agent thread — on a passage, or on the page whole.
   data        Set or clear page-bound external data.
   edit        Edit one of this agent session's messages.

@@ -200,7 +200,7 @@ class Watch:
             self.lease = None
 
 
-def cmd_wait(page_dir: Path | None = None) -> int:
+def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     """Hold until a user speaks or a worker reports, and deliver what was said.
 
     One watcher covers the session. The watch set is every page the session
@@ -224,10 +224,14 @@ def cmd_wait(page_dir: Path | None = None) -> int:
     the URL from the turn that handed it over, so the report comes from them;
     references/serving-pages.md's "Unreachable URLs and `--host`" carries the
     recourse."""
-    if page_dir is not None:
+    if page_dir is not None and claim_named:
         claim_page(page_dir)
     identity = host_identity()
-    watch = Watch(identity, named=page_dir)
+    # A host re-arm resumes its session-wide watch. The page stays named only
+    # for a public wait that claims it, or for the bare shell whose named page
+    # is its whole watch set.
+    named = page_dir if claim_named or identity is None else None
+    watch = Watch(identity, named=named)
     if not watch.acquire():
         target = "this session" if identity else str(page_dir)
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)

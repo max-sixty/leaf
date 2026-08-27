@@ -61,12 +61,14 @@ page only to pick up a page this session did not serve; `leaf wait <page>` claim
 it.
 
 - **Claude Code:** start `leaf wait` as a background task and end the turn. Its
-  completion becomes host input. Start a fresh background wait after each batch.
+  completion becomes host input. After each batch, start `leaf ack` as the next
+  background task; it acknowledges that batch and waits for another.
 - **Codex:** send the URL in an intermediate update, start `leaf wait` in unified
   exec, retain that exact session id, and keep the turn active. Poll the same
-  session with empty `write_stdin` calls and long yields. Never detach the wait
-  or end the turn expecting completion to start another turn. Start a fresh wait
-  after each batch.
+  session with empty `write_stdin` calls and long yields. After each batch, run
+  `leaf ack` in unified exec and retain its session id in the same way. Never
+  detach either command or end the turn expecting completion to start another
+  turn.
 
 An optional Codex watcher requires the user's explicit authorization because it
 creates a visible task. Its separate route is in the main skill.
@@ -101,16 +103,16 @@ consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the
 batch's first line names. If output is lost, follow the same rule. A scalar cursor
 cannot represent a missing event in the middle. Acknowledgement is monotonic and
 idempotent; an event posted between wait and ack has a higher sequence and stays
-pending. Until ack, wait repeats the batch. `leaf events` reads the full log
-without acking it.
+pending. Ack then waits in the same process. Until ack, wait repeats the batch.
+`leaf events` reads the full log without acking it.
 
 Treat a page-and-sequence pair already handled in this task as a retry, even if a
 later delivery also includes newer events.
 
 ## Process every event
 
-After acknowledging a direct batch, set the page `working` and address every
-event the wait printed:
+Start `leaf ack` for a direct batch, set the page `working`, and address every
+event the wait printed while ack waits for the next batch:
 
 - **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
   it in the next version, then resolve it. If the revision depends on the reader,

@@ -1002,6 +1002,78 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 4}
 
 
+def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, spawn):
+    serving(page_dir, 1)
+    service_model.claim_page(page_dir)
+    session_model.cmd_status(page_dir, "working", "answering the first comment")
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
+    )
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    acknowledging = spawn(
+        [launcher, "ack", str(page_dir), "1"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=os.environ,
+    )
+    lease_path = service_model.waiter_lease_path(
+        page_dir, service_model.host_identity()
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not service_model.lock_is_held(lease_path):
+        if acknowledging.poll() is not None:
+            break
+        time.sleep(0.05)
+
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.lock_is_held(lease_path), (
+        "acknowledgement returned without holding the next wait"
+    )
+    status_before_delivery = (page_dir / "status.json").read_bytes()
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
+    )
+    out, err = acknowledging.communicate(timeout=10)
+
+    assert acknowledging.returncode == 0, f"{out}{err}"
+    header, event = [json.loads(line) for line in out.strip().splitlines()]
+    assert header == {"page": str(page_dir), "threads": []}
+    assert (event["id"], event["seq"], event["text"]) == ("c2", 2, "two")
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert (page_dir / "status.json").read_bytes() == status_before_delivery
+
+
+def test_ack_success_outlives_a_refused_rearm(page_dir):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    identity = service_model.host_identity()
+    lease = service_model.take_waiter_lease(
+        service_model.waiter_lease_path(page_dir, identity)
+    )
+    assert lease
+    with lease:
+        result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
+
+    assert result.exit_code == 0, result.output
+    assert "another `leaf wait` is already active" in result.output
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+
+
+def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    record_claim(page_dir, id="successor", pid=os.getpid())
+
+    result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
+
+    assert result.exit_code == 0, result.output
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.page_claim(page_dir)["id"] == "successor"
+
+
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "working", "running the browser suite")

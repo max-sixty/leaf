@@ -28,7 +28,8 @@ ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After the complete batch reaches its next durable "
     "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
-    "batch's first line names."
+    "batch's first line names. Ack advances the cursor, then waits for the next batch "
+    "while the page remains live."
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"

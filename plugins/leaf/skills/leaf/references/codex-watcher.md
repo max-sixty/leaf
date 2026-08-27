@@ -29,9 +29,11 @@ page path, and resolved Leaf launcher. Its job is:
    lost or truncated, acknowledge nothing and rerun `leaf wait <page>` with
    enough output capacity. The later batch may also contain newer events because the
    cursor has not moved.
-4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>`, then start
-   the next wait. Exit when wait returns 2 because the page is idle. The watcher
-   does not author, reply, resolve, stamp, change status, or handle an event itself.
+4. After the host accepts the follow-up, run `leaf ack <page> <highest-seq>` in
+   unified exec. Retain and poll that command's session id: after advancing the
+   cursor, ack stays active as the next wait. Exit when it reports that the page is
+   idle. The watcher does not author, reply, resolve, stamp, change status, or
+   handle an event itself.
 
 Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
 that `leaf page state <page>` reports `listening: true` before ending the page task's

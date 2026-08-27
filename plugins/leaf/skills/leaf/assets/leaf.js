@@ -873,16 +873,12 @@ const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");
 bannerStatus.append(dot, statusText);
 const bannerActions = el("div", "lf-banner-actions");
-// The controls the banner's news arrives as, each present only while it has
-// something to say. Room a control has once taken is room it keeps for the rest of the
-// page's life: before it first appears there is nothing to hold, so a page that never
-// falls behind pays nothing for the chip, and once one has stood somewhere the others
-// can't close ranks over it — a second tab deciding the last pending suggestion took the
-// ✓ Accept all away and slid the New-version chip 148px right, under whoever was
-// reaching for it. Reserving from the start instead would hold room on every row for news
-// that page will never get, which shows as a gap the moment one of them is there and its
-// neighbour isn't; reserving nothing is the movement. This spends only where the
-// alternative is a control moving, and only on the pages that got the news.
+// The controls the banner's news arrives as, each present only while it has something to
+// say. Room a control has once taken is room it keeps for the rest of the page's life. A
+// live root pays nothing for news it may never get. A pinned version is different:
+// falling behind is part of its contract, so it reserves the future chip before
+// publication can move Comments or approval under a reaching pointer. Once any news has
+// stood, the rest of the row cannot close ranks over its place when it goes quiet again.
 //
 // One setter stating the whole outcome, per showComposer and showFab, so no caller has
 // to know which of the two ways of being absent this control is currently in.
@@ -891,11 +887,16 @@ const showNews = (control, on) => {
   control.style.display = on || control.dataset.lfStood ? "" : "none";
   control.style.visibility = on ? "" : "hidden";
 };
-const latestChip = el("button", "lf-ui lf-btn lf-latest-chip", "");
+const latestChip = el(
+  "button",
+  "lf-ui lf-btn lf-latest-chip",
+  "New page available → open v999",
+);
 // The keyboard reaches this through the chooser rather than past it: v opens the menu, and
 // the letter again takes the current page. The chip names that motion, spelled from the
 // two rows that make it rather than typed out beside them.
 latestChip.title = "Open the current page";
+if (!LIVE_ROOT) latestChip.dataset.lfStood = "1";
 // What the page is still waiting on the reader for, and the way to the next one — the
 // same list n/p step and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
@@ -1442,6 +1443,16 @@ document.body.append(chromeRoot);
 // they write can move them — a page with a thousand open threads, or a machine with
 // a thousand live pages, is not one anyone hands a user.
 if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+// News keeps one wide-screen address while it changes words, but unlike the ordinary
+// controls it is the row's pressure release when space runs out. Use the measured widest
+// label as its flex basis rather than its minimum, so it stays put with room and yields
+// before any neighbour when the spacer is gone.
+reserve(latestChip, [
+  "New page available → open v999",
+  "Latest edit couldn't be shown",
+]);
+latestChip.style.width = latestChip.style.minWidth;
+latestChip.style.minWidth = "0";
 const draftVersionLabel = "Draft after v999 ▾";
 reserve(versionBtn, [
   versionLabel(false),

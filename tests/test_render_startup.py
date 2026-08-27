@@ -371,13 +371,16 @@ main, main * {
         page.close()
 
 
-def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, serve):
-    """Restored runtime chrome may not publish authored asks as current log state.
+def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
+    browser, serve
+):
+    """Restored chrome may neither publish stale asks nor replace a current choice.
 
     The tray was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Once replay presents the page, the restored tray paints the accepted state directly.
+    Opening Comments during that interval replaces the remembered tray, and replay leaves
+    the current workspace standing while it paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
     events_model.append_event(
@@ -421,8 +424,9 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
-        expect(page.locator(".lf-asks-panel")).to_be_visible()
+        expect(page.locator(".lf-asks")).to_be_hidden()
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(page.locator(".lf-panel")).to_be_visible()
         expect(page.locator("button.lf-asks-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []

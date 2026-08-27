@@ -192,7 +192,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """A page that only informs starts its action sequence with Comments.
+    """A page that only informs offers Comments without a terminal action.
 
     The slot the approve button takes on a sign-off page stays empty here rather than
     picking up a neutral control, which is the fact a reader can see: an informational
@@ -4425,9 +4425,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         page_at_rest(page)
 
         for scope, keys in RING_SCOPES:
-            # Three rungs, because a scope can be three deep: a tray or a menu over the
-            # panel over the page. The last one closes the panel, which is reopened
-            # below, so every scope starts from the same page.
+            # Three rungs, because a scope can be three deep: a menu or narrowing inside
+            # the panel, then the panel, then the page. The panel is reopened below, so
+            # every scope starts from the same page.
             for _ in range(3):
                 page.keyboard.press("Escape")
             # A draft editor is conditional chrome: Tab can stand on it only after its

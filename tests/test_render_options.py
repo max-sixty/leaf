@@ -583,6 +583,12 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     page.locator("#opt-bearer .lf-pick").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
+    # The group paints a pick from the outbox and sends it after, so the card wearing
+    # the mark says nothing about the log holding it — and the stamp below is a
+    # file-side read of that log. Without the trip it reads the cleared pick two
+    # presses back, which rests on the group rather than on any option, and refuses
+    # the reword of a card the reader never picked.
+    round_trip(page)
 
     # And the pair the quotable half always comes with. This mark is the one element on
     # any page wearing the chrome class and the page-speaking marker at once, so it is the

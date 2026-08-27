@@ -213,9 +213,9 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     second_validation = threading.Event()
     validation_calls = 0
 
-    def expose_validation_gap(event, events):
+    def expose_validation_gap(event, events, within):
         nonlocal validation_calls
-        error = real_undo_error(event, events)
+        error = real_undo_error(event, events, within)
         with validation_lock:
             validation_calls += 1
             call = validation_calls

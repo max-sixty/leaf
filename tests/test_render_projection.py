@@ -1738,7 +1738,8 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     failing."""
     # For the page directory and its vendored layer; this test serves it itself.
     serve(drifting_widget(tmp_path, monkeypatch))
-    landed = []
+    landed = threading.Event()
+    landing_page = []
     settle = {
         "kind": "action",
         "author": "user",
@@ -1759,13 +1760,18 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         in it and always has a caught-up stamp to wait for."""
 
         def do_GET(self):
+            state_fetch = self.path.startswith("/api/state")
+            page_fetch = self.headers.get("Referer") and state_fetch
+            # The response bytes can reach the browser before this handler resumes.
+            # Hold the gate's independent state read until the append below has
+            # finished, rather than letting that socket race the line after send.
+            if state_fetch and not page_fetch:
+                assert landed.wait(5), "the browser never finished its first state read"
             super().do_GET()
-            page_fetch = self.headers.get("Referer") and self.path.startswith(
-                "/api/state"
-            )
-            if page_fetch and not landed:
-                landed.append(self.headers["Referer"])
+            if page_fetch and not landed.is_set():
+                landing_page.append(self.headers["Referer"])
                 events_model.append_event(serve.page_dir, settle)
+                landed.set()
 
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), TheLogArrivesLate)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -1774,9 +1780,10 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         assert rendering_model.render_version(browser, late) == []
     finally:
         httpd.shutdown()
-    assert landed and "/versions/v1.html" in landed[0], (
+    assert landed.is_set() and "/versions/v1.html" in landing_page[0], (
         "the action went in behind the gate's own reading rather than behind the "
-        f"page's first poll, so the window this rests on never opened: {landed}"
+        "page's first poll, so the window this rests on never opened: "
+        f"{landing_page}"
     )
 
 

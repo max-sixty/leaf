@@ -665,7 +665,37 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         None,
         awaits=True,
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(
+        browser,
+        url,
+        init_script="""(() => {
+          const counts = window.__replyListeners = {drafts: 0, flights: 0};
+          const add = Document.prototype.addEventListener;
+          Document.prototype.addEventListener = function(type, ...args) {
+            if (this === document && type === "lf-drafts") counts.drafts += 1;
+            if (this === document && type === "lf-reply-flight") counts.flights += 1;
+            return add.call(this, type, ...args);
+          };
+          const define = customElements.define.bind(customElements);
+          customElements.define = (name, ctor, options) => {
+            if (name === "lf-options") {
+              const connected = ctor.prototype.connectedCallback;
+              ctor.prototype.connectedCallback = function() {
+                if (this.id === "backend") {
+                  const message = this.closest(".lf-msg");
+                  window.__backendContext ??= {
+                    message: Boolean(message),
+                    thread: this.closest(".lf-thread")?.dataset.id ?? null,
+                    saidAt: message?.querySelector("time")?.dateTime ?? null,
+                  };
+                }
+                return connected?.call(this);
+              };
+            }
+            return define(name, ctor, options);
+          };
+        })()""",
+    )
     page.locator(".lf-comments").click()
     panel_settled(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
@@ -676,10 +706,18 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(0)
 
+    listeners = page.evaluate("() => ({...window.__replyListeners})")
+    page.locator(".lf-find-box").evaluate(
+        "box => { for (let i = 0; i < 3; i++) box.dispatchEvent(new Event('input')); }"
+    )
+    assert page.evaluate("() => ({...window.__replyListeners})") == listeners, (
+        "reconciling a hidden thread registered another reply-box listener"
+    )
+
     # The completed thread is absent under the narrowing. A later structured ask must
     # still be projected before the filter decides whether to admit that thread, or the
     # question can never render itself into the list that would discover it.
-    conversation_model.cmd_reply(
+    widget_reply = conversation_model.cmd_reply(
         serve.page_dir,
         answered,
         "Choose the backend here.",
@@ -691,6 +729,11 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (2)")
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
+    assert page.evaluate("() => window.__backendContext") == {
+        "message": True,
+        "thread": answered,
+        "saidAt": widget_reply["ts"],
+    }
 
     page.locator("#backend-sqlite").click()
     round_trip(page)

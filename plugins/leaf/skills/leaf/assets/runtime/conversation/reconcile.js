@@ -105,6 +105,7 @@ export function createConversation(dependencies) {
   const {
     anchorLabel,
     loadMarked,
+    msgBody,
     msgNode,
     renderMessageMarkdown,
     syncEdited,
@@ -820,28 +821,44 @@ export function createConversation(dependencies) {
     const grow =
       panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
 
-    // A structured reply asks through its x-awaits widgets. Build every open candidate
+    // A structured reply asks through its x-awaits widgets. Project the last reply bodies
     // before applying the panel's narrowing, so a new question cannot be excluded before
-    // the projection has had a chance to see it. Only candidates not already in the list
-    // are connected in this transient stage; connection lets the shared action fold find
-    // their widget ids and tell an open request from one the reader already answered. The
-    // stage is removed synchronously, before a frame can expose it, and the selected nodes
-    // below are adopted from it into their lasting positions.
-    const openNodes = new Map(open.map((t) => [t, threadNode(t, grow)]));
+    // its markup has had a chance to admit the thread. Stage only the cached bodies, never
+    // complete hidden thread cards: building a card wires its reply box to document-level
+    // draft and flight listeners, and a filtered card has no node the next reconcile can
+    // reuse. Each body keeps skeletal thread/message ancestry while connected: widget
+    // setup may read its message timestamp or card geometry, and upgrades only once before
+    // the cache moves it into the lasting card. Connection lets the shared action fold
+    // find widget ids and distinguish an open request from one the reader already answered.
+    // The stage leaves synchronously, before a frame can expose it.
+    const markupReplies = [];
+    for (const t of open) {
+      const last = spoken(t).at(-1);
+      if (last?.kind !== "reply") continue;
+      if (!last.markup) {
+        markupAwaiting.set(last.id, null);
+        continue;
+      }
+      markupReplies.push({ reply: last, thread: t });
+    }
+    const bodies = markupReplies.map(({ reply }) => msgBody(reply));
     const stage = el("div", "lf-thread-stage");
-    for (const node of openNodes.values()) if (!node.isConnected) stage.append(node);
+    bodies.forEach((body, index) => {
+      if (body.isConnected) return;
+      const { reply, thread } = markupReplies[index];
+      const skeleton = el("div", "lf-thread");
+      skeleton.dataset.id = thread.root.id;
+      skeleton.append(msgNode(reply));
+      stage.append(skeleton);
+    });
     if (stage.childElementCount) {
       threadsBox.append(stage);
       captureAuthoredFacets(stage);
     }
-    for (const t of open) {
-      const last = spoken(t).at(-1);
-      if (last?.kind !== "reply") continue;
-      const body = openNodes
-        .get(t)
-        .querySelector(`:scope > .lf-msg[data-mid="${last.id}"] > .lf-msg-body`);
-      markupAwaiting.set(last.id, threadMarkupAwaiting(body));
-    }
+    const readings = threadMarkupAwaiting(bodies);
+    markupReplies.forEach(({ reply }, index) =>
+      markupAwaiting.set(reply.id, readings[index]),
+    );
     stage.remove();
     // Where the reader's own narrowing applies, and the only place it does: the page's
     // marks, the inline conversation seats and the banner's count are readings of the log
@@ -868,7 +885,7 @@ export function createConversation(dependencies) {
     for (const t of shown) {
       // A resolved thread is either still giving its room back in place, or gone from this
       // list entirely and rebuilt under the disclosure below.
-      const node = t.resolved ? foldOut(t) : openNodes.get(t);
+      const node = t.resolved ? foldOut(t) : threadNode(t, grow);
       if (!node) continue;
       const here = group.get(t);
       if (here.key !== standing) {

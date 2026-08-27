@@ -192,6 +192,11 @@ export function createThreadModel(dependencies) {
   // go on" and takes the thread out of the waiting list without a second event. Take the
   // ok back and the wait comes back, this being a reading of the log rather than a state
   // anything wrote; core reads the flag and never the token's name.
+  //
+  // `markupAwaiting` is the conversation reconciler's reading of those reply bodies. It
+  // populates the map for every open last reply immediately before filtering or painting
+  // the list; public callers use `awaitsReader` only after that render stage. Calling this
+  // on a newly built fold before `renderThreads` would not yet have the structural half.
   const awaitsReader = (t) => {
     if (t.resolved) return false;
     const last = spoken(t).at(-1);

@@ -29,6 +29,7 @@ from .files import (
     version_num,
     write_json,
 )
+from .passages import published_enclosing
 from .registry import (
     RegistryError,
     layer_generation,
@@ -640,7 +641,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.event_rejection(
                         event, f"unknown parent {event['parent']!r}"
                     )
-                if kind == "undo" and (error := undo_error(event, events)):
+                if kind == "undo" and (
+                    error := undo_error(
+                        event, events, published_enclosing(self.page_dir, events)
+                    )
+                ):
                     return self.event_rejection(event, error)
                 event["author"] = "page" if kind == "error" else "user"
                 append_event(page, event)

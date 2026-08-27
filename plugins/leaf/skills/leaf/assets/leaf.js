@@ -1948,6 +1948,7 @@ const { landTyping, pageSelection, selectionAnchor, snapSelection } =
     anchoringIsReady: () => anchoringReady,
     blockOf: (...args) => blockOf(...args),
     closestAcross: (...args) => closestAcross(...args),
+    collapseWhitespace: (text) => text.replace(COLLAPSE, " "),
     cut: (...args) => cut(...args),
     datumSelector: () => DATUM,
     elementOver: (...args) => elementOver(...args),

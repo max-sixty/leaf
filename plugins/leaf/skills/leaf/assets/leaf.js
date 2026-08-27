@@ -1440,33 +1440,45 @@ chromeRoot.append(
   inspectEl,
 );
 document.body.append(chromeRoot);
-// The controls that rewrite their own words hold the widest of them now, measured in
-// the face the banner just rendered them in (see the stylesheet's banner comment).
-// The counters hold the widest they reach anywhere below a thousand, so no count
-// they write can move them — a page with a thousand open threads, or a machine with
-// a thousand live pages, is not one anyone hands a user.
-if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-// News keeps one wide-screen address while it changes words, but unlike the ordinary
-// controls it is the row's pressure release when space runs out. Use the measured widest
-// label as its flex basis rather than its minimum, so it stays put with room and yields
-// before any neighbour when the spacer is gone.
-reserve(latestChip, [
-  "New page available → open v999",
-  "Latest edit couldn't be shown",
-]);
-latestChip.style.width = latestChip.style.minWidth;
-latestChip.style.minWidth = "0";
 const draftVersionLabel = "Draft after v999 ▾";
-reserve(versionBtn, [
-  versionLabel(false),
-  versionLabel(true),
-  draftVersionLabel,
-  `Δ ${draftVersionLabel}`,
-]);
-reserve(toggleBtn, ["Comments", "Comments (999)"]);
-reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-reserve(asksBtn, ["Asks (999)"]);
-reserve(othersBtn, ["All leaves (999)"]);
+// The controls that rewrite their own words hold the widest of them, measured in the
+// face and padding the banner is using now (see the stylesheet's banner comment). The
+// covering shelf deliberately spends less horizontal padding than the wide row, so its
+// media-query transition has to renew these measurements in both directions; an inline
+// minimum measured once on a desk would otherwise make that responsive padding inert.
+// The counters hold the widest they reach anywhere below a thousand, so no count they
+// write can move them — a page with a thousand open threads, or a machine with a thousand
+// live pages, is not one anyone hands a user.
+function reserveBannerControls() {
+  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  // News keeps one wide-screen address while it changes words, but unlike the ordinary
+  // controls it is the row's pressure release when a non-covering window runs out of room.
+  // Use the measured widest label as its flex basis rather than its minimum, so it stays
+  // put with room and yields before any neighbour when the spacer is gone. The covering
+  // rule fully removes an unseen slot, including from measurement, so lend it the shown
+  // class for this synchronous, invisible reading and put its actual state straight back.
+  const latestWasShown = latestChip.classList.contains("lf-news-shown");
+  latestChip.classList.add("lf-news-shown");
+  reserve(latestChip, [
+    "New page available → open v999",
+    "Latest edit couldn't be shown",
+  ]);
+  latestChip.classList.toggle("lf-news-shown", latestWasShown);
+  latestChip.style.width = latestChip.style.minWidth;
+  latestChip.style.minWidth = "0";
+  reserve(versionBtn, [
+    versionLabel(false),
+    versionLabel(true),
+    draftVersionLabel,
+    `Δ ${draftVersionLabel}`,
+  ]);
+  reserve(toggleBtn, ["Comments", "Comments (999)"]);
+  reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
+  reserve(asksBtn, ["Asks (999)"]);
+  reserve(othersBtn, ["All leaves (999)"]);
+}
+reserveBannerControls();
+commentsEdge.over.addEventListener("change", reserveBannerControls);
 // ---------- state ----------
 
 // Until the first state answer, [] means "not read", not "no comments". Keep that

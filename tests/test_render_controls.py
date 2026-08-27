@@ -192,7 +192,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """A page that only informs offers Comments without a terminal action.
+    """A page that only informs leads with Comments and offers no terminal action.
 
     The slot the approve button takes on a sign-off page stays empty here rather than
     picking up a neutral control, which is the fact a reader can see: an informational
@@ -202,6 +202,9 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # The banner is built in one pass, so a control standing in it is what makes the
     # absence beside it worth reading rather than a row that never rendered.
     expect(page.locator(".lf-comments")).to_be_visible()
+    expect(page.locator(".lf-banner-actions > *").first).to_have_class(
+        re.compile(r"\blf-comments\b")
+    )
     assert page.locator(".lf-signoff").count() == 0
     # Approval takes the slot beside Comments where a page asks for one, so the absence
     # above is the whole fact: the row is a control short rather than a control longer.
@@ -225,6 +228,24 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
     )
     url = serve(html)
     page, errors = open_page(browser, url)
+
+    button_widths = (
+        "() => ['.lf-comments', '.lf-signoff'].map(selector => "
+        "document.querySelector(selector).offsetWidth)"
+    )
+    resized(page, 1200, 844)
+    wide_widths = page.evaluate(button_widths)
+    resized(page, 320, 844)
+    phone_widths = page.evaluate(button_widths)
+    assert all(phone < wide for phone, wide in zip(phone_widths, wide_widths)), (
+        "the covering shelf's tighter button padding was masked by wide reservations: "
+        f"wide={wide_widths}, phone={phone_widths}"
+    )
+    resized(page, 1200, 844)
+    assert page.evaluate(button_widths) == wide_widths, (
+        "button reservations did not return to their wide measurements after the "
+        "covering shelf was left"
+    )
 
     def assert_primary_reach(width):
         resized(page, width, 844)
@@ -303,7 +324,13 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
     (serve.page_dir / "versions" / "v2.html").write_text(html)
     stamp_version_file(serve.page_dir, 2, "two")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
-    assert page.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") > 0
+    news_size = page.locator(".lf-latest-chip").evaluate(
+        "el => ({shown: el.offsetWidth, needed: el.scrollWidth, className: el.className, "
+        "        flex: getComputedStyle(el).flex, basis: el.style.width})"
+    )
+    assert news_size["shown"] >= news_size["needed"], (
+        f"the shown phone news address clipped its words: {news_size}"
+    )
     assert errors == []
     page.close()
 

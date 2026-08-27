@@ -1275,8 +1275,10 @@ ${MARK_RULES}
       .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 8px; }
       /* A pinned wide row reserves its future Latest address so publication cannot move
          controls. The phone shelf starts at the primary controls, so an unseen slot there
-         is only blank scrolling; collapse it until the news itself is present. */
+         is only blank scrolling; collapse it until the news itself is present. Once shown,
+         keep the whole address readable and let the shelf do the scrolling it exists for. */
       .lf-latest-chip:not(.lf-news-shown) { display: none !important; }
+      .lf-latest-chip.lf-news-shown { flex: none; }
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.

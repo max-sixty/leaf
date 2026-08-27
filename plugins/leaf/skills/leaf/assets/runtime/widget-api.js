@@ -16,12 +16,14 @@ export {
   answeredContext,
   askSource,
   conversationBox,
+  conversationInput,
   dragging,
   inChrome,
   inUi,
   itemWord,
   keys,
   labelOf,
+  landInConversation,
   openAsks,
   paintKeys,
   quietSince,
@@ -41,7 +43,7 @@ export {
   uiInside,
   wrote,
 } from "../leaf.js";
-export { agentName } from "./context.js";
+export { agentName, revisionLabel } from "./context.js";
 export { watchData } from "./data.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {

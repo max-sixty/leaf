@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
@@ -33,58 +34,94 @@ from leaf import events as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
 from leaf import registry as registry_model
+from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import validation as validation_model
 
 
-def test_versions_publish_only_once_noted(page_dir):
-    assert live_versions(page_dir) == []
-    assert page_state(page_dir)["versions"] == []
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "first cut"],
+def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
+    source = page_dir / "index.html"
+    source.write_text(PAGE)
+
+    existing = revisioning_model.activate_source(page_dir, [])
+    assert existing.error is None and not existing.created and existing.revision == 1
+
+    changed = PAGE.replace("<title>t</title>", "<title>working</title>")
+    source.write_text(changed)
+    first = revisioning_model.activate_source(page_dir, [])
+    assert first.error is None and first.created and first.revision == 2
+    revision = files_model.revision_path(page_dir, 2)
+    assert revision.name == files_model.revision_name(2, changed.encode())
+    assert revision.read_text() == changed
+
+    unchanged = revisioning_model.activate_source(page_dir, [])
+    assert not unchanged.created and unchanged.error is None
+    assert unchanged.revision == 2 and files_model.list_revisions(page_dir) == [1, 2]
+
+    source.write_text(PAGE.replace("</section>", ""))
+    refused = revisioning_model.activate_source(page_dir, [])
+    assert refused.revision == 2 and not refused.created
+    assert refused.error and "issue" not in refused.error
+    assert files_model.list_revisions(page_dir) == [1, 2]
+    assert revision.read_text() == changed
+
+
+def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
+    source = page_dir / "index.html"
+    source.write_text(PAGE)
+    runner = CliRunner()
+
+    first = runner.invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "first cut"]
     )
-    assert result.exit_code == 0, result.output
-    assert live_versions(page_dir) == [1]
-    # The next version stays unpublished until its own note lands.
-    (page_dir / "versions" / "v2.html").write_text(PAGE)
-    assert live_versions(page_dir) == [1]
+    assert first.exit_code == 0, first.output
+    first_note = events_model.read_events(page_dir)[-1]
+    assert (first_note["version"], first_note["revision"]) == (1, 1)
+    assert (page_dir / "versions" / "v1.html").read_text() == PAGE
+
+    repeated = runner.invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "again"]
+    )
+    assert repeated.exit_code != 0
+    assert "already stamped as v1" in repeated.output
+
+    source.write_text(PAGE.replace("</section>", ""))
+    refused = runner.invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "broken"]
+    )
+    assert refused.exit_code != 0
+    assert files_model.list_revisions(page_dir) == [1]
+    assert not (page_dir / "versions" / "v2.html").exists()
+    assert len(events_model.read_events(page_dir)) == 1
+
+    changed = PAGE.replace("<title>t</title>", "<title>second</title>")
+    source.write_text(changed)
+    second = runner.invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "second cut"]
+    )
+    assert second.exit_code == 0, second.output
+    notes = [
+        event for event in events_model.read_events(page_dir) if event["kind"] == "note"
+    ]
+    assert [(event["version"], event["revision"]) for event in notes] == [
+        (1, 1),
+        (2, 2),
+    ]
+    assert (page_dir / "versions" / "v2.html").read_text() == changed
 
 
-def test_versions_run_in_number_order_past_v9(page_dir):
-    """Everything downstream reads "the latest version" off the end of this list —
-    what `version publish` exposes, what the server projects at the live root, what
-    `version check` diffs the new version with. Sorted as names, v10 would land
-    before v2 and every one of those would quietly answer with the wrong version."""
-    for n in range(2, 12):
-        (page_dir / "versions" / f"v{n}.html").write_text(PAGE)
-    assert files_model.list_versions(page_dir) == list(range(1, 12))
-    for n in range(1, 12):
-        result = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "version",
-                "publish",
-                str(page_dir),
-                "--version",
-                str(n),
-                "--text",
-                f"cut {n}",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-    assert live_versions(page_dir) == list(range(1, 12))
-
-
-def test_version_filenames_are_canonical(page_dir, server):
-    """Only an ASCII, unpadded file can identify a positive version."""
-    (page_dir / "versions" / "v01.html").write_text("<h1>shadow</h1>")
-    (page_dir / "versions" / "v1٢.html").write_text("<h1>Unicode alias</h1>")
-    (page_dir / "versions" / "v2.html").mkdir()
-    assert files_model.list_versions(page_dir) == [1]
-    assert check(page_dir, version=1).exit_code == 0
-    assert fetch(f"{server}/versions/v01.html")[0] == 404
+def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir):
+    kinds = registry_model.load_registry(page_dir)["$events"]["kinds"]
+    for kind in ("comment", "action", "report"):
+        required = kinds[kind]["record"]["required"]
+        assert "revision" in required and "version" not in required
+    for kind in ("note", "done"):
+        required = kinds[kind]["record"]["required"]
+        assert "revision" in required and "version" in required
+    result = CliRunner().invoke(cli_model.cli, ["version", "--help"])
+    assert result.exit_code == 0
+    assert "\n  stamp " in result.output and "\n  publish " not in result.output
 
 
 def test_choose_requires_an_id(page_dir):
@@ -184,11 +221,17 @@ def test_settling_a_decision_drops_no_ids(page_dir):
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
     )
-    assert checking_model.cmd_check(page_dir, 2) == 0
+    (page_dir / "index.html").write_bytes(
+        (page_dir / "versions" / "v2.html").read_bytes()
+    )
+    assert checking_model.cmd_check(page_dir) == 0
 
     # Deleting the alternatives instead is what check is there to stop.
     (page_dir / "versions" / "v2.html").write_text(PAGE)
-    assert checking_model.cmd_check(page_dir, 2) == 1
+    (page_dir / "index.html").write_bytes(
+        (page_dir / "versions" / "v2.html").read_bytes()
+    )
+    assert checking_model.cmd_check(page_dir) == 1
 
 
 def test_registry_examples_validate(page_dir):
@@ -250,13 +293,19 @@ def test_examples_pass_check(tmp_path, monkeypatch):
             cli_model.cli, ["page", "init", *selection_args, str(d)]
         )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
+        (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        activated = revisioning_model.activate_source(d, [])
+        assert activated.error is None
         # The example's companion log, where it ships one (examples/CLAUDE.md), so
         # the lint reads the page under the state its own log puts on it.
         seed = example.with_suffix(".jsonl")
         if seed.exists():
-            (d / "comments.jsonl").write_text(seed.read_text(encoding="utf-8"))
+            # Preview and the published site append this file verbatim. Do the
+            # same here: normalizing a stale event contract in the fixture would
+            # let the shipped demo fail while its corpus gate stayed green.
+            (d / "comments.jsonl").write_bytes(seed.read_bytes())
         data_seed = example.with_suffix(".data.json")
         if data_seed.exists():
             for name, value in json.loads(
@@ -464,6 +513,262 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["author"] == "claude"
     assert event["text"] == "See:"
     assert event["markup"].startswith("<lf-diagram")
+
+
+def test_a_version_response_cannot_take_an_agent_reply(page_dir):
+    version = page_dir / "versions" / "v1.html"
+    unchosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    version.write_text(unchosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Add the camera as the first job.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    follow_up = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": proposal["id"],
+            "text": "Include the mounting cost.",
+        },
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            follow_up["id"],
+            "--text",
+            "I will add it.",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "requires a page version and cannot take a reply" in result.output
+    assert "leaf comment" in result.output
+    assert [event["kind"] for event in events_model.read_events(page_dir)] == [
+        "note",
+        "comment",
+        "reply",
+    ]
+
+    unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unresolved.output
+    )
+
+    unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    (page_dir / "versions" / "v2.html").write_text(unrelated)
+    publish(page_dir, version=2)
+    still_unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert still_unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask"
+        in still_unresolved.output
+    )
+
+    v3 = unchosen.replace(
+        "</lf-options>",
+        '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+        1,
+    )
+    (page_dir / "versions" / "v3.html").write_text(v3)
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
+    chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
+    )
+    (page_dir / "versions" / "v1.html").write_text(chosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Also consider doing the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    (page_dir / "versions" / "v2.html").write_text(
+        chosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    )
+    publish(page_dir, version=2)
+    unrelated = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert unrelated.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unrelated.output
+    )
+
+    answered = chosen.replace(" chosen", "", 1).replace(
+        "</lf-options>",
+        '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+        1,
+    )
+    (page_dir / "versions" / "v3.html").write_text(answered)
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_a_version_response_can_settle_a_standing_ask(page_dir):
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(asking)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "None of these.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    (page_dir / "versions" / "v2.html").write_text(
+        asking.replace(
+            '<lf-options id="choice" choose>',
+            '<lf-options id="choice" choose settled>',
+        )
+    )
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_a_version_response_can_clear_a_pick_and_settle(page_dir):
+    chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
+    )
+    (page_dir / "versions" / "v1.html").write_text(chosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "None of these.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    settled = chosen.replace(" chosen", "", 1).replace(
+        '<lf-options id="choice" choose>',
+        '<lf-options id="choice" choose settled>',
+    )
+    (page_dir / "versions" / "v2.html").write_text(settled)
+    publish(page_dir, version=2)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+@pytest.mark.parametrize(
+    "pick_after_proposal",
+    [False, True],
+    ids=["pick-before-proposal", "pick-after-proposal"],
+)
+def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
+    page_dir, pick_after_proposal
+):
+    asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    (page_dir / "versions" / "v1.html").write_text(asking)
+    publish(page_dir)
+    pick = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "choice",
+        "action": "choose",
+        "detail": {"options": ["flag-first"]},
+    }
+    if not pick_after_proposal:
+        events_model.append_event(page_dir, pick)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Also consider doing the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    if pick_after_proposal:
+        events_model.append_event(page_dir, pick)
+
+    (page_dir / "versions" / "v2.html").write_text(
+        asking.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    )
+    publish(page_dir, version=2)
+    unresolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+
+    assert unresolved.exit_code != 0
+    assert (
+        "requires a page version that answers its originating Ask" in unresolved.output
+    )
+
+    (page_dir / "versions" / "v3.html").write_text(
+        asking.replace(
+            '<lf-options id="choice" choose>',
+            '<lf-options id="choice" choose restated>',
+        ).replace(
+            "</lf-options>",
+            '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+            1,
+        )
+    )
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
@@ -679,7 +984,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "kind": "comment",
             "id": "reader-thread",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What about the crawl?",
         },
     )
@@ -772,7 +1077,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "No recorded session owns this.",
         },
     )
@@ -798,7 +1103,7 @@ def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkey
             "author": "claude",
             "agent": "Indexer",
             "session": "worker-1",
-            "version": 1,
+            "revision": 1,
             "text": "The old layer can render this message.",
         },
     )
@@ -829,7 +1134,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
         data=json.dumps(
             {
                 "kind": "comment",
-                "version": 1,
+                "revision": 1,
                 "text": "hi",
                 "markup": '<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
             }
@@ -842,12 +1147,16 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 
 def test_export_prints_threads_and_versions(page_dir):
     # The heading is the page's title as a reader sees it, entities and all.
-    (page_dir / "versions" / "v1.html").write_text(
-        PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
+    titled = PAGE.replace(
+        "<title>t</title>", "<title>Cutoff &amp; backfill</title>"
+    ).replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
     )
+    (page_dir / "index.html").write_text(titled)
     CliRunner().invoke(
         cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "first cut"],
+        ["version", "stamp", str(page_dir), "--text", "first cut"],
     )
     events_model.append_event(
         page_dir,
@@ -887,9 +1196,20 @@ def test_export_prints_threads_and_versions(page_dir):
     events_model.append_event(
         page_dir,
         {
+            "kind": "comment",
+            "id": "c-visual",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "flow", "visual": "node:A"},
+            "text": "start here?",
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 2,
             "widget": "b",
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
@@ -939,6 +1259,7 @@ def test_export_prints_threads_and_versions(page_dir):
     # The widget rides its message into the transcript, indented under the words.
     assert "- **Claude**: reversibility\n  <lf-diagram" in result.output
     assert "> § flow" in result.output  # element-anchored comments keep their target
+    assert "> § flow · node:A" in result.output
     assert long_quote not in result.output, "the whole passage went into the transcript"
     head = next(
         ln for ln in result.output.splitlines() if ln.startswith("> “The batch")
@@ -997,13 +1318,13 @@ def test_comment_requires_the_registry_its_runtime_reads(page_dir):
 
 
 def test_note_refuses_a_version_that_fails_check(page_dir):
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("</section>", ""))
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "broken"],
+        ["version", "stamp", str(page_dir), "--text", "broken"],
     )
     assert result.exit_code != 0
-    assert "refusing to publish" in result.output
+    assert "refusing to stamp" in result.output
     assert live_versions(page_dir) == []
 
 
@@ -1054,6 +1375,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             cli_model.cli, ["page", "init", *selection_args, str(d)]
         )
         assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
+        (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
         # Published, because the door is only open on a page a reader could be
@@ -1062,10 +1384,8 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             cli_model.cli,
             [
                 "version",
-                "publish",
+                "stamp",
                 str(d),
-                "--version",
-                "1",
                 "--text",
                 "the page as it ships",
             ],
@@ -1120,13 +1440,13 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "token": "cut",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
     answered = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "token": "no"}
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "no"}
     )
     conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
     state = state_json(page_dir)

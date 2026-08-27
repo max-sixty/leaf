@@ -14,7 +14,7 @@ from leaf.events import (
     thread_roots,
     thread_structure,
 )
-from leaf.passages import EMPTY, collapse, enclosing_of, spoken
+from leaf.passages import EMPTY, collapse, enclosing_of, page_passages, spoken
 from leaf.registry import retirement_slots, state_specs
 from leaf.structure import _StructParser, parse_structure
 
@@ -55,7 +55,7 @@ def canonical_updates(
                     "detail": event["detail"],
                     "text": event["detail"][update_field] if update_field else None,
                     "ts": event["ts"],
-                    "version": event["version"],
+                    "revision": event["revision"],
                     "seq": event["seq"],
                     "agent": event.get("agent"),
                     "session": event.get("session"),
@@ -264,7 +264,7 @@ def state_projection(
     """Project both durable channels onto owner-unit-facet coordinates.
 
     `actions` holds the last surviving reader action per coordinate. `reports`
-    keeps every live report there because publishing retires all of them.
+    keeps every live report there because stamping retires all of them.
     `desired` gives a reader action precedence over provisional agent news on
     the same coordinate.
 
@@ -291,7 +291,7 @@ def state_projection(
             channel = "x-report"
         else:
             continue
-        if upto is not None and event["version"] > upto:
+        if upto is not None and event["revision"] > upto:
             continue
         rec = byid.get(event["widget"])
         if rec is None:
@@ -787,6 +787,20 @@ def page_asks(
     return page_ask_projection(
         parser, projection, byid, spk, registry, dropped, with_agent
     )[0]
+
+
+def page_awaiting_values(html, parser, projection, spk, registry: dict) -> dict:
+    """Each current page request's declaration-driven awaiting value."""
+    passages = page_passages(html, registry, decisions(projection.actions, registry))
+    return page_ask_projection(
+        parser,
+        projection,
+        parser.by_id,
+        spk,
+        registry,
+        set(passages.retired) | set(passages.gone),
+        set(),
+    )[1]
 
 
 def thread_ask_projection(

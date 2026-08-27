@@ -41,7 +41,9 @@ from render_support import (
     compare_with,
     composer_quote,
     flip_point,
+    key_line,
     leaf_page,
+    live_url,
     open_page,
     page_registry,
     painted,
@@ -50,7 +52,10 @@ from render_support import (
     round_trip,
     select,
     sent_events,
+    stamp_page,
+    stamp_version_file,
     told,
+    wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
@@ -455,9 +460,9 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     url = serve(CARRIED_PAGE)
     assert rendering_model.render_version(browser, url) == []
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     mark = page.locator("#c-lax .lf-pick")
-    assert mark.get_attribute("role") is None, "nothing to press means no button role"
+    assert mark.get_attribute("role") is None, "nothing to select means no control role"
     box = mark.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -483,10 +488,8 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     (d / "versions" / "v2.html").write_text(
         CARRIED_PAGE.replace("Suits the mobile client", "Suits the mobile client best")
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "two")
+    wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
 
@@ -511,7 +514,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     Two things then have to hold at once. The drag has to select rather than pick — its
     mouseup lands on the very control it crossed — and the mark has to stay pressable,
     or the fix has traded a word nobody can quote for a decision nobody can make."""
-    page, errors = open_page(browser, serve(SETTLED_PAGE))
+    page, errors = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator(
         "#transport .lf-settled"
     ).click()  # open the group; the cards are hidden
@@ -579,8 +582,11 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
         f"{strict.evaluate(box)}"
     )
     page.locator("#opt-bearer .lf-pick").focus()
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
+    # The browser paints its queued choice immediately. Wait until the authoritative
+    # log holds it before authoring the revision that honors it.
+    round_trip(page)
 
     # And the pair the quotable half always comes with. This mark is the one element on
     # any page wearing the chrome class and the page-speaking marker at once, so it is the
@@ -592,16 +598,18 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     # mark are different ones — with the pick on the reworded card there is nothing to
     # see, which is how this passed while reading the mark as text.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
-        SETTLED_PAGE.replace("arrives logged out", "arrives logged out every time")
+    next_page = (
+        SETTLED_PAGE.replace(
+            '<lf-option id="opt-lax" chosen>', '<lf-option id="opt-lax">'
+        )
+        .replace('<lf-option id="opt-bearer">', '<lf-option id="opt-bearer" chosen>')
+        .replace("arrives logged out", "arrives logged out every time")
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_page(d, next_page, "two")
+    wait_for_revision(page, 2)
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(
         1
-    )  # replay carried the pick
+    )  # the honoring revision carries the pick
     compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-ins-block').length > 0"
@@ -609,6 +617,107 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["opt-strict"], "the diff read a pick mark as text the base version lacked"
+    assert errors == []
+    page.close()
+
+
+def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, serve):
+    """Ask arrival leaves both answer paths one press away.
+
+    The walk lands on an option mark so the group's own scope can answer the next key.
+    A digit chooses its listed option; Enter steps into the field for the option the
+    author did not list. Without that second binding, reaching the field costs one Tab
+    per listed option even though the Ask is already selected.
+    """
+    url = serve(ASK_WITH_CONTEXT_PAGE)
+    page, errors = open_page(browser, url)
+
+    page.keyboard.press("n")
+    mark = page.locator("#storage-evict .lf-pick")
+    expect(mark).to_be_focused()
+    expect(mark).to_have_attribute("role", "checkbox")
+    expect(mark).to_have_attribute("aria-checked", "false")
+    line = key_line(page)
+    assert "toggle the nth" in line, (
+        f"the selected Ask hides its numbered answers behind More: {line}"
+    )
+    expect(page.locator("#storage-options .lf-address")).to_have_text(["1", "2"])
+    expect(page.locator("#storage-options .lf-address").first).to_be_visible()
+    page.keyboard.press("Enter")
+    box = page.locator("#storage-options > .lf-conversation > .lf-say > textarea")
+    expect(box).to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    assert "back to question" in key_line(page)
+    page.keyboard.press("Escape")
+    expect(page.locator("#storage-evict .lf-pick")).to_be_focused()
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    page.keyboard.press("2")
+    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
+    chosen = page.locator("#storage-stop .lf-pick")
+    expect(chosen).to_be_focused()
+    expect(chosen).to_have_attribute("role", "checkbox")
+    expect(chosen).to_have_attribute("aria-checked", "true")
+    expect(page.locator("#storage-options textarea")).not_to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_enter_does_not_drift_into_a_clarification_thread(browser, serve):
+    """An Ask's Enter binding never borrows a clarification thread's reply box.
+
+    A reader's proposed option is a version response, so it leaves the Ask with the
+    agent and has no reply box of its own. If the agent opens a clarification on that
+    same section, the clarification owns the only box in the page seat. Direct focus can
+    still put an option mark under the keyboard; Enter has no new-option box there and
+    must not drift into the clarification. The numbered options remain one press away.
+    """
+    url = serve(ASK_WITH_CONTEXT_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "storage-options"},
+            "text": "Neither — archive the oldest documents first.",
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    clarification = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "anchor": {"section": "storage-options"},
+            "text": "Archive them locally or remotely?",
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    mark = page.locator("#storage-evict .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+    seat = page.locator("#storage-options > .lf-conversation")
+    expect(seat.locator(":scope > .lf-say textarea")).to_have_count(0)
+    expect(
+        seat.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"] textarea')
+    ).to_have_count(0)
+    clarification_box = seat.locator(
+        f'.lf-conversation-thread[data-thread="{clarification["id"]}"] textarea'
+    )
+    expect(clarification_box).to_have_count(1)
+
+    page.keyboard.press("Enter")
+    expect(mark).to_be_focused()
+    expect(clarification_box).not_to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("2")
+    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     assert errors == []
     page.close()
 
@@ -828,7 +937,7 @@ def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "And settled in here.",
             "markup": '<lf-options id="th-done" choose settled label="Where, again?">'
             '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
@@ -836,7 +945,7 @@ def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
             "</lf-options>",
         },
     )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
 
@@ -986,11 +1095,11 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         > 20
     )
 
-    # …but takes nothing back. Nothing pressable: no grips, and no mark wearing
-    # the button role — an unpicked quoted card carries no mark at all, exactly as
+    # …but takes nothing back. Nothing selectable: no grips, and no mark wearing
+    # the checkbox role — an unpicked quoted card carries no mark at all, exactly as
     # a group that never declared `choose`. A click chooses nothing either (the
     # choose path sets `chosen` before it sends, so a pick would show here).
-    assert page.locator('#quoted-group .lf-pick[role="button"]').count() == 0
+    assert page.locator('#quoted-group .lf-pick[role="checkbox"]').count() == 0
     assert page.locator("#quoted-board .lf-grip").count() == 0
     # Nor a cell to write another option in: an exhibited question takes no answer of
     # either kind, and a box is the one that would have looked answerable.
@@ -1010,7 +1119,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 
     # The control: the same markup unquoted wires all of it.
-    assert page.locator('#live-group .lf-pick[role="button"]').count() == 2
+    assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
     assert page.locator("#live-board .lf-grip").count() == 1
     assert page.locator("[data-lf-for='live-suggestion']").count() == 1
 
@@ -1135,7 +1244,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 
 
 def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
-    """A cell says its status in a bar beside its words, and the aim is a wash: two
+    """A cell says its status in the leading gutter, and the aim is a wash: two
     facts about the same box, so both are true at once and the pointer arriving changes
     only its own.
 
@@ -1154,10 +1263,10 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     the recommended cell and its plain neighbour, since "unchanged" is also what a cell
     with nothing to say returns.
 
-    The bar's own place is held too. It stands in the column the group reserves for a
-    keyboard address, clear of the leading edge, because the ask around a control wears
-    the reader's band three pixels outside that edge and a second accent bar just inside
-    it cannot be told from the first."""
+    The gutter holds the status bar first and the keyboard address second. This keeps
+    the bar away from both the reader's band outside the group and the option's words.
+    The address appears only while the keyboard is in the group, but its room is held at
+    rest so neither signal moves the prose."""
     page, errors = open_page(browser, serve(SPECIMEN_PAGE))
     page.wait_for_function(
         """() => document.querySelector('#live-group')
@@ -1188,7 +1297,7 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     )
     assert 0 < left and left + width < column, (
         f"the bar at {left}…{left + width} does not stand inside the {column}px the "
-        "group reserves, so it is back on the edge the reader's band runs down"
+        "group reserves"
     )
     marked.hover()
     expect(marked).not_to_have_css("background-color", fill)
@@ -1197,12 +1306,11 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
         f"against {[stripe, [left, width], border, radius]} at rest"
     )
 
-    # The column holds two things, and the other one arrives only for the keyboard. Both
-    # terms of the column follow the type — the chip's box does by declaration
-    # (--lf-key-box), and the bar hangs off the column's trailing edge — so this is what
-    # says the column is still the sum of what stands in it. A package redeclaring the
-    # ladder is the case: written as a number, the column stayed the size the chip was
-    # when somebody measured it, and the chip grew into the bar's three pixels.
+    # The address arrives between the status and the prose. Read all three boundaries:
+    # a status after the address sits beside the sentence and looks like a text caret
+    # whenever the keyboard chip is hidden. The chip follows the type through
+    # --lf-key-box, so this also catches a fixed gutter that lets a larger address collide
+    # with either neighbour.
     page.mouse.move(0, 0)
     mark = page.locator("#l-stage .lf-pick").first
     mark.focus()
@@ -1210,14 +1318,17 @@ def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
     page.keyboard.press("Tab")
     chip = page.locator("#l-stage .lf-address")
     expect(chip).to_be_visible()
-    ends = chip.evaluate(
-        """el => el.getBoundingClientRect().right
-                 - el.closest('lf-option').getBoundingClientRect().left"""
+    starts, ends = chip.evaluate(
+        """el => { const chip = el.getBoundingClientRect();
+                     const option = el.closest('lf-option').getBoundingClientRect();
+                     return [chip.left - option.left, chip.right - option.left]; }"""
     )
-    assert ends < left, (
-        f"the keyboard address runs to {ends} and the status bar opens at {left}, so "
-        "the column is holding one of them in the other's room"
+    assert left + width < starts < ends < column, (
+        f"the {column}px gutter places the status at {left}…{left + width} and the "
+        f"address at {starts}…{ends}; it must read status, address, then prose"
     )
+    page.evaluate("document.documentElement.classList.add('lf-copy')")
+    expect(chip).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1331,7 +1442,7 @@ def test_a_pick_does_not_bury_the_news_that_it_is_unrecorded(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#live-group[data-lf-pending]")).to_have_count(1)
     assert page.locator("#l-stage").evaluate(
         "el => el.matches(':has(> .lf-pick:focus-visible)')"
@@ -1566,7 +1677,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["out-drill"]},
@@ -1977,17 +2088,14 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.close()
 
 
-def test_writing_the_last_option_leaves_the_question_with_the_agent(browser, serve):
-    """Writing in the group's last cell puts the question in the agent's hands, so
-    the page stops asking the reader for it.
+def test_an_agent_question_opens_another_thread_without_returning_the_ask(
+    browser, serve
+):
+    """The proposed option remains with the agent while a separate thread asks.
 
-    The banner's count and the panel's reading of that thread are one fact: the
-    conversation waits on the agent, so the request is not also waiting on the
-    reader. Counting it anyway asked them twice for what they had just written, in
-    a box the page itself put there. It answers nothing — no pick rests on the group
-    — so a reply hands the question straight back, and the count and the tray's row
-    both say so. That is the whole of the re-arm, and why words need no new attribute
-    to take back."""
+    That clarification is owned by Comments' reader-facing queue; it is not also a
+    page Ask, because the page's Ask is still the proposal the agent must incorporate.
+    """
     url = serve(ASK_PAGE)
     page, errors = open_page(browser, url)
     asks = page.locator(".lf-asks")
@@ -2007,19 +2115,30 @@ def test_writing_the_last_option_leaves_the_question_with_the_agent(browser, ser
     )
 
     root = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
-    events_model.append_event(
+    assert root["response"] == {"kind": "version", "verb": "choose"}
+    clarification = events_model.append_event(
         serve.page_dir,
         {
-            "kind": "reply",
+            "kind": "comment",
             "author": "claude",
-            "version": 1,
-            "parent": root["id"],
+            "revision": 1,
+            "anchor": {"section": "jobs"},
             "text": "The camera costs us the mounts this month. Still first?",
         },
     )
     told(page)
-    expect(asks).to_have_text("Asks (3)")
-    expect(page.locator('.lf-asks-row[data-lf-at="jobs"]')).to_have_count(1)
+    expect(asks).to_have_text("Asks (2)")
+    expect(page.locator('.lf-asks-row[data-lf-at="jobs"]')).to_have_count(0)
+    expect(
+        conversation.locator(
+            f'.lf-conversation-thread[data-thread="{root["id"]}"] textarea'
+        )
+    ).to_have_count(0)
+    expect(
+        conversation.locator(
+            f'.lf-conversation-thread[data-thread="{clarification["id"]}"] textarea'
+        )
+    ).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -2027,13 +2146,11 @@ def test_writing_the_last_option_leaves_the_question_with_the_agent(browser, ser
 def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     """The option a reader writes starts one log thread and becomes its page view.
 
-    The panel remains the complete conversation workspace, including interactive reply
-    markup, while the question keeps every message's text beside what asked for it. Both
-    reply boxes are views of one persisted draft and post one event. Resolution removes
-    the boxes but not the words, and a later version retaining the question sees the same
-    whole-log conversation."""
+    The page seat stays textual while Comments keeps the interactive conversation.
+    Resolution removes the panel box but not the words, and a later version retaining
+    the question sees the same whole-log conversation."""
     url = serve(ASK_PAGE)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     d = serve.page_dir
 
     conversation = page.locator("#jobs > .lf-conversation")
@@ -2062,91 +2179,42 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
         ({"section": "jobs"}, first_text)
     ]
     root = said[0]
+    assert root["response"] == {"kind": "version", "verb": "choose"}
 
     page.locator(".lf-comments").click()
     panel_settled(page)
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(panel_thread.locator(".lf-msg.user .lf-msg-body")).to_have_text(first_text)
 
-    inline_reply = conversation.locator("textarea")
+    expect(conversation.locator("textarea")).to_have_count(0)
     panel_reply = panel_thread.locator("textarea")
     reply_text = "The camera first; include the mounting cost."
-    inline_reply.fill(reply_text)
-    expect(panel_reply).to_have_value(reply_text)
-
-    # Both views offer Send, but the thread owns one flight. Hold the panel's send in
-    # the wire, then really press the inline control while it is held: a private lock
-    # on each box would enqueue the same reply twice here.
-    held = []
-
-    def hold_reply(route):
-        held.append(route)
-
-    page.route("**/api/event", hold_reply)
-    sent_before = _traffic(page).sends
+    panel_reply.fill(reply_text)
     panel_thread.get_by_role("button", name="Send", exact=True).click()
-    _until(page, lambda t: t.sends > sent_before, "put the reply in the wire")
-    inline_send = conversation.get_by_role("button", name="Send", exact=True)
-    expect(inline_send).to_have_attribute("aria-disabled", "true")
-    send_box = inline_send.bounding_box()
-    page.mouse.click(
-        send_box["x"] + send_box["width"] / 2,
-        send_box["y"] + send_box["height"] / 2,
-    )
-    assert _traffic(page).sends == sent_before + 1, (
-        "the inline and panel controls each sent the shared reply"
-    )
-    held[0].continue_()
-    page.unroute("**/api/event")
     round_trip(page)
-    expect(inline_reply).to_have_value("")
+    expect(panel_reply).to_have_value("")
     replies = [e for e in sent_events(d) if e["kind"] == "reply"]
     assert [(e["parent"], e["text"]) for e in replies] == [(root["id"], reply_text)]
     expect(conversation.locator(".lf-conversation-msg")).to_have_count(2)
     expect(panel_thread.locator(".lf-msg")).to_have_count(2)
-
-    agent_text = "One follow-up choice is attached."
-    agent_reply = events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "claude",
-            "agent": "Claude",
-            "parent": root["id"],
-            "version": 1,
-            "text": agent_text,
-            "markup": '<lf-options id="answer-followup" choose>'
-            '<lf-option id="answer-now">Do it now</lf-option>'
-            '<lf-option id="answer-later">Wait</lf-option>'
-            "</lf-options>",
-        },
-    )
-    told(page)
-    inline_agent = conversation.locator(
-        f'.lf-conversation-msg[data-event="{agent_reply["id"]}"]'
-    )
-    expect(inline_agent.locator(".lf-conversation-body")).to_have_text(agent_text)
-    expect(inline_agent.get_by_role("button", name="Open in Comments")).to_be_visible()
-    expect(page.locator("#answer-followup")).to_have_count(1)
-    expect(conversation.locator("#answer-followup")).to_have_count(0)
+    expect(conversation.locator("textarea")).to_have_count(0)
 
     panel_thread.get_by_role("button", name="Resolve", exact=True).click()
     expect(conversation.locator(".lf-conversation-resolved")).to_have_text("✓ Resolved")
     expect(conversation.locator("textarea")).to_have_count(0)
     expect(conversation).to_contain_text(first_text)
     expect(conversation).to_contain_text(reply_text)
-    expect(conversation).to_contain_text(agent_text)
 
     # Reopen is the same logged transition in either view; the inline projection
-    # follows it back to a reply box. An agent close then carries attribution there,
-    # just as the complete panel view does.
+    # remains text-only. An agent close then carries attribution there, just as the
+    # complete panel view does.
     expect(
         page.locator(f'.lf-details .lf-thread[data-id="{root["id"]}"]')
     ).to_have_count(1)
     page.locator(".lf-details summary").click()
     page.locator(f'.lf-details .lf-thread[data-id="{root["id"]}"] .lf-reopen').click()
     round_trip(page)
-    expect(conversation.locator("textarea")).to_have_count(1)
+    expect(conversation.locator("textarea")).to_have_count(0)
     events_model.append_event(
         d,
         {
@@ -2164,40 +2232,38 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     (d / "versions" / "v2.html").write_text(
         ASK_PAGE.replace('<h1 id="h">Three jobs</h1>', '<h1 id="h">Four jobs</h1>')
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "Retitled"}
-    )
-    page.wait_for_url("**/versions/v2.html*")
+    stamp_version_file(d, 2, "Retitled")
+    wait_for_revision(page, 2)
     conversation = page.locator("#jobs > .lf-conversation")
     expect(conversation).to_contain_text(first_text)
-    expect(conversation).to_contain_text(agent_text)
+    expect(conversation).to_contain_text(reply_text)
     expect(conversation.locator("textarea")).to_have_count(0)
 
     pinned, pinned_errors = open_page(browser, url, pin=True)
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html\?.*pin"))
     pinned_conversation = pinned.locator("#jobs > .lf-conversation")
     expect(pinned_conversation).to_contain_text(first_text)
-    expect(pinned_conversation).to_contain_text(agent_text)
+    expect(pinned_conversation).to_contain_text(reply_text)
     expect(pinned_conversation.locator("textarea")).to_have_count(0)
     assert pinned_errors == []
     pinned.close()
 
     without_owner = re.sub(
         r'<lf-options id="jobs" choose multiple>.*?</lf-options>',
-        '<p id="jobs-gone">This version no longer asks the jobs question.</p>',
+        '<details id="jobs"><summary>This version no longer asks the jobs question.</summary>'
+        '<p id="job-mounts">Replace the M8 mounts.</p>'
+        '<p id="job-heater">Heat the bird bath.</p>'
+        '<p id="job-camera">Put the camera first.</p></details>',
         ASK_PAGE,
         count=1,
         flags=re.DOTALL,
     )
     (d / "versions" / "v3.html").write_text(without_owner)
-    events_model.append_event(
-        d,
-        {"kind": "note", "author": "claude", "version": 3, "text": "Question removed"},
-    )
-    page.wait_for_url("**/versions/v3.html*")
+    stamp_version_file(d, 3, "Question removed")
+    wait_for_revision(page, 3)
     expect(page.locator("#jobs > .lf-conversation")).to_have_count(0)
     expect(page.locator(f'.lf-thread[data-id="{root["id"]}"]')).to_contain_text(
-        agent_text
+        reply_text
     )
     assert errors == []
     page.close()
@@ -2259,7 +2325,7 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "An unrelated page-level comment.",
         },
     )
@@ -2319,7 +2385,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '<lf-column id="work-done" label="Done"></lf-column></lf-board>',
     )
     url = serve(work_page)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     d = serve.page_dir
 
     def claim(subject, detail):
@@ -2358,13 +2424,8 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     )
 
     # An unrelated version changes neither coordinate.
-    (d / "versions" / "v2.html").write_text(work_page)
-    unrelated = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(d), "--version", "2", "--text", "Elsewhere"],
-    )
-    assert unrelated.exit_code == 0, unrelated.output
-    page.wait_for_url("**/versions/v2.html*")
+    stamp_page(d, work_page, "Elsewhere")
+    wait_for_revision(page, 2)
     expect(card_line).to_have_count(1)
     expect(question_line).to_have_count(1)
 
@@ -2380,25 +2441,13 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     assert pinned_errors == []
     pinned.close()
 
-    (d / "versions" / "v3.html").write_text(work_page)
-    settled = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(d),
-            "--version",
-            "3",
-            "--text",
-            "Local work complete",
-            "--completes",
-            "card-migration",
-            "--completes",
-            "jobs",
-        ],
+    stamp_page(
+        d,
+        work_page,
+        "Local work complete",
+        completes=("card-migration", "jobs"),
     )
-    assert settled.exit_code == 0, settled.output
-    page.wait_for_url("**/versions/v3.html*")
+    wait_for_revision(page, 3)
     expect(page.locator(".lf-work-line")).to_have_count(0)
     assert errors == []
     page.close()
@@ -2484,22 +2533,13 @@ def test_settled_widget_work_leaves_a_declared_shadow_tree(browser, serve):
     )
     expect(work_line).to_have_count(1)
 
-    (d / "versions" / "v2.html").write_text(work_page)
-    settled = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(d),
-            "--version",
-            "2",
-            "--text",
-            "Shard checked",
-            "--completes",
-            "shadow-card",
-        ],
+    settled = stamp_page(
+        d,
+        work_page,
+        "Shard checked",
+        completes=("shadow-card",),
     )
-    assert settled.exit_code == 0, settled.output
+    assert settled["version"] == 2
     told(page)
     expect(work_line).to_have_count(0)
     assert errors == []
@@ -2563,7 +2603,7 @@ def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
             "kind": "comment",
             "author": "claude",
             "agent": "Indexer",
-            "version": 1,
+            "revision": 1,
             "anchor": {"section": "jobs"},
             "text": "A separate note on this question.",
         },
@@ -2842,7 +2882,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "kind": "comment",
             "id": "c-ask",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What would the alternative look like?",
         },
     )
@@ -2852,7 +2892,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
             "kind": "reply",
             "author": "claude",
             "parent": "c-ask",
-            "version": 1,
+            "revision": 1,
             "text": SPECIMEN_TEXT,
             "markup": SPECIMEN_MARKUP,
         },
@@ -2860,7 +2900,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     page.wait_for_selector(
-        '#rp-live .lf-pick[role="button"]'
+        '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
     assert errors == []
 
@@ -2888,7 +2928,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
 
     # The exhibit takes the click first, so anything it sends would reach the log
     # ahead of the live group's pick — then the live group takes its own.
-    assert page.locator('#rp-quoted .lf-pick[role="button"]').count() == 0
+    assert page.locator('#rp-quoted .lf-pick[role="checkbox"]').count() == 0
     # And no hand over it, which is what the marker being painted anywhere buys: the
     # affordance rules ask whether an element stands inside [data-lf-exhibit], and the
     # runtime paints that on a widget wherever it renders. Painted in the document
@@ -2929,7 +2969,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "kind": "comment",
             "id": "c-ask",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What are the ceilings?",
         },
     )
@@ -2939,7 +2979,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
             "kind": "reply",
             "author": "claude",
             "parent": "c-ask",
-            "version": 1,
+            "revision": 1,
             "text": TABLE_REPLY,
         },
     )

@@ -51,7 +51,8 @@ rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
 guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
-`runtime/scrolling.js` owns the document scroller identity;
+`runtime/scrolling.js` owns the document scroller identity and the gutter its bar
+takes;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -309,8 +310,8 @@ that sends that generation. A refusal does not mint a new attempt. Pressing Send
 again re-evaluates the same attempt against current server state.
 
 This is why the server does not retain refusal receipts. The condition behind a
-refusal can change without the reader changing the words: a referenced version
-can be published, a parent thread can arrive, or a layer can be re-vendored.
+refusal can change without the reader changing the words: a referenced revision
+can be activated, a parent thread can arrive, or a layer can be re-vendored.
 Caching the refusal would strand a valid draft behind an obsolete answer.
 
 A new edit, including replacing text with the same characters, creates a new
@@ -493,8 +494,10 @@ Threads also read the whole log. `retractionFloors(Infinity)` keeps a
 conversation current on a pinned page even when the document projection remains
 historical. Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document; the Comments panel
-keeps the complete thread and its interactive replies. Dropping the owner drops
-only the inline seat.
+keeps the complete thread and its interactive replies. A root declared with
+`response: {kind: version, verb: <answer>}` keeps that exact-section view
+text-only and refuses an agent reply because the next authored version is its
+response. Dropping the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
@@ -524,7 +527,7 @@ also retain their version and sequence; a claim carries `log_floor`, the log
 sequence it followed.
 
 The source discriminator is semantic, not an implementation leak. A report
-stands until a version note absorbs or overrules it; a claim stands until the
+stands until a stamped revision's note absorbs or overrules it; a claim stands until the
 thread receives an agent reply after that sequence or is resolved. The closed
 disposition is `effective` when an update contributes to current state on its
 semantic coordinate, `standing` when it still needs source-specific settlement
@@ -532,7 +535,7 @@ but is presently outranked, and `settled` when that authority answers it. An
 older unabsorbed report can therefore be standing, and a reader action can mask
 a report that a version still owes an answer. Settled entries remain in the feed
 when their source retains history. A module showing freshness therefore still
-sees when the log last heard from a worker after publishing absorbs the worker's
+sees when the log last heard from a worker after a stamp absorbs the worker's
 report.
 
 An x-report verb may name one required non-empty string detail field with
@@ -554,9 +557,12 @@ render deferred by live input without owning a timer or a second event cursor.
 Callbacks must render from the sequence they receive and return their cleanup
 function from `watchActions` or `watchUpdates` when their element disconnects.
 
-`publishedAt` is the timestamp of the note that published `currentVersion`. It is the
-freshness floor for authored state when no report exists. A page that reports no
-worker update is not timeless; its authored assertion is as old as its version.
+`active.revision` identifies the immutable document currently shown;
+`active.version` is its public stamp when it has one, otherwise null, and
+`active.label` is `vN`, `Draft after vN`, or `Draft`. The timestamp of the latest
+note for that revision is the freshness floor for authored state when no report
+exists. A page that reports no worker update is not timeless; its authored
+assertion is as old as its revision.
 
 `actionStands` answers whether one accepted action is still the reader's winner
 for its semantic coordinate. It treats a newly accepted event as standing when
@@ -598,7 +604,7 @@ The extension keys describe general behavior:
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
 | `x-ask` | the complete reading and arrival region around one nested request |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for a request |
-| `x-conversation` | the condition under which the widget owns a conversation seat |
+| `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
 | `x-work` | the content or conversation seat in which local agent work may appear, with an optional condition |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
@@ -688,6 +694,11 @@ minimum obligations:
 - Register keys with `keys(el, title, rows)` during upgrade, not at module load.
 - Call `quoted(el)` before wiring module-specific gestures. `sendAction` also
   refuses actions on an exhibited widget at the layer door.
+- A visual declaring `{parts: ATTR}` must implement `lfVisualPartAt(target)` to
+  return one token from ATTR and `lfVisualPart(part)` to return its current
+  `{element, label}`. The authored widget remains the comment seat, the token is
+  recorded as `anchor.visual`, and the returned element supplies only mark and
+  travel geometry. The render gate refuses either missing method.
 - Render externally supplied or derived records through `projectData`. Its root is an
   authored, id-bearing seat; record keys are stable within that seat, and its renderer
   receives the prior node so unchanged controls and selections can remain in place.
@@ -1072,12 +1083,13 @@ settlement has emptied, and what a quote may name cannot come apart. An area gre
 either: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
 
-A control containing a page word is built by `offer` as a selectable
-`span[role="button"]`. The shared listener supplies Enter and Space semantics.
-`offer` distinguishes a click from the mouseup ending an active text selection
-by comparing the selection's focus end with the release. It does not suppress a
-press merely because an older selection contains the control or because the
-pointer landed beside selected text.
+A control containing a page word is built by `offer` as a selectable span carrying
+its control role. A button gets Enter and Space from the shared scope; a specialised
+role such as a checkbox registers its own keys while `offer` still owns its role,
+tab stop, and chrome markers. `offer` distinguishes a click from the mouseup ending
+an active text selection by comparing the selection's focus end with the release. It
+does not suppress a press merely because an older selection contains the control or
+because the pointer landed beside selected text.
 
 `placeClear` moves floating controls away from selectable or interactive content
 they would cover. It reads the general `data-lf-offer` marker, not a list of
@@ -1116,7 +1128,13 @@ message is scrolled by the panel's own list and by nothing else. The open
 comment panel and tray panel each occupy their own strip when the viewport can
 hold it and cover the page under their respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
-strip the chrome holds; CSS owns the body's corresponding layout.
+strip the chrome holds and the gutter the scroller's own bar takes — a window is
+the page's box on neither count; CSS owns the body's corresponding layout. The
+gutter has one reading, `scrollerGutter`, beside the scroller it is a fact about.
+`stateRoom` is restated by the observation of body's box; `stateStrip` writes
+that box's padding, so it is called instead, and the gutter it reads cannot go
+stale between calls because the stylesheet that makes body the scroller reserves
+the room whether or not a bar is drawn in it.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a
@@ -1534,12 +1552,12 @@ rung `c` came down. `backFromBox` climbs `SAYS_IN` from the box where
 `standingConversation` climbs it from where the reader stands, so the press in
 and the press out name one element and one word — "comment on the thread" going
 in, "back to thread" coming out. The panel's general box has no conversation and
-lands on the list. A box with neither leaves the row dead and the page's own
-"let go" standing, which is the honest rung when there is nothing outside the
-box to stand on: a seat holding no thread yet is that case whole, so it wears no
-seat of its own rather than being named as an exception. Asking whether the
-container can take focus is what keeps this a relation rather than a list of the
-containers that happen to be focusable.
+lands on the list. A page-owned first-message seat has no standing place of its
+own; a widget control that explicitly enters its box supplies both the return
+control and the caller-owned word for that route through `landInConversation`.
+A visit reached by Tab supplies neither and leaves the page's own "let go"
+standing. Asking whether the container can take focus is what keeps every other
+route a relation rather than a list of containers that happen to be focusable.
 
 A key may repeat across nesting scopes to mean the same intent one scope further
 in. `c` reads that way: from
@@ -1562,10 +1580,10 @@ and return to the page cannot cascade from one keypress. A scope does not need a
 private `keydown` listener or hand-written `preventDefault` to protect that
 contract.
 
-`offer` supplies the two press keys for injected span controls at the shared
-bubble listener. A widget that already handled the event can prevent its default
-before that listener. A link stays the browser's, and its run-less row only
-projects the platform press into help.
+`offer` marks an injected span control with the contract that owns its keys.
+Button offers enter the shared `CONTROL` scope and receive `PRESS`; specialised
+controls such as a checkbox register their own rows. A link stays the browser's,
+and its run-less row only projects the platform press into help.
 
 A disclosure adds ← and →, which no browser answers, so its row runs the press
 itself — through the element's own click, so keyboard and pointer stay one
@@ -1790,22 +1808,30 @@ collects into that seat, and `awaitsAgent` says the next word there is the agent
 So the banner's count and the panel's reading of the same thread cannot disagree
 about whose turn it is. Whose thread it is does not enter into it — the agent may
 open one in the seat too, and once the reader has answered there the question is
-with the agent either way. Finishing with the conversation hands it back, by reply
-or by resolve, and the version that marks the pick `chosen` ends it.
+with the agent either way. An ordinary agent reply hands the conversation back.
+A `response: {kind: version, verb: <answer>}` conversation accepts no agent reply;
+the agent incorporates it into a version or opens a separate thread for
+clarification. While that thread waits on the reader in the same seat, it carries
+the original response through the stop gate; their answer hands both threads back
+to the agent. Authored state in a later version must answer an originating open
+Ask, or change the declared answer when the Ask was already answered; a reader
+action in the log cannot substitute for that revision. Only then may the agent
+resolve the original thread. Comments owns the reader-facing clarification; the
+page's Ask remains the proposal with the agent rather than counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
 banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
-Two readings ask the other question — whether the request is *answered* — and both
+Three readings ask the other question — whether the request is *answered* — and all
 say so by emptying the seats (`answeredContext`, stated beside the shape rather than
 by a caller reaching into it, so a member derived from those conversations later
 cannot escape the emptying). An action's `requires` is one: a conversation does not
 answer a question the widget holds no state for, and refusing a pick over the reader's
-own remark would refuse them the answer they were asked for. Where the reader is
-standing is the other, through `unansweredAsks`; **Standing somewhere** owns it.
-Frozen thread markup seats no conversation of its own, so only an action answers
-there. A `rollup` instance evaluates its own `when`,
+own remark would refuse them the answer they were asked for. The version-response
+resolve gate is another. Where the reader is standing is the third, through
+`unansweredAsks`; **Standing somewhere** owns it. Frozen thread markup seats no
+conversation of its own, so only an action answers there. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the

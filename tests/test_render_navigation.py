@@ -46,8 +46,10 @@ from render_support import (
     resized,
     round_trip,
     select,
+    stamp_version_file,
     standing_mark,
     told,
+    wait_for_revision,
     wait_hovered,
     wait_standing,
     watched,
@@ -123,12 +125,11 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             expect(chip).to_be_visible()
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
-            # Never on the hairline the outer corner would have shared with the cells
-            # around it: the column the option reserves starts 6px in, in both forms.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
-            assert round(sits["x"]) == 6, (
-                f"{id_}'s digit sits {sits['x']} in from its option's left edge"
-            )
+            # The status/address/prose order has its own focused geometry test. Here the
+            # address only has to stay wholly inside its option and off the option's
+            # words; pinning its old 6px inset made this test reject that new gutter.
+            assert sits["x"] > 0, f"{id_}'s digit sits on its option's outer edge"
             if sitting == "in the corner":
                 assert round(sits["y"]) == 8, (
                     f"{id_}'s digit sits {sits['y']} down from its option's top, not in "
@@ -210,7 +211,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "arriving mid-sentence",
             "anchor": {"section": "p", "quote": "bold text"},
         },
@@ -253,7 +254,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={"kind": "comment", "version": 1, "text": "and another"},
+        data={"kind": "comment", "revision": 1, "text": "and another"},
     )
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     assert page.locator("#fig.lf-mark-el.lf-pending").count() == 1, (
@@ -376,7 +377,7 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
         post_event(
             page,
             api,
-            data={"kind": "comment", "version": 1, "text": text, "anchor": anchor},
+            data={"kind": "comment", "revision": 1, "text": text, "anchor": anchor},
         )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator("#fig.lf-mark-el").wait_for()
@@ -510,7 +511,7 @@ def test_the_pointer_over_a_comment_lights_the_passage_it_is_about(browser, serv
         post_event(
             page,
             api,
-            data={"kind": "comment", "version": 1, "text": text, "anchor": anchor},
+            data={"kind": "comment", "revision": 1, "text": text, "anchor": anchor},
         )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
     page.locator(".lf-comments").click()
@@ -662,7 +663,7 @@ def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "on the first",
             "anchor": {"section": "p", "quote": "bold text"},
         },
@@ -698,7 +699,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
             {
                 "kind": "comment",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "text": text,
                 "anchor": anchor,
             },
@@ -941,7 +942,7 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
             {
                 "kind": "comment",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "text": text,
                 "anchor": anchor,
             },
@@ -1459,7 +1460,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Sharpen this.",
             "anchor": {"quote": "passage under discussion"},
         },
@@ -1643,7 +1644,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
             "kind": "comment",
             "id": "c-diff",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "The patch, for the record.",
             "markup": '<lf-diff id="msg-diff"><pre>'
             "diff --git a/gateway/limits.py b/gateway/limits.py\n"
@@ -1698,7 +1699,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "One thread.",
             "anchor": {"quote": "first passage"},
         },
@@ -1853,10 +1854,10 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
 
 
 def test_the_reference_names_the_space_that_works_a_control(browser, serve):
-    """`offer` builds every press as a span wearing role="button", so the keys the
-    platform would have given a real button are the runtime's to supply — and it supplied
-    them through a listener no surface could see. Space activated nine classes of control
-    across core and five widgets, and exactly one of them said so anywhere.
+    """`offer` builds each button-contract press as a span wearing role="button", so the
+    keys the platform would have given a real button are the runtime's to supply — and it
+    supplied them through a listener no surface could see. Space activated nine classes
+    of control across core and five widgets, and exactly one of them said so anywhere.
 
     The activation is a scope now, so the reference names it once for all of them, and a
     widget whose press means more than "work this control" says so in its own words and
@@ -2239,7 +2240,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     complete chord, so no heading has to supply a key the row itself omits."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     help_el = page.locator(".lf-help")
 
     # No open threads, one version: the reference names only what a press would do.
@@ -2293,7 +2294,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # row for the lists this page hasn't got.
     for text in ["A thread.", "Another."]:
         events_model.append_event(
-            d, {"kind": "comment", "author": "user", "version": 1, "text": text}
+            d, {"kind": "comment", "author": "user", "revision": 1, "text": text}
         )
     told(page)
     expect(page.locator(".lf-thread")).to_have_count(2)
@@ -2313,13 +2314,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Walk the versions")
     page.keyboard.press("Escape")
 
-    # A v2 lands and the unpinned page follows it; on v2 the menu's own keys are
+    # A v2 lands and the live page follows it; on v2 the menu's own keys are
     # live, having a list to walk and a base to walk onto.
     (d / "versions" / "v2.html").write_text(NOTED_PAGE)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/versions/v2.html*")
+    stamp_version_file(d, 2, "two")
+    wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
@@ -2370,7 +2369,7 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
 
     def comment(text):
         return events_model.append_event(
-            d, {"kind": "comment", "author": "user", "version": 1, "text": text}
+            d, {"kind": "comment", "author": "user", "revision": 1, "text": text}
         )["id"]
 
     c1 = comment("First thought.")
@@ -2430,7 +2429,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     url = serve(html)
     events_model.append_event(
         serve.page_dir,
-        {"kind": "comment", "author": "user", "version": 1, "text": "A thread."},
+        {"kind": "comment", "author": "user", "revision": 1, "text": "A thread."},
     )
     page, errors = open_page(browser, url)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
@@ -2625,7 +2624,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Steel, unless the sealing is quick?",
             "anchor": {"section": "shape"},
         },
@@ -2703,7 +2702,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             {
                 "kind": "reply",
                 "author": "claude",
-                "version": 1,
+                "revision": 1,
                 "parent": root,
                 "text": "Sealing is an afternoon.",
             },
@@ -2836,7 +2835,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             {
                 "kind": "comment",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "text": text,
                 "anchor": {"section": "shape"},
             },
@@ -2847,7 +2846,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             {
                 "kind": "reply",
                 "author": "claude",
-                "version": 1,
+                "revision": 1,
                 "parent": said[-1],
                 "text": "Noted.",
             },

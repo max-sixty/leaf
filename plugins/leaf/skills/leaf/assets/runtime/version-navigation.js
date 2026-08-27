@@ -1,6 +1,6 @@
 import { runtime } from "./context.js";
 import { PRESS, walkRows } from "./keyboard/bindings.js";
-import { versionUrl } from "./storage.js";
+import { PAGE_SCOPE } from "./storage.js";
 
 export function createVersionNavigation({
   allButTheReference,
@@ -13,7 +13,6 @@ export function createVersionNavigation({
   midComposition,
   paintDiff,
   paintHere,
-  pinned,
   poll,
   pressComparison,
   setDiff,
@@ -47,8 +46,7 @@ export function createVersionNavigation({
   // has only this control to read it back off, and a colour is not a thing a screen
   // reader announces.
   const versionLabel = (comparing) =>
-    (comparing ? "Δ " : "") +
-    (runtime.currentVersion === null ? "▾" : `v${runtime.currentVersion} ▾`);
+    (comparing ? "Δ " : "") + `${runtime.currentLabel ?? "Draft"} ▾`;
   const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
   // Nothing to open until the log says what versions there are, and a control that answers
   // nothing is a way in painted where there is no layer behind it — the same reason the
@@ -76,8 +74,16 @@ export function createVersionNavigation({
   //
   // Named the way the trays name theirs (`leavesOffered`, `asksOffered`), so the next
   // surface to ask reads the fact rather than spelling a comparison of its own.
-  const versionsOffered = () => versions.length > 0;
-  const versionsToWalk = () => versions.length > 1;
+  const draftRevisions = () => {
+    const revisions = new Set();
+    if (runtime.currentStamp === null && runtime.currentRevision !== null)
+      revisions.add(runtime.currentRevision);
+    if (runtime.active?.version === null) revisions.add(runtime.active.revision);
+    return revisions;
+  };
+  const versionCount = () => versions.length + draftRevisions().size;
+  const versionsOffered = () => versionCount() > 0;
+  const versionsToWalk = () => versionCount() > 1;
   // The walk is the versions, not every press in the menu.
   const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
   // One setter stating the whole outcome, per showComposer and showFab: nothing reads
@@ -98,7 +104,10 @@ export function createVersionNavigation({
       (
         versionRows().find(
           (r) =>
-            r.dataset.lfVersion === String(comparisonBase() ?? runtime.currentVersion),
+            (comparisonBase() !== null &&
+              r.dataset.lfVersion === String(comparisonBase())) ||
+            (comparisonBase() === null &&
+              r.dataset.lfRevision === String(runtime.currentRevision)),
         ) ?? versionRows()[0]
       )?.focus();
     else if (versionMenu.contains(document.activeElement)) versionBtn.focus();
@@ -114,7 +123,7 @@ export function createVersionNavigation({
   // pointer, which has no walk to state it with, and takes no key of its own.
   //
   // v is the second half of the motion that opened the menu, and the one row worth a key of
-  // its own: the newest version is where the walk ends, and where a reader who came for the
+  // its own: the current page is where the walk ends, and where a reader who came for the
   // current state is going. The letter is the menu's here for the walk's own kind of reason
   // — outside it, v is already the chooser — and being the inner scope's is what shadows the
   // page's v, where the two listeners used to depend on one consuming the press.
@@ -129,13 +138,12 @@ export function createVersionNavigation({
   // and nothing else.
   const NEWEST = {
     keys: ["v"],
-    does: "Open the newest version",
-    line: "open the newest version",
-    // Through its own row's press, so the key leaves the menu by the door the pointer uses —
-    // the menu closes and the pin lifts, both goVersion's and showVersionMenu's to say,
-    // neither restated here. There is always a row to press: the scope holds only with focus
-    // inside the menu, and an open lands focus on a row.
-    run: () => versionRows().at(-1).click(),
+    does: "Open the current page",
+    line: "open the current page",
+    // A stamped row is deliberately historical, including the newest one. This key names
+    // the live page instead, sharing the same route as the arrival chip while the focused
+    // row remains Enter's exact-version destination.
+    run: () => goActive(),
   };
   keys(
     versionMenu,
@@ -216,29 +224,53 @@ export function createVersionNavigation({
   };
 
   let lastVersionsKey = "";
-  // Navigate to a version with the pin semantics every chooser shares: an older
-  // version pins the view, the newest unpins it.
+  // A stamped version is historical and always pins. The active working document owns
+  // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
   const goVersion = (version) => {
-    if (liveRoot && version === runtime.currentVersion) return;
-    if (liveRoot && version === runtime.latestVersion) {
+    if (version === runtime.currentStamp) return;
+    const target = versions.find((candidate) => candidate.version === version);
+    if (!target) return;
+    const url = new URL(target.url, location.href);
+    url.searchParams.set("pin", "");
+    location.href = url.href;
+  };
+  const goActive = () => {
+    if (!runtime.active) return;
+    if (liveRoot) {
+      if (runtime.active.revision === runtime.currentRevision) return;
       forceActivation = true;
       showVersionMenu(false);
       poll();
       return;
     }
-    const path = versionUrl(version);
-    location.href = version === runtime.latestVersion ? path : `${path}?pin`;
+    location.href = PAGE_SCOPE || "/";
   };
   function renderVersions(state) {
     versions.splice(0, versions.length, ...state.versions);
+    runtime.active = structuredClone(state.active);
+    if (liveRoot && runtime.currentRevision === runtime.active.revision) {
+      runtime.currentStamp = runtime.active.version;
+      runtime.currentLabel = runtime.active.label;
+    } else if (runtime.currentStamp !== null) {
+      runtime.currentLabel = `v${runtime.currentStamp}`;
+      const current = versions.find(
+        (candidate) => candidate.version === runtime.currentStamp,
+      );
+      if (current) runtime.currentRevision = current.revision;
+    }
     versionBtn.disabled = !versionsOffered();
     const notes = {};
     for (const e of runtime.events) if (e.kind === "note") notes[e.version] = e.text;
-    const key = JSON.stringify([state.versions, notes]);
-    const current = state.versions.includes(runtime.currentVersion)
-      ? runtime.currentVersion
-      : null;
+    const key = JSON.stringify([
+      state.active,
+      state.versions,
+      notes,
+      runtime.currentRevision,
+      runtime.currentStamp,
+      runtime.currentLabel,
+    ]);
+    const current = runtime.currentStamp;
     // Rebuilt rather than reconciled: this runs only when the versions or their notes
     // actually changed, which on a page's whole life is a handful of times, and the
     // menu is only ever read while it is open — where a rebuild would take the focused
@@ -251,17 +283,61 @@ export function createVersionNavigation({
     if (key !== lastVersionsKey && !versionMenuOpen) {
       lastVersionsKey = key;
       versionMenu.textContent = "";
-      for (const version of state.versions) {
-        const isLatest = version === state.versions.at(-1);
+      const menuEntries = state.versions.map((entry) => ({
+        ...entry,
+        kind: "version",
+      }));
+      for (const revision of draftRevisions())
+        menuEntries.push({
+          kind: "draft",
+          revision,
+          label:
+            revision === runtime.currentRevision
+              ? runtime.currentLabel
+              : state.active.label,
+          active: revision === state.active.revision,
+        });
+      menuEntries.sort(
+        (left, right) =>
+          left.revision - right.revision ||
+          (left.kind === "version" ? left.version : Infinity) -
+            (right.kind === "version" ? right.version : Infinity),
+      );
+      for (const entry of menuEntries) {
+        const { revision } = entry;
         const row = el("button", "lf-version-row");
         row.setAttribute("role", "menuitem");
+        row.dataset.lfRevision = revision;
+        if (entry.kind === "draft") {
+          row.append(
+            el(
+              "span",
+              "lf-version-num",
+              `${entry.active ? "Current" : "This view"} · ${entry.label}`,
+            ),
+          );
+          if (runtime.currentRevision === revision)
+            row.setAttribute("aria-current", "true");
+          row.onclick = () => {
+            showVersionMenu(false);
+            if (entry.active) goActive();
+          };
+          versionMenu.append(row);
+          continue;
+        }
+        const { version } = entry;
+        const isLatest = version === state.versions.at(-1)?.version;
         row.dataset.lfVersion = version;
         // The version and its note are two kinds of word — which one this is, and
         // what it was — so they are two elements rather than one string. That is
         // what lets the note wrap to as many lines as it needs, which is the whole
         // reason the notes are here rather than on a control 190px wide.
         row.append(
-          el("span", "lf-version-num", `v${version}${isLatest ? " (latest)" : ""}`),
+          el(
+            "span",
+            "lf-version-num",
+            `v${version}${isLatest ? " (latest version)" : ""}`,
+          ),
         );
         if (notes[version]) row.append(el("span", "lf-version-note", notes[version]));
         if (version === current) row.setAttribute("aria-current", "true");
@@ -290,24 +366,18 @@ export function createVersionNavigation({
           versionMenu.append(press);
         }
       }
-      paintDiff(); // a fresh list, and a standing comparison to show on it
     }
-    runtime.latestVersion = state.versions.at(-1) ?? null;
+    paintDiff(); // the label may change even when an open menu defers its new rows
     const behind =
-      runtime.latestVersion !== null &&
-      runtime.currentVersion !== null &&
-      runtime.latestVersion !== runtime.currentVersion;
-    // An immutable unpinned document still follows by navigation. The live root's
-    // activation decision was made before this rendering, where its fetched document and
-    // the composition hold were both available. Either route leaves the chip as news
-    // while it is behind.
-    if (behind && !liveRoot && !pinned && !midComposition()) {
-      location.replace(versionUrl(runtime.latestVersion));
-      return;
-    }
-    showNews(latestChip, behind);
-    if (behind)
-      latestChip.textContent = `New version available → open v${runtime.latestVersion}`;
+      runtime.currentRevision !== null &&
+      runtime.active.revision !== runtime.currentRevision;
+    const sourceFailed = liveRoot && Boolean(state.source_error);
+    latestChip.disabled = sourceFailed;
+    latestChip.title = sourceFailed ? state.source_error : "Open the current page";
+    showNews(latestChip, sourceFailed || behind);
+    if (sourceFailed) latestChip.textContent = "Latest edit couldn't be shown";
+    else if (behind)
+      latestChip.textContent = `New page available → open ${runtime.active.label}`;
   }
 
   const activationIsForced = () => forceActivation;
@@ -322,6 +392,7 @@ export function createVersionNavigation({
     VERSIONS,
     activationIsForced,
     clearForcedActivation,
+    goActive,
     goVersion,
     renderVersions,
     showVersionMenu,

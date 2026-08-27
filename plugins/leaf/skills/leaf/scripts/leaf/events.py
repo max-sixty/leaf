@@ -227,7 +227,7 @@ def bare_reaction(thread: dict) -> bool:
     return is_reaction(thread["root"]) and not spoken_turns(thread)
 
 
-def undo_error(event: dict, events: list) -> str | None:
+def undo_error(event: dict, events: list, within: dict) -> str | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing
@@ -242,7 +242,11 @@ def undo_error(event: dict, events: list) -> str | None:
     would orphan those words, and the reader's move is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the same
-    (conversation.js `reactionStanding`)."""
+    (conversation.js `reactionStanding`).
+
+    `within` is the published page's containment, as every other fold of the
+    threads takes it: a thread an action settled, and a version's `restated`
+    inside that widget reopened, is open here as it is in `page state`."""
     target = next((e for e in events if e["id"] == event["undoes"]), None)
     if target is None:
         return f"unknown undoes {event['undoes']!r}"
@@ -256,7 +260,7 @@ def undo_error(event: dict, events: list) -> str | None:
             )
         thread = next(
             t
-            for t in build_threads(events, {}).values()
+            for t in build_threads(events, within).values()
             if any(m["id"] == target["id"] for m in t["msgs"])
         )
         if any(m.get("parent") == target["id"] for m in spoken_turns(thread)):
@@ -286,7 +290,7 @@ def build_threads(events: list, within: dict) -> dict:
     widget sent and the log still lets stand, and then only while that answer
     names the thread. Three things unseat one, and every one of them is the log's
     own word rather than a case written out here. A version that rewrites what a
-    decision rested on says `restated`, publishing records the floor, and replay
+    decision rested on says `restated`, stamping records the floor, and replay
     drops the action — `action_retracted`, the same test the fold and the words
     gate ask. The reader can take the answer back where they stand, which is the
     `undo` naming it and `taken_back` reading it. And a later action on the same
@@ -305,11 +309,11 @@ def build_threads(events: list, within: dict) -> dict:
     widget-absolute unit, so the two keys are one key.
 
     Standing says nothing about the page, and that silence cuts both ways: a stale
-    tab's decision unseats an answer whose widget a published version has since
+    tab's decision unseats an answer whose widget a later revision has since
     retired, leaving the fold nothing to paint and the reader's press reaching the
     thread or nothing at all. Asking the page instead would fork the two runtimes,
     which read different pages — the browser's pinned version against this side's
-    last published file.
+    active revision.
 
     A `resolve` is a person saying the conversation is done. An `unresolve` clears
     that closure. A superseded answer also stops closing the thread; undo and
@@ -494,13 +498,9 @@ def note_settlements(event: dict, kind: str) -> set[str]:
     }
 
 
-def work_claim_version(claim: dict, events: list) -> int:
-    """The published page at a claim's sole stored temporal boundary."""
-    return max(
-        event["version"]
-        for event in events
-        if event["kind"] == "note" and event["seq"] <= claim["after"]
-    )
+def work_claim_revision(claim: dict, _events: list) -> int:
+    """The exact working document on which widget work was claimed."""
+    return claim["revision"]
 
 
 def standing_work_claims(status: dict, events: list) -> list:
@@ -623,7 +623,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     thread as the one gesture arriving with nothing behind it.
 
     A `report` carries a widget too and belongs to no conversation: `cmd_report`
-    validates its target against the published version's own elements, so one
+    validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
     if kind in {"comment", "reply"}:
@@ -812,23 +812,23 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
 
 
 def retractions(events: list, upto=None) -> dict:
-    """id → the greatest version whose `restated` note took back its decision."""
+    """id → the greatest revision whose stamped transition took it back."""
     at = {}
     for event in events:
-        if event["kind"] == "note" and (upto is None or event["version"] <= upto):
+        if event["kind"] == "note" and (upto is None or event["revision"] <= upto):
             for named in event.get("restated", []):
-                at[named] = max(at.get(named, 0), event["version"])
+                at[named] = max(at.get(named, 0), event["revision"])
     return at
 
 
 def report_settlements(events: list, upto=None) -> dict:
-    """Report event id → the greatest version whose note settled it."""
+    """Report event id → the greatest revision whose note settled it."""
     at = {}
     for event in events:
-        if event["kind"] != "note" or (upto is not None and event["version"] > upto):
+        if event["kind"] != "note" or (upto is not None and event["revision"] > upto):
             continue
         for identity in note_settlements(event, "report"):
-            at[identity] = max(at.get(identity, 0), event["version"])
+            at[identity] = max(at.get(identity, 0), event["revision"])
     return at
 
 
@@ -873,5 +873,5 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
     with the thread it had answered still filed away, and the user was never asked
     the question again."""
     return any(
-        floors.get(i, 0) > event["version"] for i in action_rests_on(event, within)
+        floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
     )

@@ -135,7 +135,12 @@ export function createVersionDiff({
     // just as an action did, so what the reader saw includes it) against the
     // live DOM, which already wears the current folds. Body facets are words and
     // the block keys above own them.
-    const baseProjection = stateProjection(baseVersion);
+    const baseRevision = runtime.versions.find(
+      (candidate) => candidate.version === baseVersion,
+    )?.revision;
+    if (baseRevision == null)
+      throw new Error(`version v${baseVersion} has no revision`);
+    const baseProjection = stateProjection(baseRevision);
     for (const { tag, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {
@@ -174,10 +179,16 @@ export function createVersionDiff({
     document.dispatchEvent(new CustomEvent("lf-comparison"));
     return diffMarked.length;
   }
-  // Whether a version can be compared with the one being read: anything published
-  // before it, which is which rows the menu builds a press onto.
-  const comparable = (version) =>
-    runtime.currentVersion !== null && version < runtime.currentVersion;
+  // Whether a stamped version can be compared with the revision being read: any stamp
+  // on an earlier revision, which is which rows the menu builds a press onto.
+  const comparable = (version) => {
+    const base = runtime.versions.find((candidate) => candidate.version === version);
+    return (
+      runtime.currentRevision !== null &&
+      base !== undefined &&
+      base.revision < runtime.currentRevision
+    );
+  };
   // Every rendering of the pair above, written in one place: the chooser's word, its
   // paint and what it says it will do, the checked state of each row's Δ, and the rail
   // down the rows the comparison spans. Called by the setter, by a menu rebuild — the
@@ -193,10 +204,16 @@ export function createVersionDiff({
       ? `Showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
       : `Versions: read one, or mark what changed since it (${chooserLabel()})`;
     for (const row of versionMenu.querySelectorAll(".lf-version-row")) {
-      const version = +row.dataset.lfVersion;
+      const revision = +row.dataset.lfRevision;
+      const baseRevision = runtime.versions.find(
+        (candidate) => candidate.version === diffBase,
+      )?.revision;
       row.classList.toggle(
         "lf-compared",
-        diffOn && version >= diffBase && version <= runtime.currentVersion,
+        diffOn &&
+          baseRevision !== undefined &&
+          revision >= baseRevision &&
+          revision <= runtime.currentRevision,
       );
     }
     for (const press of versionMenu.querySelectorAll(".lf-version-diff"))

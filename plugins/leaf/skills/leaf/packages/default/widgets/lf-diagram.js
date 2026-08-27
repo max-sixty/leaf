@@ -94,6 +94,7 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
+      this.visualParts = new Map();
       // Registered with settle() so the runtime holds the view restore and the
       // first anchor pass until the SVG is in and the page's geometry is final.
       settle(this.render());
@@ -104,6 +105,12 @@ customElements.define(
       const renderId = `lf-mermaid-${++seq}`;
       try {
         const mermaid = await loadMermaid();
+        const declared = new Set(
+          (this.getAttribute("parts") ?? "").trim().split(/\s+/).filter(Boolean),
+        );
+        const parsed = declared.size
+          ? await mermaid.mermaidAPI.getDiagramFromText(source)
+          : null;
         const { svg } = await mermaid.render(renderId, source);
         this.innerHTML = retheme(svg);
         // Mermaid sizes to fit: the svg is width 100%, capped at its natural size, so
@@ -118,12 +125,38 @@ customElements.define(
           drawn.setAttribute("width", natural);
           drawn.style.maxWidth = "";
         }
+        this.visualParts.clear();
+        if (parsed?.type === "flowchart-v2") {
+          for (const node of parsed.db.getData().nodes ?? []) {
+            const part = `node:${node.id}`;
+            if (!declared.has(part)) continue;
+            const element = drawn.querySelector(`#${CSS.escape(node.domId)}`);
+            if (!element) continue;
+            const label = element.textContent.replace(/\s+/g, " ").trim() || node.id;
+            this.visualParts.set(part, { element, label });
+          }
+        }
+        const missing = [...declared].filter((part) => !this.visualParts.has(part));
+        if (missing.length)
+          throw new Error(
+            `commentable flowchart nodes not found: ${missing.join(", ")}`,
+          );
         this.classList.add("lf-rendered");
       } catch (err) {
         // mermaid leaves its temp node (id "d" + renderId) in the body on failure.
         document.getElementById(`d${renderId}`)?.remove();
         failSoft(this, err, source);
       }
+    }
+
+    lfVisualPart(part) {
+      return this.visualParts.get(part) ?? null;
+    }
+
+    lfVisualPartAt(target) {
+      for (const [part, record] of this.visualParts)
+        if (record.element === target || record.element.contains(target)) return part;
+      return null;
     }
   },
 );

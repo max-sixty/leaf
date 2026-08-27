@@ -782,23 +782,22 @@ def _draft_says(html, text, attrs=""):
 
 
 def _publish(page_dir, version, html, note):
-    """Write a version and publish it through `version publish`, which lints it
-    and records a `note` event with what it says about the user's decisions."""
-    (page_dir / "versions" / f"v{version}.html").write_text(html)
+    """Save a revision and stamp it, asserting the expected public number."""
+    source = html.replace("</body>", f"<!-- test revision {version} -->\n</body>")
+    (page_dir / "index.html").write_text(source)
     result = CliRunner().invoke(
         cli_model.cli,
         [
             "version",
-            "publish",
+            "stamp",
             str(page_dir),
-            "--version",
-            str(version),
             "--text",
             note,
         ],
         catch_exceptions=False,
     )
     assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["version"] == version
 
 
 @pytest.fixture
@@ -1011,11 +1010,7 @@ customElements.define('lf-feed', class extends HTMLElement {
 
 
 def data_projection_page(serve):
-    url = serve(DATA_PROJECTION_PAGE)
-    d = serve.page_dir
-    registry_path = d / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-feed"] = {
+    feed = {
         "description": "A project-supplied live feed.",
         "type": "object",
         "properties": {
@@ -1029,7 +1024,7 @@ def data_projection_page(serve):
         "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
     }
-    registry["$data"]["contracts"]["deployment-rows"] = {
+    contract = {
         "description": "Current deployment status rows.",
         "schema": {
             "type": "array",
@@ -1044,8 +1039,15 @@ def data_projection_page(serve):
             },
         },
     }
-    registry_path.write_text(json.dumps(registry))
-    (d / "widgets" / "lf-feed.js").write_text(DATA_PROJECTION_MODULE)
+    url = serve(
+        DATA_PROJECTION_PAGE,
+        layer_registry={
+            "lf-feed": feed,
+            "$data": {"contracts": {"deployment-rows": contract}},
+        },
+        layer_widgets={"lf-feed.js": DATA_PROJECTION_MODULE},
+    )
+    d = serve.page_dir
     data_model.cmd_data_set(
         d,
         "deployments",

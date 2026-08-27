@@ -157,7 +157,7 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
             "if (held.length) console.error('returned holding ' + held.join());"
         )
 
-    url = serve(CUSTOM_WIDGET_PAGE)
+    url = serve(LONG_PAGE)
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
     declared.wait_for_function(rendering_model.UPGRADED)
@@ -318,7 +318,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
         pages.append(page)
 
     failures = rendering_model.render_version(
-        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+        primed(browser, prepare), serve(LONG_PAGE)
     )
 
     assert failures == []
@@ -339,7 +339,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
         pages.append(page)
 
     failures = rendering_model.render_version(
-        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+        primed(browser, prepare), serve(LONG_PAGE)
     )
 
     assert len(pages) == 4
@@ -354,7 +354,7 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         pages.append(page)
 
     failures = rendering_model.render_version(
-        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+        primed(browser, prepare), serve(LONG_PAGE)
     )
 
     assert len(pages) == 4
@@ -378,7 +378,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
         pages.append(page)
 
     failures = rendering_model.render_version(
-        primed(browser, prepare), serve(CUSTOM_WIDGET_PAGE)
+        primed(browser, prepare), serve(LONG_PAGE)
     )
 
     assert any("ordinary error from first attempt" in failure for failure in failures)
@@ -398,9 +398,7 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
         + """
     });"""
     )
-    page, errors = open_page(
-        browser, serve(CUSTOM_WIDGET_PAGE), init_script=first_load_only
-    )
+    page, errors = open_page(browser, serve(LONG_PAGE), init_script=first_load_only)
 
     assert errors == []
     page.evaluate(RESIZE_LOOP_EVENT)
@@ -414,7 +412,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     every_load = (
         "addEventListener('DOMContentLoaded', () => {" + RESIZE_LOOP_EVENT + "});"
     )
-    page, errors = open_page(browser, serve(CUSTOM_WIDGET_PAGE), init_script=every_load)
+    page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     assert errors == [rendering_model.recurring_resize_observer_error("navigation")]
     page.close()
@@ -458,6 +456,35 @@ def test_the_render_gate_requires_a_declared_conversations_host(browser, serve):
         "[light] <lf-options id='jobs'> declares x-conversation but rendered 0 "
         "matching hosts; its module must place exactly one conversationBox"
     ) in failures
+
+
+def test_the_render_gate_requires_a_visual_parts_provider(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A part declaration without both browser methods cannot silently fall back.
+
+    The CLI can validate authored tokens without rendering them, so the browser gate
+    holds the other half: every matching instance must implement the generic lookup in
+    both directions before a page carrying semantic visual anchors can publish.
+    """
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"]["properties"]["parts"] = {
+        "type": "string",
+        "minLength": 1,
+    }
+    entries["lf-callout"]["x-visual"] = {"parts": "parts"}
+    registry_path.write_text(json.dumps(entries, indent=2))
+
+    failures = rendering_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+
+    assert any(
+        "declares addressable visual parts but its module does not provide "
+        "lfVisualPart, lfVisualPartAt" in failure
+        for failure in failures
+    ), failures
 
 
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
@@ -1093,10 +1120,13 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     covering = LONG_PAGE.replace(
         "</main>",
         "<p id='under'>A paragraph with something standing on it.</p>"
-        "<span data-lf-offer role='button' id='over' style='position: relative;"
+        "<span role='button' id='over' style='position: relative;"
         " display: block; margin-top: -28px'>Covering words</span>\n</main>",
     )
     page, errors = open_page(browser, serve(covering))
+    page.locator("#over").evaluate(
+        "element => element.setAttribute('data-lf-offer', '')"
+    )
     page.locator("#under").scroll_into_view_if_needed()
     covered = page.evaluate(render_checks_model.COVERED_WORDS)
     page.close()
@@ -1216,6 +1246,8 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
             "addEventListener('DOMContentLoaded', () => {"
             "  const hold = () => {"
             "    const box = document.getElementById('rolled');"
+            "    const content = document.getElementById('riding');"
+            "    if (content) content.style.width = '900px';"
             "    if (box) box.scrollLeft = 400;"
             "    requestAnimationFrame(hold);"
             "  };"
@@ -1223,7 +1255,7 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
             "});"
         )
 
-    url = serve(SCROLLED_CONTAINER)
+    url = serve(SCROLLED_CONTAINER.replace("width: 900px", "width: 100%"))
     failures = rendering_model.render_version(primed(browser, scroll_it), url)
 
     assert not [f for f in failures if "riding" in f or "rolled" in f], (
@@ -1732,7 +1764,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "kind": "comment",
             "id": "c-list",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What should I carry into the patch?",
         },
     )
@@ -1742,7 +1774,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "kind": "reply",
             "author": "claude",
             "parent": "c-list",
-            "version": 1,
+            "revision": 1,
             "text": "Tick what belongs and press Done:",
             "markup": (
                 '<lf-options id="an-set" choose multiple '
@@ -1759,7 +1791,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "an-set",
             "action": "choose",
             "detail": {"options": ["an-chase", "an-say"]},
@@ -1771,7 +1803,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "an-set",
             "action": "answer",
             "detail": {},

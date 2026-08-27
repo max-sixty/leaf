@@ -4,11 +4,13 @@ export function createAim({
   inChrome,
   itemAt,
   openOnDesign,
+  openOnVisual,
   raiseOnItem,
   pointerAt,
   refreshAim,
   spell,
   standDown,
+  visualAt,
 }) {
   // While ⌥ is held the page shows what a click would take — the item under
   // the pointer wears the aim's box (refreshAim), so the chord
@@ -29,18 +31,26 @@ export function createAim({
     modifier: "Alt",
     keys: [],
     label: `${spell("Alt")} click`,
-    does: "Comment on the item under the pointer, whole",
+    does: "Comment on the item under the pointer",
   };
   // What the pointer is over, asked of the page rather than of an event, so pressing the key
   // without moving the mouse answers too — the user holds ⌥ to find out what they would
   // get, and the answer cannot wait for them to jiggle the mouse first. An open composer
   // is no reason to say nothing: the press still acts (it re-anchors the box), so the
   // promise still paints — what stood down here left that one press made blind.
-  function aimedItem() {
+  function aimedTarget() {
     if (pointerAt().x < 0) return null;
     const at = document.elementFromPoint(pointerAt().x, pointerAt().y);
-    return at && !inChrome(at) ? itemAt(at) : null;
+    if (!at || inChrome(at)) return null;
+    const visual = visualAt(at);
+    if (visual?.part) return { visual };
+    const item = itemAt(at);
+    return item ? { item } : null;
   }
+  const aimedItem = () => {
+    const target = aimedTarget();
+    return target?.visual?.part.element ?? target?.item ?? null;
+  };
   function setAiming(on) {
     aiming = on;
     document.body.classList.toggle("lf-aiming", on);
@@ -103,8 +113,8 @@ export function createAim({
     "click",
     "dblclick",
   ];
-  // The press the aim has taken — {item} for the ⌥ aim, {design} for design mode — until
-  // the next one starts.
+  // The press the aim has taken — {item} or {visual} for the ⌥ aim, {design} for design
+  // mode — until the next one starts.
   let aimedPress = null;
   function claimPress(ev) {
     // Made and dropped at the same moment, which is the start of a press: a drag already
@@ -120,7 +130,7 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
-      aimedPress = aim ? { item: aimedItem() } : design ? { design } : null;
+      aimedPress = aim ? (aimedTarget() ?? { item: null }) : design ? { design } : null;
       if (aimedPress) standDown(ev.target);
     }
     if (!aimedPress) return;
@@ -137,6 +147,7 @@ export function createAim({
     if (ev.type !== "click") return;
     const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
     if (aimedPress.item) raiseOnItem(aimedPress.item, from);
+    else if (aimedPress.visual) openOnVisual(aimedPress.visual, from);
     else if (aimedPress.design) openOnDesign(aimedPress.design, from);
   }
   for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);

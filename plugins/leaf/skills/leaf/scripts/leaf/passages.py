@@ -5,8 +5,9 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
 
-from .files import published_versions, version_path
-from .structure import VOID_TAGS, implicit_closes
+from .files import latest_revision, revision_path
+from .registry import visual_parts
+from .structure import VOID_TAGS, implicit_closes, parse_structure
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf comment` writes one down
@@ -469,15 +470,16 @@ def enclosing_ids(html: str) -> dict:
     return page_passages(html, {}).enclosing
 
 
-def published_enclosing(page_dir: Path, events: list) -> dict:
+def active_enclosing(page_dir: Path) -> dict:
     """Where every id sits on the page the reader is looking at.
 
-    The newest published version, because that is the page a decision was made
-    against, and nothing published yet is nowhere for anything to sit."""
-    published = published_versions(page_dir, events)
-    if not published:
+    The newest valid revision is the live page. A page with no valid revision has
+    nowhere for an element to sit."""
+    try:
+        revision = latest_revision(page_dir)
+    except SystemExit:
         return {}
-    html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
     return enclosing_ids(html)
 
 
@@ -504,7 +506,13 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
 
 
 def capture_anchor(
-    html: str, registry, quote: str, section: str, decided=None, rewrites=None
+    html: str,
+    registry,
+    quote: str,
+    section: str,
+    decided=None,
+    rewrites=None,
+    part: str | None = None,
 ) -> dict:
     """The anchor a quote makes, written the way a selection's is. Raises ValueError with
     what to do about it — a quote the file doesn't hold, or holds twice, is a question
@@ -514,6 +522,10 @@ def capture_anchor(
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words — so an anchor is met here the way it
     would land there, instead of detaching in front of them."""
+    if part and not section:
+        raise ValueError("--part needs --section to name its visual")
+    if part and quote:
+        raise ValueError("--part names a visual box; use it without --quote")
     text, owner, fences, retired, rewritten, gone, shown, enclosing = page_passages(
         html, registry, decided, rewrites
     )
@@ -535,6 +547,18 @@ def capture_anchor(
                 "it — the decision removed everything it held from the page, and an anchor "
                 "on it would reach nobody. Anchor on the surrounding text instead."
             )
+    if part:
+        record = parse_structure(html).by_id.get(section)
+        available = visual_parts(record or {}, registry)
+        if not available:
+            raise ValueError(
+                f"§ {section} declares no commentable visual parts in this version"
+            )
+        if part not in available:
+            raise ValueError(
+                f"§ {section} has no visual part {part!r}; known: {list(available)}"
+            )
+        return {"section": section, "visual": part}
     if not quote:
         return {"section": section}
 

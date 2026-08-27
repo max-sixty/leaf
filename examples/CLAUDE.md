@@ -1,5 +1,10 @@
 # The examples
 
+Each source HTML file is both a complete authored page and an integration
+fixture. The website publishes this corpus with the same vendored layer.
+`gallery.html` and `gallery.data.json` are generated views; edit the individual
+example and regenerate the gallery instead of patching either output.
+
 ## Every widget and idiom in the vocabulary stands here
 
 The nightly run drives eight sweeps over every page in `examples/`. Each page renders
@@ -70,16 +75,20 @@ theme. When a sweep finds something here, ask which of the two let it through
 before adding a page: a page that only re-renders a shape nobody judges buys
 nothing.
 
-## An example is one version, plus any log and data it ships beside it
+Use `gallery.html` when measuring runtime cost across the real corpus. A small
+fixture can establish a cause, but it cannot stand in for the composed surface.
+
+## An example is one stamped version, plus any log and data it ships beside it
 
 `examples/layer.json` names the package paths shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
 layer the website serves.
 
-An example's markup is v1, and nothing ever revises it. That puts `restated` and
-`overruled` out of reach: each answers something only a later version does —
-`restated` retracts a decision, `overruled` keeps a version's own state over a
-report — and there is no later version here. `version check` refuses both.
+An example's markup is the source stamped as v1, and nothing ever revises it.
+That puts `restated` and `overruled` out of reach: each answers something only a
+later revision does — `restated` retracts a decision, `overruled` keeps a
+revision's own state over a report — and there is no later revision here.
+`version check` refuses both.
 
 The log is a different matter: it was empty by default, not by nature. A thread
 is the one thing no markup describes, so an example that wants to show one ships
@@ -237,3 +246,9 @@ the landing page arguing for a product whose picture showed the previous theme �
 and the generator has to stay around to re-run. A mock depicts a console that
 doesn't exist: nothing here can make it false, and nothing would ever re-run its
 generator.
+
+## Previewing an example
+
+Run `scripts/preview.py [example]` to create a fresh vendored page, copy its
+companion log, data, and media, and serve it at a local URL. Use `page init` and
+the normal server commands for an authored page outside this corpus.

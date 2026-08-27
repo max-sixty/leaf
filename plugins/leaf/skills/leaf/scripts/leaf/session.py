@@ -8,8 +8,9 @@ from typing import NamedTuple
 from .events import batch_threads, jsonl_line
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
-from .passages import published_enclosing
+from .passages import active_enclosing
 from .registry import RegistryError, described, load_registry
+from .revisioning import activate_source
 from .service import (
     PageTransaction,
     claim_page,
@@ -31,6 +32,7 @@ def cmd_status(
     on: str | None = None,
 ) -> None:
     with PageTransaction(page_dir) as page:
+        activate_source(page_dir, page.events)
         work = None
         if on is not None:
             # A local claim says "I am on this now", so the two other states
@@ -270,9 +272,7 @@ def cmd_wait(page_dir: Path | None = None) -> int:
                                 "threads": batch_threads(
                                     reading.transaction.events,
                                     reading.batch,
-                                    published_enclosing(
-                                        reading.page_dir, reading.transaction.events
-                                    ),
+                                    active_enclosing(reading.page_dir),
                                 ),
                             }
                         ),

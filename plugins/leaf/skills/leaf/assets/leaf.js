@@ -1497,10 +1497,10 @@ findInput.setAttribute("aria-label", "Find in comments");
 // The register appends the key that reaches it (`also`), so the control and the row
 // cannot spell the binding differently.
 findInput.title = "Find in comments";
-// What is waiting on the reader: an open thread whose last word is the agent's. Derived
-// from the log rather than stored, so it needs no record of what this reader has read and
-// cannot go stale in another tab — and it is the same question the asks board asks of the
-// page's widgets, asked of the conversation.
+// What is waiting on the reader: an agent comment, an explicit prose ask in a reply, or a
+// reply whose own x-awaits markup still asks. The last case is derived from the same
+// declaration-driven projection as the asks board; settling reactions can acknowledge
+// either kind without closing the thread.
 const needsBtn = el("button", "lf-btn lf-needs", "Waiting on you");
 needsBtn.setAttribute("aria-pressed", "false");
 findRow.append(findInput, needsBtn);
@@ -2701,6 +2701,7 @@ const {
   isAwaiting,
   openAsks,
   projectedParent,
+  threadMarkupAwaiting,
   unansweredAsks,
 } = createAskModel({
   authoredParentOf: (node) => authoredParents.get(node),
@@ -4246,6 +4247,7 @@ conversationRuntime = createConversation({
   takenBack,
   tellDraft,
   threadsBox,
+  threadMarkupAwaiting,
   toggleBtn,
   updateSequence,
   visualPartLabel,

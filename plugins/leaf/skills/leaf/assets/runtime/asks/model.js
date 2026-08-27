@@ -216,8 +216,8 @@ export function createAskModel({
   // Frozen thread markup seats no conversation of its own — `conversationBox` declines a
   // widget standing inside a thread, whose reply box is already that seat — so this reaches
   // only the page's widgets, which is exactly where there is a box to answer in.
-  function asksTheReader(el, context) {
-    return inChrome(el)
+  function asksTheReader(el, context, thread = false) {
+    return thread || inChrome(el)
       ? !answeredThreadAsk(el, context.projection)
       : !answeredAsk(el, context.projection) && !seatWithAgent(el, context);
   }
@@ -227,15 +227,17 @@ export function createAskModel({
   // take precedence; otherwise child roll-ups recurse; a leaf
   // that matches its condition waits. Every relation is discovered from x-awaits, so
   // a custom goal and a custom intervention join without a tag branch.
-  function isAwaiting(el, context) {
+  function isAwaiting(el, context, candidates = null, thread = false) {
     if (!askExists(el, context)) return false;
     if (!matchesProjectedWhen(el, askEntry(el).when, context.projection)) return false;
     const entry = askEntry(el);
-    if (!entry.rollup) return asksTheReader(el, context);
+    if (!entry.rollup) return asksTheReader(el, context, thread);
 
     const tags = askTags();
+    const universe =
+      candidates ?? (tags.length ? [...document.querySelectorAll(tags.join(","))] : []);
     const direct = tags.length
-      ? [...document.querySelectorAll(tags.join(","))].filter(
+      ? universe.filter(
           (candidate) => candidate !== el && nearestRollup(candidate, context) === el,
         )
       : [];
@@ -243,11 +245,34 @@ export function createAskModel({
       (candidate) => !askEntry(candidate).rollup && locallyAsks(candidate, context),
     );
     if (interventions.length)
-      return interventions.some((candidate) => isAwaiting(candidate, context));
+      return interventions.some((candidate) =>
+        isAwaiting(candidate, context, candidates, thread),
+      );
     const children = direct.filter((candidate) => askEntry(candidate).rollup);
     if (children.length)
-      return children.some((candidate) => isAwaiting(candidate, context));
-    return asksTheReader(el, context);
+      return children.some((candidate) =>
+        isAwaiting(candidate, context, candidates, thread),
+      );
+    return asksTheReader(el, context, thread);
+  }
+
+  // A reply may carry the request in its validated widget markup instead of in prose.
+  // Return null when it carries no x-awaits declaration, so callers can fall back to the
+  // reply event's explicit prose flag; otherwise return the declaration-driven standing
+  // value. The supplied root may be a detached message body staged by the conversation
+  // reconciler, so the reducer takes this exact fragment as its element universe rather
+  // than querying the document. Its widgets are connected while this runs, which lets the
+  // shared action projection find their ids and distinguish an open request from one the
+  // reader has already answered.
+  function threadMarkupAwaiting(root) {
+    const tags = askTags();
+    if (!tags.length || !root) return null;
+    const candidates = [...root.querySelectorAll(tags.join(","))];
+    if (!candidates.length) return null;
+    const context = askContext();
+    return candidates.some((candidate) =>
+      isAwaiting(candidate, context, candidates, true),
+    );
   }
 
   // The reader's list: the requests still theirs to deal with, which is what the banner,
@@ -326,6 +351,7 @@ export function createAskModel({
     isAwaiting,
     openAsks,
     projectedParent,
+    threadMarkupAwaiting,
     unansweredAsks,
   };
 }

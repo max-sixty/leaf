@@ -958,6 +958,57 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
+def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_dir):
+    published(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "status?"},
+    )
+
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", root["id"], "--text", "Complete."],
+    )
+    asking = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--text",
+            "Which store?",
+            "--awaits",
+        ],
+    )
+    duplicate = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--text",
+            "Pick one.",
+            "--markup",
+            (
+                '<lf-options id="stores" choose>'
+                '<lf-option id="store-a"><strong>A</strong></lf-option>'
+                "</lf-options>"
+            ),
+            "--awaits",
+        ],
+    )
+
+    assert answered.exit_code == 0, answered.output
+    assert asking.exit_code == 0, asking.output
+    assert duplicate.exit_code == 1
+    assert "reply markup already declares" in duplicate.output
+    replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
+    assert "awaits" not in replies[0]
+    assert replies[1]["awaits"] is True
+
+
 def test_an_agent_edits_its_own_messages_without_rewriting_history(
     page_dir, monkeypatch
 ):

@@ -373,7 +373,7 @@ def thread_markup_contract_errors(parser, registry: dict) -> list:
     return errors
 
 
-def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
+def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> _StructParser:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
@@ -420,6 +420,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> None:
         sys.exit(
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
         )
+    return frag
 
 
 def validate_registry_examples(registry: dict, source) -> dict:

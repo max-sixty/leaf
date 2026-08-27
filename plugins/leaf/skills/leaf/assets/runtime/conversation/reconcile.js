@@ -71,6 +71,7 @@ export function createConversation(dependencies) {
     takenBack,
     tellDraft,
     threadsBox,
+    threadMarkupAwaiting,
     toggleBtn,
     updateSequence,
     visualPartLabel,
@@ -78,6 +79,7 @@ export function createConversation(dependencies) {
     withdraw,
   } = dependencies;
   let threadList = [];
+  const markupAwaiting = new Map();
   const {
     awaitsAgent,
     awaitsReader,
@@ -98,6 +100,7 @@ export function createConversation(dependencies) {
     retractionFloors,
     runtime,
     takenBack,
+    markupAwaiting: (message) => markupAwaiting.get(message.id) ?? null,
   });
   const {
     anchorLabel,
@@ -809,11 +812,6 @@ export function createConversation(dependencies) {
     // stands and which run it belongs to.
     const outline = pageOutline();
     const group = new Map(threads.map((t) => [t, groupFor(t, outline)]));
-    // Where the reader's own narrowing applies, and the only place it does: the page's
-    // marks, the inline conversation seats and the banner's count are readings of the log
-    // and go on saying what the log says. What the panel shows is the panel's business.
-    const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
-    const resolved = shown.filter((t) => t.resolved);
     // Newcomers settle in (`grow`) only when the user already has the list in front
     // of them: the first populated render is the page loading, not news arriving, and a
     // node animated while the panel is closed would replay the moment it opens.
@@ -821,6 +819,35 @@ export function createConversation(dependencies) {
     // theme's one global guard's to stop.)
     const grow =
       panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
+
+    // A structured reply asks through its x-awaits widgets. Build every open candidate
+    // before applying the panel's narrowing, so a new question cannot be excluded before
+    // the projection has had a chance to see it. Only candidates not already in the list
+    // are connected in this transient stage; connection lets the shared action fold find
+    // their widget ids and tell an open request from one the reader already answered. The
+    // stage is removed synchronously, before a frame can expose it, and the selected nodes
+    // below are adopted from it into their lasting positions.
+    const openNodes = new Map(open.map((t) => [t, threadNode(t, grow)]));
+    const stage = el("div", "lf-thread-stage");
+    for (const node of openNodes.values()) if (!node.isConnected) stage.append(node);
+    if (stage.childElementCount) {
+      threadsBox.append(stage);
+      captureAuthoredFacets(stage);
+    }
+    for (const t of open) {
+      const last = spoken(t).at(-1);
+      if (last?.kind !== "reply") continue;
+      const body = openNodes
+        .get(t)
+        .querySelector(`:scope > .lf-msg[data-mid="${last.id}"] > .lf-msg-body`);
+      markupAwaiting.set(last.id, threadMarkupAwaiting(body));
+    }
+    stage.remove();
+    // Where the reader's own narrowing applies, and the only place it does: the page's
+    // marks, the inline conversation seats and the banner's count are readings of the log
+    // and go on saying what the log says. What the panel shows is the panel's business.
+    const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
+    const resolved = shown.filter((t) => t.resolved);
 
     const wanted = [];
     if (!threads.length) wanted.push(emptyNote);
@@ -841,7 +868,7 @@ export function createConversation(dependencies) {
     for (const t of shown) {
       // A resolved thread is either still giving its room back in place, or gone from this
       // list entirely and rebuilt under the disclosure below.
-      const node = t.resolved ? foldOut(t) : threadNode(t, grow);
+      const node = t.resolved ? foldOut(t) : openNodes.get(t);
       if (!node) continue;
       const here = group.get(t);
       if (here.key !== standing) {

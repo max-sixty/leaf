@@ -185,6 +185,16 @@ EOF
 
 Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.
+An ordinary reply leaves the thread open for follow-up without counting it as an
+outstanding request. Add `--awaits` when the reply's prose asks the reader to answer:
+
+```bash
+leaf reply <page> --to <thread-id> --awaits --text "Which store should own it?"
+```
+
+A widget whose registry entry declares `x-awaits` already joins the page's ask
+list and keeps its thread in "Waiting on you" while its declared request stands.
+Leaf refuses `--awaits` beside such markup; the widget's state is the one reading.
 
 Correct one of this session's sent messages without adding another turn:
 
@@ -213,8 +223,9 @@ as the default package ships them, on a passage, an element, the page whole, or
 one of your replies. `page state` lists every standing one under `reactions`,
 each with its `means`, and the tokens themselves are the page's vendored
 `$reactions` (`page catalog`), so a project's own tokens read the same way. An
-`ok` on your latest reply is the thread leaving "waiting on you"; no reply is
-owed for it. Resolve a page reaction once the live revision has acted on it.
+`ok` on your latest reply request takes the thread out of "waiting on you";
+no reply is owed for it. Resolve a page reaction once the live revision has acted
+on it.
 
 ## Save revisions and stamp checkpoints
 

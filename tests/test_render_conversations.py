@@ -3,6 +3,7 @@
 import re
 
 import pytest
+from leaf import conversation as conversation_model
 from leaf import events as events_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -567,9 +568,10 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
 
 def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     """Which threads the reader still owes an answer to is a question the log already
-    answers: the agent spoke last. So the panel asks it rather than keeping a record of
-    what this reader has read — nothing to go stale in a second tab, and nothing to
-    remember across a reload.
+    answers: an agent comment asks by construction, and a reply may declare another
+    ask. So the panel reads the log rather than keeping a record of what this reader
+    has read — nothing to go stale in a second tab, and nothing to remember across a
+    reload.
 
     The count is the whole page's; the list is the ones it names."""
     url = serve(PANEL_PAGE)
@@ -616,8 +618,8 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
-    # Answering it takes it out of the list it is filtered to, because the fact the
-    # filter reads is who spoke last and the reader has now spoken.
+    # Answering the agent's comment takes it out of the reader's list and hands the
+    # next word to the agent.
     reply = page.locator(f'.lf-thread[data-id="{theirs}"] textarea')
     reply.click()
     reply.type("Forty is plenty.")
@@ -638,6 +640,69 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Comments")
+    assert errors == []
+    page.close()
+
+
+def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
+    """An open thread and a request to its reader are different facts. A complete
+    answer stays available for follow-up without entering the waiting list; a reply
+    carrying an explicit prose ask enters it until the reader answers. A widget ask
+    needs no duplicate flag: its own standing projection enters and leaves the list."""
+    url = serve(PANEL_PAGE)
+    answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
+    asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        answered,
+        "Forty is what the slowest supported device can hold.",
+        None,
+    )
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        asked,
+        "One choice remains. Which store should own the result?",
+        None,
+        awaits=True,
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(".lf-thread")).to_have_count(2)
+
+    page.locator(".lf-needs").click()
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(0)
+
+    # The completed thread is absent under the narrowing. A later structured ask must
+    # still be projected before the filter decides whether to admit that thread, or the
+    # question can never render itself into the list that would discover it.
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        answered,
+        "Choose the backend here.",
+        '<lf-options id="backend" choose>'
+        '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
+        '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
+        "</lf-options>",
+    )
+    told(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (2)")
+    expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
+
+    page.locator("#backend-sqlite").click()
+    round_trip(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(0)
+
+    reply = page.locator(f'.lf-thread[data-id="{asked}"] textarea')
+    reply.fill("SQLite should own it.")
+    page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
+    round_trip(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    expect(page.locator(".lf-thread")).to_have_count(0)
     assert errors == []
     page.close()
 

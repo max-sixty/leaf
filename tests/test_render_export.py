@@ -308,14 +308,15 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     none of the corpus can say so, because an example is one version with an empty log.
 
     The gap the wait covers is real and narrow: the runtime stamps `lf-upgraded` in the
-    same breath as it *starts* the first poll, never awaiting it, so the stamp export
-    opens on is no promise that anything in the log has been painted. Ordinarily the
-    poll goes out during load and export's own `networkidle` waits it out, which is why
-    the page arrives painted however the wait is written and why the count being wrong
-    stayed invisible. Refusing that first poll is the whole of the difference — replay's
-    only chance is then the 2s retry, on the far side of both the stamp and networkidle,
-    which is exactly where a loaded machine would have put it. Counting actions alone
-    leaves nothing to wait for on a log holding one report, and the copy goes out blank.
+    same breath as it *starts* the first read, never awaiting it, so the stamp export
+    opens on is no promise that anything in the log has been painted. Ordinarily that
+    read goes out during load and is answered before export asks the runtime anything,
+    which is why the page arrives painted however the wait is written and why the count
+    being wrong stayed invisible. Refusing that first read is the whole of the
+    difference — replay is left to the asks on the far side of the stamp: the one the
+    news stream prompts as it opens, and the 2s tick behind it, which is exactly where
+    a loaded machine would have put it. Counting actions alone leaves nothing to wait
+    for on a log holding one report, and the copy goes out blank.
 
     The refusal is served to export's own page rather than the copy's, through the
     stand-in `primed` supplies."""

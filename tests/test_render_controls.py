@@ -1999,6 +1999,9 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     other_url, _ = live_leaf("other", "The other leaf")
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
+    expect(page.locator(".lf-others-panel")).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Enter"
+    )
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")
     # A shortcut no surface names is a shortcut nobody finds: the line carries l for

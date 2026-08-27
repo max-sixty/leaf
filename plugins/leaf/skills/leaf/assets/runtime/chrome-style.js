@@ -1072,7 +1072,15 @@ ${MARK_RULES}
       background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
       box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 14px 18px; }
     .lf-help.open { display: flex; flex-direction: column; }
-    .lf-help-title { font-weight: 600; margin-bottom: 8px; }
+    .lf-help-head { display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 8px; }
+    .lf-help-title { font-weight: 600; }
+    .lf-help-close { flex: none; border: 0; border-radius: 50%; width: 26px; height: 26px;
+      padding: 0; background: transparent; color: var(--muted); font: 20px/1 var(--sans);
+      cursor: pointer; }
+    .lf-help-close:is(:hover, :focus-visible) { background: var(--chip); color: var(--ink); }
+    .lf-help-close:focus-visible { outline: var(--here-ring); --lf-here-ring: help-close;
+      outline-offset: 1px; }
     .lf-help-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
       border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
       color: var(--ink); }

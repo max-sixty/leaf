@@ -7,6 +7,7 @@ export function createLiveLeaves({
   othersBtn,
   othersPanel,
   pagePresented,
+  paintKeys,
   presented,
   showNews,
   toneFor,
@@ -110,6 +111,7 @@ export function createLiveLeaves({
 
   const othersRows = new Map(); // keyed by URL; the self row under its own key
   function renderOthers(state) {
+    const offeredBefore = leavesOffered();
     // An older server ships no list, which is an empty one. A closed leaf is not
     // one of the machine's live pages and drops out of the tray on the poll that says
     // so: its server stays up so the page stays readable — a standing one for good —
@@ -171,6 +173,7 @@ export function createLiveLeaves({
         row.remove();
         othersRows.delete(key);
       }
+    if (offeredBefore !== leavesOffered()) paintKeys();
   }
 
   return { leavesOffered, othersLinks, renderOthers };

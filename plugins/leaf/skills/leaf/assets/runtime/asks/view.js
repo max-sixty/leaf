@@ -19,6 +19,7 @@ export function createAskView({
   openTray,
   paintAnchors,
   paintHere,
+  paintKeys,
   panelIsOpen,
   registry,
   reserve,
@@ -92,6 +93,7 @@ export function createAskView({
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
   // page's own words change), and every poll, which is where the fold moves and where a
   // send that failed has its optimism taken back.
+  let shortcutsOffered = false;
   function syncAsks() {
     const asks = openAsks();
     // While the tray stands its button stands too, whatever the count just did — the
@@ -108,8 +110,12 @@ export function createAskView({
     }
     // The n/p and A rows stand on this list, so the surfaces reading them are repainted
     // where it changes — the rule showFab and showTray already keep for the words
-    // they write.
-    paintHere();
+    // they write. A capability change also moves the tray edge's machine-readable keys.
+    const offered = asksOffered();
+    if (offered !== shortcutsOffered) {
+      shortcutsOffered = offered;
+      paintKeys();
+    } else paintHere();
   }
   // An answer also changes what text the page has — a retired slot leaves it, a pick
   // mark starts saying "your pick" — so the marks are repainted from the same signal,

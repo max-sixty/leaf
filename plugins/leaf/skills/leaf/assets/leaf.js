@@ -198,6 +198,7 @@ import {
 } from "./runtime/drafts.js";
 import {
   PRESS,
+  ariaShortcuts,
   bindings,
   checked,
   labelOf,
@@ -996,7 +997,7 @@ function showTray(key) {
   // page's own box. One writer for it, here, beside the one variable that holds the fact.
   if (key) document.body.dataset.lfTray = key;
   else delete document.body.dataset.lfTray;
-  paintHere();
+  paintKeys();
 }
 // Registration and nothing else: no tray is up while this module is evaluating, and
 // the one the reader left standing goes up in the restore section at the foot of the
@@ -1056,6 +1057,7 @@ const { leavesOffered, othersLinks, renderOthers } = createLiveLeaves({
   othersBtn,
   othersPanel,
   pagePresented,
+  paintKeys,
   presented: (...args) => presented(...args),
   showNews,
   toneFor: (...args) => toneFor(...args),
@@ -1086,6 +1088,7 @@ const {
   midComposition: (...args) => midComposition(...args),
   paintDiff: (...args) => paintDiff(...args),
   paintHere,
+  paintKeys,
   readAndApply,
   pressComparison: (...args) => pressComparison(...args),
   setDiff: (...args) => setDiff(...args),
@@ -1235,7 +1238,12 @@ liveEl.setAttribute("aria-live", "polite");
 const helpEl = el("div", "lf-ui lf-help");
 helpEl.setAttribute("role", "dialog");
 helpEl.setAttribute("aria-label", "Keyboard reference");
+helpEl.setAttribute("aria-modal", "true");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
+const helpClose = el("button", "lf-help-close", "×");
+helpClose.type = "button";
+helpClose.title = "Close keyboard reference";
+helpClose.setAttribute("aria-label", "Close keyboard reference");
 // The key line — the register's short rendering. Its two fact chips are aria-hidden (the
 // spoken copies are placeholders, announcements, and the reference); More is a real button
 // because a visible door to the complete list should be a door every reader can work.
@@ -1694,7 +1702,7 @@ const {
   fabBar,
   fabSep,
   hideComposer: () => hideComposer(),
-  hideReference: () => reference.show(false),
+  hideReference: () => reference.show(false, false),
   inChrome: (node) => inChrome(node),
   markAt,
   noteClass: () => NOTE,
@@ -2307,6 +2315,7 @@ const {
   openTray,
   paintAnchors,
   paintHere,
+  paintKeys,
   panelIsOpen: () => panelOpen,
   registry,
   reserve,
@@ -2574,9 +2583,17 @@ const HELP = {
   claims: EVERYTHING,
   rows: [
     {
+      keys: ["Tab", "Shift+Tab"],
+      does: "Move through this reference",
+      line: "move",
+      repeat: true,
+      run: (binding) => reference.move(binding === "Tab" ? 1 : -1),
+    },
+    {
       keys: ["Escape"],
       does: "Close this reference",
       line: "close help",
+      also: helpClose,
       run: () => reference.show(false),
     },
   ],
@@ -3234,7 +3251,11 @@ for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own key
 // correct. `also` is where a row says which control it duplicates; the chip's is the one
 // motion no single row makes, so it is composed of the two rows that make it.
 for (const scope of CORE)
-  for (const row of scope.rows) if (row.also) row.also.title += ` (${labelOf(row)})`;
+  for (const row of scope.rows)
+    if (row.also) {
+      row.also.title += ` (${labelOf(row)})`;
+      row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
+    }
 latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 
 const { readerIn, shadow, stack } = createDispatch({
@@ -3260,6 +3281,7 @@ const reference = createReference({
   ELEMENTS,
   EVERYTHING,
   focused,
+  helpClose,
   helpEl,
   merge,
   pageSelection,
@@ -4402,6 +4424,7 @@ async function presentPage() {
   // an empty persisted tray between those facts.
   restoreTray();
   showNews(othersBtn, leavesOffered());
+  paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
   paintApproval();
   promoteDeferredModals();

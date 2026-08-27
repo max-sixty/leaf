@@ -2236,7 +2236,7 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
             "author": "user",
             "version": 1,
             "anchor": {"section": "choice"},
-            "response": "version",
+            "response": {"kind": "version", "verb": "choose"},
             "text": "Add the camera first.",
         },
     )

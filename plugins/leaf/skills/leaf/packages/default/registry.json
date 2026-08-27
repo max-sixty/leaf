@@ -103,7 +103,10 @@
           true
         ]
       },
-      "response": "version"
+      "response": {
+        "kind": "version",
+        "verb": "choose"
+      }
     },
     "x-work": {
       "seat": "conversation",

@@ -2199,14 +2199,17 @@ def test_a_version_response_comment_requires_its_declared_exact_section(
         "version": 1,
         "text": "Add the camera first.",
         "anchor": {"section": "choice"},
-        "response": "version",
+        "response": {"kind": "version", "verb": "choose"},
         "attempt": "version_response_good_1",
     }
 
     status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
 
     assert status == 200, body
-    assert event_model.read_events(page_dir)[-1]["response"] == "version"
+    assert event_model.read_events(page_dir)[-1]["response"] == {
+        "kind": "version",
+        "verb": "choose",
+    }
 
     forged = {
         **event,
@@ -2214,6 +2217,15 @@ def test_a_version_response_comment_requires_its_declared_exact_section(
         "attempt": "version_response_forged_1",
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
+    assert status == 400
+    assert "exact-section x-conversation response target" in json.loads(body)["error"]
+
+    wrong_verb = {
+        **event,
+        "response": {"kind": "version", "verb": "answer"},
+        "attempt": "version_response_wrong_verb_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_verb).encode())
     assert status == 400
     assert "exact-section x-conversation response target" in json.loads(body)["error"]
 

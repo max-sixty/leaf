@@ -37,7 +37,7 @@ def unanswered_asks(events: list, cursor: int) -> list:
     this one need an answer" is a question the agent is holding the context to
     settle, and settling it costs one command.
 
-    A `response: version` root cannot take that command's ordinary reply. It stays
+    A `response.kind: version` root cannot take that command's ordinary reply. It stays
     here until a later version lets the agent resolve it. If the agent opens an
     ordinary thread in the same exact-section seat, that thread carries the work
     while its last word is the agent's; once the reader answers there, both roots
@@ -83,7 +83,7 @@ def unanswered_asks(events: list, cursor: int) -> list:
         # revision needs; while that thread waits on the reader, the proposal has a
         # visible next step rather than being an acknowledged message nobody owns.
         and not (
-            t["root"].get("response") == "version"
+            (t["root"].get("response") or {}).get("kind") == "version"
             and any(
                 seat == seat_root(t) and root_seq > t["root"]["seq"]
                 for root_seq, seat in clarifications

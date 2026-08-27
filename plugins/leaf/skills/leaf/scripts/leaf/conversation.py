@@ -6,9 +6,10 @@ from pathlib import Path
 
 from leaf.events import append_event, thread_roots
 from leaf.files import latest_published, version_path
-from leaf.passages import capture_anchor
+from leaf.passages import capture_anchor, spoken
 from leaf.projection import (
     decisions,
+    markup_facet,
     page_awaiting_values,
     page_projection,
     rewritten_bodies,
@@ -34,7 +35,7 @@ def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
     return root_id, messages.get(root_id)
 
 
-def _version_response_still_awaiting(page_dir: Path, events: list, root: dict) -> bool:
+def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bool:
     version = latest_published(page_dir, events)
     if version <= root["version"]:
         return True
@@ -42,7 +43,25 @@ def _version_response_still_awaiting(page_dir: Path, events: list, root: dict) -
     html = version_path(page_dir, version).read_text(encoding="utf-8")
     projection, parser, spk = page_projection(html, events, registry, version)
     awaiting = page_awaiting_values(html, parser, projection, spk, registry)
-    return awaiting.get(root["anchor"]["section"], False)
+    target = root["anchor"]["section"]
+    if awaiting.get(target, False):
+        return True
+
+    current = parser.by_id.get(target)
+    if current is None:
+        return True
+    response = root["response"]
+    current_entry = registry.get(current["tag"], {})
+    if (current_entry.get("x-conversation") or {}).get("response") != response:
+        return True
+    spec = current_entry["x-state"][response["verb"]]
+    current_answer = markup_facet(target, spec, parser.by_id, spk, registry)
+
+    original_html = version_path(page_dir, root["version"]).read_text(encoding="utf-8")
+    original = parse_version(page_dir, root["version"])
+    original_spk = spoken(original_html, registry)
+    original_answer = markup_facet(target, spec, original.by_id, original_spk, registry)
+    return current_answer in (None, "", []) or current_answer == original_answer
 
 
 @contract_writer
@@ -95,7 +114,7 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str) -> dict:
     with PageTransaction(page_dir) as page:
         events = page.events
         root_id, root = _thread_root(events, to)
-        if root and root.get("response") == "version":
+        if root and (root.get("response") or {}).get("kind") == "version":
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
                 "incorporate its request in the next version, or open a separate "
@@ -171,12 +190,12 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
         root_id, root = _thread_root(events, to)
         if (
             root
-            and root.get("response") == "version"
-            and _version_response_still_awaiting(page_dir, events, root)
+            and (root.get("response") or {}).get("kind") == "version"
+            and _version_response_unanswered(page_dir, events, root)
         ):
             sys.exit(
-                f"thread {root_id!r} requires a page version that answers its Ask "
-                "before the agent can resolve it"
+                f"thread {root_id!r} requires a page version that changes its Ask's "
+                "declared answer and leaves it answered before the agent can resolve it"
             )
         event = {
             "kind": "resolve",

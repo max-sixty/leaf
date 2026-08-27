@@ -480,7 +480,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
             "version": 1,
             "text": "Add the camera as the first job.",
             "anchor": {"section": "choice"},
-            "response": "version",
+            "response": {"kind": "version", "verb": "choose"},
         },
     )
     follow_up = events_model.append_event(
@@ -520,7 +520,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its Ask before the agent can resolve it"
+        "requires a page version that changes its Ask's declared answer"
         in unresolved.output
     )
 
@@ -533,7 +533,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert still_unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its Ask before the agent can resolve it"
+        "requires a page version that changes its Ask's declared answer"
         in still_unresolved.output
     )
 
@@ -543,6 +543,51 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
         1,
     )
     (page_dir / "versions" / "v3.html").write_text(v3)
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
+
+def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
+    chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
+    )
+    (page_dir / "versions" / "v1.html").write_text(chosen)
+    publish(page_dir)
+    proposal = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "version": 1,
+            "text": "Also consider doing the camera first.",
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+
+    (page_dir / "versions" / "v2.html").write_text(
+        chosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
+    )
+    publish(page_dir, version=2)
+    unrelated = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert unrelated.exit_code != 0
+    assert "requires a page version that changes its Ask's declared answer" in (
+        unrelated.output
+    )
+
+    answered = chosen.replace(" chosen", "", 1).replace(
+        "</lf-options>",
+        '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+        1,
+    )
+    (page_dir / "versions" / "v3.html").write_text(answered)
     publish(page_dir, version=3)
     resolved = CliRunner().invoke(
         cli_model.cli,

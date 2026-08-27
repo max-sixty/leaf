@@ -89,12 +89,12 @@ none of its own.
 
 Writing there is the reader dealing with the question, so the group stops being
 one of the page's open asks and the ball is yours. Nothing is recorded by it:
-the group still holds no pick. Answer what they wrote and honor it in the same
-move — carry their words in as an option, mark the pick it settled, or settle
-the group. Both ways of finishing with the thread hand the question back,
-`leaf reply` and `leaf resolve` alike, so a group still open asks again, now
-with their option on it. Ship a version that leaves the question standing
-without answering them and the page waits on you while saying nothing.
+the group still holds no new pick. Answer what they wrote in the authored page:
+carry their words in as another option and mark the pick it settled. This thread
+takes no agent reply; if the revision needs an answer first, open a separate
+exact-section thread on the same Ask. Only a later version that changes that Ask
+and leaves its request answered lets the agent resolve the proposal. An unrelated
+version cannot close it.
 
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own

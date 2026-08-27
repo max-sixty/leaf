@@ -1190,7 +1190,7 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-diagram"]["x-conversation"] = {
         "when": {"id": ["flow"]},
-        "response": "version",
+        "response": {"kind": "version", "verb": "draw"},
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -1199,8 +1199,28 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     assert result.exit_code != 0
     assert "version response but declares no x-awaits standing request" in result.output
 
+    del registry["lf-diagram"]["x-conversation"]["response"]
     registry["lf-diagram"]["x-awaits"] = {}
     assert registry_model.validate_registry(registry, "test registry") is registry
+
+
+def test_a_version_response_names_an_authored_answer_record(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    response = registry["lf-options"]["x-conversation"]["response"]
+    response["verb"] = "answer"
+
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="x-awaits does not declare as an answer verb",
+    ):
+        registry_model.validate_registry(registry, "test registry")
+
+    registry["lf-options"]["x-awaits"]["answers"].append("answer")
+    with pytest.raises(
+        registry_model.RegistryError,
+        match="has no attribute or value record for a version to change",
+    ):
+        registry_model.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize(
@@ -2562,7 +2582,7 @@ def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
             "version": 1,
             "text": "Add the camera first.",
             "anchor": {"section": "choice"},
-            "response": "version",
+            "response": {"kind": "version", "verb": "choose"},
         },
     )
     registry = json.loads((page_dir / "registry.json").read_text())

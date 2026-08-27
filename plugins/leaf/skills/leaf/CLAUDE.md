@@ -493,7 +493,7 @@ conversation current on a pinned page even when the document projection remains
 historical. Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document; the Comments panel
 keeps the complete thread and its interactive replies. A root declared with
-`response: version` keeps that exact-section view text-only and refuses an agent
+`response: {kind: version, verb: <answer>}` keeps that exact-section view text-only and refuses an agent
 reply because the next authored version is its response. Dropping the owner
 drops only the inline seat.
 
@@ -1787,26 +1787,27 @@ So the banner's count and the panel's reading of the same thread cannot disagree
 about whose turn it is. Whose thread it is does not enter into it — the agent may
 open one in the seat too, and once the reader has answered there the question is
 with the agent either way. An ordinary agent reply hands the conversation back.
-A `response: version` conversation accepts no agent reply; the agent incorporates
+A `response: {kind: version, verb: <answer>}` conversation accepts no agent reply; the agent incorporates
 it into a version or opens a separate thread for clarification. While that thread
 waits on the reader in the same seat, it carries the original response through the
 stop gate; their answer hands both threads back to the agent. A version that marks
-the pick `chosen` ends the request, and only then may the agent resolve the original
-thread.
+the pick `chosen` and changes the declared answer state ends the request, and only
+then may the agent resolve the original thread. Comments owns the reader-facing clarification;
+the page's Ask remains the proposal with the agent rather than counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
 banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
-Two readings ask the other question — whether the request is *answered* — and both
+Three readings ask the other question — whether the request is *answered* — and all
 say so by emptying the seats (`answeredContext`, stated beside the shape rather than
 by a caller reaching into it, so a member derived from those conversations later
 cannot escape the emptying). An action's `requires` is one: a conversation does not
 answer a question the widget holds no state for, and refusing a pick over the reader's
-own remark would refuse them the answer they were asked for. Where the reader is
-standing is the other, through `unansweredAsks`; **Standing somewhere** owns it.
-Frozen thread markup seats no conversation of its own, so only an action answers
-there. A `rollup` instance evaluates its own `when`,
+own remark would refuse them the answer they were asked for. The version-response
+resolve gate is another. Where the reader is standing is the third, through
+`unansweredAsks`; **Standing somewhere** owns it. Frozen thread markup seats no
+conversation of its own, so only an action answers there. A `rollup` instance evaluates its own `when`,
 then matching direct non-rollup interventions, then child
 roll-ups, and finally itself as a leaf. The standing projection keeps the
 deepest open member; an enclosing `x-ask` replaces that member only on the

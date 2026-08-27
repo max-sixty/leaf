@@ -112,7 +112,7 @@ later delivery also includes newer events.
 After acknowledging a direct batch, set the page `working` and address every
 event the wait printed:
 
-- **Comment:** a comment with `"response": "version"` takes no reply: incorporate
+- **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
   it in the next version, then resolve it. If the revision depends on the reader,
   open a separate exact-section thread on the same Ask with
   `leaf comment --section <ask-id>`. Reply to other comments in-thread and revise

@@ -409,7 +409,7 @@ export function createConversation(dependencies) {
           : "✓ Resolved";
       if (!tail) tail = offer("div", "lf-conversation-resolved");
       if (tail.textContent !== settledBy) tail.textContent = settledBy;
-    } else if (t.root.response === "version") {
+    } else if (t.root.response?.kind === "version") {
       // The page seat shows what the reader proposed. Their reply workspace remains
       // in Comments; the agent's response is the next authored version.
       tail = null;

@@ -1980,8 +1980,11 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 def test_an_agent_question_opens_another_thread_without_returning_the_ask(
     browser, serve
 ):
-    """The reader's proposed option remains with the agent while a separate thread
-    asks for clarification."""
+    """The proposed option remains with the agent while a separate thread asks.
+
+    That clarification is owned by Comments' reader-facing queue; it is not also a
+    page Ask, because the page's Ask is still the proposal the agent must incorporate.
+    """
     url = serve(ASK_PAGE)
     page, errors = open_page(browser, url)
     asks = page.locator(".lf-asks")
@@ -2001,7 +2004,7 @@ def test_an_agent_question_opens_another_thread_without_returning_the_ask(
     )
 
     root = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
-    assert root["response"] == "version"
+    assert root["response"] == {"kind": "version", "verb": "choose"}
     clarification = events_model.append_event(
         serve.page_dir,
         {
@@ -2065,7 +2068,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
         ({"section": "jobs"}, first_text)
     ]
     root = said[0]
-    assert root["response"] == "version"
+    assert root["response"] == {"kind": "version", "verb": "choose"}
 
     page.locator(".lf-comments").click()
     panel_settled(page)

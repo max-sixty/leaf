@@ -580,7 +580,8 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-conversation predicate attributes are authored "
                 f"and static, but {dynamic} are written by value records"
             )
-        if conversation.get("response") and entry.get("x-awaits") is None:
+        response = conversation.get("response")
+        if response and entry.get("x-awaits") is None:
             raise RegistryError(
                 f"{path}: <{tag}> x-conversation requires a version response but "
                 "declares no x-awaits standing request"
@@ -640,6 +641,19 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-awaits holds asks open until `{until['verb']}`, "
                 "which it does not declare as an x-state verb"
             )
+        if response:
+            verb = response["verb"]
+            if verb not in answers:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-conversation version response names `{verb}`, "
+                    "which x-awaits does not declare as an answer verb"
+                )
+            record = entry.get("x-state", {}).get(verb, {}).get("record") or {}
+            if record.get("kind") not in {"attribute", "value"}:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-conversation version response verb `{verb}` "
+                    "has no attribute or value record for a version to change"
+                )
         needs_upgrade = [
             key
             for key in (

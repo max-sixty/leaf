@@ -4,8 +4,8 @@ Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
 passages apart; a browser selection on projected data carries datum,
 the stable key local to section, instead of treating neighbouring values as
-identity; `response: version` when the originating widget requires the agent to
-answer by revising the page rather than replying), reply (parent=id),
+identity; `response: {kind: version, verb}` when the originating widget requires
+the agent to revise its declared answer state rather than reply), reply (parent=id),
 edit (agent; message=id, replacing only that message's visible text),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
@@ -71,7 +71,7 @@ where it is validated against the vendored registry — the discussion-side anal
 of `version check`. The browser door refuses the field, so everything in the log
 under that name has been through the gate.
 
-A browser comment carrying `response: version` is a request to change authored
+A browser comment carrying `response: {kind: version, verb}` is a request to change authored
 state. Its exact-section view is text-only, and `leaf reply` refuses every
 message in that thread. When the change needs clarification, the agent opens a
 separate comment thread in the same exact-section seat. That thread carries the

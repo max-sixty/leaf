@@ -371,22 +371,24 @@ Declarations describe general behavior:
   time for what they had just written, in a box the page itself put under the
   question, while the panel showed that thread as the agent's to answer.
   An ordinary reply hands the conversation back. A conversation declared with
-  `response: version` takes no agent reply: its page seat is text-only, the reply
-  door refuses it, and the agent opens a separate thread when the revision needs
-  clarification. While that thread waits on the reader in the same seat, it carries
+  `response: {kind: version, verb: <answer>}` takes no agent reply: its page seat
+  is text-only, the reply door refuses it, and the agent opens a separate thread
+  when the revision needs clarification. While that thread waits on the reader in the same seat, it carries
   the original response through the stop gate; their answer hands both back to the
-  agent. A version that records the decision ends the request, and only then may
-  the agent resolve the original thread.
+  agent. Comments owns that reader-facing clarification; it is not also counted as
+  a page Ask, whose subject remains the proposal with the agent. A version that
+  changes that Ask's declared answer state ends the request, and only then may the
+  agent resolve the original thread.
   The stop hook reads the same fact, so what leaves the reader's banner lands
   on the agent's own gate rather than nowhere; `awaits_agent` is the one
   spelling of it, beside the runtime's `awaitsAgent`. Which side opened the
   thread does not enter into it. Because it is not an answer, a reading that
   asks whether the request is answered takes the seats out again rather than
-  sharing this one. An action's `requires` is one such reading. Where the
-  reader is standing is the other: the ring and `c`'s destination say what the
-  reader is working, not what they owe, and a widget they are mid-sentence in
-  is still the question in front of them. Frozen thread markup seats no
-  conversation, so only an action answers there.
+  sharing this one. An action's `requires` and the version-response resolve gate
+  are such readings. Where the reader is standing is another: the ring and `c`'s
+  destination say what the reader is working, not what they owe, and a widget they
+  are mid-sentence in is still the question in front of them. Frozen thread markup
+  seats no conversation, so only an action answers there.
 - `x-parent` declares the members that make up a holder. Combined with
   `x-retired-when`, it defines which slots a settlement retires.
 - `x-withdrawn-as` states what an unanswered member becomes when the author

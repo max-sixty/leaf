@@ -63,7 +63,7 @@ def pages_under(directory):
 
 @pytest.fixture(scope="module")
 def site(tmp_path_factory):
-    """One build for the module: it vendors a layer and checks thirteen examples."""
+    """One build for the module: it vendors a layer and checks every example."""
     out = tmp_path_factory.mktemp("published") / "site"
     site_build.build(out)
     return out

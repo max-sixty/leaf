@@ -9,7 +9,7 @@ from referencing.exceptions import Unresolvable
 
 from .events import now_iso, read_events
 from .files import list_revisions, revision_path, write_json
-from .registry import is_aware_datetime, json_validator, require_registry
+from .registry import aware_instant, is_aware_datetime, json_validator, require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 from .structure import parse_structure
@@ -221,6 +221,59 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
                 {"widget": rec["attrs"].get("id"), "input": input_name}
             )
     return {source: inventory[source] for source in sorted(inventory)}
+
+
+def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
+    """Authored measurements whose bound source has completed a later run.
+
+    The widget declaration joins the frozen half (its timestamp attribute) to the live
+    half (one x-data input). Invalid attributes stay with widget validation, and an
+    unset source says only that no later run is known, so neither becomes advice here.
+    """
+    entries = []
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"], {})
+        measured = entry.get("x-measured")
+        if not measured:
+            continue
+        input_spec = entry.get("x-data", {}).get(measured["input"])
+        if not input_spec:
+            continue  # registry validation owns the malformed declaration
+        source = rec["attrs"].get(input_spec["source"])
+        captured = rec["attrs"].get(measured["at"])
+        snapshot = stored["sources"].get(source) if isinstance(source, str) else None
+        captured_at = aware_instant(captured) if isinstance(captured, str) else None
+        updated_at = (
+            aware_instant(snapshot["updated"])
+            if isinstance(snapshot, dict) and isinstance(snapshot.get("updated"), str)
+            else None
+        )
+        if captured_at is None or updated_at is None or updated_at <= captured_at:
+            continue
+        entries.append(
+            {
+                "tag": rec["tag"],
+                "widget": rec["attrs"].get("id"),
+                "line": rec["line"],
+                "source": source,
+                "at": captured,
+                "updated": snapshot["updated"],
+            }
+        )
+    return entries
+
+
+def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str]:
+    """`measurement_lag_entries` as source-check advice lines."""
+    lines = []
+    for entry in measurement_lag_entries(lf_elements, registry, stored):
+        identity = f" id={entry['widget']!r}" if entry["widget"] else ""
+        lines.append(
+            f"<{entry['tag']}{identity}> (line {entry['line']}) pins source "
+            f"{entry['source']!r} at {entry['at']}, but that source was updated at "
+            f"{entry['updated']}"
+        )
+    return lines
 
 
 def data_binding_errors(

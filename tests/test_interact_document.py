@@ -1940,6 +1940,71 @@ def test_check_reports_record_lag_without_erroring(page_dir):
     assert "record behind the log" in result.output  # CliRunner folds stderr in
 
 
+def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
+    """A version keeps the scalar it stated; the replaceable source contributes only
+    evidence that its measurement ran later. The same generic reading appears as
+    passing check advice and structured page state, and disappears once the authored
+    capture instant catches up."""
+
+    def write(at):
+        measured = (
+            '<p>The import takes <lf-num id="p95" source="import-latency" '
+            f'at="{at}" via="uv run bench-import">184 ms</lf-num> at p95.</p>'
+        )
+        html = PAGE.replace("</main>", measured + "\n</main>")
+        (page_dir / "index.html").write_text(html)
+        files_model.version_path(page_dir, 1).write_text(html)
+        files_model.revision_path(page_dir, 1).write_text(html)
+        return html[: html.index("<lf-num")].count("\n") + 1
+
+    captured = "2026-08-01T12:00:00Z"
+    captured_line = write(captured)
+    runner = CliRunner()
+    set_result = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "import-latency"],
+        input="184",
+    )
+    assert set_result.exit_code == 0, set_result.output
+    stored = data_model.read_data(page_dir)
+    updated = stored["sources"]["import-latency"]["updated"]
+
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert "measurement behind its source" in result.output
+    assert "import-latency" in result.output
+    assert captured in result.output and updated in result.output
+    assert state_json(page_dir)["measurement_lag"] == [
+        {
+            "tag": "lf-num",
+            "widget": "p95",
+            "line": captured_line,
+            "source": "import-latency",
+            "at": captured,
+            "updated": updated,
+        }
+    ]
+
+    rejected = runner.invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "import-latency"],
+        input='{"value": 183}',
+    )
+    assert rejected.exit_code != 0
+    assert "value is invalid" in rejected.output
+
+    write(updated)
+    current = check(page_dir)
+    assert current.exit_code == 0, current.output
+    assert "measurement behind its source" not in current.output
+    assert state_json(page_dir)["measurement_lag"] == []
+
+    write("yesterday")
+    malformed = check(page_dir)
+    assert malformed.exit_code != 0
+    assert "is not a 'date-time'" in malformed.output
+
+
 def test_record_lag_uses_the_version_being_checked(page_dir):
     """A pinned version does not owe state from an action made on a later one."""
     opts = OPTIONS.format(

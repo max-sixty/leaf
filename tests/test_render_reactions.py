@@ -10,6 +10,7 @@ from leaf import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     PANEL_PAGE,
+    PART_DIAGRAM_PAGE,
     key_line,
     open_page,
     panel_comment,
@@ -221,6 +222,33 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
     shown = painted(page, [["how-patch", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
+    assert errors == []
+    page.close()
+
+
+def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, serve):
+    """A declared visual part is the same anchor for a reaction and a comment. The
+    send announcement names the part's declared label, while replay paints only the
+    part's resolved box rather than the diagram that owns its stable id."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    diagram = page.locator("#flow")
+    start = diagram.locator('g[id^="flowchart-S-"]')
+    start.click()
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+    page.keyboard.press("r")
+    page.keyboard.press("6")
+    round_trip(page)
+    expect(page.locator(".lf-live")).to_contain_text("this on Start request")
+
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["token"] == "this" and sent["anchor"] == {
+        "section": "flow",
+        "visual": "node:S",
+    }
+    shown = painted(page, [["flow", "this"]])
+    assert shown["outlined"] == [start.get_attribute("id")], shown
+    expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
     assert errors == []
     page.close()
 

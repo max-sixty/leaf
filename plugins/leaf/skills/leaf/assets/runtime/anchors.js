@@ -731,7 +731,7 @@ export function createAnchors(dependencies) {
         let at;
         let before;
         if (found.element) {
-          const parts = shownParts(found.element);
+          const parts = found.marks ?? shownParts(found.element);
           for (const part of parts) part.classList.add("lf-react-el");
           reacted.set(t.root.id, parts);
           [at, before] = [found.element, true];

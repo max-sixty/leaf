@@ -2306,6 +2306,27 @@ def test_the_strip_floor_is_one_number():
     )
 
 
+def test_the_sidebar_and_note_floor_is_their_sum():
+    """Two opposite margin residents need both strips as well as the ordinary floor.
+
+    Media queries cannot read custom properties, so the combined breakpoint is written
+    as a pixel value beside the sidebar rule. Hold that necessary copy to the two tokens
+    it represents instead of letting a later width change silently squeeze the prose."""
+    css = (schema_model.ASSETS / "theme.css").read_text()
+    floor = re.search(r"--strip-min:\s*(\d+)px", css)
+    sidebar = re.search(r"--sidebar:\s*(\d+)px", css)
+    assert floor and sidebar
+    combined = int(floor[1]) + int(sidebar[1])
+    assert re.search(rf"@media screen and \(min-width:\s*{combined}px\)\s*\{{", css), (
+        f"a sidebar and sidenote need {combined}px together, but no media query grants "
+        "their composed posture at that floor"
+    )
+    assert re.search(rf"--strip-min:\s*{combined}px", css), (
+        f"the static query grants the pair at {combined}px but the runtime has no "
+        "composed floor to read after a panel narrows that viewport"
+    )
+
+
 def test_media_names_a_file_by_its_bytes_and_serves_it(page_dir, tmp_path, server):
     """An image reaches a page by reference, because the page's author is a language
     model and a screenshot is a megabyte of base64 it cannot type. The name is the

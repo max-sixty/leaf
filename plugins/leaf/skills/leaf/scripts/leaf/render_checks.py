@@ -1627,7 +1627,9 @@ BAKE = """() => {
     // scrolling needs no handler (the lf-shot bargain). The live page's one grantor
     // is reachScrollers; its predicate is restated here because the runtime's
     // module scope left with the scripts, and this pass runs where the removals
-    // have already settled what remains.
+    // have already settled what remains. Of its two products only the stop is
+    // restated: the hold it marks rides into the copy as the attribute and the
+    // theme rule reading it, and nothing removed above turns a box into a scroller.
     for (const el of document.querySelectorAll('*')) {
         if (el.tabIndex >= 0) continue;
         const style = getComputedStyle(el);

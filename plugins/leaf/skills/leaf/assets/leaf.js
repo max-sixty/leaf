@@ -792,10 +792,13 @@ const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
 // the number the theme states and never learns which idiom spends it. A theme without
 // the token leaves this NaN, every comparison against it false, and the media query
-// alone deciding — which is the same answer a page with no runtime already gets.
-const STRIP_MIN = parseFloat(
-  getComputedStyle(document.documentElement).getPropertyValue("--strip-min"),
-);
+// alone deciding — which is the same answer a page with no runtime already gets. Read
+// from body at the moment of the question rather than caching root's default: a composed
+// margin posture may override the floor under the media query that grants it, and an
+// arriving panel must ask that composed value without the runtime learning which idioms
+// contributed it.
+const stripMin = () =>
+  parseFloat(getComputedStyle(document.body).getPropertyValue("--strip-min"));
 
 // ---------- styles ----------
 /* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
@@ -1733,7 +1736,7 @@ const trayStrip = () =>
 // to the viewport in each rule that reads it.
 function stateStrip() {
   const avail = document.documentElement.clientWidth - panelStrip() - trayStrip();
-  document.body.toggleAttribute("data-lf-cramped", avail < STRIP_MIN);
+  document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
   document.documentElement.style.setProperty("--lf-avail", avail + "px");
 }
 // A window that has changed is a cap that has changed, so the width each edge stands at
@@ -4020,6 +4023,7 @@ const runtimeProjection = createProjection(runtime, {
   renderQuiet,
   renderRetired,
   reportPageError,
+  settling,
   settlementSlots,
   standOn,
   textNodesUnder,

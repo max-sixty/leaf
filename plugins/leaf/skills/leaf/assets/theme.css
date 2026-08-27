@@ -61,6 +61,14 @@
      that the arrangement read as a centred page with something in the margin rather
      than as a page with a margin. */
   --note: 384px;
+  /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
+     which annotates one block at its own height, a sidebar may remain beside the reader
+     while the document moves, so the whole left edge is spoken for wherever it is in
+     margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
+     labels without making a second prose column. The rule beside aside.sidebar spends
+     it; --strip-min decides when the page can afford it, as it does for every margin
+     idiom. */
+  --sidebar: 264px;
   /* The measure, and the gutter main sets it in. Named because three rules now want
      main's width: the element itself, the strip arithmetic beside aside.sidenote, and
      the room a copy states for itself. A second copy of 720 would be a release behind
@@ -372,9 +380,9 @@
  * two rules writing one token settle it by cascade order, which is a silent answer to a
  * question neither rule is asking. So the shape follows the count: a side with one
  * claimant is written by that claimant, and a side with two folds their claims here. The
- * left has none today and keeps the one-claimant shape, which is what an idiom hanging
- * something out there writes to; a second claimant on either side turns that side into a
- * max, and is the point at which the fold is worth its terms. */
+ * The left has one claimant and keeps the one-claimant shape: aside.sidebar writes
+ * --strip-l directly. A second claimant on either side turns that side into a max, and
+ * is the point at which the fold is worth its terms. */
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px));
@@ -637,7 +645,6 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
     display: flex;
     justify-content: safe center;
     overflow-x: auto;
-    position: relative;
   }
   [data-lf-wide="drawing"]::before, [data-lf-wide="drawing"]::after {
     content: ""; flex: 0 1 auto;
@@ -738,17 +745,9 @@ code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
  * while lf-code's rendered form builds a plain <pre> that takes this rule. So this
  * number moving alone is lf-code changing size the moment its module runs, and a
  * rendered tree no longer matching the code blocks around it. */
-/* Positioned because it scrolls, which is the layer's rule for every box that does
- * (CLAUDE.md, "A box that scrolls contains what it scrolls"): out-of-flow content inside
- * a scroller that is not a containing block is laid out against the page instead, where
- * the scroller neither carries it nor clips it. The runtime hangs a word clipped to
- * nothing inside the block each comment lands on, so one comment on the far column of a
- * table wider than the window had the page itself scrolling sideways to reach a box no
- * reader can see. Written at each box that declares the scroll, the way --lf-frame is
- * written where a box draws its frame, because no selector asks "does this scroll". */
 pre { background: var(--pre-bg); border: 1px solid var(--rule); border-radius: var(--r);
-      padding: 12px 14px; position: relative; overflow-x: auto; font-size: 13px;
-      line-height: 1.55; font-family: var(--mono); }
+      padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+      font-family: var(--mono); }
 pre code { background: none; padding: 0; font-size: 100%; }
 /* Syntax roles. The runtime writes these into any code block that names a language —
    a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
@@ -805,7 +804,7 @@ img, svg, video { max-width: 100%; height: auto; }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-table { display: block; position: relative; overflow-x: auto; border-collapse: collapse;
+table { display: block; overflow-x: auto; border-collapse: collapse;
         font-size: var(--t-5); margin: 18px 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }
@@ -902,6 +901,69 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-frame: 1; }
+/* A sidebar is page-level supporting material rather than an annotation on one block:
+   local navigation, a compact legend, or stable reference facts. In ordinary flow it is
+   simply an aside where it was authored. On a roomy screen its box moves into the left
+   strip and sticks beneath Leaf's banner, so it remains useful through a long page. The
+   negative left margin and the right gutter sum with its width to zero, leaving the
+   prose's line boxes untouched; body's left padding is the room the box actually uses.
+
+   The claim is page-wide because a sticky box may occupy any height while the reader
+   scrolls. That also gives a wide exhibit no invitation to paint through it: --lf-room
+   is measured after the strip has been taken. `data-lf-cramped` is the same runtime veto
+   sidenotes obey when a panel or tray has narrowed the page without narrowing the
+   viewport. With no runtime, the media query is the complete answer. A sidebar and a
+   sidenote together wait for 1416px, the ordinary 1152px margin floor plus the sidebar's
+   264px; granting both at the ordinary floor shrank the prose to 504px. The paired
+   number is held to those two tokens in test_the_sidebar_and_note_floor_is_their_sum.
+   Paper gets only the base in-flow form, and therefore neither a sticky box nor an empty
+   margin.
+
+   Direct-child margins are trimmed because a sidebar is a placement wrapper, not a
+   second rhythm around what it holds. This keeps an lf-toc's quiet spine and makes the
+   class equally usable around a nav, facts list, or short prose aside. Only the first
+   direct sidebar child of main takes the margin. The catalog asks for one page-level
+   wrapper, but leaving an accidental second one in flow is safer than laying two sticky
+   boxes over each other. */
+aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
+aside.sidebar > :first-child { margin-top: 0; }
+aside.sidebar > :last-child { margin-bottom: 0; }
+@media screen and (min-width: 1152px) {
+  body:not([data-lf-cramped]):has(main > aside.sidebar):not(:has(aside.sidenote)) {
+    --strip-l: var(--sidebar);
+  }
+  body:not([data-lf-cramped]):not(:has(aside.sidenote))
+    main > aside.sidebar:nth-child(1 of aside.sidebar) {
+    float: left; clear: left; position: sticky;
+    top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+    width: calc(var(--sidebar) - var(--sp-4));
+    max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+    overflow-y: auto;
+    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+  }
+}
+@media screen and (min-width: 1416px) {
+  body:has(main > aside.sidebar):has(aside.sidenote) {
+    /* The media query answers for a static viewport. The runtime reads this override
+       from body on every stateStrip pass, so a panel or tray that leaves less than the
+       same combined floor vetoes both strips even though the viewport remains wide.
+       Independent of that veto: keying the floor itself on :not([data-lf-cramped])
+       makes the answer disappear as soon as it is used and the next pass flip back. */
+    --strip-min: 1416px;
+  }
+  body:not([data-lf-cramped]):has(main > aside.sidebar):has(aside.sidenote) {
+    --strip-l: var(--sidebar);
+  }
+  body:not([data-lf-cramped]):has(aside.sidenote)
+    main > aside.sidebar:nth-child(1 of aside.sidebar) {
+    float: left; clear: left; position: sticky;
+    top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
+    width: calc(var(--sidebar) - var(--sp-4));
+    max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
+    overflow-y: auto;
+    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+  }
+}
 /* What the margin is for is in the catalog beside the class; this is why it is the right
    margin, what shares it, and what the strip costs.
 
@@ -1109,6 +1171,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-work-line .lf-work-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-work-line time { color: var(--muted-2); white-space: nowrap; }
+/* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
+ * for what escaped such a box and why the mark is read from the composed page rather
+ * than declared here beside each overflow), so no rule in this file or a package's
+ * states a position for its scroller's sake. Inside the shadow markers because the
+ * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
+ * relative moves nothing. */
+[data-lf-holds] { position: relative; }
 /* lf-shadow:end */
 @media screen {
   html:not(.lf-copy) {

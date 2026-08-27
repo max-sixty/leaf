@@ -1901,12 +1901,9 @@ def test_shift_escape_is_not_offered_while_the_panel_covers_the_page(browser, se
         thread = page.locator(".lf-threads > .lf-thread")
         thread.focus()
 
-        expect(
-            page.locator(
-                ".lf-keyline .lf-key:not([hidden])",
-                has_text="page — comments kept",
-            )
-        ).to_have_count(0)
+        page.keyboard.press("Shift+Escape")
+        expect(thread).to_be_focused()
+        expect(page.locator(".lf-panel")).to_be_visible()
         page.keyboard.press("Escape")
         expect(page.locator(".lf-panel")).to_be_hidden()
         assert errors == []

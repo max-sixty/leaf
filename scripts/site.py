@@ -214,14 +214,33 @@ def publish_pages(out: Path, env: dict) -> None:
             (shutil.copytree if item.is_dir() else shutil.copy2)(item, target)
 
         for source in sorted(EXAMPLES.glob("*.html")):
-            version = page / "versions" / "v1.html"
-            version.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            # The temporary page is reused only for its vendored layer. Reset its
+            # authored history so every independently published example starts at
+            # r1/v1, then let the real stamp boundary create both immutable files.
+            for directory in (page / "revisions", page / "versions"):
+                directory.mkdir(exist_ok=True)
+                for old in directory.iterdir():
+                    old.unlink()
+            log = page / "comments.jsonl"
+            log.write_text("", encoding="utf-8")
+            (page / "index.html").write_text(
+                source.read_text(encoding="utf-8"), encoding="utf-8"
+            )
             # External data is complete replaceable source state, not a log. The
             # temporary page is reused for the corpus, so remove the prior example's
             # sources before setting this one's through the same validating door a
             # host uses.
             data_file = page / "data.json"
             data_file.unlink(missing_ok=True)
+            leaf(
+                env,
+                "version",
+                "stamp",
+                str(page),
+                "--text",
+                f"{source.name}, as published",
+            )
+            version = page / "versions" / "v1.html"
             data_seed = source.with_suffix(".data.json")
             if data_seed.exists():
                 for name, value in json.loads(
@@ -241,14 +260,10 @@ def publish_pages(out: Path, env: dict) -> None:
             # thread. Laid before the check, so what the gate reads is what the reader
             # gets — an id resolving a comment is a claim about this log.
             seed = source.with_suffix(".jsonl")
-            log = page / "comments.jsonl"
-            log.write_text(
-                seed.read_text(encoding="utf-8") if seed.exists() else "",
-                encoding="utf-8",
-            )
-            # Checked here rather than trusted from the suite: this is what publishes,
-            # and the gate is the same one a user's page passes before its URL goes out.
-            leaf(env, "version", "check", str(page))
+            seed_text = seed.read_text(encoding="utf-8") if seed.exists() else ""
+            if seed_text:
+                with log.open("a", encoding="utf-8") as event_log:
+                    event_log.write(seed_text)
             published = out / "examples" / source.stem
             (published / "versions").mkdir(parents=True)
             shutil.copy2(version, published / "versions" / "v1.html")
@@ -257,7 +272,7 @@ def publish_pages(out: Path, env: dict) -> None:
             # through /api/state, which is `docs/session.js`'s answer here, so the log
             # is a file beside the versions exactly as it is in a page directory and
             # that file is what the session reads before the runtime asks.
-            shutil.copy2(log, published / "comments.jsonl")
+            (published / "comments.jsonl").write_text(seed_text, encoding="utf-8")
             (published / "data.json").write_text(
                 data_file.read_text(encoding="utf-8")
                 if data_file.exists()

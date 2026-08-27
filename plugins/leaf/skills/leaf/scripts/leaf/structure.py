@@ -4,7 +4,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
-from .files import file_stamp, version_path
+from .files import file_stamp, revision_path, version_path
 from .schema import MEDIA_DIR
 
 # ---------- check: deterministic pre-handover lint ----------
@@ -521,10 +521,22 @@ def parse_structure(markup: str) -> _StructParser:
 _versions = {}  # version file -> (its stamp, the structural reading of it)
 
 
-def parse_version(page_dir: Path, version: int) -> _StructParser:
-    """One structural reading per published version file.
+def parse_revision(page_dir: Path, revision: int) -> _StructParser:
+    """One cached structural reading of an immutable working revision."""
+    path = revision_path(page_dir, revision)
+    stamp = file_stamp(path)
+    if stamp and (held := _versions.get(path)) and held[0] == stamp:
+        return held[1]
+    parser = parse_structure(path.read_text(encoding="utf-8"))
+    if stamp:
+        _versions[path] = (stamp, parser)
+    return parser
 
-    `version publish` writes a version and nothing writes it again, while the
+
+def parse_version(page_dir: Path, version: int) -> _StructParser:
+    """One structural reading per immutable revision file.
+
+    activation writes a revision and nothing writes it again, while the
     readings that cost most are the ones a reader waits through: the action door
     checks a press against the version it was made on, and every poll reads each
     live neighbour's newest version for the one string the tray shows of it. That
@@ -542,8 +554,17 @@ def parse_version(page_dir: Path, version: int) -> _StructParser:
 
 
 def version_review_mode(page_dir: Path, version: int):
-    """The review ask declared by a published version, or None for comments only."""
+    """The review ask declared by an immutable revision, or None for comments only."""
     parser = parse_version(page_dir, version)
+    return next(
+        (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
+        None,
+    )
+
+
+def revision_review_mode(page_dir: Path, revision: int):
+    """The review ask declared by an exact working revision, or None."""
+    parser = parse_revision(page_dir, revision)
     return next(
         (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
         None,

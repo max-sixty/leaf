@@ -70,16 +70,17 @@ theme. When a sweep finds something here, ask which of the two let it through
 before adding a page: a page that only re-renders a shape nobody judges buys
 nothing.
 
-## An example is one version, plus any log and data it ships beside it
+## An example is one stamped version, plus any log and data it ships beside it
 
 `examples/layer.json` names the package paths shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
 layer the website serves.
 
-An example's markup is v1, and nothing ever revises it. That puts `restated` and
-`overruled` out of reach: each answers something only a later version does —
-`restated` retracts a decision, `overruled` keeps a version's own state over a
-report — and there is no later version here. `version check` refuses both.
+An example's markup is the source stamped as v1, and nothing ever revises it.
+That puts `restated` and `overruled` out of reach: each answers something only a
+later revision does — `restated` retracts a decision, `overruled` keeps a
+revision's own state over a report — and there is no later revision here.
+`version check` refuses both.
 
 The log is a different matter: it was empty by default, not by nature. A thread
 is the one thing no markup describes, so an example that wants to show one ships

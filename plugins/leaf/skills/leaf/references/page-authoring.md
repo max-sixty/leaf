@@ -89,12 +89,14 @@ none of its own.
 
 Writing there is the reader dealing with the question, so the group stops being
 one of the page's open asks and the ball is yours. Nothing is recorded by it:
-the group still holds no pick. Answer what they wrote and honor it in the same
-move — carry their words in as an option, mark the pick it settled, or settle
-the group. Both ways of finishing with the thread hand the question back,
-`leaf reply` and `leaf resolve` alike, so a group still open asks again, now
-with their option on it. Ship a version that leaves the question standing
-without answering them and the page waits on you while saying nothing.
+the group still holds no new pick. Answer what they wrote in the authored page:
+carry their words in as another option and mark the pick it settled. If the reader
+explicitly rejects every option, settle the group without a pick. This thread
+takes no agent reply; if the revision needs an answer first, open a separate
+exact-section thread on the same Ask. Only authored state in a later version can
+answer an originating open Ask, or change its declared answer when the Ask was
+already answered. Reader actions before or after the proposal do not substitute
+for that revision, and an unrelated version cannot close it.
 
 An ask must name itself without context outside the ask. Give an options group a
 `label` containing its question; tasks and milestones lead with their own
@@ -133,13 +135,13 @@ in the version note. Suggest wording the reader could reasonably prefer as it
 stands.
 
 Use `lf-draft` for a passage whose wording belongs to the reader. Carry their
-submitted words verbatim into the next version. A draft never sits inside a
+submitted words verbatim into the next revision. A draft never sits inside a
 suggestion, and a suggestion does not propose a widget's state.
 
 ## Honoring reader state
 
 The event log outranks authored markup. The browser replays every standing action
-onto later versions, but the version must eventually record the decision so the
+onto later revisions, but the source must eventually record the decision so the
 page reads correctly without the log:
 
 - Mark every picked option `chosen`.
@@ -160,7 +162,7 @@ not carry a gesture withdrawn by an `undo` event.
 
 ## Keeping the current page current
 
-Each version presents what is live now. Move a concluded section intact to a
+Each active revision presents what is live now. Move a concluded section intact to a
 `Settled` section at the foot, inside a `<details>` whose summary names the
 question and what closed it. Preserve its ids and words. Mark a concluded
 `lf-options` group `settled` when it retires inside a section that remains live.
@@ -221,11 +223,11 @@ and URLs as real links.
 
 ## Pre-handover review
 
-Publishing runs the deterministic markup check. For a quick page put up for
-reaction, that check is the whole gate, and the URL goes out as soon as it
-passes. A finished record takes the browser gate once before its URL first
-reaches the user; a quick page that a version turns into a record takes it
-before that version goes out:
+Every source activation runs the deterministic markup check. For a quick page
+put up for reaction, that check is the whole gate, and the URL goes out as soon
+as it passes. A finished record takes the browser gate once before its URL first
+reaches the user; a quick page that a stamp turns into a record takes it before
+that stamp:
 
 ```bash
 leaf version check <page> --render

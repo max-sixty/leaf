@@ -46,10 +46,10 @@ export function createProjectionFold(runtime, dependencies) {
   // decision being carried out, not taken back. That is also the answer interact.py gives
   // without trying, reading a version file where the same element is simply absent.
   function retractedIds(e, floors, widget) {
-    return restsOn(e, widget).filter((id) => (floors.get(id) ?? 0) > e.version);
+    return restsOn(e, widget).filter((id) => (floors.get(id) ?? 0) > e.revision);
   }
   // Retractions: a version that rewrote the words or state under a decision says
-  // so with `restated`, and publishing records it on the note that released it.
+  // so with `restated`, and stamping records it on the note that released it.
   // Reading it from the log rather than from the markup is what makes it last —
   // the version *after* the rewrite declares nothing, and its silence would
   // otherwise hand the user's retracted state straight back.
@@ -67,9 +67,9 @@ export function createProjectionFold(runtime, dependencies) {
     if (byQuery.has(query)) return byQuery.get(query);
     const floors = new Map();
     for (const e of runtime.events)
-      if (e.kind === "note" && e.version <= upto)
+      if (e.kind === "note" && e.revision <= upto)
         for (const id of idsOf(e))
-          floors.set(id, Math.max(floors.get(id) ?? 0, e.version));
+          floors.set(id, Math.max(floors.get(id) ?? 0, e.revision));
     byQuery.set(query, floors);
     return floors;
   }
@@ -112,7 +112,7 @@ export function createProjectionFold(runtime, dependencies) {
     new Set(runtime.events.filter((e) => e.undoes).map((e) => e.undoes));
 
   // Both durable channels projected in one pass. Actions holds the last surviving
-  // reader action per coordinate. Reports keeps every live report because publishing
+  // reader action per coordinate. Reports keeps every live report because stamping
   // answers all of them there. Desired gives the reader's action precedence over
   // provisional agent news on the same fact.
   // The projection is deliberately pure and uncached: its declarations resolve through
@@ -135,7 +135,7 @@ export function createProjectionFold(runtime, dependencies) {
       // Reply widgets live in frozen log markup and therefore see the whole action
       // sequence. Reports belong to versions, as do actions on page widgets.
       if (
-        e.kind === "report" ? chrome || e.version > upto : !chrome && e.version > upto
+        e.kind === "report" ? chrome || e.revision > upto : !chrome && e.revision > upto
       ) {
         classified.set(e.id, { e, terminal: true });
         continue;
@@ -226,7 +226,7 @@ export function createProjectionFold(runtime, dependencies) {
   // answerable by a version and thread markup is frozen, so every door refuses one on a
   // widget an agent sent and the projection above marks any that reached the log terminal.
   const standingState = () => {
-    const projection = stateProjection(runtime.currentVersion);
+    const projection = stateProjection(runtime.currentRevision);
     return [...projection.desired]
       .sort(([, a], [, b]) => compareProjected(a, b))
       .map(([_coordinate, { unit, e, spec }]) => ({

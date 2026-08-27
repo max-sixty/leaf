@@ -223,20 +223,23 @@
         <pre id="loop-transcript"><code>$ leaf page init ./review
 initialized /home/you/review
 
-# the agent writes ./review/versions/v1.html — an ordinary file write
+# the agent writes ./review/index.html — an ordinary file write
 
-$ leaf version publish ./review --version 1 --text "Two ways to shed load — which?"
-✓ v1.html: parses, widgets validate, one module script + theme link, ids and decisions carried over, nothing overflows the 720px column
+$ leaf version check ./review
+✓ index.html: parses, widgets validate, one module script + theme link, ids and decisions carried over, nothing overflows the 720px column
+
+$ leaf version stamp ./review --text "Two ways to shed load — which?"
+{"kind": "note", "version": 1, "revision": 1, "text": "Two ways to shed load — which?", …}
 
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
 {"page": "/home/you/review", "threads": []}
-{"kind": "action", "author": "user", "version": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
-{"kind": "comment", "author": "user", "version": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
+{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
+{"kind": "comment", "author": "user", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
 
 $ leaf ack ./review 3</code></pre>
         <p id="loop-shell-read">
-          The batch carries two events. The pick is an action, and every later version
+          The batch carries two events. The pick is an action, and every later revision
           replays it, so the decision survives the page being rewritten under it. The
           comment carries the passage it was drawn on — the reader selected
           <em>Callers get a 429 immediately</em> and wrote against it — so the objection
@@ -244,7 +247,9 @@ $ leaf ack ./review 3</code></pre>
           paraphrase of where they were looking. The pick belongs to no conversation and
           the comment opens its own, so the first line's <code>threads</code> is empty;
           a later reply in that thread names only the message it answers, and the
-          exchange behind it comes along there. The agent answers by publishing v2.
+          exchange behind it comes along there. The agent answers by updating
+          <code>index.html</code>; the valid save goes live, and a meaningful checkpoint
+          can then be stamped as v2.
         </p>
 
         <p id="wait-trick">
@@ -287,44 +292,46 @@ $ leaf ack ./review 3</code></pre>
       <section id="agent">
         <h2>A command never edits the document</h2>
         <p id="agent-split">
-          The agent has two ways in, and only one of them is HTML. A version is a file:
-          the agent writes the whole document into the page directory, an ordinary file
-          write with nothing mediating it. Everything it has to <em>say</em> goes
+          The agent has two ways in, and only one of them is HTML. The source is a file:
+          the agent writes the whole document to <code>index.html</code>, an ordinary
+          file write with nothing mediating it. Everything it has to <em>say</em> goes
           through the <code>leaf</code> command instead — a reply in a thread, a comment
-          it opens on a passage of its own, the changelog note that publishes a version
-          — and each of those appends one event to the log. The log takes a command
-          rather than a file write because it isn't the agent's alone: the browser
-          appends to it too, and one writer is what gives every event an id to reply to
-          and a place in the order.
+          it opens on a passage of its own, the changelog note that stamps a version —
+          and each of those appends one event to the log. The log takes a command rather
+          than a file write because it isn't the agent's alone: the browser appends to
+          it too, and one writer is what gives every event an id to reply to and a place
+          in the order.
         </p>
         <p id="agent-render">
           So the agent's words reach the screen without the document changing. What the
-          user looks at is the version composed with the log, recomposed on a two-second
-          poll: the reply appears in a thread in the injected panel, the passage it
-          answers is lit by the browser's highlight registry — which paints a range and
-          touches no nodes — and the banner's line is whatever
+          user looks at is the active revision composed with the log, recomposed on a
+          two-second poll: the reply appears in a thread in the injected panel, the
+          passage it answers is lit by the browser's highlight registry — which paints a
+          range and touches no nodes — and the banner's line is whatever
           <code>leaf status</code> last wrote. Nothing in the document was rewritten to
           put any of it there, and it is the same composition that shows the user their
-          own edits before a version carries them.
+          own edits before a later revision carries them.
         </p>
         <p id="agent-versions">
-          The HTML changes once per version, and even then nothing is edited in place: a
-          revision is a new file beside the last one, <code>v2.html</code> next to
-          <code>v1.html</code>, and <code>version publish</code> publishes it. Until the
-          publication note lands the file is on disk and unreachable, and publishing
-          lints it first, so a broken version is never exposed. The next poll moves the
-          tab onto the new version, keeping the reader's place, and holds while the user
-          is mid-comment or mid-drag. Coming back the other way,
-          <code>leaf wait</code> starts after the last acknowledged user event, so a
-          comment posted between a wait and its acknowledgement remains beyond the
-          cursor and still lands.
+          The HTML can change on every save, without spending a public version number.
+          Leaf validates <code>index.html</code>, copies each changed valid save to an
+          immutable revision such as <code>r2-a81c…html</code>, and moves the live root
+          to it. An invalid save creates no revision, leaves the last valid one live,
+          and shows its diagnostic. <code>version stamp</code> copies the exact current
+          source to the next public file, such as <code>v2.html</code>, and records
+          which revision it names. A tab at the root follows revisions while a tab
+          pinned to v1 stays there. The next poll moves a live tab onto the new
+          revision, keeping the reader's place, and holds while the user is mid-comment
+          or mid-drag. Coming back the other way, <code>leaf wait</code> starts after
+          the last acknowledged user event, so a comment posted between a wait and its
+          acknowledgement remains beyond the cursor and still lands.
         </p>
       </section>
 
       <section id="pages">
         <h2>What a page is made of</h2>
         <p id="scaffold">
-          A version is one complete HTML document, and the required scaffold is two
+          A revision is one complete HTML document, and the required scaffold is two
           lines: the theme stylesheet and the runtime module. Everything between them is
           the agent's, drawn from the four building blocks below in ascending order of
           specialization; each earns its place only where the one before it has no way
@@ -529,17 +536,18 @@ $ leaf ack ./review 3</code></pre>
       <section id="gate">
         <h2>Nothing broken goes live</h2>
         <p>
-          Before a version is published, <code>version check</code> lints it
-          deterministically, with no browser: the HTML parses with balanced tags, the
-          scaffold is exactly the theme link and the runtime module, every
+          Before a source save becomes a revision, Leaf runs the same deterministic lint
+          as <code>version check</code>, with no browser: the HTML parses with balanced
+          tags, the scaffold is exactly the theme link and the runtime module, every
           <code>lf-*</code> element validates against the page's registry along with the
           head's <code>lf-*</code> metas, ids stay unique and every comment anchor from
-          the previous version survives, and nothing is wider than the readable column.
-          The changelog note runs the lint and refuses a failing version, so an open
-          browser never sees one. Before a page's URL first goes out,
-          <code>version check --render</code> also loads it in the machine's own Chrome
-          and refuses what only a layout engine can see — a console error, a widget
-          rendered into a box of no size, a sideways scroll — in both color schemes.
+          the previous revision survives, and nothing is wider than the readable column.
+          A stamp checks the exact current source again and refuses a failing source, so
+          neither the live root nor a version can expose broken markup. Before a page's
+          URL first goes out, <code>version check --render</code> also loads it in the
+          machine's own Chrome and refuses what only a layout engine can see — a console
+          error, a widget rendered into a box of no size, a sideways scroll — in both
+          color schemes.
         </p>
       </section>
 

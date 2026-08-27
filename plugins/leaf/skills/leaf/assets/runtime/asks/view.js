@@ -125,7 +125,7 @@ export function createAskView({
   // repaint doesn't swap a row out from under a pressed pointer or drop focus inside it.
   //
   // Keyed by the ask's id and not by the element: a new version replaces every node on the
-  // page, and the row for a question that survived the republish is the same row. That is
+  // page, and the row for a question that survived the revision is the same row. That is
   // also what a press resolves through — the element this row stood for may be gone, and
   // the ask with that id is the one the reader means.
   //

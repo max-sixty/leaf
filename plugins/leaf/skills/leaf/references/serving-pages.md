@@ -5,7 +5,7 @@ page, re-vendoring, or a page previously owned by another session.
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, initialize, catalog, author, and publish as
+When `$ARGUMENTS` asks for `--export`, initialize, catalog, author, and stamp as
 usual, then run:
 
 ```bash
@@ -90,7 +90,7 @@ read grants exclusive ownership. The selected successor first runs:
 leaf page state <page>
 ```
 
-Read the current version, standing decisions, open asks, each thread's
+Read the active revision and its stamped version if any, standing decisions, open asks, each thread's
 exchange, and record debt. If the
 state reports a live watcher, the host ends that watcher before continuing. The
 successor then runs `leaf wait <page>`, whose named wait claims the page for that

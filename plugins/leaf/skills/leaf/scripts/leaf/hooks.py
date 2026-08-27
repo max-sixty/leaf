@@ -2,10 +2,9 @@
 
 import json
 
-from .events import awaits_agent, build_threads, read_events, spoken_turns
-from .files import published_versions
+from .events import awaits_agent, build_threads, read_events, seat_root, spoken_turns
 from .http import full_state
-from .passages import published_enclosing
+from .passages import active_enclosing
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
 from .service import PageTransaction, owned_pages, unacknowledged
 
@@ -38,7 +37,13 @@ def unanswered_asks(events: list, cursor: int, within: dict) -> list:
     this one need an answer" is a question the agent is holding the context to
     settle, and settling it costs one command.
 
-    `within` is where each id sits on the published page, read without the page's
+    A `response.kind: version` root cannot take that command's ordinary reply. It
+    stays here until a later version lets the agent resolve it. If the agent opens
+    an ordinary thread in the same exact-section seat, that thread carries the
+    work while its last word is the agent's; once the reader answers there, both
+    roots return to this gate.
+
+    `within` is where each id sits on the active revision, read without the page's
     vendored registry, which this reader may not touch. That load is a gate — a
     page vendored before the layer last changed fails it by design — and this one
     is reached from the Stop hook, which fails open, so a raise here would stand
@@ -54,10 +59,34 @@ def unanswered_asks(events: list, cursor: int, within: dict) -> list:
     # answers those by acting (a version, a resolve), not by a reply under each.
     # The cursor is read against the last word too: a mark the reader left after
     # their question is not the question arriving again.
+    threads = list(build_threads(events, within).values())
+    clarifications = [
+        (thread["root"]["seq"], seat)
+        for thread in threads
+        if thread["root"]["author"] == "claude"
+        and not thread["resolved"]
+        and not awaits_agent(thread)
+        and (seat := seat_root(thread))
+    ]
     return [
         t["root"]
-        for t in build_threads(events, within).values()
-        if awaits_agent(t) and spoken_turns(t)[-1]["seq"] <= cursor
+        for t in threads
+        # The cursor is read against the last word, not the root: a follow-up
+        # past it is a delivery the agent has yet to take, which is the
+        # unacknowledged clause's to report and not this one's.
+        if awaits_agent(t)
+        and spoken_turns(t)[-1]["seq"] <= cursor
+        # A version-response thread cannot take an agent message. An ordinary
+        # agent-authored thread in the same declared seat carries any question the
+        # revision needs; while that thread waits on the reader, the proposal has a
+        # visible next step rather than being an acknowledged message nobody owns.
+        and not (
+            (t["root"].get("response") or {}).get("kind") == "version"
+            and any(
+                seat == seat_root(t) and root_seq > t["root"]["seq"]
+                for root_seq, seat in clarifications
+            )
+        )
     ]
 
 
@@ -72,16 +101,14 @@ def unattended_pages(session_id: str) -> list:
         page_reasons = []
         try:
             events = read_events(page_dir)
-            state = full_state(page_dir, events, published_versions(page_dir, events))
+            state = full_state(page_dir, events)
         except FileNotFoundError:
             continue
         codex = state["host"] == "codex"
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = unanswered_asks(
-            events, state["cursor"], published_enclosing(page_dir, events)
-        )
+        stale = unanswered_asks(events, state["cursor"], active_enclosing(page_dir))
         if stale:
             ids = ", ".join(t["id"] for t in stale)
             page_reasons.append(

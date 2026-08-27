@@ -27,14 +27,14 @@ leaf status <page> working "checking the rollout" --on <widget-id>
 The line stands beside its subject, so a question or card in hand reads
 differently from one nobody has looked at even when no conversation exists. A
 thread claim ends with your next reply there. A widget claim survives unrelated
-versions; when a later version completes that work, say so at publication:
+revisions; when a stamped version completes that work, say so on the stamp:
 
 ```bash
-leaf version publish <page> --version <n> --text "…" --completes <widget-id>
+leaf version stamp <page> --text "…" --completes <widget-id>
 ```
 
 Repeat `--completes` when the version completes more than one active widget
-claim. Publishing accepts only widget ids with standing work. `status --on`
+claim. Stamping accepts only widget ids with standing work. `status --on`
 refuses a widget whose active registry declaration provides no `x-work` seat;
 use the page-wide detail for work with no safe local line. The local line is the
 banner's own claim at a second seat, and one status command writes both.
@@ -112,26 +112,29 @@ later delivery also includes newer events.
 After acknowledging a direct batch, set the page `working` and address every
 event the wait printed:
 
-- **Comment:** reply in-thread and revise the page when warranted. A comment with
-  `"suggestion": true` proposes exact replacement text; take it verbatim or reply
-  with the reason for declining it.
+- **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
+  it in the next version, then resolve it. If the revision depends on the reader,
+  open a separate exact-section thread on the same Ask with
+  `leaf comment --section <ask-id>`. Reply to other comments in-thread and revise
+  the page when warranted. A comment with `"suggestion": true` proposes exact
+  replacement text; take it verbatim or reply with the reason for declining it.
 - **Layer comment:** an event with `"about": "layer"` changes the relevant Leaf
-  layer, followed by re-vendoring, publishing, and an in-thread reply.
+  layer, followed by re-vendoring, a valid source activation, and an in-thread reply.
 - **Page action:** the reader already sees the action applied. Carry its standing
-  state into the next version's markup. If you deliberately replace that state,
-  use `restated` and explain why in the version note.
+  state into `index.html`. If you deliberately replace that state, use `restated`
+  and explain why when stamping the resulting checkpoint.
 - **Reaction:** a `comment` or `reply` carrying `token` in place of `text`, with
   the token's meaning printed beside it as `means`. It is a mark, not a
   question: act on it — revise the passage a `cut` or `lost` stands on, expand
   where `more` stands, take an `ok` as the reader's "seen, go on" — and, once
-  the version that answers it is published, `leaf resolve` it so its paint
+  the live revision answers it, `leaf resolve` it so its paint
   clears. Reply on the reaction itself only where it puzzles you ("which
   part?"); that reply turns the mark into an ordinary thread. A reaction never
-  gates a version, and an acknowledged one nobody replied to holds no turn.
+  gates activation or stamping, and an acknowledged one nobody replied to holds no turn.
 - **Undo:** read the named event and the undo as one act. Do not answer or record
   the withdrawn gesture. An undone answering action reopens its thread; an
   undone reaction is a mark the reader took back.
-- **Page error:** fix the page or widget and publish the correction. The event is
+- **Page error:** fix the page or widget and save the correction. The event is
   diagnostics, so do not reply unless the reader asked about it.
 - **Worker report:** carry the report into markup, or mark its element
   `overruled` and state why. A page must not end with unresolved report debt.
@@ -143,15 +146,17 @@ event the wait printed:
 ## Threads
 
 Open a thread when the answer depends on the reader. Use a quote for a passage, a
-section id for a diagram or image, and no anchor for the page as a whole:
+section id for a diagram or image, a declared part for one box within a visual, and no
+anchor for the page as a whole:
 
 ```bash
 leaf comment <page> --quote "<passage in the current page>" --text "…"
 leaf comment <page> --section <element-id> --text "…"
+leaf comment <page> --section <diagram-id> --part node:<source-id> --text "…"
 leaf comment <page> --text "…"
 ```
 
-`leaf comment` anchors in the newest published version and reads it as the user
+`leaf comment` anchors in the active revision and reads it as the user
 sees it, including edits and retired content. Quote exact visible authored words
 inside one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment.
@@ -161,13 +166,13 @@ markup is frozen in the log; versions neither carry nor revise it. Use a page
 widget instead when the question and its answer belong in the final record.
 
 Answer in as few words as the question takes; one sentence is a complete reply.
-An answer the size of a page section goes into the next version instead, and the
+An answer the size of a page section goes into the page instead, and the
 reply is a line pointing at it. The panel is a narrow column, so an answer past a
 few sentences goes in as separate Markdown paragraphs or a list with one point
 each. `--text` takes a one-line answer; longer text comes in on stdin:
 
 ```bash
-leaf reply <page> --to <thread-id> --text "Yes, and v3 already has it."
+leaf reply <page> --to <thread-id> --text "Yes, and the page already has it."
 
 leaf reply <page> --to <thread-id> <<'EOF'
 Three things put the retry on the client:
@@ -209,21 +214,27 @@ one of your replies. `page state` lists every standing one under `reactions`,
 each with its `means`, and the tokens themselves are the page's vendored
 `$reactions` (`page catalog`), so a project's own tokens read the same way. An
 `ok` on your latest reply is the thread leaving "waiting on you"; no reply is
-owed for it. Resolve a page reaction once a version has acted on it.
+owed for it. Resolve a page reaction once the live revision has acted on it.
 
-## Publish the next version
+## Save revisions and stamp checkpoints
 
-Copy the latest published file to the next integer version. Edit that copy and
-publish it with a brief changelog:
+Edit `<page>/index.html` directly. Each changed valid save becomes a new immutable
+revision and the live root follows it automatically; keep saving while the work
+is in motion. If the source is invalid, the last valid revision remains live and
+`leaf page state` reports the source diagnostic.
+
+When the page reaches a checkpoint worth naming, stamp the exact current source
+with a brief changelog:
 
 ```bash
-cp <page>/versions/v1.html <page>/versions/v2.html
-leaf version publish <page> --version 2 --text "<what changed>"
+leaf version stamp <page> --text "<what changed>"
 ```
 
-Never rewrite a version the reader has seen. The browser follows the new version
-automatically. Re-enter the host's wait loop after the batch: `waiting` when the
-reader owns the next move, `working` while you continue.
+Leaf assigns the next public version number and maps it to that exact revision.
+Do not write `revisions/` or `versions/` yourself. A browser at the live root
+follows new revisions; a browser pinned to `/versions/vN.html` stays on that
+stamp. Re-enter the host's wait loop after the batch: `waiting` when the reader
+owns the next move, `working` while you continue.
 
 ## Sign-off and ending
 
@@ -231,8 +242,9 @@ A `done` event approves the work but does not end the page. Keep the page workin
 and watched while doing what approval unblocked.
 
 To finish, handle every event in the complete delivered batch and make sure every
-acknowledged thread that awaits your answer has one. Publish a final version that
-honors standing decisions and reports. `leaf transcript <page>` prints record
+acknowledged thread that awaits your answer has one. Stamp a final version that
+honors standing decisions and reports. Sign-off is available only on a stamped
+revision. `leaf transcript <page>` prints record
 debt on stderr and the full exchange as Markdown.
 
 Then run:

@@ -140,12 +140,30 @@ export function createProjection(runtime, dependencies) {
   } = createAuthoredProjection({ quoteFrom, textNodesUnder, widgetEntries });
 
   function resetAuthoredPage() {
-    authoredFacets.clear();
-    authoredDetails.clear();
-    authoredStatements.clear();
-    authoredMarkup.clear();
-    authoredWidgets.clear();
-    committedProjection.clear();
+    // A live revision replaces the page document, not the frozen widget markup in
+    // conversations. Clearing every baseline made a standing thread action become the
+    // next baseline when the panel reconciled: Undo then restored the replayed choice
+    // instead of the reply's inert authored state. Page and thread ids cannot overlap,
+    // so remove only owners currently declared by the page and leave the conversation's
+    // second document intact.
+    const pageOwners = new Set();
+    for (const { tag } of stateSpecs())
+      for (const widget of pageQueryAll(tag))
+        if (widget.id && !inChrome(widget)) pageOwners.add(widget.id);
+    const dropCoordinates = (records) => {
+      for (const coordinate of records.keys()) {
+        const [owner] = JSON.parse(coordinate);
+        if (pageOwners.has(owner)) records.delete(coordinate);
+      }
+    };
+    dropCoordinates(authoredFacets);
+    dropCoordinates(authoredDetails);
+    dropCoordinates(committedProjection);
+    for (const owner of pageOwners) {
+      authoredStatements.delete(owner);
+      authoredMarkup.delete(owner);
+      authoredWidgets.delete(owner);
+    }
     for (const attr of [
       PAGE_PAINT_ATTRIBUTE.applied,
       PAGE_PAINT_ATTRIBUTE.replayWrote,
@@ -180,7 +198,7 @@ export function createProjection(runtime, dependencies) {
   function projectedFacet(
     widget,
     spec,
-    winners = stateProjection(runtime.currentVersion).desired,
+    winners = stateProjection(runtime.currentRevision).desired,
   ) {
     const coordinate = stateCoordinate(widget.id, widget.id, spec);
     const winner = winners.get(coordinate);
@@ -301,7 +319,7 @@ export function createProjection(runtime, dependencies) {
     const unit = unitOf(e, spec);
     const coordinate = stateCoordinate(e.widget, unit, spec);
     return (
-      stateProjection(runtime.currentVersion, e.id).desired.has(coordinate) ||
+      stateProjection(runtime.currentRevision, e.id).desired.has(coordinate) ||
       authoredDetails.has(coordinate) ||
       authoredMarkup.has(e.widget)
     );
@@ -334,7 +352,7 @@ export function createProjection(runtime, dependencies) {
       const widget = e.kind === "action" && elementById(e.widget);
       if (
         widget &&
-        (inChrome(widget) || e.version === runtime.currentVersion) &&
+        (inChrome(widget) || e.revision === runtime.currentRevision) &&
         canUndoAction(e)
       )
         return e;
@@ -470,7 +488,7 @@ export function createProjection(runtime, dependencies) {
   // complete read has committed the coordinate that now represents them; rejected
   // entries leave only after their optimistic token no longer represents the DOM.
   function releaseProjectedOutbox() {
-    const projection = stateProjection(runtime.currentVersion);
+    const projection = stateProjection(runtime.currentRevision);
     let removed = false;
     for (const entry of [...outbox]) {
       if (!entry.answered || entry.event.kind !== "action") continue;
@@ -554,7 +572,7 @@ export function createProjection(runtime, dependencies) {
       // A baseline no action detail can state replaces a subtree: a recordless verb, or
       // an optional authored scalar absent before its first action.
       for (;;) {
-        projection = stateProjection(runtime.currentVersion);
+        projection = stateProjection(runtime.currentRevision);
         for (const entry of projection.classified.values())
           for (const id of entry.restated ?? [])
             elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
@@ -725,7 +743,7 @@ export function createProjection(runtime, dependencies) {
       }
       renderQuiet(document.body);
       paintPending();
-      projection = stateProjection(runtime.currentVersion);
+      projection = stateProjection(runtime.currentRevision);
       document.body.setAttribute(
         PAGE_PAINT_ATTRIBUTE.applied,
         String(projectionCoverage(projection)),
@@ -758,7 +776,7 @@ export function createProjection(runtime, dependencies) {
   function paintPending() {
     for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
       for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-    const projection = stateProjection(runtime.currentVersion);
+    const projection = stateProjection(runtime.currentRevision);
     for (const [coordinate, { unit, e, spec }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;

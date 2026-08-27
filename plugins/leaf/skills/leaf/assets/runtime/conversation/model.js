@@ -30,7 +30,7 @@ export function createThreadModel(dependencies) {
     // The whole log, not this version's window: a conversation is not version-scoped, so
     // the panel shows the same threads whichever version is pinned and a retraction
     // settles a thread's state from wherever it was declared. interact.py's callers pass
-    // upto=None for the same reason. Replay windows to currentVersion instead, and on any version
+    // upto=None for the same reason. Replay windows to currentRevision instead, and on any version
     // but the newest the two are meant to disagree — the rule binds both sites, so it is
     // stated once in the skill's CLAUDE.md, under "A pinned version scopes the document,
     // never the conversation".

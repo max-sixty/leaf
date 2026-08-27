@@ -69,7 +69,7 @@ any text to comment on the example it belongs to.</p>
           drains as fast as the server answers and nothing about it is visible. Offline
           it fills, and the local store carries it through a closed tab.
         </p>
-        <lf-diagram id="off-flow">
+        <lf-diagram id="off-flow" parts="node:E node:Q node:S node:L">
           <pre>
 graph LR
   E[editor] --> Q[change queue]
@@ -376,8 +376,8 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
           Everything still open, including the two things I decided not to build at all.
           Where each card sits is my read of whether it should hold the ship, so move
           any card you would place differently. A grip takes the keyboard as well as the
-          pointer. Whatever you decide about a card stays where you put it when I
-          republish.
+          pointer. Whatever you decide about a card stays where you put it as I update
+          the page.
         </p>
         <lf-board id="off-punch">
           <lf-column id="off-col-ship" label="Blocks the ship">
@@ -1389,9 +1389,9 @@ $ pytest tests/ -m ratelimit -k two_tokens -q
 <lf-tab id="gal-live-progress" label="Live progress">
 <h1>Checkout cutover rehearsal</h1>
       <p class="lede" id="lp-lede">
-        The agent republishes this page as each check finishes. The browser is following
-        the newest version, so statuses and counts change without a refresh. The
-        rollback drill is running now.
+        The agent saves this page as each check finishes. The browser follows each valid
+        revision, so statuses and counts change without a refresh. The rollback drill is
+        running now.
       </p>
 
       <lf-metrics id="lp-metrics">

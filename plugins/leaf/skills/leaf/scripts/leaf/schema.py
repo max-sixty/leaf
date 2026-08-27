@@ -17,9 +17,12 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 MESSAGE_KINDS = {"comment", "reply"}
 ANSWER_ASK_INSTRUCTION = (
     "`leaf page state <page>` prints each thread's exchange, and "
-    "`leaf transcript <page>` prints a long one whole. Answer each with "
-    "`leaf reply <page> --to <id> --text ...`, or close one the work has since "
-    "answered with `leaf resolve <page> --to <id>`."
+    "`leaf transcript <page>` prints a long one whole. A thread with "
+    "`response.kind: version` is answered by revising the page and resolving it; open a "
+    "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
+    "needs an answer first. Reply to other threads with `leaf reply <page> --to "
+    "<id> --text ...`, or close one the work has since answered with `leaf resolve "
+    "<page> --to <id>`."
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
@@ -239,6 +242,15 @@ EXTENSION_SCHEMA = {
             "properties": {
                 "when": ASK_CONDITION,
                 "hold": {"type": "string", "minLength": 1},
+                "response": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {"const": "version"},
+                        "verb": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+                    },
+                    "required": ["kind", "verb"],
+                    "additionalProperties": False,
+                },
             },
             "required": ["when"],
             "additionalProperties": False,
@@ -277,7 +289,17 @@ EXTENSION_SCHEMA = {
         "x-tone": _ATTRIBUTE_NAME,
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
-        "x-visual": {"type": "boolean"},
+        "x-visual": {
+            "oneOf": [
+                {"const": "whole"},
+                {
+                    "type": "object",
+                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "required": ["parts"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "x-wide": {"enum": ["box", "drawing"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
@@ -338,8 +360,8 @@ PAGE_STATE_FILES = (
     "service.json",
     "server.lock",
 )
-PAGE_OWNED_FILES = (*PACKAGE_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("versions", *PACKAGE_DIRS, MEDIA_DIR)
+PAGE_OWNED_FILES = ("index.html", *PACKAGE_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("revisions", "versions", *PACKAGE_DIRS, MEDIA_DIR)
 # What the server exposes from a page directory: the browser layer, media, and
 # versions. Agent-side guidance stays vendored but is read only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
@@ -359,6 +381,7 @@ SERVED_PATH = re.compile(
         [re.escape(f) for f in VENDORED_FILES]
         + [f"{d}/{_DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [r"versions/v[1-9][0-9]*\.html"]
+        + [r"revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html"]
     )
     + ")"
 )

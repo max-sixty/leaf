@@ -19,7 +19,7 @@ from leaf.events import (
     read_cursor,
     read_events,
     require_cross_process_locking,
-    work_claim_version,
+    work_claim_revision,
 )
 from leaf.files import json_bytes, read_json, write_json
 from leaf.schema import ORPHAN_GRACE_SECS
@@ -792,6 +792,6 @@ def claim_update_sources(status: dict, events: list) -> list[dict]:
             "session": claim.get("session"),
         }
         if target["kind"] == "widget":
-            source["version"] = work_claim_version(claim, events)
+            source["revision"] = work_claim_revision(claim, events)
         sources.append(source)
     return sources

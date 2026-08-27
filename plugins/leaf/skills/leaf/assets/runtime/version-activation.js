@@ -1,7 +1,6 @@
 import { runtime } from "./context.js";
 import { MARKED_IN_PAGE, dress, markDeclared } from "./presentation.js";
 import { reachScrollers } from "./reach.js";
-import { versionUrl } from "./storage.js";
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -13,7 +12,7 @@ const authoredAttributes = (root) =>
 const versionedHeadNode = (node) =>
   !(
     node.localName === "meta" &&
-    node.getAttribute("name") === "lf-version" &&
+    ["lf-revision", "lf-version"].includes(node.getAttribute("name")) &&
     node.hasAttribute("data-lf-runtime")
   ) &&
   (node.localName === "title" ||
@@ -59,12 +58,13 @@ export function createVersionActivation(
 ) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     versionRoots;
-  // ---------- live version activation ----------
-  const versionDocuments = new Map();
+  // ---------- live revision activation ----------
+  const revisionDocuments = new Map();
   let activatingState = null;
-  function versionDocument(version) {
-    if (versionDocuments.has(version)) return versionDocuments.get(version);
-    const name = versionUrl(version);
+  function revisionDocument(revision) {
+    if (revisionDocuments.has(revision.revision))
+      return revisionDocuments.get(revision.revision);
+    const name = revision.url;
     const loading = fetch(name)
       .then(async (response) => {
         if (!response.ok) throw new Error(`couldn't load ${name} (${response.status})`);
@@ -79,10 +79,10 @@ export function createVersionActivation(
         return doc;
       })
       .catch((error) => {
-        versionDocuments.delete(version);
+        revisionDocuments.delete(revision.revision);
         throw error;
       });
-    versionDocuments.set(version, loading);
+    revisionDocuments.set(revision.revision, loading);
     return loading;
   }
 
@@ -112,7 +112,7 @@ export function createVersionActivation(
     return next;
   }
 
-  function activateHead(doc, version) {
+  function activateHead(doc, revision) {
     for (const node of authoredHeadNodes) node.remove();
     const runtimeStyle = style;
     const next = new Set();
@@ -123,22 +123,22 @@ export function createVersionActivation(
       next.add(imported);
     }
     authoredHeadNodes = next;
-    let marker = document.querySelector('meta[name="lf-version"][data-lf-runtime]');
+    let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
       marker = document.createElement("meta");
-      marker.name = "lf-version";
+      marker.name = "lf-revision";
       marker.dataset.lfRuntime = "1";
       document.head.insertBefore(marker, runtimeStyle);
     }
-    marker.content = String(version);
+    marker.content = String(revision.revision);
     stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
   }
 
-  async function activateVersion(doc, version) {
+  async function activateRevision(doc, revision) {
     const view = captureView();
     const source = doc.querySelector("body > main");
     const fresh = document.importNode(source, true);
-    versionDocuments.delete(version);
+    revisionDocuments.delete(revision.revision);
     const settlingFrom = settling.length;
     const comparedFrom = comparisonBase();
     if (comparedFrom !== null) setDiff(false);
@@ -158,8 +158,10 @@ export function createVersionActivation(
       doc.body,
       authoredBodyAttributes,
     );
-    runtime.currentVersion = version;
-    activateHead(doc, version);
+    runtime.currentRevision = revision.revision;
+    runtime.currentStamp = revision.version;
+    runtime.currentLabel = revision.label;
+    activateHead(doc, revision);
     document.querySelector("body > main").replaceWith(fresh);
     pruneScopedElements();
     settle(dress(fresh));
@@ -182,5 +184,10 @@ export function createVersionActivation(
     };
   }
 
-  return { activateVersion, currentActivation, trackActivation, versionDocument };
+  return {
+    activateRevision,
+    currentActivation,
+    revisionDocument,
+    trackActivation,
+  };
 }

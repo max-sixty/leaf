@@ -32,6 +32,7 @@ from render_harness import (
     TOKEN,
     leaf_page,
     record_claim,
+    stamp_version_file,
 )
 
 CUSTOM_WIDGET_PAGE = leaf_page(
@@ -454,10 +455,10 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
 LOOSE_SCROLLER_PAGE = LONG_PAGE.replace(
     "</main>",
     "<div id='loose' style='width: 300px; overflow-x: auto'>"
-    "<div id='far' style='width: 2000px; text-align: right'>A row wider than the box "
+    "<div id='far' style='width: 700px; text-align: right'>A row wider than the box "
     "that scrolls it.</div></div>"
     "<div id='held' style='width: 300px; overflow-x: auto; position: relative'>"
-    "<div style='width: 2000px'>The same row, in a box that holds its own.</div></div>"
+    "<div style='width: 700px'>The same row, in a box that holds its own.</div></div>"
     "\n</main>",
 )
 SCROLLED_CONTAINER = LONG_PAGE.replace(
@@ -1056,9 +1057,7 @@ def live_leaf(tmp_path, monkeypatch):
         (d / "versions" / "v1.html").write_text(
             LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>")
         )
-        events_model.append_event(
-            d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
-        )
+        stamp_version_file(d, 1, "t")
         files_model.write_json(
             d / "status.json",
             {

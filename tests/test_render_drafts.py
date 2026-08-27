@@ -41,7 +41,9 @@ from render_support import (
     resized,
     round_trip,
     sent_events,
+    stamp_version_file,
     told,
+    wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
@@ -118,9 +120,7 @@ def test_page_round_trip(browser, serve):
 
     # Claude ships v2 with the passage moved; the page follows on its next poll.
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "moved"}
-    )
+    stamp_version_file(d, 2, "moved")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     assert page.evaluate("window.__leafJourneyDocument") == "held", (
@@ -146,7 +146,7 @@ def test_page_round_trip(browser, serve):
     events = [
         json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
     ]
-    assert [(e["kind"], e["author"], e["version"]) for e in events] == [
+    assert [(e["kind"], e["author"], e["revision"]) for e in events] == [
         ("note", "claude", 1),
         ("comment", "user", 1),
         ("action", "user", 1),
@@ -341,7 +341,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
             {
                 "kind": "action",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"text": text},
@@ -352,7 +352,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "board",
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
@@ -384,7 +384,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     the whole body must hold a live editor on its version, survive reload, and arrive
     in the log as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill("")
@@ -392,12 +392,10 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
-    )
+    stamp_version_file(d, 2, "v2")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
-    assert "/v1.html" in page.url, "an empty live edit was mistaken for no composition"
+    assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
     page.wait_for_function(BOTH_STAMPS)
@@ -428,7 +426,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == ""
 
     page.evaluate("window.lfFailDraft = false")
-    page.wait_for_url("**/v2.html")
+    wait_for_revision(page, 2)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_text("")
     page.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     events = [
@@ -895,7 +893,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_read
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "anchor": {"section": "jobs"},
             "text": "Which job should come first?",
         },
@@ -943,7 +941,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "anchor": {"section": "jobs"},
             "text": "What should the order be?",
         },
@@ -1351,7 +1349,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "anchor": {"section": "jobs"},
             "text": old,
             "attempt": old_attempt,
@@ -1433,7 +1431,7 @@ def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serv
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "anchor": {"section": "jobs"},
             "text": "Repeat the confirmation if it remains true.",
         },
@@ -1717,15 +1715,13 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
         if version == 2:
             (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-            events_model.append_event(
-                d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
-            )
+            stamp_version_file(d, 2, "v2")
         events_model.append_event(
             d,
             {
                 "kind": "action",
                 "author": "user",
-                "version": version,
+                "revision": version,
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"text": text},
@@ -1739,7 +1735,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     old_sequence = old.evaluate(
         """async () => (await import('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
-          .map(event => event.version)"""
+          .map(event => event.revision)"""
     )
     assert old_sequence == [1]
 
@@ -1752,7 +1748,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     latest_sequence = latest.evaluate(
         """async () => (await import('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
-          .map(event => event.version)"""
+          .map(event => event.revision)"""
     )
     assert latest_sequence == [1, 2]
     assert old_errors == []
@@ -1780,7 +1776,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "board",
             "action": "move",
             "detail": {"card": "card-x", "to": "col-done", "index": 0},
@@ -1791,7 +1787,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"text": DRAFT_EDITED},
@@ -1803,9 +1799,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     # emitting its own idea of the board and the draft, as one did for five
     # versions running.
     (d / "versions" / "v2.html").write_text(JOURNEY_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "v2"}
-    )
+    stamp_version_file(d, 2, "v2")
 
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     page.wait_for_function(
@@ -1831,7 +1825,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"text": DRAFT_EDITED},

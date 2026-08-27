@@ -8,7 +8,7 @@ import click
 from referencing.exceptions import Unresolvable
 
 from .events import now_iso, read_events
-from .files import list_versions, version_path, write_json
+from .files import list_revisions, revision_path, write_json
 from .registry import is_aware_datetime, json_validator, require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
@@ -149,9 +149,9 @@ def page_data_documents(
 ) -> list[tuple[list, str]]:
     """The immutable page and thread documents that can consume external data."""
     documents = []
-    for version in list_versions(page_dir):
-        html = version_path(page_dir, version).read_text(encoding="utf-8")
-        documents.append((parse_structure(html).lf_elements, f"v{version}.html"))
+    for revision in list_revisions(page_dir):
+        html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+        documents.append((parse_structure(html).lf_elements, f"revision r{revision}"))
     for event in read_events(page_dir) if events is None else events:
         if markup := event.get("markup"):
             documents.append(

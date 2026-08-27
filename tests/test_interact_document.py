@@ -29,6 +29,8 @@ from interact_support import (
     decide,
     declare_data_input,
     publish,
+    stage_fixture_source,
+    stamp,
     state_json,
     suggest,
 )
@@ -41,6 +43,7 @@ from leaf import layer as layer_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
@@ -859,12 +862,19 @@ def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
     assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
 
 
-def test_a_later_decision_does_not_license_an_earlier_version(page_dir):
-    """An old file is checked against what the reader could have decided then."""
+def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
+    """Source checking is about the next live revision, not a historical stamp."""
     suggest(page_dir)
+    (page_dir / "versions" / "v2.html").write_text(
+        (page_dir / "versions" / "v2.html")
+        .read_text()
+        .replace("<title>t</title>", "<title>t · v2</title>")
+    )
     publish(page_dir, 2)
     (page_dir / "versions" / "v3.html").write_text(
-        PAGE.replace("<lf-options>", SUGGESTION)
+        PAGE.replace("<title>t</title>", "<title>t · v3</title>").replace(
+            "<lf-options>", SUGGESTION
+        )
     )
     publish(page_dir, 3)
     events_model.append_event(
@@ -872,15 +882,15 @@ def test_a_later_decision_does_not_license_an_earlier_version(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 3,
+            "revision": 3,
             "widget": "sug-refill",
             "action": "accept",
             "detail": {},
         },
     )
 
-    # Re-checking the older published file cannot borrow the future action to
-    # justify dropping what its own predecessor contained.
+    # Once staged as index.html, these bytes are a new live revision after r3;
+    # the standing decision on r3 therefore licenses the honoring rewrite.
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
             "<lf-options>",
@@ -888,8 +898,7 @@ def test_a_later_decision_does_not_license_an_earlier_version(page_dir):
         )
     )
     result = check(page_dir, version=2)
-    assert result.exit_code == 1
-    assert "refill-rule" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
@@ -1186,7 +1195,7 @@ def test_check_rejects_duplicate_ids_and_dropped_ids(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "duplicate ids" in result.output
-    assert "dropped in v2.html" in result.output
+    assert "dropped in index.html" in result.output
     assert "backfill-first" in result.output
 
 
@@ -1218,7 +1227,7 @@ def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "its words changed" in result.output
-    assert "edit on v1" in result.output
+    assert "edit on r1" in result.output
     assert "restated" in result.output
 
     # Said out loud, the same version publishes.
@@ -1251,20 +1260,29 @@ def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "nothing to retract" in result.output
-    assert "unchanged since v1" in result.output
+    assert "unchanged since r1" in result.output
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
     """`leaf report` is the report event's one door, so the widget, verb, and
     detail are held to the x-report declaration there — the CLI mirror of the
     POST door's action gate — and the event leaves stamped with the posting
-    session's voice and the version the reader is looking at."""
+    session's voice and the exact revision the reader is looking at."""
     _tasks_version(page_dir, 1, "active")
-    unpublished = _report(page_dir, "t-parser", "status", "status=review")
-    assert unpublished.exit_code == 1
-    assert "no published version" in unpublished.output
+    stage_fixture_source(page_dir, 1)
+    activation = revisioning_model.activate_source(page_dir, [])
+    assert activation.error is None and activation.revision == 1
+    draft_report = _report(page_dir, "t-parser", "status", "status=review")
+    assert draft_report.exit_code == 0, draft_report.output
 
     publish(page_dir)
+    reports_before = len(
+        [
+            event
+            for event in events_model.read_events(page_dir)
+            if event["kind"] == "report"
+        ]
+    )
     for args, message in [
         (("nope", "status", "status=review"), "unknown report widget"),
         (("tree", "status", "status=review"), "does not declare report verb"),
@@ -1276,7 +1294,16 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         refused = _report(page_dir, *args)
         assert refused.exit_code == 1, args
         assert message in refused.output, args
-    assert all(e["kind"] != "report" for e in events_model.read_events(page_dir))
+    assert (
+        len(
+            [
+                event
+                for event in events_model.read_events(page_dir)
+                if event["kind"] == "report"
+            ]
+        )
+        == reports_before
+    )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
@@ -1286,7 +1313,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert event["kind"] == "report" and event["author"] == "claude"
     assert (event["agent"], event["session"]) == ("Indexer", "worker-1")
     assert event["widget"] == "t-parser" and event["action"] == "status"
-    assert event["detail"] == {"status": "review"} and event["version"] == 1
+    assert event["detail"] == {"status": "review"} and event["revision"] == 1
 
 
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
@@ -1344,14 +1371,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
 
     _tasks_version(page_dir, 1, "active")
     add_board(1)
-    runner = CliRunner()
-    assert (
-        runner.invoke(
-            cli_model.cli,
-            ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
-        ).exit_code
-        == 0
-    )
+    assert stamp(page_dir, 1, "cut").exit_code == 0
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0
     report_id = json.loads(sent.output)["id"]
@@ -1362,20 +1382,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
 
     _tasks_version(page_dir, 2, "review")
     add_board(2)
-    published = runner.invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "2",
-            "--text",
-            "absorb",
-            "--completes",
-            "rollout-card",
-        ],
-    )
+    published = stamp(page_dir, 2, "absorb", completes=("rollout-card",))
     assert published.exit_code == 0, published.output
     note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["settles"] == [
@@ -1393,37 +1400,32 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     _tasks_version(page_dir, 3, "done", " overruled")
     stale = check(page_dir, version=3)
     assert stale.exit_code == 1
-    assert "v2 already answered" in stale.output
+    assert "r2 already answered" in stale.output
 
-    # Reissuing an older version cannot absorb a report made on a later one,
-    # even when the old file happens to state the reported value.
+    # Reusing older source creates a new revision and the next public stamp. If
+    # those current bytes state the reported value, that new stamp absorbs it.
     sent = _report(page_dir, "t-parser", "status", "status=review")
     assert sent.exit_code == 0, sent.output
     future_report = json.loads(sent.output)["id"]
     _tasks_version(page_dir, 1, "review")
-    republished = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "1",
-            "--text",
-            "reissued old cut",
-        ],
+    add_board(1)
+    old_cut = page_dir / "versions" / "v1.html"
+    old_cut.write_text(
+        old_cut.read_text().replace("<title>t</title>", "<title>t · reissued</title>")
     )
+    republished = stamp(page_dir, 1, "reissued old cut")
     assert republished.exit_code == 0, republished.output
     note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
-    assert note["version"] == 1
-    assert {"kind": "report", "id": future_report} not in note.get("settles", [])
+    assert note["version"] == 3
+    assert {"kind": "report", "id": future_report} in note.get("settles", [])
 
 
-def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
-    """Report versioning and note calculation are one transaction each."""
+def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
+    """Report revisioning and stamp-note calculation are one transaction each."""
     _tasks_version(page_dir, 1, "active")
     publish(page_dir)
     _tasks_version(page_dir, 2, "review")
+    stage_fixture_source(page_dir, 2)
 
     at_commit = threading.Event()
     resume = threading.Event()
@@ -1437,9 +1439,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
 
     monkeypatch.setattr(publishing_model, "append_event", held_append_event)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        publishing = executor.submit(
-            publishing_model.cmd_publish, page_dir, 2, "absorb"
-        )
+        publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
         serialized = service_model.lock_is_held(page_dir / "comments.jsonl")
         reporting = executor.submit(
@@ -1467,7 +1467,7 @@ def test_publish_and_report_choose_one_log_order(page_dir, monkeypatch):
     note = [event for event in events if event["kind"] == "note"][-1]
     assert serialized, "publish calculated mutable log state outside its transaction"
     assert note["version"] == 2 and "settles" not in note
-    assert report["version"] == 2
+    assert report["revision"] == 2
 
 
 def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
@@ -1509,28 +1509,19 @@ def test_an_unearned_overruled_is_refused(page_dir):
     assert "writes the reported state" in result.output
 
 
-def test_overruled_is_earned_even_when_prev_dropped_the_unit(page_dir):
-    """Whether `overruled` is earned is this version's markup against the
-    report, not whether the *previous* version's markup still carried the id.
-    A unit that vanished from prev and comes back writing a disagreeing state
-    is a named disagreement like any other — id-survival is a separate
-    question, and letting it decide earning told an honestly overruling
-    version it was writing the reported state (absorption) instead."""
+def test_a_stamp_cannot_drop_a_reported_unit_before_overruling_it(page_dir):
+    """Every live revision passes id survival, so a reported unit cannot vanish
+    into an unreachable intermediate revision and later return as overruled."""
     _tasks_version(page_dir, 1, "active")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
 
-    # v2 drops the task's id outright. `publish` registers it as the baseline
-    # directly, the way test_absorption_is_by_id_never_inferred_from_markup
-    # does — id-survival is its own gate, not what this test is about.
+    # The attempted next source drops the task's id outright. It never becomes
+    # a live revision, keeping the later report gate on reachable state only.
     (page_dir / "versions" / "v2.html").write_text(PAGE)
-    publish(page_dir, version=2)
-
-    # v3 brings the id back, honoring its own state and overruling the report
-    # still standing from v1 — this must pass, not be told it's absorbing.
-    _tasks_version(page_dir, 3, "done", " overruled")
-    result = check(page_dir, version=3)
-    assert result.exit_code == 0, result.output
+    result = check(page_dir, version=2)
+    assert result.exit_code == 1
+    assert "t-parser" in result.output and "dropped in index.html" in result.output
 
 
 def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir):
@@ -1555,7 +1546,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "b1",
             "action": "move",
             "detail": {"card": "card-x", "to": "c-done", "index": 0},
@@ -1580,7 +1571,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     write(2, [("card-x", "", "Guard the delete behind the flag"), Y], [])
     result = check(page_dir, version=2)
     assert result.exit_code == 1
-    assert "card-x" in result.output and "move on v1" in result.output
+    assert "card-x" in result.output and "move on r1" in result.output
     assert "card-y" not in result.output, (
         "the gate named a card nobody had decided about"
     )
@@ -1636,7 +1627,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
@@ -1660,7 +1651,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
     write(2, a=" chosen", shim="Fastest to ship, and we own the shim forever.")
     result = check(page_dir, version=2)
     assert result.exit_code == 1
-    assert "o-shim" in result.output and "choose on v1" in result.output
+    assert "o-shim" in result.output and "choose on r1" in result.output
 
     write(2, a=" chosen restated", shim="Fastest to ship, and we own the shim forever.")
     assert check(page_dir, version=2).exit_code == 0
@@ -1681,7 +1672,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
@@ -1717,7 +1708,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": []},
@@ -1760,7 +1751,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
@@ -1777,18 +1768,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     # Said out loud — on the group, the unit the fold keys the pick by.
     write(2, b=" chosen", attrs=" restated")
     assert check(page_dir, version=2).exit_code == 0, check(page_dir, version=2).output
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "2",
-            "--text",
-            "moved the default",
-        ],
-    )
+    result = stamp(page_dir, 2, "moved the default")
     assert result.exit_code == 0, result.output
 
     # The retraction handed the state back: v3 owns it, no ritual to repeat.
@@ -1825,7 +1805,7 @@ def test_check_reports_record_lag_without_erroring(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
@@ -1862,7 +1842,7 @@ def test_record_lag_uses_the_version_being_checked(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 2,
+            "revision": 2,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
@@ -1895,7 +1875,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "outer",
             "action": "choose",
             "detail": {"options": ["outer-a"]},
@@ -1920,7 +1900,10 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     )
     publish(page_dir)
     state = state_json(page_dir)
-    assert state["versions"] == {"published": [1], "written": [1]}
+    assert state["versions"] == [
+        {"version": 1, "revision": 1, "url": "/versions/v1.html"}
+    ]
+    assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
     assert state["asks"] == [{"id": "g1", "tag": "lf-options", "thread": None}]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
@@ -1931,7 +1914,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
@@ -1946,7 +1929,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "facet": "selection",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
-            "version": 1,
+            "revision": 1,
             "seq": 2,
             # On every entry, and null for a page widget: the key names which of the
             # page's two documents the decision was made in, and `asks` above has
@@ -1974,7 +1957,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "answer",
             "detail": {},
@@ -2022,7 +2005,7 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
                 {
                     "widget": "test-data",
                     "input": "data",
-                    "document": "v1.html",
+                    "document": "revision r2",
                 }
             ],
         }
@@ -2071,9 +2054,9 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
         {"type": "array"},
         contract="rows",
     )
-    version = page_dir / "versions" / "v1.html"
-    version.write_text(
-        version.read_text().replace(
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
             "</main>",
             '<lf-test-data id="test-data-two" source="project-feed"></lf-test-data>\n'
             "</main>",
@@ -2081,7 +2064,7 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
     )
     data_model.cmd_data_set(page_dir, "project-feed", [])
 
-    shared = check(page_dir)
+    shared = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
     assert shared.exit_code == 0, shared.output
 
     registry_path = page_dir / "registry.json"
@@ -2096,20 +2079,22 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
         "x-data": {"data": {"contract": "other-rows", "source": "source"}},
     }
     registry_path.write_text(json.dumps(registry))
-    version.write_text(
-        version.read_text().replace(
+    source.write_text(
+        source.read_text().replace(
             "</main>",
             '<lf-other-data id="other-data" source="project-feed"></lf-other-data>\n'
             "</main>",
         )
     )
 
-    conflict = check(page_dir)
+    conflict = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
     assert conflict.exit_code != 0
     assert "bound to both contract 'rows'" in conflict.output
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-    assert state.exit_code != 0
-    assert "page history has conflicting data bindings" in state.output
+    assert state.exit_code == 0, state.output
+    reading = json.loads(state.output)
+    assert "bound to both contract 'rows'" in reading["source_error"]
+    assert reading["active"]["revision"] == 2
 
 
 def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir):
@@ -2157,7 +2142,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
             "kind": "comment",
             "id": "data-question",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Show the feed here.",
         },
     )
@@ -2201,7 +2186,7 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
             "kind": "comment",
             "id": "data-question",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Show another feed here.",
         },
     )
@@ -2337,7 +2322,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
@@ -2369,7 +2354,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
             "kind": "report",
             "author": "claude",
             "agent": "worker",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-stage"]},
@@ -2380,7 +2365,7 @@ def test_page_state_prefers_a_reader_action_over_a_report_on_the_same_facet(page
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "g1",
             "action": "choose",
             "detail": {"options": ["o-shim"]},
@@ -2503,7 +2488,7 @@ def test_page_state_gives_a_thread_its_exchange(page_dir):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "cameras are flaky",
             "anchor": {"section": "s-1", "quote": "Ship dark"},
         },
@@ -2542,7 +2527,7 @@ def test_page_state_keeps_a_readers_suggestion_flag(page_dir):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Ship dark behind the importer flag.",
             "anchor": {"section": "plan", "quote": "Ship dark"},
             "suggestion": True,
@@ -2563,7 +2548,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "Which mitigations?",
             "markup": '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
@@ -2579,7 +2564,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
@@ -2593,7 +2578,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "gm",
             "action": "answer",
             "detail": {},
@@ -2623,7 +2608,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "kind": "report",
             "author": "claude",
             "agent": "worker",
-            "version": 1,
+            "revision": 1,
             "widget": "t-parser",
             "action": "status",
             "detail": {"status": "done"},
@@ -2640,7 +2625,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "detail": {"status": "done"},
             "text": None,
             "ts": rep["ts"],
-            "version": 1,
+            "revision": 1,
             "seq": 2,
             "agent": "worker",
             "session": None,
@@ -2664,12 +2649,21 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "<h2>Plan</h2>", "<h2>Plan</h2>" + tasks.replace('"review"', '"done"')
         )
     )
+    files_model.write_revision(
+        page_dir,
+        2,
+        (page_dir / "versions" / "v2.html").read_bytes(),
+    )
+    (page_dir / "index.html").write_bytes(
+        (page_dir / "versions" / "v2.html").read_bytes()
+    )
     events_model.append_event(
         page_dir,
         {
             "kind": "note",
             "author": "claude",
             "version": 2,
+            "revision": 2,
             "text": "absorbed",
             "settles": [{"kind": "report", "id": rep["id"]}],
         },
@@ -2684,7 +2678,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "detail": {"status": "done"},
             "text": None,
             "ts": rep["ts"],
-            "version": 1,
+            "revision": 1,
             "seq": 2,
             "agent": "worker",
             "session": None,
@@ -2712,7 +2706,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         {
             "kind": "report",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "widget": "t-parser",
             "action": "status",
             "detail": {"status": "done"},
@@ -2729,7 +2723,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         {
             "kind": "report",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "widget": "t-parser",
             "action": "status",
             "detail": {"status": "done"},
@@ -2744,13 +2738,15 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     ]
 
 
-def test_page_state_before_first_publish(page_dir):
-    """A page with only a draft has no published reading: versions say so and
-    every markup-derived field is empty rather than an error."""
+def test_page_state_before_first_stamp(page_dir):
+    """An unstamped draft is still the live reading and has no public version."""
     state = state_json(page_dir)
-    assert state["versions"] == {"published": [], "written": [1]}
-    assert state["elements"] == [] and state["asks"] == []
-    assert state["title"] == "t"  # from the written draft
+    assert state["versions"] == []
+    assert state["active"]["revision"] == 1
+    assert state["active"]["version"] is None
+    assert state["active"]["label"] == "Draft"
+    assert state["elements"] and state["asks"] == []
+    assert state["title"] == "t"
 
 
 def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
@@ -2837,7 +2833,7 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "cargo",
             "action": "edit",
             "detail": {"text": "ledger_id,amount\n7,42"},

@@ -36,6 +36,7 @@ export function createSelectionSurface({
   tagsDeclaring,
   takesLetters,
   versionMenuIsOpen,
+  visualPartAt,
 }) {
   // ---------- selection → comment ----------
   // Floating UI stays inside the document's own box, which is body's client box: it
@@ -220,6 +221,10 @@ export function createSelectionSurface({
     showFab(null);
     openComposer({ section: item.id }, "", from.left, from.top);
   }
+  function openOnVisual({ id, part }, from) {
+    showFab(null);
+    openComposer({ section: id, visual: part.part }, "", from.left, from.top);
+  }
   // The ⌥ press takes the item whole rather than opening the composer on it: the bar
   // offers the cheap answers first, and its own Comment is the way through to the box.
   function raiseOnItem(item, from) {
@@ -238,7 +243,7 @@ export function createSelectionSurface({
   // that click and the update queued behind its mouseup never matters: no selection speaks
   // for an element anchor, so the selection's absence takes down only a quote, and the
   // queued re-decide lands on the same outcome.
-  function updateFab(visual) {
+  function updateFab(found) {
     if (!anchoringIsReady()) {
       showFab(null);
       return;
@@ -248,7 +253,7 @@ export function createSelectionSurface({
     if (anchor?.quote.length >= MIN_QUOTE) {
       const picked = pageRange(sel).getBoundingClientRect();
       showFab(anchor, ...beside(picked), picked);
-    } else if (visual) showFab({ section: visual.id }, visual.x + 6, visual.y - 40);
+    } else if (found) showFab(found.anchor, found.x + 6, found.y - 40);
     else if (fabAnchor?.quote) showFab(null);
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
@@ -318,6 +323,19 @@ export function createSelectionSurface({
   // own pictures, and every widget that declares it renders as one.
   const visualSel = () =>
     [...tagsDeclaring((e) => e["x-visual"]), "svg", "img", "figure"].join(",");
+  // The outermost match is the seat: a rendered diagram's inner svg carries an id
+  // its renderer coined, and an anchor on that names nothing a version holds. The
+  // id-bearing element around it is what answers, so a picture under no authored id
+  // takes no anchor rather than one the next load would number differently.
+  const visualAt = (target) => {
+    const selector = visualSel();
+    let element = target.closest?.(selector);
+    if (!element) return null;
+    while (element.parentElement?.closest(selector))
+      element = element.parentElement.closest(selector);
+    const id = element.closest("[id]:not(.lf-ui)")?.id;
+    return id ? { element, id, part: visualPartAt(element, target) } : null;
+  };
 
   document.addEventListener("click", (ev) => {
     if (!pageWords(ev.target)) return;
@@ -344,17 +362,18 @@ export function createSelectionSurface({
       ? markAt(pointerAt().x, pointerAt().y)
       : markAt(ev.clientX, ev.clientY);
     if (threadId) return showThread(threadId);
+    // A link keeps its ordinary navigation. The universal Alt-click aim reaches a
+    // commentable part inside it without letting either gesture do both things.
     if (ev.target.closest?.("a")) return;
-    const sel = visualSel();
-    let visual = ev.target.closest?.(sel);
+    const visual = visualAt(ev.target);
     if (!visual) return;
-    // Outermost visual: a rendered diagram's inner svg carries a generated id;
-    // the anchor belongs to the widget (or figure) that holds it.
-    while (visual.parentElement?.closest(sel))
-      visual = visual.parentElement.closest(sel);
-    const id = visual.closest("[id]:not(.lf-ui)")?.id;
-    if (!id) return;
-    updateFab({ id, x: ev.clientX, y: ev.clientY });
+    updateFab({
+      anchor: visual.part
+        ? { section: visual.id, visual: visual.part.part }
+        : { section: visual.id },
+      x: ev.clientX,
+      y: ev.clientY,
+    });
   });
 
   const fabAnchorAt = () => fabAnchor;
@@ -363,11 +382,13 @@ export function createSelectionSurface({
     beside,
     fabAnchorAt,
     openOnItem,
+    openOnVisual,
     raiseOnItem,
     placeClear,
     placeComposer,
     showFab,
     standDown,
     updateFab,
+    visualAt,
   };
 }

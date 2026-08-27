@@ -46,6 +46,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import rendering as rendering_model
+from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -81,6 +82,42 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
 </body>
 </html>
 """
+
+
+def stamp_page(
+    page_dir: Path, html: str, text: str, *, completes: tuple[str, ...] = ()
+) -> dict:
+    """Save HTML as the next revision and stamp that exact source."""
+    order = max(files_model.list_revisions(page_dir), default=0) + 1
+    source = html.replace("</body>", f"<!-- test revision {order} -->\n</body>")
+    (page_dir / "index.html").write_text(source, encoding="utf-8")
+    complete_args = [arg for widget in completes for arg in ("--completes", widget)]
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "stamp", str(page_dir), "--text", text, *complete_args],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    return json.loads(result.output)
+
+
+def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
+    """Migrate a fixture-authored vN file through the real stamp boundary."""
+    path = files_model.version_path(page_dir, version)
+    html = path.read_text(encoding="utf-8")
+    path.unlink()
+    note = stamp_page(page_dir, html, text)
+    assert note["version"] == version
+    return note
+
+
+def wait_for_revision(page, revision: int) -> None:
+    """Wait until a live tab has installed one complete immutable revision."""
+    page.wait_for_function(
+        "revision => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
+        "?.content === String(revision)",
+        arg=revision,
+    )
 
 
 # A long page, so the document scrolls, and nothing else — the panel is the subject.
@@ -371,8 +408,25 @@ def serve(tmp_path, monkeypatch):
     first and appended the second's events to a log already holding the first's,
     which reads as a page rather than failing."""
 
-    def go(source, comments=0, anchored=()):
+    def go(
+        source,
+        comments=0,
+        anchored=(),
+        media=None,
+        events=(),
+        layer_registry=None,
+        layer_widgets=None,
+    ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+        if layer_registry is not None or layer_widgets:
+            project = tmp_path / ".leaf"
+            project.mkdir(exist_ok=True)
+            if layer_registry is not None:
+                (project / "registry.json").write_text(json.dumps(layer_registry))
+            for name, module in (layer_widgets or {}).items():
+                path = project / "widgets" / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(module)
         example = source if isinstance(source, Path) else None
         packages = link_example_packages(tmp_path)
         selection_args = [arg for name in packages for arg in ("--package", name)]
@@ -382,12 +436,27 @@ def serve(tmp_path, monkeypatch):
             ["page", "init", *selection_args, str(d)],
         )
         assert initialized.exit_code == 0, initialized.output
-        (d / "versions" / "v1.html").write_text(
-            example.read_text() if example else source
-        )
+        html = example.read_text() if example else source
+        (d / "index.html").write_text(html)
         shutil.copytree(EXAMPLE_MEDIA, d / "media", dirs_exist_ok=True)
+        for name, data in (media or {}).items():
+            path = d / name.lstrip("/")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        for event in events:
+            events_model.append_event(d, event)
+        activated = revisioning_model.activate_source(d, events_model.read_events(d))
+        assert activated.error is None and activated.revision == 1, activated.error
+        (d / "versions" / "v1.html").write_text(html)
         events_model.append_event(
-            d, {"kind": "note", "author": "claude", "version": 1, "text": "t"}
+            d,
+            {
+                "kind": "note",
+                "author": "claude",
+                "version": 1,
+                "revision": 1,
+                "text": "t",
+            },
         )
         if example and (data_seed := example.with_suffix(".data.json")).exists():
             for name, value in json.loads(
@@ -420,7 +489,7 @@ def serve(tmp_path, monkeypatch):
                 {
                     "kind": "comment",
                     "author": "user",
-                    "version": 1,
+                    "revision": 1,
                     "text": f"Comment {i}. " + "Long enough to wrap. " * 4,
                 },
             )
@@ -430,7 +499,7 @@ def serve(tmp_path, monkeypatch):
                 {
                     "kind": "comment",
                     "author": "user",
-                    "version": 1,
+                    "revision": 1,
                     "text": "About this bit.",
                     "anchor": {"section": section, "quote": quote},
                 },

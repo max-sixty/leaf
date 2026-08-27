@@ -290,7 +290,7 @@ def build_threads(events: list, within: dict) -> dict:
     widget sent and the log still lets stand, and then only while that answer
     names the thread. Three things unseat one, and every one of them is the log's
     own word rather than a case written out here. A version that rewrites what a
-    decision rested on says `restated`, publishing records the floor, and replay
+    decision rested on says `restated`, stamping records the floor, and replay
     drops the action — `action_retracted`, the same test the fold and the words
     gate ask. The reader can take the answer back where they stand, which is the
     `undo` naming it and `taken_back` reading it. And a later action on the same
@@ -309,11 +309,11 @@ def build_threads(events: list, within: dict) -> dict:
     widget-absolute unit, so the two keys are one key.
 
     Standing says nothing about the page, and that silence cuts both ways: a stale
-    tab's decision unseats an answer whose widget a published version has since
+    tab's decision unseats an answer whose widget a later revision has since
     retired, leaving the fold nothing to paint and the reader's press reaching the
     thread or nothing at all. Asking the page instead would fork the two runtimes,
     which read different pages — the browser's pinned version against this side's
-    last published file.
+    active revision.
 
     A `resolve` is a person saying the conversation is done. An `unresolve` clears
     that closure. A superseded answer also stops closing the thread; undo and
@@ -498,13 +498,9 @@ def note_settlements(event: dict, kind: str) -> set[str]:
     }
 
 
-def work_claim_version(claim: dict, events: list) -> int:
-    """The published page at a claim's sole stored temporal boundary."""
-    return max(
-        event["version"]
-        for event in events
-        if event["kind"] == "note" and event["seq"] <= claim["after"]
-    )
+def work_claim_revision(claim: dict, _events: list) -> int:
+    """The exact working document on which widget work was claimed."""
+    return claim["revision"]
 
 
 def standing_work_claims(status: dict, events: list) -> list:
@@ -627,7 +623,7 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     thread as the one gesture arriving with nothing behind it.
 
     A `report` carries a widget too and belongs to no conversation: `cmd_report`
-    validates its target against the published version's own elements, so one
+    validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
     if kind in {"comment", "reply"}:
@@ -816,23 +812,23 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
 
 
 def retractions(events: list, upto=None) -> dict:
-    """id → the greatest version whose `restated` note took back its decision."""
+    """id → the greatest revision whose stamped transition took it back."""
     at = {}
     for event in events:
-        if event["kind"] == "note" and (upto is None or event["version"] <= upto):
+        if event["kind"] == "note" and (upto is None or event["revision"] <= upto):
             for named in event.get("restated", []):
-                at[named] = max(at.get(named, 0), event["version"])
+                at[named] = max(at.get(named, 0), event["revision"])
     return at
 
 
 def report_settlements(events: list, upto=None) -> dict:
-    """Report event id → the greatest version whose note settled it."""
+    """Report event id → the greatest revision whose note settled it."""
     at = {}
     for event in events:
-        if event["kind"] != "note" or (upto is not None and event["version"] > upto):
+        if event["kind"] != "note" or (upto is not None and event["revision"] > upto):
             continue
         for identity in note_settlements(event, "report"):
-            at[identity] = max(at.get(identity, 0), event["version"])
+            at[identity] = max(at.get(identity, 0), event["revision"])
     return at
 
 
@@ -877,5 +873,5 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
     with the thread it had answered still filed away, and the user was never asked
     the question again."""
     return any(
-        floors.get(i, 0) > event["version"] for i in action_rests_on(event, within)
+        floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
     )

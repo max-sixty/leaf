@@ -49,12 +49,15 @@ from render_support import (
     author_test_widget,
     composer_quote,
     leaf_page,
+    live_url,
     open_page,
     page_registry,
     panel_settled,
     record_claim,
     resized,
+    stamp_version_file,
     told,
+    wait_for_revision,
     watched,
     written_anchors,
 )
@@ -366,13 +369,13 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
             {
                 "kind": "comment",
                 "author": "claude",
-                "version": 1,
+                "revision": 1,
                 "id": f"written{i}",
                 "anchor": anchor,
                 "text": f"note {i}",
             },
         )
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     # The runtime's own record of which threads it found a home for.
@@ -422,13 +425,11 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         f"nothing stored to tell copies apart: {anchor}"
     )
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     (d / "versions" / "v2.html").write_text(TWIN_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "a twin"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "a twin")
+    wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     where = page.evaluate(
         "() => [...CSS.highlights.get('lf-mark')][0].startContainer.parentElement.id"
@@ -496,7 +497,7 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "which host answers?",
         },
     )
@@ -529,7 +530,7 @@ def test_a_widget_declaring_it_renders_a_picture_takes_a_click(browser, serve):
     url = serve(PICTURE_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
-    registry["lf-tree"]["x-visual"] = True  # a widget the runtime has never heard of
+    registry["lf-tree"]["x-visual"] = "whole"  # a widget core has never heard of
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
     page, errors = open_page(browser, url)
 
@@ -943,7 +944,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
             "kind": "action",
             "id": "a-accept",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug-copy",
             "action": "accept",
             "detail": {},
@@ -1203,7 +1204,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
             "kind": "action",
             "id": "a-accept",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug-card",
             "action": "accept",
             "detail": {},
@@ -1335,7 +1336,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "kind": "comment",
             "id": "c-fix",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "How does the fallback read?",
         },
     )
@@ -1346,7 +1347,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "id": "r-fix",
             "author": "claude",
             "parent": "c-fix",
-            "version": 1,
+            "revision": 1,
             "text": "Like this:",
             "markup": '<lf-diagram id="fallback-flow"><pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
@@ -1395,7 +1396,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "kind": "comment",
             "id": "c-stores",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What did the two stores cost us?",
         },
     )
@@ -1406,7 +1407,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "id": "r-stores",
             "author": "claude",
             "parent": "c-stores",
-            "version": 1,
+            "revision": 1,
             "text": "Side by side:",
             "markup": INLINE_REPLY_MARKUP,
         },
@@ -1935,9 +1936,10 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     At the ordinary 1152px floor, the sidenote keeps its established right margin and
     the sidebar remains in flow. Giving both their full strips there leaves only 504px
-    for prose. At the combined floor, both may stand outside the ordinary column, less
-    only a live platform's stable scrollbar gutter. A script-free copy has to make the
-    same choice from its viewport alone.
+    for prose. At the combined floor of the page's own box, both may stand outside a
+    full ordinary column; a window short of that floor by a live platform's stable
+    scrollbar gutter has the veto hand the strips back. A script-free copy has to make
+    the same choice from its viewport alone.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -1994,21 +1996,41 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     # The floor is a fact about the page's box, and the window is not that box wherever
     # the platform draws a classic scrollbar: body is the document's scroller, so its bar
-    # comes out of the room the strips and the column divide between them. So the page is
-    # asked for the difference rather than a number being written that is right on one
-    # platform. Either way the column keeps its measure at the floor itself, which is what
-    # the strip is floored to protect: given the room, both strips stand outside a full
-    # column; short of it by the width of a bar, the veto hands them back.
+    # comes out of the room the strips and the column divide between them. The column
+    # keeps its full measure on both sides of that, which is what the strip is floored to
+    # protect: given the room, both strips stand outside a full column, and short of it by
+    # a bar's width the veto hands them back. So neither read subtracts a bar from what it
+    # expects — the widths the page is driven at are where the bar is accounted for, and a
+    # measure that fell short of 720 anywhere here would be the fault this floor exists to
+    # prevent rather than a tolerance to write down.
     resized(page, 1416, 800)
-    bar = page.evaluate(
-        "() => document.documentElement.clientWidth - document.body.clientWidth"
-    )
     at_floor = page.evaluate(reading)
     assert at_floor["column"]["width"] == 720, (
         "the strip came out of the column at the combined floor, which is the one width "
         f"the floor exists to keep it out of: {at_floor}"
     )
 
+    # The runtime's own reading of the gutter, asked of the module that owns it, so the
+    # width this drives at is the one the veto is doing its arithmetic in by construction
+    # rather than by a second spelling that agrees on inspection. Its own evaluate and not
+    # a key on `reading`, which the script-free copy below shares and which has no module
+    # to ask; the window against body's padding box, the other candidate, would agree only
+    # while body carries no margin, and the panel's strip below is a body margin.
+    bar = page.evaluate(
+        "() => import('/runtime/scrolling.js').then(m => m.scrollerGutter())"
+    )
+    # Driving the page at a width the helper chose and then testing the veto that spends
+    # the same helper leaves one thing the reads below cannot see: an error in the helper
+    # itself, which lands on both sides and cancels. A gutter overread as 30 puts the page
+    # at 1446 and has stateStrip take 30 off it, so the floor is met on the nose and every
+    # measure here passes while the band from 1431 up is cramped for nothing. So the two
+    # spellings are held to each other first, at the one viewport both are read at, and
+    # `reading` keeps the key: it is a claim about what the gutter is rather than a second
+    # copy nothing checks, and it is what the failure dumps report a short measure against.
+    assert bar == at_floor["gutter"], (
+        "the module's gutter and the page's own reading of it have come apart, which "
+        f"would leave the widths below chosen and judged by the same error: {at_floor}"
+    )
     resized(page, 1416 + bar, 800)
     roomy = page.evaluate(reading)
     assert [(s["float"], s["position"]) for s in roomy["sidebars"]] == [
@@ -2017,8 +2039,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     ]
     assert roomy["noteFloat"] == "right"
     assert roomy["padding"] == {"left": 264, "right": 384}
-    assert roomy["column"]["width"] == 720 - roomy["gutter"], (
-        f"the two strips cost more than the live page's stable scrollbar gutter: {roomy}"
+    assert roomy["column"]["width"] == 720, (
+        f"the two strips took the live page's stable scrollbar gutter from the column: {roomy}"
     )
     assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1

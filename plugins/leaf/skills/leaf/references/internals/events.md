@@ -4,7 +4,8 @@ Event kinds: comment (optional anchor {section, quote, and the neighbouring
 text as prefix/suffix where there is any, which is what tells two identical
 passages apart; a browser selection on projected data carries datum,
 the stable key local to section, instead of treating neighbouring values as
-identity), reply (parent=id),
+identity; `response: {kind: version, verb}` when the originating widget requires
+the agent to revise its declared answer state rather than reply), reply (parent=id),
 edit (agent; message=id, replacing only that message's visible text),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
@@ -12,13 +13,13 @@ takes it, only on a page declaring <meta name="lf-review" content="sign-off"> �
 approval is the page's ask, and a page that asks nothing gets no terminal
 control at all), action (user; a widget reporting the
 user editing the document through it — widget=element id, action=verb, detail
-per widget, version the edit was made against), report (agent; a worker's
-provisional state change on a page widget — same widget/action/detail/version
+per widget, revision the edit was made against), report (agent; a worker's
+provisional state change on a page widget — same widget/action/detail/revision
 shape as an action, validated by the widget's x-report declaration at the
-`leaf report` door, and standing only until a version answers it), note
-(agent; per-version changelog, carrying `restated`: the element ids whose
-decisions the publishing version took back, and `reports`: the report event ids
-the version absorbed or overruled), error (the page's own runtime reporting a
+`leaf report` door, and standing only until a stamped revision answers it), note
+(agent; one stamped checkpoint's public `version`, exact `revision`, and
+changelog, carrying `restated`: the element ids whose decisions that revision
+took back, and `settles`: the report or work targets the stamp answered), error (the page's own runtime reporting a
 failure in front of the user — author=page, heard by the watcher like a report
 and never counted against the reader).
 
@@ -27,19 +28,19 @@ unresolve, or an action, per UNDOABLE_KINDS) is the log's one word for that, and
 it names the gesture and nothing else: every other field is the target's to
 state. It withdraws rather than deletes. Nothing is removed from the log; the
 folds and the thread reading simply drop the event, so the page is what the
-version says plus what still stands — the same sentence a reload has always
+revision says plus what still stands — the same sentence a reload has always
 read, and the same one `restated` already writes from the author's side. What
 the reader sees follows from that rather than from a second statement: where the
 log still leaves the unit a state that can be stated, the browser states it (a
-prior action's detail, or the placement the version's markup arrived showing) so
+prior action's detail, or the placement the revision's markup arrived showing) so
 the page moves rather than being rebuilt; where the verb records nothing, and so
-no state can be stated, the browser rebuilds that widget from the version's own
+no state can be stated, the browser rebuilds that widget from the revision's own
 markup and replays what survives onto it. The door refuses an `undoes` naming
 anything but an unwithdrawn gesture of the reader's own.
 
 The server stamps every other
 browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf edit`,
-`leaf report`, and `version publish` stamp the wire
+`leaf report`, and `version stamp` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
 and `session`, its host session id. Several agent sessions can write to one page,
 so the voice is read from the poster's environment rather than from the current
@@ -69,6 +70,16 @@ event's `markup` field instead, whose one door is `leaf comment`/`leaf reply`,
 where it is validated against the vendored registry — the discussion-side analog
 of `version check`. The browser door refuses the field, so everything in the log
 under that name has been through the gate.
+
+A browser comment carrying `response: {kind: version, verb}` is a request to change authored
+state. Its exact-section view is text-only, and `leaf reply` refuses every
+message in that thread. When the change needs clarification, the agent opens a
+separate comment thread in the same exact-section seat. That thread carries the
+version response through the stop gate while it waits on the reader; their answer
+hands both back to the agent. The original remains open until authored state in a
+later published version answers an originating open request, or changes the
+declared answer when the request was already answered. Log actions do not
+substitute for that version. That is also when `leaf resolve` first accepts it.
 
 Either side can open a thread and either side can close one, and `author` is the
 whole difference between them. The user selects a passage and the browser writes

@@ -51,6 +51,7 @@ from render_support import (
     sent_events,
     told,
     undo,
+    wait_for_revision,
     watched,
 )
 
@@ -167,7 +168,7 @@ main, main * {
         )
         .replace(
             "<lf-old>",
-            '<lf-old style="visibility: visible; opacity: 1">'
+            "<lf-old>"
             '<button id="stale-control">Stale control</button>'
             '<dialog id="stale-dialog" style="visibility: visible; opacity: 1; '
             'interactivity: auto; pointer-events: auto">'
@@ -181,7 +182,7 @@ main, main * {
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug",
             "action": "accept",
             "detail": {},
@@ -379,7 +380,7 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug",
             "action": "accept",
             "detail": {},
@@ -739,7 +740,7 @@ def test_a_startup_failure_never_presents_unapplied_authored_state(browser, serv
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug",
             "action": "accept",
             "detail": {},
@@ -794,7 +795,7 @@ def test_a_malformed_first_state_never_presents_unapplied_authored_state(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug",
             "action": "accept",
             "detail": {},
@@ -921,7 +922,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"text": DRAFT_EDITED},
@@ -956,8 +957,8 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
     So the retraction cannot live in the markup, or v3's silence would read as
     "carry the decision" and hand the user's edit straight back — the same
     resurrection the branch removed, one version later and just as quiet.
-    Publishing records it in the log instead, where it is a fact with a version
-    on it and every later version inherits it for free."""
+    Stamping records it in the log instead, where it is a fact with a revision
+    on it and every later revision inherits it for free."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     events_model.append_event(
@@ -965,7 +966,7 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"text": DRAFT_EDITED},
@@ -984,15 +985,13 @@ def test_a_retraction_outlives_the_version_that_made_it(browser, serve):
 
     # And the careful author who carries the attribute forward anyway — the habit
     # this whole design exists to break — is told which version already did it.
-    (d / "versions" / "v4.html").write_text(
-        _draft_says(JOURNEY_V2, corrected, " restated")
-    )
+    (d / "index.html").write_text(_draft_says(JOURNEY_V2, corrected, " restated"))
     result = CliRunner().invoke(
         cli_model.cli,
-        ["version", "publish", str(d), "--version", "4", "--text", "again"],
+        ["version", "stamp", str(d), "--text", "again"],
     )
     assert result.exit_code != 0
-    assert "v2 already took that back" in result.output
+    assert "r2 already took that back" in result.output
 
 
 def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
@@ -1002,7 +1001,7 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     how a dragged card's fate stayed invisible once the toast faded. The mark
     clears the moment a version carries the decision, and the diff stays quiet
     about an honored move: the user's own drag is not news to them."""
-    page, errors = open_page(browser, serve(JOURNEY_V1))
+    page, errors = open_page(browser, live_url(serve(JOURNEY_V1)))
 
     # A real drag — the pointer path, where the gesture gate and the poll meet.
     grip = page.locator("#card-x .lf-grip").bounding_box()
@@ -1032,7 +1031,7 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
         _card_done(_draft_says(JOURNEY_V2, DRAFT_EDITED)),
         "honors the move and the edit",
     )
-    page.wait_for_url("**/v2.html")
+    wait_for_revision(page, 2)
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
     # A poll has run once the status text resolves, so the pending pass has too.
     page.wait_for_function(
@@ -1069,7 +1068,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"text": "Foreign words held behind the drag."},
@@ -1123,19 +1122,18 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     the outcome and the resolution disagreeing with no repair path. One event,
     read by both thread builders."""
     url = serve(
-        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
+        events=(
+            {
+                "kind": "comment",
+                "id": "c1",
+                "author": "user",
+                "revision": 1,
+                "text": "does this take downtime?",
+            },
+        ),
     )
     d = serve.page_dir
-    events_model.append_event(
-        d,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "version": 1,
-            "text": "does this take downtime?",
-        },
-    )
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Comments")).click()
@@ -1165,19 +1163,18 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     an `unresolve` posted where the thread reopened would be a second record of the
     same fact, and taking the reject back would leave it standing against the accept."""
     url = serve(
-        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">')
+        JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
+        events=(
+            {
+                "kind": "comment",
+                "id": "c1",
+                "author": "user",
+                "revision": 1,
+                "text": "does this take downtime?",
+            },
+        ),
     )
     d = serve.page_dir
-    events_model.append_event(
-        d,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "version": 1,
-            "text": "does this take downtime?",
-        },
-    )
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
     page.get_by_role("button", name=re.compile("^Comments")).click()
@@ -1191,7 +1188,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug-fix",
             "action": "reject",
             "detail": {},
@@ -1345,7 +1342,7 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
             "kind": "comment",
             "id": "newest-snapshot",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Newest snapshot stays rendered",
         },
     )
@@ -1387,7 +1384,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "Older **snapshot**",
         },
     )
@@ -1762,7 +1759,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
             "kind": "reply",
             "author": "claude",
             "parent": held,
-            "version": 1,
+            "revision": 1,
             "text": "The traces say it is the vendor's timer, not ours.",
         },
     )
@@ -2174,7 +2171,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
             "kind": "comment",
             "id": "newer-event",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "This event must not disappear.",
         },
     )

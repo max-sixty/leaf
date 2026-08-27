@@ -36,6 +36,7 @@ from interact_support import (
     record_claim,
     serving,
     spawn_probe,
+    stamp,
     start_through_the_launcher,
     state_json,
 )
@@ -169,7 +170,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert "version" not in work
     live = page_state(page_dir)
     assert "work" not in live["status"]
-    assert live["claims"][0]["version"] == 1
+    assert live["claims"][0]["revision"] == 1
 
     # A drawing has no prose or declared conversation in which a local line can
     # stand. The declaration, not a widget-name branch, decides that at the door.
@@ -179,11 +180,10 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
 
     # A new version that leaves the widget alone does not settle the claim by mere
     # chronology. It publishes normally and the same local work remains standing.
-    (page_dir / "versions" / "v2.html").write_text(work_page)
-    unrelated = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "2", "--text", "Elsewhere"],
+    (page_dir / "versions" / "v2.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v2</title>")
     )
+    unrelated = stamp(page_dir, 2, "Elsewhere")
     assert unrelated.exit_code == 0, unrelated.output
     claim = next(
         update
@@ -194,21 +194,10 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert claim["disposition"] == "effective"
 
     # Settlement is explicit and durable on the version note.
-    (page_dir / "versions" / "v3.html").write_text(work_page)
-    settled = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "3",
-            "--text",
-            "Rollout checked",
-            "--completes",
-            "rollout-card",
-        ],
+    (page_dir / "versions" / "v3.html").write_text(
+        work_page.replace("<title>t</title>", "<title>t · v3</title>")
     )
+    settled = stamp(page_dir, 3, "Rollout checked", completes=("rollout-card",))
     assert settled.exit_code == 0, settled.output
     note = events_model.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "work", "id": "rollout-card"}]
@@ -246,48 +235,21 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
         flags=re.DOTALL,
     )
     (page_dir / "versions" / "v4.html").write_text(without_seat)
-    dropped = CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "4", "--text", "Removed"],
-    )
+    dropped = stamp(page_dir, 4, "Removed")
     assert dropped.exit_code == 1
     assert (
         "would remove the local seat for active work on 'rollout-card'"
         in dropped.output
     )
 
-    finished = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "4",
-            "--text",
-            "Removed",
-            "--completes",
-            "rollout-card",
-        ],
-    )
+    finished = stamp(page_dir, 4, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
 
     # Naming no active widget claim is an unearned settlement, not inert metadata.
-    (page_dir / "versions" / "v5.html").write_text(without_seat)
-    unearned = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "version",
-            "publish",
-            str(page_dir),
-            "--version",
-            "5",
-            "--text",
-            "Again",
-            "--completes",
-            "rollout-card",
-        ],
+    (page_dir / "versions" / "v5.html").write_text(
+        without_seat.replace("<title>t</title>", "<title>t · v5</title>")
     )
+    unearned = stamp(page_dir, 5, "Again", completes=("rollout-card",))
     assert unearned.exit_code == 1
     assert "no active widget work claim" in unearned.output
 
@@ -428,7 +390,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "b",
             "action": "move",
             "detail": {"card": "x", "to": "y", "index": 0},
@@ -483,7 +445,7 @@ def test_wait_prints_unacknowledged_user_events_and_flips_status(page_dir, capsy
             "widget": "t1",
             "action": "status",
             "detail": {"status": "review"},
-            "version": 1,
+            "revision": 1,
         },
     )
     assert page_state(page_dir)["pending"] == 0
@@ -624,7 +586,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "And which region first?",
             "markup": '<lf-options id="rg" choose>'
             '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
@@ -636,7 +598,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "Which mitigations should I carry into the patch?",
             "markup": '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
@@ -649,7 +611,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
@@ -711,13 +673,13 @@ SETTLING_ASK = {
     "kind": "comment",
     "id": "c1",
     "author": "user",
-    "version": 1,
+    "revision": 1,
     "text": "the manual log is what the vet reads - are we sure?",
 }
 SETTLING_ACCEPT = {
     "kind": "action",
     "author": "user",
-    "version": 1,
+    "revision": 1,
     "widget": "sug-refill",
     "action": "accept",
     "detail": {"resolves": "c1"},
@@ -823,7 +785,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": opened["id"]},
@@ -835,6 +797,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
         "kind": "note",
         "author": "claude",
         "version": 2,
+        "revision": 2,
         "text": "rewrote the first option" if rewritten else "tidied the prose",
     }
     if rewritten:
@@ -887,7 +850,8 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         + "</lf-options>"
     )
     root = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "y" * 188}
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "y" * 188},
     )
     parent, headers = root["id"], []
     for turn in range(30):
@@ -931,7 +895,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     publish(page_dir)
     serving(page_dir, 1)
     root = events_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "how?"}
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "how?"}
     )
     asked = events_model.append_event(
         page_dir,
@@ -950,7 +914,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "gm",
             "action": "choose",
             "detail": {"options": ["m-cap"]},
@@ -989,7 +953,13 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
 def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     events_model.append_event(
         page_dir,
-        {"kind": "note", "author": "claude", "version": 1, "text": "published"},
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 1,
+            "revision": 1,
+            "text": "published",
+        },
     )
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
@@ -1025,7 +995,7 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
             "widget": "t1",
             "action": "status",
             "detail": {"status": "review"},
-            "version": 1,
+            "revision": 1,
         },
     )
     assert runner.invoke(cli_model.cli, ["ack", str(page_dir), "4"]).exit_code == 0
@@ -2225,7 +2195,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "picks",
             "action": "choose",
             "detail": {"options": ["flag-first"], "resolves": asked["id"]},
@@ -2235,6 +2205,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
         "kind": "note",
         "author": "claude",
         "version": 2,
+        "revision": 2,
         "text": "rewrote the first option" if rewritten else "tidied the prose",
     }
     if rewritten:
@@ -2363,6 +2334,79 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     conversation_model.cmd_reply(claimed, ask["id"], "sqlite it is", None)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
+    lease.close()
+
+
+def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns_it(
+    claimed, capsys
+):
+    version = claimed / "versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    publish(claimed)
+    session_model.cmd_status(claimed, "waiting", "")
+    session = service_model.page_claim(claimed)
+    lease = service_model.take_waiter_lease(
+        service_model.waiter_lease_path(claimed, session)
+    )
+    assert lease
+    older_question = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "anchor": {"section": "choice"},
+            "text": "Should the existing camera job include mounting?",
+        },
+    )
+    proposal = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "choice"},
+            "response": {"kind": "version", "verb": "choose"},
+            "text": "Add the camera first.",
+        },
+    )
+    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert proposal["id"] in json.loads(capsys.readouterr().out)["reason"]
+    events_model.append_event(
+        claimed,
+        {"kind": "resolve", "author": "claude", "parent": older_question["id"]},
+    )
+
+    question = events_model.append_event(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "anchor": {"section": "choice"},
+            "text": "Should the mounting cost be part of the option?",
+        },
+    )
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    assert capsys.readouterr().out == ""
+
+    events_model.append_event(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": question["id"],
+            "text": "Yes.",
+        },
+    )
+    session_model.cmd_ack(claimed, events_model.read_events(claimed)[-1]["seq"])
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
+    reason = json.loads(capsys.readouterr().out)["reason"]
+    assert proposal["id"] in reason
+    assert question["id"] in reason
+
     lease.close()
 
 
@@ -2610,7 +2654,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
             "widget": "t1",
             "action": "status",
             "detail": {"status": "review"},
-            "version": 1,
+            "revision": 1,
         },
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
@@ -2898,7 +2942,7 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     endpoint = urllib.parse.urlsplit(url)._replace(path="/api/event").geturl()
     comment = {
         "kind": "comment",
-        "version": 1,
+        "revision": 1,
         "text": "Can the replacement route this?",
         "attempt": "replacement_route_1",
     }
@@ -3170,7 +3214,7 @@ def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, cap
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "token": "cut",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
@@ -3199,7 +3243,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     )
     assert lease
     events_model.append_event(
-        claimed, {"kind": "comment", "author": "user", "version": 1, "token": "cut"}
+        claimed, {"kind": "comment", "author": "user", "revision": 1, "token": "cut"}
     )
     asked = events_model.append_event(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}

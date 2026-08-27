@@ -56,6 +56,42 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
     assert event_model.read_events(page_dir) == before
 
 
+def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
+    parted = PAGE.replace(
+        '<lf-diagram id="flow">',
+        '<lf-diagram id="flow" parts="node:A node:B">',
+    )
+    (page_dir / "versions" / "v1.html").write_text(parted)
+    publish(page_dir)
+
+    valid = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "where does this retry?",
+        "anchor": {"section": "flow", "visual": "node:A"},
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
+
+    for conflicting in ({"quote": "A"}, {"datum": "row-1"}):
+        mixed = {
+            **valid,
+            "text": "conflicting target",
+            "anchor": {**valid["anchor"], **conflicting},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(mixed).encode())
+        assert status == 400
+        assert b"names a box rather than a passage" in body
+
+    invalid = {
+        **valid,
+        "text": "unknown target",
+        "anchor": {"section": "flow", "visual": "node:Missing"},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
+    assert status == 400
+    assert b"known: ['node:A', 'node:B']" in body
+
+
 def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     declare_data_input(
         page_dir,
@@ -75,6 +111,79 @@ def test_api_state_carries_the_validated_data_snapshot(server, page_dir):
     assert snapshot["revision"] == 1
     assert snapshot["sources"]["builds"]["contract"] == "build-map"
     assert snapshot["sources"]["builds"]["value"] == {"main": "green"}
+
+
+def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
+    server, page_dir
+):
+    before = json.loads(fetch(f"{server}/api/state")[1])
+    assert before["active"]["revision"] == 1
+
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    rejected = json.loads(fetch(f"{server}/api/state")[1])
+    assert rejected["active"]["revision"] == 1
+    assert rejected["source_error"]
+    assert "<title>t</title>" in fetch(f"{server}/")[1].decode()
+
+    stamp = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "stamp", str(page_dir), "--text", "must not fall back"],
+    )
+    assert stamp.exit_code != 0
+    assert files_model.list_revisions(page_dir) == [1]
+    assert files_model.list_versions(page_dir) == [1]
+    assert event_model.read_events(page_dir) == []
+
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<title>t</title>", "<title>Recovered</title>")
+    )
+    recovered = json.loads(fetch(f"{server}/api/state")[1])
+    assert recovered["active"]["revision"] == 2
+    assert recovered["source_error"] is None
+
+
+def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
+    """A transition marker is spent by its stamp, not rejected on the next poll."""
+    baseline = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2><lf-draft id="decision"><pre>Ship dark.</pre></lf-draft>',
+    )
+    (page_dir / "index.html").write_text(baseline)
+    first = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "stamp", str(page_dir), "--text", "baseline"],
+    )
+    assert first.exit_code == 0, first.output
+    first_revision = json.loads(first.output)["revision"]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": first_revision,
+            "widget": "decision",
+            "action": "edit",
+            "detail": {"text": "Backfill first."},
+        },
+    )
+
+    (page_dir / "index.html").write_text(
+        baseline.replace(
+            '<lf-draft id="decision">',
+            '<lf-draft id="decision" restated>',
+        ).replace("Ship dark.", "Ship dark, with rollback.")
+    )
+    second = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "stamp", str(page_dir), "--text", "corrected"],
+    )
+    assert second.exit_code == 0, second.output
+    stamped = json.loads(second.output)
+
+    reading = json.loads(fetch(f"{server}/api/state")[1])
+    assert reading["active"]["revision"] == stamped["revision"]
+    assert reading["active"]["version"] == stamped["version"]
+    assert reading["source_error"] is None
 
 
 def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
@@ -123,9 +232,9 @@ def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
 
 def test_server_round_trip(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    version = page_dir / "versions" / "v1.html"
-    version.write_text(
-        version.read_text()
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text()
         .replace("</section>", registry["lf-board"]["x-example"] + "\n</section>")
         .replace(
             '<script type="module" src="/leaf.js"></script>',
@@ -133,16 +242,16 @@ def test_server_round_trip(server, page_dir):
             '<script type="module" src="/leaf.js"></script>',
         )
     )
-    # Unnoted version: nothing published yet.
-    status, _ = fetch(f"{server}/")
-    assert status == 404
+    # A valid save is live immediately, while no public stamp exists yet.
+    status, draft = fetch(f"{server}/")
+    assert status == 200 and b"lf-board" in draft
     status, _ = fetch(f"{server}/versions/v1.html")
     assert status == 404
-    published = CliRunner().invoke(
+    stamped = CliRunner().invoke(
         cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
+        ["version", "stamp", str(page_dir), "--text", "cut"],
     )
-    assert published.exit_code == 0, published.output
+    assert stamped.exit_code == 0, stamped.output
     # The handover address is the live page, not an alias for one immutable file.
     # It stays put while the browser adopts later versions, so the first response
     # must contain the version itself rather than redirecting the address away.
@@ -154,7 +263,10 @@ def test_server_round_trip(server, page_dir):
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body
-    marker = b'<meta name="lf-version" data-lf-runtime content="1">'
+    marker = (
+        b'<meta name="lf-revision" data-lf-runtime content="2">'
+        b'<meta name="lf-version" data-lf-runtime content="1">'
+    )
     assert marker in body
     assert (
         body.index(b"</style>")
@@ -197,7 +309,7 @@ def test_server_round_trip(server, page_dir):
                 "session": "s-forged",
                 "ts": "1900-01-01T00:00:00Z",
                 "seq": 99,
-                "version": 1,
+                "revision": 2,
                 "text": "hm",
             }
         ).encode(),
@@ -210,7 +322,9 @@ def test_server_round_trip(server, page_dir):
     assert posted["seq"] != 99
     status, body = fetch(f"{server}/api/state")
     state = json.loads(body)
-    assert state["versions"] == [1]
+    assert state["versions"] == [
+        {"version": 1, "revision": 2, "url": "/versions/v1.html"}
+    ]
     assert state["cursor"] == 0  # no user event acknowledged yet
     assert state["events"][-1]["id"] == posted["id"]
     # A widget action rides the same channel; half-formed ones are refused at the edge.
@@ -219,7 +333,7 @@ def test_server_round_trip(server, page_dir):
         data=json.dumps(
             {
                 "kind": "action",
-                "version": 1,
+                "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -237,7 +351,7 @@ def test_server_round_trip(server, page_dir):
         data=json.dumps(
             {
                 "kind": "comment",
-                "version": 1,
+                "revision": 2,
                 "text": "the button reads dim",
                 "about": "layer",
                 "anchor": {"section": "lf-banner", "part": "Comments"},
@@ -252,61 +366,73 @@ def test_server_round_trip(server, page_dir):
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
-        {"kind": "action", "widget": "", "action": "move", "detail": {}, "version": 1},
-        {"kind": "action", "widget": "b", "action": "move", "version": 1},  # no detail
+        {"kind": "action", "widget": "", "action": "move", "detail": {}, "revision": 2},
+        {"kind": "action", "widget": "b", "action": "move", "revision": 2},  # no detail
         {
             "kind": "action",
             "widget": "b",
             "action": "move",
             "detail": None,
-            "version": 1,
+            "revision": 2,
         },
         {
             "kind": "action",
             "widget": "b",
             "action": "move",
             "detail": {},
-            "version": "1",
+            "revision": "2",
         },
         {
             "kind": "action",
             "widget": "b",
             "action": "move",
             "detail": {},
-            "version": True,
+            "revision": True,
         },
-        {"kind": "action", "widget": "b", "action": "move", "detail": {}, "version": 0},
-        {"kind": "action", "widget": "b", "action": "move", "detail": {}, "version": 2},
-        {"kind": "comment", "version": 1},  # no text: a blank thread nobody can read
-        {"kind": "comment", "version": 1, "text": "x", "anchor": "intro"},
-        {"kind": "comment", "version": 1, "text": "x", "anchor": {"quote": 7}},
-        {"kind": "comment", "version": 1, "text": "x", "anchor": {}},
+        {
+            "kind": "action",
+            "widget": "b",
+            "action": "move",
+            "detail": {},
+            "revision": 0,
+        },
+        {
+            "kind": "action",
+            "widget": "b",
+            "action": "move",
+            "detail": {},
+            "revision": 3,
+        },
+        {"kind": "comment", "revision": 2},  # no text: a blank thread nobody can read
+        {"kind": "comment", "revision": 2, "text": "x", "anchor": "intro"},
+        {"kind": "comment", "revision": 2, "text": "x", "anchor": {"quote": 7}},
+        {"kind": "comment", "revision": 2, "text": "x", "anchor": {}},
         {
             "kind": "comment",
-            "version": 1,
+            "revision": 2,
             "text": "x",
             "anchor": {"datum": "row-1", "quote": "x"},
         },
         {
             "kind": "comment",
-            "version": 1,
+            "revision": 2,
             "text": "x",
             "anchor": {"quote": "x", "extra": "y"},
         },
-        {"kind": "comment", "version": 1, "text": "x", "suggestion": "yes"},
-        {"kind": "comment", "version": 1, "text": "x", "attempt": "short"},
+        {"kind": "comment", "revision": 2, "text": "x", "suggestion": "yes"},
+        {"kind": "comment", "revision": 2, "text": "x", "attempt": "short"},
         # A design comment is about the layer, and that is the one word the field
         # takes: a browser inventing a second subject is refused at the door.
-        {"kind": "comment", "version": 1, "text": "x", "about": "page"},
-        {"kind": "comment", "version": 1, "text": "x", "about": True},
+        {"kind": "comment", "revision": 2, "text": "x", "about": "page"},
+        {"kind": "comment", "revision": 2, "text": "x", "about": True},
         {
             "kind": "reply",
             "parent": posted["id"],
-            "version": 1,
+            "revision": 2,
             "text": "hi",
             "suggestion": True,
         },
-        {"kind": "reply", "parent": "nope", "version": 1, "text": "hi"},
+        {"kind": "reply", "parent": "nope", "revision": 2, "text": "hi"},
         {"kind": "resolve", "parent": "nope"},
         # A report is agent-authored: its one door is `leaf report`, so the
         # browser door refuses the kind outright rather than minting user
@@ -316,7 +442,7 @@ def test_server_round_trip(server, page_dir):
             "widget": "feeder-board",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
-            "version": 1,
+            "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
         # reader into the recorded author of another speaker's words.
@@ -333,7 +459,7 @@ def test_server_round_trip(server, page_dir):
         assert answer["ok"] is False and answer["final"] is True, bad
 
     status, body = fetch(f"{server}/api/event", data=b"{")
-    assert status == 400
+    assert status == 400, body
     assert json.loads(body) == {
         "ok": False,
         "error": "invalid JSON",
@@ -356,7 +482,10 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
 
     body = fetch(f"{server}/")[1].decode()
 
-    marker = '<meta name="lf-version" data-lf-runtime content="1">'
+    marker = (
+        '<meta name="lf-revision" data-lf-runtime content="1">'
+        '<meta name="lf-version" data-lf-runtime content="1">'
+    )
     assert body == source.replace(script, marker + script)
     # The old splice corrupted this tag while leaving the page renderable.
     assert '<link rel="stylesheet" href="/theme.css">' in body
@@ -371,11 +500,13 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
 
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps({"kind": "done", "version": 1, "text": "Looks good"}).encode(),
+        data=json.dumps(
+            {"kind": "done", "version": 1, "revision": 1, "text": "Looks good"}
+        ).encode(),
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        'version 1 does not declare <meta name="lf-review" content="sign-off">, '
+        'v1 does not declare <meta name="lf-review" content="sign-off">, '
         "so it has no approval to record"
     )
 
@@ -387,7 +518,9 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     publish(page_dir, version=2)
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps({"kind": "done", "version": 2, "text": "Looks good"}).encode(),
+        data=json.dumps(
+            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
+        ).encode(),
     )
     assert status == 200, body
     assert event_model.read_events(page_dir)[-1]["kind"] == "done"
@@ -400,7 +533,7 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     publish(page_dir)
     first = {
         "kind": "comment",
-        "version": 1,
+        "revision": 1,
         "text": "The same words can be intentional later.",
         "attempt": "attempt-00000001",
     }
@@ -483,32 +616,34 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     """A draft's attempt is stored with its words and reminted only on a keystroke,
     so the same attempt is what a reader's second press sends. A refusal the server
     remembered therefore outlived the state that produced it: the draft was refused
-    for naming a version the page had not published yet, and after the publish the
+    for naming a revision the page had not activated yet, and after activation the
     identical payload read back the stale verdict while the payload the reload had
     moved on read `already belongs to another event`, naming an event that never
     existed. Either way the reader's words were unsendable until they typed.
 
-    The door refuses a version in that direction only. `published_versions` grows and
-    never shrinks, so no version a tab was served is later refused for liveness, and
+    The door refuses a revision in that direction only. Activated revisions grow and
+    never shrink, so no revision a tab was served is later refused for liveness, and
     this gate is the mirror of the one a reader meets — cheapest to walk the door
     through, standing in for the refusals whose ground really does move under them
     (`unknown parent`, `undo_error`, `action_contract_error` behind a re-vendor)."""
     publish(page_dir, 1)
     draft = {
         "kind": "comment",
-        "version": 2,
+        "revision": 2,
         "anchor": {"quote": "hello"},
         "text": "The words a reader typed before the version moved.",
         "attempt": "attempt-draft-0001",
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
     assert status == 400
-    assert json.loads(body)["error"] == "comment version must be one of [1]"
+    assert json.loads(body)["error"] == "comment revision must be one of [1]"
 
-    (page_dir / "versions" / "v2.html").write_text(PAGE)
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace("<title>t</title>", "<title>Moved</title>")
+    )
     publish(page_dir, 2)
 
-    # The same press, once v2 is live: the refusal was about the page, and the page
+    # The same press, once r2 is live: the refusal was about the page, and the page
     # has moved.
     status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
     assert status == 200, body
@@ -519,9 +654,9 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     )
     assert accepted["text"] == draft["text"]
 
-    # And the version the reload would have rewritten still meets the durable
+    # And the revision the reload would have rewritten still meets the durable
     # conflict, which is the log's answer rather than a receipt's.
-    moved = {**draft, "version": 1}
+    moved = {**draft, "revision": 1}
     status, body = fetch(f"{server}/api/event", data=json.dumps(moved).encode())
     assert status == 409
     assert "already belongs to another event" in json.loads(body)["error"]
@@ -540,7 +675,7 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     publish(page_dir)
     sent = {
         "kind": "comment",
-        "version": 1,
+        "revision": 1,
         "text": "The response carries the state that includes this message.",
         "attempt": "attempt-state-0001",
     }
@@ -564,7 +699,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     publish(page_dir)
     sent = {
         "kind": "comment",
-        "version": 1,
+        "revision": 1,
         "text": "The retry has already landed.",
         "attempt": "attempt-neighbours-1",
     }
@@ -574,10 +709,10 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     scanned = threading.Event()
     original = http_model.Handler._page_state
 
-    def own_state(handler, events):
+    def own_state(handler, events, source_error=None):
         assert service_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
-        return original(handler, events)
+        return original(handler, events, source_error)
 
     def neighbours(directory):
         assert directory == page_dir
@@ -630,7 +765,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
     monkeypatch.setattr(event_model.AttemptExecution, "__init__", observe_attempt)
     sent = {
         "kind": "action",
-        "version": 1,
+        "revision": 1,
         "widget": "feeder-board",
         "action": "move",
         "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -717,17 +852,17 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
-    v1 = page_dir / "versions" / "v1.html"
-    v1.write_text(v1.read_text().replace("</section>", board + "\n</section>"))
     publish(page_dir, version=1)
-    (page_dir / "versions" / "v2.html").write_text(PAGE)
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace("</section>", board + "\n</section>")
+    )
     publish(page_dir, version=2)
 
     invalid = [
         (
             {
                 "kind": "action",
-                "version": 2,
+                "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -737,7 +872,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         (
             {
                 "kind": "action",
-                "version": 1,
+                "revision": 2,
                 "widget": "flow",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -747,7 +882,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         (
             {
                 "kind": "action",
-                "version": 1,
+                "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "index": -1},
@@ -766,7 +901,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     # the action's own published version rather than the newest document.
     valid = {
         "kind": "action",
-        "version": 1,
+        "revision": 2,
         "widget": "feeder-board",
         "action": "move",
         "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
@@ -803,14 +938,14 @@ def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
         data=json.dumps(
             {
                 "kind": "action",
-                "version": 1,
+                "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
                 "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
             }
         ).encode(),
     )
-    assert status == 400
+    assert status == 400, body
     assert message in json.loads(body)["error"]
     assert not [e for e in event_model.read_events(page_dir) if e["kind"] == "action"]
     # The refusal cost the request and nothing else: the server is still serving, so a
@@ -826,7 +961,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "kind": "comment",
             "id": "c1",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "pick one",
         },
     )
@@ -858,14 +993,14 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "kind": "reply",
             "author": "user",
             "parent": "c1",
-            "version": 1,
+            "revision": 1,
             "text": '<lf-options id="text-pick" choose></lf-options>',
         },
     )
 
     choose = {
         "kind": "action",
-        "version": 1,
+        "revision": 1,
         "action": "choose",
         "detail": {"options": ["thread-a"]},
     }
@@ -919,6 +1054,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     )
 
     publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
     widget = "eligibility-options"
     option = "eligibility-a"
     if in_thread:
@@ -928,7 +1064,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
                 "kind": "comment",
                 "id": "c-eligibility",
                 "author": "user",
-                "version": 1,
+                "revision": revision,
                 "text": "change this task",
             },
         )
@@ -956,7 +1092,7 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
 
     choose = {
         "kind": "action",
-        "version": 1,
+        "revision": revision,
         "widget": widget,
         "action": "choose",
         "detail": {"options": [option]},
@@ -1008,19 +1144,20 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
         )
     )
     publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
     event_model.append_event(
         page_dir,
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": revision,
             "anchor": {"section": "seated-options"},
             "text": "neither — cap the retries instead",
         },
     )
     choose = {
         "kind": "action",
-        "version": 1,
+        "revision": revision,
         "widget": "seated-options",
         "action": "choose",
         "detail": {"options": ["seated-a"]},
@@ -1101,6 +1238,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         },
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
+    (page_dir / "widgets" / "lf-quota.js").write_text("export default class {}\n")
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace(
@@ -1118,10 +1256,11 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         )
     )
     publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
 
     event = {
         "kind": "action",
-        "version": 1,
+        "revision": revision,
         "widget": "quota",
         "action": "increase",
         "detail": {"slots": "2"},
@@ -1131,7 +1270,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         {
             "kind": "report",
             "author": "agent",
-            "version": 1,
+            "revision": revision,
             "widget": "quota-task",
             "action": "status",
             "detail": {"status": "blocked"},
@@ -1146,7 +1285,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         {
             "kind": "report",
             "author": "agent",
-            "version": 1,
+            "revision": revision,
             "widget": "quota-child",
             "action": "status",
             "detail": {"status": "blocked"},
@@ -1159,7 +1298,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     # blocked child in the other direction and closes capacity under the same lock.
     choose = {
         "kind": "action",
-        "version": 1,
+        "revision": revision,
         "widget": "quota-intervention",
         "action": "choose",
         "detail": {"options": []},
@@ -1177,7 +1316,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     # active destination rather than the blocked parent in authored markup.
     move = {
         "kind": "action",
-        "version": 1,
+        "revision": revision,
         "widget": "quota",
         "action": "move",
         "detail": {"to": "quota-destination", "index": 0},
@@ -1212,9 +1351,9 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
         == 0
     )
-    version = page_dir / "versions" / "v1.html"
-    version.write_text(
-        version.read_text().replace(
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><lf-local-draft id="local-draft"><pre>Words.</pre>'
             "</lf-local-draft>",
@@ -1224,10 +1363,8 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         cli_model.cli,
         [
             "version",
-            "publish",
+            "stamp",
             str(page_dir),
-            "--version",
-            "1",
             "--text",
             "custom widget",
         ],
@@ -1248,7 +1385,7 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         data=json.dumps(
             {
                 "kind": "action",
-                "version": 1,
+                "revision": files_model.latest_revision(page_dir),
                 "widget": "local-draft",
                 "action": "edit",
                 "detail": {"text": "New words."},
@@ -1261,16 +1398,13 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
-    CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
-    )
+    publish(page_dir)
 
     def post(i):
         fetch(
             f"{server}/api/event",
             data=json.dumps(
-                {"kind": "comment", "version": 1, "text": f"c{i} " + "x" * 500}
+                {"kind": "comment", "revision": 1, "text": f"c{i} " + "x" * 500}
             ).encode(),
         )
 
@@ -1310,14 +1444,11 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     reader), heard by the watcher beside comments and reports, acknowledged
     through the same cursor — and never counted in the reader's pending, since
     a broken page is the agent's debt."""
-    CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
-    )
+    publish(page_dir)
     status, _ = fetch(
         f"{server}/api/event",
         data=json.dumps(
-            {"kind": "error", "version": 1, "text": "widget lf-x failed to load"}
+            {"kind": "error", "revision": 1, "text": "widget lf-x failed to load"}
         ).encode(),
     )
     assert status == 200
@@ -1346,14 +1477,11 @@ def test_a_comment_carrying_line_separators_survives_the_log(server, page_dir):
     """U+2028, U+2029 and U+0085 are legal raw in JSON strings and line breaks to
     splitlines(): unescaped, one pasted separator split an event across "lines",
     every later read of the log raised, and the page read as offline forever."""
-    CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
-    )
+    publish(page_dir)
     text = "one\u2028two\u2029three\u0085four"
     status, _ = fetch(
         f"{server}/api/event",
-        data=json.dumps({"kind": "comment", "version": 1, "text": text}).encode(),
+        data=json.dumps({"kind": "comment", "revision": 1, "text": text}).encode(),
     )
     assert status == 200
     events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
@@ -1369,12 +1497,12 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     discipline rather than gluing onto the fragment, the fragment's event is
     gone (its sender saw the failure), and the seqs around it hold."""
     event_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "before"}
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "before"}
     )
     with open(page_dir / "comments.jsonl", "a", encoding="utf-8") as f:
         f.write('{"kind": "comm')  # the tear: no trailing newline
     event_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "after"}
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "after"}
     )
     events = event_model.read_events(page_dir)
     assert [e["text"] for e in events] == ["before", "after"]
@@ -1385,7 +1513,7 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     with open(page_dir / "comments.jsonl", "ab") as f:
         f.write('{"kind": "comment", "text": "café'.encode()[:-1])
     event_model.append_event(
-        page_dir, {"kind": "comment", "author": "user", "version": 1, "text": "again"}
+        page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "again"}
     )
     assert [e["text"] for e in event_model.read_events(page_dir)] == [
         "before",
@@ -1398,17 +1526,16 @@ def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     """The page is served wherever the SSH session reached this machine, so the
     port is open to whatever else is on that network. Reading is half of it: the
     log outranks the document and takes appends from anyone who can POST."""
-    CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
-    )
+    publish(page_dir)
 
     assert fetch(f"{server}/versions/v1.html", token=None)[0] == 403
     assert fetch(f"{server}/api/state", token=None)[0] == 403
     assert fetch(f"{server}/", token=None)[0] == 403
     status, body = fetch(
         f"{server}/api/event",
-        data=json.dumps({"kind": "comment", "version": 1, "text": "not mine"}).encode(),
+        data=json.dumps(
+            {"kind": "comment", "revision": 1, "text": "not mine"}
+        ).encode(),
         token=None,
     )
     assert status == 403
@@ -1473,7 +1600,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
-    comment = {"kind": "comment", "version": 1, "text": "hello", "attempt": attempt}
+    comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
     preview = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0), http_model.handler_for(page_dir, TOKEN, preview_upto=1)
     )
@@ -1519,7 +1646,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
             ),
             # The one refusal that was always in this shape, here so the loop below is
             # read against a case that could never have failed it.
-            ("an unlive version", 400, {**comment, "version": 9}, TOKEN, server),
+            ("an unlive version", 400, {**comment, "revision": 9}, TOKEN, server),
         ]
         for name, wanted, event, token, url in refusals:
             status, body = fetch(
@@ -1617,10 +1744,7 @@ def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):
     it from there. The runtime's own fetches are relative and hold no query, and a
     user who reloads the bare address is the same user — so nothing has to
     thread it through the page, and `leaf.js` never learns there is one."""
-    CliRunner().invoke(
-        cli_model.cli,
-        ["version", "publish", str(page_dir), "--version", "1", "--text", "cut"],
-    )
+    publish(page_dir)
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
@@ -1964,10 +2088,12 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # A server that died leaves its record behind and its lock with the kernel:
     # the file says served and nothing holds it, which is what reads as stale.
     neighbour_page(pages / "dead", title="A dead server's page", dead=True)
-    neighbour_page(pages / "unpublished", title="Nothing to link", published=False)
+    draft_url = neighbour_page(
+        pages / "unpublished", title="Nothing to link", published=False
+    )
     # A neighbour something corrupted: its log no longer parses, and the fault
     # stays its own — skipped, rather than 500ing every other page's poll.
-    neighbour_page(pages / "corrupt", title="A corrupted page")
+    corrupt_url = neighbour_page(pages / "corrupt", title="A corrupted page")
     (pages / "corrupt" / "comments.jsonl").write_text('{"kind": "note", "author"')
     # Presence belongs to the same isolation boundary as the log and version. A
     # malformed private claim on another page must not make this page's poll fail.
@@ -2007,6 +2133,16 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
         "session_cwd": None,
     }
     assert state["others"] == [
+        {
+            "title": "A corrupted page",
+            "url": corrupt_url,
+            **unclaimed,
+        },
+        {
+            "title": "Nothing to link",
+            "url": draft_url,
+            **unclaimed,
+        },
         {
             "title": "scratch",
             "url": claimed_url,
@@ -2156,9 +2292,10 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         )
     )
     publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
     event = {
         "kind": "comment",
-        "version": 1,
+        "revision": revision,
         "text": "Finish the current pass, then pause here.",
         "anchor": {"section": "goal"},
         "holds": "goal",
@@ -2188,41 +2325,85 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         assert "matching x-conversation hold target" in json.loads(body)["error"]
 
 
-def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
+def test_a_version_response_comment_requires_its_declared_exact_section(
+    server, page_dir
+):
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice" choose>'))
+    publish(page_dir)
+    event = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "Add the camera first.",
+        "anchor": {"section": "choice"},
+        "response": {"kind": "version", "verb": "choose"},
+        "attempt": "version_response_good_1",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+
+    assert status == 200, body
+    assert event_model.read_events(page_dir)[-1]["response"] == {
+        "kind": "version",
+        "verb": "choose",
+    }
+
+    forged = {
+        **event,
+        "anchor": {"section": "plan"},
+        "attempt": "version_response_forged_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
+    assert status == 400
+    assert "exact-section x-conversation response target" in json.loads(body)["error"]
+
+    wrong_verb = {
+        **event,
+        "response": {"kind": "version", "verb": "answer"},
+        "attempt": "version_response_wrong_verb_1",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_verb).encode())
+    assert status == 400
+    assert "exact-section x-conversation response target" in json.loads(body)["error"]
+
+
+def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):
     """A browser action arriving during the check waits behind the publication
     note. Otherwise the successor can go live without ever being checked against
     the decision that replays onto it."""
     html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / "versions" / "v1.html").write_text(html)
     publish(page_dir)
-    (page_dir / "versions" / "v2.html").write_text(html)
+    (page_dir / "index.html").write_text(
+        html.replace("<title>t</title>", "<title>next</title>")
+    )
     entered = threading.Event()
     release = threading.Event()
-    original = publishing_model.cmd_check
+    original = publishing_model.activate_source
 
-    def paused_check(*args, **kwargs):
+    def paused_activation(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(publishing_model, "cmd_check", paused_check)
+    monkeypatch.setattr(publishing_model, "activate_source", paused_activation)
     failures = []
 
-    def run_publish():
+    def run_stamp():
         try:
-            publishing_model.cmd_publish(page_dir, 2, "next")
+            publishing_model.cmd_stamp(page_dir, "next")
         except (AssertionError, SystemExit) as error:  # surface thread failures here
             failures.append(error)
 
     action = {
         "kind": "action",
         "author": "user",
-        "version": 1,
+        "revision": 2,
         "widget": "choice",
         "action": "choose",
         "detail": {"options": ["flag-first"]},
     }
-    publisher = threading.Thread(target=run_publish)
+    publisher = threading.Thread(target=run_stamp)
     publisher.start()
     assert entered.wait(5)
     writer = threading.Thread(target=lambda: event_model.append_event(page_dir, action))
@@ -2236,11 +2417,15 @@ def test_publish_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page
     assert not failures
     assert not publisher.is_alive() and not writer.is_alive()
     ordered = [
-        (event["kind"], event.get("version"))
+        (event["kind"], event.get("version"), event.get("revision"))
         for event in event_model.read_events(page_dir)
         if event["kind"] in {"note", "action"}
     ]
-    assert ordered == [("note", 1), ("note", 2), ("action", 1)]
+    assert ordered == [
+        ("note", 1, 1),
+        ("note", 2, 2),
+        ("action", None, 2),
+    ]
 
 
 def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
@@ -2265,7 +2450,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "kind": "comment",
             "id": "c-lost",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "the question nobody can read any more",
         },
     )
@@ -2276,7 +2461,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
             "id": "r-kept",
             "author": "claude",
             "parent": "c-lost",
-            "version": 1,
+            "revision": 1,
             "text": "the answer that survived it",
         },
     )

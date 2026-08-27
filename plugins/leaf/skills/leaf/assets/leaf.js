@@ -1719,18 +1719,19 @@ const trayStrip = () =>
 // "The one writer may not write the box the layout is measured from", and the same reason
 // the strip the panel takes is a rule in the stylesheet above.
 //
-// So it is called and not observed, and it is only as fresh as its callers. Two of the
-// three facts it turns on arrive on occasions of their own: the window states the cap on
-// a resize, and the panel its strip on the gesture that moves it. The scroller's gutter
-// does not. Body gains or loses its bar whenever the document's height crosses the
-// viewport, and replay retiring a slot, a widget settling late, or an image arriving can
-// each do that with no resize and no chrome gesture behind it, leaving a grant made when
-// there was no bar to pay for. Joining layoutSizes is the fix that isn't available: the
-// rule above is what forbids it, and stateRoom can be observed only because it writes
-// nothing that box is measured from. What is left standing is bounded — one bar wide, in
-// the window band where the floor is met within a bar, and restated by the next resize or
-// chrome gesture either way — which is why this is written down rather than chased with a
-// call from every path that can change the document's height.
+// So it is called and not observed, and it is only as fresh as its callers — which is
+// enough, because each fact it turns on either arrives on an occasion of its own or does
+// not move at all. The window states the cap on a resize, and the panel its strip on the
+// gesture that moves it. The scroller's gutter is the one with no occasion to arrive on:
+// body gains or loses its bar as the document's height crosses the viewport, and replay
+// retiring a slot, a widget settling late, or an image arriving can each do that with no
+// resize and no chrome gesture behind it. What answers that is the stylesheet rather than
+// a call from every such path — body is given scrollbar-gutter: stable in the same rule
+// that makes it the scroller (chrome-style.js), so the room is reserved whether or not a
+// bar is drawn in it and the difference between the two boxes holds still for the page's
+// life. Joining layoutSizes would be the fix if it did not, and it is the one the rule
+// above forbids: the strip this vetoes is padding on the observed box, and stateRoom can
+// be observed only because it writes nothing that box is measured from.
 //
 // The strip is stated rather than measured off body, whose clientWidth is the box itself
 // and would be the natural reading. The margin transitions, so a measurement taken during

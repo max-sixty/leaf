@@ -1121,8 +1121,9 @@ strip the chrome holds and the gutter the scroller's own bar takes — a window 
 the page's box on neither count; CSS owns the body's corresponding layout. The
 gutter has one reading, `scrollerGutter`, beside the scroller it is a fact about.
 `stateRoom` is restated by the observation of body's box; `stateStrip` writes
-that box's padding, so it is called instead, and its comment records what the
-gutter's freshness costs.
+that box's padding, so it is called instead, and the gutter it reads cannot go
+stale between calls because the stylesheet that makes body the scroller reserves
+the room whether or not a bar is drawn in it.
 
 Both regions fixed to a side of the window are drawn by the reader. `drawnEdge`
 is the one implementation: each caller supplies the side its region is held to, a

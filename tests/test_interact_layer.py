@@ -621,7 +621,11 @@ PROBE_BOUNDARY = "/runtime/widget-api.js"
 # The three server-side modules that name the entry module's path for the document's own
 # sake rather than to reach a helper: the boot tag `version check` requires, the server's
 # reading of that same tag, and the note about a page's asset URLs carrying no query.
-ENTRY_MODULE_NAMED_BY = {"checking.py", "http.py", "service.py"}
+ENTRY_MODULE_NAMED_BY = {
+    "leaf/checking.py",
+    "leaf/http.py",
+    "leaf/service.py",
+}
 
 
 def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
@@ -649,7 +653,11 @@ def test_the_render_gates_browser_programs_name_only_the_widget_api_boundary():
     how the failure above surfaced in the first place."""
     modules = sorted((SKILL_ROOT / "scripts").rglob("*.py"))
     assert modules, "no server modules were read"
-    named = {module.name for module in modules if ENTRY_MODULE in module.read_text()}
+    named = {
+        module.relative_to(SKILL_ROOT / "scripts").as_posix()
+        for module in modules
+        if ENTRY_MODULE in module.read_text()
+    }
     assert named == ENTRY_MODULE_NAMED_BY, (
         f"{sorted(named - ENTRY_MODULE_NAMED_BY)} name {ENTRY_MODULE} and "
         f"{sorted(ENTRY_MODULE_NAMED_BY - named)} no longer do. A browser program reaches "

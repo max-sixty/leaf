@@ -395,7 +395,8 @@ it: a read of `GET /api/state`, an accepted POST answer, and the heartbeat
 re-applying the state the page already holds. It:
 
 1. verifies the layer generation;
-2. rejects an event sequence older than `lastEventSeq`;
+2. rejects an answer taken before the one it holds, and an event sequence
+   older than `lastEventSeq`;
 3. loads the Markdown renderer before any message body needs it;
 4. installs candidate `events` and renders all log-derived surfaces;
 5. calls `reconcileState` after thread widgets exist;
@@ -404,7 +405,7 @@ re-applying the state the page already holds. It:
 8. dispatches `lf-actions` after replay.
 
 If any required render throws, `receiveState` restores the prior event list,
-phase, and sequence. A candidate history may be visible only during its own
+phase, sequence, and held answer. A candidate history may be visible only during its own
 synchronous application. Focus, undo, draft settlement, and later asynchronous
 wakeups must not consume a log tail the page did not adopt.
 

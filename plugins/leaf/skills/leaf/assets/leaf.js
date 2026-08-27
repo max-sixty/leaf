@@ -4372,10 +4372,7 @@ export { shallowSigs, standingState };
 // waits on a frame and on whatever a module does during one — and an ear that waited
 // for that would stop hearing. The page would then go silent for a reason none of its
 // news is about, which is a wedge rather than a delay: nothing else would ever ask.
-let asksMade = 0;
-let askApplied = 0;
 async function readState() {
-  const asked = ++asksMade;
   let res;
   try {
     res = await fetch("/api/state");
@@ -4391,18 +4388,18 @@ async function readState() {
   // 403. A live server refusing the key and a dead one both leave the page unreachable
   // from here, and the terminal link is the recourse for both.
   if (!res?.ok) return null;
-  const state = await res.json();
-  // Which ask this is the answer to. Reads may overlap — one held by a slow proxy, or
-  // by a test, while a later one answers — and the log's sequence and the data's
-  // revision order everything in a state but the reading, which is a hash with no
-  // order of its own. So the ask's number stands in: an answer to an earlier ask than
-  // the one already applied is judged as a stale sequence is (receiveState). The
-  // number orders the asks, not the moments the server answered them — two sockets
-  // can cross — so what the gate turns away is occasionally the newer answer; the
-  // stream's next word names the reading the page then lacks, and it is asked for.
-  state.asked = asked;
-  return state;
+  return res.json();
 }
+
+// Whether an answer was taken before the one the page holds. Answers cross — a read
+// held by a slow proxy or a test while a later one lands, a POST's answer beside a
+// read — and the log's sequence and the data's revision order everything in a state
+// but the reading, which is a hash with no order of its own. The server stamps each
+// answer with the moment it was taken, inside the transaction every answer is built
+// under, so this is the order they were taken in whichever order they land. Equal is
+// not before: the heartbeat re-applies the held answer itself.
+const takenBefore = (state) =>
+  runtime.state !== null && state.taken < runtime.state.taken;
 
 // Whether the page's last read ended in a whole reading applied. Two things turn on
 // it. The heartbeat is a re-application of the reading the page holds, and a page whose
@@ -4516,6 +4513,8 @@ async function receiveState(state) {
   // event response carries — so the generation is checked once for both rather than
   // at each door it arrives through.
   if (!sameLayer(state.layer)) return;
+  if (typeof state.taken !== "number")
+    throw new TypeError("state must say when it was taken");
   // Ahead of the sequence checks below, which drop a response as state: a reading
   // that arrives out of order still says what time it is where the timestamps are
   // written, and that is the one thing in it that cannot be stale.
@@ -4530,12 +4529,11 @@ async function receiveState(state) {
   };
   const nextEvents = state.events;
   const eventSeq = nextEvents.at(-1)?.seq ?? 0;
-  // A read answered out of order is judged as a stale sequence is: the ask that
-  // produced it went out before one whose answer the page has already applied
-  // (readState, on what that does and does not order). Before the sequence gate
-  // because a stale read may carry the same sequence as the newer one and differ in
-  // everything the sequence does not order — status, claims, the reading itself.
-  if (state.asked !== undefined && state.asked < askApplied) {
+  // An answer taken before the one the page holds is judged as a stale sequence is
+  // (takenBefore). Before the sequence gate because a stale answer may carry the same
+  // sequence as the newer one and differ in everything the sequence does not order —
+  // status, claims, the reading itself.
+  if (takenBefore(state)) {
     const activation = currentActivation();
     if (activation) await activation;
     notifyChangedData();
@@ -4543,7 +4541,9 @@ async function receiveState(state) {
   }
   // A POST's answer and a read can cross. The log is append-only, so a response
   // behind one already rendered is unambiguously stale; accepting it would move
-  // every event-derived view backwards until the next read.
+  // every event-derived view backwards until the next read. Kept beside the stamp's
+  // gate: that orders the server's answers, and this holds the log's order against
+  // any answer at all, one a test built included.
   if (eventSeq < runtime.lastEventSeq) {
     const activation = currentActivation();
     if (activation) await activation;
@@ -4553,10 +4553,10 @@ async function receiveState(state) {
   // Polls and POST answers may overlap. A document activation is the one state read
   // that cannot safely interleave: a second one would capture or replace the halfway
   // upgraded main. Let it commit, then judge this response against its resulting
-  // version and sequence.
+  // version, sequence and stamp.
   let activationInFlight = currentActivation();
   if (activationInFlight) await activationInFlight;
-  if (eventSeq < runtime.lastEventSeq) {
+  if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
     notifyChangedData();
     return;
   }
@@ -4608,10 +4608,7 @@ async function receiveState(state) {
   // judge this candidate against the version and sequence the winner installed.
   activationInFlight = currentActivation();
   if (activationInFlight) await activationInFlight;
-  if (
-    eventSeq < runtime.lastEventSeq ||
-    (state.asked !== undefined && state.asked < askApplied)
-  ) {
+  if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
     notifyChangedData();
     return;
   }
@@ -4695,12 +4692,12 @@ async function receiveState(state) {
     // wider subject: the sequence says how much of the log the page holds, the
     // reading how much of the page's whole state — status, data, claims, versions
     // — none of which moves the sequence at all. Not by the same rule: a hash has
-    // no order, so the ask's number is what keeps a stale answer from writing it,
-    // and that answer was turned away at the door above.
-    if (state.asked !== undefined) askApplied = state.asked;
+    // no order, so the moment the server took the answer is what keeps a stale one
+    // from writing it, and that answer was turned away at the door above.
     runtime.reading = state.reading ?? null;
-    // Kept so the heartbeat can re-render time-dependent chrome without asking
-    // the server for a copy of what the page already has.
+    // Kept so the heartbeat can re-render time-dependent chrome without asking the
+    // server for a copy of what the page already has, and for `taken`, which the
+    // door above judges the next answer by.
     runtime.state = state;
     if (runtime.reading !== null)
       document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
@@ -5009,7 +5006,7 @@ async function startPage() {
   };
   // What the page does when the stream says it has moved. Every wake-up is a read of
   // its own, and reads may overlap: one held by a slow proxy while the next answers
-  // is the case receiveState orders by sequence, revision and ask, and a gate that let
+  // is the case receiveState orders by sequence, revision and stamp, and a gate that let
   // one read out at a time would have made a held read a held page. Application is
   // deliberately not awaited — see readState — and a fault applying one answer is
   // reported and does not stop the next from arriving. Presentation is chained onto

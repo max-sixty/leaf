@@ -244,6 +244,23 @@ session.</p></details>
 # a whole address, so one reading answers which lists are on offer, which members of
 # each, and in what order — three facts a count and a bare digit answered separately.
 CHIPS = ".lf-addresses > .lf-address"
+# Whether a fixture leaves room for the chips a test then reads off it. A chip is centred
+# on its member's start corner and taken down where it lands on one already drawn, so a
+# fixture whose members crowd states that rule rather than whatever the test came to ask —
+# and which of two crowded chips survives is the resolved fonts' to decide, so the test
+# passes on the author's host and fails on the runner's.
+#
+# The reading is therefore down the page rather than across it: a line each puts a whole
+# leading between two chips, and both that step and the chip's own height are the theme's,
+# where the gap a row of members leaves is a width the body font decides. A member a line
+# below the last one is past the rule on any font; a member beside it is past it on some.
+CHIP_ROOM = r"""([sel, members]) => {
+    const chip = document.querySelector(sel).getBoundingClientRect();
+    const tops = [...document.querySelectorAll(members)]
+        .map((member) => member.getBoundingClientRect().top);
+    return {chip: Math.round(chip.height),
+            step: Math.round(Math.min(...tops.slice(1).map((t, i) => t - tops[i])))};
+  }"""
 # The half of each address already behind the reader. A chip carries the whole motion, so
 # how far in they are is the split rather than the text: `g` alone once the window is up,
 # and `g c` once a letter has named a list. The selector arrives as an argument so the one

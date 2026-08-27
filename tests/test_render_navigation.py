@@ -11,6 +11,7 @@ from render_support import (
     ADDRESSED_PAGE,
     ASKS_PAGE,
     BOARD_PAGE,
+    CHIP_ROOM,
     CHIPS,
     CLIPPED_BY,
     CONTROL_LABEL_PAGE,
@@ -1542,19 +1543,30 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     choice open: Enter takes the exact address, another digit takes the longer one, and
     Escape removes one entered digit. The page's chips and key line make that temporary
     ambiguity visible, so the extra reach does not turn short addresses into a timeout or
-    an implicit guess."""
-    links = " ".join(
-        f'<a id="link-{n}" href="#link-{n}">link {n}</a>' for n in range(1, 13)
+    an implicit guess.
+
+    A line each rather than twelve links in one paragraph, because the chips are what this
+    reads the narrowing off and a row of members crowds them: written inline, the tenth and
+    eleventh addresses stood 52px apart with a 55px chip on each, so the eleventh landed on
+    its neighbour and the crowding rule took it down — the address still held, and the
+    assertion below was reporting a width the resolved fonts decide rather than the reach
+    it names. `CHIP_ROOM` states that premise before the chips are read."""
+    links = "".join(
+        f'<p><a id="link-{n}" href="#link-{n}">link {n}</a></p>' for n in range(1, 13)
     )
-    page, errors = open_page(
-        browser, serve(leaf_page("Twelve links", f"<p>{links}</p>"))
-    )
+    page, errors = open_page(browser, serve(leaf_page("Twelve links", links)))
     line = page.locator(".lf-keyline")
 
     page.keyboard.press("g")
     expect(line).to_contain_text("l 1–12")
     page.keyboard.press("l")
     expect(page.locator(CHIPS).first).to_have_text("g l 1 ⏎")
+    room = page.evaluate(CHIP_ROOM, [CHIPS, "a[id^='link-']"])
+    assert room["step"] > room["chip"], (
+        f"the links step {room['step']}px down the page against a {room['chip']}px chip, so "
+        "a chip lands on the one above it and is taken down — give the fixture's members a "
+        "line each rather than reading a missing address as a regression"
+    )
     before = page.evaluate(GLYPH_OFFSETS, CHIPS)
     page.keyboard.press("1")
     expect(line).to_contain_text("0–2 / ⏎")

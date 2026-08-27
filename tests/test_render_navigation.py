@@ -111,8 +111,15 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     row. Pinned as one 8px it was level with a 15px row, and the day the row went to the
     page's own 17px it was two pixels too high with the gate still green — because what
     the gate read was the number the theme stated, and the claim beside it, that a row's
-    digit is level with its words, was checked by nothing."""
+    digit is level with its words, was checked by nothing.
+
+    How far in it stands is the whole group's, and it is asked as the relation it is: the
+    gutter reads status rule, digit, then prose, so the digit is measured against those two
+    neighbours and against the other form's seat. Pinned as the number the gutter came to,
+    the reading broke the day a status rule took the head of the column and the digit moved
+    along behind it — a move the page wanted, reported as a failure of the digit."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
+    seats = {}
     for options, sitting in [
         (["c-heater", "c-cable", "c-hand"], "in the corner"),
         (["r-now", "r-later"], "centred"),
@@ -124,11 +131,16 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
             # Never on the hairline the outer corner would have shared with the cells
-            # around it: the column the option reserves starts 6px in, in both forms.
+            # around it, and never in either neighbour's room: the option's gutter opens
+            # with the status rule, and its words open at the column the option pads to.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
-            assert round(sits["x"]) == 6, (
-                f"{id_}'s digit sits {sits['x']} in from its option's left edge"
+            assert sits["afterStatus"] < sits["x"] < sits["ends"] < sits["opens"], (
+                f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter whose status "
+                f"rule ends at {sits['afterStatus']} and whose words open at "
+                f"{sits['opens']}, so the gutter is holding one of the three in another's "
+                "room"
             )
+            seats.setdefault(round(sits["x"], 1), []).append(id_)
             if sitting == "in the corner":
                 assert round(sits["y"]) == 8, (
                     f"{id_}'s digit sits {sits['y']} down from its option's top, not in "
@@ -146,6 +158,9 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             # only right for as long as the column the theme reserves is.
             on = chip.evaluate(OVER_WORDS, id_)
             assert on is None, f"{id_}'s digit is drawn over the words “{on}”"
+    # One column, in both forms: a card's cell and a row's are the two shapes whose room
+    # differed, and a seat each would read as a straight rail down neither.
+    assert len(seats) == 1, f"the digits stand at more than one column: {seats}"
     assert errors == []
     page.close()
 

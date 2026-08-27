@@ -1788,11 +1788,15 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     )
     assert lease
 
-    # A live wait lets Claude end its turn, but Codex must keep this one active and
-    # poll the unified-exec session whose output can enter this context.
+    # A live watcher lets Claude end its turn, but Codex must keep this one active
+    # and poll the unified-exec session whose output can enter this context. The
+    # lease cannot say whether that process is the initial wait or a rearmed ack,
+    # so the remedy has to preserve both coordinates.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
+    assert "`leaf wait` before the first batch" in reason
+    assert "rearmed `leaf ack` afterward" in reason
 
     # The existing one-shot escape still prevents a hook recursion.
     hooks_model.cmd_hook(
@@ -1820,6 +1824,8 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf ack" in reason and "If this task is the consumer" in reason
+    assert "`leaf wait` before the first batch" in reason
+    assert "rearmed `leaf ack` afterward" in reason
     assert schema_model.ACK_BATCH_INSTRUCTION in reason
     lease.close()
 

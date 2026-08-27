@@ -50,6 +50,8 @@ subscriptions;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
+`runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
+event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;

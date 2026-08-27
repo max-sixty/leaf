@@ -585,9 +585,9 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
     # The group paints a pick from the outbox and sends it after, so the card wearing
     # the mark says nothing about the log holding it — and the stamp below is a
-    # file-side read of that log. Without the trip it reads a press or two back — the
-    # cleared pick, which rests on the group rather than on any option, or the pick on
-    # opt-strict itself — and either way refuses the reword of a card nobody picked.
+    # file-side read of that log. The revision below carries this pick, so a read a
+    # press or two back — the pick on opt-strict, or the cleared pick before it — sees
+    # the markup standing somewhere the reader never chose and refuses it.
     round_trip(page)
 
     # And the pair the quotable half always comes with. This mark is the one element on

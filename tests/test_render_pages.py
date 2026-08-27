@@ -1935,9 +1935,9 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
 
     At the ordinary 1152px floor, the sidenote keeps its established right margin and
     the sidebar remains in flow. Giving both their full strips there leaves only 504px
-    for prose. At the combined floor, both may stand outside the ordinary column, less
-    only a live platform's stable scrollbar gutter. A script-free copy has to make the
-    same choice from its viewport alone.
+    for prose. At the combined floor, both may stand outside a full-width column once
+    the window also supplies a live platform's stable scrollbar gutter. A script-free
+    copy has to make the same choice from its viewport alone.
 
     The second sidebar is the other composition case: only the first direct child of
     main may take the sticky page-level slot, so an accidental second one remains in
@@ -2017,8 +2017,8 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     ]
     assert roomy["noteFloat"] == "right"
     assert roomy["padding"] == {"left": 264, "right": 384}
-    assert roomy["column"]["width"] == 720 - roomy["gutter"], (
-        f"the two strips cost more than the live page's stable scrollbar gutter: {roomy}"
+    assert roomy["column"]["width"] == 720, (
+        f"the live page's stable scrollbar gutter came out of the column: {roomy}"
     )
     assert roomy["sidebars"][0]["right"] <= roomy["column"]["left"] - 23
     assert roomy["sidebars"][1]["left"] >= roomy["column"]["left"] - 1

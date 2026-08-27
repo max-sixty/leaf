@@ -178,6 +178,7 @@ import {
 } from "./runtime/composing/selection.js";
 import { createSelectionSurface } from "./runtime/composing/surface.js";
 import { agentName, runtime } from "./runtime/context.js";
+import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
 import {
   CONTROL_WORD_CAP,
   DESIGN_KEY,
@@ -3663,35 +3664,6 @@ function tick() {
     paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
   notifyDataSubscribers();
-}
-
-function acceptData(candidate) {
-  if (
-    !candidate ||
-    typeof candidate !== "object" ||
-    Array.isArray(candidate) ||
-    !Number.isInteger(candidate.revision) ||
-    candidate.revision < 0 ||
-    !candidate.sources ||
-    typeof candidate.sources !== "object" ||
-    Array.isArray(candidate.sources)
-  )
-    throw new TypeError("state data must carry a non-negative revision and sources");
-  if (candidate.revision <= runtime.data.revision) return false;
-  runtime.data = structuredClone(candidate);
-  return true;
-}
-
-function notifyDataSubscribers() {
-  document.dispatchEvent(new Event("lf-data"));
-  // The revision becomes a readiness fact only after synchronous subscribers have
-  // rendered it. Render checks and export compare this stamp with the server snapshot,
-  // so a data-only page cannot be read between acceptance and projection.
-  if (runtime.data.revision >= 0)
-    document.body.setAttribute(
-      PAGE_PAINT_ATTRIBUTE.dataRevision,
-      String(runtime.data.revision),
-    );
 }
 
 async function receiveState(state) {

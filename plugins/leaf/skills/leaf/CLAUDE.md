@@ -41,7 +41,8 @@ shared tray furniture;
 `runtime/reactions.js` owns reaction vocabulary, pills, sending, the armed mode, and
 reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
-`runtime/data.js` owns widget source-contract subscriptions;
+`runtime/data.js` owns external-data acceptance, readiness, and source-contract
+subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings;

@@ -6,7 +6,7 @@ export function createReactions({
   beside,
   claimsEsc,
   commentsReveal,
-  conversation,
+  currentRevision,
   cut,
   designIsOn,
   el,
@@ -17,10 +17,10 @@ export function createReactions({
   focused,
   itemWord,
   offer,
+  pageStrip,
   paintHere,
   post,
-  registry,
-  runtime,
+  reactionVocabulary,
   saying,
   showFab,
   shownBox,
@@ -38,7 +38,7 @@ export function createReactions({
   // what it does structurally is the entry's own flag (`settles`, read by the panel).
   // Empty until the registry has arrived: the register checks every core row's bindings
   // as the module evaluates, which is before the vocabulary is known.
-  const reactionTokens = () => Object.entries(registry.$reactions?.tokens ?? {});
+  const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
   // One token as a press, built the same way wherever it stands — the bar beside a
   // selection, the strip under a message, the panel's page row. The digit is the address
   // the armed mode paints (the chip an option wears while its mark holds focus) and shows
@@ -90,7 +90,7 @@ export function createReactions({
     }
     const event = {
       kind: "comment",
-      revision: runtime.currentRevision,
+      revision: currentRevision(),
       token: name,
       anchor: structuredClone(anchor),
     };
@@ -155,7 +155,7 @@ export function createReactions({
         }
         reactSurface = fabBar;
       } else {
-        reactSurface = conversation().pageStrip;
+        reactSurface = pageStrip();
         if (!reactSurface) return;
         reactRevealed = commentsReveal();
       }
@@ -175,7 +175,7 @@ export function createReactions({
   const reactTargetWord = () =>
     reactSurface === fabBar
       ? anchorWord(fabAnchorAt())
-      : reactSurface === conversation().pageStrip
+      : reactSurface === pageStrip()
         ? "the page"
         : "the reply";
   // The armed react press's own scope: the digits, and the way out. It claims everything

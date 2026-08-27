@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.data import data_binding_errors, measurement_lag, read_data_store
+from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
 from leaf.events import flocked, read_events, retractions, thread_structure
 from leaf.files import list_revisions, revision_path
 from leaf.passages import spoken
@@ -184,7 +184,7 @@ def check_source(
         previous = parse_structure(previous_html)
         was = spoken(previous_html, registry or {})
 
-    stored_data = {"revision": 0, "sources": {}}
+    stored_data = empty_data()
     if registry is not None:
         stored_data = read_data_store(page_dir)
         errors.extend(widget_errors(parser.lf_elements, registry))

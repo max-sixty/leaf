@@ -1009,7 +1009,7 @@ def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
 
     with pytest.raises(
         registry_model.RegistryError,
-        match="x-measured timestamp attribute `at` is an authored capture instant",
+        match="x-measured timestamp attribute `at` is an authored snapshot instant",
     ):
         registry_model.validate_registry(registry, "test registry")
 

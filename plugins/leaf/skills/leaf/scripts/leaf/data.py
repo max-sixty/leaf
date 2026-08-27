@@ -2,7 +2,6 @@
 
 import json
 import re
-from datetime import datetime
 from pathlib import Path
 
 import click
@@ -10,7 +9,7 @@ from referencing.exceptions import Unresolvable
 
 from .events import now_iso, read_events
 from .files import list_revisions, revision_path, write_json
-from .registry import is_aware_datetime, json_validator, require_registry
+from .registry import aware_instant, is_aware_datetime, json_validator, require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 from .structure import parse_structure
@@ -224,14 +223,6 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
     return {source: inventory[source] for source in sorted(inventory)}
 
 
-def _aware_instant(value: str):
-    """A parsed instant after the shared date-time format has admitted its spelling."""
-    if not is_aware_datetime(value):
-        return None
-    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
-    return datetime.fromisoformat(normalized)
-
-
 def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
     """Authored measurements whose bound source has completed a later run.
 
@@ -251,9 +242,9 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
         source = rec["attrs"].get(input_spec["source"])
         captured = rec["attrs"].get(measured["at"])
         snapshot = stored["sources"].get(source) if isinstance(source, str) else None
-        captured_at = _aware_instant(captured) if isinstance(captured, str) else None
+        captured_at = aware_instant(captured) if isinstance(captured, str) else None
         updated_at = (
-            _aware_instant(snapshot["updated"])
+            aware_instant(snapshot["updated"])
             if isinstance(snapshot, dict) and isinstance(snapshot.get("updated"), str)
             else None
         )

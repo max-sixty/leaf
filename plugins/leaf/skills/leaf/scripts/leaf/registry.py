@@ -36,14 +36,19 @@ def is_aware_datetime(value) -> bool:
     """Leaf's self-contained date-time format: one absolute, aware instant."""
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
+    return aware_instant(value) is not None
+
+
+def aware_instant(value: str):
+    """The one parse of Leaf's date-time format, or None where the spelling fails."""
     if not RFC3339_DATE_TIME.fullmatch(value):
-        return False
+        return None
     normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
     try:
         parsed = datetime.fromisoformat(normalized)
     except ValueError:
-        return False
-    return parsed.utcoffset() is not None
+        return None
+    return parsed if parsed.utcoffset() is not None else None
 
 
 def schema_resource_registry(schema: dict):
@@ -677,10 +682,10 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-data source attributes are authored bindings, "
                 f"but {dynamic} are written by value records"
             )
-        if measured and measured["at"] in mutable_values:
+        if (measured := entry.get("x-measured")) and measured["at"] in mutable_values:
             raise RegistryError(
                 f"{path}: <{tag}> x-measured timestamp attribute "
-                f"`{measured['at']}` is an authored capture instant, but is written "
+                f"`{measured['at']}` is an authored snapshot instant, but is written "
                 "by a value record"
             )
         work = entry.get("x-work")

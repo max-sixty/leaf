@@ -193,9 +193,9 @@ def _write_page_state(
     constructions it derives them with: the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), authored
-    measurements whose live source has run again (`measurement_lag_entries`), the open asks
-    on the page and in threads (the banner's own count), each comment thread's
-    exchange,
+    measurements whose live source has run again (`measurement_lag_entries`), the
+    open asks on the page and in threads (the banner's own count), each comment
+    thread's exchange,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.

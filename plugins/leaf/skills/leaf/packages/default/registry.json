@@ -49,7 +49,7 @@
     "x-example": "Deploy through a <lf-gloss tip=\"A thin, end-to-end path through the real system.\">walking skeleton</lf-gloss> before parallelizing."
   },
   "lf-num": {
-    "description": "One measured scalar frozen into the sentence that states it. Write the displayed value, unit included, as the element text; bind `source` to the repeatable measurement feed and set `at` to the aware RFC 3339 instant when that authored value was captured. A later `leaf data set` on the same source makes `version check` advise that this number is stale without replacing what an older version says. `via` may preserve the human-readable command or query in source when the source id alone is not enough provenance. Use lf-metric instead when the number is a headline KPI in a metric row, and ordinary text for a number that is not produced by a repeatable measurement.",
+    "description": "One measured scalar frozen into the sentence that states it. Write the displayed value, unit included, as the element text; bind `source` to the repeatable measurement feed and set `at` to that source snapshot's recorded `updated` instant. A later `leaf data set` on the same source makes `version check` advise that this number is stale without replacing what an older version says. `via` may preserve the human-readable command or query in markup when the source id alone is not enough provenance. Use lf-metric instead when the number is a headline KPI in a metric row, and ordinary text for a number that is not produced by a repeatable measurement.",
     "type": "object",
     "properties": {
       "id": {

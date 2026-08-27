@@ -230,7 +230,7 @@ MEASURED_SCHEMA = {
     "properties": {
         # The x-data input whose source timestamp says whether another run landed.
         "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the instant its authored value was captured.
+        # The widget attribute holding the source snapshot's recorded instant.
         "at": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
     "required": ["input", "at"],

@@ -292,10 +292,10 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     read goes out during load and is answered before export asks the runtime anything,
     which is why the page arrives painted however the wait is written and why the count
     being wrong stayed invisible. Refusing that first read is the whole of the
-    difference — replay's only chance is then the ask the news stream prompts as it
-    opens, on the far side of the stamp, which is exactly where a loaded machine would
-    have put it. Counting actions alone leaves nothing to wait for on a log holding one
-    report, and the copy goes out blank.
+    difference — replay is left to the asks on the far side of the stamp: the one the
+    news stream prompts as it opens, and the 2s tick behind it, which is exactly where
+    a loaded machine would have put it. Counting actions alone leaves nothing to wait
+    for on a log holding one report, and the copy goes out blank.
 
     The refusal is served to export's own page rather than the copy's, through the
     stand-in `primed` supplies."""

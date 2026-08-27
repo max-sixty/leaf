@@ -33,6 +33,8 @@ their direct readers;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
 and selection-composer state;
+`runtime/drawn-edge.js` owns the shared resizable boundary used by the comment panel
+and tray panels;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns widget source-contract subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;

@@ -715,7 +715,7 @@ def test_the_composer_opens_where_the_button_stood(browser, serve):
     page.close()
 
 
-def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
+def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     """A drag stops where the hand stopped: four glyphs into "paragraph", four short
     of the end of "carrying". The reader meant the words, and the quote the capture
     would otherwise store — "graph carr" — reads as a typo in the panel and in every
@@ -736,6 +736,13 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     the reading, and a declared label — a specimen's, rendered flush before its
     words inside a list item, where both share the one block — is the seam itself.
 
+    A sentence follows the same rule at its two meaningful edges. A drag that already
+    reaches its opening and closing words grows over the punctuation around them, but
+    two words from its middle remain those two words. Sentence edges take only adjacent
+    punctuation, so status glyphs outside an opening quote remain outside. The whole
+    drag must stay in one rendered block; matching endpoints around a nested paragraph
+    do not make the intervening blocks one sentence.
+
     The reads await one queued step first, the same tick the mouseup handler defers
     its own work behind, so each one sees the selection after the snap rather than
     racing it."""
@@ -745,7 +752,11 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
             INLINE_PAGE.replace(
                 '<p id="p">',
                 '<ul><li><lf-specimen id="spec" label="mono">glyphs set close'
-                '</lf-specimen></li></ul>\n<p id="p">',
+                "</lf-specimen></li></ul>\n"
+                '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
+                "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"
+                '<ul><li id="nested">“Opening words<p>Nested block.</p>'
+                'closing together.”</li></ul>\n<p id="p">',
             )
         ),
     )
@@ -773,6 +784,32 @@ def test_a_drag_released_mid_word_selects_whole_words(browser, serve):
     def spot(root, word, into):
         return page.evaluate(mid, {"root": root, "word": word, "into": into})
 
+    select(
+        page,
+        spot("#sentence", "Opening", 3),
+        spot("#sentence", "together", 4),
+    )
+    assert page.evaluate(settled) == "“Opening words stay together.”"
+
+    sentence_box = page.locator("#sentence").bounding_box()
+    page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#sentence").scroll_into_view_if_needed()
+    select(page, spot("#sentence", "words", 2), spot("#sentence", "stay", 2))
+    assert page.evaluate(settled) == "words stay"
+
+    page.mouse.click(sentence_box["x"] - 40, sentence_box["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#nested").scroll_into_view_if_needed()
+    select(page, spot("#nested", "Opening", 3), spot("#nested", "together", 4))
+    assert " ".join(page.evaluate(settled).split()) == (
+        "Opening words Nested block. closing together"
+    )
+
+    nested_box = page.locator("#nested").bounding_box()
+    page.mouse.click(nested_box["x"] - 40, nested_box["y"] + 4)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#p").scroll_into_view_if_needed()
     select(page, spot("#p", "paragraph", 4), spot("#p", "carrying", 4))
     assert page.evaluate(settled) == "paragraph carrying"
     expect(page.locator(".lf-fab")).to_be_visible()

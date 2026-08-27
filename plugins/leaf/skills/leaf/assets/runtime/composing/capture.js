@@ -2,6 +2,7 @@ export function createSelectionCapture({
   anchoringIsReady,
   blockOf,
   closestAcross,
+  collapseWhitespace,
   cut,
   datumSelector,
   elementOver,
@@ -114,12 +115,10 @@ export function createSelectionCapture({
   }
   // A drag stops where the hand stopped, not where the reader aimed: a release two glyphs
   // short of a word's end meant the word, and the capture would store the fragment as if
-  // the fragment were the point. So the pointer path grows a selection outward — never
-  // inward — until each end sits on a boundary of the same word units the runtime already
-  // reads sequences by (textUnits), and only where the end fell strictly inside a
-  // word-like unit. An end resting on a boundary, in space, or against punctuation stays
-  // exactly where the reader put it, and keyboard selections never come here at all:
-  // shift-arrow is the reader being precise, and precision is not a thing to correct.
+  // the fragment were the point. The pointer path therefore grows outward to word
+  // boundaries. When those words are also the opening and closing words of a sentence,
+  // the same pass includes its surrounding punctuation. A shorter phrase remains a
+  // phrase. Keyboard selections never come here: shift-arrow is the reader being precise.
   //
   // One end, because the two are the same question asked at two places, and the words are
   // read in the indexed text every other reading of the page uses. That is what keeps a
@@ -129,11 +128,17 @@ export function createSelectionCapture({
   // machine-placed words (data-lf-gen) stand flush against the author's — a chip row is
   // written with no space after the title it follows — the two runs read as one word, and
   // growing across that seam would hand a selection of the chip the title too.
+  const spoke = (origin) => elementOver(origin.node).closest("[data-lf-gen]");
+  const sameRun = (left, right) =>
+    Boolean(left && right) &&
+    blockOf(left.node) === blockOf(right.node) &&
+    spoke(left) === spoke(right);
+  const sentenceUnits = new Intl.Segmenter(undefined, { granularity: "sentence" });
+
   function snapOut(reading, at, back) {
     const { raw, origin, fences } = reading;
     const behind = fences.filter((f) => f <= at).at(-1) ?? 0;
     const ahead = fences.find((f) => f >= at) ?? raw.length;
-    const spoke = (o) => elementOver(o.node).closest("[data-lf-gen]");
     // An EDGE's neighbours are the nearest characters, not the nearest cells: an empty
     // text node is an empty segment, which puts two EDGEs flush, and every reader of
     // `origin` steps over its nulls.
@@ -145,8 +150,7 @@ export function createSelectionCapture({
       while (b < origin.length && origin[b] === null) b++;
       const prev = origin[a];
       const next = origin[b];
-      if (!prev || !next) return false;
-      return blockOf(prev.node) === blockOf(next.node) && spoke(prev) === spoke(next);
+      return sameRun(prev, next);
     };
     const inRun = (i) => !/\s/.test(raw[i]) && joined(i);
     let lo = at;
@@ -166,6 +170,107 @@ export function createSelectionCapture({
     if (!word || word.index >= boundary || !word.isWordLike) return at;
     return back ? from[word.index] : from[word.index + word.segment.length - 1] + 1;
   }
+
+  // Sentence segmentation reads one passage cell inside one rendered block. Authored line
+  // wraps collapse to spaces, and edges between inline text nodes disappear. `from` keeps
+  // the path back to the DOM reading. A declared generated label is a separate speaking run
+  // even when it sits flush inside the same block.
+  function snapSentence(reading, lo, hi) {
+    const { raw, origin, fences } = reading;
+    const first = origin[lo];
+    const last = origin[hi - 1];
+    if (!first || !last) return [lo, hi];
+
+    const belongs = (part) => sameRun(first, part);
+    if (!belongs(last) || fences.some((f) => f > lo && f < hi)) return [lo, hi];
+    for (let at = lo; at < hi; at++)
+      if (origin[at] && !belongs(origin[at])) return [lo, hi];
+
+    const behind = fences.filter((f) => f <= lo).at(-1) ?? 0;
+    const ahead = fences.find((f) => f >= hi) ?? raw.length;
+    const inScope = (at) => {
+      if (origin[at]) return belongs(origin[at]);
+      let before = at - 1;
+      while (before >= behind && origin[before] === null) before--;
+      let after = at + 1;
+      while (after < ahead && origin[after] === null) after++;
+      return belongs(origin[before]) && belongs(origin[after]);
+    };
+
+    let start = lo;
+    while (start > behind && inScope(start - 1)) start--;
+    let stop = hi;
+    while (stop < ahead && inScope(stop)) stop++;
+
+    let text = "";
+    let selectedStart = 0;
+    let selectedStop = 0;
+    const from = [];
+    let inWhitespace = false;
+    for (let at = start; at < stop; at++) {
+      if (origin[at] === null) continue;
+      const character = collapseWhitespace(raw[at]);
+      const whitespace = character === " ";
+      if (whitespace && inWhitespace) continue;
+      inWhitespace = whitespace;
+      if (at < lo) selectedStart++;
+      if (at < hi) selectedStop++;
+      from.push(at);
+      text += character;
+    }
+
+    const sentences = [...sentenceUnits.segment(text)];
+    const atStart = sentences.find(
+      (sentence) =>
+        sentence.index <= selectedStart &&
+        selectedStart < sentence.index + sentence.segment.length,
+    );
+    const atStop = sentences.find(
+      (sentence) =>
+        sentence.index < selectedStop &&
+        selectedStop <= sentence.index + sentence.segment.length,
+    );
+    const edges = (sentence) => {
+      if (!sentence) return null;
+      const words = [...segmentText(sentence.segment)].filter(
+        (part) => part.isWordLike,
+      );
+      if (!words.length) return null;
+      const firstWord = words[0].index;
+      const lastWord = words.at(-1).index + words.at(-1).segment.length;
+      const leading = sentence.segment.slice(0, firstWord).match(/\p{P}+$/u)?.[0] ?? "";
+      const trailing = sentence.segment.slice(lastWord).match(/^\p{P}+/u)?.[0] ?? "";
+      return {
+        contentStart: sentence.index + firstWord - leading.length,
+        contentStop: sentence.index + lastWord + trailing.length,
+        firstWord: sentence.index + firstWord,
+        lastWord: sentence.index + lastWord,
+      };
+    };
+
+    let snappedStart = selectedStart;
+    const startEdges = edges(atStart);
+    if (
+      startEdges &&
+      selectedStart >= startEdges.contentStart &&
+      selectedStart <= startEdges.firstWord
+    )
+      snappedStart = startEdges.contentStart;
+
+    let snappedStop = selectedStop;
+    const stopEdges = edges(atStop);
+    if (
+      stopEdges &&
+      selectedStop >= stopEdges.lastWord &&
+      selectedStop <= stopEdges.contentStop
+    )
+      snappedStop = stopEdges.contentStop;
+
+    return [
+      snappedStart === selectedStart ? lo : from[snappedStart],
+      snappedStop === selectedStop ? hi : from[snappedStop - 1] + 1,
+    ];
+  }
   // An end the snap didn't move keeps the boundary the browser gave it: a drag out into
   // chrome ends past the last quotable character, and rewriting that end from the reading
   // would pull the visible selection off words the reader chose to cover. The gesture's
@@ -180,8 +285,9 @@ export function createSelectionCapture({
     if (!segments.length) return;
     const reading = pageText();
     const [start, stop] = spanIn(reading, segments);
-    const lo = snapOut(reading, start, true);
-    const hi = snapOut(reading, stop, false);
+    let lo = snapOut(reading, start, true);
+    let hi = snapOut(reading, stop, false);
+    [lo, hi] = snapSentence(reading, lo, hi);
     if (lo === start && hi === stop) return;
     const head =
       lo === start

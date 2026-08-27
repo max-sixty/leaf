@@ -38,6 +38,8 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
+`runtime/reactions.js` owns reaction vocabulary, pills, sending, the armed mode, and
+reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns widget source-contract subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;

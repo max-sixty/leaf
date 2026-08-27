@@ -1070,6 +1070,10 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
     result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
 
     assert result.exit_code == 0, result.output
+    assert (
+        f"nothing to watch: {page_dir} is not claimed by this session" in result.output
+    )
+    assert "no page named" not in result.output
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
@@ -1096,6 +1100,10 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
+    status_path = page_dir / "status.json"
+    status = status_path.read_bytes()
+    status_path.unlink()
+    os.mkfifo(status_path)
 
     launcher = PLUGIN_ROOT / "bin" / "leaf"
     acknowledging = spawn(
@@ -1105,26 +1113,12 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         stderr=subprocess.PIPE,
         text=True,
     )
+    writer = fifo_writer(status_path, "the rearm never selected its batch page")
     identity = service_model.host_identity()
     lease_path = service_model.waiter_lease_path(page_dir, identity)
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        if files_model.read_json(page_dir / "cursor.json") == {
-            "seq": 1
-        } and service_model.lock_is_held(lease_path):
-            break
-        if acknowledging.poll() is not None:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("ack did not advance the cursor and take the session watch")
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
-
-    status_path = page_dir / "status.json"
-    status = status_path.read_bytes()
-    status_path.unlink()
-    os.mkfifo(status_path)
-    writer = fifo_writer(status_path, "the rearm never selected its batch page")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -1142,6 +1136,55 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     assert header == {"page": str(other), "threads": []}
     assert (event["id"], event["text"]) == ("second", "two")
     assert files_model.read_json(other / "cursor.json") is None
+    assert service_model.page_claim(page_dir)["id"] == "successor"
+
+
+def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
+    page_dir, spawn, monkeypatch
+):
+    """A successor's page is not idle when it leaves the session-wide watch.
+
+    Hold the status read after the rearm selected its sole page, then transfer
+    it. The empty watch must report the ownership change rather than describing
+    the successor's live page as an ended leaf.
+    """
+    serving(page_dir, 1)
+    service_model.claim_page(page_dir)
+    session_model.cmd_status(page_dir, "waiting", "first page")
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "first", "author": "user", "text": "one"},
+    )
+    status_path = page_dir / "status.json"
+    status = status_path.read_bytes()
+    status_path.unlink()
+    os.mkfifo(status_path)
+
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    acknowledging = spawn(
+        [launcher, "ack", str(page_dir), "1"],
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    writer = fifo_writer(status_path, "the rearm never selected its batch page")
+    identity = service_model.host_identity()
+    lease_path = service_model.waiter_lease_path(page_dir, identity)
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.lock_is_held(lease_path)
+    assert acknowledging.poll() is None
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    service_model.claim_page(page_dir)
+    os.write(writer, status)
+    os.close(writer)
+
+    out, err = acknowledging.communicate(timeout=10)
+    assert (acknowledging.returncode, out) == (0, ""), err
+    assert f"stopped watching {page_dir}: this session no longer owns it" in err
+    assert "the leaf ended" not in err
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
 

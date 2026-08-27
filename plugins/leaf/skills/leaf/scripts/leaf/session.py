@@ -333,11 +333,18 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
                             file=sys.stderr,
                         )
                         return 2
-                    print(
-                        "nothing to watch: no page named and none claimed by "
-                        "this session",
-                        file=sys.stderr,
-                    )
+                    if page_dir is None:
+                        print(
+                            "nothing to watch: no page named and none claimed by "
+                            "this session",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"nothing to watch: {page_dir} is not claimed by this "
+                            "session",
+                            file=sys.stderr,
+                        )
                     return 2
                 one = len(held) == 1
                 names = ", ".join(str(r.page_dir) for r in held)

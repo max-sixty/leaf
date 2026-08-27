@@ -2,8 +2,10 @@
 
 import re
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import NamedTuple
 
+from .files import published_versions, version_path
 from .registry import visual_parts
 from .structure import VOID_TAGS, implicit_closes, parse_structure
 
@@ -446,6 +448,38 @@ def spoken(html: str, registry: dict) -> dict:
     # boundary rather than saying anything.
     said = {wid: p.text[lo : last[wid] + 1].strip() for wid, lo in first.items()}
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
+
+
+def enclosing_of(spk: dict) -> dict:
+    """The containment half of a `spoken` reading, keyed the same.
+
+    What liveness asks of a page is where an element sits, never what it says —
+    so a caller holding the whole reading hands over the half that answers."""
+    return {wid: said.within for wid, said in spk.items()}
+
+
+def enclosing_ids(html: str) -> dict:
+    """id → the ids enclosing it, outermost first, itself last, with no
+    vocabulary loaded.
+
+    The same answer `spoken` gives against the real layer: the walk records where
+    an element sits off the tag stack, before anything asks the registry what it
+    shows. Words are the other half and the vocabulary's word entirely, so this
+    is the reading for a caller that may not raise on the registry gate — it can
+    have where an element sits, and must not ask what it says."""
+    return page_passages(html, {}).enclosing
+
+
+def published_enclosing(page_dir: Path, events: list) -> dict:
+    """Where every id sits on the page the reader is looking at.
+
+    The newest published version, because that is the page a decision was made
+    against, and nothing published yet is nowhere for anything to sit."""
+    published = published_versions(page_dir, events)
+    if not published:
+        return {}
+    html = version_path(page_dir, published[-1]).read_text(encoding="utf-8")
+    return enclosing_ids(html)
 
 
 def enclosing_section(owner: list, lo: int, hi: int):

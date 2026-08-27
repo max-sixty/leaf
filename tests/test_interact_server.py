@@ -2327,7 +2327,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "the tear took the reply with it, so nothing below is being read"
     )
     assert event_model.thread_roots(events)["r-kept"] == "c-lost"
-    threads = event_model.build_threads(events, {})
+    threads = event_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
         f"the two readings put the reply in different conversations: {list(threads)}"
     )

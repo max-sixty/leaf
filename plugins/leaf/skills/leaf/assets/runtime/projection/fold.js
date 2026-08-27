@@ -19,10 +19,16 @@ export function createProjectionFold(runtime, dependencies) {
   // not "the page has an element by that id", so a literal detail value can't
   // collide with an unrelated element that happens to be called the same thing.
   function restsOn(e, widget) {
-    // flat(), because a detail field may name several elements at once (a group's
+    // Every detail field but `resolves`, which the registry reserves for the comment
+    // thread the action answers. A conversation is not on the page to be contained, so
+    // the only thing the test above could find under that key is an element inside the
+    // widget spelled the same — the one collision containment does not rule out.
+    // interact.py's action_rests_on reads past it for the same reason.
+    // flatMap, because a detail field may name several elements at once (a group's
     // set of picks) and each of them is something the action rests on.
-    const parts = Object.values(e.detail)
-      .flat()
+    const parts = Object.entries(e.detail)
+      .filter(([field]) => field !== "resolves")
+      .flatMap(([, named]) => named)
       .map((v) => (typeof v === "string" ? elementById(v) : null))
       .filter((el) => el && widget && containsAcross(widget, el))
       .map((el) => el.id);

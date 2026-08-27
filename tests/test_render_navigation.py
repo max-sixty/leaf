@@ -136,8 +136,8 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             # around it, and never in either neighbour's room: the option's gutter opens
             # with the status rule, and its words open at the column the option pads to.
             # `test_the_pointer_does_not_take_a_cells_status_with_it` asks that order of
-            # one recommended card under the pointer; the row form, whose gutter has no
-            # padding to spare, is asked here and nowhere else.
+            # one recommended cell of the card form, with the pointer moved off it before
+            # the reading; the row form is asked here and nowhere else.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
             assert sits["afterStatus"] < sits["x"] < sits["ends"] < sits["opens"], (
                 f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter whose status "

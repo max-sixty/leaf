@@ -30,6 +30,8 @@ keep it when the product can make those frames stale.
   `$languages.names`.
 - `vendor-marked.sh` copies the dependency-free Markdown renderer used for
   thread messages.
+- `vendor-pierre.sh` builds the bounded Pierre diff renderer and license notices
+  from the registry's `$languages.names` and the two shipped diff themes.
 - `vendor-plot.sh` bundles Observable Plot with d3 into
   `plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js`; Plot's
   published ESM leaves d3 as a bare external import, so copying it alone is not

@@ -1669,7 +1669,7 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
             "diff --git a/gateway/limits.py b/gateway/limits.py\n"
             "--- a/gateway/limits.py\n"
             "+++ b/gateway/limits.py\n"
-            "@@ -38,7 +38,7 @@ class Limiter:\n"
+            "@@ -38,2 +38,2 @@ class Limiter:\n"
             "     def bucket_key(self, request):\n"
             "-        return request.remote_addr\n"
             "+        return request.token.id\n"

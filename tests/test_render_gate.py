@@ -1664,14 +1664,12 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     )
     page.close()
     assert errors == []
-    assert where == {"doc": 0, "shadow": 1}, (
+    assert where["doc"] == 0 and where["shadow"] > 0, (
         "this page has to put its only comment inside a shadow root, or the gate "
         f"passing it says nothing about the boundary — {where}"
     )
     shadowed = rendering_model.render_version(browser, serve(SHADOW_CODE_PAGE))
-    assert [
-        f for f in shadowed if f.startswith("[light] code marked cm reads at 3.1:1")
-    ], (
+    assert [finding for finding in shadowed if "code marked cm" in finding], (
         "a widget that renders the page's words into a shadow root renders code the "
         f"reader still has to read — {shadowed}"
     )

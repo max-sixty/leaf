@@ -548,13 +548,13 @@ DIFF_PAGE = leaf_page(
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
-@@ -38,7 +38,8 @@ class Limiter:
+@@ -38,2 +38,3 @@ class Limiter:
      def bucket_key(self, request):
 -        return request.remote_addr
 \\ No newline at end of file
 +        if request.token:
 +            return f"tok:{request.token.id}"
-@@ -71,5 +73,7 @@ class Limiter:
+@@ -71,4 +73,6 @@ class Limiter:
      def reset(self, key):
 -        \"\"\"Drop one bucket.
 -        Called on logout.\"\"\"
@@ -566,89 +566,16 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 diff --git a/gateway/config.yaml b/gateway/config.yaml
 --- a/gateway/config.yaml
 +++ b/gateway/config.yaml
-@@ -4,6 +4,6 @@ ratelimit:
+@@ -4,2 +4,2 @@ ratelimit:
 -  burst: 20
 +  burst: 40
    window: 60
 diff --git a/deploy/Dockerfile b/deploy/Dockerfile
 --- a/deploy/Dockerfile
 +++ b/deploy/Dockerfile
-@@ -9,2 +9,2 @@ COPY gateway /srv/gateway
+@@ -9 +9 @@ COPY gateway /srv/gateway
 -RUN pip install -r requirements.txt
 +RUN pip install --no-cache-dir -r requirements.txt
-</pre></lf-diff>
-""",
-)
-# One change block per thing the word marks have to get right, and nothing else in the
-# diff. A pair that edited one argument, with git's `\\ No newline` remark standing
-# between the two lines; a block of three deletions under two additions, so the third has
-# nothing to be compared against; a context line separating that block from the next, so
-# a deletion under it answers the addition under it and not the leftover above; a pair
-# that swapped wholesale, which shares no words to mark; two pairs written one under the
-# other, where a deletion following an addition is what ends the block with nothing else
-# to say so; a block that grew by two lines, so the addition answering the deletion is
-# three lines under it rather than beside it; a block that reordered without growing, so
-# there is no answer the count difference allows the search to reach; and a file whose
-# path names no language, where the same marks have to land on a line no tokenizer ever
-# touched.
-#
-# `limit = 3` is the leftover and `limit = 8` opens the block after the context line, so
-# a walk that ran the two blocks together would pair the leftover against `limit = 9` and
-# mark it — the fault that reads as one mark too many rather than as none at all.
-MOVED_WORDS_PAGE = leaf_page(
-    "moved words",
-    """
-<h1 id="t">Moved words</h1>
-<lf-diff id="patch"><pre>
-diff --git a/gateway/limits.py b/gateway/limits.py
---- a/gateway/limits.py
-+++ b/gateway/limits.py
-@@ -3,4 +3,4 @@ class Limiter:
-     def reset(self, key):
--        self.buckets.pop(key, None)
-\\ No newline at end of file
-+        self.buckets.pop(key, 0)
-         return None
-@@ -20,8 +20,7 @@ class Limiter:
--        alpha = compute(one, two)
--        beta = compute(three, four)
--        limit = 3
-+        alpha = compute(one, five)
-+        beta = compute(nine, four)
-         self.reset(key)
--        limit = 8
-+        limit = 9
-@@ -40,3 +39,3 @@ class Limiter:
--        return self.buckets[key].take()
-+        raise RuntimeError("no such thing")
-@@ -60,4 +59,4 @@ class Limiter:
--        window = 60
-+        window = 90
--        burst = 20
-+        burst = 40
-@@ -80,2 +79,4 @@ class Limiter:
--        return self.tokens[key].take()
-+        if key not in self.tokens:
-+            self.tokens[key] = Bucket()
-+        return self.tokens[key].fill(rate)
-@@ -100,4 +99,4 @@ class Limiter:
--        return None
--        soft = 60
--        hard = 20
-+
-+        soft = 90
-+        hard = 40
-diff --git a/deploy/Dockerfile b/deploy/Dockerfile
---- a/deploy/Dockerfile
-+++ b/deploy/Dockerfile
-@@ -9,2 +9,2 @@ COPY gateway /srv/gateway
--RUN pip install -r requirements.txt
-+RUN pip install -r reqs.txt
-@@ -20,2 +20,2 @@ WORKDIR /srv
--EXPOSE 8080
--CMD ["gunicorn", "gateway:app"]
-+CMD ["gunicorn", "gateway:app", "-w", "4"]
-+EXPOSE 9090
 </pre></lf-diff>
 """,
 )
@@ -679,7 +606,7 @@ TWICE_PAGE = leaf_page(
 diff --git a/gateway/cache.py b/gateway/cache.py
 --- a/gateway/cache.py
 +++ b/gateway/cache.py
-@@ -18,7 +18,7 @@ class Bucket:
+@@ -18,3 +18,3 @@ class Bucket:
  def key(self, request):
 -    return request.path
 +    return request.path, request.headers.get("Accept")

@@ -1834,22 +1834,23 @@ export function bake() {
   // have already settled what remains. Of its two products only the stop is
   // restated: the hold it marks rides into the copy as the attribute and the
   // theme rule reading it, and nothing removed above turns a box into a scroller.
-  for (const el of document.querySelectorAll("*")) {
-    if (el.tabIndex >= 0) continue;
-    const style = getComputedStyle(el);
-    if (
-      !/^(auto|scroll)$/.test(style.overflowX) &&
-      !/^(auto|scroll)$/.test(style.overflowY)
-    )
-      continue;
-    if (
-      !el.querySelector(
-        "a[href], button, input, select, textarea, " +
-          '[tabindex]:not([tabindex="-1"])',
+  for (const root of roots)
+    for (const el of root.querySelectorAll("*")) {
+      if (el.tabIndex >= 0) continue;
+      const style = getComputedStyle(el);
+      if (
+        !/^(auto|scroll)$/.test(style.overflowX) &&
+        !/^(auto|scroll)$/.test(style.overflowY)
       )
-    )
-      el.tabIndex = 0;
-  }
+        continue;
+      if (
+        !el.querySelector(
+          "a[href], button, input, select, textarea, " +
+            '[tabindex]:not([tabindex="-1"])',
+        )
+      )
+        el.tabIndex = 0;
+    }
   // getHTML and not outerHTML: a widget that renders the page's words into a shadow
   // root (x-shadow) has them in no element's outerHTML, so a copy taken that way
   // arrives with an empty element where a diff's lines were — silently, since the

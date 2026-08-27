@@ -102,9 +102,9 @@ export const synNodes = (tokens) =>
 
 // Tokens re-cut so none crosses a newline: one array of {text, role} per line, in source
 // order. The tokenizer's runs and a line are two different spans of the same characters,
-// and this is where they are reconciled — for lf-code, whose lines are what it numbers,
-// and for lf-diff, whose lines are what it tints. Both tokenize a whole run and cut it
-// afterwards rather than colouring a line at a time, because a token can span a newline:
+// and this is where they are reconciled for lf-code, whose lines are what it numbers.
+// It tokenizes a whole run and cuts it afterwards rather than colouring a line at a time,
+// because a token can span a newline:
 // a docstring coloured line by line restarts the tokenizer inside itself and reads its
 // second line as code.
 export function tokenLines(tokens) {

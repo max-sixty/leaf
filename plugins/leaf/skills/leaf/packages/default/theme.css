@@ -1418,10 +1418,13 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
    looks like. Everything inside the markers is written for the shadow tree — :host is
    the widget element itself — so nothing in here matches anything at document level. */
 /* lf-shadow:start */
-:host(.lf-rendered) details { margin: 8px 0; padding: 0; overflow: hidden;
+:host(.lf-rendered) details,
+:host(.lf-rendered) .lf-diff-rename { margin: 8px 0; padding: 0; overflow: hidden;
                               background: var(--card); border: 1px solid var(--border-2);
                               border-radius: var(--r); }
-:host(.lf-rendered) summary { padding: 6px 12px; font-size: var(--t-5); font-family: var(--sans); }
+:host(.lf-rendered) summary,
+:host(.lf-rendered) .lf-diff-rename { padding: 6px 12px; font-size: var(--t-5);
+                                     font-family: var(--sans); }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
@@ -1430,44 +1433,42 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
-:host(.lf-rendered) summary code { font-family: var(--mono); font-size: var(--t-6); }
+.lf-diff-path { font-family: var(--mono); font-size: var(--t-6); }
 .lf-diff-stat { color: var(--muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); }
+:host(.lf-rendered) {
+  --diffs-font-family: var(--mono);
+  --diffs-font-size: 13px;
+  --diffs-line-height: 20px;
+  --diffs-bg: var(--pre-bg);
+  --diffs-bg-buffer: var(--pre-bg);
+  --diffs-bg-context: var(--pre-bg);
+  --diffs-bg-context-gutter: var(--pre-bg);
+  --diffs-bg-separator: var(--field);
+  --diffs-fg: var(--ink);
+  --diffs-fg-number: var(--muted);
+  --diffs-addition-base: var(--ok);
+  --diffs-deletion-base: var(--danger);
+  --diffs-bg-addition: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
+  --diffs-bg-deletion: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
+  --diffs-bg-addition-emphasis: color-mix(in srgb, var(--ok) 34%, var(--pre-bg));
+  --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--danger) 34%, var(--pre-bg));
+}
 :host(.lf-rendered) pre { margin: 0; border: none; border-top: 1px solid var(--rule);
-                          border-radius: 0; padding: 6px 0; overflow-x: auto;
-                          font-family: var(--mono); font-size: var(--t-6);
-                          line-height: 1.55; color: var(--ink); }
+                          border-radius: 0; overflow-x: auto; color: var(--ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) pre:focus-visible { outline: var(--here-ring); --lf-here-ring: code-pre-shadow;
+:host(.lf-rendered) code[data-code]:focus-visible { outline: var(--here-ring);
+                          --lf-here-ring: code-pre-shadow;
                           outline-offset: calc(-1 * var(--here-ring-w)); }
-/* A child selector, because a line's own span is not the only one in here any more:
-   syntax colour puts one around each token, and as a descendant rule this laid every
-   token out on a line of its own.
-   max-content with a 100% floor, because a block child of a scroll container is sized
-   to the scrollport and not to the overflow: a line longer than the measure ran on past
-   the edge of its own box, and the tint — the widget's whole statement about the line —
-   stopped at the fold while the text scrolled on over bare background. */
-pre > span { display: block; padding: 0 12px;
-             width: max-content; min-width: 100%; box-sizing: border-box; }
-pre .add  { background: var(--add-tint); }
-pre .del  { background: var(--del-tint); }
-pre .hunk { color: var(--accent); background: var(--pre-bg); }
-pre .note { color: var(--muted); } /* git's remark on the line above, not a line */
-/* The words that moved between a paired deletion and the addition answering it, ruled
-   underneath in the side's own hue (lf-diff.js bodyNodes) — --danger and --ok, the two
-   colours the document's own emphasis is mixed from, so the mark says the same thing in
-   the medium a shadow tree leaves it.
-   A rule, where that emphasis deepens the wash (::highlight(lf-sug-del) and (lf-sug-ins)
-   in theme.css): a suggestion's ink is prose ink, and a diff line's is the file's syntax
-   colour over a tint that has already spent most of the contrast there was. Measured in
-   both schemes over every role, --syn-comment reads 4.73:1 on the deletion tint — so a
-   deepening light enough to keep the 4.5 the render gate holds every word of code to is
-   too light to see at all: 6% --danger already reads 4.4. A rule spends no luminance. */
-pre [data-lf-diff] { text-decoration-line: underline; text-decoration-thickness: 2px;
-                     text-underline-offset: 2px; text-decoration-skip-ink: none; }
-pre [data-lf-diff="del"] { text-decoration-color: var(--danger); }
-pre [data-lf-diff="add"] { text-decoration-color: var(--ok); }
+/* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
+   through its variables above, and keeps its syntax roles readable on the denser one. */
+[data-diff-span] [data-lf-syn="cm"] { color: color-mix(in srgb, var(--syn-comment) 50%, var(--ink)); }
+[data-diff-span] [data-lf-syn="kw"] { color: color-mix(in srgb, var(--syn-keyword) 50%, var(--ink)); }
+[data-diff-span] [data-lf-syn="st"] { color: color-mix(in srgb, var(--syn-string) 50%, var(--ink)); }
+[data-diff-span] [data-lf-syn="nu"] { color: color-mix(in srgb, var(--syn-number) 50%, var(--ink)); }
+[data-diff-span] [data-lf-syn="fn"] { color: color-mix(in srgb, var(--syn-name) 50%, var(--ink)); }
+[data-diff-span] [data-lf-syn="ty"] { color: color-mix(in srgb, var(--syn-type) 50%, var(--ink)); }
 /* Syntax colour is the same statement the document makes, and the tokens are in here
    rather than out there, so the rules come too. The custom properties they read inherit
    through the boundary, which is why only the selectors need repeating. */

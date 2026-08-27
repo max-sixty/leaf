@@ -146,7 +146,7 @@ client/
   offline/
     merge.ts  +186 -31
     queue.ts  +142 -11
-    store.ts  +88 -4
+    document-store.ts
   editor/
     OfflineBanner.tsx  +37
 server/
@@ -155,7 +155,8 @@ server/
         </lf-tree>
         <p id="off-change-intro">
           <code>merge.ts</code> is where the rule above lives. Everything else carries
-          edits to it, keeps them on disk, or draws what it decided.
+          edits to it, keeps them on disk, or draws what it decided. The existing local
+          store also takes the less generic name <code>document-store.ts</code>.
         </p>
         <lf-diff id="off-merge-diff">
           <pre>
@@ -179,6 +180,10 @@ diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 +  }
 +  return out;
  }
+diff --git a/client/offline/store.ts b/client/offline/document-store.ts
+similarity index 100%
+rename from client/offline/store.ts
+rename to client/offline/document-store.ts
 </pre>
         </lf-diff>
         <p id="off-walk-intro">

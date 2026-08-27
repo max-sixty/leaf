@@ -254,7 +254,6 @@ import {
   createPassages,
   inChrome,
   inUi,
-  movedWords,
   renderRetired,
   says,
   textNodesUnder,

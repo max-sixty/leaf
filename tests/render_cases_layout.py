@@ -620,7 +620,7 @@ SHADOWED_DIFF = """<lf-diff id="shadowed"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
-@@ -1,3 +1,4 @@
+@@ -1,2 +1,3 @@
  def ceiling(limit, approvals):
 -    return limit
 +    # the ceiling doubles per approval
@@ -628,7 +628,7 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 </pre></lf-diff>
 </main>"""
 SHADOW_CODE_PAGE = LONG_PAGE.replace(
-    "</head>", "<style>:root { --syn-comment: #8b8577; }</style>\n</head>"
+    "</head>", "<style>:root { --syn-comment: #1c1b18; }</style>\n</head>"
 ).replace("</main>", SHADOWED_DIFF)
 
 # The other half of the boundary: what is painted behind a shadowed span is on the
@@ -1163,7 +1163,7 @@ WIDE_DIFF_PAGE = leaf_page(
 diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 --- a/client/offline/merge.ts
 +++ b/client/offline/merge.ts
-@@ -18,2 +18,2 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
+@@ -18 +18 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
 -  return apply(base, [...theirs, ...mine]);
 +  const clash = theirs.find((t) =&gt; t.field === edit.field &amp;&amp; t.at &gt; edit.at);
 </pre></lf-diff>

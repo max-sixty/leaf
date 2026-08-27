@@ -360,8 +360,8 @@ PAGE_STATE_FILES = (
     "service.json",
     "server.lock",
 )
-PAGE_OWNED_FILES = (*PACKAGE_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("versions", *PACKAGE_DIRS, MEDIA_DIR)
+PAGE_OWNED_FILES = ("index.html", *PACKAGE_FILES, *PAGE_STATE_FILES)
+PAGE_OWNED_DIRS = ("revisions", "versions", *PACKAGE_DIRS, MEDIA_DIR)
 # What the server exposes from a page directory: the browser layer, media, and
 # versions. Agent-side guidance stays vendored but is read only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
@@ -381,6 +381,7 @@ SERVED_PATH = re.compile(
         [re.escape(f) for f in VENDORED_FILES]
         + [f"{d}/{_DIR_FILES[d]}" for d in (*BROWSER_DIRS, MEDIA_DIR)]
         + [r"versions/v[1-9][0-9]*\.html"]
+        + [r"revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html"]
     )
     + ")"
 )

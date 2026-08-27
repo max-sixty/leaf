@@ -26,6 +26,7 @@ from render_support import (
     author_test_widget,
     composer_quote,
     leaf_page,
+    live_url,
     mark_shows_beside_composer,
     open_page,
     panel_settled,
@@ -34,8 +35,10 @@ from render_support import (
     refuse,
     resized,
     round_trip,
+    stamp_page,
     told,
     undo,
+    wait_for_revision,
     watched,
 )
 
@@ -133,7 +136,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     The card is told where it goes rather than the board being rebuilt around it,
     because that state can be stated: the reader watches it travel back, and the
     grip they were standing on is still under their hands."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
     grip = page.locator("#card-baffle .lf-grip")
     grip.focus()
     page.keyboard.press("Enter")
@@ -169,7 +172,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     v1 is where the move put it, and a press offered there would paint nothing at
     all. The conversation is not scoped this way and must not be: a thread outlives
     the version it was opened on, which is why resolve carries no version."""
-    page, errors = open_page(browser, serve(BOARD_PAGE))
+    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
     page.locator("#card-baffle .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
@@ -178,19 +181,15 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     expect(page.locator(".lf-keyline")).to_contain_text("undo")
 
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
-        BOARD_PAGE.replace(
-            '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n', ""
-        ).replace(
-            '<lf-column id="col-done" label="Done">',
-            '<lf-column id="col-done" label="Done">'
-            '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
-        )
+    carried = BOARD_PAGE.replace(
+        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n', ""
+    ).replace(
+        '<lf-column id="col-done" label="Done">',
+        '<lf-column id="col-done" label="Done">'
+        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "carried"}
-    )
-    page.wait_for_url("**/v2.html*")
+    stamp_page(d, carried, "carried")
+    wait_for_revision(page, 2)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     expect(page.locator(".lf-keyline")).not_to_contain_text("undo")
     page.keyboard.press("z")
@@ -475,7 +474,7 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sprint",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
@@ -782,7 +781,7 @@ def test_a_refused_position_rebuilds_the_whole_authored_sibling_order(browser, s
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sprint",
             "action": "move",
             "detail": {"card": "card-heater", "to": "col-todo", "index": 2},
@@ -1012,7 +1011,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sprint",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
@@ -1100,7 +1099,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sprint",
             "action": "move",
             "detail": {"card": "card-baffle", "to": "col-done", "index": 0},
@@ -1281,7 +1280,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sug-refill",
             "action": "reject",
             "detail": {},
@@ -1474,7 +1473,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "note-cli",
             "action": "edit",
             "detail": {"text": "Remote B"},
@@ -1621,7 +1620,7 @@ def test_a_rebuild_hands_back_the_place_and_the_marks(browser, serve):
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "this one matters",
             "anchor": {"quote": "Refill every feeder each morning."},
         },
@@ -1800,7 +1799,7 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     so the restore is a no-op, and one that was not, like this one, catches up."""
     url = serve(BOARD_PAGE)
     pinned, errors_pinned = open_page(browser, url + "&pin")
-    moved_on, errors_moved_on = open_page(browser, url)
+    moved_on, errors_moved_on = open_page(browser, live_url(url))
 
     pinned.locator("#card-baffle .lf-grip").focus()
     for key in ["Enter", "ArrowRight", "Enter"]:
@@ -1811,12 +1810,9 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
     # A second version that says nothing about the move — the card is where v1 wrote
     # it — so what the two tabs owe the card afterwards is visibly different.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(BOARD_PAGE)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "unchanged"}
-    )
-    moved_on.wait_for_url("**/v2.html*")
-    expect(moved_on).to_have_url(re.compile("v2"))
+    stamp_page(d, BOARD_PAGE, "unchanged")
+    wait_for_revision(moved_on, 2)
+    expect(moved_on).not_to_have_url(re.compile("/versions/"))
     expect(pinned).to_have_url(re.compile("v1"))
     # Replay carries the v1 move onto v2, so this tab is showing it.
     expect(moved_on.locator("#col-done #card-baffle")).to_have_count(1)
@@ -2103,22 +2099,19 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     # draft is mid-composition — and offers the new version as a chip, which the
     # user takes.
     d = serve.page_dir
-    (d / "versions" / "v2.html").write_text(
-        INLINE_PAGE.replace(
-            "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
-            "so that a selection across the middle of it lands in more than one text node.",
-            "Rewritten, with nothing left of the sentence the draft was about.",
-        )
+    rewritten = INLINE_PAGE.replace(
+        "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
+        "so that a selection across the middle of it lands in more than one text node.",
+        "Rewritten, with nothing left of the sentence the draft was about.",
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
+    stamp_page(d, rewritten, "two")
     told(page)
     expect(page.locator(".lf-latest-chip")).to_be_visible()
-    page.get_by_role("button", name="New version available", exact=False).click()
-    page.wait_for_url("**/v2.html")
+    page.get_by_role("button", name="New page available", exact=False).click()
+    wait_for_revision(page, 2)
+    expect(page).not_to_have_url(re.compile("/versions/"))
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'block'"
+        "() => document.querySelector('.lf-composer')?.style.display === 'block'"
     )
 
     assert page.locator(".lf-composer textarea").input_value() == (
@@ -2153,7 +2146,7 @@ def test_a_draft_that_outlives_its_passage_still_says_what_it_was_about(browser,
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
-        data={"kind": "comment", "version": 2, "text": "arriving from another tab"},
+        data={"kind": "comment", "revision": 2, "text": "arriving from another tab"},
     )
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     assert page.evaluate("() => getSelection().toString()") == held, (
@@ -2178,7 +2171,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "sprint",
             "action": "move",
             "detail": {"card": "card-heater", "to": "col-done", "index": 0},

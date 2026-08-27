@@ -63,12 +63,13 @@
  * a later edit remains. The same path serves general and selection comments, question
  * messages and replies, and lf-draft actions.
  *
- * Versions: the live page at `/` follows the newest version in the same document. It
- * fetches the next immutable file, upgrades and replays it behind a view-transition
- * boundary, then restores the reader's semantic landmark. Picking an older version
- * leaves the live page for that immutable file and pins it (?pin in the URL). One control
- * on the bar holds all of it — the version being read, the list of the rest with what each
- * changed, and the press on any older one that marks that change on the page.
+ * Versions: the live page at `/` follows the active working revision in the same document.
+ * It fetches each immutable revision file, upgrades and replays it behind a view-transition
+ * boundary, then restores the reader's semantic landmark. Stamping that revision changes
+ * its label without replacing the document. Picking a stamped version leaves the live page
+ * for that immutable version URL, which stays pinned. One control on the bar holds all of
+ * it — the revision being read, the stamped versions, and the press on an older one that
+ * marks that change on the page.
  *
  * Composing: every textarea behaves identically — saves its draft on each keystroke,
  * sends on ⌘/Ctrl+Enter — because they are all wired through wireInput. Growing with
@@ -248,7 +249,7 @@ import {
   renderSaid,
 } from "./runtime/presentation.js";
 import { reachScrollers } from "./runtime/reach.js";
-import { pageScroller } from "./runtime/scrolling.js";
+import { pageScroller, scrollerGutter } from "./runtime/scrolling.js";
 import {
   matchesWhen,
   registry,
@@ -389,7 +390,7 @@ function reportPageError(text) {
   postEvent({
     kind: "error",
     text,
-    ...(runtime.currentVersion != null && { version: runtime.currentVersion }),
+    ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
   }).catch(() => {});
 }
 window.addEventListener("error", (e) => {
@@ -475,7 +476,7 @@ export function conversationBox(el, hint) {
       (attempt) =>
         post({
           kind: "comment",
-          version: runtime.currentVersion,
+          revision: runtime.currentRevision,
           anchor: { section: el.id },
           text,
           attempt,
@@ -706,15 +707,21 @@ async function upgradeWidgets() {
 
 const VERSION_MATCH = location.pathname.match(VERSION_PATH);
 const LIVE_ROOT = location.pathname.endsWith("/") && !VERSION_MATCH;
-const servedVersion = document.querySelector(
-  'meta[name="lf-version"][data-lf-runtime]',
+const servedRevision = document.querySelector(
+  'meta[name="lf-revision"][data-lf-runtime]',
 )?.content;
-runtime.currentVersion = VERSION_MATCH
-  ? parseInt(VERSION_MATCH[1], 10)
-  : servedVersion
-    ? parseInt(servedVersion, 10)
+const servedStampMarker = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
+);
+runtime.currentRevision = servedRevision ? parseInt(servedRevision, 10) : null;
+runtime.currentStamp = servedStampMarker
+  ? parseInt(servedStampMarker.content, 10)
+  : VERSION_MATCH
+    ? parseInt(VERSION_MATCH[1], 10)
     : null;
-const PINNED = new URLSearchParams(location.search).has("pin");
+runtime.currentLabel =
+  runtime.currentStamp === null ? null : `v${runtime.currentStamp}`;
+servedStampMarker?.remove();
 // Sign-off is the page's ask, not standing chrome: the approve button exists only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
 // proposed change seeking assent. An informational page takes comments only, and
@@ -724,7 +731,9 @@ const PINNED = new URLSearchParams(location.search).has("pin");
 // So the one control a page that asks nothing put in front of its reader offered
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own ask.
-let signoff = document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
+let signoffDeclared =
+  document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
+let signoff = signoffDeclared && runtime.currentStamp !== null;
 const POLL_MS = 2000;
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -1085,9 +1094,9 @@ const showNews = (control, on) => {
 };
 const latestChip = el("button", "lf-ui lf-btn lf-latest-chip", "");
 // The keyboard reaches this through the chooser rather than past it: v opens the menu, and
-// the letter again takes the newest version. The chip names that motion, spelled from the
+// the letter again takes the current page. The chip names that motion, spelled from the
 // two rows that make it rather than typed out beside them.
-latestChip.title = "Open the newest version";
+latestChip.title = "Open the current page";
 // What the page is still waiting on the reader for, and the way to the next one — the
 // same list n/p step and the "?" overlay names, counted here so a reader who
 // has not scrolled that far still knows there is something to answer.
@@ -1396,7 +1405,7 @@ const {
   VERSIONS,
   activationIsForced,
   clearForcedActivation,
-  goVersion,
+  goActive,
   renderVersions,
   showVersionMenu,
   versionBtn,
@@ -1415,7 +1424,6 @@ const {
   midComposition: (...args) => midComposition(...args),
   paintDiff: (...args) => paintDiff(...args),
   paintHere,
-  pinned: PINNED,
   poll,
   pressComparison: (...args) => pressComparison(...args),
   setDiff: (...args) => setDiff(...args),
@@ -1447,8 +1455,10 @@ if (signoff) banner.append(approveBtn);
 // chrome that survives one. A soft activation can therefore add or remove the same
 // control; rebuilding the banner would throw away focus and every reserved neighbour.
 function stateSignoff(next) {
-  if (next === signoff) return;
-  signoff = next;
+  signoffDeclared = next;
+  const shown = signoffDeclared && runtime.currentStamp !== null;
+  if (shown === signoff) return;
+  signoff = shown;
   if (signoff) {
     banner.append(approveBtn);
     reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
@@ -1638,7 +1648,13 @@ document.body.append(chromeRoot);
 // they write can move them — a page with a thousand open threads, or a machine with
 // a thousand live pages, is not one anyone hands a user.
 if (signoff) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
-reserve(versionBtn, [versionLabel(false), versionLabel(true)]);
+const draftVersionLabel = "Draft after v999 ▾";
+reserve(versionBtn, [
+  versionLabel(false),
+  versionLabel(true),
+  draftVersionLabel,
+  `Δ ${draftVersionLabel}`,
+]);
 reserve(toggleBtn, ["Comments", "Comments (999)"]);
 reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
 reserve(asksBtn, ["Asks (999)"]);
@@ -1718,9 +1734,21 @@ const trayStrip = () =>
 // Its own function, and not syncLayout's, because the strip it vetoes is body's own
 // padding (theme.css) and syncLayout runs from an observation of that box — CLAUDE.md's
 // "The one writer may not write the box the layout is measured from", and the same reason
-// the strip the panel takes is a rule in the stylesheet above. Moving it costs nothing,
-// because neither fact it turns on is a reading of that box: the window states one and the
-// panel the other, and each arrives on an occasion of its own.
+// the strip the panel takes is a rule in the stylesheet above.
+//
+// So it is called and not observed, and it is only as fresh as its callers — which is
+// enough, because each fact it turns on either arrives on an occasion of its own or does
+// not move at all. The window states the cap on a resize, and the panel its strip on the
+// gesture that moves it. The scroller's gutter is the one with no occasion to arrive on:
+// body gains or loses its bar as the document's height crosses the viewport, and replay
+// retiring a slot, a widget settling late, or an image arriving can each do that with no
+// resize and no chrome gesture behind it. What answers that is the stylesheet rather than
+// a call from every such path — body is given scrollbar-gutter: stable in the same rule
+// that makes it the scroller (chrome-style.js), so the room is reserved whether or not a
+// bar is drawn in it and the difference between the two boxes holds still for the page's
+// life. Joining layoutSizes would be the fix if it did not, and it is the one the rule
+// above forbids: the strip this vetoes is padding on the observed box, and stateRoom can
+// be observed only because it writes nothing that box is measured from.
 //
 // The strip is stated rather than measured off body, whose clientWidth is the box itself
 // and would be the natural reading. The margin transitions, so a measurement taken during
@@ -1736,16 +1764,18 @@ const trayStrip = () =>
 // scroller's own bar and this can, which is the whole of what the runtime adds; a page with
 // no runtime behind it falls back to the viewport in each rule that reads it.
 function stateStrip() {
-  // The same gutter stateRoom takes off, and taken the same way, for the reason it gives
-  // there: body is the document's scroller, so a classic bar comes out of the room this
+  // The scroller's gutter, which stateRoom takes off for the same reason and by the same
+  // reading: body is the document's scroller, so a classic bar comes out of the room this
   // page has while the window says nothing about it. The coarse answer owes it as much as
   // the fine one. Without it the floor was met by a window with a bar's width less page
   // behind it, and the strip came out of the column the floor exists to keep it out of —
   // a sidenote page at exactly 1152px read at a 705px measure, and a sidebar and a note at
-  // 1416px did the same. Overlay scrollbars are 0 here, which is why a Mac never saw it.
-  const gutter = pageScroller.offsetWidth - pageScroller.clientWidth;
+  // 1416px did the same.
   const avail =
-    document.documentElement.clientWidth - gutter - panelStrip() - trayStrip();
+    document.documentElement.clientWidth -
+    scrollerGutter() -
+    panelStrip() -
+    trayStrip();
   document.body.toggleAttribute("data-lf-cramped", avail < stripMin());
   document.documentElement.style.setProperty("--lf-avail", avail + "px");
 }
@@ -1854,14 +1884,16 @@ function stateRoom() {
   const body = getComputedStyle(document.body);
   const column = getComputedStyle(main);
   // The gutter body reserves for its own scrollbar, which the window does not know about
-  // and the box in front of us has already given up. Read as the difference between the
-  // two boxes rather than asked of the platform, which has no way to be asked; it is a
-  // constant through a slide, both boxes moving with the margin together.
-  const gutter = document.body.offsetWidth - document.body.clientWidth;
+  // and the box in front of us has already given up. One reading (scrolling.js), because
+  // the veto above owes the same number and a second spelling of it here would be true by
+  // inspection rather than by construction.
   const room =
     Math.min(
       document.body.clientWidth,
-      document.documentElement.clientWidth - panelStrip() - trayStrip() - gutter,
+      document.documentElement.clientWidth -
+        panelStrip() -
+        trayStrip() -
+        scrollerGutter(),
     ) -
     parseFloat(body.paddingLeft) -
     parseFloat(body.paddingRight) -
@@ -2216,7 +2248,7 @@ const syncGeneral = wireInput(generalInput, {
   sendBtn: generalSend,
   save: (v) => saveDraft("general", v),
   send: async (text, raw) => {
-    const event = { kind: "comment", version: runtime.currentVersion, text };
+    const event = { kind: "comment", revision: runtime.currentRevision, text };
     if (designOn) event.about = "layer";
     const sent = await sendDraft(
       "general",
@@ -2232,9 +2264,15 @@ mirrorDraft(generalInput, syncGeneral, "general");
 
 let approving = false;
 function paintApproval() {
-  const approved = runtime.events.some((e) => e.kind === "done");
+  const approved = runtime.events.some(
+    (e) =>
+      e.kind === "done" &&
+      e.revision === runtime.currentRevision &&
+      e.version === runtime.currentStamp,
+  );
   approveBtn.disabled =
     approving ||
+    runtime.currentStamp === null ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
   approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
@@ -2245,7 +2283,12 @@ approveBtn.onclick = async () => {
   approveBtn.setAttribute("aria-busy", "true");
   paintApproval();
   try {
-    await post({ kind: "done", version: runtime.currentVersion, text: "Looks good" });
+    await post({
+      kind: "done",
+      revision: runtime.currentRevision,
+      version: runtime.currentStamp,
+      text: "Looks good",
+    });
   } finally {
     approving = false;
     approveBtn.removeAttribute("aria-busy");
@@ -2809,7 +2852,7 @@ async function reactHere(name, pill) {
   }
   const event = {
     kind: "comment",
-    version: runtime.currentVersion,
+    revision: runtime.currentRevision,
     token: name,
     anchor: structuredClone(anchor),
   };
@@ -3363,9 +3406,9 @@ const DESIGN = {
 // Escape is the one promotion over this order, because the way out of a current scene must
 // survive beside its way in.
 // v names the chooser, the control wearing the version number, and the menu it opens
-// takes the letter again for the newest version — one motion whose second half is a key of
+// takes the letter again for the current page — one motion whose second half is a key of
 // the scope the first half stood up, so it costs the table no row and holds whether or not
-// this page is behind. Named, because the chip that jumps straight to the newest version
+// this page is behind. Named, because the chip that jumps straight to the current page
 // spells that motion in its tooltip.
 const CHOOSER = {
   keys: ["v"],
@@ -3705,7 +3748,7 @@ const { loadIcon, renderStatus, toneFor } = createBanner({
   statusText,
 });
 
-const { activateVersion, currentActivation, trackActivation, versionDocument } =
+const { activateRevision, currentActivation, revisionDocument, trackActivation } =
   createVersionActivation(versionRoots, {
     captureAuthoredFacets: (...args) => captureAuthoredFacets(...args),
     captureView,
@@ -3772,7 +3815,7 @@ const midComposition = () =>
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
 // live root that is an explicit in-place release of the composition hold; on an immutable
 // page it is ordinary version travel.
-latestChip.onclick = () => goVersion(runtime.latestVersion);
+latestChip.onclick = () => goActive();
 
 // ---------- polling ----------
 // Rendering version V means making its DOM equal the log's desired projection.
@@ -4378,17 +4421,23 @@ async function receiveState(state) {
     notifyChangedData();
     return;
   }
-  const targetVersion = state.versions.at(-1) ?? null;
+  const targetRevision = state.active?.revision ?? null;
+  if (!Number.isInteger(targetRevision) || targetRevision < 1)
+    throw new TypeError("state active must name a positive revision");
+  if (LIVE_ROOT && runtime.currentRevision === null)
+    throw new TypeError("the live document has no lf-revision marker");
+  if (runtime.active && targetRevision < runtime.active.revision) {
+    notifyChangedData();
+    return;
+  }
   const wantsActivation =
     LIVE_ROOT &&
-    targetVersion !== null &&
-    runtime.currentVersion !== null &&
-    targetVersion > runtime.currentVersion;
+    runtime.currentRevision !== null &&
+    targetRevision > runtime.currentRevision;
   let incoming = null;
   let incomingFailed = false;
   if (wantsActivation) {
-    runtime.latestVersion = targetVersion;
-    latestChip.textContent = `New version available → open v${targetVersion}`;
+    latestChip.textContent = `New page available → open ${state.active.label}`;
     showNews(latestChip, true);
   }
   // Messages render from Markdown; have the renderer in hand before the panel
@@ -4400,12 +4449,12 @@ async function receiveState(state) {
     preparations.push(loadMarked());
   if (wantsActivation)
     preparations.push(
-      versionDocument(targetVersion)
+      revisionDocument(state.active)
         .then((doc) => (incoming = doc))
         .catch((error) => {
           incomingFailed = true;
           reportPageError(
-            `version v${targetVersion} failed to load: ${error?.message ?? error}`,
+            `revision ${targetRevision} failed to load: ${error?.message ?? error}`,
           );
         }),
     );
@@ -4424,15 +4473,24 @@ async function receiveState(state) {
     notifyChangedData();
     return;
   }
+  if (runtime.active && targetRevision < runtime.active.revision) {
+    notifyChangedData();
+    return;
+  }
   const willActivate =
     Boolean(incoming) &&
-    targetVersion > runtime.currentVersion &&
+    targetRevision > runtime.currentRevision &&
     (!midComposition() || activationIsForced()) &&
     !versionMenuIsOpen() &&
-    targetVersion === state.versions.at(-1);
+    targetRevision === state.active.revision;
   const priorEvents = runtime.events;
   const priorStatePhase = runtime.statePhase;
   const priorLastEventSeq = runtime.lastEventSeq;
+  const priorActive = runtime.active;
+  const priorVersions = runtime.versions;
+  const priorCurrentLabel = runtime.currentLabel;
+  const priorCurrentRevision = runtime.currentRevision;
+  const priorCurrentStamp = runtime.currentStamp;
   const priorClaimUpdateSources = claimUpdateSources();
   const priorClaimsHeld = claimsHeld;
   const priorAgentTurnClosed = agentTurnClosed;
@@ -4443,7 +4501,7 @@ async function receiveState(state) {
     runtime.statePhase = "ready";
     if (willActivate) {
       clearForcedActivation();
-      activation = await activateVersion(incoming, targetVersion);
+      activation = await activateRevision(incoming, state.active);
     }
     settleAcceptedDrafts();
     runtime.agent = state.agent || "Claude";
@@ -4453,12 +4511,13 @@ async function receiveState(state) {
     claimingSession = state.claim_session || null;
     renderStatus(state);
     renderVersions(state);
+    stateSignoff(signoffDeclared);
+    paintApproval();
     renderOthers(state);
     if (eventSeq > runtime.lastEventSeq || activation) {
       renderPanel();
       // Sign-off is a fact in the log, not a click this tab happens to remember, so a
       // reload (or the other tab) shows it too.
-      paintApproval();
       const agentReplies = runtime.events.filter(
         (e) => e.author === "claude" && e.kind === "reply",
       );
@@ -4482,7 +4541,7 @@ async function receiveState(state) {
       paintAnchors();
       updateFab();
       if (activation.comparedFrom !== null) showComparison(activation.comparedFrom);
-      showToast(`Updated to v${runtime.currentVersion}`);
+      showToast(`Updated to ${runtime.currentLabel}`);
     }
     // Only a complete application advances the read boundary. A render fault may
     // already have changed some local surfaces, but it has not made a state safe to use
@@ -4538,6 +4597,12 @@ async function receiveState(state) {
     runtime.events = priorEvents;
     runtime.statePhase = priorStatePhase;
     runtime.lastEventSeq = priorLastEventSeq;
+    runtime.active = priorActive;
+    runtime.versions = priorVersions;
+    runtime.currentLabel = priorCurrentLabel;
+    runtime.currentRevision = priorCurrentRevision;
+    runtime.currentStamp = priorCurrentStamp;
+    stateSignoff(signoffDeclared);
     setClaimUpdateSources(priorClaimUpdateSources);
     claimsHeld = priorClaimsHeld;
     agentTurnClosed = priorAgentTurnClosed;
@@ -4742,8 +4807,8 @@ async function startPage() {
   updateFab(); // an early selection is now read from the fully upgraded page
   paintHere(); // c is live again, whether or not that selection raised the button
   landArrival();
-  if (savedView && savedView.v < runtime.currentVersion)
-    showToast(`Updated to v${runtime.currentVersion}`);
+  if (savedView && savedView.revision < runtime.currentRevision)
+    showToast(`Updated to ${runtime.currentLabel}`);
   if (savedComposer)
     openComposer(
       savedComposer.anchor,

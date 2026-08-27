@@ -53,7 +53,6 @@ from render_support import (
     NAMED,
     NEIGHBOUR,
     NEIGHBOURHOOD,
-    OUT_OF_REACH_PAGE,
     PAGE_MARKUP,
     PAINTED_IN_SILENCE_PAGE,
     PANEL_DIFF_MARKUP,
@@ -103,6 +102,7 @@ from render_support import (
     page_at_rest,
     page_registry,
     panel_settled,
+    primed,
     record_claim,
     resized,
     ring_faults,
@@ -112,6 +112,7 @@ from render_support import (
     serious_axe_violations,
     shown_frames,
     solid_png,
+    stamp_version_file,
     standing_ring,
     token_colour,
     told,
@@ -812,7 +813,7 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "anchor": {"section": "pick"},
             "text": "neither — cap the retries instead",
         },
@@ -1229,7 +1230,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     and the panel place. Reloading makes Mermaid generate the SVG again and proves the
     stable token resolves to that new box.
     """
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page, errors = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
 
     unlisted = diagram.locator('g[id^="flowchart-U-"]')
@@ -1262,10 +1263,7 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
     (serve.page_dir / "versions" / "v2.html").write_text(PART_DIAGRAM_V2)
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "note", "author": "claude", "version": 2, "text": "reordered"},
-    )
+    stamp_version_file(serve.page_dir, 2, "reordered")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     expect(diagram.locator('g[id^="flowchart-S-"]')).to_have_class(
@@ -1409,7 +1407,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "work",
             "action": "move",
             "detail": {"card": "card-importer", "to": "col-done", "index": 0},
@@ -1542,7 +1540,7 @@ def test_a_marked_element_wears_the_same_stroke_on_every_side(browser, serve):
             {
                 "kind": "comment",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "text": "Say more about this.",
                 "anchor": {"section": ident},
             },
@@ -1690,9 +1688,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
 
     def publish_v2():
         (d / "versions" / "v2.html").write_text(html)
-        events_model.append_event(
-            d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-        )
+        stamp_version_file(d, 2, "two")
 
     # The same events a second tab's presses would have posted, which is the only way one
     # user's browser hears about another's decisions.
@@ -1703,7 +1699,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
                 {
                     "kind": "action",
                     "author": "user",
-                    "version": 1,
+                    "revision": 1,
                     "widget": widget,
                     "action": "accept",
                     "detail": {},
@@ -1715,7 +1711,12 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
             "a tenth comment arrives",
             lambda: events_model.append_event(
                 d,
-                {"kind": "comment", "author": "user", "version": 1, "text": "A tenth."},
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "A tenth.",
+                },
             ),
             f"() => document.querySelector('{comments}').textContent === 'Comments (10)'",
         ),
@@ -1935,7 +1936,7 @@ def test_a_panel_row_follows_its_pages_status_live(
         # it stands on, and the tray says it for every page on the machine.
         events_model.append_event(
             other_dir,
-            {"kind": "comment", "author": "user", "version": 1, "text": "Mine."},
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Mine."},
         )
         told(page)
         expect(row).to_have_attribute(
@@ -2348,7 +2349,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "kind": "comment",
             "id": "c-diff",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What does the change look like?",
         },
     )
@@ -2361,7 +2362,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "kind": "reply",
             "author": "claude",
             "parent": "c-diff",
-            "version": 1,
+            "revision": 1,
             "text": "The one line that decides it:",
             "markup": PANEL_DIFF_MARKUP,
         },
@@ -2634,10 +2635,9 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):
     """`version check --render` end to end, as the agent runs it: the static lint
-    passes both versions, and only the one that renders clean may reach a user.
-    The broken version is deliberately unpublished — refusing it before
-    `version publish` exposes it is the gate's whole job, so the preview server
-    has to expose what no user-facing server would."""
+    passes both sources, and only one renders clean. The broken source is deliberately
+    unstamped — refusing it before `version stamp` names it is the gate's whole job,
+    so the preview server has to expose the exact candidate without activating it."""
     serve(LONG_PAGE)
     d = serve.page_dir
 
@@ -2663,10 +2663,10 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
-    (d / "versions" / "v2.html").write_text(
+    (d / "index.html").write_text(
         LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
     )
-    broken = gate("--version", "2")
+    broken = gate()
     assert broken.returncode == 1
     assert "scrolls sideways" in broken.stderr
 
@@ -2689,18 +2689,16 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
         check=False,
     )
     assert init.returncode == 0, init.stderr
-    (page_dir / "versions" / "v1.html").write_text(
+    (page_dir / "index.html").write_text(
         (root / "examples" / "release-notes.html").read_text()
     )
     shutil.copytree(EXAMPLE_MEDIA, page_dir / "media", dirs_exist_ok=True)
-    publish = subprocess.run(
+    stamp = subprocess.run(
         [
             launcher,
             "version",
-            "publish",
+            "stamp",
             page_dir,
-            "--version",
-            "1",
             "--text",
             "installed-payload smoke",
         ],
@@ -2709,7 +2707,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
         text=True,
         check=False,
     )
-    assert publish.returncode == 0, publish.stderr
+    assert stamp.returncode == 0, stamp.stderr
 
     rendered = subprocess.run(
         [launcher, "version", "check", page_dir, "--render"],
@@ -2761,10 +2759,10 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     moves: a comparison is many alternations, and the whole worth of a flip is that
     the eye can hold still through them. Pressing the switch instead would assert the
     state swaps while saying nothing about what it costs to swap it."""
-    url = serve(SHOT_PAGE)
-    for name, data in SHOTS.items():
-        (serve.page_dir / "media").mkdir(exist_ok=True)
-        (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
     assert rendering_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
@@ -2806,10 +2804,10 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     all, and what is left to lose is the gesture: `for` is a reflected attribute where
     `checked` was not, and a copy that dropped it would keep every frame and every word
     and answer no click on the image."""
-    url = serve(SHOT_PAGE)
-    for name, data in SHOTS.items():
-        (serve.page_dir / "media").mkdir(exist_ok=True)
-        (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
 
     standalone = tmp_path / "standalone.html"
     standalone.write_text(rendering_model.export_page(browser, url, serve.page_dir))
@@ -2831,12 +2829,11 @@ def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
     page_html = SHOT_PAGE.replace(
         SHOT_SRC["after"], f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
     )
-    url = serve(page_html)
-    (serve.page_dir / "media").mkdir(exist_ok=True)
-    (serve.page_dir / SHOT_SRC["before"].lstrip("/")).write_bytes(SHOTS["before"])
-    (
-        serve.page_dir / "media" / f"{hashlib.sha256(narrow).hexdigest()[:16]}.png"
-    ).write_bytes(narrow)
+    narrow_src = f"/media/{hashlib.sha256(narrow).hexdigest()[:16]}.png"
+    url = serve(
+        page_html,
+        media={SHOT_SRC["before"]: SHOTS["before"], narrow_src: narrow},
+    )
 
     assert [
         f
@@ -2860,14 +2857,42 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
-    native_link = CARRIED_PAGE.replace(
-        '<lf-option id="c-lax" chosen>',
-        '<lf-option id="c-lax" chosen><a class="lf-ui" href="#h">Read context</a>',
+
+    def put_native_link(page):
+        page.add_init_script(
+            """addEventListener('DOMContentLoaded', () => {
+              const link = document.createElement('a');
+              link.className = 'lf-ui';
+              link.href = '#h';
+              link.textContent = 'Read context';
+              document.getElementById('c-lax').prepend(link);
+            }, {once: true});"""
+        )
+
+    assert (
+        rendering_model.render_version(
+            primed(browser, put_native_link), serve(CARRIED_PAGE)
+        )
+        == []
+    ), "a native link's words label its browser-owned control rather than the page"
+
+    def put_words_out_of_reach(page):
+        page.add_init_script(
+            """addEventListener('DOMContentLoaded', () => {
+              const option = document.getElementById('c-lax');
+              const row = document.createElement('div');
+              row.className = 'lf-ui';
+              row.innerHTML = '<strong>Session cookies</strong>';
+              const button = document.createElement('button');
+              button.setAttribute('data-lf-said', '');
+              button.textContent = 'Lax, host-only';
+              option.prepend(row, button);
+            }, {once: true});"""
+        )
+
+    found = rendering_model.render_version(
+        primed(browser, put_words_out_of_reach), serve(CARRIED_PAGE)
     )
-    assert rendering_model.render_version(browser, serve(native_link)) == [], (
-        "a native link's words label its browser-owned control rather than the page"
-    )
-    found = rendering_model.render_version(browser, serve(OUT_OF_REACH_PAGE))
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
             '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
@@ -2957,7 +2982,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "kind": "comment",
             "id": "c-ask",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "What would the alternative look like?",
         },
     )
@@ -2967,7 +2992,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
             "kind": "reply",
             "author": "claude",
             "parent": "c-ask",
-            "version": 1,
+            "revision": 1,
             "text": SPECIMEN_TEXT,
             "markup": SPECIMEN_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
         },
@@ -3409,7 +3434,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         {
             "kind": "report",
             "author": "agent",
-            "version": 1,
+            "revision": 1,
             "widget": "task",
             "action": "status",
             "detail": {"status": "blocked"},
@@ -3427,7 +3452,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         {
             "kind": "report",
             "author": "agent",
-            "version": 1,
+            "revision": 1,
             "widget": "child",
             "action": "status",
             "detail": {"status": "blocked"},
@@ -3462,10 +3487,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         .replace('id="quota-ready" chosen', 'id="quota-ready"')
     )
     (serve.page_dir / "versions" / "v2.html").write_text(quota_v2)
-    events_model.append_event(
-        serve.page_dir,
-        {"kind": "note", "author": "claude", "version": 2, "text": "same plan"},
-    )
+    stamp_version_file(serve.page_dir, 2, "same plan")
     told(current)
     expect(current.locator(".lf-version")).to_contain_text("v2")
     expect(current.locator("#destination > #quota")).to_have_count(1)
@@ -3493,7 +3515,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         {
             "kind": "action",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "widget": "quota",
             "action": "move",
             "detail": {"to": "destination", "index": 0},

@@ -135,13 +135,13 @@ in the version note. Suggest wording the reader could reasonably prefer as it
 stands.
 
 Use `lf-draft` for a passage whose wording belongs to the reader. Carry their
-submitted words verbatim into the next version. A draft never sits inside a
+submitted words verbatim into the next revision. A draft never sits inside a
 suggestion, and a suggestion does not propose a widget's state.
 
 ## Honoring reader state
 
 The event log outranks authored markup. The browser replays every standing action
-onto later versions, but the version must eventually record the decision so the
+onto later revisions, but the source must eventually record the decision so the
 page reads correctly without the log:
 
 - Mark every picked option `chosen`.
@@ -162,7 +162,7 @@ not carry a gesture withdrawn by an `undo` event.
 
 ## Keeping the current page current
 
-Each version presents what is live now. Move a concluded section intact to a
+Each active revision presents what is live now. Move a concluded section intact to a
 `Settled` section at the foot, inside a `<details>` whose summary names the
 question and what closed it. Preserve its ids and words. Mark a concluded
 `lf-options` group `settled` when it retires inside a section that remains live.
@@ -223,11 +223,11 @@ and URLs as real links.
 
 ## Pre-handover review
 
-Publishing runs the deterministic markup check. For a quick page put up for
-reaction, that check is the whole gate, and the URL goes out as soon as it
-passes. A finished record takes the browser gate once before its URL first
-reaches the user; a quick page that a version turns into a record takes it
-before that version goes out:
+Every source activation runs the deterministic markup check. For a quick page
+put up for reaction, that check is the whole gate, and the URL goes out as soon
+as it passes. A finished record takes the browser gate once before its URL first
+reaches the user; a quick page that a stamp turns into a record takes it before
+that stamp:
 
 ```bash
 leaf version check <page> --render

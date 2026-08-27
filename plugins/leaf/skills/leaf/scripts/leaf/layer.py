@@ -11,15 +11,15 @@ from .events import flocked, now_iso, read_events
 from .files import (
     _path_location,
     json_bytes,
+    latest_revision,
     located,
     location_is_within,
     locations_overlap,
     path_is_within,
     paths_same,
-    published_versions,
     read_json,
     replace_files,
-    version_path,
+    revision_path,
     write_json,
 )
 from .projection import page_projection
@@ -436,11 +436,13 @@ def _vendor_page(
             + "\n".join(f"  - {error}" for error in data_errors)
             + "\nclear those sources with `leaf data clear` before re-vendoring."
         )
-    published = published_versions(page_dir, events)
-    if published:
-        version = published[-1]
-        html = version_path(page_dir, version).read_text(encoding="utf-8")
-        projection, parser, _spk = page_projection(html, events, incoming, version)
+    try:
+        revision = latest_revision(page_dir)
+    except SystemExit:
+        revision = None
+    if revision is not None:
+        html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+        projection, parser, _spk = page_projection(html, events, incoming, revision)
         unseated = widget_work_without_seats(
             html,
             parser,
@@ -454,7 +456,7 @@ def _vendor_page(
                 "the incoming layer would remove the local seat for active widget "
                 "work on "
                 + ", ".join(repr(widget) for widget in unseated)
-                + "; publish a later version with --completes for that work before "
+                + "; stamp a later version with --completes for that work before "
                 "re-vendoring"
             )
 

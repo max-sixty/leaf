@@ -1,10 +1,21 @@
 # Page storage
 
 A page directory holds:
-    versions/v1.html…    immutable page versions (the agent writes them). The server
-                         exposes a version only once `version publish` lands its
-                         note, after `version check` passes, so a half-written or
-                         broken file is never live to an open browser.
+    index.html            mutable author source. The agent writes only this file.
+                         The server validates it before activation and never serves
+                         it directly. An invalid save creates no revision, leaves the
+                         previous valid revision live, and exposes the diagnostic in
+                         page state and browser chrome.
+    revisions/rN-H.html… immutable valid saves, where N is activation order and H is
+                         the first 16 hexadecimal characters of the source digest.
+                         A changed valid source becomes the next revision; identical
+                         bytes reuse the existing one. The live root follows the
+                         active revision.
+    versions/v1.html…    immutable stamped checkpoints written by `version stamp`.
+                         A note maps each public version to the exact revision it
+                         stamped. A pinned `/versions/vN.html` therefore never moves,
+                         even while later source saves become live. Leaf alone writes
+                         both immutable directories.
     leaf.js              the browser entry, served at /leaf.js
     theme.css            tokens, element styles, class idioms, element-widget CSS
     registry.json        the widget vocabulary: JSON Schema per lf-* tag, plus the
@@ -27,7 +38,7 @@ A page directory holds:
                          (`page media`). Not vendored — this is the page's content,
                          not the layer's — but served the same way.
                          Content-addressing is what lets content live here at all:
-                         a name means one set of bytes forever, so a version the
+                         a name means one set of bytes forever, so a revision the
                          user approved cannot show them different pixels later,
                          and two versions showing the same screenshot share one
                          file rather than carrying a copy each. It is also the

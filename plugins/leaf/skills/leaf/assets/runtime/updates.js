@@ -42,14 +42,14 @@ export function createUpdates(runtime, dependencies) {
           event.kind === "action" &&
           event.widget === widget.id &&
           (!verb || event.action === verb) &&
-          (inChrome(widget) || event.version <= runtime.currentVersion) &&
+          (inChrome(widget) || event.revision <= runtime.currentRevision) &&
           live(event),
       )
       .map((event) => structuredClone(event));
   }
 
   const actionSequence = (widget, action) => {
-    const projection = stateProjection(runtime.currentVersion);
+    const projection = stateProjection(runtime.currentRevision);
     return sequence(widget, action, (e) => projectionCommitted(projection, e));
   };
 
@@ -102,7 +102,7 @@ export function createUpdates(runtime, dependencies) {
         detail: event.detail,
         text: field ? event.detail[field] : null,
         ts: event.ts,
-        version: event.version,
+        revision: event.revision,
         seq: event.seq,
         agent: event.agent ?? null,
         session: event.session ?? null,
@@ -162,7 +162,7 @@ export function createUpdates(runtime, dependencies) {
   }
 
   const updateSequence = (target = null) =>
-    updatesFromProjection(target, stateProjection(runtime.currentVersion));
+    updatesFromProjection(target, stateProjection(runtime.currentRevision));
 
   // Do not narrate a report while its coordinate still paints the prior winner.
   function reportUpdatesCommitted(projection, target) {
@@ -178,28 +178,31 @@ export function createUpdates(runtime, dependencies) {
     );
   }
 
-  // When the version being read was published — the floor under any statement about how
-  // fresh what the page says is. A row nobody has reported on is not a row of unknown age:
-  // its words were asserted when this version landed, and are exactly that old.
+  // When the revision being read became active, or when its public stamp landed — the
+  // floor under any statement about how fresh what the page says is. A row nobody has
+  // reported on is not a row of unknown age: its words are exactly this old.
   //
   // Without the floor, silence renders as nothing at all, which is the one direction a
   // freshness line must never fail in. A fleet whose workers all died at six in the
-  // evening, on a page republished at six, shows five rows claiming work and no elapsed
+  // evening, on a page updated at six, shows five rows claiming work and no elapsed
   // line anywhere at eight the next morning — a dead fleet reading healthy, which is the
   // claim-nobody-revises failure the banner's own judgment exists to answer, reintroduced
   // one section below the banner.
   const publishedAt = () => {
-    let ts = null;
+    let ts =
+      runtime.active?.revision === runtime.currentRevision
+        ? runtime.active.activated_at
+        : null;
     for (const e of runtime.events)
-      if (e.kind === "note" && e.version === runtime.currentVersion) ts = e.ts;
+      if (e.kind === "note" && e.revision === runtime.currentRevision) ts = e.ts;
     return ts;
   };
 
   // When the words around an element were said. A page's own content was said when its
-  // version was published; a widget an agent put in a message was said when the message
+  // revision became active; a widget an agent put in a message was said when the message
   // was, which is a later moment and often a much later one. Anything measuring "how long
   // since we heard anything" has to take the second where it stands in one, or a roster
-  // carried in a reply certifies its workers against a publish from before the reply
+  // carried in a reply certifies its workers against an activation from before the reply
   // existed — the freshness line answering for a page nobody was asking about.
   const saidAt = (el) =>
     closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
@@ -224,7 +227,7 @@ export function createUpdates(runtime, dependencies) {
 
   const watchUpdates = (target, callback) =>
     watch(target instanceof Element ? target : document.body, () => {
-      const projection = stateProjection(runtime.currentVersion);
+      const projection = stateProjection(runtime.currentRevision);
       if (!reportUpdatesCommitted(projection, target)) return;
       callback(updatesFromProjection(target, projection));
     });

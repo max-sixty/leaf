@@ -43,13 +43,16 @@ from render_support import (
     compare_with,
     composer_quote,
     key_line,
+    live_url,
     mark_point,
     open_page,
     panel_settled,
     post_event,
     round_trip,
     select,
+    stamp_version_file,
     told,
+    wait_for_revision,
 )
 
 pytestmark = pytest.mark.nightly
@@ -213,7 +216,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     unupgraded, where these spans don't exist. Drop their data-lf-gen and every widget
     holding a said attribute lights up as changed on every revision — a failure that
     looks like a busy page rather than like a bug."""
-    page, errors = open_page(browser, serve(SAID_PAGE))
+    page, errors = open_page(browser, live_url(serve(SAID_PAGE)))
 
     heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
     box = heading.bounding_box()
@@ -246,10 +249,8 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     (d / "versions" / "v2.html").write_text(
         SAID_PAGE.replace("Waiting on the importer.", "Unblocked; starting Thursday.")
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "two")
+    wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
         "the comment came loose from the heading when the version turned over"
@@ -335,7 +336,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
     quote = "The feed has been stable since the battery swap; one open follow-up on storage."
     url = serve(example, anchored=[("camera-note", quote)])
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
 
     implementation = page.get_by_role("tab", name="Bracket installation")
     vision = page.get_by_role("tab", name="Vision")
@@ -395,7 +396,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     A real drag, because the whole class of bug is text that looks selectable and
     isn't. Then the republish, because an anchor on a widget's word has to survive a
     version turning over the way one on a paragraph does."""
-    page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    page, errors = open_page(browser, live_url(serve(CONTROL_LABEL_PAGE)))
 
     tab = page.get_by_role("tab", name="Heated bird bath")
     box = tab.bounding_box()
@@ -428,10 +429,8 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
             "the south pair waits on brackets", "the brackets arrived"
         )
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "two")
+    wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
         "the comment came loose from the tab's name when the version turned over"
@@ -862,7 +861,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     All of them name the same words, so all of them have to find them — otherwise a
     comment made last month hangs off a passage the page insists isn't there."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     passage = "bold text and emphasis inside it"
     forms = {
         "as the page holds it": passage,
@@ -879,7 +878,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
             url.rsplit("/versions/", 1)[0] + "/api/event",
             data={
                 "kind": "comment",
-                "version": 1,
+                "revision": 1,
                 "text": name,
                 "anchor": {"section": None, "quote": quote},
             },
@@ -899,7 +898,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "words the page never runs together",
             "anchor": {"section": None, "quote": "boldtext"},
         },
@@ -988,13 +987,13 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     and a link inside a highlighted passage stops navigating. Real button presses,
     because a synthetic click event sails straight past the gap it lives in."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "on the passage",
             "anchor": {"section": "p", "quote": "bold text"},
         },
@@ -1042,17 +1041,18 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     raised the comment button on top of it — and the element anchor that left behind reads
     as composition in progress, which is what stops a page following new versions. The
     panel starts shut here because a panel already open is the case with no reflow."""
-    url = serve(INLINE_PAGE)
+    version_url = serve(INLINE_PAGE)
+    url = live_url(version_url)
     page, errors = open_page(browser, url)
     # A quote inside the figure's caption: a painted range, so opening the panel reflows the
     # text out from under the pointer. An element anchor wouldn't show it — a figure still
     # covers the same point after the column narrows.
     post_event(
         page,
-        url.rsplit("/versions/", 1)[0] + "/api/event",
+        version_url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "on the caption",
             "anchor": {"section": "fig", "quote": "A specimen, for element anchors."},
         },
@@ -1077,10 +1077,8 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     (d / "versions" / "v2.html").write_text(
         INLINE_PAGE.replace('<h1 id="t">Inline</h1>', '<h1 id="t">Inline II</h1>')
     )
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "two"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "two")
+    wait_for_revision(page, 2)
     assert errors == []
     page.close()
 
@@ -1153,7 +1151,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "does prod want --sql here?",
             "anchor": {
                 "section": "walk",
@@ -1548,10 +1546,10 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     The staged control is the one the register could not reach at all.
     `document.activeElement` retargets to the host, so the scope walk started at the
     widget and never saw the control the reader was standing on."""
-    url = serve(NATIVE_CONTROL_PAGE)
-    for name, data in SHOTS.items():
-        (serve.page_dir / "media").mkdir(exist_ok=True)
-        (serve.page_dir / SHOT_SRC[name].lstrip("/")).write_bytes(data)
+    url = serve(
+        NATIVE_CONTROL_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
     page, errors = open_page(browser, url)
     line = page.locator(".lf-keyline")
 
@@ -1615,7 +1613,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
             url.rsplit("/versions/", 1)[0] + "/api/event",
             data={
                 "kind": "comment",
-                "version": 1,
+                "revision": 1,
                 "text": text,
                 "anchor": {"section": "fig"},
             },
@@ -1651,7 +1649,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
             {
                 "kind": "comment",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "text": f"About {ident}.",
                 "anchor": {"section": ident},
             },
@@ -1707,7 +1705,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
             {
                 "kind": "comment",
                 "author": "user",
-                "version": 1,
+                "revision": 1,
                 "text": f"About {ident}.",
                 "anchor": {"section": ident},
             },
@@ -1747,7 +1745,7 @@ def test_the_pointer_stops_claiming_a_mark_it_scrolled_past(browser, serve):
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "comment",
-            "version": 1,
+            "revision": 1,
             "text": "up top",
             "anchor": {"section": "p0", "quote": "Paragraph 0."},
         },
@@ -1805,7 +1803,7 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
     order is not evidence, so the comment detaches visibly instead of moving to words it
     was never made on."""
     url = serve(DRIFT_V1)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     landed = page.evaluate("""async () => {
         const p = document.querySelectorAll('#drift p')[0];
         const phrase = 'The version stamp never lands';
@@ -1830,10 +1828,8 @@ def test_an_ambiguous_revised_passage_detaches_instead_of_guessing(browser, serv
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(DRIFT_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "revised"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "revised")
+    wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     expect(page.locator(".lf-thread .lf-quote")).to_have_attribute(
@@ -1942,7 +1938,7 @@ def test_an_anchor_stored_under_the_section_clipped_capture_still_resolves(
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "old bar",
             "anchor": {
                 "section": "edge",
@@ -1978,7 +1974,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
         {
             "kind": "comment",
             "author": "claude",
-            "version": 1,
+            "revision": 1,
             "text": "older anchor",
             "anchor": {
                 "section": "edge",
@@ -2107,7 +2103,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     The cost of refusing is visible instead: the thread detaches until a later version
     makes its passage unique again."""
     url = serve(THIN_V1)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     posted = page.evaluate("""async () => {
         const p = document.querySelectorAll('#thin p')[0];
         const phrase = 'The version stamp never lands';
@@ -2132,10 +2128,8 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
 
     d = serve.page_dir
     (d / "versions" / "v2.html").write_text(THIN_V2)
-    events_model.append_event(
-        d, {"kind": "note", "author": "claude", "version": 2, "text": "revised"}
-    )
-    page.wait_for_url("**/v2.html")
+    stamp_version_file(d, 2, "revised")
+    wait_for_revision(page, 2)
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     assert errors == []
@@ -2160,7 +2154,7 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     assert [t.split(" ")[0] for t in rows.all_text_contents()] == [
         f"v{n}" for n in range(1, 11)
     ]
-    expect(rows.last).to_have_text("v10 (latest)")
+    expect(rows.last).to_have_text("v10 (latest version)")
     # The bases a diff can run against are every version older than this one, so the
     # last press in the menu is v9 — which is what "the version before this" comes to
     # once the ordering has decided it.
@@ -2180,7 +2174,7 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     # that spells a version out in a sentence.
     page, errors = open_page(browser, url, pin=True)
     expect(page.locator(".lf-latest-chip")).to_have_text(
-        "New version available → open v10"
+        "New page available → open v10"
     )
     assert errors == []
     page.close()
@@ -2203,7 +2197,7 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     Asserted from both doors, the pointer's being the one that would have kept the trap,
     and the walk asserted absent so the fix cannot be "make everything live"."""
     url = serve(INLINE_PAGE)
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     menu = page.locator(".lf-version-menu")
     line = page.locator(".lf-keyline")
 
@@ -2230,11 +2224,11 @@ def test_the_menu_a_first_version_opens_is_a_menu_it_can_close(browser, serve):
     page.keyboard.press("Escape")
 
     # The control: a second version, where the walk is live and the layer is unchanged.
-    # The page is unpinned, so it follows the new version itself on its next poll —
-    # waited for rather than forced with a reload, which raced that navigation and lost
-    # the press to it about one run in five.
+    # The live root follows the new revision itself on its next poll — waited for rather
+    # than forced with a reload, which raced that activation and lost the press to it
+    # about one run in five.
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
-    page.wait_for_url("**/versions/v2.html*")
+    wait_for_revision(page, 2)
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-version-row').length > 1"
     )
@@ -2381,10 +2375,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     assert "/versions/v2.html" in page.url, "closing the menu navigated"
 
-    # Choosing a row is the navigation, and the newest is the one that unpins.
+    # Choosing a row is exact historical navigation, including for the newest stamp.
     btn.click()
     page.locator('.lf-version-row[data-lf-version="3"]').click()
-    page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    page.wait_for_url(re.compile(r"/versions/v3\.html\?pin=$"))
     assert errors == []
     page.close()
 
@@ -2496,7 +2490,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     # And the key the row had been leaving unnamed does what the row now says it does.
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
     page.keyboard.press("Space")
-    page.wait_for_url(lambda u: u.endswith("/versions/v2.html"))
+    page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))
     assert errors == []
     page.close()
 
@@ -2526,21 +2520,21 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     expect(menu).to_be_hidden()
     # And it arrives on the next poll rather than waiting on a fourth version.
     expect(page.locator(".lf-version-row")).to_have_count(3)
-    expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest)")
+    expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest version)")
     assert errors == []
     page.close()
 
 
-def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
-    """A pinned page stays where the reader put it and offers the newest as a chip. The
+def test_the_current_page_is_the_chooser_key_twice(browser, serve):
+    """A pinned version stays where the reader put it and offers the current page as a chip. The
     keyboard reaches that chip's destination through the chooser rather than past it: v
-    opens the menu and the letter again takes the newest version, by that row's own
-    press, so the key leaves through the door the pointer uses and the pin lifts with it.
+    opens the menu and the letter again takes the live page, by that row's own press, so
+    the key leaves through the door the pointer uses and the historical URL stays exact.
 
     Which is the newest row, not the row the walk stands on — that one is Enter's, and a
     reader who has walked away from where they started must still be able to say "the
     current state" in one press. And the second press carries no liveness of its own,
-    which is the point of spelling the move this way: the menu always has a newest row,
+    which is the point of spelling the move this way: the menu always has a current row,
     so the motion holds wherever the reader is — including on the page already reading
     that row, where a key of the page's own would have had to stand down and every
     surface say so."""
@@ -2555,7 +2549,7 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     # The menu's keys are one declaration, so the reference names this one beside the
     # walk it saves.
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("Open the newest version")
+    expect(help_el).to_contain_text("Open the current page")
     page.keyboard.press("Escape")
 
     # The first press opens and goes nowhere. A whole poll passes before the reading,
@@ -2565,13 +2559,12 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     told(page)
     assert page.url.endswith("pin"), "the press that opens the menu navigated"
 
-    # Walk off the version being read, so the row under the focus is not the newest and
+    # Walk off the version being read, so the row under the focus is not the current one and
     # not the one this press takes.
     page.keyboard.press("ArrowDown")
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("v")
-    # No query: the newest version is the one that unpins, whichever route reaches it.
-    page.wait_for_url(lambda u: u.endswith("/versions/v3.html"))
+    page.wait_for_url(re.compile(r"/$"))
     # The rebuilt list is what says the page arriving here has heard from the server.
     # A hidden chip does not: that is also how the banner stands before the first poll,
     # so an assertion on it alone would read the same on a page that had heard nothing —
@@ -2579,11 +2572,11 @@ def test_the_newest_version_is_the_chooser_key_twice(browser, serve):
     expect(page.locator(".lf-version-row")).to_have_count(3)
     expect(page.locator(".lf-latest-chip")).to_be_hidden()
 
-    # And it is still offered here, with the chip gone: opening the newest version is
+    # And it is still offered here, with the chip gone: opening the current page is
     # what the press does on the page already reading it, so no surface stands it down.
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(help_el).to_contain_text("Open the newest version")
+    expect(help_el).to_contain_text("Open the current page")
     assert errors == []
     page.close()
 
@@ -2795,7 +2788,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
             "kind": "comment",
             "id": "c-staged",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "text": "About the staged line.",
             "anchor": {"section": "row"},
         },

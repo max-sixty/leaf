@@ -440,7 +440,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "token": "no",
             "anchor": {"section": "merge-both", "quote": "one document offline"},
         },
@@ -482,7 +482,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         {
             "kind": "comment",
             "author": "user",
-            "version": 1,
+            "revision": 1,
             "token": "cut",
             "anchor": {"section": "how-store", "quote": "every edit"},
         },

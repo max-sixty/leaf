@@ -5,7 +5,12 @@ import sys
 from pathlib import Path
 
 from leaf.events import append_event, thread_roots
-from leaf.files import latest_published, version_path
+from leaf.files import (
+    latest_published,
+    latest_revision,
+    revision_path,
+    version_revisions,
+)
 from leaf.passages import capture_anchor
 from leaf.projection import (
     decisions,
@@ -15,9 +20,10 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry import require_registry
+from leaf.revisioning import activate_source
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, contract_writer, message_identity
-from leaf.structure import parse_version
+from leaf.structure import parse_revision
 from leaf.validation import (
     check_markup,
     read_text_arg,
@@ -41,17 +47,18 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     Both readings below project markup alone: the empty event lists are the gate's
     subject rather than an omission. The reader's own pick lives in the log, and
     folding it in moved whichever side of the comparison it happened to fall on —
-    before the proposal it answered the originating version, after it the current
+    before the proposal it answered the originating revision, after it the current
     one — so the same markup resolved or refused according to where one press
-    landed in the log. A version is what this thread asked for, so a version is
-    the only thing either reading may hear.
+    landed in the log. A stamped version is what this thread asked for, so an
+    unstamped live revision cannot settle it.
     """
     version = latest_published(page_dir, events)
-    if version <= root["version"]:
+    revision = version_revisions(events)[version]
+    if revision <= root["revision"]:
         return True
     registry = require_registry(page_dir)
-    html = version_path(page_dir, version).read_text(encoding="utf-8")
-    projection, parser, spk = page_projection(html, [], registry, version)
+    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+    projection, parser, spk = page_projection(html, [], registry, revision)
     awaiting = page_awaiting_values(html, parser, projection, spk, registry)
     target = root["anchor"]["section"]
     if awaiting.get(target, False):
@@ -65,9 +72,12 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     if (current_entry.get("x-conversation") or {}).get("response") != response:
         return True
 
-    original_html = version_path(page_dir, root["version"]).read_text(encoding="utf-8")
+    original_revision = root["revision"]
+    original_html = revision_path(page_dir, original_revision).read_text(
+        encoding="utf-8"
+    )
     original_projection, original, original_spk = page_projection(
-        original_html, [], registry, root["version"]
+        original_html, [], registry, original_revision
     )
     original_awaiting = page_awaiting_values(
         original_html,
@@ -92,21 +102,21 @@ def cmd_comment(
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
     anchorless shape the browser's general box posts, which is where a question about
-    the work rather than a passage belongs. An anchor is captured against the version
-    they are looking at — the newest published one, since a version no `note` has
-    released is a passage nobody can be pointed at — and read as they see it: a slot
+    the work rather than a passage belongs. An anchor is captured against the active
+    revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
     # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        version = latest_published(page_dir, events)
+        activate_source(page_dir, events)
+        revision = latest_revision(page_dir)
         anchor = None
         if quote or section or part:
-            html = version_path(page_dir, version).read_text(encoding="utf-8")
+            html = revision_path(page_dir, revision).read_text(encoding="utf-8")
             registry = require_registry(page_dir)
-            projection, _, _ = page_projection(html, events, registry, version)
+            projection, _, _ = page_projection(html, events, registry, revision)
             decided = decisions(projection.actions, registry)
             edited = rewritten_bodies(projection.actions)
             try:
@@ -120,14 +130,14 @@ def cmd_comment(
                     part,
                 )
             except ValueError as err:
-                sys.exit(f"can't anchor in v{version}: {err}")
+                sys.exit(f"can't anchor in revision r{revision}: {err}")
         if markup:
             check_markup(page_dir, "comment", markup, events)
         event = {
             "kind": "comment",
             "author": "claude",
             **message_identity(),
-            "version": version,
+            "revision": revision,
             "text": body,
         }
         if anchor:
@@ -243,10 +253,10 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
 def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     """A worker's provisional news: a declared state change folded onto a page
     widget, validated at this door the way the POST door validates an action,
-    stamped with the posting session's voice, and made against the newest
-    published version — the page the reader is looking at. The runtime paints it
-    live; it stands until a version absorbs or overrules it by id (see
-    `version publish`), and the page's watcher wakes to fold it in. Field values
+    stamped with the posting session's voice, and made against the active revision —
+    the page the reader is looking at. The runtime paints it live; it stands until
+    a stamped revision absorbs or overrules it by id (see `version stamp`), and the
+    page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""
     detail = {}
@@ -257,7 +267,8 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
         detail[name] = value
     with PageTransaction(page_dir) as page:
         events = page.events
-        version = latest_published(page_dir, events)
+        activate_source(page_dir, events)
+        revision = latest_revision(page_dir)
         registry = require_registry(page_dir)
         event = {
             "kind": "report",
@@ -266,10 +277,10 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
             "widget": widget,
             "action": verb,
             "detail": detail,
-            "version": version,
+            "revision": revision,
         }
         if error := report_contract_error(
-            event, parse_version(page_dir, version).by_id, registry
+            event, parse_revision(page_dir, revision).by_id, registry
         ):
             sys.exit(error)
         accepted = append_event(page, event)

@@ -121,7 +121,7 @@ export function createWorkLines(dependencies) {
           );
         continue;
       }
-      if (kind !== "widget" || update.version > runtime.currentVersion) continue;
+      if (kind !== "widget" || update.revision > runtime.currentRevision) continue;
       const owner = elementById(id);
       if (!owner || inChrome(owner)) continue;
       const seat = widgetWorkSeat(owner);

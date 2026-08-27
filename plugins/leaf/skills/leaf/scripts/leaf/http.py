@@ -627,9 +627,7 @@ class Handler(BaseHTTPRequestHandler):
                         )
                 anchor = event.get("anchor") or {}
                 if kind == "comment" and (
-                    event.get("holds")
-                    or event.get("response")
-                    or anchor.get("visual")
+                    event.get("holds") or event.get("response") or anchor.get("visual")
                 ):
                     registry, rejection = registry_or_rejection()
                     if rejection:

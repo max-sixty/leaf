@@ -43,8 +43,9 @@
  *
  * A control that says one of the page's words is never a <button>: Chrome starts no
  * pointer selection inside a form control, so its label would be unreachable however it is
- * marked. `offer` builds every press as a span wearing role="button" for that reason, and
- * wires the keys the UA would have given it.
+ * marked. `offer` builds it as a selectable span carrying the control's role. The shared
+ * scope wires button keys; a specialised control such as an option checkbox registers its
+ * own keys.
  *
  * Passages and anchors: a comment points at an anchor (a section id, a quote, and the
  * neighbouring words where there are any). resolveAnchor is the only place the page is

@@ -1025,12 +1025,13 @@ settlement has emptied, and what a quote may name cannot come apart. An area gre
 either: clipped note text and hoisted controls can have measurable boxes while
 remaining the wrong semantic target.
 
-A control containing a page word is built by `offer` as a selectable
-`span[role="button"]`. The shared listener supplies Enter and Space semantics.
-`offer` distinguishes a click from the mouseup ending an active text selection
-by comparing the selection's focus end with the release. It does not suppress a
-press merely because an older selection contains the control or because the
-pointer landed beside selected text.
+A control containing a page word is built by `offer` as a selectable span carrying
+its control role. A button gets Enter and Space from the shared scope; a specialised
+role such as a checkbox registers its own keys while `offer` still owns its role,
+tab stop, and chrome markers. `offer` distinguishes a click from the mouseup ending
+an active text selection by comparing the selection's focus end with the release. It
+does not suppress a press merely because an older selection contains the control or
+because the pointer landed beside selected text.
 
 `placeClear` moves floating controls away from selectable or interactive content
 they would cover. It reads the general `data-lf-offer` marker, not a list of

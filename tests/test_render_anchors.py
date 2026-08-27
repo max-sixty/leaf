@@ -2467,11 +2467,11 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     control answered both. Nothing failed; the page under-promised a key that worked, which
     is the register's own failure wearing its quietest form.
 
-    So the pair is one exported fact (`PRESS`) and the five rows that named it by hand read
-    it: the runtime's control scope, a card grip in both its states, an option's pick mark,
-    and this row. A link is what keeps that fact honest rather than growing into "controls
-    answer two keys" — Enter follows an `<a>` and Space scrolls the page, so the leaves
-    tray binds Enter alone and is right to."""
+    So the pair is one exported fact (`PRESS`) and the four rows that named it by hand read
+    it: the runtime's control scope, a card grip in both its states, and this row. A link is
+    what keeps that fact honest rather than growing into "controls answer two keys" — Enter
+    follows an `<a>` and Space scrolls the page, so the leaves tray binds Enter alone and is
+    right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
     page, errors = open_page(browser, url, pin=True)

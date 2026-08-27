@@ -66,7 +66,7 @@
  * `shallowSigs` excludes exactly what no version can assert, and read both of these
  * as state a version had written.
  *
- * The keyboard path: every mark is a press, so Tab reaches it and Space toggles. From a
+ * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, ↑/↓ walk the options (a clamp at the ends, not a wrap), 1–9 pick outright, and
  * Enter reaches the page's box for another option — each option wears its digit in a
  * column of its own, painted only while a mark holds keyboard focus, so nothing appears
@@ -419,18 +419,9 @@ customElements.define(
       // since the diff parses the base version unupgraded and would read any mark as text
       // that version lacked.
       const mark = pressable
-        ? offer("span", "lf-pick")
+        ? offer("checkbox", "lf-pick")
         : document.createElement("span");
-      if (pressable) {
-        // This mark is a selection toggle, not a button: Space changes its checked state,
-        // while Enter steps into the question's text answer. The role makes that split
-        // the control's own contract instead of overriding the keyboard contract of a
-        // button. data-lf-offer still says it is generated apparatus, and its value keeps
-        // the generic button scope from promising a second meaning for Enter.
-        mark.dataset.lfOffer = "checkbox";
-        mark.setAttribute("role", "checkbox");
-        mark.tabIndex = 0;
-      } else {
+      if (!pressable) {
         mark.className = "lf-pick";
         mark.dataset.lfGen = "1";
       }

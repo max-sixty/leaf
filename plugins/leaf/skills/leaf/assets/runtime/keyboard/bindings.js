@@ -131,9 +131,9 @@ export function checked(rows, where) {
 }
 
 // What activates a focused button, stated once because it is the platform's fact and not
-// any one row's. Five rows spelled it by hand — the runtime's own control scope, a card
-// grip in each of its two states, an option's pick mark, and the version menu's row — and
-// the fifth spelled it short, naming Enter over a real <button> that answers Space too. A
+// any one row's. Four rows spelled it by hand — the runtime's own control scope, a card
+// grip in each of its two states, and the version menu's row — and the fourth spelled it
+// short, naming Enter over a real <button> that answers Space too. A
 // near-copy that has to change whenever the original does is a primitive not yet extracted,
 // and the drift here was invisible: the key worked and the page under-promised it.
 //

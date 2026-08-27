@@ -156,26 +156,28 @@ export function worksInside(node, container) {
 // A widget writes none of the three by hand: they are what make an element chrome,
 // and one of them going missing is invisible until something breaks.
 //
-// "button" names a thing to press, not the element. A real <button> is a wall a
+// "button" and "checkbox" name control contracts, not elements. A real form control is a wall a
 // pointer's selection cannot cross — Chrome starts no selection inside a form
 // control and `user-select: text` does not move it — so any word inside one is
 // unreachable to a user whatever it is marked, and a control's label turns out
 // to be one of the page's own words often enough (a tab's name, the card a settled
 // group carries, the mark on a chosen option) that a widget cannot be trusted to
-// have picked the element with that in mind. So a press is a span wearing the role,
-// and the keys the UA would have supplied are wired once below. Nothing these controls
-// do needed the element: no forms, no submit, and no `disabled` — which a widget's press
-// therefore cannot have (the .lf-btn:disabled rule is the runtime's own buttons').
+// have picked the element with that in mind. So each is a span wearing its role. A button's
+// native keys are wired once below; a specialised checkbox supplies its widget-owned keys.
+// Nothing these controls do needed the element: no forms, no submit, and no `disabled` —
+// which a widget's control therefore cannot have (the .lf-btn:disabled rule is the
+// runtime's own buttons').
 export function offer(tag, cls, label) {
-  const press = tag === "button";
-  const node = document.createElement(press ? "span" : tag);
-  if (press) {
-    node.setAttribute("role", "button");
+  const role = tag === "button" || tag === "checkbox" ? tag : null;
+  const node = document.createElement(role ? "span" : tag);
+  if (role) {
+    node.setAttribute("role", role);
     node.tabIndex = 0;
   }
   node.className = cls ? `${cls} lf-ui` : "lf-ui";
   node.dataset.lfGen = "1";
-  // Whether this is a press, said in the one marker a widget has no reason to touch. The
+  // Which control contract owns its keys, said in the one marker a widget has no reason
+  // to touch. The
   // tabindex cannot say it — every focus target wears one, and a conversation thread wears
   // one so j/k can land on it, which had the key line leading with "press it" over an
   // element that answers nothing. Nor can the role: `offer` writes `button` and a widget is
@@ -184,8 +186,9 @@ export function offer(tag, cls, label) {
   // reader, which is the platform default this scope exists to consume.
   //
   // Every other consumer asks for the bare attribute, and `[data-lf-offer]` matches a
-  // valued one, so this narrows what a press is without touching what chrome is.
-  node.dataset.lfOffer = press ? "button" : "";
+  // valued one, so this narrows what the generic button scope owns without touching what
+  // chrome or a specialised control is.
+  node.dataset.lfOffer = role ?? "";
   if (label !== undefined) node.textContent = label;
   return node;
 }

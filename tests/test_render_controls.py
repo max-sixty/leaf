@@ -272,7 +272,7 @@ def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
             # skips by index rather than failing, which is how this sweep quietly stopped
             # pressing the sign-off button between one run and the next. It is the count
             # below that says so out loud — refuse the first poll of each navigation here
-            # and every one of the thirteen examples fails on it.
+            # and every one of the examples fails on it.
             page.wait_for_function(BOTH_STAMPS)
             page_at_rest(page)
             dirty = False

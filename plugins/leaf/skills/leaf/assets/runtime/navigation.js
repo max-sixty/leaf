@@ -1,3 +1,6 @@
+let publishedNavigation;
+export const scrollerFor = (...args) => publishedNavigation.scrollerFor(...args);
+
 export function createNavigation({
   BANNER_CLEAR,
   REDUCED,
@@ -193,7 +196,7 @@ export function createNavigation({
     glide = { box, goal, wrote: start, raf: requestAnimationFrame(tick) };
   }
 
-  return {
+  const navigation = {
     commentOnItem,
     glideTo,
     placeThreadEdge,
@@ -202,4 +205,6 @@ export function createNavigation({
     stepPage,
     stepThread,
   };
+  publishedNavigation = navigation;
+  return navigation;
 }

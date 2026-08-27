@@ -265,21 +265,25 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             f"{example.stem}: no widget a message carries built a control, so the two "
             "readings below were handed nothing of the panel's to look at"
         )
-        for name, reading, arg in (
+        for finding, probe, arg in (
             (
                 "draws a box of no size",
-                render_checks_model.TINY_BOXES,
+                "tinyBoxes",
                 page_registry(page),
             ),
             (
                 "has a control clipped out of its box",
-                render_checks_model.CLIPPED_CONTROLS,
+                "clippedControls",
                 None,
             ),
         ):
-            found = page.evaluate(reading, arg) if arg else page.evaluate(reading)
+            found = (
+                render_checks_model.evaluate_probe(page, probe, arg)
+                if arg
+                else render_checks_model.evaluate_probe(page, probe)
+            )
             assert found == [], (
-                f"{example.stem}: with the panel open, something {name}: {found}"
+                f"{example.stem}: with the panel open, something {finding}: {found}"
             )
 
         # And the third thing a log carries: what the reader did to one of those
@@ -1275,7 +1279,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         f"the page had {fit['room']:.0f}px of room and no note or row beside the "
         f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
     )
-    assert page.evaluate(render_checks_model.WITHHELD_ROOM) == []
+    assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
     assert errors == []
     page.close()
 

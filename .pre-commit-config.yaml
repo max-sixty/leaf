@@ -46,6 +46,13 @@ repos:
     hooks:
       - id: prettier
         types_or: [javascript, html]
+  # Parse every JavaScript module and enforce the runtime import graph. The browser
+  # loader proves that named imports exist; this owns syntax and forbidden edges.
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v10.9.1
+    hooks:
+      - id: eslint
+        args: [--max-warnings=0]
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

@@ -706,6 +706,20 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
         "requires a page version that answers its originating Ask" in unresolved.output
     )
 
+    (page_dir / "versions" / "v3.html").write_text(
+        asking.replace(
+            "</lf-options>",
+            '<lf-option id="camera-first" chosen>Camera first</lf-option></lf-options>',
+            1,
+        )
+    )
+    publish(page_dir, version=3)
+    resolved = CliRunner().invoke(
+        cli_model.cli,
+        ["resolve", str(page_dir), "--to", proposal["id"]],
+    )
+    assert resolved.exit_code == 0, resolved.output
+
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     """The runtime resolves actions document-wide by id, so a reply widget must not

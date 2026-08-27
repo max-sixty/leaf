@@ -1800,9 +1800,8 @@ the original response through the stop gate; their answer hands both threads bac
 to the agent. Authored state in a later version must answer an originating open
 Ask, or change the declared answer when the Ask was already answered; a reader
 action in the log cannot substitute for that revision. Only then may the agent
-resolve the original thread. Comments owns the reader-facing
-clarification; the page's Ask remains the proposal with the agent rather than
-counting both.
+resolve the original thread. Comments owns the reader-facing clarification; the
+page's Ask remains the proposal with the agent rather than counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
 banner, the tray and the `n`/`p` walk all follow it: those three are the reader's

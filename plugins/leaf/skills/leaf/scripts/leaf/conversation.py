@@ -36,6 +36,16 @@ def _thread_root(events: list, to: str) -> tuple[str, dict | None]:
 
 
 def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bool:
+    """Whether the page still owes this root the authored answer it asked for.
+
+    Both readings below project markup alone: the empty event lists are the gate's
+    subject rather than an omission. The reader's own pick lives in the log, and
+    folding it in moved whichever side of the comparison it happened to fall on —
+    before the proposal it answered the originating version, after it the current
+    one — so the same markup resolved or refused according to where one press
+    landed in the log. A version is what this thread asked for, so a version is
+    the only thing either reading may hear.
+    """
     version = latest_published(page_dir, events)
     if version <= root["version"]:
         return True

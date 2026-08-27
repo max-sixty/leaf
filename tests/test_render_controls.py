@@ -275,7 +275,6 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
             const button = document.createElement('button');
             button.className = 'lf-ui lf-btn';
             button.textContent = `Secondary destination ${i + 1}`;
-            button.style.order = '6';
             actions.append(button);
           }
         }"""
@@ -356,7 +355,7 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     page.evaluate(
         """() => {
           const frames = window.__lfFrames.splice(0);
-          for (const callback of frames) callback(performance.now() + 16);
+          for (const callback of frames) callback(0);
         }"""
     )
     assert page.evaluate("() => document.body.scrollTop") == pytest.approx(

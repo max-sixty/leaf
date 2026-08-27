@@ -2270,11 +2270,8 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // ring stayed on it, the one place in the runtime a key put the reader somewhere with no
 // key to take them out again.
 //
-// Inside the chrome it is the layers first, in the order the reader is in them: the leaves
-// tray goes before the comment panel — it was opened for a glance, where the panel is the
-// work itself — unless focus stands inside the panel, since a reader backing out of its
-// general box is standing on its list, and their next Escape taking a tray off the far
-// side of the screen took the key away from the work it was unwinding.
+// Inside the chrome it is the open workspace first. Trays and Comments replace one
+// another, so a standing tray is the one auxiliary layer Escape can unwind.
 //
 // Then the last rung leaves the chrome, because closing the panel does not put the reader
 // back on the page: it lands them on the control that closes it, deliberately (setPanel
@@ -2288,7 +2285,7 @@ function rung() {
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the tray" over two of them.
-  if (trayUp && !panel.contains(active))
+  if (trayUp)
     return {
       says: `close ${trayUp}`,
       does: `Close the ${trayUp} tray`,

@@ -41,6 +41,7 @@ from render_support import (
     compare_with,
     composer_quote,
     flip_point,
+    key_line,
     leaf_page,
     live_url,
     open_page,
@@ -461,7 +462,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
 
     page, errors = open_page(browser, live_url(url))
     mark = page.locator("#c-lax .lf-pick")
-    assert mark.get_attribute("role") is None, "nothing to press means no button role"
+    assert mark.get_attribute("role") is None, "nothing to select means no control role"
     box = mark.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -581,8 +582,11 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
         f"{strict.evaluate(box)}"
     )
     page.locator("#opt-bearer .lf-pick").focus()
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(1)
+    # The browser paints its queued choice immediately. Wait until the authoritative
+    # log holds it before authoring the revision that honors it.
+    round_trip(page)
 
     # And the pair the quotable half always comes with. This mark is the one element on
     # any page wearing the chrome class and the page-speaking marker at once, so it is the
@@ -605,7 +609,7 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator("#opt-bearer[chosen]")).to_have_count(
         1
-    )  # replay carried the pick
+    )  # the honoring revision carries the pick
     compare_with(page)
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-ins-block').length > 0"
@@ -613,6 +617,107 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["opt-strict"], "the diff read a pick mark as text the base version lacked"
+    assert errors == []
+    page.close()
+
+
+def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, serve):
+    """Ask arrival leaves both answer paths one press away.
+
+    The walk lands on an option mark so the group's own scope can answer the next key.
+    A digit chooses its listed option; Enter steps into the field for the option the
+    author did not list. Without that second binding, reaching the field costs one Tab
+    per listed option even though the Ask is already selected.
+    """
+    url = serve(ASK_WITH_CONTEXT_PAGE)
+    page, errors = open_page(browser, url)
+
+    page.keyboard.press("n")
+    mark = page.locator("#storage-evict .lf-pick")
+    expect(mark).to_be_focused()
+    expect(mark).to_have_attribute("role", "checkbox")
+    expect(mark).to_have_attribute("aria-checked", "false")
+    line = key_line(page)
+    assert "toggle the nth" in line, (
+        f"the selected Ask hides its numbered answers behind More: {line}"
+    )
+    expect(page.locator("#storage-options .lf-address")).to_have_text(["1", "2"])
+    expect(page.locator("#storage-options .lf-address").first).to_be_visible()
+    page.keyboard.press("Enter")
+    box = page.locator("#storage-options > .lf-conversation > .lf-say > textarea")
+    expect(box).to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    assert "back to question" in key_line(page)
+    page.keyboard.press("Escape")
+    expect(page.locator("#storage-evict .lf-pick")).to_be_focused()
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, url)
+    page.keyboard.press("n")
+    page.keyboard.press("2")
+    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
+    chosen = page.locator("#storage-stop .lf-pick")
+    expect(chosen).to_be_focused()
+    expect(chosen).to_have_attribute("role", "checkbox")
+    expect(chosen).to_have_attribute("aria-checked", "true")
+    expect(page.locator("#storage-options textarea")).not_to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_enter_does_not_drift_into_a_clarification_thread(browser, serve):
+    """An Ask's Enter binding never borrows a clarification thread's reply box.
+
+    A reader's proposed option is a version response, so it leaves the Ask with the
+    agent and has no reply box of its own. If the agent opens a clarification on that
+    same section, the clarification owns the only box in the page seat. Direct focus can
+    still put an option mark under the keyboard; Enter has no new-option box there and
+    must not drift into the clarification. The numbered options remain one press away.
+    """
+    url = serve(ASK_WITH_CONTEXT_PAGE)
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "storage-options"},
+            "text": "Neither — archive the oldest documents first.",
+            "response": {"kind": "version", "verb": "choose"},
+        },
+    )
+    clarification = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "anchor": {"section": "storage-options"},
+            "text": "Archive them locally or remotely?",
+        },
+    )
+
+    page, errors = open_page(browser, url)
+    mark = page.locator("#storage-evict .lf-pick")
+    mark.focus()
+    expect(mark).to_be_focused()
+    seat = page.locator("#storage-options > .lf-conversation")
+    expect(seat.locator(":scope > .lf-say textarea")).to_have_count(0)
+    expect(
+        seat.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"] textarea')
+    ).to_have_count(0)
+    clarification_box = seat.locator(
+        f'.lf-conversation-thread[data-thread="{clarification["id"]}"] textarea'
+    )
+    expect(clarification_box).to_have_count(1)
+
+    page.keyboard.press("Enter")
+    expect(mark).to_be_focused()
+    expect(clarification_box).not_to_be_focused()
+    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    page.keyboard.press("2")
+    expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     assert errors == []
     page.close()
 
@@ -990,11 +1095,11 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         > 20
     )
 
-    # …but takes nothing back. Nothing pressable: no grips, and no mark wearing
-    # the button role — an unpicked quoted card carries no mark at all, exactly as
+    # …but takes nothing back. Nothing selectable: no grips, and no mark wearing
+    # the checkbox role — an unpicked quoted card carries no mark at all, exactly as
     # a group that never declared `choose`. A click chooses nothing either (the
     # choose path sets `chosen` before it sends, so a pick would show here).
-    assert page.locator('#quoted-group .lf-pick[role="button"]').count() == 0
+    assert page.locator('#quoted-group .lf-pick[role="checkbox"]').count() == 0
     assert page.locator("#quoted-board .lf-grip").count() == 0
     # Nor a cell to write another option in: an exhibited question takes no answer of
     # either kind, and a box is the one that would have looked answerable.
@@ -1014,7 +1119,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 
     # The control: the same markup unquoted wires all of it.
-    assert page.locator('#live-group .lf-pick[role="button"]').count() == 2
+    assert page.locator('#live-group .lf-pick[role="checkbox"]').count() == 2
     assert page.locator("#live-board .lf-grip").count() == 1
     assert page.locator("[data-lf-for='live-suggestion']").count() == 1
 
@@ -1337,7 +1442,7 @@ def test_a_pick_does_not_bury_the_news_that_it_is_unrecorded(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    page.keyboard.press("Enter")
+    page.keyboard.press(" ")
     expect(page.locator("#live-group[data-lf-pending]")).to_have_count(1)
     assert page.locator("#l-stage").evaluate(
         "el => el.matches(':has(> .lf-pick:focus-visible)')"
@@ -2795,7 +2900,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
     page, errors = open_page(browser, url)
     page.locator(".lf-comments").click()
     page.wait_for_selector(
-        '#rp-live .lf-pick[role="button"]'
+        '#rp-live .lf-pick[role="checkbox"]'
     )  # the reply's widgets upgraded
     assert errors == []
 
@@ -2823,7 +2928,7 @@ def test_a_specimen_in_a_reply_is_quoted_there_too(browser, serve):
 
     # The exhibit takes the click first, so anything it sends would reach the log
     # ahead of the live group's pick — then the live group takes its own.
-    assert page.locator('#rp-quoted .lf-pick[role="button"]').count() == 0
+    assert page.locator('#rp-quoted .lf-pick[role="checkbox"]').count() == 0
     # And no hand over it, which is what the marker being painted anywhere buys: the
     # affordance rules ask whether an element stands inside [data-lf-exhibit], and the
     # runtime paints that on a widget wherever it renders. Painted in the document

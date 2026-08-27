@@ -163,17 +163,16 @@ export function chromeStyle({
   @layer lf-reset {
     .lf-btn, .lf-ui textarea, textarea.lf-ui { font: inherit; }
   }
-  /* A press a widget injects is a span wearing role="button" (see offer), so the two
-     things a <button> came with are stated here. The box, because an inline span drops
-     vertical padding out of the line — only .lf-btn needs it, since every other press
-     is a flex item or positioned. And the drag: a real button refused one, which is
-     worth keeping wherever the control's words are the runtime's, and is exactly what
-     must not happen where one of them is the page's. So the selection goes off only
-     where nothing under the press is said: a descendant cannot win it back, since
-     user-select none on an ancestor takes the whole subtree out of a pointer's reach
-     whatever the descendant declares. */
+  /* A control a widget injects is a span wearing its ARIA role, so the box and the drag
+     that a native control supplied are stated here. Only .lf-btn needs the box because
+     every other control is a flex item or positioned. A native control also refuses a
+     drag, which is worth keeping wherever its words are the runtime's and is exactly what
+     must not happen where one of them is the page's. So selection goes off only where
+     nothing under the control is said: a descendant cannot win it back, since user-select
+     none on an ancestor takes the whole subtree out of a pointer's reach whatever the
+     descendant declares. */
   .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: inherit; display: inline-block; }
-  .lf-ui[role="button"]:not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
+  .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
   .lf-btn:hover { background: var(--chip); }
   .lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
   .lf-btn.primary:hover { filter: brightness(.92); }

@@ -43,8 +43,9 @@
  *
  * A control that says one of the page's words is never a <button>: Chrome starts no
  * pointer selection inside a form control, so its label would be unreachable however it is
- * marked. `offer` builds every press as a span wearing role="button" for that reason, and
- * wires the keys the UA would have given it.
+ * marked. `offer` builds it as a selectable span carrying the control's role. The shared
+ * scope wires button keys; a specialised control such as an option checkbox registers its
+ * own keys.
  *
  * Passages and anchors: a comment points at an anchor (a section id, a quote, and the
  * neighbouring words where there are any). resolveAnchor is the only place the page is
@@ -2406,10 +2407,28 @@ const SAY_BOX = ":scope > .lf-compose textarea, :scope > .lf-say textarea";
 // body case standingItem also guards needs nothing here: the climb from `body` reaches
 // `html`, whose root has no host, and ends on its own.
 const heldConversation = () => focused() && closestAcross(focused(), SAYS_IN);
+const conversationInputOf = (held) => {
+  const box = held?.querySelector(SAY_BOX);
+  return box && shownBox(box).height ? box : null;
+};
+// The current box belonging to the nearest conversation around a widget. A behavior
+// module may supply words the conversation itself owns without knowing whether that
+// conversation is seated on the page or in the panel, or how its shadow boundary is
+// staged. `conversationBox` answers the inverse question when the widget owns the seat.
+export function conversationInput(node) {
+  const held = node && closestAcross(node, SAYS_IN);
+  return conversationInputOf(held);
+}
+// A keyboard press that steps from a control into a conversation box owes the reader
+// the same control on the way out. Focusable conversations already own that rung — a
+// thread's Escape returns to the thread — while a page-owned first-message seat has no
+// standing place of its own. Remember the control only for that focus visit, so reaching
+// the same box later by Tab does not inherit an old route.
+const conversationReturns = new WeakMap();
 const standingConversation = () => {
   const held = heldConversation();
-  const box = held?.querySelector(SAY_BOX);
-  return box && shownBox(box).height ? { held, box } : null;
+  const box = conversationInputOf(held);
+  return box ? { held, box } : null;
 };
 // Putting the reader in a conversation, in one place, so the three presses that do it —
 // the `g c` address, `Enter` on a focused thread, and `c` from inside one — cannot come to
@@ -2419,6 +2438,25 @@ function landIn({ held, box }) {
   box.focus({ preventScroll: true });
   held.scrollIntoView({ behavior: SCROLL, block: "nearest" });
   if (held.dataset.id) scrollToThread(held.dataset.id);
+}
+export function landInConversation(box, route = null) {
+  if (
+    route &&
+    (!(route.target instanceof Element) ||
+      typeof route.line !== "string" ||
+      !route.line.trim())
+  )
+    throw new TypeError(
+      "landInConversation return route needs an element target and a non-empty line",
+    );
+  const held = box && closestAcross(box, SAYS_IN);
+  if (!held) return false;
+  if (route && !held.hasAttribute("tabindex")) {
+    conversationReturns.set(box, route);
+    box.addEventListener("blur", () => conversationReturns.delete(box), { once: true });
+  }
+  landIn({ held, box });
+  return true;
 }
 // What `c` acts on, decided once and read twice: the row's words are `word` and the press
 // is `go`, so the line, the reference and the box that opens cannot come to name different
@@ -3029,17 +3067,18 @@ const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
 // the arithmetic the keyboard-is-a-stack rule exists to keep. The climb is
 // `heldConversation`'s, so this is the same element `c` named on the way in.
 //
-// A seat holding no thread yet answers for itself. Its box is the whole of it and there
-// is nothing outside the box to stand on, so it wears no seat of its own and the rung
-// falls through — to the panel's list where the box is the chrome's, and to the page's
-// own "let go" where it is not. Asked as "can the reader be put here", rather than by
-// listing which two of the three containers happen to be focusable — which is also why a
-// seat that `reachScrollers` makes focusable, having grown a scrollbar and no focusable
-// child, becomes a rung without anyone editing this: the question is the same one, and the
-// answer moved.
+// A seat holding no thread yet has no standing place of its own. A widget control that
+// explicitly sends the reader into that box can supply its own return through
+// `landInConversation`; a visit reached by Tab still falls through to the page's "let go".
+// Otherwise the question is "can the reader be put here", rather than a list of which two
+// containers happen to be focusable — which is also why a seat that `reachScrollers` makes
+// focusable, having grown a scrollbar and no focusable child, becomes a rung without anyone
+// editing this: the question is the same one, and the answer moved.
 const backFromBox = () => {
   const held = heldConversation();
-  return held?.hasAttribute("tabindex") ? held : null;
+  if (held?.hasAttribute("tabindex")) return { target: held, line: "back to thread" };
+  const route = conversationReturns.get(focused());
+  return route?.target?.isConnected ? route : null;
 };
 // A box words are typed into takes the keys that put a character in it, and only those:
 // the page's bare letters are keystrokes here, while Escape and Enter are the box's to
@@ -3096,15 +3135,15 @@ const TYPING = {
     {
       keys: ["Escape"],
       does: "Leave the box, keeping what is typed",
-      line: () => (backFromBox() ? "back to thread" : "back to list"),
+      line: () => backFromBox()?.line ?? "back to list",
       // The conversation the box belongs to, or the panel's list where it is the
       // chrome's own box. A page textarea that is neither leaves the row dead and the
       // page's rung standing, which is the honest answer: nothing there to go back to.
       when: () => Boolean(backFromBox()) || inTheBox(),
       run: () => {
-        const held = backFromBox();
+        const back = backFromBox();
         document.activeElement.blur();
-        (held ?? threadsBox).focus();
+        (back?.target ?? threadsBox).focus();
       },
     },
   ],

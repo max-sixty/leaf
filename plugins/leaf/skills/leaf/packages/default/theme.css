@@ -441,11 +441,11 @@ lf-option .lf-pick::before { content: ""; width: 11px; height: 11px; flex: none;
  * owns and the case cannot arise. */
 lf-options:not([multiple]) > lf-option > .lf-pick::before { border-radius: 50%; }
 lf-options[multiple] > lf-option > .lf-pick::before { border-radius: 3px; }
-/* Keyed on the press rather than on the class, because only one of the mark's two shapes
- * is one — and the same attribute answers for the medium, `version export` taking it off
- * a control whose handler has gone. So this needs no guard of its own: the hand is on the
- * mark exactly while the mark is a thing to press. */
-lf-option .lf-pick[role="button"] { cursor: pointer; }
+/* Keyed on the selection role rather than on the class, because only one of the mark's
+ * two shapes is a control — and the same attribute answers for the medium, `version
+ * export` taking it off a control whose handler has gone. So this needs no guard of its
+ * own: the hand is on the mark exactly while the mark can take a selection. */
+lf-option .lf-pick[role="checkbox"] { cursor: pointer; }
 /* An offer says nothing on screen, so it is not drawn — in either form. A picked mark's
  * word is the page's only statement of where the pick sits, which paper keeps and a user
  * can quote; "choose one" states nothing a reader could disagree with, and a card carrying
@@ -462,7 +462,7 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
  * this reaches nothing there and the cell's own hover is the answer instead. The keyboard
  * is an aim like the pointer: inside a joined group the mark's own focus ring is withheld
  * (the group's is the ring, below), so the warmed tick and the wash are what say which
- * mark ⏎ will take. Guarded with the group's other answers to the pointer, and free of
+ * mark the next toggle will take. Guarded with the group's other answers to the pointer, and free of
  * specificity for the same reason they are. */
 @media screen {
  :where(html:not(.lf-copy)) {

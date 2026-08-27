@@ -26,6 +26,25 @@ pytestmark = pytest.mark.nightly
 # ---------- export: the page as one file ----------
 
 
+def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
+    """Export reports its instrumentation boundary instead of leaking a traceback."""
+
+    def break_probe(page):
+        page.route(
+            "**/_leaf/render-checks.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body='import { missingForTest } from "/runtime/widget-api.js";',
+            ),
+        )
+
+    with pytest.raises(SystemExit, match="could not load its browser probe module"):
+        rendering_model.export_page(
+            primed(browser, break_probe), serve(LONG_PAGE), serve.page_dir
+        )
+
+
 def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     browser, serve, tmp_path
 ):
@@ -158,9 +177,10 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     out = tmp_path / "standalone.html"
     out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
 
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
     errors = watched(page)
     page.on("requestfailed", lambda r: errors.append(f"unfetched {r.url}"))
+    render_checks_model.prepare_standalone_probes(page)
     page.goto(out.as_uri(), wait_until="load")
     state = page.evaluate("""() => ({
         scripts: document.querySelectorAll('script').length,
@@ -238,7 +258,8 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     # The gate's own reading, on the medium that most needs it: a copy is laid out by
     # rules no other medium runs, and the last two ways one went out wrong were both a
     # widget's words landing on the page's.
-    covered = page.evaluate(render_checks_model.COVERED_WORDS)
+    covered = render_checks_model.evaluate_probe(page, "coveredWords")
+    assert render_checks_model.evaluate_probe(page, "coveredWords") == covered
     # The other direction of every question above: not what the copy still offers,
     # but what it under-delivers. BAKE is a remover, and until this ran the only
     # gates on it asked whether it removed enough — a wide diagram lost its scroll

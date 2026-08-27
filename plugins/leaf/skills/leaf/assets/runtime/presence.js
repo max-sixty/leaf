@@ -1,4 +1,25 @@
-export function createPresence({ serverNow }) {
+// Every timestamp the page renders was written by its server. Keep the browser's one
+// measured offset here, beside the two public readings that depend on it, so no seat can
+// accidentally render against a second clock.
+let clockSkew = 0;
+const serverNow = () => Date.now() + clockSkew;
+export const observeServerNow = (now) => {
+  if (now) clockSkew = Date.parse(now) - Date.now();
+};
+export const ago = (ts) => {
+  if (!ts) return "";
+  const secs = Math.max(0, (serverNow() - new Date(ts).getTime()) / 1000);
+  if (secs < 45) return "just now";
+  if (secs < 3600) return `${Math.round(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.round(secs / 3600)}h ago`;
+  return `${Math.round(secs / 86400)}d ago`;
+};
+
+const WORKING_GRACE_MS = 15 * 60 * 1000;
+export const quietSince = (ts, grace = WORKING_GRACE_MS) =>
+  Boolean(ts) && serverNow() - new Date(ts).getTime() > grace;
+
+export function createPresence() {
   // ---------- presence ----------
   // "Claude is working" is a claim in status.json, and nothing revises a claim once the
   // session behind it walks away — so a page nobody is watching reads exactly like a page
@@ -22,7 +43,6 @@ export function createPresence({ serverNow }) {
   // it is not a state the evidence below could reach — there is no claim to weigh, no
   // lifetime to look for, and nothing coming that would change the answer.
   const HANDOFF_GRACE_MS = 2 * 60 * 1000;
-  const WORKING_GRACE_MS = 15 * 60 * 1000;
   // How long a claim of work may go unrefreshed before the page stops taking its word for
   // it. Exported, because the banner is not the only thing that judges one: a page running
   // a fleet says the same sentence per row, and a second threshold spelled in a widget
@@ -30,8 +50,6 @@ export function createPresence({ serverNow }) {
   // directly above it about the very same silence. The caller supplies the rope where its
   // claim has a shorter one; the constant is the default because that is the case there is
   // only one of.
-  const quietSince = (ts, grace = WORKING_GRACE_MS) =>
-    Boolean(ts) && serverNow() - new Date(ts).getTime() > grace;
   // How long after a turn closes a claim it left behind is still believed. The grace
   // above asks how long a claim has gone unrenewed; this one exists because the answer
   // to "is anything still behind it" arrives before the answer to "has it gone stale",
@@ -144,5 +162,5 @@ export function createPresence({ serverNow }) {
     };
   }
 
-  return { droppedAt, presented, quietSince };
+  return { droppedAt, presented };
 }

@@ -1,4 +1,16 @@
 /* The page's one DOM reading and quote resolver. */
+let publishedPassages;
+export const alignText = (...args) => publishedPassages.alignText(...args);
+export const closestAcross = (...args) => publishedPassages.closestAcross(...args);
+export const inChrome = (...args) => publishedPassages.inChrome(...args);
+export const inUi = (...args) => publishedPassages.inUi(...args);
+export const movedWords = (...args) => publishedPassages.movedWords(...args);
+export const renderRetired = (...args) => publishedPassages.renderRetired(...args);
+export const says = (...args) => publishedPassages.says(...args);
+export const textNodesUnder = (...args) => publishedPassages.textNodesUnder(...args);
+export const uiInside = (...args) => publishedPassages.uiInside(...args);
+export const wrote = (...args) => publishedPassages.wrote(...args);
+
 export function createPassages(dependencies) {
   const {
     PAGE_PAINT_ATTRIBUTE,
@@ -927,7 +939,7 @@ export function createPassages(dependencies) {
     return found ? spanOf(origin, found.from, found.to) : [];
   }
 
-  return {
+  const passages = {
     settlementSlots,
     renderRetired,
     settledAway,
@@ -968,4 +980,6 @@ export function createPassages(dependencies) {
     spanIn,
     findQuote,
   };
+  publishedPassages = passages;
+  return passages;
 }

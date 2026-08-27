@@ -12,6 +12,11 @@
  * protocol of its own to agree with the send queue and the reads. */
 export const outbox = [];
 
+let publishedOutbox;
+export const actionAvailable = (...args) => publishedOutbox.actionAvailable(...args);
+export const actionStands = (...args) => publishedOutbox.actionStands(...args);
+export const sendAction = (...args) => publishedOutbox.sendAction(...args);
+
 export function createOutbox(runtime, dependencies) {
   const {
     RETRY_MS,
@@ -276,7 +281,7 @@ export function createOutbox(runtime, dependencies) {
     return answer;
   }
 
-  return {
+  publishedOutbox = {
     accountOutbox,
     actionAvailable,
     actionStands,
@@ -284,4 +289,5 @@ export function createOutbox(runtime, dependencies) {
     removeOutbox,
     sendAction,
   };
+  return publishedOutbox;
 }

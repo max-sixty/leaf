@@ -287,9 +287,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
     assert not [path for path in PLUGIN_ROOT.rglob("*") if path.is_symlink()]
-    # Shipping a lock would take the client's own index out of the loop, per the
-    # root `CLAUDE.md`. The nightly test below proves that against a real index;
-    # this is the half every run sees.
+    # Shipping a lock would take the client's own index out of the loop, per
+    # `plugins/leaf/CLAUDE.md`. The nightly test below proves that against a real
+    # index; this is the half every run sees.
     assert not list(PLUGIN_ROOT.rglob("*.lock"))
 
 

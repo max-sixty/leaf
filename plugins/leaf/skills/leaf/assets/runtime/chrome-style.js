@@ -3,6 +3,7 @@
 export function chromeStyle({
   COVERING,
   MARK_RULES,
+  NON_COVERING,
   PAGE_PAINT_ATTRIBUTE,
   PANEL_PROP,
   STRIP_TRAY_RULE,
@@ -91,6 +92,12 @@ export function chromeStyle({
   }
   @media screen and ${COVERING} {
     body { --lf-banner-h: calc(96px + var(--lf-safe-top)); }
+  }
+  /* A wide touch layout keeps the desktop row, but its forty-four-pixel aims and their
+     focus ring need a taller bar than the mouse-sized row. This one derived height moves
+     the page, panels, anchored jumps, and the banner edge together. */
+  @media screen and (pointer: coarse) and ${NON_COVERING} {
+    body { --lf-banner-h: calc(53px + var(--lf-safe-top)); }
   }
   body { position: relative; box-sizing: border-box; }
   /* The strip the panel takes is given up as motion rather than as a jump, so the eye
@@ -565,13 +572,25 @@ ${MARK_RULES}
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
-      display: flex; align-items: center; gap: 10px;
+      display: grid; grid-template-columns: minmax(24px, 1fr) minmax(0, max-content);
+      align-items: center; gap: 10px;
       padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
         calc(14px + var(--lf-safe-left));
       background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
     .lf-banner-status, .lf-banner-actions { display: flex; align-items: center; gap: 10px; }
     .lf-banner-status { min-width: 0; }
-    .lf-banner-actions { flex: 0 1 auto; min-width: 0; overflow: visible; }
+    .lf-spacer { display: none; }
+    /* The actions are their own shelf whenever the status and available destinations no
+       longer share the row. Primary controls stay at its beginning; keyboard focus and a
+       horizontal gesture can bring every later address wholly on screen without widening
+       the document. Usually there is nothing to scroll, so the wide arrangement keeps its
+       ordinary single-row reading. Four pixels around the contents belong to the controls'
+       outset focus ring; without them the shelf solved reachability by clipping the sign
+       that a keyboard reader had reached anything. One extra inline pixel covers
+       fractional layout at the integer scroll extent. */
+    .lf-banner-actions { min-width: 0; max-width: 100%; justify-self: end; overflow-x: auto;
+      overscroll-behavior-inline: contain; scrollbar-width: none; padding: 4px 5px; }
+    .lf-banner-actions::-webkit-scrollbar { display: none; }
     /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
        mark remains the same one-token status reading — shape is identity, colour is
        state — and the midrib stays currentColor-independent so every status keeps its
@@ -731,12 +750,10 @@ ${MARK_RULES}
        questions off before they said which question they were. */
     .lf-asks-says { display: -webkit-box; -webkit-box-orient: vertical;
       -webkit-line-clamp: 3; overflow: hidden; }
-    /* The one control on the right of the row that may give, because it is the leftmost
-       of them and giving there moves nothing; the status text, off at the other end, is
-       the other. The rest are .lf-btn, floored at their own words by nowrap — the chooser
-       was the exception, so a row with no room left took the width it states back off it,
-       which put every reservation above back in play on any narrow enough window. */
-    .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    /* Version news remains a legible address at every width. When the row runs out of
+       room the shelf above scrolls; clipping the one control instead left a visible
+       eighteen-pixel button containing none of its words. */
+    .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
     .lf-panel { position: fixed; top: var(--lf-banner-h); right: 0; bottom: 0; width: var(${PANEL_PROP}); z-index: 8900;
       background: var(--card); border-left: 1px solid var(--rule); display: none;
       flex-direction: column; padding-right: var(--lf-safe-right);
@@ -1265,20 +1282,15 @@ ${MARK_RULES}
         padding: var(--lf-safe-top) 0 7px; }
       .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
           calc(14px + var(--lf-safe-left)); gap: 9px; }
-      .lf-spacer { display: none; }
-      .lf-banner-actions { grid-row: 2; width: 100%; min-width: 0; overflow-x: auto;
-        overscroll-behavior-inline: contain; scrollbar-width: none;
+      .lf-banner-actions { grid-row: 2; width: 100%; min-width: 0;
         scroll-padding-inline: calc(14px + var(--lf-safe-left));
-        padding: 2px calc(14px + var(--lf-safe-right)) 2px
+        padding: 4px calc(14px + var(--lf-safe-right)) 4px
           calc(14px + var(--lf-safe-left)); gap: 4px; }
-      .lf-banner-actions::-webkit-scrollbar { display: none; }
       .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 8px; }
       /* A pinned wide row reserves its future Latest address so publication cannot move
          controls. The phone shelf starts at the primary controls, so an unseen slot there
-         is only blank scrolling; collapse it until the news itself is present. Once shown,
-         keep the whole address readable and let the shelf do the scrolling it exists for. */
+         is only blank scrolling; collapse it until the news itself is present. */
       .lf-latest-chip:not(.lf-news-shown) { display: none !important; }
-      .lf-latest-chip.lf-news-shown { flex: none; }
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.

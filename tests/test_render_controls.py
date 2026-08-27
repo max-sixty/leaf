@@ -103,6 +103,7 @@ from render_support import (
     opened_tab,
     page_at_rest,
     page_registry,
+    panel_comment,
     panel_settled,
     primed,
     record_claim,
@@ -212,15 +213,14 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     page.close()
 
 
-def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
-    browser, serve
-):
-    """The responsive shelf keeps the page's state, Comments, and approval visible.
+def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, serve):
+    """The action shelf keeps state and every destination reachable at any width.
 
-    A covering viewport is not a cropped desktop toolbar. The secondary destinations may
-    live in a horizontally scrollable row, but the two actions that complete the reading
-    loop must be in the first view from a 320px phone through a small tablet, and the
-    document itself must never become the scroller for that row.
+    A narrow viewport is not a cropped desktop toolbar. Secondary destinations may live
+    in a horizontally scrollable row, but the two actions that complete the reading loop
+    must be in the first view from a 320px phone through a small tablet. Above the covering
+    breakpoint the same row must keep every crowded destination reachable, and the
+    document itself must never become its scroller.
     """
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -264,8 +264,9 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
             assert box["left"] >= 0 and box["right"] <= width, (
                 f"{selector} is outside the first {width}px view: {box}"
             )
-        assert boxes[".lf-comments"]["height"] >= 40
-        assert boxes[".lf-signoff"]["height"] >= 40
+        if width <= 840:
+            assert boxes[".lf-comments"]["height"] >= 40
+            assert boxes[".lf-signoff"]["height"] >= 40
         assert page.evaluate(
             "() => document.documentElement.scrollWidth"
             "   === document.documentElement.clientWidth"
@@ -280,9 +281,46 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
     page.keyboard.press("Tab")
     expect(page.locator(".lf-comments")).to_be_focused()
     assert actions.evaluate("el => el.scrollLeft") == 0
+    phone_focus_room = page.locator(".lf-comments").evaluate(
+        """el => {
+          const shelf = el.parentElement.getBoundingClientRect();
+          const button = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          const outset = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+          return {top: button.top - outset - shelf.top,
+                  left: button.left - outset - shelf.left,
+                  bottom: shelf.bottom - button.bottom - outset};
+        }"""
+    )
+    assert all(room >= -0.01 for room in phone_focus_room.values()), (
+        f"the phone shelf clipped its focused control's ring: {phone_focus_room}"
+    )
     page.keyboard.press("Tab")
     expect(page.locator(".lf-signoff")).to_be_focused()
     assert actions.evaluate("el => el.scrollLeft") == 0
+
+    # The covering comments workspace locks the page behind it. Shelf overflow must not
+    # become a side door around that lock when a wheel reaches the shelf's boundary.
+    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    locked = actions.evaluate(
+        """actions => {
+          actions.scrollLeft = actions.scrollWidth;
+          document.body.scrollTop = 400;
+          const before = document.body.scrollTop;
+          const event = new WheelEvent('wheel', {
+            bubbles: true, cancelable: true, deltaY: 120
+          });
+          actions.dispatchEvent(event);
+          return {before, after: document.body.scrollTop,
+                  overflow: getComputedStyle(document.body).overflowY};
+        }"""
+    )
+    assert locked == {"before": 400, "after": 400, "overflow": "hidden"}, (
+        f"the action shelf bypassed the covering panel's page lock: {locked}"
+    )
+    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-panel")).to_be_hidden()
 
     # Simulate the row's reachable busy state at the upper covering breakpoint. The
     # identities do not matter to the layout contract; the product controls all carry
@@ -305,17 +343,133 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
           return actions.scrollWidth > actions.clientWidth;
         }"""
     ), "the crowded tablet row had no independent horizontal shelf"
-    assert errors == []
-    page.close()
+
+    # Just above the covering breakpoint the banner stays on one line, but its actions
+    # still belong to a shelf when all their addresses do not fit. Focusing the last one
+    # must bring it fully on screen rather than walking the keyboard through clipped UI.
+    assert_primary_reach(900)
+    actions.evaluate("el => { el.scrollLeft = 0; }")
+    actions_box = actions.bounding_box()
+    page.mouse.move(
+        actions_box["x"] + actions_box["width"] / 2,
+        actions_box["y"] + actions_box["height"] / 2,
+    )
+    page.mouse.wheel(0, 120)
+    page.wait_for_function(
+        "() => document.querySelector('.lf-banner-actions').scrollLeft > 0"
+    )
+    # Once the shelf has spent the part it can consume, Chromium will not naturally
+    # chain the rest out of this overflow box. Leaf hands that remainder to its body
+    # scroller, while a browser zoom gesture remains wholly the browser's.
+    edge = page.evaluate(
+        """() => {
+          const actions = document.querySelector('.lf-banner-actions');
+          actions.scrollLeft = actions.scrollWidth;
+          document.body.scrollTop = 200;
+          return {shelf: actions.scrollLeft, page: document.body.scrollTop};
+        }"""
+    )
+    page.mouse.wheel(0, 120)
+    page.wait_for_function(
+        "(before) => document.body.scrollTop > before", arg=edge["page"]
+    )
+    assert actions.evaluate("el => el.scrollLeft") == edge["shelf"], (
+        "the shelf moved past its end instead of handing the wheel to the page"
+    )
+    shifted_page = page.evaluate("() => document.body.scrollTop")
+    page.keyboard.down("Shift")
+    page.mouse.wheel(0, 120)
+    page.keyboard.up("Shift")
+    assert page.evaluate("() => document.body.scrollTop") == shifted_page, (
+        "Shift+wheel at the shelf edge unexpectedly became vertical page scrolling"
+    )
+    page_delta = actions.evaluate(
+        """actions => {
+          actions.scrollLeft = actions.scrollWidth;
+          document.body.scrollTop = 100;
+          const before = document.body.scrollTop;
+          const page = document.body.clientHeight;
+          const limit = document.body.scrollHeight - page;
+          actions.dispatchEvent(new WheelEvent('wheel', {
+            bubbles: true, cancelable: true, deltaMode: WheelEvent.DOM_DELTA_PAGE,
+            deltaY: 1
+          }));
+          return {before, after: document.body.scrollTop, page, limit};
+        }"""
+    )
+    assert page_delta["after"] == pytest.approx(
+        min(page_delta["limit"], page_delta["before"] + page_delta["page"]), abs=1
+    ), f"a page-unit shelf remainder used the shelf's width: {page_delta}"
+    zoom = actions.evaluate(
+        """actions => {
+          actions.scrollLeft = 0;
+          const before = actions.scrollLeft;
+          const event = new WheelEvent('wheel', {
+            bubbles: true, cancelable: true, ctrlKey: true, deltaY: 120
+          });
+          const dispatched = actions.dispatchEvent(event);
+          return {before, after: actions.scrollLeft,
+                  prevented: !dispatched || event.defaultPrevented};
+        }"""
+    )
+    assert zoom == {"before": 0, "after": 0, "prevented": False}, (
+        f"the action shelf intercepted browser zoom: {zoom}"
+    )
+    last = actions.locator(":scope > .lf-btn").last
+    actions.evaluate("el => { el.scrollLeft = 0; }")
+    last.focus()
+    page.wait_for_function(
+        "() => document.querySelector('.lf-banner-actions').scrollLeft > 0"
+    )
+    last_box = last.evaluate(
+        "el => { const r = el.getBoundingClientRect(); return {left: r.left, right: r.right}; }"
+    )
+    assert 0 <= last_box["left"] < last_box["right"] <= 900, (
+        f"the wide action shelf focused a clipped destination: {last_box}"
+    )
+    focus_room = last.evaluate(
+        """el => {
+          const shelf = el.parentElement.getBoundingClientRect();
+          const button = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          const outset = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+          return {top: button.top - outset - shelf.top,
+                  right: shelf.right - button.right - outset,
+                  bottom: shelf.bottom - button.bottom - outset};
+        }"""
+    )
+    assert all(room >= -0.01 for room in focus_room.values()), (
+        f"the action shelf clipped its focused control's ring: {focus_room}"
+    )
+
+    # Prepare the live half of one publication before opening its pinned witness below.
+    # A composer deliberately defers activation; news inserted before the later
+    # destinations must scroll the shelf by the same amount, keeping the keyboard's
+    # current address visible and under its ring.
+    heading = page.locator("#t")
+    heading_box = heading.bounding_box()
+    select(
+        page,
+        (heading_box["x"] + 2, heading_box["y"] + heading_box["height"] / 2),
+        (
+            heading_box["x"] + heading_box["width"] - 2,
+            heading_box["y"] + heading_box["height"] / 2,
+        ),
+    )
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    last.focus()
+    before_news = last.evaluate("el => el.getBoundingClientRect().left")
+    live, live_errors, live_last = page, errors, last
 
     # A pinned wide page reserves the Latest chip before it first has news, but the same
     # invisible slot on a phone would be a blank stretch of the horizontal shelf. The next
     # real destination peeking into view is both the collapse witness and the overflow cue.
-    page, errors = open_page(browser, url, pin=True)
-    resized(page, 320, 844)
-    expect(page.locator(".lf-latest-chip")).to_be_hidden()
-    assert page.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") == 0
-    version = page.locator(".lf-version").evaluate(
+    pinned, pinned_errors = open_page(browser, url, pin=True)
+    resized(pinned, 320, 844)
+    expect(pinned.locator(".lf-latest-chip")).to_be_hidden()
+    assert pinned.locator(".lf-latest-chip").evaluate("el => el.offsetWidth") == 0
+    version = pinned.locator(".lf-version").evaluate(
         "el => { const r = el.getBoundingClientRect(); return {left: r.left, right: r.right}; }"
     )
     assert 0 < version["left"] < 320 < version["right"], (
@@ -323,13 +477,168 @@ def test_a_covering_view_keeps_the_page_status_and_primary_actions_in_reach(
     )
     (serve.page_dir / "versions" / "v2.html").write_text(html)
     stamp_version_file(serve.page_dir, 2, "two")
-    expect(page.locator(".lf-latest-chip")).to_be_visible()
-    news_size = page.locator(".lf-latest-chip").evaluate(
+    expect(pinned.locator(".lf-latest-chip")).to_be_visible()
+    news_size = pinned.locator(".lf-latest-chip").evaluate(
         "el => ({shown: el.offsetWidth, needed: el.scrollWidth, className: el.className, "
         "        flex: getComputedStyle(el).flex, basis: el.style.width})"
     )
     assert news_size["shown"] >= news_size["needed"], (
         f"the shown phone news address clipped its words: {news_size}"
+    )
+    resized(pinned, 1200, 844)
+    news_size = pinned.locator(".lf-latest-chip").evaluate(
+        "el => ({shown: el.offsetWidth, needed: el.scrollWidth})"
+    )
+    assert news_size["shown"] >= news_size["needed"], (
+        f"the shown desktop news address clipped its words: {news_size}"
+    )
+
+    expect(live.locator(".lf-latest-chip")).to_be_visible()
+    expect(live_last).to_be_focused()
+    after_news = live_last.evaluate(
+        "el => { const r = el.getBoundingClientRect();"
+        " return {left: r.left, right: r.right}; }"
+    )
+    assert abs(after_news["left"] - before_news) <= 0.5, (
+        f"version news moved the focused banner destination: {before_news} to {after_news}"
+    )
+    assert after_news["right"] <= 900, (
+        f"version news left the focused banner destination clipped: {after_news}"
+    )
+    assert live_errors == []
+    assert pinned_errors == []
+    live.close()
+    pinned.close()
+
+
+def test_a_wide_banner_spends_status_copy_before_action_reach(
+    browser, serve, other_leaf
+):
+    """At laptop width, optional actions stay whole before status prose takes room.
+
+    The leaf mark still states status when its sentence ellipsizes. An action clipped
+    past an otherwise idle row has no equivalent: neither a mouse nor a keyboard reader
+    can use words outside the shelf, so the grid gives the complete real action set its
+    intrinsic room before spending what remains on the changing status sentence.
+    """
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    page, errors = open_page(browser, url)
+    resized(page, 1200, 900)
+    expect(page.locator(".lf-others")).to_be_visible()
+    expect(page.locator(".lf-asks")).to_be_visible()
+    expect(page.locator(".lf-answer-all")).to_be_visible()
+    page.locator(".lf-status-text").evaluate(
+        "el => { el.textContent = 'Claude is working — writing a deliberately long status sentence'; }"
+    )
+    layout = page.evaluate(
+        """() => {
+          const status = document.querySelector('.lf-status-text');
+          const actions = document.querySelector('.lf-banner-actions');
+          return {status: {shown: status.clientWidth, needed: status.scrollWidth},
+                  actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
+        }"""
+    )
+    assert layout["status"]["shown"] < layout["status"]["needed"], (
+        f"the fixture put no pressure on the wide banner: {layout}"
+    )
+    assert layout["actions"]["shown"] == layout["actions"]["needed"], (
+        f"the wide banner clipped actions before yielding status copy: {layout}"
+    )
+
+    # The open panel and a version popup can overlap broadly. Once native focus leaves the
+    # transient menu, it closes before painting over the next keyboard destination.
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.keyboard.press("v")
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    needs = page.locator(".lf-needs")
+    reached_needs = False
+    for _ in range(20):
+        if needs.evaluate("el => el === document.activeElement"):
+            reached_needs = True
+            break
+        page.keyboard.press("Tab")
+    assert reached_needs, "native Tab never reached the pending-reader panel control"
+    expect(needs).to_be_focused()
+    expect(menu).to_be_hidden()
+    expect(page.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
+    page.locator(".lf-comments").click()
+    panel_settled(page, open=False)
+    assert errors == []
+    page.close()
+
+    # A pinned copy gains a real Latest destination after publication. Add the same class
+    # of optional module-provided addresses exercised at the responsive boundary above,
+    # then leave the final control only nine pixels beyond the shelf: the boundary at
+    # which native focus scrolling is most likely to decide that nearly visible is enough.
+    page, errors = open_page(browser, url, pin=True)
+    resized(page, 1200, 900)
+    (serve.page_dir / "versions" / "v2.html").write_text(html)
+    stamp_version_file(serve.page_dir, 2, "two")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    overflow = page.evaluate(
+        """() => {
+          const shelf = document.querySelector('.lf-banner-actions');
+          const last = document.querySelector('.lf-others');
+          for (let i = 0; i < 5; i++) {
+            const button = document.createElement('button');
+            button.className = 'lf-ui lf-btn';
+            button.textContent = `Secondary destination ${i + 1}`;
+            shelf.insertBefore(button, last);
+          }
+          const max = shelf.scrollWidth - shelf.clientWidth;
+          shelf.scrollLeft = max - 9;
+          return {max, at: shelf.scrollLeft};
+        }"""
+    )
+    assert overflow["max"] > 9 and overflow["at"] == pytest.approx(
+        overflow["max"] - 9, abs=0.5
+    ), f"the partial-overflow fixture did not reach its boundary: {overflow}"
+    ring_room = """el => {
+      const shelf = el.parentElement.getBoundingClientRect();
+      const button = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      const outset = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+      return {left: button.left - outset - shelf.left,
+              right: shelf.right - button.right - outset,
+              top: button.top - outset - shelf.top,
+              bottom: shelf.bottom - button.bottom - outset};
+    }"""
+    last = page.locator(".lf-others")
+    last.focus()
+    room = last.evaluate(ring_room)
+    assert all(space >= -0.01 for space in room.values()), (
+        f"the partial wide shelf clipped its focused destination: {room}"
+    )
+
+    # A control that settles its own asks disappears while it still owns focus. Hand the
+    # reader to the next standing destination instead of silently dropping them on body.
+    answer_all = page.locator(".lf-answer-all")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    answer_all.focus()
+    page.keyboard.press("Enter")
+    _until(
+        page, lambda traffic: traffic.sends == 1, "held the blanket answer in the wire"
+    )
+    expect(answer_all).to_have_attribute("aria-disabled", "true")
+    expect(answer_all).to_be_focused()
+    answer_all.dispatch_event("click")
+    assert _traffic(page).sends == 1, "one blanket-answer press became two event runs"
+    held[0].continue_()
+    page.unroute("**/api/event")
+    expect(answer_all).to_be_hidden()
+    version = page.locator(".lf-version")
+    expect(version).to_be_focused()
+    room = version.evaluate(ring_room)
+    assert all(space >= -0.01 for space in room.values()), (
+        f"the focus transfer landed under the shelf edge: {room}"
     )
     assert errors == []
     page.close()
@@ -445,6 +754,86 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             assert box["width"] >= 43.9 and box["height"] >= 43.9, (
                 f"a compact panel control kept a mouse-sized aim: {box}"
             )
+        page.locator(".lf-comments").tap()
+        panel_settled(page, open=False)
+
+        # Across the covering boundary the banner fits the same touch aims. Its shelf and
+        # a keyboard ring remain inside the derived edge rather than centred through it.
+        for width in (840, 841, 900, 1200, 1440):
+            resized(page, width, 844)
+            page.locator(".lf-comments").focus()
+            geometry = page.locator(".lf-comments").evaluate(
+                """control => {
+                  const banner = control.closest('.lf-banner').getBoundingClientRect();
+                  const shelf = control.parentElement.getBoundingClientRect();
+                  const box = control.getBoundingClientRect();
+                  const style = getComputedStyle(control);
+                  const outset = parseFloat(style.outlineWidth) +
+                    parseFloat(style.outlineOffset);
+                  return {banner: {top: banner.top, bottom: banner.bottom},
+                          shelf: {top: shelf.top, bottom: shelf.bottom},
+                          ring: {top: box.top - outset, bottom: box.bottom + outset}};
+                }"""
+            )
+            for item in ("shelf", "ring"):
+                assert (
+                    geometry[item]["top"] >= geometry["banner"]["top"] - 0.01
+                    and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
+                ), f"the wide coarse {item} escaped its banner at {width}px: {geometry}"
+
+        # Body is Leaf's durable page scroller. Touch beginning in fixed chrome needs an
+        # explicit vertical bridge to it, while a horizontal shelf gesture stays native.
+        cdp = context.new_cdp_session(page)
+        resized(page, 390, 700)
+        actions = page.locator(".lf-banner-actions")
+        assert actions.evaluate("el => el.scrollWidth > el.clientWidth")
+        point = actions.bounding_box()
+        gesture = {
+            "x": round(point["x"] + point["width"] / 2),
+            "y": round(point["y"] + point["height"] / 2),
+            "speed": 800,
+            "gestureSourceType": "touch",
+        }
+        page.evaluate(
+            "() => { const shelf = document.querySelector('.lf-banner-actions');"
+            " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"
+        )
+        cdp.send("Input.synthesizeScrollGesture", {**gesture, "yDistance": -160})
+        vertical = page.evaluate(
+            "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
+            " page: document.body.scrollTop})"
+        )
+        assert vertical["shelf"] == 0 and vertical["page"] > 200, (
+            f"a vertical touch over the shelf never reached the page: {vertical}"
+        )
+        page.evaluate(
+            "() => { const shelf = document.querySelector('.lf-banner-actions');"
+            " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"
+        )
+        cdp.send("Input.synthesizeScrollGesture", {**gesture, "xDistance": -160})
+        horizontal = page.evaluate(
+            "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
+            " page: document.body.scrollTop})"
+        )
+        assert horizontal["shelf"] > 0 and horizontal["page"] == 200, (
+            f"the touch shelf lost its native horizontal pan: {horizontal}"
+        )
+
+        resized(page, 1200, 700)
+        status = page.locator(".lf-banner-status").bounding_box()
+        page.evaluate("() => { document.body.scrollTop = 200; }")
+        cdp.send(
+            "Input.synthesizeScrollGesture",
+            {
+                **gesture,
+                "x": round(status["x"] + status["width"] / 2),
+                "y": round(status["y"] + status["height"] / 2),
+                "yDistance": -160,
+            },
+        )
+        assert page.evaluate("() => document.body.scrollTop") > 200, (
+            "the status half of the fixed banner remained a dead touch-scroll strip"
+        )
         assert errors == []
     finally:
         context.close()
@@ -2022,31 +2411,25 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
         moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
         assert not moved, f"{what} and the banner moved:\n  " + "\n  ".join(moved)
 
-    # A reservation is a promise the row can keep only while it has the room, and a row
-    # out of room takes it from whatever will give. Every control up there is a .lf-btn,
-    # floored at its own words by nowrap, so none of them is what gives: what does is the
-    # status text and the chip, which is where the spacer's slack was — both left of
-    # everything else on the row, so what they give up moves nothing. The chooser was the
-    # exception while it was a <select> stating a width against unbounded notes: it was
-    # the one control that could give, so it did, dropping under the width it states and
-    # putting every arrival above back in play on any window narrow enough. It says the
-    # version alone now, so it is floored like the rest and this list covers the whole row.
+    # A reservation keeps its promise even when the row no longer has room. Every address
+    # stays legible and the action shelf owns the overflow, instead of collapsing one
+    # control into a padding-width box containing none of its words.
     holds_its_width = (
-        "() => ['.lf-version', '.lf-comments', '.lf-signoff', '.lf-answer-all', '.lf-asks']"
+        "() => ['.lf-latest-chip', '.lf-version', '.lf-comments', '.lf-signoff', "
+        "       '.lf-answer-all', '.lf-asks']"
         ".map((s) => document.querySelector('.lf-banner ' + s).offsetWidth)"
     )
     wide = page.evaluate(holds_its_width)
     resized(page, 900, 900)
-    # Out of room, and something has visibly given: no spacer left, and the chip showing
-    # less than it holds. Without both, a window that still had slack would assert nothing.
+    # Out of room, witnessed independently of the controls whose widths are the subject.
     page.wait_for_function(
-        "() => { const chip = document.querySelector('.lf-latest-chip');"
+        "() => { const actions = document.querySelector('.lf-banner-actions');"
         "        return document.querySelector('.lf-spacer').offsetWidth === 0"
-        "               && chip.offsetWidth < chip.scrollWidth; }"
+        "               && actions.scrollWidth > actions.clientWidth; }"
     )
     assert page.evaluate(holds_its_width) == wide, (
-        "a banner with no room left took it out of the controls that hold their width, "
-        "which is what leaves them free to move on the next thing that arrives"
+        "a banner with no room left took it out of a control instead of giving the "
+        "overflow to its action shelf"
     )
     assert errors == []
     page.close()

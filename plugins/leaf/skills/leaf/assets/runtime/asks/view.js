@@ -51,15 +51,23 @@ export function createAskView({
       const label = verb[0].toUpperCase() + verb.slice(1);
       const btn = el("button", "lf-btn lf-answer-all", "");
       btn.title = `${label} every one still waiting on you`;
+      let answering = false;
       btn.onclick = async () => {
-        btn.disabled = true;
+        if (answering) return;
+        answering = true;
+        // Native disabling immediately drops keyboard focus on body, before the events
+        // this press sends can settle and hide the control. Keep the busy button in the
+        // focus model so showNews can hand its place to the next standing destination;
+        // the guard above still makes a repeated activation inert.
+        btn.setAttribute("aria-disabled", "true");
         try {
           for (const ask of openAsks()) {
             const source = askSource(ask);
             if (askEntry(source)?.all === verb) await source[verb]?.();
           }
         } finally {
-          btn.disabled = false;
+          answering = false;
+          btn.removeAttribute("aria-disabled");
         }
       };
       showNews(btn, false);

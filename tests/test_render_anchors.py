@@ -2923,6 +2923,18 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+
+    # A comparison checkbox is the menu's internal Tab stop rather than part of its
+    # arrow-key row walk. Reaching it must not be mistaken for leaving the popup.
+    compared, compared_errors = open_page(browser, url.replace("/v1.html", "/v2.html"))
+    compared.keyboard.press("v")
+    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.keyboard.press("Tab")
+    expect(compared.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
+    expect(compared.locator(".lf-version-menu")).to_be_visible()
+    assert compared_errors == []
+    compared.close()
+
     page, errors = open_page(browser, url, pin=True)
 
     page.keyboard.press("v")

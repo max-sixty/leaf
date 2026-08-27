@@ -117,6 +117,21 @@ export function createVersionNavigation({
   // nothing could close would put the trap back for the reader who never touches the
   // keyboard.
   versionBtn.onclick = () => showVersionMenu(versionsOffered() && !versionMenuOpen);
+  // A menu is a transient reading of the chooser, not a layer over the next control a
+  // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so close only
+  // from the boundary control in the direction being travelled. showVersionMenu hands
+  // focus to the door, then the browser's unprevented Tab continues naturally from that
+  // stable place. Arrow keys remain the version-row walk. Closing only after focusin would
+  // be too late for a modal opened from the menu: the modal would remember a row that had
+  // since become hidden and restore focus to nowhere when it closed.
+  versionMenu.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const stops = [...versionMenu.querySelectorAll("button:not(:disabled)")].filter(
+      (control) => control.getClientRects().length,
+    );
+    const leaving = event.shiftKey ? stops[0] : stops.at(-1);
+    if (event.target === leaving) showVersionMenu(false);
+  });
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Δ is the same comparison for the
@@ -187,13 +202,10 @@ export function createVersionNavigation({
     ],
     versionsToWalk,
   );
-  // The way out is the menu standing, not the reader being inside it: a menu opened and
-  // then Tabbed out of is still over the page, and an Escape that could not reach it left
-  // the reader closing the panel underneath instead. So the rung is a mode rather than the
-  // element scope's — which is what every other layer that can outlive its own focus does
-  // (the composer holds a draft the reader clicked away from; the leaves tray stands while
-  // focus is on the button that opened it). The menu's walk stays the element scope's,
-  // because a walk has nothing to walk unless focus is on a row.
+  // The way out is the menu standing, not whether it has multiple versions to walk. So the
+  // rung is a mode rather than the element scope's: on the common first version the menu
+  // still needs Escape even though there is no neighbouring row. The menu's walk stays the
+  // element scope's, because a walk has nothing to walk unless focus is on a row.
   const VERSIONS = {
     title: "In the versions menu",
     // The way out is live wherever the way in is, which is the wider fact and not the walk's:

@@ -707,12 +707,17 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(0)
 
     listeners = page.evaluate("() => ({...window.__replyListeners})")
-    page.locator(".lf-find-box").evaluate(
-        "box => { for (let i = 0; i < 3; i++) box.dispatchEvent(new Event('input')); }"
-    )
+    find = page.locator(".lf-find-box")
+    find.click()
+    page.keyboard.type("What")
     assert page.evaluate("() => ({...window.__replyListeners})") == listeners, (
         "reconciling a hidden thread registered another reply-box listener"
     )
+    # Keep the Waiting-on-you narrowing for the arrival below, but let go of the
+    # temporary text filter through the same keyboard route a reader has.
+    page.keyboard.press("ControlOrMeta+A")
+    page.keyboard.press("Backspace")
+    expect(find).to_have_value("")
 
     # The completed thread is absent under the narrowing. A later structured ask must
     # still be projected before the filter decides whether to admit that thread, or the

@@ -1002,6 +1002,192 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 4}
 
 
+def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, spawn):
+    serving(page_dir, 1)
+    service_model.claim_page(page_dir)
+    session_model.cmd_status(page_dir, "working", "answering the first comment")
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
+    )
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    acknowledging = spawn(
+        [launcher, "ack", str(page_dir), "1"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=os.environ,
+    )
+    lease_path = service_model.waiter_lease_path(
+        page_dir, service_model.host_identity()
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not service_model.lock_is_held(lease_path):
+        if acknowledging.poll() is not None:
+            break
+        time.sleep(0.05)
+
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.lock_is_held(lease_path), (
+        "acknowledgement returned without holding the next wait"
+    )
+    status_before_delivery = (page_dir / "status.json").read_bytes()
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
+    )
+    out, err = acknowledging.communicate(timeout=10)
+
+    assert acknowledging.returncode == 0, f"{out}{err}"
+    header, event = [json.loads(line) for line in out.strip().splitlines()]
+    assert header == {"page": str(page_dir), "threads": []}
+    assert (event["id"], event["seq"], event["text"]) == ("c2", 2, "two")
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert (page_dir / "status.json").read_bytes() == status_before_delivery
+
+
+def test_ack_success_outlives_a_refused_rearm(page_dir):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    identity = service_model.host_identity()
+    lease = service_model.take_waiter_lease(
+        service_model.waiter_lease_path(page_dir, identity)
+    )
+    assert lease
+    with lease:
+        result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
+
+    assert result.exit_code == 0, result.output
+    assert "another `leaf wait` is already active" in result.output
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+
+
+def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir):
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    record_claim(page_dir, id="successor", pid=os.getpid())
+
+    result = CliRunner().invoke(cli_model.cli, ["ack", str(page_dir), "1"])
+
+    assert result.exit_code == 0, result.output
+    assert (
+        f"nothing to watch: {page_dir} is not claimed by this session" in result.output
+    )
+    assert "no page named" not in result.output
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.page_claim(page_dir)["id"] == "successor"
+
+
+def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
+    page_dir, tmp_path, spawn, monkeypatch
+):
+    """The acknowledged page is a delivery coordinate, not the rearm's target.
+
+    Hold its status read after the session-wide watcher selected both pages,
+    then transfer that page and speak on the other one. The transfer must drop
+    only its page: ending the rearm there leaves the other page silently
+    unwatched until a later hook repairs it.
+    """
+    other = tmp_path / "second-page"
+    shutil.copytree(page_dir, other)
+    serving(page_dir, 1)
+    serving(other, 2)
+    service_model.claim_page(page_dir)
+    service_model.claim_page(other)
+    session_model.cmd_status(page_dir, "waiting", "first page")
+    session_model.cmd_status(other, "waiting", "second page")
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "first", "author": "user", "text": "one"},
+    )
+    status_path = page_dir / "status.json"
+    status = status_path.read_bytes()
+    status_path.unlink()
+    os.mkfifo(status_path)
+
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    acknowledging = spawn(
+        [launcher, "ack", str(page_dir), "1"],
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    writer = fifo_writer(status_path, "the rearm never selected its batch page")
+    identity = service_model.host_identity()
+    lease_path = service_model.waiter_lease_path(page_dir, identity)
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.lock_is_held(lease_path)
+    assert acknowledging.poll() is None
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    service_model.claim_page(page_dir)
+    events_model.append_event(
+        other,
+        {"kind": "comment", "id": "second", "author": "user", "text": "two"},
+    )
+    os.write(writer, status)
+    os.close(writer)
+
+    out, err = acknowledging.communicate(timeout=10)
+    assert acknowledging.returncode == 0, f"{out}{err}"
+    header, event = [json.loads(line) for line in out.splitlines()]
+    assert header == {"page": str(other), "threads": []}
+    assert (event["id"], event["text"]) == ("second", "two")
+    assert files_model.read_json(other / "cursor.json") is None
+    assert service_model.page_claim(page_dir)["id"] == "successor"
+
+
+def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
+    page_dir, spawn, monkeypatch
+):
+    """A successor's page is not idle when it leaves the session-wide watch.
+
+    Hold the status read after the rearm selected its sole page, then transfer
+    it. The empty watch must report the ownership change rather than describing
+    the successor's live page as an ended leaf.
+    """
+    serving(page_dir, 1)
+    service_model.claim_page(page_dir)
+    session_model.cmd_status(page_dir, "waiting", "first page")
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "first", "author": "user", "text": "one"},
+    )
+    status_path = page_dir / "status.json"
+    status = status_path.read_bytes()
+    status_path.unlink()
+    os.mkfifo(status_path)
+
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    acknowledging = spawn(
+        [launcher, "ack", str(page_dir), "1"],
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    writer = fifo_writer(status_path, "the rearm never selected its batch page")
+    identity = service_model.host_identity()
+    lease_path = service_model.waiter_lease_path(page_dir, identity)
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert service_model.lock_is_held(lease_path)
+    assert acknowledging.poll() is None
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    service_model.claim_page(page_dir)
+    os.write(writer, status)
+    os.close(writer)
+
+    out, err = acknowledging.communicate(timeout=10)
+    assert (acknowledging.returncode, out) == (0, ""), err
+    assert f"stopped watching {page_dir}: this session no longer owns it" in err
+    assert "the leaf ended" not in err
+    assert service_model.page_claim(page_dir)["id"] == "successor"
+
+
 def test_wait_preserves_a_working_status_on_mid_work_output(page_dir, capsys):
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "working", "running the browser suite")
@@ -1716,11 +1902,15 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     )
     assert lease
 
-    # A live wait lets Claude end its turn, but Codex must keep this one active and
-    # poll the unified-exec session whose output can enter this context.
+    # A live watcher lets Claude end its turn, but Codex must keep this one active
+    # and poll the unified-exec session whose output can enter this context. The
+    # lease cannot say whether that process is the initial wait or a rearmed ack,
+    # so the remedy has to preserve both coordinates.
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "poll the existing" in reason and "write_stdin" in reason
+    assert "`leaf wait` before the first batch" in reason
+    assert "rearmed `leaf ack` afterward" in reason
 
     # The existing one-shot escape still prevents a hook recursion.
     hooks_model.cmd_hook(
@@ -1748,6 +1938,8 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     reason = json.loads(capsys.readouterr().out)["reason"]
     assert "leaf ack" in reason and "If this task is the consumer" in reason
+    assert "`leaf wait` before the first batch" in reason
+    assert "rearmed `leaf ack` afterward" in reason
     assert schema_model.ACK_BATCH_INSTRUCTION in reason
     lease.close()
 

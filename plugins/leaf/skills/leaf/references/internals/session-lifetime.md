@@ -60,10 +60,13 @@ turns and straight across every wait. So no single process does both. Only the
 watcher belongs to the session, and one watcher is enough: it watches every
 page the session holds, re-reading the set on each pass, and delivers one
 page's batch under a first line naming the page and carrying the conversations
-its events land in. `server start` spawns the service into a session of its
-own and hands back the URL that process printed and the lifetime it recorded —
-so a killed background task costs only the watcher and leaves every page up,
-and recovery is one `leaf wait`.
+its events land in. `leaf wait` holds the lease until the first delivery;
+afterward, `leaf ack` advances that batch's cursor and becomes the next
+long-running watcher, so each turn still leaves exactly one process holding the
+lease. `server start` spawns the service into a session of its own and hands
+back the URL that process printed and the lifetime it recorded — so a killed
+background task costs only the watcher and leaves every page up, and recovery
+is one `leaf wait`.
 
 Whether a session's end reaches a server is decided at launch and written in
 service.json as its lifetime. A serve from an agent host records the page's

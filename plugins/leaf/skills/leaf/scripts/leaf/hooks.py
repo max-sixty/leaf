@@ -116,9 +116,10 @@ def unattended_pages(session_id: str) -> list:
                 f"comment{'s' if len(stale) != 1 else ''} with no answer "
                 f"({ids}). " + ANSWER_ASK_INSTRUCTION
             )
-        # A live Claude `leaf wait` is the watch, and it prints what's pending on
-        # its own. Reporting the page here would start a second waiter and print
-        # the same unacknowledged events twice.
+        # A live Claude watcher is the watch: `leaf wait` before the first batch,
+        # then the `leaf ack` that re-arms it. It prints what's pending on its own.
+        # Reporting the page here would start a second waiter and print the same
+        # unacknowledged events twice.
         if not (state["listening"] and not codex):
             # The watcher's whole batch — user events and workers' reports — not the
             # reader-facing count, which deliberately leaves reports out.
@@ -126,7 +127,8 @@ def unattended_pages(session_id: str) -> list:
             if n:
                 if codex and state["listening"]:
                     remedy = (
-                        "Poll the existing `leaf wait` unified-exec session with "
+                        "Poll the existing unified-exec session — `leaf wait` before "
+                        "the first batch or the rearmed `leaf ack` afterward — with "
                         "`write_stdin`."
                     )
                 elif codex:
@@ -148,8 +150,9 @@ def unattended_pages(session_id: str) -> list:
                 if codex and state["listening"]:
                     page_reasons.append(
                         f"{page_dir}: the Codex page is still live. Keep this turn "
-                        "active and poll the existing `leaf wait` unified-exec "
-                        "session with `write_stdin`."
+                        "active and poll the existing unified-exec session — `leaf "
+                        "wait` before the first batch or the rearmed `leaf ack` "
+                        "afterward — with `write_stdin`."
                     )
                 elif codex:
                     page_reasons.append(

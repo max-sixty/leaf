@@ -43,7 +43,7 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  ack         Acknowledge one complete, untruncated wait batch.
+  ack         Acknowledge one batch, then wait for the next.
   comment     Open an agent thread — on a passage, or on the page whole.
   data        Set or clear page-bound external data.
   edit        Edit one of this agent session's messages.
@@ -165,9 +165,12 @@ def test_wait_and_ack_help_require_a_complete_batch(command):
 
     assert result.exit_code == 0
     assert "--forward" not in result.output
-    assert " ".join(schema_model.ACK_BATCH_INSTRUCTION.split()) in " ".join(
-        result.output.split()
-    )
+    normalized = " ".join(result.output.split())
+    for instruction in (
+        schema_model.WAIT_BATCH_OUTPUT_INSTRUCTION,
+        schema_model.ACK_BATCH_INSTRUCTION,
+    ):
+        assert " ".join(instruction.split()) in normalized
 
 
 def test_the_skill_routes_every_reference_it_ships():

@@ -24,11 +24,17 @@ ANSWER_ASK_INSTRUCTION = (
     "<id> --text ...`, or close one the work has since answered with `leaf resolve "
     "<page> --to <id>`."
 )
+WAIT_BATCH_OUTPUT_INSTRUCTION = (
+    "A wait result prints one page's unacknowledged user events and worker reports "
+    "as JSON lines under a first line naming the page and carrying the conversations "
+    "those events land in."
+)
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After the complete batch reaches its next durable "
     "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
-    "batch's first line names."
+    "batch's first line names. Ack advances the cursor, then waits for the next batch "
+    "while the page remains live."
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"

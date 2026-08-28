@@ -1,0 +1,237 @@
+/* Retained comment-panel list reconciliation. */
+export function createConversationThreadList(dependencies) {
+  const {
+    ago,
+    captureAuthoredFacets,
+    cards,
+    conversational,
+    el,
+    focused,
+    folding,
+    narrowing,
+    openThreads,
+    paintHere,
+    panelIsOpen,
+    placement,
+    reachScrollers,
+    refreshHover,
+    runtime,
+    scrollToElement,
+    setChildren,
+    settling,
+    threadsBox,
+    toggleBtn,
+  } = dependencies;
+  const { paintThreadQuotes, threadNode } = cards;
+  const { foldOut, isFolding } = folding;
+  const { inFilter, noMatchNote, paintNarrowing } = narrowing;
+  const { groupFor, inPageOrder, pageOutline } = placement;
+
+  const emptyNote = el(
+    "div",
+    "lf-empty",
+    "No comments yet. Select any text on the page to comment on it, or use the box below.",
+  );
+
+  // The heading over a run of threads, kept across reconciles so a scroll position, a focus
+  // ring and the sticky pin survive a poll. A button where the page still holds the heading
+  // it names — pressing it takes the reader there, which is the same move a thread's quote
+  // makes — and a plain line for the three runs that name no place (groupFor). A key never
+  // changes kind, so the node a key holds never has to.
+  const groupNodes = new Map();
+  function groupNode(key, group) {
+    let node = groupNodes.get(key);
+    if (!node) {
+      node = group.target
+        ? el("button", "lf-group lf-pinned")
+        : el("div", "lf-group lf-pinned");
+      if (group.target) {
+        node.type = "button";
+        node.title = "Jump to this part of the page";
+      }
+      node.dataset.group = key;
+      groupNodes.set(key, node);
+    }
+    if (node.textContent !== group.label) node.textContent = group.label;
+    // The press is rewired on every reconcile and the word is not: a version activation
+    // replaces the heading the group names with a new element, and the same sentence.
+    if (group.target) node.onclick = () => scrollToElement(group.target);
+    return node;
+  }
+
+  // A terminal event's row, keyed like everything else in the list so its clock can
+  // refresh in place.
+  function systemNode(e, text) {
+    let div = threadsBox.querySelector(`:scope > .lf-system[data-id="${e.id}"]`);
+    if (!div) {
+      div = el("div", "lf-system");
+      div.dataset.id = e.id;
+    }
+    if (div.textContent !== text) div.textContent = text;
+    return div;
+  }
+
+  // The resolved disclosure, one <details> for the page's life: the user's
+  // open/closed toggle is the browser's state, and it survives arrivals only if the
+  // element does — the rebuild this replaced snapped it shut on every one.
+  let resolvedBox = null;
+
+  // The one number in the list's scroll-padding that CSS cannot work out: a run heading
+  // sticks over the top of this box, and a long one wraps, so how much of the top is
+  // covered is a measurement rather than a constant. The tallest, not the stuck one — the
+  // browser is given one number to scroll by and cannot be told which heading will be under
+  // the landing, and reserving more than a shorter heading needs only lands the thread a few
+  // pixels lower.
+  //
+  // It follows the box rather than the log. Wrapping is a function of the list's width, and
+  // the reader sets that themselves by dragging the panel's edge — a drag posts no event, so
+  // a reconcile never came, and a heading that had grown from one line to two went on being
+  // reserved for at one. Threads then landed under it, which is the whole defect this
+  // number exists to prevent. Writing a custom property does not resize the observed box,
+  // so the observer cannot feed itself.
+  function paintHeadRoom() {
+    // Not while the panel is shut, which is most of a page's life. Every heading measures
+    // zero in `display: none`, so the answer is never the room a heading takes — it is the
+    // absence of a panel, written at the cost of a forced layout on every reconcile for a
+    // number no reader can be standing in. That cost is not theoretical: under a loaded
+    // machine it delayed an event's acknowledgement past the window an undo is offered in,
+    // and `test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll` lost
+    // its press to a gesture that had not settled yet. The observer fires when the panel
+    // opens — a box arriving is a resize — so the measurement lands the moment it means
+    // something, which is also the only moment it can be right.
+    if (!panelIsOpen()) return;
+    const heads = [...threadsBox.querySelectorAll(".lf-pinned")];
+    threadsBox.style.setProperty(
+      "--lf-head-room",
+      `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
+    );
+  }
+  new ResizeObserver(paintHeadRoom).observe(threadsBox);
+
+  // The DOM is the one record of what's rendered, reconciled against the log: nodes the
+  // list already holds are kept, and only what the log changed is added, moved, or
+  // dropped. The rebuild this replaced destroyed every node on every render and then
+  // hand-restored the reader's place — scroll offset, focused thread, caret — and what
+  // no restore could give back was identity: nothing could animate, one send route kept
+  // focus and the other dropped it, and a user's own comment landed below the fold
+  // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
+  function renderThreads(all) {
+    // The conversations. A bare reaction is paint on the page and a pill on the page
+    // row, and counts for nothing here: no card, no address, no place in the walk.
+    const threads = all.filter(conversational);
+    const open = threads.filter((t) => !t.resolved);
+    // The page's outline, read once for the whole reconcile: every thread asks it where it
+    // stands and which run it belongs to.
+    const outline = pageOutline();
+    const group = new Map(threads.map((t) => [t, groupFor(t, outline)]));
+    // Newcomers settle in (`grow`) only when the user already has the list in front
+    // of them: the first populated render is the page loading, not news arriving, and a
+    // node animated while the panel is closed would replay the moment it opens.
+    // (Reduced motion isn't asked here: grow is a CSS animation, and those are the
+    // theme's one global guard's to stop.)
+    const grow =
+      panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
+
+    // Where the reader's own narrowing applies, and the only place it does: the page's
+    // marks, the inline conversation seats and the banner's count are readings of the log
+    // and go on saying what the log says. What the panel shows is the panel's business.
+    const shown = inPageOrder(threads).filter((t) => inFilter(t, group.get(t)));
+    const resolved = shown.filter((t) => t.resolved);
+
+    const wanted = [];
+    if (!threads.length) wanted.push(emptyNote);
+    else if (!shown.length) wanted.push(noMatchNote());
+    // Walked in the page's order rather than the log's (inPageOrder), because that is the
+    // order every other reading of these threads is in: the marks down the page, the walk
+    // j/k makes, the digits g c spells. A thread on its way out still stands between its
+    // neighbours while it folds (foldOut), which is why the walk is over the whole list
+    // with the resolved ones taken at their own place. The first nine open threads are
+    // addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k still
+    // reach everything. A folding thread takes no address and is walked by nothing: the log
+    // has already settled it, and only its room is still here.
+    //
+    // A heading goes in wherever the run changes, so the reader scrolling a list four
+    // thousand pixels long is told which part of the page they are reading about — and,
+    // the headings being sticky, is still told halfway down a long run.
+    let standing = null;
+    for (const t of shown) {
+      // A resolved thread is either still giving its room back in place, or gone from this
+      // list entirely and rebuilt under the disclosure below.
+      const node = t.resolved ? foldOut(t) : threadNode(t, grow);
+      if (!node) continue;
+      const here = group.get(t);
+      if (here.key !== standing) {
+        standing = here.key;
+        if (here.label) wanted.push(groupNode(here.key, here));
+      }
+      wanted.push(node);
+    }
+    for (const e of runtime.browser?.conversation?.done ?? [])
+      wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
+    if (resolved.length) {
+      if (!resolvedBox) {
+        resolvedBox = el("details", "lf-details");
+        resolvedBox.append(el("summary", "lf-pinned"));
+      }
+      const summary = resolvedBox.firstChild;
+      // Counted off what the panel is showing, listed off the page: a thread still folding
+      // out of the open list is resolved and says so in the count from the first frame, and
+      // is rebuilt in here when its fold is done rather than standing in two places at
+      // once. Under a narrowing the count is of the resolved threads that match it, for the
+      // same reason the head says "Showing 3 of 24" — a disclosure promising five where the
+      // list holds one is the trap the head exists to close.
+      const said = `Resolved (${resolved.length})`;
+      if (summary.textContent !== said) summary.textContent = said;
+      setChildren(resolvedBox, [
+        summary,
+        ...resolved
+          .filter((t) => !isFolding(t.root.id))
+          .map((t) => threadNode(t, false)),
+      ]);
+      wanted.push(resolvedBox);
+    }
+    // A narrowing can take the thread the reader is standing in out of the list —
+    // answering the last one waiting on the reader is exactly that — and a removed node drops
+    // focus to body, which hands the next Space to the page behind the panel. Land them on
+    // the list, where Escape lands them and j/k can walk on from.
+    const standingIn = threadsBox.contains(focused());
+    setChildren(threadsBox, wanted);
+    if (standingIn && !threadsBox.contains(focused()))
+      threadsBox.focus({ preventScroll: true });
+    paintHeadRoom();
+    // A thread's widget markup is authored too, but it arrives after the page's startup
+    // capture. Take its baseline on the first frame it is connected, before a reader can
+    // act on it; later reconciles keep the first capture rather than mistaking a live
+    // choice for authored state. Thread markup is frozen in its event, so unlike page
+    // markup it has no version window to move under.
+    captureAuthoredFacets(threadsBox);
+    // A comment carries whatever widget markup the gate allows, so the panel holds the
+    // same scroll boxes the page does, in a column half the width — and reachScrollers
+    // wants two things that are only true here, after this line. A message body is built
+    // detached, where `getComputedStyle` answers "" for every property, so a sweep at the
+    // point the body is filled tagged nothing at all and had done since it was written,
+    // reading like coverage the whole time. And a widget in that body upgrades on being
+    // connected, not on being written, so the queue it registers its render with
+    // (`settling`) has the promise only once this reconcile has appended it — which is
+    // why the wait is here rather than a snapshot taken earlier. The queue is read, never
+    // joined: nothing about the page's own first anchor pass waits on a message.
+    Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
+
+    // Each reply box speaks its own address, repainted after ordering because resolving an
+    // early thread renumbers everything after it — and read off the list this reconcile has
+    // just written, which is why the loop is here and not where the boxes were built.
+    for (const div of openThreads()) div.lfSync();
+    toggleBtn.textContent = `Comments (${open.length})`;
+    paintNarrowing(open, shown);
+    // The anchor pass wrote its record before this list existed, and this reconcile may have
+    // built the nodes that wear it. Both passes therefore repaint it: the one that changes
+    // the record, and the one that changes what the record is painted on.
+    paintThreadQuotes();
+    paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
+    // Narrowing and reconciliation can move another card under a pointer that did not
+    // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
+    refreshHover();
+  }
+
+  return { renderThreads };
+}

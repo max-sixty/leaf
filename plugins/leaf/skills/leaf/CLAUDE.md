@@ -88,6 +88,7 @@ highlight rules;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
 `runtime/conversation/model.js` owns the thread fold;
 `runtime/conversation/messages.js` owns message rendering;
+`runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
 `runtime/conversation/landing.js` owns conversation input discovery and focus travel;
 `runtime/conversation/placement.js` owns document-order grouping;

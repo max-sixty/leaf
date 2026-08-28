@@ -166,6 +166,7 @@
 
 import { chromeStyle } from "./runtime/chrome-style.js";
 import { createDrawnEdge } from "./runtime/drawn-edge.js";
+import { createLiveLeaves } from "./runtime/live-leaves.js";
 import { createAim } from "./runtime/composing/aim.js";
 import { createSelectionCapture } from "./runtime/composing/capture.js";
 import { createInput } from "./runtime/composing/input.js";
@@ -177,6 +178,7 @@ import {
 } from "./runtime/composing/selection.js";
 import { createSelectionSurface } from "./runtime/composing/surface.js";
 import { agentName, runtime } from "./runtime/context.js";
+import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
 import {
   CONTROL_WORD_CAP,
   DESIGN_KEY,
@@ -197,6 +199,7 @@ import {
 } from "./runtime/drafts.js";
 import {
   PRESS,
+  ariaShortcuts,
   bindings,
   checked,
   labelOf,
@@ -267,6 +270,8 @@ import {
   observeServerNow,
   quietSince,
 } from "./runtime/presence.js";
+import { createReactions } from "./runtime/reactions.js";
+import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
 import {
   captureVersionRoots,
@@ -312,6 +317,13 @@ import {
 } from "./runtime/shadow.js";
 import { VERSION_PATH, readerStore, tabStore } from "./runtime/storage.js";
 import { highlightBlocks } from "./runtime/syntax.js";
+import {
+  createTrays,
+  STRIP_TRAY_RULE,
+  TRAY_COVERING,
+  TRAY_KEY,
+  TRAY_PROP,
+} from "./runtime/trays.js";
 
 // ---------- widget layer ----------
 
@@ -476,6 +488,11 @@ function removeOutbox(...args) {
 }
 function post(...args) {
   return outboxRuntime.post(...args);
+}
+
+let stateFeed;
+function readAndApply(...args) {
+  return stateFeed.readAndApply(...args);
 }
 
 // ---------- the key register ----------
@@ -723,39 +740,10 @@ const PANEL_MIN = 320;
 // itself in play.
 const COVERING = `(width <= ${PANEL_W * 2}px)`;
 const NON_COVERING = `(width > ${PANEL_W * 2}px)`;
-// The trays' edge, on the left, and everything said above said again for it: the width
-// it stands at until the reader moves it, how narrow they may draw it, and the window
-// under which a tray covers the page rather than standing beside it. The same bargain at
-// the same ratio, because a reader who has learned one edge has learned the other.
-//
-// 220 is where the tray's own row stops being one. A leaf's row spends 45px before any
-// word of the page's — the status dot's 9px, its 8px gap, and the 20px and 8px the row
-// and the tray take for padding — and what is left holds a title that ellipsizes rather
-// than wrapping, so under this the tray is furniture showing the first syllable of every
-// name on it. The asks tray's rows clamp to three lines instead and would go on reading
-// further down, which is why the floor is the leaves tray's to set.
-const TRAY_W = 300;
-const TRAY_MIN = 220;
-const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
 // Where each standing width is written, and where the cascade reads it. Named rather than
 // spelled, because the stylesheet below and the runtime's writer are two ends of one fact
 // and a property spelled twice is two facts the day one of them moves.
 const PANEL_PROP = "--lf-panel-w";
-const TRAY_PROP = "--lf-tray-w";
-// Which trays take their room out of the page rather than lying over it, read by the rule
-// that takes the strip and by the runtime for what the page has left — so the two cannot
-// disagree about whether the page is yielding one.
-//
-// The leaves tray is not on the list, and that is not an inconsistency between two twins:
-// a leaf's row is a way out of this page and an ask's row is a way around it, so pressing
-// an ask's row scrolls the document to the ask and stands you on the control that answers
-// it — and a tray lying over the document would be hiding the very thing it just sent you
-// to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
-// most of them, so this is the common case rather than the narrow one.
-const STRIP_TRAYS = ["asks"];
-const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
-  (tray) => `[data-lf-tray="${tray}"]`,
-).join(",")})`;
 // The width the theme wants a page's box to have before it takes a strip of it for the
 // margin (theme.css's --strip-min, stated there because that is where the strips and
 // their breakpoints are). Read blind: the runtime reports how wide the box is against
@@ -833,18 +821,6 @@ const el = (tag, cls, text) => {
   return node;
 };
 const drawnEdge = createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout });
-// The rows' own box, one per tray. Collected as they are made, because what syncLayout
-// reserves at the foot of one it reserves at the foot of every one — and a second place
-// to remember that is exactly where the asks tray was left out of it: its walk parked
-// the last row 47px under the key line, on the one tray nothing had ever walked to the
-// end of.
-const trayLists = [];
-function trayList(panel) {
-  const list = el("div", "lf-tray-list");
-  panel.append(list);
-  trayLists.push(list);
-  return list;
-}
 // The comment panel's edge, on the right, and the tray panel's, on the left. Each keeps
 // the reader's choice in their own store rather than the tab's, because where a reader
 // keeps their conversations, and how much of the page they will give a tray, is the
@@ -859,17 +835,6 @@ const commentsEdge = drawnEdge({
   prop: PANEL_PROP,
   key: "lf-panel-width",
   covering: COVERING,
-});
-const traysEdge = drawnEdge({
-  side: "left",
-  noun: "tray panel",
-  wide: TRAY_W,
-  min: TRAY_MIN,
-  prop: TRAY_PROP,
-  key: "lf-tray-width",
-  covering: TRAY_COVERING,
-  // A page with no tray to open has no edge to draw, so the reference does not name one.
-  when: () => leavesOffered() || asksOffered(),
 });
 
 const banner = el("div", "lf-ui lf-banner");
@@ -1055,312 +1020,58 @@ const latestChip = el(
 // two rows that make it rather than typed out beside them.
 latestChip.title = "Open the current page";
 if (!LIVE_ROOT) latestChip.dataset.lfReserved = "1";
-// What the page is still waiting on the reader for, and the way to the next one — the
-// same list n/p step and the "?" overlay names, counted here so a reader who
-// has not scrolled that far still knows there is something to answer.
-const asksBtn = el("button", "lf-btn lf-asks", "");
-asksBtn.title = "Show or hide what this page needs your input on";
-// The machine's live leaves and what each is doing: a left panel of rows, each a
-// link opening that page in its own tab, judged by the same `presented` the banner
-// answers with, from the same facts — `others` on /api/state carries them for every
-// live page, and every URL in the list carries only the key this reader already
-// holds, since there is one key for the machine (`host_key`). The current page heads
-// the list as a marked, unlinked row, so the panel reads as the whole machine. A
-// status tray's point is being live, so rows reconcile on every applied state, keyed by URL —
-// the stable identity, since address, port and key all survive a restart — and a
-// status change repaints the row's own dot and words without moving it.
-const othersBtn = el("button", "lf-btn lf-others", "");
-othersBtn.title = "Leaves live on this machine, and what each is doing";
-// A nav, because navigation is what it is and a bare div may not carry the
-// aria-label the card needs (axe: aria-prohibited-attr, serious).
-const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
-othersPanel.setAttribute("aria-label", "Leaves on this machine");
-traysEdge.handle(othersPanel);
-const leavesList = trayList(othersPanel);
-let others = [];
-// A tray of the page's own open asks, on the same edge: one row per thing the page is
-// waiting on the reader for, in the order the page asks them. The list is openAsks() and
-// nothing else, so a widget joins the tray by declaring x-awaits and no row here knows
-// what kind of thing it is standing for.
-const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
-asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
-traysEdge.handle(asksPanel);
-const asksList = trayList(asksPanel);
-
-// The left edge holds one tray at a time. Leaves and asks are the same furniture asking
-// at two scopes — which page needs me, and what this page needs of me — and each has to
-// stand while the reader works, which is the whole reason either is a fixed edge rather
-// than a menu over the page. So which one is up is one fact held in one place. A boolean
-// per tray would be one guarantee written twice, and the two would first disagree on the
-// day a third surface opened one without closing the other; the reader would then have
-// two trays over one edge with the lower one unreachable.
-//
-// Registered rather than listed, for the same reason the widgets are: the toggle, the
-// press, the reload and the Escape rung all read this map, so a third tray joins by
-// registering and none of them names a tray to do its job.
-const trays = new Map();
-const TRAY_KEY = "lf-tray-up";
-// The tray survives a reload like the comment panel does (see PANEL_KEY): reloading is
-// not resetting, and a tray someone stood up to watch stays stood. Null until the
-// restore at the foot of this module puts it back, which it does by opening the tray
-// the way a press does. Reading the store into this declaration instead is what made
-// registration a second opener, and a second opener here can reach almost nothing: it
-// runs while this module is still evaluating, so the page's own asks — declared
-// thousands of lines below — are not initialized yet, and the reader who had left the
-// tray standing got a ReferenceError where their page should have been.
-let trayUp = null;
-const openTray = (key) => trayUp === key;
-function showTray(key) {
-  if (trayUp === key) return;
-  // Comments and trays are alternate workspaces. Retire the standing one before another
-  // opens so layout, focus, and persisted state never have to reconcile two of them.
-  if (key && panelOpen) setPanel(false);
-  trayUp = key;
-  for (const [name, { panel, btn, paint }] of trays) {
-    const open = name === key;
-    btn.setAttribute("aria-expanded", String(open));
-    if (open) {
-      // Filled before it is shown, so the tray is its own list from the first frame of
-      // the slide rather than a blank card that populates a moment later. The way down
-      // is the mirror of it, below: emptied once it is hidden, never before, or the
-      // reader watches the list they just closed blank out and an empty card slide away.
-      paint?.();
-      panel.classList.add("open");
-      motion(
-        panel,
-        [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
-        200,
-      );
-    } else if (panel.classList.contains("open")) {
-      // Slid out before hidden, and hidden only if still closed on arrival — a
-      // reopen mid-slide leaves the panel standing rather than racing the finish.
-      const out = motion(
-        panel,
-        [{ transform: "translateX(0)" }, { transform: "translateX(-100%)" }],
-        160,
-      );
-      const hide = () => {
-        if (trayUp === name) return; // reopened mid-slide; it stays up, list and all
-        panel.classList.remove("open");
-        paint?.();
-      };
-      if (out) out.finished.then(hide, () => {});
-      else hide();
-      if (panel.contains(document.activeElement)) btn.focus();
-    }
-  }
-  // Both of the page's answers to the tray are made here rather than left to the
-  // observation, for the reasons setPanel gives at the same two lines: the strip the
-  // idioms hang in is body's own padding, which the observation's writer may not touch,
-  // and a tray that covers the page moves body's box by nothing at all, so there is no
-  // observation to deliver.
-  stateStrip();
-  syncLayout();
-  readerStore.set(TRAY_KEY, key ?? "");
-  // Which tray is up, on the document, so the stylesheet can say what each one costs the
-  // page's own box. One writer for it, here, beside the one variable that holds the fact.
-  if (key) document.body.dataset.lfTray = key;
-  else delete document.body.dataset.lfTray;
-  paintHere();
-}
-// Registration and nothing else: no tray is up while this module is evaluating, and
-// the one the reader left standing goes up in the restore section at the foot of the
-// file, through showTray. So there is one opener, and every fact that carries "this
-// tray is up" is written where it is decided.
-function trayIs(key, panel, btn, paint) {
-  trays.set(key, { panel, btn, paint });
-  btn.onclick = () => showTray(openTray(key) ? null : key);
-  btn.setAttribute("aria-expanded", "false");
-}
-trayIs("leaves", othersPanel, othersBtn);
-trayIs("asks", asksPanel, asksBtn, () => renderAsks(openAsks()));
-// A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
-// the first state response. Keep the remembered intent in trayUp, but restore its pixels
-// only once that response has produced the page's presentation. Unlike showTray, this
-// first paint does not animate — it is part of the page arriving, not a reader gesture.
-function restoreTray() {
-  if (!trayUp) return;
-  const tray = trays.get(trayUp);
-  if (!tray) return;
-  if (panelOpen) setPanel(false);
-  tray.btn.setAttribute("aria-expanded", "true");
-  tray.paint?.();
-  tray.panel.classList.add("open");
-  document.body.dataset.lfTray = trayUp;
-}
-// Each tray's one offer: something to show, or the tray already standing — the key that
-// opened it must still close it, and its button must still be pressable. The button's
-// visibility and the key both ask the tray's own predicate, so the two surfaces cannot
-// disagree about whether there is a tray to open. A leaves tray of one — the page the
-// reader is already on — is not worth a control; an asks tray of none is the same.
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
-const leavesOffered = () =>
-  pagePresented() && (others.length > 0 || openTray("leaves"));
-const asksOffered = () =>
-  pagePresented() && (openAsks().length > 0 || openTray("asks"));
-// The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
-// and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
-// browser's, a row being a link, and the row says so with no `run` to give. The reader
-// arrives here by key — `l` lands focus on the first neighbour — so the scope names what
-// activating does rather than leaving it to the platform's own contract.
-const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
-const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
-// The asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
-// scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
-// button — so the scope names what walking does and leaves the press to the button.
-keys(asksPanel, "In the asks tray", [
-  {
-    keys: ["ArrowUp", "ArrowDown"],
-    does: "Walk the asks",
-    line: "walk the asks",
-    repeat: true,
-    run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
-  },
-  {
-    keys: ["Enter"],
-    does: "Go to this ask and stand on the control that answers it",
-  },
-]);
-keys(
+const {
+  askRows,
+  asksBtn,
+  asksList,
+  asksOffered,
+  asksPanel,
+  currentTray,
+  leavesList,
+  openTray,
+  othersBtn,
   othersPanel,
-  "In the leaves tray",
-  [
-    {
-      keys: ["ArrowUp", "ArrowDown"],
-      does: "Walk the leaves",
-      line: "walk the leaves",
-      repeat: true,
-      run: (binding) => walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1),
-    },
-    // Enter is the browser's here, the row being a link — no `run`, because binding it
-    // would click a control the platform has already activated. It carries a word all the
-    // same: the press is real and immediate where the reader is standing, which is what
-    // the line is for.
-    { keys: ["Enter"], does: "Open that leaf in a tab", line: "open it in a tab" },
-  ],
-  leavesOffered, // the scope's own liveness: a tray with something to walk
-);
-// A row's whole account of a page: the dot's tone and one line of words, from the
-// same judgment the banner's sentences come from — the judgment is shared, the
-// wording is the seat's.
-function rowPresence(entry) {
-  const { kind, quiet, dropped, detail } = presented(entry);
-  // The same join for both kinds that have words of their own. The reader opens this
-  // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
-  // `Working — recording the demo` said least about the one row they are here to act
-  // on: three pages waiting rendered as three identical rows, and which to go to
-  // first is the whole question the panel was opened to answer.
-  const stated = (word) => word + (detail ? " — " + detail : "");
-  // The banner's two silences, dated the same way and worded for a row.
-  const silence = dropped
-    ? `Left (${ago(entry.turn_closed)})`
-    : `Quiet (${ago(entry.status.ts)})`;
-  const line =
-    kind === "working"
-      ? stated("Working")
-      : kind === "listening"
-        ? stated("Awaits")
-        : kind === "stalled"
-          ? stated(silence)
-          : kind === "away"
-            ? quiet
-              ? silence
-              : "Away"
-            : kind === "unheld"
-              ? "Unheld"
-              : kind === "unattended"
-                ? "Unattended"
-                : "Closed";
-  return { tone: toneFor(kind), line };
-}
-// The whole of what the tray knows about one page, for its hover. Everything drawn
-// on a row is cut to the panel's fixed width — the title ellipsizes, the line
-// ellipsizes — and the fact that tells two rows apart is not drawn at all: where the
-// session behind the leaf is working. A title is a sentence somebody wrote and two
-// pages a week apart share one; the work each came out of is the thing the reader
-// already holds in their head, so it is worth the room a hover has and a row hasn't.
-//
-// One tooltip for the row rather than one per part. The innermost title wins where two
-// overlap, so a title left on the line would answer the hover most likely to be asking
-// this question — a reader pointing at the words that ran out of room — with the one
-// part of the account they can already read.
-const rowAccount = (entry, title, line) =>
-  [
-    title,
-    entry.session_cwd,
-    line,
-    // The reader's own words that page's agent hasn't taken in. The banner says this
-    // number for this page; the tray says it for every page, which is the seat's
-    // whole point — a leaf holding something of yours that nobody has read is a
-    // reason to go there, and nothing else on the row says so.
-    entry.pending && `${entry.pending} update${entry.pending === 1 ? "" : "s"} waiting`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-const othersRows = new Map(); // keyed by URL; the self row under its own key
-function renderOthers(state) {
-  // An older server ships no list, which is an empty one. A closed leaf is not
-  // one of the machine's live pages and drops out of the tray on the poll that says
-  // so: its server stays up so the page stays readable — a standing one for good —
-  // so nothing else would ever take the row off, and a count the reader glances at
-  // to find who needs them would silently become a tally of everything that has run
-  // here. Judged by the same `presented` the rows read, never by a second reading of
-  // the status the server ships. This page's own row is not in the list and so is
-  // never dropped: a reader looking at a closed page is still looking at it.
-  others = (state.others ?? []).filter((entry) => presented(entry).kind !== "closed");
-  // While the panel stands its button stands too, whatever the count just did.
-  showNews(othersBtn, leavesOffered());
-  const wanted = [
-    { key: "self", title: document.title, entry: state },
-    ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
-  ];
-  // The button names the tray it opens, so the count is these rows — the list the
-  // press will show, headed by this page's own row — and never arithmetic beside
-  // them. "Other leaves" counted the neighbours alone, one off the list it
-  // promised: a machine with one neighbour said (1) over a tray of two.
-  othersBtn.textContent = `All leaves (${wanted.length})`;
-  let anchor = null; // the row before this one, so order holds without rebuilding
-  for (const { key, title, entry } of wanted) {
-    let row = othersRows.get(key);
-    if (!row) {
-      // The self row is a marked div — the reader is already here, so there is
-      // nothing to open; every other row is a link to its page's own tab.
-      row =
-        key === "self"
-          ? el("div", "lf-others-row lf-others-self")
-          : Object.assign(el("a", "lf-others-row"), {
-              href: key,
-              target: "_blank",
-              rel: "noopener",
-            });
-      const head = el("div", "lf-others-head");
-      head.append(el("span", "lf-dot"), el("span", "lf-others-title"));
-      if (key === "self") head.append(el("span", "lf-pill", "this page"));
-      row.append(head, el("div", "lf-others-line"));
-      othersRows.set(key, row);
-    }
-    const { tone, line } = rowPresence(entry);
-    const [rowDot, rowTitle] = row.querySelectorAll(".lf-dot, .lf-others-title");
-    const rowLine = row.querySelector(".lf-others-line");
-    // Written only on change: an unchanged poll must not feed the mutation stream
-    // a screen reader rebuilds its buffer on.
-    const dotCls = "lf-dot" + (tone ? " " + tone : "");
-    if (rowDot.className !== dotCls) rowDot.className = dotCls;
-    if (rowTitle.textContent !== title) rowTitle.textContent = title;
-    if (rowLine.textContent !== line) rowLine.textContent = line;
-    // Everything the row was too narrow to say, on the row itself (see rowAccount).
-    const account = rowAccount(entry, title, line);
-    if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : leavesList.firstElementChild;
-    if (place !== row) leavesList.insertBefore(row, place);
-    anchor = row;
-  }
-  for (const [key, row] of othersRows)
-    if (!wanted.some((w) => w.key === key)) {
-      row.remove();
-      othersRows.delete(key);
-    }
-}
+  reserveListClearance,
+  restoreTray,
+  restoreTrays,
+  showTray,
+  trayNames,
+  traysEdge,
+  trayStrip,
+} = createTrays({
+  beforeOpen: () => {
+    if (panelOpen) setPanel(false);
+  },
+  drawnEdge,
+  el,
+  keys,
+  leavesOffered: () => leavesOffered(),
+  motion,
+  openAsks,
+  pagePresented,
+  paintKeys,
+  readerStore,
+  renderAsks: () => renderAsks(openAsks()),
+  stateStrip,
+  syncLayout,
+  walkRows,
+});
+const { leavesOffered, othersLinks, renderOthers } = createLiveLeaves({
+  ago,
+  el,
+  keys,
+  leavesList,
+  openTray,
+  othersBtn,
+  othersPanel,
+  pagePresented,
+  paintKeys,
+  presented: (...args) => presented(...args),
+  showNews,
+  toneFor: (...args) => toneFor(...args),
+  walkRows,
+});
 for (const control of [latestChip, asksBtn, othersBtn]) showNews(control, false);
 const {
   NEWEST,
@@ -1386,6 +1097,7 @@ const {
   midComposition: (...args) => midComposition(...args),
   paintDiff: (...args) => paintDiff(...args),
   paintHere,
+  paintKeys,
   readAndApply,
   pressComparison: (...args) => pressComparison(...args),
   setDiff: (...args) => setDiff(...args),
@@ -1527,6 +1239,12 @@ liveEl.setAttribute("aria-live", "polite");
 const helpEl = document.createElement("dialog");
 helpEl.className = "lf-ui lf-help";
 helpEl.setAttribute("aria-label", "Keyboard reference");
+helpEl.setAttribute("aria-modal", "true");
+helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
+const helpClose = el("button", "lf-btn lf-help-close", "Close");
+helpClose.type = "button";
+helpClose.title = "Close keyboard reference";
+helpClose.setAttribute("aria-label", "Close keyboard reference");
 // The key line — the register's short rendering. Its two fact chips are aria-hidden (the
 // spoken copies are placeholders, announcements, and the reference); More is a real button
 // because a visible door to the complete list should be a door every reader can work.
@@ -1677,14 +1395,10 @@ const panelCovers = () => panelOpen && commentsEdge.over.matches;
 // focus: beside the page the panel is a column of its own, and a reader working down the
 // list is in it whatever the window is wide enough to show behind them.
 const inPanel = () => panelOpen && containsAcross(panel, focused());
-// The strip each side of the page yields, which is that edge's width until the window is
-// too narrow to give one up — one expression each, because the margin the rule takes and
-// the room measured against it have to mean the same thing by it. The tray panel yields
-// one only for the trays the page gives room to at all, which is the same list the rule
-// reads (STRIP_TRAYS).
+// The strip the page yields to the comment panel is its edge's width until the window is
+// too narrow to give one up. One expression keeps the margin the rule takes and the room
+// measured against it on the same terms.
 const panelStrip = () => (panelOpen && !panelCovers() ? commentsEdge.width() : 0);
-const trayStrip = () =>
-  STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;
 // Whether the page still has room for the margin the theme's idioms hang in. The strips
 // are granted by a media query, which asks the window; the page's box is the window less
 // whatever the panel holds of it, and this is the only thing that knows the difference. So
@@ -1793,10 +1507,7 @@ function syncLayout() {
   // line standing there. Stepping the line clear instead was the other answer, and it
   // takes the tray's width off the line's: a busy scope already fills a laptop's, so
   // the room it gives up is chips clipped off the right-hand end.
-  for (const list of trayLists) {
-    list.style.paddingBottom = clear;
-    list.style.scrollPaddingBottom = clear;
-  }
+  reserveListClearance(clear);
   stateRoom();
   syncFloats();
   anchorRuntime?.dockSeats();
@@ -1889,7 +1600,7 @@ function syncFloats() {
   }
 }
 function setPanel(open) {
-  if (open && trayUp) showTray(null);
+  if (open && currentTray()) showTray(null);
   // Closing while focus is inside would drop it on body, the user's place
   // lost silently; it lands on the one control that reopens what just closed.
   if (!open && panel.contains(document.activeElement))
@@ -1996,7 +1707,7 @@ const {
   fabBar,
   fabSep,
   hideComposer: () => hideComposer(),
-  hideReference: () => reference.show(false),
+  hideReference: () => reference.show(false, false),
   inChrome: (node) => inChrome(node),
   markAt,
   noteClass: () => NOTE,
@@ -2462,10 +2173,11 @@ function rung() {
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the tray" over two of them.
-  if (trayUp)
+  const tray = currentTray();
+  if (tray && !panel.contains(active))
     return {
-      says: `close ${trayUp}`,
-      does: `Close the ${trayUp} tray`,
+      says: `close ${tray}`,
+      does: `Close the ${tray} tray`,
       out: () => showTray(null),
     };
   // A narrowing is a layer of the panel the way a tray is a layer of the page: the
@@ -2607,6 +2319,7 @@ const {
   openTray,
   paintAnchors,
   paintHere,
+  paintKeys,
   panelIsOpen: () => panelOpen,
   registry,
   reserve,
@@ -2683,201 +2396,65 @@ const {
 });
 
 // ---------- reactions ----------
-// The layer's reaction vocabulary, in declared order. The bar, a thread's strip, the
-// page row and the armed digits all read this one list, so a layer that renames, adds
-// or removes a token moves every surface at once, and core never learns a token's name:
-// what a press means is the entry's `means`, printed to the agent by `leaf wait`, and
-// what it does structurally is the entry's own flag (`settles`, read by the panel).
-// Empty until the registry has arrived: the register checks every core row's bindings
-// as the module evaluates, which is before the vocabulary is known.
-const reactionTokens = () => Object.entries(registry.$reactions?.tokens ?? {});
-// One token as a press, built the same way wherever it stands — the bar beside a
-// selection, the strip under a message, the panel's page row. The digit is the address
-// the armed mode paints (the chip an option wears while its mark holds focus) and shows
-// only while armed; the word shows only while the token stands on its target, so a strip
-// reads "✓ ok" where the reader pressed and a bare glyph everywhere else. The chip is
-// aria-hidden the way the key line's are: the announcement made on arming says the keys.
-function reactPill(name, entry, ordinal, pressed) {
-  const pill = offer("button", "lf-pill lf-react");
-  pill.dataset.token = name;
-  pill.title = `${name} — ${entry.means}`;
-  pill.setAttribute("aria-label", name);
-  const digit = el("span", "lf-address", String(ordinal));
-  digit.setAttribute("aria-hidden", "true");
-  pill.append(
-    digit,
-    el("span", "lf-react-glyph", entry.glyph),
-    el("span", "lf-react-word", name),
-  );
-  pill.onclick = () => pressed(name, pill);
-  return pill;
-}
-const reactPills = (pressed) =>
-  reactionTokens().map(([name, entry], i) => reactPill(name, entry, i + 1, pressed));
-function buildReactBar() {
-  for (const pill of reactPills(reactHere)) fabBar.insertBefore(pill, fab);
-}
-// What the bar's target is called, for the line, the reference and the announcement:
-// the selection, a declared visual part by its own label, or the item by its own word.
-const anchorWord = (anchor) => {
-  if (anchor.quote) return "the selection";
-  const item = elementById(anchor.section);
-  if (anchor.visual) return visualPartLabel(item, anchor.visual) ?? anchor.visual;
-  return itemWord(item) || "the item";
-};
-// A reaction aimed where the bar is: a comment carrying a token in place of words, on
-// the same anchor a comment from here would carry — the passage a selection named or
-// the item the bar was raised on — so the file meets it the way it meets a comment.
-// Design mode makes it about the layer, as it does a comment. Sent, the bar and the
-// selection stand down: the mark on the passage is the receipt, and a selection left
-// standing would cover it.
-async function reactHere(name, pill) {
-  const anchor = fabAnchorAt();
-  if (!anchor) return;
-  if (pill.lfReaction) {
-    await withdraw(pill.lfReaction);
-    showFab(null);
-    setReact(false);
-    return;
-  }
-  const event = {
-    kind: "comment",
-    revision: runtime.currentRevision,
-    token: name,
-    anchor: structuredClone(anchor),
-  };
-  if (designOn) event.about = "layer";
-  const sent = await sendReaction(event, pill, anchorWord(anchor));
-  if (!sent) return;
-  showFab(null);
-  setReact(false);
-  getSelection()?.removeAllRanges();
-}
-// One send for every reaction surface. A press whose result has not changed the DOM
-// waits for the log — the outbox's rule — so the pill says busy for the round trip and
-// the paint arrives with the accepted state. Announced, because the paint is silent.
-async function sendReaction(event, pill, where) {
-  pill.setAttribute("aria-busy", "true");
-  try {
-    const sent = await post(event);
-    if (sent) announce(`${event.token} on ${where}`);
-    return sent;
-  } finally {
-    pill.removeAttribute("aria-busy");
-  }
-}
-
-// The armed react press: `r` puts a digit on every token of one surface, and the digit
-// sends. Digits rather than letters because the vocabulary is configuration — a letter
-// spelled from a token's word breaks the day a layer replaces it, where position
-// survives any set. The surface is whichever strip of pills the reader's place names:
-// the strip under the latest agent message where they are standing in a thread; the bar,
-// where one stands or can be raised on the item they are standing on; and the panel's
-// page strip where nothing stands, the page whole being what an anchorless reaction is
-// aimed at. Armed, the mode owns the keys (REACT claims everything, as the address chord
-// does); Escape or a stray key lets it go, and what the arming raised — the bar, or the
-// panel — goes down with it, unless a digit spent it, which is the reader landing in
-// what the arming showed (the chord's `keepShown`).
-let reactArmed = false;
-let reactRaised = false;
-let reactRevealed = null;
-let reactSurface = null;
-// The strip the panel has open — the latest agent message's — asked of the class the
-// list paints it with rather than of DOM order, so arming and offering cannot disagree
-// about which message is the latest one.
-const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
-function setReact(on, { spent = false } = {}) {
-  if (on === reactArmed) return;
-  // Armed over a control that has claimed Escape, one press would have two owners, so
-  // the mode refuses to arm there — the chord's own rule.
-  if (on && claimsEsc(focused())) return;
-  reactSurface?.classList.remove("lf-armed");
-  if (on) {
-    const said = standingConversation();
-    const strip = said && latestAgentStrip(said.held);
-    const here = !strip && !fabAnchorAt() && standingItem();
-    if (strip) reactSurface = strip;
-    else if (fabAnchorAt() || here) {
-      if (here) {
-        showFab(
-          { section: here.id },
-          ...beside(shownRect(here, new Map()) ?? shownBox(here)),
-        );
-        reactRaised = true;
-      }
-      reactSurface = fabBar;
-    } else {
-      reactSurface = conversationRuntime.pageStrip;
-      if (!reactSurface) return;
-      reactRevealed = COMMENTS.reveal();
-    }
-    reactArmed = true;
-    reactSurface.classList.add("lf-armed");
-    announce(`React — ${saying(REACT.rows)}`);
-  } else {
-    reactArmed = false;
-    reactSurface = null;
-    if (reactRaised) showFab(null);
-    if (!spent) reactRevealed?.();
-    reactRaised = false;
-    reactRevealed = null;
-  }
-  paintHere();
-}
-const reactTargetWord = () =>
-  reactSurface === fabBar
-    ? anchorWord(fabAnchorAt())
-    : reactSurface === conversationRuntime.pageStrip
-      ? "the page"
-      : "the reply";
-// The armed react press's own scope: the digits, and the way out. It claims everything
-// for the reason the chord does — a digit pressed while it stands belongs to it wherever
-// focus sits — and, as with the chord, any key it does not bind disarms it and keeps its
-// ordinary meaning (the dispatcher).
-const REACT = {
-  title: "With r armed",
-  at: () => reactArmed,
-  claims: EVERYTHING,
-  rows: [
-    {
-      keys: () =>
-        reactionTokens()
-          .slice(0, 9)
-          .map((_, i) => String(i + 1)),
-      label: () => {
-        const n = Math.min(reactionTokens().length, 9);
-        return n > 1 ? `1–${n}` : "1";
-      },
-      does: () =>
-        `Put a reaction on ${reactTargetWord()}: ${reactionTokens()
-          .slice(0, 9)
-          .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
-          .join(", ")}`,
-      line: "react",
-      run: (binding) => {
-        // The surface's own pill, pressed: keyboard and pointer are one behaviour,
-        // the busy paint and the announcement included.
-        reactSurface?.querySelectorAll(".lf-react")[+binding - 1]?.click();
-        setReact(false, { spent: true });
-      },
-    },
-    {
-      keys: ["Escape"],
-      does: "Put the reaction down",
-      line: "cancel",
-      run: () => setReact(false),
-    },
-  ],
-};
+const {
+  REACT,
+  buildReactBar,
+  isReactArmed,
+  reactPills,
+  reactionTokens,
+  sendReaction,
+  setReact,
+  undoSentence,
+} = createReactions({
+  CONTROL_WORD_CAP,
+  EVERYTHING,
+  anchorLabel: (...args) => anchorLabel(...args),
+  announce,
+  beside,
+  claimsEsc,
+  commentsReveal: () => COMMENTS.reveal(),
+  currentRevision: () => runtime.currentRevision,
+  cut: (...args) => cut(...args),
+  designIsOn: () => designOn,
+  el,
+  elementById: (...args) => elementById(...args),
+  fab,
+  fabAnchorAt,
+  fabBar,
+  focused,
+  itemWord,
+  offer,
+  pageStrip: () => conversationRuntime.pageStrip,
+  paintHere,
+  post,
+  reactionVocabulary: () => registry.$reactions?.tokens,
+  saying,
+  showFab,
+  shownBox,
+  shownRect: (...args) => shownRect(...args),
+  standingConversation,
+  standingItem,
+  undoable: (...args) => undoable(...args),
+  visualPartLabel: (...args) => visualPartLabel(...args),
+  withdraw: (...args) => withdraw(...args),
+});
 const HELP = {
   title: "In this reference",
   at: () => reference.open,
   claims: EVERYTHING,
   rows: [
     {
+      keys: ["Tab", "Shift+Tab"],
+      does: "Move through this reference",
+      line: "move",
+      repeat: true,
+      run: (binding) => reference.move(binding === "Tab" ? 1 : -1),
+    },
+    {
       keys: ["Escape"],
       does: "Close this reference",
       line: "close help",
+      also: helpClose,
       run: () => reference.show(false),
     },
   ],
@@ -3535,7 +3112,11 @@ for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own key
 // correct. `also` is where a row says which control it duplicates; the chip's is the one
 // motion no single row makes, so it is composed of the two rows that make it.
 for (const scope of CORE)
-  for (const row of scope.rows) if (row.also) row.also.title += ` (${labelOf(row)})`;
+  for (const row of scope.rows)
+    if (row.also) {
+      row.also.title += ` (${labelOf(row)})`;
+      row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
+    }
 latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
 
 const { readerIn, shadow, stack } = createDispatch({
@@ -3544,7 +3125,7 @@ const { readerIn, shadow, stack } = createDispatch({
   ELEMENTS,
   focused,
   isChordArmed,
-  isReactArmed: () => reactArmed,
+  isReactArmed,
   keepShown,
   paintHere,
   panel,
@@ -3561,6 +3142,7 @@ const reference = createReference({
   ELEMENTS,
   EVERYTHING,
   focused,
+  helpClose,
   helpEl,
   merge,
   pageSelection,
@@ -3731,22 +3313,6 @@ function buildThreads(...args) {
 function loadMarked(...args) {
   return conversationRuntime.loadMarked(...args);
 }
-// The z row's sentence for a reaction: the token and where it stands, so the line is
-// the receipt after the press and the promise before the next.
-function reactionPlace(e) {
-  if (e.kind === "reply") return "the reply";
-  if (!e.anchor) return "the page";
-  const label = anchorLabel(e.anchor, e.about);
-  return [...label].length > CONTROL_WORD_CAP
-    ? cut(label, 0, CONTROL_WORD_CAP) + "…"
-    : label;
-}
-const undoSentence = () => {
-  const e = undoable();
-  return e?.token
-    ? `Take back: ${e.token} on ${reactionPlace(e)}`
-    : "Take back the last change you made here";
-};
 function anchorLabel(...args) {
   return conversationRuntime.anchorLabel(...args);
 }
@@ -4160,33 +3726,6 @@ designRuntime = createDesign({
   tabStore,
 });
 
-// The answer, decoded, with nothing applied yet.
-//
-// Reading and applying are separate acts because the page must stay free to ask again
-// while an application is still running. Applying can take arbitrarily long and can be
-// held open deliberately — a version activation runs inside a view transition, which
-// waits on a frame and on whatever a module does during one — and an ear that waited
-// for that would stop hearing. The page would then go silent for a reason none of its
-// news is about, which is a wedge rather than a delay: nothing else would ever ask.
-async function readState() {
-  let res;
-  try {
-    res = await fetch("/api/state");
-  } catch {
-    // Network absence is a completed answer: there is no log to replay, so the offline
-    // authored page is honest. A successful but malformed response is different — let
-    // JSON or processing errors escape so the caller retains the recovery boundary.
-    return null;
-  }
-  const responseGeneration = res?.ok && res.headers.get("Leaf-Layer");
-  if (responseGeneration && !sameLayer(responseGeneration)) return null;
-  // A refusal is not state: the server answers a missing key with error-shaped JSON at
-  // 403. A live server refusing the key and a dead one both leave the page unreachable
-  // from here, and the terminal link is the recourse for both.
-  if (!res?.ok) return null;
-  return res.json();
-}
-
 // Whether an answer was taken before the one the page holds. Answers cross — a read
 // held by a slow proxy or a test while a later one lands, a POST's answer beside a
 // read — and the log's sequence and the data's revision order everything in a state
@@ -4197,112 +3736,23 @@ async function readState() {
 const takenBefore = (state) =>
   runtime.state !== null && state.taken < runtime.state.taken;
 
-// Whether the page's last read ended in a whole reading applied. Two things turn on
-// it. The heartbeat is a re-application of the reading the page holds, and a page whose
-// reads are failing must not re-apply: its last complete reading is what replay and
-// undo are still standing on. And a read that failed is asked again on the tick — the
-// stream says when the page has moved and cannot say it twice, so a wake-up the page
-// could not act on would otherwise be lost, leaving it under an offline banner until
-// something else happened to the page. That is the spacing a failed exchange has
-// always had, the outbox's included; a healthy page still never asks without news.
-let readAnswered = false;
-
-// What the page does with an answer that brought no state.
-function readNothing() {
-  readAnswered = false;
-  if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
-  renderStatus(null);
-  if (panelOpen) renderPanel();
-  tick();
-}
-
-// A read and its application together, for the callers that want to be told when the
-// page has taken the answer in: the first read, which presentation waits on, and a
-// version activation, which asks for the state it is about to show.
-async function readAndApply() {
-  const state = await readState();
-  if (!state) {
-    readNothing();
-    return;
-  }
-  await receiveState(state);
-  readAnswered = true;
-}
-
-// The heartbeat: everything a poll did, with the fetch taken out of it.
-//
-// A poll that brought nothing still re-applied the state the page already held, and the
-// runtime has a lot hanging off that — a clock ageing toward a threshold, a claim going
-// quiet, a work line, an activation a live editor deferred and nothing else will ask
-// about again. None of those needed the network; they rode it because a request was the
-// only thing that happened regularly, which made a round trip the page's clock.
-//
-// Re-applying the held reading is deliberately the whole of it rather than a list of the
-// jobs that need re-running. That list is not knowable by reading the code — the first
-// attempt at this enumerated it, found three by breaking them, and still missed one —
-// and it would have to be maintained by everyone who adds a fourth.
-function heartbeat() {
-  if (runtime.statePhase !== "ready" || !runtime.state) return;
-  void receiveState(runtime.state).catch((error) => {
-    // What the page holds cannot be re-applied, so what it holds is no longer a
-    // whole reading: the next tick reads afresh rather than failing the same way
-    // every two seconds for the rest of the page's life.
-    readAnswered = false;
-    reportPageError(`tick failed: ${error?.message ?? error}`);
-  });
-}
-
-// What the page owes itself when nothing arrived, and the sequence consumers still hear
-// it. A read that brought nothing changes no history, so they re-render what they already
-// held — but anything of theirs that reads a clock rather than the log has to keep moving,
-// and a dead server is exactly when it matters: the banner says the server is gone while a
-// roster row froze its "last heard 4m ago" at the moment the answers stopped, which is the
-// authored freshness this widget layer exists to replace, produced by the layer itself. A
-// first failed read has no projection to claim. Once a complete read has installed one,
-// though, a tick is still the wake-up for a correction a live editor deferred; a
-// definitively refused local action has the same authored correction even when no read has
-// succeeded yet. Never project a newer event list whose surrounding state threw before
-// lastEventSeq advanced.
-function tick() {
-  const refusedCorrection = outbox.some((entry) => entry.answered && entry.rejected);
-  if (
-    (runtime.statePhase === "ready" || refusedCorrection) &&
-    reconcileKnownState() &&
-    releaseProjectedOutbox()
-  )
-    paintKeys();
-  document.dispatchEvent(new Event("lf-actions"));
-  notifyDataSubscribers();
-}
-
-function acceptData(candidate) {
-  if (
-    !candidate ||
-    typeof candidate !== "object" ||
-    Array.isArray(candidate) ||
-    !Number.isInteger(candidate.revision) ||
-    candidate.revision < 0 ||
-    !candidate.sources ||
-    typeof candidate.sources !== "object" ||
-    Array.isArray(candidate.sources)
-  )
-    throw new TypeError("state data must carry a non-negative revision and sources");
-  if (candidate.revision <= runtime.data.revision) return false;
-  runtime.data = structuredClone(candidate);
-  return true;
-}
-
-function notifyDataSubscribers() {
-  document.dispatchEvent(new Event("lf-data"));
-  // The revision becomes a readiness fact only after synchronous subscribers have
-  // rendered it. Render checks and export compare this stamp with the server snapshot,
-  // so a data-only page cannot be read between acceptance and projection.
-  if (runtime.data.revision >= 0)
-    document.body.setAttribute(
-      PAGE_PAINT_ATTRIBUTE.dataRevision,
-      String(runtime.data.revision),
-    );
-}
+stateFeed = createStateFeed({
+  RETRY_MS,
+  SILENCE_MS,
+  TICK_MS,
+  notifyDataSubscribers,
+  outbox,
+  paintKeys,
+  panelIsOpen: () => panelOpen,
+  receiveState,
+  reconcileKnownState,
+  releaseProjectedOutbox,
+  renderPanel,
+  renderStatus,
+  reportPageError,
+  runtime,
+  sameLayer,
+});
 
 async function receiveState(state) {
   // Every state this page reads passes here — the poll's, and the one an accepted
@@ -4575,13 +4025,7 @@ generalInput.value = loadDraft("general") ?? "";
 commentsEdge.restore();
 traysEdge.restore();
 if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
-// Remembered tray intent is staged here, after every declaration exists. Its strip is
-// part of the arrival geometry, but its state-dependent rows stay hidden until the first
-// replay presents the page and restoreTray paints them. An already-presented document
-// (an exported or pre-presented DOM) can restore immediately through the same function.
-trayUp = readerStore.get(TRAY_KEY) || null;
-if (trayUp) document.body.dataset.lfTray = trayUp;
-if (pagePresented()) restoreTray();
+restoreTrays();
 if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // Every way this page can come up that is not a first visit — the restores above, each
 // named by the fact its store holds. The browser gate arrives once in each, because
@@ -4601,7 +4045,7 @@ createArrangements({
   commentsEdge,
   readerStore,
   tabStore,
-  trays,
+  trayNames,
   traysEdge,
 });
 // Where the reader stands, which is the half of an arrival the browser cannot answer on
@@ -4705,6 +4149,7 @@ async function presentPage() {
   // an empty persisted tray between those facts.
   restoreTray();
   showNews(othersBtn, leavesOffered());
+  paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
   paintApproval();
   promoteDeferredModals();
@@ -4779,118 +4224,7 @@ async function startPage() {
     if (!document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
       await ensurePresentation();
   };
-  const readAndPresent = async () => {
-    try {
-      await readAndApply();
-      await present();
-    } catch (error) {
-      readAnswered = false;
-      reportPageError(`read failed: ${error?.message ?? error}`);
-      renderStatus(error);
-    }
-  };
-  // What the page does when the stream says it has moved. Every wake-up is a read of
-  // its own, and reads may overlap: one held by a slow proxy while the next answers
-  // is the case receiveState orders by sequence, revision and stamp, and a gate that let
-  // one read out at a time would have made a held read a held page. Application is
-  // deliberately not awaited — see readState — and a fault applying one answer is
-  // reported and does not stop the next from arriving. Presentation is chained onto
-  // the application rather than onto the read, because it is a fact about applied
-  // state: a page whose first answer did not present must still present on a later
-  // one. An answer with nothing in it — an unreachable server, a refused key, a layer
-  // that has moved on and is reloading — still presents, since the authored page under
-  // an unreachable server is a page, and saying so is the banner's job.
-  const ask = async () => {
-    try {
-      const state = await readState();
-      if (state)
-        void receiveState(state)
-          .then(
-            () => {
-              readAnswered = true;
-            },
-            (error) => {
-              readAnswered = false;
-              reportPageError(`read failed: ${error?.message ?? error}`);
-              renderStatus(error);
-            },
-          )
-          // Presentation's own fault is reported as its own: the read behind it
-          // stands, and the tick retries the presentation rather than the read.
-          .then(present)
-          .catch((error) => {
-            reportPageError(`presentation failed: ${error?.message ?? error}`);
-          });
-      else {
-        readNothing();
-        await present();
-      }
-    } catch (error) {
-      readAnswered = false;
-      reportPageError(`read failed: ${error?.message ?? error}`);
-      renderStatus(error);
-    }
-  };
-  // The page's ear: one stream, open for the page's life, on which the server names the
-  // page's reading each time it changes, and again every five seconds whether or
-  // not it did — nothing else rides it. State still comes by asking, so every reader
-  // of a state request — in the page, or a test standing outside it with a route on
-  // the request — keeps its meaning; the stream only says when asking is worth it.
-  // The reading compared is the one the page has applied: a wake-up naming what the
-  // page already shows, which a page's own POST response leaves it holding, is no
-  // reason to ask. The repeated word is what makes the comparison safe to rest on: a
-  // reading that reached the page some other way, or that the server's own memory of
-  // this stream missed, differs from the next word here and is asked for then.
-  //
-  // The browser reopens a stream that drops. One the server refused — a key it no
-  // longer honours, a server too old to have the door — is closed for good, and is
-  // reopened from here at the spacing a failed read always had. Either way, whether
-  // the server is there is put to a read, which is what the banner answers from: a
-  // dropped stream is a prompt to ask, not a verdict. Coming back after a silence, the
-  // page asks if its last read failed, since whatever it is showing about the server
-  // is from before the silence.
-  const listen = () => {
-    const news = new EventSource("/api/news");
-    let quiet;
-    const alive = () => {
-      clearTimeout(quiet);
-      quiet = setTimeout(() => {
-        news.close();
-        listen();
-      }, SILENCE_MS);
-    };
-    news.addEventListener("open", () => {
-      alive();
-      if (!readAnswered) void ask();
-    });
-    news.addEventListener("message", (event) => {
-      alive();
-      if (event.data !== runtime.reading) void ask();
-    });
-    news.addEventListener("error", () => {
-      clearTimeout(quiet);
-      if (news.readyState === EventSource.CLOSED) setTimeout(listen, RETRY_MS);
-      void ask();
-    });
-  };
-  // Presentation waits on the first read, and the ear opens after it: the page then
-  // holds a reading for the stream's first word to be compared with, so an unchanged
-  // page is not asked for twice.
-  readAndPresent().finally(() => {
-    // Two mechanisms now, where there was one. The heartbeat is local and keeps its
-    // cadence whatever the network is doing; the news arrives when there is news. They
-    // were the same timer for as long as a request was the only thing that happened
-    // regularly, which made a round trip the page's clock and put every local job on
-    // the far side of it.
-    setInterval(() => {
-      if (readAnswered) heartbeat();
-      else void ask();
-      // A presentation that failed is retried here as the poll retried it, since
-      // a quiet page may see no read to chain it onto.
-      void present();
-    }, TICK_MS);
-    listen();
-  });
+  stateFeed.start(present);
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and

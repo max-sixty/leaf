@@ -1,11 +1,14 @@
 """Shared fixtures for payload modules exposed through pytest's source root."""
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from leaf import events as events_model
+from leaf import files as files_model
 from leaf import service as service_model
 from playwright.sync_api import sync_playwright
 
@@ -21,6 +24,41 @@ INTERACT_SCRIPT = (
 # Domain test modules import their assertions explicitly; these two support modules
 # own the shared fixtures and register them once for the complete suite.
 pytest_plugins = ("interact_support", "render_support")
+
+
+@pytest.fixture(scope="session")
+def clone_initialized_page(tmp_path_factory):
+    """Clone one initialized page shape without recomposing its layer per test.
+
+    Runtime and vendor files are immutable inputs for tests whose subject starts
+    after initialization. Hard links keep those large bytes shared; page state,
+    the registry, theme, entry module, and widget modules remain private copies.
+    A re-vendor replaces linked files atomically, so it also stays private.
+    """
+    templates = {}
+    root = tmp_path_factory.mktemp("page-templates")
+
+    def clone(name, destination, initialize):
+        if name not in templates:
+            template = root / name
+            initialize(template)
+            templates[name] = template
+        template = templates[name]
+
+        def copy_fixture_file(source, target):
+            relative = Path(source).relative_to(template)
+            if relative.parts[0] in {"runtime", "vendor"}:
+                os.link(source, target)
+                return target
+            return shutil.copy2(source, target)
+
+        shutil.copytree(template, destination, copy_function=copy_fixture_file)
+        status_path = destination / "status.json"
+        status = files_model.read_json(status_path)
+        status["ts"] = events_model.now_iso()
+        files_model.write_json(status_path, status)
+
+    return clone
 
 
 def pytest_addoption(parser):

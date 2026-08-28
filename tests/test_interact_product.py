@@ -280,7 +280,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     )
 
 
-def test_examples_pass_check(tmp_path, monkeypatch):
+def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
     """Every gallery page in examples/ lints clean against the shipped layer."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
@@ -289,12 +289,16 @@ def test_examples_pass_check(tmp_path, monkeypatch):
     examples = sorted(root.glob("*.html"))
     assert examples
     selection_args = [arg for package in packages for arg in ("--package", package)]
+
+    def initialize(target):
+        initialized = CliRunner().invoke(
+            cli_model.cli, ["page", "init", *selection_args, str(target)]
+        )
+        assert initialized.exit_code == 0, initialized.output
+
     for example in examples:
         d = tmp_path / example.stem
-        initialized = CliRunner().invoke(
-            cli_model.cli, ["page", "init", *selection_args, str(d)]
-        )
-        assert initialized.exit_code == 0, f"{example.name}: {initialized.output}"
+        clone_initialized_page("examples", d, initialize)
         (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)

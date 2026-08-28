@@ -13,6 +13,7 @@ export function createVersionNavigation({
   midComposition,
   paintDiff,
   paintHere,
+  paintKeys,
   readAndApply,
   pressComparison,
   setDiff,
@@ -254,6 +255,7 @@ export function createVersionNavigation({
   };
 
   let lastVersionsKey = "";
+  let versionsWalkable = false;
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
@@ -290,6 +292,11 @@ export function createVersionNavigation({
       if (current) runtime.currentRevision = current.revision;
     }
     versionBtn.disabled = !versionsOffered();
+    const walkable = versionsToWalk();
+    if (walkable !== versionsWalkable) {
+      versionsWalkable = walkable;
+      paintKeys();
+    }
     const notes = {};
     for (const e of runtime.events) if (e.kind === "note") notes[e.version] = e.text;
     const key = JSON.stringify([

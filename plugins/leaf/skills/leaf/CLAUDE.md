@@ -35,8 +35,14 @@ their direct readers;
 and selection-composer state;
 `runtime/drawn-edge.js` owns the shared resizable boundary used by the comment panel
 and tray panels;
+`runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
+shared tray furniture;
+`runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
+`runtime/reactions.js` owns reaction vocabulary, pills, sending, the armed mode, and
+reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
-`runtime/data.js` owns widget source-contract subscriptions;
+`runtime/data.js` owns external-data acceptance, readiness, and source-contract
+subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings;
@@ -44,6 +50,8 @@ and tray panels;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns claim freshness and attendance judgment;
+`runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
+event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
@@ -112,7 +120,7 @@ Each mutable fact has one writer:
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
-| tray visibility | `trayUp` | `showTray` |
+| tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
 | keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
@@ -1776,6 +1784,19 @@ Computed ranges count current members. A declaration must survive `merge` with
 its `when`, `at`, `claims`, and rows intact so the reference does not advertise
 a scope the current page cannot enter.
 
+The reference is a complete keyboard layer. Its registered Tab row cycles
+through the close control, search field, and actual overflow regions without
+letting focus enter the page behind it. Escape and the close control share one
+registered row. Closing restores the element that opened it; restoration waits
+one frame only when that element is the temporarily removed More control.
+
+`aria-keyshortcuts` is another projection of the register. Element scopes expose
+their currently available rows, including the scope's capability gate, and a
+row's `also` control exposes the key that duplicates it. `Mod` expands to both
+Meta and Control because the dispatcher
+accepts both. Call `paintKeys` when a state change moves row liveness so this
+projection and the visible surfaces change together.
+
 An overlay may become stale while open. If a row goes dead, its dispatch no
 longer runs. A newly live row may wait until the reference is reopened. Do not
 rebuild a focused help surface under the reader merely to keep it live to the
@@ -1866,8 +1887,8 @@ needs the actionable widget rather than the reader-facing region.
 
 ### Address chord
 
-`g` opens one address mode. A second letter names a list, and a digit names a
-member. `g g` and `g G` complete the chord themselves, gliding to the top and
+`g` opens one address mode. A second letter names a list, and a decimal number
+names a member. `g g` and `g G` complete the chord themselves, gliding to the top and
 bottom of the visible scroller. When a comment holds focus, `g t` and `g b`
 place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
@@ -1888,9 +1909,13 @@ Adding a list adds one entry. The page-level `g` row promises only the mode;
 ranges belong to the list rows inside it.
 
 Arming the mode paints the whole offer: every list contributes chips at once, and
-a letter narrows them to its own list. A chip carries the whole address — leader,
-letter and digit — so it states which member this is and what is left to type at
-once. Every key on it is set at the chip's one size, and the split between what is
+a letter narrows them to its own list. Further digits narrow the chips by numeric
+prefix. A number selects immediately when it is unambiguous. When an exact number
+also prefixes a longer one, Enter selects the exact member and another digit
+continues the address. Escape removes one digit before it backs out to the lists.
+A chip carries the whole address — leader, letter, number, and Enter when it is
+required — so it states which member this is and what remains to type. Every key
+on it is set at the chip's one size, and the split between what is
 behind the reader and what is still to press is carried by ground: the spent keys
 sit on the chip's own, the live ones on a lit block (`.lf-spent`, `.lf-lit`). Colour
 alone will not carry it — muted against accent is a difference in hue and barely one
@@ -1903,8 +1928,9 @@ by an equal negative margin — so a press lights one more key and moves no glyp
 in advance instead, the key crossing between the halves steps by that padding, which is the
 same fault one glyph smaller.
 
-`addressKeys` is the one spelling of that sequence, and `chordKeys` the one reading
-of how far the chord has come: the key line drops those keys, having said them in
+`addressKeys` is the one spelling of a complete address, including Enter when it
+is required. `chordKeys` is the one reading of how far the chord has come: the
+key line drops those keys, having said them in
 the chip that heads it, the reference puts them in front of each row so every entry
 shows the complete chord, a chip on the page sets them back, and the placeholder
 that speaks a reply box's whole address joins the whole array.

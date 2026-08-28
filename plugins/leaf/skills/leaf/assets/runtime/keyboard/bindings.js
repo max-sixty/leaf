@@ -69,6 +69,28 @@ export const labelOf = (row) => word(row.label) ?? bindings(row).map(spell).join
 // inside `run` instead is a liveness no surface can see.
 export const live = (row) => !row.when || row.when();
 
+// The register's machine-readable spelling for assistive technology. `Mod` is the one
+// visual key the platform chooses, while the dispatcher deliberately accepts either
+// Control or Meta; aria-keyshortcuts therefore states both working chords. Native Space
+// uses the named key ARIA expects rather than a literal blank token.
+const ariaBindings = (binding) => {
+  const { key, mods } = parsed(binding);
+  const variants = mods.includes("Mod") ? ["Meta", "Control"] : [null];
+  return variants.map((modKey) =>
+    [...mods.map((mod) => (mod === "Mod" ? modKey : mod)), key === " " ? "Space" : key]
+      .filter(Boolean)
+      .join("+"),
+  );
+};
+export const ariaShortcuts = (rows, current = true) =>
+  [
+    ...new Set(
+      rows
+        .filter((row) => !current || live(row))
+        .flatMap((row) => bindings(row).flatMap(ariaBindings)),
+    ),
+  ].join(" ");
+
 // Does this press answer this binding? Modifiers are matched exactly, so ⌘D is the
 // browser's bookmark rather than half a page down, and ⌥ stays the aim chord's alone.
 //

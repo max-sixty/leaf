@@ -7,6 +7,7 @@ export function createReference({
   ELEMENTS,
   EVERYTHING,
   focused,
+  helpClose,
   helpEl,
   merge,
   pageSelection,
@@ -118,24 +119,26 @@ export function createReference({
       event.clientX > box.right ||
       event.clientY < box.top ||
       event.clientY > box.bottom
-    )
+    ) {
+      // Closing returns focus to the door. Consume the backdrop press so the dialog's
+      // default mousedown focus does not immediately replace that deliberate return.
+      event.preventDefault();
       showHelp(false);
+    }
   });
-  function showHelp(open) {
+  function showHelp(open, restoreFocus = true) {
     // Focusing a text input replaces the document selection. Keep a passage the reader has
     // in hand when `?` opens the reference, while an ordinary open lands directly in search.
     // The dialog itself remains a focus stop, so either route keeps the page suspended.
     const preserveSelection = open && Boolean(pageSelection());
+    const restore =
+      !open && restoreFocus && helpEl.contains(focused()) ? helpFrom : null;
     if (open && !helpOpen) helpFrom = focused();
     helpOpen = open;
     if (open) {
       helpEl.textContent = "";
       const head = el("div", "lf-help-head");
-      head.append(el("div", "lf-help-title", "Keyboard reference"));
-      const close = el("button", "lf-btn lf-help-close", "Close");
-      close.type = "button";
-      close.onclick = () => showHelp(false);
-      head.append(close);
+      head.append(el("div", "lf-help-title", "Keyboard reference"), helpClose);
       helpEl.append(head);
       const search = document.createElement("input");
       search.type = "search";
@@ -262,15 +265,39 @@ export function createReference({
     // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
     // press's own focus is the browser's default action, still to come — a restore made from
     // out here would be putting focus back for the click to take again.
-    else if (helpEl.contains(focused()) && helpFrom?.isConnected)
-      helpFrom.focus({ preventScroll: true });
     paintHere();
+    if (!open && restore) {
+      if (restore.isConnected) restore.focus({ preventScroll: true });
+      else
+        requestAnimationFrame(() => {
+          if (restore.isConnected) restore.focus({ preventScroll: true });
+        });
+    }
   }
+
+  const helpStops = () =>
+    [
+      ...helpEl.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])'),
+    ].filter((node) => node.checkVisibility());
+  function move(dir) {
+    const stops = helpStops();
+    if (!stops.length) return helpEl.focus({ preventScroll: true });
+    const at = stops.indexOf(focused());
+    const next =
+      at < 0
+        ? dir > 0
+          ? stops[0]
+          : stops.at(-1)
+        : stops[(at + dir + stops.length) % stops.length];
+    next.focus({ preventScroll: true });
+  }
+  helpClose.onclick = () => showHelp(false);
 
   return {
     get open() {
       return helpOpen;
     },
+    move,
     show: showHelp,
   };
 }

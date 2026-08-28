@@ -1319,7 +1319,9 @@ def test_the_press_that_lights_a_key_moves_no_glyph(browser, serve):
     page.close()
 
 
-def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve):
+def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
+    browser, serve
+):
     """Anything a mouse can scroll a keyboard has to reach, and the reference is a list
     long enough to scroll — but its rows carry no control, so nothing put the reader in it
     and they could read the first screenful of the key reference and no more.
@@ -1333,8 +1335,8 @@ def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve)
     somewhere a reader needs to be able to stand.
 
     Asserted as the whole set rather than a count, because the count was right before and
-    the members were wrong: every stop in the overlay has to be a box that really scrolls,
-    or the search box the overlay puts focus in."""
+    the members were wrong: every stop in the overlay has to be a control the reference
+    offers or a box that really scrolls."""
     page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
@@ -1349,10 +1351,10 @@ def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve)
                  }))"""
     )
     assert stops, "the reference offers no tab stop at all, not even its search box"
-    dead = [
-        s for s in stops if s["tag"] not in {"INPUT", "BUTTON"} and not s["scrolls"]
-    ]
+    controls = {"BUTTON", "INPUT"}
+    dead = [s for s in stops if s["tag"] not in controls and not s["scrolls"]]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
+    assert [s["tag"] for s in stops if s["tag"] in controls] == ["BUTTON", "INPUT"]
 
     # And the box that does have something out of sight is one of those stops, which is
     # the whole point of the sweep. Its reachability is what is asserted here and not the
@@ -1369,6 +1371,80 @@ def test_only_a_box_with_something_out_of_sight_takes_a_tab_stop(browser, serve)
     )
     results.focus()
     expect(results).to_be_focused()
+    page.keyboard.press("Escape")
+    assert errors == []
+    page.close()
+
+
+def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
+    """The reference has a visible close control and keeps Tab inside the surface.
+
+    It claims the keyboard while open, so letting native Tab fall through to the page
+    behind it makes the visible scope and the focus scope disagree. Forward and reverse
+    Tab use the same registered walk, while Escape closes and restores the opener."""
+    page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
+    opener = page.get_by_role("button", name="? more", exact=True)
+    opener.click()
+    help_el = page.locator(".lf-help")
+    close = page.get_by_role("button", name="Close keyboard reference")
+    expect(close).to_be_visible()
+
+    seen = set()
+    for _ in range(6):
+        page.keyboard.press("Tab")
+        active = page.evaluate(
+            """() => {
+              const e = document.activeElement;
+              return {inside: document.querySelector('.lf-help').contains(e),
+                      name: e.getAttribute('aria-label') || e.className || e.tagName};
+            }"""
+        )
+        assert active["inside"], f"Tab left the keyboard reference for {active['name']}"
+        seen.add(active["name"])
+    assert "Close keyboard reference" in seen, seen
+
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate(
+        "() => document.querySelector('.lf-help').contains(document.activeElement)"
+    )
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(opener).to_be_focused()
+
+    # The native modal makes the page behind it inert. Its reachable light-dismiss gesture
+    # is the backdrop, which closes the reference and returns to the door rather than
+    # pretending a page control can be pressed through the modal layer.
+    opener.click()
+    page.mouse.click(2, 2)
+    expect(help_el).to_be_hidden()
+    expect(opener).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
+    """The same declarations that paint help expose their active keys through ARIA."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+
+    expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
+        "aria-keyshortcuts", "?"
+    )
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter"
+    )
+    assert page.locator(".lf-version-menu").get_attribute("aria-keyshortcuts") is None
+
+    page.keyboard.press("n")
+    mark = page.locator("#live-question .lf-pick").first
+    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
+    assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
+        shortcuts
+    )
+
+    page.keyboard.press("?")
+    expect(
+        page.get_by_role("button", name="Close keyboard reference")
+    ).to_have_attribute("aria-keyshortcuts", "Escape")
     page.keyboard.press("Escape")
     assert errors == []
     page.close()
@@ -1452,6 +1528,60 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     assert page.evaluate("() => document.body.scrollTop") == before, (
         "Space scrolled the page instead of working the control it was promised on"
     )
+    assert errors == []
+    page.close()
+
+
+def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
+    """A list keeps every member addressable after its count passes nine.
+
+    A digit that is both a complete address and the start of a longer one leaves the
+    choice open: Enter takes the exact address, another digit takes the longer one, and
+    Escape removes one entered digit. The page's chips and key line make that temporary
+    ambiguity visible, so the extra reach does not turn short addresses into a timeout or
+    an implicit guess."""
+    # One row per member keeps this test about decimal addressing. The crowded-address
+    # test above deliberately leaves collision survival to the platform's font metrics.
+    links = "".join(
+        f'<li><a id="link-{n}" href="#link-{n}">link {n}</a></li>' for n in range(1, 13)
+    )
+    page, errors = open_page(
+        browser, serve(leaf_page("Twelve links", f"<ol>{links}</ol>"))
+    )
+    line = page.locator(".lf-keyline")
+
+    page.keyboard.press("g")
+    expect(line).to_contain_text("l 1–12")
+    page.keyboard.press("l")
+    expect(page.locator(CHIPS).first).to_have_text("g l 1 ⏎")
+    before = page.evaluate(GLYPH_OFFSETS, CHIPS)
+    page.keyboard.press("1")
+    expect(line).to_contain_text("0–2 / ⏎")
+    expect(line).to_contain_text("continue / choose 1")
+    expect(page.locator(CHIPS)).to_have_text(["g l 1 ⏎", "g l 10", "g l 11", "g l 12"])
+    after = page.evaluate(GLYPH_OFFSETS, CHIPS)
+    assert before["glyphs"].keys() == after["glyphs"].keys()
+    moved = {
+        key: (left, after["glyphs"][key])
+        for key, left in before["glyphs"].items()
+        if abs(left - after["glyphs"][key]) > 0.5
+    }
+    assert not moved, f"a key moved while the numeric prefix advanced: {moved}"
+    assert abs(before["width"] - after["width"]) <= 0.5
+    assert abs(before["left"] - after["left"]) <= 0.5
+
+    # One Escape gives back the digit and keeps the chosen list standing.
+    page.keyboard.press("Escape")
+    expect(line).to_contain_text("1–12")
+    page.keyboard.press("1")
+    page.keyboard.press("Enter")
+    expect(page.locator("#link-1")).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("l")
+    page.keyboard.press("1")
+    page.keyboard.press("2")
+    expect(page.locator("#link-12")).to_be_focused()
     assert errors == []
     page.close()
 
@@ -2367,6 +2497,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     stamp_version_file(d, 2, "two")
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
+    expect(page.locator(".lf-version-menu")).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Enter Space v"
+    )
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Walk the versions")

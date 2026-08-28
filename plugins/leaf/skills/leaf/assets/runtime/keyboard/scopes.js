@@ -1,4 +1,4 @@
-import { bindings, checked, live, word } from "./bindings.js";
+import { ariaShortcuts, bindings, checked, live, word } from "./bindings.js";
 
 let publishedScopes;
 export const focused = (...args) => publishedScopes.focused(...args);
@@ -109,17 +109,37 @@ export function createScopes({ paintHere, upFrom }) {
    * grabbed card answers — reads them back off the declaration rather than restating them.
    */
   function keys(where, title, rows, when) {
-    elementScopes.set(where, {
+    const scope = {
       title,
       el: where,
       rows: checked(rows, title ?? "a scope"),
       when,
-    });
+    };
+    elementScopes.set(where, scope);
     rememberScopedElement(where);
+    // A scope capability may read state whose owner has not finished initializing while
+    // modules are still registering. State renderers call paintKeys once that boundary is
+    // complete; scopes with no capability gate are safe to expose immediately.
+    if (!scope.when) reflectShortcuts(scope);
+    else where.removeAttribute("aria-keyshortcuts");
     paintHere();
     return rows;
   }
-  const paintKeys = () => paintHere();
+  function reflectShortcuts(scope) {
+    const shortcuts = !scope.when || scope.when() ? ariaShortcuts(scope.rows) : "";
+    if (shortcuts) {
+      if (scope.el.getAttribute("aria-keyshortcuts") !== shortcuts)
+        scope.el.setAttribute("aria-keyshortcuts", shortcuts);
+    } else scope.el.removeAttribute("aria-keyshortcuts");
+  }
+  const paintKeys = () => {
+    pruneScopedElements();
+    for (const ref of scopeRefs) {
+      const scoped = ref.deref();
+      if (scoped?.isConnected) reflectShortcuts(elementScopes.get(scoped));
+    }
+    paintHere();
+  };
   /** What a scope answers right now, as a listener hears it read out — key names rather than
    * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
    * so an announcement cannot name a key the rows stopped binding.

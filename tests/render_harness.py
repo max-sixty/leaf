@@ -393,7 +393,7 @@ def record_claim(page, **fields):
 
 
 @pytest.fixture
-def serve(tmp_path, monkeypatch):
+def serve(tmp_path, monkeypatch, clone_initialized_page):
     """Publish HTML as v1 of a fresh page directory and serve it, as the real
     server does — vendoring included, so the assets under test are this repo's.
 
@@ -420,8 +420,8 @@ def serve(tmp_path, monkeypatch):
         layer_widgets=None,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+        project = tmp_path / ".leaf"
         if layer_registry is not None or layer_widgets:
-            project = tmp_path / ".leaf"
             project.mkdir(exist_ok=True)
             if layer_registry is not None:
                 (project / "registry.json").write_text(json.dumps(layer_registry))
@@ -433,14 +433,28 @@ def serve(tmp_path, monkeypatch):
         packages = link_example_packages(tmp_path)
         selection_args = [arg for name in packages for arg in ("--package", name)]
         d = tmp_path / f"page{len(servers)}"
-        initialized = CliRunner().invoke(
-            cli_model.cli,
-            ["page", "init", *selection_args, str(d)],
-        )
-        assert initialized.exit_code == 0, initialized.output
+
+        def initialize(target):
+            initialized = CliRunner().invoke(
+                cli_model.cli,
+                ["page", "init", *selection_args, str(target)],
+            )
+            assert initialized.exit_code == 0, initialized.output
+
+        if project.exists() or service_model.config_home().exists():
+            initialize(d)
+        else:
+            clone_initialized_page("examples", d, initialize)
         html = example.read_text() if example else source
         (d / "index.html").write_text(html)
-        shutil.copytree(EXAMPLE_MEDIA, d / "media", dirs_exist_ok=True)
+        parsed = structure_model._StructParser()
+        parsed.feed(html)
+        parsed.close()
+        for reference in parsed.media_refs:
+            fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+            if fixture_media.is_file():
+                (d / "media").mkdir(exist_ok=True)
+                shutil.copy2(fixture_media, d / "media" / fixture_media.name)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)

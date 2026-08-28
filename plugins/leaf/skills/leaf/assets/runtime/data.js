@@ -1,5 +1,35 @@
 import { runtime } from "./context.js";
+import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
+
+export function acceptData(candidate) {
+  if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    Array.isArray(candidate) ||
+    !Number.isInteger(candidate.revision) ||
+    candidate.revision < 0 ||
+    !candidate.sources ||
+    typeof candidate.sources !== "object" ||
+    Array.isArray(candidate.sources)
+  )
+    throw new TypeError("state data must carry a non-negative revision and sources");
+  if (candidate.revision <= runtime.data.revision) return false;
+  runtime.data = structuredClone(candidate);
+  return true;
+}
+
+export function notifyDataSubscribers() {
+  document.dispatchEvent(new Event("lf-data"));
+  // The revision becomes a readiness fact only after synchronous subscribers have
+  // rendered it. Render checks and export compare this stamp with the server snapshot,
+  // so a data-only page cannot be read between acceptance and projection.
+  if (runtime.data.revision >= 0)
+    document.body.setAttribute(
+      PAGE_PAINT_ATTRIBUTE.dataRevision,
+      String(runtime.data.revision),
+    );
+}
 
 // A source value remains the server snapshot's to own. Subscribers name one input on
 // their own widget; the declaration supplies its contract and the attribute where this

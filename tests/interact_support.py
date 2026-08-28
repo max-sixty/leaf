@@ -118,19 +118,23 @@ graph LR
 
 
 @pytest.fixture
-def page_dir(tmp_path, monkeypatch):
+def page_dir(tmp_path, monkeypatch, clone_initialized_page):
     """A page with the default and Command Hub package vocabularies and a valid v1."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     package = link_command_hub_package(tmp_path)
     d = tmp_path / "page"
-    result = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--package", package, str(d)]
-    )
-    assert result.exit_code == 0, result.output
-    (d / "index.html").write_text(PAGE)
-    activated = revisioning_model.activate_source(d, [])
-    assert activated.error is None and activated.revision == 1
-    (d / "versions" / "v1.html").write_text(PAGE)
+
+    def initialize(template):
+        result = CliRunner().invoke(
+            cli_model.cli, ["page", "init", "--package", package, str(template)]
+        )
+        assert result.exit_code == 0, result.output
+        (template / "index.html").write_text(PAGE)
+        activated = revisioning_model.activate_source(template, [])
+        assert activated.error is None and activated.revision == 1
+        (template / "versions" / "v1.html").write_text(PAGE)
+
+    clone_initialized_page("command-hub", d, initialize)
     return d
 
 

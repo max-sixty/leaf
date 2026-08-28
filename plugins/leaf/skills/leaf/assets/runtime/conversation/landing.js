@@ -107,27 +107,29 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
   // the card to bring it back. Asking the completed gesture instead of the focus event
   // costs a variable rather than buying one, and the walk's own end-of-clamp press is
   // the same shape one scope out.
-  let pressing = false;
+  let pressedPointer = null;
   const standing = () => focused()?.closest?.(".lf-thread");
   const land = (thread) => {
     if (thread && threadsBox.contains(thread))
       thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
   };
-  // TODO: End the gesture on pointercancel too; keep that behavior change separate from
-  // this ownership move and prove it with a touch-scroll cancellation journey.
-  threadsBox.addEventListener("pointerdown", () => (pressing = true));
-  addEventListener(
-    "pointerup",
-    () => {
-      const began = pressing;
-      pressing = false;
-      const thread = began && standing();
-      if (thread && !reachedForWords(thread)) land(thread);
-    },
-    true,
-  );
+  // The primary pointer owns the provisional landing until that same gesture ends. A
+  // cancellation means the browser took it for something else — commonly a touch scroll —
+  // so release the hold without undoing the gesture by landing the thread.
+  threadsBox.addEventListener("pointerdown", (event) => {
+    if (event.isPrimary) pressedPointer = event.pointerId;
+  });
+  const finishPress = (event, shouldLand) => {
+    if (event.pointerId !== pressedPointer) return;
+    pressedPointer = null;
+    if (!shouldLand) return;
+    const thread = standing();
+    if (thread && !reachedForWords(thread)) land(thread);
+  };
+  addEventListener("pointerup", (event) => finishPress(event, true), true);
+  addEventListener("pointercancel", (event) => finishPress(event, false), true);
   threadsBox.addEventListener("focusin", () => {
-    if (!pressing) land(standing());
+    if (pressedPointer === null) land(standing());
   });
 
   // One answer to "show me that thread", whoever asks: a click on a mark out on the page

@@ -5,6 +5,7 @@ import json
 import secrets
 import sys
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -128,6 +129,50 @@ def _render_version_attempt(
         [*light_notices, *dark_notices],
         light_complete and dark_complete,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _SchemeContext:
+    page: object
+    scheme: str
+    errors: list
+    resize_notices: list
+    registry: dict
+    widgets: dict
+    state: dict
+    markup: str
+    here: int
+    earlier: str | None
+    touched: list
+    replayed: bool
+    unsettled: list
+
+
+@dataclass(frozen=True, slots=True)
+class _SchemeReadings:
+    failsoft: list
+    missing_upgrades: list
+    missing_visual_providers: list
+    tiny: list
+    unmarkable: list
+    overflow: int | float
+    misplaced: list
+    withheld: list
+    squeezed: list
+    clipped: list
+    unreachable: list
+    covered: list
+    unread: list
+    undeclared_shadow: list
+    conflicts: list
+    dishonest_verbatim: list
+    silent: list
+    missing_conversations: list
+    undeclared_attrs: list
+    retired: list
+    trapped: list
+    on_paper: list
+    relative: list
 
 
 def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
@@ -291,6 +336,37 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
                 "the page never stopped moving: "
                 + ", ".join(evaluate_probe(page, "moving"))
             ]
+    context = _SchemeContext(
+        page=page,
+        scheme=scheme,
+        errors=errors,
+        resize_notices=resize_notices,
+        registry=registry,
+        widgets=widgets,
+        state=state,
+        markup=markup,
+        here=here,
+        earlier=earlier,
+        touched=touched,
+        replayed=replayed,
+        unsettled=unsettled,
+    )
+    readings = _read_scheme(context)
+    page.close()
+    return _scheme_result(context, readings)
+
+
+def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
+    page = context.page
+    scheme = context.scheme
+    registry = context.registry
+    widgets = context.widgets
+    state = context.state
+    markup = context.markup
+    here = context.here
+    earlier = context.earlier
+    touched = context.touched
+    replayed = context.replayed
     failsoft = evaluate_probe(page, "failSoftErrors")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
     missing_visual_providers = evaluate_probe(page, "missingVisualProviders", widgets)
@@ -455,7 +531,63 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
     # delivers that notice in the next rendering turn, so closing on the write
     # would call an attempt complete before its last error channel had spoken.
     evaluate_probe(page, "nextFrame")
-    page.close()
+    return _SchemeReadings(
+        failsoft=failsoft,
+        missing_upgrades=missing_upgrades,
+        missing_visual_providers=missing_visual_providers,
+        tiny=tiny,
+        unmarkable=unmarkable,
+        overflow=overflow,
+        misplaced=misplaced,
+        withheld=withheld,
+        squeezed=squeezed,
+        clipped=clipped,
+        unreachable=unreachable,
+        covered=covered,
+        unread=unread,
+        undeclared_shadow=undeclared_shadow,
+        conflicts=conflicts,
+        dishonest_verbatim=dishonest_verbatim,
+        silent=silent,
+        missing_conversations=missing_conversations,
+        undeclared_attrs=undeclared_attrs,
+        retired=retired,
+        trapped=trapped,
+        on_paper=on_paper,
+        relative=relative,
+    )
+
+
+def _scheme_result(
+    context: _SchemeContext, readings: _SchemeReadings
+) -> tuple[list, list, bool]:
+    scheme = context.scheme
+    errors = context.errors
+    resize_notices = context.resize_notices
+    unsettled = context.unsettled
+    failsoft = readings.failsoft
+    missing_upgrades = readings.missing_upgrades
+    missing_visual_providers = readings.missing_visual_providers
+    tiny = readings.tiny
+    unmarkable = readings.unmarkable
+    overflow = readings.overflow
+    misplaced = readings.misplaced
+    withheld = readings.withheld
+    squeezed = readings.squeezed
+    clipped = readings.clipped
+    unreachable = readings.unreachable
+    covered = readings.covered
+    unread = readings.unread
+    undeclared_shadow = readings.undeclared_shadow
+    conflicts = readings.conflicts
+    dishonest_verbatim = readings.dishonest_verbatim
+    silent = readings.silent
+    missing_conversations = readings.missing_conversations
+    undeclared_attrs = readings.undeclared_attrs
+    retired = readings.retired
+    trapped = readings.trapped
+    on_paper = readings.on_paper
+    relative = readings.relative
     found = [f"[{scheme}] console: {e}" for e in errors]
     found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
     if missing_upgrades:

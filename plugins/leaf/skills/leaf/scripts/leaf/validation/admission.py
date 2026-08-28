@@ -9,13 +9,13 @@ from leaf.registry import require_registry
 from leaf.structure import _StructParser, parse_revision, parse_structure
 from leaf.thread_context import thread_structure
 
+from .instances import thread_markup_contract_errors
 from .markup import (
     fragment_style_errors,
     media_errors,
     reserved_ids_error,
     reserved_marker_errors,
 )
-from .instances import thread_markup_contract_errors
 
 
 def read_text_arg(text) -> str:

@@ -1,7 +1,5 @@
 export function createBannerShelf({ banner, el, pageScroller }) {
   const bannerActions = el("div", "lf-banner-actions");
-  const ownerDocument = bannerActions.ownerDocument;
-  const view = ownerDocument.defaultView;
 
   // Overflow is useful only when the destination a reader reaches is fully visible.
   // Native focus scrolling is inconsistent for the last few pixels of an overflow row,
@@ -11,7 +9,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
     if (!bannerActions.contains(control) || !control.getClientRects().length) return;
     const shelf = bannerActions.getBoundingClientRect();
     const box = control.getBoundingClientRect();
-    const style = view.getComputedStyle(control);
+    const style = getComputedStyle(control);
     const outset =
       (Number.parseFloat(style.outlineWidth) || 0) +
       (Number.parseFloat(style.outlineOffset) || 0);
@@ -38,8 +36,8 @@ export function createBannerShelf({ banner, el, pageScroller }) {
     // added or removed before it; focus remaining on an element nobody can see is not
     // preservation. The shelf gains exactly the new room, so this adjustment has the same
     // range as the displacement it answers.
-    const focused = bannerActions.contains(ownerDocument.activeElement)
-      ? ownerDocument.activeElement
+    const focused = bannerActions.contains(document.activeElement)
+      ? document.activeElement
       : null;
     const focusedLeft = focused?.getBoundingClientRect().left;
     const siblings = [...bannerActions.children];
@@ -50,7 +48,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
             ...siblings.slice(focusedIndex + 1),
             ...siblings.slice(0, focusedIndex).reverse(),
           ].find((candidate) => {
-            const style = view.getComputedStyle(candidate);
+            const style = getComputedStyle(candidate);
             return (
               candidate.getClientRects().length &&
               style.display !== "none" &&
@@ -113,7 +111,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
         ? 1 - Math.min(1, Math.abs(consumed / shelfDelta))
         : 0;
       const pageBefore = pageScroller.scrollTop;
-      const pageLocked = view.getComputedStyle(pageScroller).overflowY === "hidden";
+      const pageLocked = getComputedStyle(pageScroller).overflowY === "hidden";
       if (remainder && !pageLocked)
         pageScroller.scrollTop += event.deltaY * pageUnit * remainder;
       if (bannerActions.scrollLeft !== before || pageScroller.scrollTop !== pageBefore)
@@ -171,7 +169,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
       const before = pageScroller.scrollTop;
       const delta = touch.lastY - point.clientY;
       touch.lastY = point.clientY;
-      if (view.getComputedStyle(pageScroller).overflowY !== "hidden")
+      if (getComputedStyle(pageScroller).overflowY !== "hidden")
         pageScroller.scrollTop += delta;
       if (pageScroller.scrollTop !== before) event.preventDefault();
     },

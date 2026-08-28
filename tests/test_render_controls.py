@@ -568,12 +568,11 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
 def test_a_wide_banner_spends_status_copy_before_action_reach(
     browser, serve, other_leaf
 ):
-    """At laptop width, optional actions stay whole before status prose takes room.
+    """At laptop width, status prose yields before the action shelf or its controls.
 
-    The leaf mark still states status when its sentence ellipsizes. An action clipped
-    past an otherwise idle row has no equivalent: neither a mouse nor a keyboard reader
-    can use words outside the shelf, so the grid gives the complete real action set its
-    intrinsic room before spending what remains on the changing status sentence.
+    The leaf mark still states status when its sentence ellipsizes. The complete real
+    action set gets its intrinsic room first; if even that set outgrows the row, the shelf
+    scrolls while each address keeps its words and the document keeps its width.
     """
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -582,7 +581,7 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     url = serve(html)
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
     page, errors = open_page(browser, url)
-    resized(page, 1200, 900)
+    resized(page, 1280, 900)
     expect(page.locator(".lf-others")).to_be_visible()
     expect(page.locator(".lf-asks")).to_be_visible()
     expect(page.locator(".lf-answer-all")).to_be_visible()
@@ -602,6 +601,40 @@ def test_a_wide_banner_spends_status_copy_before_action_reach(
     )
     assert layout["actions"]["shown"] == layout["actions"]["needed"], (
         f"the wide banner clipped actions before yielding status copy: {layout}"
+    )
+
+    # Make the same real action set ten pixels too wide for the remaining row: 28px of
+    # banner padding, 24px of leaf mark and the 10px column gap leave the shelf 62px less
+    # than the viewport. That is shelf overflow, not permission to compress a control or
+    # widen the document. Derived from the live face so the contrast is the same on every
+    # platform rather than depending on whether its font crosses 1200px by a few pixels.
+    crowded_width = layout["actions"]["needed"] + 52
+    resized(page, crowded_width, 900)
+    crowded = page.evaluate(
+        """() => {
+          const actions = document.querySelector('.lf-banner-actions');
+          return {
+            actions: {shown: actions.clientWidth, needed: actions.scrollWidth},
+            controls: [...actions.children]
+              .filter(control => control.getClientRects().length)
+              .map(control => ({name: control.textContent.trim(),
+                                shown: control.clientWidth, needed: control.scrollWidth})),
+            document: {shown: document.documentElement.clientWidth,
+                       needed: document.documentElement.scrollWidth}
+          };
+        }"""
+    )
+    clipped = [
+        control
+        for control in crowded["controls"]
+        if control["shown"] < control["needed"]
+    ]
+    assert crowded["actions"]["shown"] < crowded["actions"]["needed"], (
+        f"the crowded fixture never overflowed its shelf at {crowded_width}px: {crowded}"
+    )
+    assert not clipped, f"the crowded shelf compressed its controls: {clipped}"
+    assert crowded["document"]["shown"] == crowded["document"]["needed"], (
+        f"the crowded shelf widened the document: {crowded}"
     )
 
     # The open panel and a version popup can overlap broadly. Once native focus leaves the
@@ -839,6 +872,9 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         # explicit vertical bridge to it, while a horizontal shelf gesture stays native.
         cdp = context.new_cdp_session(page)
         resized(page, 390, 700)
+        page.wait_for_function(
+            "() => getComputedStyle(document.body).overflowY !== 'hidden'"
+        )
         actions = page.locator(".lf-banner-actions")
         assert actions.evaluate("el => el.scrollWidth > el.clientWidth")
         point = actions.bounding_box()
@@ -855,11 +891,14 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         cdp.send("Input.synthesizeScrollGesture", {**gesture, "yDistance": -160})
         vertical = page.evaluate(
             "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
-            " page: document.body.scrollTop})"
+            " page: document.body.scrollTop,"
+            " overflow: getComputedStyle(document.body).overflowY})"
         )
-        assert vertical["shelf"] == 0 and vertical["page"] > 200, (
-            f"a vertical touch over the shelf never reached the page: {vertical}"
-        )
+        assert (
+            vertical["shelf"] == 0
+            and vertical["page"] > 200
+            and vertical["overflow"] != "hidden"
+        ), f"a vertical touch over the shelf never reached the page: {vertical}"
         page.evaluate(
             "() => { const shelf = document.querySelector('.lf-banner-actions');"
             " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"

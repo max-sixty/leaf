@@ -605,9 +605,9 @@ ${MARK_RULES}
     .lf-dot.offline { background: var(--danger); }
     .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .lf-status-text .lf-age { color: var(--muted); }
-    /* The banner grid's max-content action column and this shelf's end alignment pack the
-       row to the right. That decides who pays for a control changing size: it moves
-       itself and everything to its left, while
+    /* The status column takes the row's free space and this shelf's column is sized to
+       its own contents, so the row is packed to the right. That decides who pays for a
+       control changing size: it moves itself and everything to its left, while
        everything to its right keeps its place. Three of these rewrite their own words —
        "✓ Version approved" is narrower than "Approve version", and two of them count something
        that gains a digit — so each holds room for the widest it may say, taken from the

@@ -12,7 +12,7 @@ from leaf.projection import (
     retirement_holders,
     state_projection,
 )
-from leaf.registry import visual_parts
+from leaf.registry.contract import visual_parts
 from leaf.structure import parse_structure
 from leaf.validation.transitions import report_errors, restatement_errors
 

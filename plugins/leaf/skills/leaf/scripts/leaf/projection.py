@@ -13,7 +13,8 @@ from leaf.events import (
     taken_back,
 )
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
-from leaf.registry import retirement_slots, state_specs
+from leaf.registry.contract import state_specs
+from leaf.registry.state import retirement_slots
 from leaf.structure import _StructParser, parse_structure
 
 

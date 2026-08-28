@@ -5,7 +5,7 @@ import json
 from leaf.event_contracts import thread_universe
 from leaf.passages import EMPTY, spoken
 from leaf.projection import decisions, page_projection, retirement_holders
-from leaf.registry import retirement_slots
+from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe
 
 from .models import _SchemeContext, _SchemeReadings

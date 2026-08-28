@@ -22,7 +22,7 @@ from leaf.projection import (
     page_projection,
     rewritten_bodies,
 )
-from leaf.registry import require_registry
+from leaf.registry.storage import require_registry
 from leaf.revisioning import activate_source
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction

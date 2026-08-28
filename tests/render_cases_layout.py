@@ -18,8 +18,8 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
-from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
+from leaf.registry import storage as registry_storage
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -741,7 +741,7 @@ def aim_targets(page_dir):
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
     tags = ", ".join(
-        t for t in registry_model.load_registry(page_dir) if not t.startswith("$")
+        t for t in registry_storage.load_registry(page_dir) if not t.startswith("$")
     )
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 

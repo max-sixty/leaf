@@ -7,7 +7,7 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from leaf import anchor_capture as anchor_capture_model
 from leaf import event_log as events_model
-from leaf import registry as registry_model
+from leaf.registry import storage as registry_storage
 from playwright.sync_api import expect
 from render_support import (
     AIM_SEAM,
@@ -1215,7 +1215,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     It is also what a version bump of the vendored bundle has to survive."""
     url = serve(CODE_PAGE)
     page, errors = open_page(browser, url)
-    langs = registry_model.load_registry(serve.page_dir)["$languages"]["names"]
+    langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',

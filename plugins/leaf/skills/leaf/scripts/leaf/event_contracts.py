@@ -13,7 +13,7 @@ from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.passages import enclosing_ids, spoken
 from leaf.projection import page_projection, state_projection
-from leaf.registry import json_validator, visual_parts
+from leaf.registry.contract import json_validator, visual_parts
 from leaf.structure import parse_revision
 from leaf.thread_context import thread_roots, thread_structure, thread_widgets
 

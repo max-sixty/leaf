@@ -29,7 +29,8 @@ from .projection import (
     page_projection,
     record_lag_entries,
 )
-from .registry import described, require_registry
+from .registry.reactions import described
+from .registry.storage import require_registry
 from .revisioning import activate_source
 from .server import running_server
 from .service import PageTransaction, unacknowledged

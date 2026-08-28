@@ -1,7 +1,7 @@
 """Capture authored anchor requests against the file-side passage reading."""
 
 from .passages import collapse, page_passages, section_span
-from .registry import visual_parts
+from .registry.contract import visual_parts
 from .structure import parse_structure
 
 # How much of the surrounding text an anchor stores to tell two identical passages

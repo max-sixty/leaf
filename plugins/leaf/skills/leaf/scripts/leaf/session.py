@@ -12,7 +12,9 @@ from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .passages import active_enclosing
-from .registry import RegistryError, described, load_registry
+from .registry.contract import RegistryError
+from .registry.reactions import described
+from .registry.storage import load_registry
 from .revisioning import activate_source
 from .server import running_server
 from .service import (

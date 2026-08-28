@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from .registry import require_registry
+from .registry.storage import require_registry
 from .schema import GUIDANCE_DIR
 
 CATALOG_PREAMBLE = """\

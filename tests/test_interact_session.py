@@ -51,14 +51,15 @@ from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
-from leaf import registry as registry_model
 from leaf import schema as schema_model
-from leaf import served_state as served_state_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
+from leaf.registry import storage as registry_storage
+from leaf.served_state import page as served_page
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -717,7 +718,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     events = events_model.read_events(page_dir)
     assert (
         event_contracts_model.action_contract_error(
-            page_dir, events[-1], events, registry_model.require_registry(page_dir)
+            page_dir, events[-1], events, registry_storage.require_registry(page_dir)
         )
         is None
     )
@@ -2281,7 +2282,7 @@ def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page
     another machine's opinion. The payload states the writer's clock so the reading is
     made against that one; without it a skewed laptop misreads every age on the page,
     in one direction and with nothing to give it away."""
-    state = served_state_model.full_state(page_dir, [], [])
+    state = served_page.full_state(page_dir, [], [])
     written = datetime.fromisoformat(state["now"])
     assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
@@ -2290,8 +2291,8 @@ def test_the_state_payload_says_when_it_was_taken(page_dir):
     """Two answers can cross on the wire, and nothing the log orders tells them apart
     when neither carries a new event. Each says when the server took it, so a tab
     keeps the later one whichever lands last."""
-    first = served_state_model.full_state(page_dir, [], [])
-    second = served_state_model.full_state(page_dir, [], [])
+    first = served_page.full_state(page_dir, [], [])
+    second = served_page.full_state(page_dir, [], [])
     assert first["taken"] < second["taken"]
     assert abs(time.time() - second["taken"]) < 60
 
@@ -2630,8 +2631,8 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     files_model.write_json(claimed / "registry.json", registry)
     # Without this the test passes for the wrong reason: it has to be a page
     # whose registry the current layer really does refuse.
-    with pytest.raises(registry_model.RegistryError):
-        registry_model.load_registry(claimed)
+    with pytest.raises(registry_contract.RegistryError):
+        registry_storage.load_registry(claimed)
 
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)

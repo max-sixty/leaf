@@ -57,11 +57,14 @@ from leaf import events as event_folds_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
-from leaf import registry as registry_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
+from leaf.registry import layer as registry_layer
+from leaf.registry import storage as registry_storage
+from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
 
 
@@ -105,7 +108,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     )
     spk = passages_model.spoken(
         (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
-        registry_model.require_registry(page_dir),
+        registry_storage.require_registry(page_dir),
     )
     threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
@@ -686,7 +689,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
-    before = registry_model.layer_generation(page_dir)
+    before = registry_storage.layer_generation(page_dir)
     transition = leases_model.transition_lock(page_dir)
     init_waiting = threading.Event()
     real_flocked = vendoring_model.flocked
@@ -711,12 +714,12 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         initing = threading.Thread(target=revendoring, name="re-vendor")
         initing.start()
         assert init_waiting.wait(5)
-        assert registry_model.layer_generation(page_dir) == before
+        assert registry_storage.layer_generation(page_dir) == before
 
     initing.join(timeout=5)
     assert not initing.is_alive()
     assert errors == []
-    assert registry_model.layer_generation(page_dir) != before
+    assert registry_storage.layer_generation(page_dir) != before
 
 
 def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
@@ -935,8 +938,8 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
     registry = json.loads((page_dir / "registry.json").read_text())
     change(registry["lf-test-data"])
 
-    with pytest.raises(registry_model.RegistryError, match=message):
-        registry_model.validate_registry(registry, "test registry")
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
@@ -949,7 +952,7 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     )
     registry["lf-test-data"]["required"].remove("source")
 
-    assert registry_model.validate_registry(registry, "test registry") is registry
+    assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
 @pytest.mark.parametrize(
@@ -982,8 +985,8 @@ def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
     registry = json.loads((page_dir / "registry.json").read_text())
     change(registry["lf-num"])
 
-    with pytest.raises(registry_model.RegistryError, match=message):
-        registry_model.validate_registry(registry, "test registry")
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
@@ -1009,10 +1012,10 @@ def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
     }
 
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="x-measured timestamp attribute `at` is an authored snapshot instant",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
@@ -1037,10 +1040,10 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     }
 
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="x-data source attributes are authored bindings",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
@@ -1175,7 +1178,7 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     The words are the control: they must differ, or `spoken({})` would be the
     whole reading and the distinction this rests on would not exist."""
     html = (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
-    registry = registry_model.require_registry(page_dir)
+    registry = registry_storage.require_registry(page_dir)
     full = passages_model.spoken(html, registry)
     assert passages_model.enclosing_ids(html) == passages_model.enclosing_of(full)
     bare = passages_model.spoken(html, {})
@@ -1217,7 +1220,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.spoken(html, registry_model.require_registry(page_dir))
+    spk = passages_model.spoken(html, registry_storage.require_registry(page_dir))
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(html)]
     events = events_model.read_events(page_dir)
@@ -1407,7 +1410,7 @@ def test_a_version_response_requires_a_standing_request(page_dir):
 
     del registry["lf-diagram"]["x-conversation"]["response"]
     registry["lf-diagram"]["x-awaits"] = {}
-    assert registry_model.validate_registry(registry, "test registry") is registry
+    assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
 def test_a_version_response_names_an_authored_answer_record(page_dir):
@@ -1416,17 +1419,17 @@ def test_a_version_response_names_an_authored_answer_record(page_dir):
     response["verb"] = "answer"
 
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="x-awaits does not declare as an answer verb",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
     registry["lf-options"]["x-awaits"]["answers"].append("answer")
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="has no attribute or value record for a version to change",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize(
@@ -2322,7 +2325,7 @@ def test_an_event_kind_contract_replaces_whole_across_layers():
     replacement = {"record": {"const": "new"}}
     merged = {"$events": {"kinds": {"signal": old}}}
 
-    registry_model.merge_layer_entries(
+    registry_layer.merge_layer_entries(
         merged, {"$events": {"kinds": {"signal": replacement}}}
     )
 
@@ -2363,8 +2366,8 @@ def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
     merged = json.loads((page_dir / "registry.json").read_text())
     assert "note" in merged["$events"]["kinds"]
 
-    with pytest.raises(registry_model.RegistryError, match="current layer writes"):
-        registry_model.validate_registry(registry, "incoming")
+    with pytest.raises(registry_contract.RegistryError, match="current layer writes"):
+        registry_validation.validate_registry(registry, "incoming")
 
 
 def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
@@ -2758,7 +2761,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
 def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
-    assert registry_model.json_validator(schema).is_valid(value) is valid
+    assert registry_contract.json_validator(schema).is_valid(value) is valid
 
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
@@ -2834,7 +2837,7 @@ def test_shared_package_declarations_compose_by_member():
     lane = {"role": "holder", "state": "phase"}
     merged = {"$workflow": {"widgets": {"lf-board": board}}}
 
-    registry_model.merge_layer_entries(
+    registry_layer.merge_layer_entries(
         merged, {"$workflow": {"widgets": {"lf-lane": lane}}}
     )
 

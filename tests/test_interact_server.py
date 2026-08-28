@@ -39,14 +39,16 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
+from leaf import projection as projection_model
 from leaf import publishing as publishing_model
-from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf import served_state as served_state_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import thread_context as thread_context_model
+from leaf.registry import storage as registry_storage
+from leaf.served_state import document as served_document
+from leaf.served_state import page as served_page
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -798,11 +800,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
     def record_undo_read(_event, _events, within):
         seen.append(within)
 
-    monkeypatch.setattr(served_state_model, "undo_error", record_undo_read)
-    empty = served_state_model.StateProjection({}, {}, {}, {}, {})
+    monkeypatch.setattr(served_document, "undo_error", record_undo_read)
+    empty = projection_model.StateProjection({}, {}, {}, {}, {})
     event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
 
-    candidates = served_state_model._browser_undo_candidates(
+    candidates = served_document._browser_undo_candidates(
         [event], active_within, view_within, {}, empty, empty
     )
 
@@ -1027,7 +1029,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
         "attempt": "attempt-flight-001",
     }
     results = []
-    layer = registry_model.layer_generation(page_dir)
+    layer = registry_storage.layer_generation(page_dir)
 
     def post():
         # A real retry already carries the layer of the attempt it is retrying. The
@@ -2480,14 +2482,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = served_state_model.full_state
+    original = served_page.full_state
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(served_state_model, "full_state", held_state)
+    monkeypatch.setattr(served_page, "full_state", held_state)
     response = []
 
     def read_state():

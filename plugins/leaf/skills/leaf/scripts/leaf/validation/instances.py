@@ -4,7 +4,8 @@ import re
 
 from leaf.asks import asking, quoted_in
 from leaf.projection import enclosing_widgets
-from leaf.registry import json_validator, retirement_slots, visual_parts
+from leaf.registry.contract import json_validator, visual_parts
+from leaf.registry.state import retirement_slots
 from leaf.structure import _StructParser
 
 from .markup import at, structure_errors

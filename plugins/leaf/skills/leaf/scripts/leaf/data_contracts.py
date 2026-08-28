@@ -8,7 +8,7 @@ from referencing.exceptions import Unresolvable
 
 from .event_log import read_events
 from .files import list_revisions, revision_path
-from .registry import aware_instant, json_validator
+from .registry.contract import aware_instant, json_validator
 from .schema import DATA_SOURCE_NAME
 from .structure import parse_structure
 

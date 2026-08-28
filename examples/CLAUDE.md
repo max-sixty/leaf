@@ -7,13 +7,16 @@ example and regenerate the gallery instead of patching either output.
 
 ## Every widget and idiom in the vocabulary stands here
 
-The nightly run drives eight sweeps over every page in `examples/`. Each page renders
-in both palettes, holds still under a press, passes axe, gives up every passage to a
-quote, answers an anchor written from its own file, and exports with its scripts gone.
-So the examples are the corpus those sweeps read, and a widget that stands in no
-example is a widget the sweeps have never seen inside a whole page. That gap is easy
-to miss, because the widget's own tests are green — the missing coverage reads as
-coverage.
+The nightly run uses this corpus in two ways. Page-sensitive contracts run every
+deployable example, including the generated gallery: each renders in both palettes,
+passes axe, and exports with its scripts gone. Authored-content sweeps quote every
+source passage and resolve anchors written from every source file; the gallery
+generation check proves those sources are what the derived view carries. Shared
+runtime mechanisms use causal representatives instead of repeating the same gesture
+over every page, and each representative has a non-vacuity floor naming the reason it
+stands there. So a widget that stands in no source example is one the whole-page
+contracts have never seen. That gap is easy to miss, because the widget's own tests
+are green — the missing coverage reads as coverage.
 
 It happened to `lf-shot` and `lf-specimen`: both were outside the corpus from the
 day they were written. A specimen stood on two `docs/` pages, and the sweeps do
@@ -97,7 +100,7 @@ screenshot ships the image bytes beside it. Every place that builds a page
 directory out of an example lays the log in: `scripts/preview.py`,
 `publish_pages` in `scripts/site.py`, `test_examples_pass_check`, and `serve` in
 `tests/render_support.py`. That last one is the browser corpus, and it laid an example's
-media in while leaving its log out — so the eight sweeps read every example as a
+media in while leaving its log out — so the corpus sweeps read every example as a
 page with nothing standing on it, which is not a page anybody is served. `serve`
 seeds when it is handed an example rather than markup, and sets the cursor past
 the seed as `preview.py` does. One sweep opts out and says why: the anchor sweep
@@ -144,7 +147,7 @@ the markup to every page built from it.
 
 A seed reaches one thing further than a thread, and stops one short of the rest.
 Some widgets have a live half — a rendering that only exists once the log holds
-something — and without a seed the eight sweeps never see it. An `lf-agent` row
+something — and without a seed the corpus sweeps never see it. An `lf-agent` row
 renders how long since that worker was last heard from, so on a page with no
 reports, every sweep passes over a roster that has never once said the thing it
 is for. That is `lf-shot`'s gap arrived at from the other side: the widget stands

@@ -17,10 +17,10 @@
  * through a label made browsers scroll the control to the middle of the viewport, which
  * tore the reader away from a tall comparison.
  *
- * Everything that needs is native: the state is a checkbox, the swap a `:has(:checked)`
- * rule in the theme. No handler runs after the upgrade, so a serialized copy of this
- * page — DOM kept, script tags dropped — still flips, and a printed one stacks both
- * frames instead. A dragged slider would have survived neither.
+ * Everything that drives the flip is native: the state is a checkbox, the swap a
+ * `:has(:checked)` rule in the theme. A serialized copy of this page — DOM kept, script
+ * tags dropped — still flips, and a printed one stacks both frames instead. A dragged
+ * slider would have survived neither.
  *
  * Two kinds of word, and they are marked differently on purpose. Each frame's caption
  * names which state it holds, which is the widget's own word and the only thing telling

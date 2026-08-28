@@ -6,14 +6,19 @@ projection, rendering, and publishing. `interact.py` is the PEP 723 entrypoint;
 
 The main owners are:
 
-- `files`, `page`, and `revisioning`: atomic page files and immutable revisions;
+- `files` and `revisioning`: atomic page files and immutable revisions;
+- `page`: vendored page guidance and vocabulary catalog;
+- `agent_state`: the agent-facing folded page-state reading;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
-- `events`, `conversation`, `projection`, and `work`: event folds and their
-  standing readings;
+- `event_endpoint`: browser-event admission, retry coordination, and append;
+- `events`, `conversation`, `projection`, and `work`: event folds, durable state,
+  and their standing readings;
+- `asks`: declaration-driven page and thread request projections;
 - `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,
   and leases;
 - `served_state` and `http`: browser-facing state readings and HTTP transport;
-- `registry` and `layer`: registry storage and layer composition;
+- `registry` and `layer`: registry storage, layer composition, and package commands;
+- `vendoring`: page initialization, layer transitions, and atomic installation;
 - `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
   merged vocabulary contract and authored-page gates;
 - `passages`: the file-side text reading and anchor capture;

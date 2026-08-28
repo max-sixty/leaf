@@ -94,6 +94,7 @@ from render_support import (
     flip_point,
     geometry,
     held_stale,
+    key_line,
     leaf_page,
     live_url,
     live_watcher,
@@ -178,6 +179,22 @@ CONTROL_ROW_PRESS = (
     "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
 )
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
+
+# One page for each reason an aimed press can still reach the page underneath it. The
+# capture itself is layer-wide, so another example containing the same click or
+# mousedown mechanism repeats the reading. These required paths are non-vacuity floors:
+# a representative that loses the feature which earned its place fails rather than
+# quietly shrinking the causal corpus.
+AIM_PRESS_CASES = (
+    (
+        next(p for p in EXAMPLES if p.stem == "parallel-workstreams"),
+        frozenset({"option click", "tab click"}),
+    ),
+    (
+        next(p for p in EXAMPLES if p.stem == "ship-review"),
+        frozenset({"draft mousedown", "standing mark", "suggestion no-item control"}),
+    ),
+)
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
@@ -1335,8 +1352,14 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     page.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, example):
+@pytest.mark.parametrize(
+    ("example", "required_paths"),
+    AIM_PRESS_CASES,
+    ids=[case[0].stem for case in AIM_PRESS_CASES],
+)
+def test_an_aimed_press_does_only_what_the_outline_promised(
+    browser, serve, example, required_paths
+):
     """⌥-click takes the item under the pointer, and that is the whole of what it does.
 
     Holding ⌥ outlines what a click would take, which is a promise about the next press.
@@ -1347,9 +1370,11 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     switched the panel under it. Neither shows in the composer, which opens either way.
 
     So both halves are asserted together — the composer opens on the item that was
-    outlined, and the page is exactly as it was, in its markup and in where its focus sits
-    — over the corpus rather than over a case, because every widget that takes a press had
-    this and none of them was ever told."""
+    outlined, and the page is exactly as it was, in its markup and in where its focus
+    sits. The capture mechanism is layer-wide; these pages are retained for the distinct
+    downstream paths they put under it rather than for every repetition of those paths.
+    `required_paths` keeps that causal selection honest when an example changes.
+    """
     url = serve(example)
     page, errors = open_page(browser, url)
     # What the log already held. A shipped seed can carry a decision the reader made
@@ -1363,6 +1388,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     targets = aim_targets(serve.page_dir)
     total = page.locator(targets).count()
     pressed = aimed = 0
+    reached_paths = set()
     for i in range(total):
         # A control inside a fold or behind an unopened tab is nowhere a user can aim,
         # which is the press sweep's reading of the same question, and a point the banner
@@ -1381,6 +1407,19 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         point = target.evaluate(AIM_POINT)
         if not point:
             continue
+        target_paths = set(
+            target.evaluate(
+                """el => [
+                  [el.matches('[role=tab]'), 'tab click'],
+                  [el.matches('.lf-pick') || !!el.closest('lf-option'), 'option click'],
+                  [el.matches('lf-draft') || !!el.closest('lf-draft'),
+                   'draft mousedown'],
+                  [el.matches('.lf-sug-actions') || !!el.closest('.lf-sug-actions'),
+                   'suggestion control'],
+                ].filter(([reached]) => reached).map(([, name]) => name)"""
+            )
+        )
+        reached_paths.update(target_paths - {"suggestion control"})
         label = target.evaluate(NAMED)
         before = page.evaluate(PAGE_MARKUP)
         page.mouse.move(*point)
@@ -1400,6 +1439,8 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
         if promised is None:
+            if "suggestion control" in target_paths:
+                reached_paths.add("suggestion no-item control")
             # Nothing outlined is nothing to aim at — no item encloses this point — and an
             # armed press then acts on nothing rather than falling back to the page. A
             # suggestion's ✓ Accept is where that matters: its row hangs in the page's own
@@ -1421,6 +1462,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
             # wears the pending mark and this reads it there.
             if mark is None and page.locator(f"#{promised}.lf-mark-el").count():
                 mark = promised
+                reached_paths.add("standing mark")
             assert mark == promised, (
                 f"⌥-clicking {label} in {example.name} promised {promised} and "
                 f"commented on {mark}"
@@ -1460,6 +1502,11 @@ def test_an_aimed_press_does_only_what_the_outline_promised(browser, serve, exam
     # leave every press above asserting only that nothing happened, which is the shape of
     # vacuous pass this sweep is most exposed to.
     assert aimed, f"{example.name} outlined nothing, so no press was held to a promise"
+    assert reached_paths >= required_paths, (
+        f"{example.name} no longer exercises the paths that earned its place in the "
+        f"aim corpus: missing {sorted(required_paths - reached_paths)}, reached "
+        f"{sorted(reached_paths)}"
+    )
     # The other half of "did nothing else", and the half the markup cannot show: a widget
     # that acts tells Claude so, and a decision the user never made is worse in the log
     # than on the page. The wait is the page's own sends coming back, so a stray one is in
@@ -3789,13 +3836,41 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.mouse.click(*at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
-    page.mouse.click(*at)
+    box = page.locator("lf-shot input[type=checkbox]")
+    expect(box).to_be_focused()
+    assert "show before" in key_line(page)
+    # The native checkbox is the overlay itself. Hold it across two frames: focus and the
+    # screenshot key line must remain stable for the whole human press.
+    page.mouse.down()
+    expect(box).to_be_focused()
+    assert "show before" in key_line(page)
+    page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert shown_frames(page) == ["before"]
-    # The same full target is also the keyboard's native handle.
-    page.locator("lf-shot input[type=checkbox]").focus()
-    page.keyboard.press(" ")
+    # The visible instruction sits under the same native overlay. A repeated held press
+    # there keeps both focus and the screenshot key line stable too.
+    text_label = page.locator("lf-shot .lf-shotpick label")
+    label_bounds = text_label.bounding_box()
+    assert label_bounds is not None
+    text_at = (
+        label_bounds["x"] + label_bounds["width"] - 2,
+        label_bounds["y"] + label_bounds["height"] / 2,
+    )
+    assert box.evaluate(
+        "(control, point) => document.elementFromPoint(...point) === control",
+        text_at,
+    )
+    page.mouse.move(*text_at)
+    page.mouse.down()
+    expect(box).to_be_focused()
+    assert "show after" in key_line(page)
+    page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+    assert shown_frames(page) == ["after"]
+    # The same full target is the keyboard's native handle.
+    box.focus()
+    page.keyboard.press(" ")
+    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert errors == []
     page.close()
 

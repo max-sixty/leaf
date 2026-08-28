@@ -51,9 +51,8 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import event_endpoint as event_endpoint_model
 from leaf import events as events_model
-from leaf import http as http_model
-from leaf import layer as layer_model
 from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
@@ -62,6 +61,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
+from leaf import vendoring as vendoring_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):
@@ -209,7 +209,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     # same standing target and proceed, while the transactional handler keeps the
     # second outside until the first append is visible. A bounded wait keeps the
     # correct serialization from deadlocking the probe itself.
-    real_undo_error = http_model.undo_error
+    real_undo_error = event_endpoint_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
     validation_calls = 0
@@ -226,7 +226,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             second_validation.set()
         return error
 
-    monkeypatch.setattr(http_model, "undo_error", expose_validation_gap)
+    monkeypatch.setattr(event_endpoint_model, "undo_error", expose_validation_gap)
     start = threading.Barrier(3)
     results = []
 
@@ -632,7 +632,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     release_report = threading.Event()
     init_waiting = threading.Event()
     real_append = events_model.append_event
-    real_flocked = layer_model.flocked
+    real_flocked = vendoring_model.flocked
 
     def paused_append(directory, event):
         if event["kind"] == "report":
@@ -648,7 +648,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
             yield held
 
     monkeypatch.setattr(conversation_model, "append_event", paused_append)
-    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 
     def report():
@@ -662,7 +662,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
     def revendoring():
         try:
-            layer_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir)
             outcomes.append("revendored")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
@@ -688,7 +688,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_model.layer_generation(page_dir)
     transition = service_model.transition_lock(page_dir)
     init_waiting = threading.Event()
-    real_flocked = layer_model.flocked
+    real_flocked = vendoring_model.flocked
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -697,12 +697,12 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     errors = []
 
     def revendoring():
         try:
-            layer_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir)
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
 
@@ -781,7 +781,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
     overlay.mkdir(parents=True)
     local = widget_entry("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    layer_model.cmd_init(page_dir)
+    vendoring_model.cmd_init(page_dir)
     publish(page_dir)
     events_model.append_event(
         page_dir,

@@ -28,6 +28,7 @@ from leaf import hooks as hooks_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import vendoring as vendoring_model
 
 
 @pytest.mark.parametrize(
@@ -551,13 +552,13 @@ def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
     nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
     nested.parent.mkdir(parents=True)
     nested.write_text("nested")
-    location = layer_model._path_location
+    location = vendoring_model._path_location
 
     def case_insensitive(path):
         found = location(path)
         return found._replace(tail=tuple(part.casefold() for part in found.tail))
 
-    monkeypatch.setattr(layer_model, "_path_location", case_insensitive)
+    monkeypatch.setattr(vendoring_model, "_path_location", case_insensitive)
 
     result = runner.invoke(
         cli_model.cli,
@@ -978,17 +979,17 @@ def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
     """The stable log marks a completed init, not one that failed while committing."""
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "interrupted-page"
-    original_replace_files = layer_model.replace_files
+    original_replace_files = vendoring_model.replace_files
 
     def fail_layer_commit(files):
         if any(path.name == "registry.json" for path, _, _ in files):
             raise OSError("layer commit failed")
         return original_replace_files(files)
 
-    monkeypatch.setattr(layer_model, "replace_files", fail_layer_commit)
+    monkeypatch.setattr(vendoring_model, "replace_files", fail_layer_commit)
 
     with pytest.raises(OSError, match="layer commit failed"):
-        layer_model.cmd_init(page)
+        vendoring_model.cmd_init(page)
 
     assert not (page / "comments.jsonl").exists()
 

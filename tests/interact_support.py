@@ -29,6 +29,7 @@ from click.testing import CliRunner
 from conftest import INTERACT_SCRIPT
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
+from leaf import event_endpoint as event_endpoint_model
 from leaf import events as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
@@ -43,6 +44,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf import validation as validation_model
+from leaf import vendoring as vendoring_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -589,13 +591,13 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     def init_result():
         try:
-            layer_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir)
         except SystemExit as error:
             return str(error)
         return None
 
     monkeypatch.setattr(conversation_model, "append_event", held_append_event)
-    monkeypatch.setattr(http_model, "append_event", held_append_event)
+    monkeypatch.setattr(event_endpoint_model, "append_event", held_append_event)
     monkeypatch.setattr(publishing_model, "append_event", held_append_event)
     monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     with ThreadPoolExecutor(max_workers=2) as executor:

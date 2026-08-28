@@ -201,6 +201,135 @@ class Watch:
             self.lease = None
 
 
+class _WatchPass(NamedTuple):
+    """What one complete pass observed, or the outcome that ended it early."""
+
+    readings: list[PageTick]
+    live: list[PageTick]
+    outcome: int | None
+
+
+def _batch_registry(reading: PageTick):
+    """Read reaction vocabulary only for a batch that needs it."""
+    if not any(event.get("token") for event in reading.batch):
+        return None
+    try:
+        return load_registry(reading.page_dir)
+    except RegistryError:
+        return None  # the token still reaches the agent
+
+
+def _deliver_batch(reading: PageTick) -> None:
+    """Write one page's complete batch and claim its handoff when needed."""
+    # Whose events follow, said in-band: no event line names its page, and the
+    # ack has to go back to the right one. The conversations they land in come
+    # with them, because a delivered reply names only the message it answers and
+    # the session that knew what that was may since have compacted.
+    print(
+        jsonl_line(
+            {
+                "page": str(reading.page_dir),
+                "threads": batch_threads(
+                    reading.transaction.events,
+                    reading.batch,
+                    active_enclosing(reading.page_dir),
+                ),
+            }
+        ),
+        flush=True,
+    )
+    # A reaction's word is explained beside it (`means`), off the page's own
+    # vendored vocabulary, so a project token reaches the agent already saying
+    # what it asks for. A stale registry must not block the remaining batch.
+    registry = _batch_registry(reading)
+    for event in reading.batch:
+        print(jsonl_line(described(event, registry)), flush=True)
+    if reading.status["state"] != "working":
+        # Flip before the agent handles the batch: the handoff gap between this
+        # exit and pickup must not show "waiting". The tick still holds the page
+        # lock, so a transfer cannot land between delivery and this claim.
+        count = len(reading.batch)
+        reading.transaction.set_status(
+            "working",
+            f"picking up {count} update{'s' if count != 1 else ''}",
+            handoff=True,
+        )
+
+
+def _read_watch_pass(watch: Watch, named: Path | None) -> _WatchPass:
+    """Read pages until this pass completes or one page ends the wait."""
+    readings = []
+    live = []
+    for reading in watch.tick():
+        readings.append(reading)
+        if reading.watch_state == "lost":
+            if named is not None and paths_same(reading.page_dir, named):
+                print(
+                    f"stopped watching {named}: this session no longer owns it",
+                    file=sys.stderr,
+                )
+                return _WatchPass(readings, live, 2)
+            continue
+        if reading.live:
+            live.append(reading)
+        if reading.restarted:
+            print(
+                f"{reading.page_dir}: server had died; "
+                f"restarted at {reading.restarted}",
+                file=sys.stderr,
+                flush=True,
+            )
+        # A batch outranks the page's state: a wait already holding events owes
+        # them to the agent whatever became of the leaf, so an idled page still
+        # delivers here — it just no longer holds the wait open below.
+        if reading.batch:
+            _deliver_batch(reading)
+            return _WatchPass(readings, live, 0)
+        if reading.lost:
+            print(
+                f"{reading.page_dir}: server is not running; restart it with "
+                f"`leaf server start {reading.page_dir}`",
+                file=sys.stderr,
+            )
+            return _WatchPass(readings, live, 2)
+    return _WatchPass(readings, live, None)
+
+
+def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
+    """Explain why a pass with no live pages has nowhere left to wait."""
+    held = [reading for reading in readings if reading.watch_state != "lost"]
+    if not held:
+        transferred = [reading for reading in readings if reading.watch_state == "lost"]
+        if transferred:
+            one = len(transferred) == 1
+            names = ", ".join(str(reading.page_dir) for reading in transferred)
+            print(
+                f"stopped watching {names}: this session no longer owns "
+                f"{'it' if one else 'them'}",
+                file=sys.stderr,
+            )
+            return 2
+        if page_dir is None:
+            print(
+                "nothing to watch: no page named and none claimed by this session",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"nothing to watch: {page_dir} is not claimed by this session",
+                file=sys.stderr,
+            )
+        return 2
+    one = len(held) == 1
+    names = ", ".join(str(reading.page_dir) for reading in held)
+    print(
+        f"the {'leaf' if one else 'leaves'} ended; {names} "
+        f"{'is' if one else 'are'} idle",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     """Hold until a user speaks or a worker reports, and deliver what was said.
 
@@ -241,120 +370,13 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
         return 2
     try:
         while True:
-            readings = []
-            live = []
-            for reading in watch.tick():
-                readings.append(reading)
-                if reading.watch_state == "lost":
-                    if named is not None and paths_same(reading.page_dir, named):
-                        print(
-                            f"stopped watching {named}: this session no longer owns it",
-                            file=sys.stderr,
-                        )
-                        return 2
-                    continue
-                if reading.live:
-                    live.append(reading)
-                if reading.restarted:
-                    print(
-                        f"{reading.page_dir}: server had died; "
-                        f"restarted at {reading.restarted}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                # The batch outranks the page's state: a wait already holding
-                # events owes them to the agent whatever became of the leaf, so
-                # an idled page still delivers here — it just no longer holds
-                # the wait open below.
-                if reading.batch:
-                    # Whose events follow, said in-band: no event line names its
-                    # page, and the ack has to go back to the right one. The
-                    # conversations they land in come with them, because a
-                    # delivered reply names only the message it answers and the
-                    # session that knew what that was may since have compacted.
-                    print(
-                        jsonl_line(
-                            {
-                                "page": str(reading.page_dir),
-                                "threads": batch_threads(
-                                    reading.transaction.events,
-                                    reading.batch,
-                                    active_enclosing(reading.page_dir),
-                                ),
-                            }
-                        ),
-                        flush=True,
-                    )
-                    # A reaction's word explained beside it (`means`), off the
-                    # page's own vendored vocabulary, so a token a project added
-                    # reaches the agent already saying what it asks for. Read
-                    # only where a batch carries one: the registry is a gate a
-                    # page vendored before the layer last moved fails, and a
-                    # wait that cannot deliver a comment over that would be a
-                    # wait that delivers nothing.
-                    registry = None
-                    if any(e.get("token") for e in reading.batch):
-                        try:
-                            registry = load_registry(reading.page_dir)
-                        except RegistryError:
-                            registry = None  # the token still reaches the agent
-                    for event in reading.batch:
-                        print(jsonl_line(described(event, registry)), flush=True)
-                    if reading.status["state"] != "working":
-                        # Flip before the agent handles the batch: the handoff
-                        # gap between this exit and pickup must not show
-                        # "waiting". The tick still holds the page lock, so a
-                        # transfer cannot land between delivery and this claim.
-                        n = len(reading.batch)
-                        reading.transaction.set_status(
-                            "working",
-                            f"picking up {n} update{'s' if n != 1 else ''}",
-                            handoff=True,
-                        )
-                    return 0
-                if reading.lost:
-                    print(
-                        f"{reading.page_dir}: server is not running; restart it with "
-                        f"`leaf server start {reading.page_dir}`",
-                        file=sys.stderr,
-                    )
-                    return 2
+            reading = _read_watch_pass(watch, named)
+            if reading.outcome is not None:
+                return reading.outcome
             # A leaf the agent idled has nobody left to carry a comment to, so it
             # leaves the watch, and the last one gone ends the wait too.
-            if not live:
-                held = [r for r in readings if r.watch_state != "lost"]
-                if not held:
-                    transferred = [r for r in readings if r.watch_state == "lost"]
-                    if transferred:
-                        one = len(transferred) == 1
-                        names = ", ".join(str(r.page_dir) for r in transferred)
-                        print(
-                            f"stopped watching {names}: this session no longer owns "
-                            f"{'it' if one else 'them'}",
-                            file=sys.stderr,
-                        )
-                        return 2
-                    if page_dir is None:
-                        print(
-                            "nothing to watch: no page named and none claimed by "
-                            "this session",
-                            file=sys.stderr,
-                        )
-                    else:
-                        print(
-                            f"nothing to watch: {page_dir} is not claimed by this "
-                            "session",
-                            file=sys.stderr,
-                        )
-                    return 2
-                one = len(held) == 1
-                names = ", ".join(str(r.page_dir) for r in held)
-                print(
-                    f"the {'leaf' if one else 'leaves'} ended; {names} "
-                    f"{'is' if one else 'are'} idle",
-                    file=sys.stderr,
-                )
-                return 2
+            if not reading.live:
+                return _ended_watch(reading.readings, page_dir)
             time.sleep(1)
     finally:
         watch.release()

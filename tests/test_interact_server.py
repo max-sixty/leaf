@@ -30,6 +30,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import event_endpoint as event_endpoint_model
 from leaf import event_log as event_log_model
 from leaf import events as event_model
 from leaf import files as files_model
@@ -771,7 +772,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
             assert release.wait(5), "the test never released the first attempt"
         return "the action was refused"
 
-    monkeypatch.setattr(http_model, "action_contract_error", refuse_once)
+    monkeypatch.setattr(event_endpoint_model, "action_contract_error", refuse_once)
     monkeypatch.setattr(event_model.AttemptExecution, "__init__", observe_attempt)
     sent = {
         "kind": "action",

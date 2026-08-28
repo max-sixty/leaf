@@ -2220,7 +2220,8 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
 
     The `other_leaf` fixture is the whole reason the leaves tray has anything to show:
     a tray of one — the page the reader is already on — is not worth a control, so
-    without a neighbour `l` is dead and there is no second tray to be exclusive with."""
+    without a neighbour `g l` is unavailable and there is no second tray to be exclusive
+    with."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     asks, leaves = page.locator(".lf-asks-panel"), page.locator(".lf-others-panel")
 
@@ -2228,6 +2229,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     expect(asks).to_be_visible()
     expect(leaves).to_be_hidden()
 
+    page.keyboard.press("g")
     page.keyboard.press("l")
     expect(leaves).to_be_visible()
     expect(asks).to_be_hidden()

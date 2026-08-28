@@ -2722,8 +2722,8 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
-    home, so the group brings no box of its own — and an armed g chord keeps its
-    digits even from a mark, because the chord promised a comment.
+    home, so the group brings no box of its own. `g c` leaves option-digit scope for
+    Comments, while `t` and Enter reach a particular thread and its reply box.
 
     The answer is said once, when the log takes it. The log is where it is recorded,
     and the group's own markup stays the author's: a module writes there only where the
@@ -2841,12 +2841,17 @@ def test_a_thread_question_asks_until_answered(browser, serve):
         "Pick any that apply."
     )
 
-    # The chord's promise holds from a mark: g c then 1 reaches the first thread's
-    # reply box, and no pick is sent for the digit the chord took.
+    # The chord's promise holds from a mark: g c leaves the option's digit scope and
+    # reaches Comments. A stray digit there neither travels nor picks; t then Enter makes
+    # the repeatable category walk and the thread-local landing explicit.
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
     page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("1")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("t")
+    page.keyboard.press("Enter")
     expect(page.locator(".lf-thread textarea").first).to_be_focused()
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"

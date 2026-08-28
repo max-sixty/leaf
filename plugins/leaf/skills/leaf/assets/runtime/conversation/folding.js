@@ -66,13 +66,6 @@ export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }
       "✓ Resolved";
     node.className = "lf-going";
     node.inert = true;
-    // A key on screen is a key that works, and this box's placeholder was still
-    // offering the address the thread under it has just taken: the repaint every other
-    // reply box gets is the trailing loop's, which asks for .lf-thread and so no longer
-    // finds this one. Painted here, from the same map, at the one moment the answer
-    // changes — the address is gone the frame the log settles the thread, and what the
-    // box says on its way out is "Reply" and no promise.
-    node.lfSync();
     folding.set(t.root.id, node);
     // Straight off the promise, and nothing between: motion() holds the last keyframe
     // while this direct reaction makes that frame true by removing the node, then its

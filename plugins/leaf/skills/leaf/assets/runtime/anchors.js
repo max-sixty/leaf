@@ -1139,7 +1139,7 @@ export function createAnchors(dependencies) {
   // reason markHere gives about the ask ring: a mark written at the arrival says where the
   // reader was *sent*, and goes on saying it after they have clicked away, read on down the
   // page and come back tomorrow. Every way into a thread then paints it — the quote's press,
-  // t/T, `g c 2`, a plain click on the card — because they all end in the same focus, and no
+  // t/T, a plain click on the card — because they all end in the same focus, and no
   // way in has to be taught to paint.
   //
   // Read through `closest` rather than off the thread itself, so a reader typing a reply is

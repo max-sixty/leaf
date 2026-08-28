@@ -1233,24 +1233,22 @@ ${MARK_RULES}
        stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
        edge as well. Nothing here is something to press: pointer-events stands down so a
        click still lands on the item the box outlines. */
-    /* The g chord's addresses: a chip per member of every list it offers, narrowed to one
-       list once a letter names it, in a layer of the chrome's own so an address can be
-       hung on a link set mid-sentence without a span being written into the paragraph.
-       Fixed, because the members are in three
-       different scrollers — the document, the comment panel, a board's own overflow — and
-       one layer that follows none of them is what lets a single pass place them all from
-       the viewport rects it just read; the pass runs again when anything scrolls under
-       it. Each chip is centred on the corner its member starts at — the first line of an
-       inline that wraps, not the whole box it spans — half in and half out, the place a
-       reply box's chip has always been drawn. Nothing here is something to press. */
+    /* The g chord's numbered document destinations: a chip per member of every list it
+       offers, narrowed to one list once a letter names it, in a layer of the chrome's own
+       so an address can hang on a link set mid-sentence without writing a span into the
+       paragraph. Fixed, because authored members can sit in the document or a widget's
+       overflow; one layer that follows neither lets a single pass place them from the
+       viewport rects it just read, then repaint when anything scrolls under it. Each chip
+       is centred on the corner its member starts at — the first line of a wrapping inline,
+       not the whole box it spans — half in and half out. Nothing here is pressable. */
     .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
     /* The two halves of an address: the keys already pressed, and the press that finishes
        the motion. A chip carries the whole of it, so how far in the reader is has to be
        said by how the keys are set. Muted rather than dropped, which is what the chip used
-       to do — the address it drew was then shorter than the one its own reply box speaks,
-       and the short one reaches nothing from a standing start.
+       to do — the address it drew was then shorter than the complete chord, and the short
+       one reaches nothing from a standing start.
 
        Ground and not size. Muted against accent is 1.45:1 in the light palette and 1.28:1
        in the dark, which is a difference in hue and barely one in lightness: on a key this

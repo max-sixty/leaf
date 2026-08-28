@@ -1545,13 +1545,14 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
 
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
     tray of one — the page the reader is already on — is not worth a control, so without
-    a neighbour `l` is dead."""
+    a neighbour `g l` is unavailable."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     trays = EDGES[1]
     trays.stand(page)
     edge_settled(page, trays)
     draw_edge(page, trays, 160)
 
+    page.keyboard.press("g")
     page.keyboard.press("l")
     expect(page.locator(".lf-others-panel")).to_be_visible()
     page.wait_for_function(

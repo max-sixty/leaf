@@ -16,6 +16,7 @@ from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESSED_PAGE,
     BANNER_WATCH,
     BOTH_STAMPS,
     COMMAND_HUB_PACKAGE,
@@ -1801,7 +1802,8 @@ def test_a_panel_row_follows_its_pages_status_live(
     page, errors = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    page.keyboard.press("l")  # the key opens the panel like the button does
+    page.keyboard.press("g")
+    page.keyboard.press("l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
     files_model.write_json(
@@ -1886,6 +1888,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
     expect(btn).to_have_text("All leaves (2)")
+    page.keyboard.press("g")
     page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
@@ -1897,6 +1900,14 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(rows).to_have_count(0)
     expect(btn).to_have_text("All leaves (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
+    # The open panel remains a destination after its last link leaves. Its own nav is
+    # the fallback landing, and it promises no row walk while there is nothing to walk.
+    page.keyboard.press("g")
+    expect(page.locator(".lf-keyline")).to_contain_text("All leaves panel")
+    page.keyboard.press("l")
+    expect(page.locator(".lf-others-panel")).to_be_focused()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("walk the leaves")
+    assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
     # Nothing live left to open: the button stands while the panel does and stands
     # down with it, which is the count's other half.
     page.keyboard.press("Escape")
@@ -1907,11 +1918,11 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
 
 
 def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
-    """The tray is a list, and a reader walks it without reaching for the mouse: l
+    """The tray is a list, and a reader walks it without reaching for the mouse: g l
     opens it and lands on the first neighbour, up and down step between them and clamp
     at the ends, Enter opens the focused one in its own tab, and Esc hands focus back
-    to the button that opened it. The key line names l before it is pressed and the
-    tray's own keys while focus is inside it — the promise and the press being one
+    to the button that opened it. The go-to menu names the panel, and the key line names
+    the tray's own keys once focus is inside it — the promise and the press being one
     scene — and the "?" reference carries the same rows."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
@@ -1925,9 +1936,9 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     )
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")
-    # A shortcut no surface names is a shortcut nobody finds: the line carries l for
-    # exactly as long as there is a tray to open.
-    expect(keyline).to_contain_text("leaves")
+    # The go-to menu carries the panel only while there is another leaf to show.
+    page.keyboard.press("g")
+    expect(keyline).to_contain_text("All leaves panel")
     page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     # Titles order the tray, so the walk has a stated first row to start from.
@@ -2106,6 +2117,7 @@ def test_a_walk_down_the_tray_stops_clear_of_the_key_line(browser, serve, live_l
     # Short enough that the rows overflow the tray, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
+    page.keyboard.press("g")
     page.keyboard.press("l")
     rows = page.locator("a.lf-others-row")
     for _ in names:
@@ -2362,7 +2374,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     Each surface is opened by its own key, which is also the assertion that it can be, and
     each is proved standing before axe reads it — a sweep over a surface that never opened
     is a green that means nothing, which is the shape `tests/CLAUDE.md` names."""
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
+    page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
@@ -2388,6 +2400,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # A tray on the far edge, which the sweep above never opens either. Waited out rather
     # than pressed past: the close is animated, so the next surface would otherwise be read
     # with this one still sliding away behind it.
+    page.keyboard.press("g")
     page.keyboard.press("l")
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
     sweep("standing in the leaves tray")
@@ -2408,12 +2421,12 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).to_be_hidden()
 
-    # And the chord's chips, which are painted over the page rather than in it — so the
-    # letter as well as the `g`, because arming alone paints none.
+    # And the chord's chips, which are painted over the page rather than in it. Narrow to
+    # hyperlinks so every visible chip belongs to the surface under test.
     page.keyboard.press("g")
-    page.keyboard.press("c")
+    page.keyboard.press("h")
     expect(page.locator(".lf-addresses > .lf-address").first).to_be_visible()
-    sweep("with the chord aimed at the comments")
+    sweep("with the chord aimed at the hyperlinks")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     assert errors == []
@@ -3350,7 +3363,7 @@ RING_WALKS = (
     ("the page", (), ("gallery", "design-decision", "ship-review")),
     ("the comments", ("c",), ("ship-review",)),
     ("the asks tray", (), ("ship-review",)),
-    ("the leaves tray", ("l",), ("gallery",)),
+    ("the leaves tray", ("g", "l"), ("gallery",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
     # from the row above it. The walk is clamped, so a second press at the top moves
@@ -3374,7 +3387,8 @@ RING_WALK_EXAMPLES = tuple(
 # the rest. Without this a key that stops working leaves the walk re-walking the page and
 # contributing nothing, which the coverage floor catches only where that scope is a
 # rule's sole home: one guard over seven setup steps. The page and the comments raise no
-# surface of their own; `c` lands on the list, which the walk's own first stop reads.
+# surface of their own; `c` and `g c` land on the list, which the walk's own first stop
+# reads.
 RING_SCOPE_SURFACE = {
     "the asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),

@@ -142,12 +142,10 @@ export function createConversationThreadList(dependencies) {
     if (!threads.length) wanted.push(emptyNote);
     else if (!shown.length) wanted.push(noMatchNote());
     // Walked in the page's order rather than the log's (inPageOrder), because that is the
-    // order every other reading of these threads is in: the marks down the page, the walk
-    // t/T makes, the digits g c spells. A thread on its way out still stands between its
+    // order every other reading of these threads is in: the marks down the page and the walk
+    // t/T makes. A thread on its way out still stands between its
     // neighbours while it folds (foldOut), which is why the walk is over the whole list
-    // with the resolved ones taken at their own place. The first nine open threads are
-    // addressable (g c 1–9), in the order t/T walk; past nine, digits stop and t/T still
-    // reach everything. A folding thread takes no address and is walked by nothing: the log
+    // with the resolved ones taken at their own place. A folding thread is walked by nothing: the log
     // has already settled it, and only its room is still here.
     //
     // A heading goes in wherever the run changes, so the reader scrolling a list four
@@ -217,10 +215,6 @@ export function createConversationThreadList(dependencies) {
     // joined: nothing about the page's own first anchor pass waits on a message.
     Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
 
-    // Each reply box speaks its own address, repainted after ordering because resolving an
-    // early thread renumbers everything after it — and read off the list this reconcile has
-    // just written, which is why the loop is here and not where the boxes were built.
-    for (const div of openThreads()) div.lfSync();
     toggleBtn.textContent = `Comments (${open.length})`;
     paintNarrowing(open, shown);
     // The anchor pass wrote its record before this list existed, and this reconcile may have

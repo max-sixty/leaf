@@ -133,8 +133,7 @@ export function createReactions({
   // page strip where nothing stands, the page whole being what an anchorless reaction is
   // aimed at. Armed, the mode owns the keys (REACT claims everything, as the address chord
   // does); Escape or a stray key lets it go, and what the arming raised — the bar, or the
-  // panel — goes down with it, unless a digit spent it, which is the reader landing in
-  // what the arming showed (the chord's `keepShown`).
+  // panel — goes down with it, unless a digit spent it.
   let reactArmed = false;
   let reactRaised = false;
   let reactRevealed = null;

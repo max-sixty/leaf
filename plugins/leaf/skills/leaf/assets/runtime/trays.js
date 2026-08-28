@@ -102,6 +102,7 @@ export function createTrays({
   // aria-label the card needs (axe: aria-prohibited-attr, serious).
   const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
   othersPanel.setAttribute("aria-label", "Leaves on this machine");
+  othersPanel.tabIndex = -1;
   traysEdge.handle(othersPanel, () => othersBtn);
   const leavesList = trayList(othersPanel);
   // A tray of the page's own open asks, on the same edge: one row per thing the page is
@@ -110,6 +111,7 @@ export function createTrays({
   // what kind of thing it is standing for.
   const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
   asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
+  asksPanel.tabIndex = -1;
   traysEdge.handle(asksPanel, () => asksBtn);
   const asksList = trayList(asksPanel);
 
@@ -227,25 +229,31 @@ export function createTrays({
   // The asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
   // scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
   // button — so the scope names what walking does and leaves the press to the button.
-  keys(asksPanel, "In the asks tray", [
-    {
-      id: "ask.walk",
-      keys: ["ArrowUp", "ArrowDown"],
-      routes: [
-        { id: "ask.previous", binding: "ArrowUp", does: "Previous ask" },
-        { id: "ask.next", binding: "ArrowDown", does: "Next ask" },
-      ],
-      does: "Walk the asks",
-      line: "walk the asks",
-      repeat: true,
-      run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
-    },
-  ]);
+  keys(
+    asksPanel,
+    "In the asks tray",
+    [
+      {
+        id: "ask.walk",
+        keys: ["ArrowUp", "ArrowDown"],
+        routes: [
+          { id: "ask.previous", binding: "ArrowUp", does: "Previous ask" },
+          { id: "ask.next", binding: "ArrowDown", does: "Next ask" },
+        ],
+        does: "Walk the asks",
+        line: "walk the asks",
+        repeat: true,
+        run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
+      },
+    ],
+    () => askRows().length > 0,
+  );
 
   const trayStrip = () =>
     STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;
 
   return {
+    askRows,
     asksBtn,
     asksList,
     asksOffered,

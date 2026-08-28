@@ -54,17 +54,15 @@ export function createReplies({
     }
   }
 
-  // One reply draft and one send path, however many views the thread has. The panel adds
-  // an address and reveals the sent message; an inline conversation supplies neither.
-  // Everything else — persistence, mirroring, the wire event and the focus landing — is
-  // the thread's and is therefore stated once.
-  function wireReply(t, input, send, { address, landed } = {}) {
+  // One reply draft and one send path, however many views the thread has. The panel reveals
+  // the sent message; an inline conversation does not. Everything else — persistence,
+  // mirroring, the wire event and the focus landing — is the thread's and is stated once.
+  function wireReply(t, input, send, { landed } = {}) {
     const draftCtx = "reply:" + t.root.id;
     input.value = loadDraft(draftCtx) ?? "";
     const sync = wireInput(input, {
       hint: "Reply",
       sends: "send",
-      address,
       sendBtn: send,
       busy: () => replyBusy(t.root.id),
       // localStorage notifies other tabs but skips this document. A conversation's

@@ -249,13 +249,11 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
         context.close()
 
 
-def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
+def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     """A thread can move, not just appear: resolving the first one sends it to the
-    resolved disclosure and renumbers every thread after it — the address its reply
-    box speaks moving with it, on nodes that are kept rather than remade. The
-    disclosure itself is kept too, so the user's open toggle survives the next
-    resolution instead of snapping shut on every arrival, which is what the rebuild
-    did."""
+    resolved disclosure while every surviving node stays put. The disclosure itself is
+    kept too, so the user's open toggle survives the next resolution instead of snapping
+    shut on every arrival, which is what the rebuild did."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-comments").click()
     panel_settled(page)
@@ -265,7 +263,7 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
         if e["kind"] == "comment"
     ]
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 2"
+        "placeholder", "Reply"
     )
     page.evaluate(
         """(id) => { window.__second = document.querySelector(`.lf-thread[data-id="${id}"]`); }""",
@@ -281,10 +279,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
     expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
-    # The survivors renumber without being remade: same node, new address, and the
-    # address its placeholder speaks moved with it.
+    # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 1"
+        "placeholder", "Reply"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -319,8 +316,8 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
 def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
     """The list is the page's order, not the log's. A reader walking a long
     conversation walks it the way they walk the prose it is about, and every other
-    reading of these threads already does: the marks down the page, the t/T walk, the
-    g c digits. So the threads are written here in the reverse of the page's order and
+    reading of these threads already does: the marks down the page and the t/T walk. So
+    the threads are written here in the reverse of the page's order and
     the panel is asked for its own, which is only the page's if something sorted it.
 
     A thread with nowhere in the page to be — a comment about the whole of it — comes
@@ -347,9 +344,8 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
         whole,
     ], "the panel is not reading in the page's order"
 
-    # The addresses and the walk are the same order, because both read the list itself.
     expect(page.locator(f'.lf-thread[data-id="{lede}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 1"
+        "placeholder", "Reply"
     )
     page.locator("body").click()
     page.keyboard.press("t")
@@ -872,10 +868,8 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
 
     What the log says is true from that first frame regardless — Comments counts down
     and Resolved counts up while the pixels catch up — and a thread on its way out is
-    out of the keys' reach from the same frame, so t/T and the g addresses walk what
-    is left rather than a corpse that is about to go. Its own reply box gives up the
-    address with them: the box under it has just taken that digit, and two boxes
-    offering g c 1 is a key line promising a press that lands on one of them.
+    out of the t/T walk from the same frame rather than remaining a destination that is
+    about to disappear.
 
     Held at its first frame rather than sampled mid-flight, the way the suggestion's
     own fold is read: mid-flight is a race with the clock that passes on a fast
@@ -916,7 +910,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         f"the list stood as {held['standing']} with the fold still to play"
     )
     assert held["walkable"] == [c2, c3], (
-        "a thread on its way out is still walkable by t/T and addressable by g, so a "
+        "a thread on its way out is still walkable by t/T, so a "
         f"key can land on room that is about to go: the list offered {held['walkable']}"
     )
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
@@ -930,12 +924,11 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
     expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    # The address the fold gave up, read where a reader reads it.
     expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 1"
+        "placeholder", "Reply"
     )
 
     # Half way down, the outcome is still on screen. A fold from the bottom takes the

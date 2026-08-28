@@ -988,8 +988,8 @@ panel's focus paints its own passage apart from every other mark, as
 parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the ask ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
-it: the quote's press, the `t`/`T` walk, a `g c` digit, a click on the card, a
-reply box. A press on a page mark reaches `showThread`, which focuses the thread
+it: the quote's press, the `t`/`T` walk, a click on the card, a reply box. A
+press on a page mark reaches `showThread`, which focuses the thread
 with `preventScroll` before its deliberate reveal; the page and card therefore
 both say which comment that press opened, and the next key belongs to the thread
 scope. `paintHere` repaints it beside the ask ring, and `paintAnchors` repaints
@@ -1462,12 +1462,12 @@ a surface too, and what keeps it one layer is `HELP` standing nearer with a clai
 over the whole keyboard, so the box's letters were never the page's to take back.
 
 The rule holds for a sequence as much as for a surface, where the stack it is
-about is the reader's rather than the dispatcher's. The address chord arms on `g`
-and narrows to a list on the letter, and each of those is an Escape's worth of
-state — the armed chip says so, reading `g` and then `g c`, and the chips on the
-page narrow with it — so one scope owes two presses out. A letter that also
-reveals its list owes the reveal back with it: `reveal` returns its own undo, and
-`setChord` runs that on every way down but the digit's.
+about is the reader's rather than the dispatcher's. The address chord arms on
+`g`. A panel mnemonic exchanges that window for its destination, so `g c` leaves
+the Comments panel as one Escape rung. A document-list mnemonic narrows the
+window instead: the armed chip reads `g` and then `g h`, the chips on the page
+narrow with it, and Escape returns to the destination menu before another Escape
+closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
 `versionsOffered` (there is a menu) answers for the key, the mode binding its
@@ -1494,9 +1494,9 @@ The register owns capabilities, not controls. Every capability the chrome offers
 has a row, and each control that reaches one names its key through `also`; a
 control is a route to a capability rather than a capability of its own, so a
 second route needs no second row. A run heading in the comment panel presses the
-page to where that run is about, which is what `g c` already reaches through any
-thread in the run — where `w` and `/` are capabilities nothing else reaches, and
-each earns a row. A capability with no row is one the key line never advertises,
+page to where that run is about. That travel is a capability, just as `w` and `/`
+are capabilities nothing else reaches, and each earns a row. A capability with
+no row is one the key line never advertises,
 the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
 that adds the capability.
@@ -1504,9 +1504,10 @@ that adds the capability.
 Directional walks use the category's letter, with case stating direction: lowercase
 advances and Shift goes back. `t`/`T` walks open threads and `a`/`A` walks open
 asks. Keep these as single-key presses rather than prefix sequences; a walk is
-often repeated or held. Other letters come from words the surface says: `l`
-opens leaves and `w` narrows to comments waiting on the reader. A key spelling
-something nothing on screen says is a key nobody reaches for twice.
+often repeated or held. Other letters come from words the surface says: `w`
+narrows to comments waiting on the reader, while `g c`, `g a`, and `g l` go to
+Comments, Asks, and All leaves. A key spelling something nothing on screen says
+is a key nobody reaches for twice.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
@@ -1515,7 +1516,8 @@ rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
 the presses whose subject is the page: `c` comments on it, `t`/`T` and `a`/`A`
-walk its open sets, and `l` opens its leaves. A surface holds the presses whose
+walk its open sets, and `g` opens its destinations. A surface holds the presses
+whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
 on: `w` narrows the comment panel's list and `/` searches it, and both live in
@@ -1525,8 +1527,9 @@ every page, so a letter earns page scope only by acting on the page.
 A surface may also hold the next step of a page key, which is the third row in
 `PANEL` and the one exception the rule has: the page's `c` lands the reader on
 the comment list and the panel's `c` puts them in its box. The letter is the
-same because the intent is, one scope in — `g` names a list and then a member of
-it — and the inner row stands down wherever the page's own key has a nearer
+same because the intent is, one scope in — as `g` names a document list and then
+a member of it — and the inner row stands down wherever the page's own key has a
+nearer
 answer, so the two never offer the reader a choice about which one runs.
 
 A scope's rows act on contents the reader is looking at rather than standing in,
@@ -1534,10 +1537,9 @@ which is why they can be sorted by surface at all. One press is not like that:
 `c` follows the reader, and what it means is whatever they are standing in.
 
 That it reaches into the panel is not an exception. Page scope already crosses
-there, and the register says so twice: `g c N` is a page address that lands the
-reader in a panel textarea, and `openAsks` counts a widget an agent sent as an
-ask like any other, so `g a N` can put them inside a thread. A page key that
-takes the reader somewhere owes them an answer once they are standing there.
+there: `t`/`T` can land on cards in Comments, and `a`/`A` can land on an ask an
+agent sent inside a thread. A page key that takes the reader somewhere owes them
+an answer once they are standing there.
 Rescoping `c` per surface would not even buy the tidiness it looks like — the
 reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
@@ -1561,8 +1563,8 @@ letters are all shadowed — the typing scope claims a letter first — so the p
 that promised the comments left `w` and `/` unreachable until the reader pressed
 Escape. The panel's row is not the several-rows-one-key shape either, because it
 stands down wherever the page's key has the nearer answer: a live 💬, or the
-conversation the reader is standing in, whose own box `Enter` and `g c N` already
-reach. A resolved thread offers no box, so the row answers there and the general
+conversation the reader is standing in, whose own box `Enter` already reaches.
+A resolved thread offers no box, so the row answers there and the general
 box is the honest destination.
 
 The item's box is the composer, on the item, and not a widget's own conversation
@@ -1926,8 +1928,8 @@ Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
 nested in an `x-ask` region, the row names the region: its heading, context, and
 evidence are the request the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-row travels through the same ask-arrival function as `a` and `A`, so numbered
-and directional navigation agree about focus, reveal, start-aligned scroll, and
+tray row travels through the same ask-arrival function as `a` and `A`, so the
+panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
 An ask is answered by a verb listed in `x-awaits.answers`; do not infer that every
@@ -1970,34 +1972,38 @@ visible/navigation surface. `actionAvailable` still queries whether the source o
 ancestor's request is open. A module reading `openAsks()` calls `askSource()` when it
 needs the actionable widget rather than the reader-facing region.
 
-### Address chord
+### Go-to chord
 
-`g` opens one address mode. A second letter names a list, and a decimal number
-names a member. `g g` and `g G` complete the chord themselves, gliding to the top and
-bottom of the visible scroller. When a comment holds focus, `g t` and `g b`
+`g` opens one destination mode. `c`, `a`, and `l` complete a direct trip to
+Comments, Asks, and All leaves. `h` and `d` name the document's numbered
+hyperlink and disclosure lists, and a decimal number names a member. `g g` and
+`g G` complete the chord themselves, gliding to the top and bottom of the visible
+scroller. When a comment holds focus, `g t` and `g b`
 place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
 An edge is one place, so the second key is the whole address; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
-`ADDRESSES` is the whole list vocabulary. Each entry declares:
+`PANEL_DESTINATIONS` is the direct panel vocabulary. Each entry declares its
+mnemonic, words, capability, and landing. `ADDRESSES` is the numbered document-list
+vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
 - its members in stable address order;
-- the box a chip is placed from, where that is not the member itself;
-- how to show a list that draws nothing until asked;
 - how to arrive at one member.
 
 A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
-Adding a list adds one entry. The page-level `g` row promises only the mode;
-ranges belong to the list rows inside it.
+Adding a panel destination or a numbered list adds one entry to its vocabulary.
+The page-level `g` row promises only the mode; destinations and ranges belong to
+the rows inside it.
 
-Arming the mode paints the whole offer: every list contributes chips at once, and
-a letter narrows them to its own list. Further digits narrow the chips by numeric
+Arming the mode paints the whole offer. A panel mnemonic completes the travel and
+moves focus inside the panel. Every numbered list contributes chips at once, and
+its mnemonic narrows them to that list. Further digits narrow the chips by numeric
 prefix. A number selects immediately when it is unambiguous. When an exact number
 also prefixes a longer one, Enter selects the exact member and another digit
-continues the address. Escape removes one digit before it backs out to the lists.
+continues the address. Escape removes one digit before it backs out to the menu.
 A chip carries the whole address — leader, letter, number, and Enter when it is
 required — so it states which member this is and what remains to type. Every key
 on it is set at the chip's one size, and the split between what is
@@ -2013,19 +2019,15 @@ by an equal negative margin — so a press lights one more key and moves no glyp
 in advance instead, the key crossing between the halves steps by that padding, which is the
 same fault one glyph smaller.
 
-`addressKeys` is the one spelling of a complete address, including Enter when it
-is required. `chordKeys` is the one reading of how far the chord has come: the
-key line drops those keys, having said them in
-the chip that heads it, the reference puts them in front of each row so every entry
-shows the complete chord, a chip on the page sets them back, and the placeholder
-that speaks a reply box's whole address joins the whole array.
+`chordKeys` is the one reading of how far a numbered address has come. The key
+line drops those keys after saying them in the chip that heads it, the reference
+puts them in front of each row so every entry shows the complete chord, and a
+chip on the page sets them back.
 
-Addresses are stable within the document. The first addressable members do not
-change identity as the reader scrolls. Chips are painted only for members whose
-`shownRect` is visible, but an off-screen member remains reachable by the same
-address. A list drawn nowhere the reader can see, such as the comments behind a
-shut panel, therefore contributes no chip until its letter reveals it. Chips live
-in runtime chrome rather than authored markup.
+Numbered addresses are stable within the document. The first addressable members
+do not change identity as the reader scrolls. Chips are painted only for members
+whose `shownRect` is visible, but an off-screen member remains reachable by the
+same address. Chips live in runtime chrome rather than authored markup.
 
 `NATIVE` describes the platform controls a chord may land on and the immediate
 word for their next press. A summary says whether it will open or close from its
@@ -2094,7 +2096,7 @@ thread's box rather than a particular scroll offset.
 
 The list is the page's order, not the log's. `inPageOrder` sorts by where the
 anchor pass placed each thread and breaks ties by log order, so the panel, the
-marks down the page, the t/T walk and the `g c` digits are one order. A thread
+marks down the page, and the `t`/`T` walk are one order. A thread
 whose passage this version rewrote falls back to the element its anchor names,
 because an id survives a rewrite that takes a quote down with it. A thread that
 resolves nowhere — a comment about the page as a whole, or one whose element is

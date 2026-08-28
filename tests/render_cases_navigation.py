@@ -208,9 +208,9 @@ def mark_shows_beside_composer(page):
     }""")
 
 
-# Every list the g chord addresses, on one page: comments (the test adds them), an ask,
-# links, and a disclosure. The lists have to stand together, because what the chord is for
-# is that one letter chooses between them.
+# Every kind of destination the g chord offers, on one page: the tests add comments, this
+# fixture supplies an ask, and the authored document supplies links and a disclosure.
+# They stand together so one chord must distinguish direct panels from numbered lists.
 ADDRESSED_PAGE = leaf_page(
     "addressed",
     """
@@ -247,7 +247,7 @@ session.</p></details>
 CHIPS = ".lf-addresses > .lf-address"
 # The half of each address already behind the reader. A chip carries the whole motion, so
 # how far in they are is the split rather than the text: `g` alone once the window is up,
-# and `g c` once a letter has named a list. The selector arrives as an argument so the one
+# and `g h` once a letter has named a list. The selector arrives as an argument so the one
 # spelling above is the one this reads.
 SPENT = """(sel) => [...document.querySelectorAll(sel)]
     .map(chip => chip.querySelector('.lf-spent').textContent)"""

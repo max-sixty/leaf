@@ -10,6 +10,7 @@ from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESSED_PAGE,
     AIM_SEAM,
     AIM_SEAM_PAGE,
     ASTRAL_PAGE,
@@ -26,7 +27,6 @@ from render_support import (
     INLINE_PAGE,
     LONG_PAGE,
     NATIVE_CONTROL_PAGE,
-    REPLY_HOST_PAGE,
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
@@ -590,21 +590,22 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     carries the whole motion it is halfway through. So the shared minimum and padding are
     compared and the result of them is not, and the difference is asserted in the
     direction it has to run.
-    The face is compared because it is the half a letter made load-bearing: in the
-    document's sans a lowercase l is a bare stroke, and the chord's second link wore what
-    read as 12."""
-    url = serve(REPLY_HOST_PAGE)
+    The face is compared because the same address vocabulary must not change voice between
+    a document control and the chord layer."""
+    url = serve(ADDRESSED_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # `a` reaches the first ask and lands on its mark, which is what paints
-    # that group's digits; g c then aims the chord at the comments, which paints theirs.
-    page.keyboard.press("a")
+    # Focus inside the first panel ask paints that group's digits; g h then aims the
+    # chord at the document's hyperlinks, which paints its own numeric addresses.
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
-    page.keyboard.press("c")
+    page.keyboard.press("h")
     addressed = page.locator(CHIPS).first
     expect(addressed).to_be_visible()
 
@@ -2787,7 +2788,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way l opens the leaves tray, and lands
+    # v opens it from anywhere on the page, the way g l opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.

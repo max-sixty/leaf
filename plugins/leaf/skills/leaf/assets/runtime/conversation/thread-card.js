@@ -1,9 +1,6 @@
 /* Retained comment-panel thread cards and their controls. */
 export function createThreadCards(dependencies) {
   const {
-    COMMENTS,
-    addressLabel,
-    addressed,
     anchorLabel,
     el,
     isMarked,
@@ -99,16 +96,7 @@ export function createThreadCards(dependencies) {
       const input = document.createElement("textarea");
       const send = el("button", "lf-btn primary lf-thread-send", "Send");
       row.append(input);
-      div.lfSync = wireReply(t, input, send, {
-        // The box's address, spoken by its own placeholder at all times ("Reply · g c 2")
-        // — which is what a screen reader hears, the chip the chord paints being the eye's
-        // copy of the same fact. Read off the list rather than off a number written here,
-        // because the address is positional: resolving an early thread renumbers every one
-        // after it without touching their nodes, and renderThreads repaints them all.
-        address: () => {
-          const num = addressed(COMMENTS).indexOf(div) + 1;
-          return num ? addressLabel(COMMENTS, num) : "";
-        },
+      wireReply(t, input, send, {
         landed: (sent) => revealThread(sent.id),
       });
       const actions = el("div", "lf-thread-actions");

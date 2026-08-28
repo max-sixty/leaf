@@ -40,12 +40,10 @@ export function createInput({ focused, keys, showToast, spell }) {
   ) {
     // The hint goes in the placeholder, where it's visible exactly while the box is
     // empty and can't be found any other way; the button's tooltip spells the send key
-    // out. The send shortcut is focus-scoped, so only the focused box may claim it —
-    // unfocused, the placeholder carries the box's own address instead (the chord
-    // that reaches it), where the box has one. hint is a function where the
-    // label changes under a live box (the composer's suggest mode); address is always
-    // one, because a thread's number renumbers as earlier threads resolve while its box
-    // stands.
+    // out. The send shortcut is focus-scoped, so only the focused box may claim it.
+    // Unfocused, the placeholder may carry a contextual key where the composer has one.
+    // Both hint and address may be functions because their labels can change while the
+    // box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const paint = () => {
       // Read the shared logical focus so this hint agrees with the key line and rings.

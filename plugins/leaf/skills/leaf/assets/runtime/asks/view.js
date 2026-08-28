@@ -98,6 +98,7 @@ export function createAskView({
   // page's own words change), and every poll, which is where the fold moves and where a
   // send that failed has its optimism taken back.
   let shortcutsOffered = false;
+  let rowWalkOffered = false;
   function syncAsks() {
     const asks = openAsks();
     // While the tray stands its button stands too, whatever the count just did — the
@@ -116,8 +117,10 @@ export function createAskView({
     // where it changes — the rule showFab and showTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = asksOffered();
-    if (offered !== shortcutsOffered) {
+    const walkOffered = asks.length > 0;
+    if (offered !== shortcutsOffered || walkOffered !== rowWalkOffered) {
       shortcutsOffered = offered;
+      rowWalkOffered = walkOffered;
       paintKeys();
     } else paintHere();
   }
@@ -396,15 +399,13 @@ export function createAskView({
     (control ?? source).focus({ preventScroll: true });
   }
 
-  // Standing on one ask: what a and A do once they have decided which, what a press on a
-  // tray row does having been told outright, and where `g a` lands a digit. One function
-  // because it is one act — a second would be a second answer to "how do I put the reader on
-  // an ask", and the two would drift the first time either the reveal or the focus rule
-  // changed.
+  // Standing on one ask: what a and A do once they have decided which, and what a press on
+  // a tray row does having been told outright. One function because it is one act — a
+  // second would be a second answer to "how do I put the reader on an ask", and the two
+  // would drift the first time either the reveal or the focus rule changed.
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
-  // is the one that knows which list it walked: the walk's own, the tray's, or the whole of
-  // what the page is waiting on where an address reached past the nine it can spell.
+  // is the one that knows which list it walked: the walk's own or the tray's.
   function goToAsk(next, asks) {
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.

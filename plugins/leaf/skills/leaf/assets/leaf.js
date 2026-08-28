@@ -124,17 +124,14 @@
  * panel this time. The layer that leaves between is where the surface's own keys can be
  * reached at all.
  *
- * One key sequence exists: g arms a mode in which a letter names one of the page's
- * lists — its comments, its asks, its links — and a digit is a place in that list,
- * so `g c 2` is the second reply box and `g l 3` the third link on screen; `g g` and
- * `g G` are the page's own edges, the top and the bottom, addresses with no list to name.
- * Which lists there are is one table (ADDRESSES) and no consumer branches on which one is
- * aimed at.
+ * One key sequence exists: g arms a mode in which a mnemonic names a panel or a
+ * document list. `g c`, `g a`, and `g l` land in Comments, Asks, and All leaves.
+ * A following digit names a member of a document list, so `g h 3` is the third
+ * hyperlink; `g g` and `g G` are the page's top and bottom edges.
  * Arming shows the whole offer: everything addressable the reader can see wears its whole
- * address as a chip — `g c 1`, `g l 2` — with the keys already pressed dimmed, so the chip
+ * address as a chip — `g h 1`, `g d 2` — with the keys already pressed dimmed, so the chip
  * states both which member this is and what is left to type. A letter then narrows the
- * chips to its own list, and reveals that
- * list where it draws nothing until asked. Any other key disarms the window and keeps its
+ * chips to its own list. Any other key disarms the window and keeps its
  * ordinary meaning, which the dispatcher spells as disarming and walking the stack again.
  * Escape is a binding like any other, and the rung is whichever scope in reach binds it
  * first, so backing out is one layer per press and the promise cannot drift from the
@@ -682,6 +679,7 @@ latestChip.title = latestChip.dataset.lfKeyTitle;
 if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
+  askRows,
   asksBtn,
   asksList,
   asksOffered,
@@ -964,9 +962,9 @@ inspectEl.setAttribute("aria-hidden", "true");
 // pointer are the spoken copy.
 const legendRoot = el("div", "lf-ui lf-legend");
 legendRoot.setAttribute("aria-hidden", "true");
-// The g chord's addresses: a numbered chip on every member of the list it has aimed at,
-// drawn here for the same reason the legend is (paintAddresses, its one writer). The eye's
-// copy of what the chord announces, so it says nothing to a screen reader.
+// The g chord's numbered document destinations: a chip on every member of the list it has
+// aimed at, drawn here for the same reason the legend is (paintAddresses, its one writer).
+// The eye's copy of what the chord announces, so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
 // The runtime's parts, named: a design comment can point at one, and an anchor names an
@@ -1305,7 +1303,7 @@ const PANEL_SAY = {
   // Dead inside a conversation for the same reason read the other way. This scope is
   // live wherever focus is in the panel, a card the reader has walked to included, and
   // that card's own reply box is a nearer answer to "comment" than the general box is
-  // — the one `Enter` reaches from here and `g c N` addresses. Standing in a
+  // — the one `Enter` reaches from here. Standing in a
   // conversation is the page's second destination, so the row stands down and lets it
   // answer, and the two ways into a thread's box stay one landing. A resolved card has
   // no box to be the nearer answer, and standingConversation reads the box rather than
@@ -1319,10 +1317,10 @@ const syncGeneral = wireInput(generalInput, {
   // send, by the mode standing then — and the hint says which, so the reader typing in
   // design mode knows their remark is about the layer as a whole.
   hint: generalHint,
-  // The box's own address, the way a thread's reply carries "g c 2": unfocused, the
-  // placeholder reads "Comment on the page · c", which is the panel's own c and the
-  // second press of the page's. One key rather than a chord, because this box is the
-  // panel's own and the scope that offers it is the one the reader is standing in.
+  // The box's own address: unfocused, the placeholder reads "Comment on the page · c".
+  // That c is the panel's own and the second press of the page's. One key rather than a
+  // chord, because this box is the panel's own and the scope that offers it is the one
+  // the reader is standing in.
   //
   // Read off the row that answers the press rather than spelled here, which is the rule
   // the reference states about itself: a fact about a binding written somewhere the
@@ -1423,10 +1421,10 @@ const focusedThread = () => {
 // at all: an address put the reader on an option and `c` still offered them the page.
 //
 // The unanswered ask where the reader is standing on a control that works it, and the innermost
-// item everywhere else. `g a 1` names the question rather than the first of its options,
-// and the control the walk stands them on is one part of it (standOn) — so a press made
+// item everywhere else. The control the walk stands them on is one part of the question
+// (standOn), so a press made
 // from a pick, a ✓ or a mark means the question those answer. Standing *in* an ask is not
-// the same fact: a reader who addressed a link (`g l 3`) or tabbed to one has said
+// the same fact: a reader who addressed a hyperlink (`g h 3`) or tabbed to one has said
 // something more particular than the question containing it, and answering the question
 // there both overrides what they named and made the same markup answer differently
 // according to whether its question was still open — a link in a settled group gave the
@@ -1465,10 +1463,8 @@ const standingItem = () => {
 // the other side when it declines to seat a widget standing inside a thread.
 //
 // One of the three is in the chrome, which is not the exception it looks like: page scope
-// already crosses there and the register says so twice. `g c N` is a page address that
-// lands the reader in a panel textarea, and `openAsks` counts a widget an agent sent as an
-// ask like any other, so `g a N` can put them inside a thread. A page key that takes them
-// somewhere owes them an answer once they are standing there.
+// already crosses there. A page key that takes the reader somewhere owes them an answer
+// once they are standing there.
 //
 // The box decides membership, rather than the container's class deciding it. A resolved
 // thread is built by the same function, wears the same class, and keeps a tab stop and a
@@ -1820,44 +1816,44 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
     threadsBox,
   });
 
-const {
-  COMMENTS,
-  GO,
-  GOTO,
-  addressLabel,
-  addressed,
-  isChordArmed,
-  keepShown,
-  paintAddresses,
-  setChord,
-} = createAddress({
+const revealComments = () => {
+  if (panelIsOpen()) return null;
+  setPanel(true);
+  return () => setPanel(false);
+};
+const landInThreadReply = (thread) =>
+  landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
+
+const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   EVERYTHING,
-  SAY_BOX,
   addressLayer,
   announce,
+  askRows,
+  asksPanel,
+  asksOffered,
   banner,
   claimsEsc,
   el,
   focused,
   focusedThread,
   glideTo,
-  goToAsk,
   inPanel,
   keylineEl,
-  landIn,
+  leavesOffered,
   letGo,
-  openAsks,
-  openThreads,
+  othersLinks,
+  othersPanel,
   pageParts,
   paintHere,
   panelCovers,
-  panelIsOpen,
   placeThreadEdge,
   saying,
   seenScroller,
   setPanel,
+  showTray,
   startsAt,
   scrollToElement,
+  threadsBox,
 });
 
 // ---------- reactions ----------
@@ -1876,7 +1872,7 @@ const {
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
   claimsEsc,
-  commentsReveal: () => COMMENTS.reveal(),
+  commentsReveal: revealComments,
   currentRevision: () => runtime.currentRevision,
   cut: (...args) => cut(...args),
   designIsOn: () => designOn,
@@ -2086,10 +2082,11 @@ const TYPING = {
 
 // The panel's own keys. What a press acts on is whose scope it belongs to: the page holds
 // the presses whose subject is the page — `t`/`T` and `a`/`A` walk its open sets, and
-// `l` opens its leaves — while a surface holds presses for its own contents. `w` narrows this list and
-// `/` searches it, and a list the reader is not looking at is neither a thing to narrow
-// nor a thing to search. At page scope they were two bare letters spent on a panel that
-// might be shut, promised by the key line over prose the presses said nothing about.
+// `g` opens its destinations — while a surface holds presses for its own contents. `w`
+// narrows this list and `/` searches it, and a list the reader is not looking at is
+// neither a thing to narrow nor a thing to search. At page scope they were two bare
+// letters spent on a panel that might be shut, promised by the key line over prose the
+// presses said nothing about.
 //
 // `c` is the one row here whose subject is not this list, and it is the rule read one
 // step further rather than the rule bending: the page's `c` follows the reader and is
@@ -2198,18 +2195,13 @@ const THREAD = {
             ":scope > .lf-thread-actions > .lf-reopen:not(:disabled)",
           ),
         ),
-      // The address's own arrival, so the two presses that reach a thread's reply box
-      // reach the same one. This took the first textarea in the thread, which is not the
-      // reply box when a message carries a widget holding one of its own — a draft's open
-      // editor stands before it in the DOM, which is why `g c` was written to ask for the
-      // box by its place (COMMENTS.go) and not by being first. Two readings of "the reply
-      // box" is two answers the day a message carries an editor, and `c` standing in a
-      // thread now reaches it too, so there would have been three.
+      // Find the thread's own compose row rather than the first textarea: a message may
+      // contain a widget with an editor of its own before the reply box in DOM order.
       run: () => {
         const thread = focusedThread();
         const reopen = thread.querySelector(":scope > .lf-thread-actions > .lf-reopen");
         if (reopen) reopen.click();
-        else COMMENTS.go(thread);
+        else landInThreadReply(thread);
       },
     },
     {
@@ -2529,26 +2521,6 @@ const PAGE = {
       run: (binding) => stepPage(binding === "d" ? 0.5 : -0.5),
     },
     {
-      // `l` for the leaves, the word every surface names this tray by. It was `o`,
-      // for the "Other leaves" the button said before the count was one off the list
-      // it promised — so the key went on spelling a word nothing on screen said, and
-      // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
-      id: "leaf.tray.toggle",
-      keys: ["l"],
-      does: () => `${openTray("leaves") ? "Hide" : "Show"} the machine's leaves`,
-      line: () => `${openTray("leaves") ? "hide" : "show"} leaves`,
-      also: othersBtn,
-      when: leavesOffered,
-      run: () => {
-        showTray(openTray("leaves") ? null : "leaves");
-        // Opening lands on the first neighbour, so the tray's own keys are the next press
-        // rather than a Tab-hunt across the banner — the move c makes into the comment
-        // panel's box. Closing hands focus back, which showTray owns. The key is dead
-        // with nothing to show, so an open always has a row to land on.
-        if (openTray("leaves")) othersLinks()[0].focus();
-      },
-    },
-    {
       id: "version.approve",
       keys: ["Shift+l"],
       does: "Approve this version",
@@ -2679,14 +2651,11 @@ function paintCoreControls() {
 
 const { availableCommands, executeCommand, readerIn, shadow, stack } = createDispatch({
   claimsEsc,
-  containsAcross: (container, node) => containsAcross(container, node),
   ELEMENTS,
   focused,
   isChordArmed,
   isReactArmed,
-  keepShown,
   paintHere,
-  panel,
   recoveredLabelFocus,
   SCOPES,
   scopesFor,
@@ -2723,12 +2692,10 @@ const reference = createReference({
     try {
       paintKeys();
       syncGeneral();
-      conversationRuntime.syncReplyAddresses();
     } catch (error) {
       characterShortcutsOn = before;
       paintKeys();
       syncGeneral();
-      conversationRuntime.syncReplyAddresses();
       throw error;
     }
     readerStore.set(CHARACTER_SHORTCUTS_KEY, on ? null : "0");
@@ -3141,11 +3108,8 @@ outboxRuntime = createOutbox(runtime, {
 });
 
 conversationRuntime = createConversation({
-  COMMENTS,
   FOLD_MS,
   MARKED_ANYWHERE,
-  addressLabel,
-  addressed,
   agentName,
   ago,
   announce,

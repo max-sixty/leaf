@@ -9,14 +9,11 @@ import {
 
 export function createDispatch({
   claimsEsc,
-  containsAcross,
   ELEMENTS,
   focused,
   isChordArmed,
   isReactArmed,
-  keepShown,
   paintHere,
-  panel,
   recoveredLabelFocus,
   SCOPES,
   scopesFor,
@@ -212,11 +209,6 @@ export function createDispatch({
     const active = focused();
     if (isReactArmed() && (takesLetters(active) || claimsEsc(active))) setReact(false);
     if (isChordArmed() && (takesLetters(active) || claimsEsc(active))) {
-      // Focus arriving inside what the aim revealed is the reader landing in it, the same
-      // arrival the digit makes, so the reveal is theirs to keep rather than the aim's to
-      // take down. Without this a click into the panel `g c` had just opened closed it again
-      // under the click.
-      if (containsAcross(panel, active)) keepShown();
       setChord(false);
     }
     paintHere();

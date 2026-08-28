@@ -338,8 +338,7 @@ customElements.define(
             runFromReference: false,
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
-            // are the markup's and do not change under the reader — where the chord's
-            // comment digits count open threads, which resolve as they are answered.
+            // come from markup and do not change under the reader.
             keys: addresses,
             label: addresses.length > 1 ? `1–${addresses.length}` : "1",
             does: "Toggle the nth option",

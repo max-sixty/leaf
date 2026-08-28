@@ -1,69 +1,51 @@
-import { bindings, labelOf, spell } from "./bindings.js";
+import { labelOf, spell } from "./bindings.js";
 
 export function createAddress({
   EVERYTHING,
-  SAY_BOX,
   addressLayer,
   announce,
+  askRows,
+  asksPanel,
+  asksOffered,
   banner,
   claimsEsc,
   el,
   focused,
   focusedThread,
   glideTo,
-  goToAsk,
   inPanel,
   keylineEl,
-  landIn,
+  leavesOffered,
   letGo,
-  openAsks,
-  openThreads,
+  othersLinks,
+  othersPanel,
   pageParts,
   paintHere,
   panelCovers,
-  panelIsOpen,
   placeThreadEdge,
   saying,
   seenScroller,
   setPanel,
+  showTray,
   startsAt,
   scrollToElement,
+  threadsBox,
 }) {
-  // ---------- the g chord: the page's addresses ----------
-  // g arms a mode in which a letter names one of the page's lists and a decimal number is a
-  // place in it: `g c 12` is the twelfth open comment's reply box, `g a 1` the first thing
-  // the page is waiting on, `g l 3` the third link. Completions that name one place take no
-  // number:
-  // `g g` is the top of the page and `g G` the bottom, while `g t` / `g b` put the focused
-  // comment at either edge of its list and `g p` returns from a beside-panel to the page.
-  // Each edge is one place, so the second key is the whole address. `g G` rather than vim's
-  // bare G because g is the page's one go-to prefix, and an edge is one more place it names
-  // rather than a second leader. Naming a list shows it — the panel opens for the comments
-  // — and each of its addressable members then wears its number as a chip, so the addresses
-  // are on screen wherever the reader is looking. An unambiguous number consumes the mode;
-  // a short number that also prefixes a longer one takes Enter. Escape backs out one stage,
-  // and focus entering a box disarms the mode. Any other key disarms and then runs with its
-  // ordinary meaning, which the dispatcher spells as disarming and walking the stack again
-  // rather than as a rule of its own — a mistyped g therefore costs the reader nothing beyond
-  // the press their next key was going to make anyway.
+  // ---------- the g chord: the page's destinations ----------
+  // g names one-off travel. A mnemonic completes a panel destination (`g c` Comments,
+  // `g a` Asks, `g l` All leaves), while a document list takes a following decimal place
+  // (`g h 3` is the third hyperlink and `g d 2` the second disclosure). Repeated movement
+  // through comments and asks belongs to their single-key category walks, t/T and a/A, so
+  // those categories do not also carry numbered addresses.
   //
-  // The chord was one list deep once — g then a digit, and the digit meant a reply box —
-  // which spent the whole of a leader on the one list that had asked for it first. The letter
-  // is what opens that: a second list costs a letter rather than a second chord, and the line
-  // says `g` alone rather than a range that only ever counted threads.
-  //
-  // Which lists there are is this table and nothing else. The chord's scope, the chips, the
+  // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
   // line's words and the reference are all readings of it, so a fourth list is an entry here
   // rather than an edit to four consumers, and nothing that reads the table asks which list
-  // it is holding. One place names a list at all, and it is not a reader of the table: a
-  // member with a surface of its own has to say which list that surface belongs to, which is
-  // the reply box's placeholder (COMMENTS, below). An entry says its letter, the word every surface calls the list by, the sentence
-  // the reference reads, its members in address order, and how to arrive at one. `spot` is
-  // where the chip hangs when that is not the member itself — a comment's address belongs on
-  // the box the completed address lands in, not on the thread's far corner.
+  // it is holding. An entry says its letter, the word every surface calls the list by, the
+  // sentence the reference reads, its members in address order, and how to arrive at one.
   // What the document holds, in reading order, as against what the chrome holds: the banner,
-  // the versions and the leaves tray have keys of their own, and a comment's message is the
-  // panel's rather than the page's. The addresses read the document through here, where
+  // the versions and the panels are direct destinations, while a comment's message is the
+  // Comments panel's rather than the page's. The addresses read the document through here, where
   // a scope naming a platform key reads `pageQueryAll` and crosses the declared shadow roots
   // as well: an address is a place in a list the reader counts down the page, and a tree a
   // module built has no place in that count, while what the reader can stand on is wherever
@@ -73,7 +55,7 @@ export function createAddress({
   // The whole document and not the parts on screen, which is the tempting reading and the
   // wrong one twice over. An address that counted what is in the window is an address that
   // means a different link at every scroll position, so a reader who has just learnt that the
-  // PR is `g l 2` is wrong a moment later; and it would put the key line's own truth on the
+  // PR is `g h 2` is wrong a moment later; and it would put the key line's own truth on the
   // scroll, since a row that goes dead as the page moves is a row the line has to be
   // repainted to stop promising — a paint measured at 1.3ms on the gallery, on every scroll
   // frame of every page, for one row. Decimal prefixes keep that stable document-order list
@@ -96,53 +78,50 @@ export function createAddress({
   // `go` scrolls the box and leans on `reveal`, which cannot open a group from its row — and
   // the count a reader wants under `g` is of the sections the author wrote.
 
-  // The one entry with a name of its own, because one of its members has a standing
-  // surface to speak its address on: a reply box's placeholder says "Reply · g c 2" at
-  // all times, and the panel builds that box (threadNode). Every other list is reached
-  // through the table.
-  const COMMENTS = {
-    id: "navigation.comment",
-    key: "c",
-    word: "comments",
-    does: "Go to the nth open comment's reply box",
-    list: openThreads,
-    spot: (thread) => thread.querySelector(":scope > .lf-compose"),
-    // What it takes to show this list, and the way back. The panel holds it and draws
-    // nothing while closed, so a letter that named it and left the panel shut painted no
-    // chip at all. An entry whose members are on the page states no reveal at all.
-    //
-    // The undo is the entry's for the same reason the reveal is: core never learns what a
-    // panel is. It states none where the panel already stood, because then the aim put
-    // nothing there — and closing it would be the chord taking back something that was
-    // never its to take.
-    reveal: () => {
-      if (panelIsOpen()) return null;
-      setPanel(true);
-      return () => setPanel(false);
-    },
-    // stepThread-to-nth and its Enter in one press. The box by its place in the thread and
-    // not the first textarea inside it, a message being free to carry a widget with one of
-    // its own — a draft's open editor stands before the reply box in the DOM.
-    go: (thread) => landIn({ held: thread, box: thread.querySelector(SAY_BOX) }),
-  };
-  const ADDRESSES = [
-    COMMENTS,
+  // One-off panel travel is one vocabulary too. The mnemonic completes the trip, and
+  // every destination owns the liveness and landing that make its panel useful rather
+  // than leaving the dispatcher to know which furniture it opens.
+  const PANEL_DESTINATIONS = [
     {
-      id: "navigation.ask",
-      key: "a",
-      word: "asks",
-      does: "Go to the nth thing this page is waiting on you for",
-      // The list a/A walk, addressed rather than stepped: one reading, so the number and the
-      // walk cannot disagree about which ask is the third one. The arrival is handed the
-      // whole list, so it announces the ask's place among everything the page is waiting on.
-      list: openAsks,
-      go: (ask) => goToAsk(ask, openAsks()),
+      id: "navigation.panel.comments",
+      key: "c",
+      does: "Go to the Comments panel",
+      line: "Comments panel",
+      when: () => true,
+      go: () => {
+        setPanel(true);
+        threadsBox.focus({ preventScroll: true });
+      },
     },
+    {
+      id: "navigation.panel.asks",
+      key: "a",
+      does: "Go to the Asks panel",
+      line: "Asks panel",
+      when: asksOffered,
+      go: () => {
+        showTray("asks");
+        (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
+      },
+    },
+    {
+      id: "navigation.panel.leaves",
+      key: "l",
+      does: "Go to the All leaves panel",
+      line: "All leaves panel",
+      when: leavesOffered,
+      go: () => {
+        showTray("leaves");
+        (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
+      },
+    },
+  ];
+  const ADDRESSES = [
     {
       id: "navigation.link",
-      key: "l",
-      word: "links",
-      does: "Go to the nth link",
+      key: "h",
+      word: "hyperlinks",
+      does: "Go to the nth hyperlink",
       list: pageLinks,
       // Focus, not a follow: g says go, and what a focused link then answers is the
       // platform's Enter, which the link scope names on the line. A press that navigated
@@ -177,18 +156,6 @@ export function createAddress({
   // the keyboard route the list promised for its tail.
   const addressed = (entry) => entry.list();
   const range = (n) => (n > 1 ? `1–${n}` : "1");
-  // How an address is spelled, in one place and off the row that binds the key (GOTO): the
-  // keys it takes, in press order. A member with a standing surface of its own says the
-  // whole motion there — a reply box's placeholder reads "Reply · g c 2" — and the chord's
-  // own chip is built from the same array. Written out at each of them, `g` was a letter
-  // three sites had agreed on and none could correct.
-  //
-  // An array rather than a string, because the surfaces drawn inside the armed window differ
-  // only in how much of the address the reader has already pressed: the key line drops those
-  // keys, having said them once in the chip that heads it, and an address on the page dims
-  // them. `n` is a digit on a chip and a range on the line, which is the same array either
-  // way — spelled out at both, the space between letter and digit was a third site to keep
-  // in step.
   const addressNumbers = (entry) => addressed(entry).map((_, i) => String(i + 1));
   const needsCommit = (entry, n) => Number(n) * 10 <= addressed(entry).length;
   const nextAddressKeys = (entry) => {
@@ -204,19 +171,6 @@ export function createAddress({
     if (addressDigits && numbers.includes(addressDigits)) next.push("Enter");
     return next;
   };
-  // A short number that prefixes a longer one takes Enter. The exact address says so on
-  // every standing surface. An unambiguous number completes as soon as its last digit is
-  // pressed.
-  const addressKeys = (entry, n) =>
-    bindings(GOTO).length
-      ? [
-          labelOf(GOTO),
-          entry.key,
-          String(n),
-          ...(needsCommit(entry, n) ? ["Enter"] : []),
-        ]
-      : [];
-  const addressLabel = (entry, n) => addressKeys(entry, n).map(spell).join(" ");
   // How far the chord has come: `g`, and the list's letter once one has named a list. Every
   // surface that shows an address asks it — the chip that heads the key line, the ranges
   // beside it, the reference's full chords and the dimmed half of a chip on the page — so
@@ -233,9 +187,7 @@ export function createAddress({
     [labelOf(GOTO), aimedList?.key, addressDigits || null].filter(Boolean);
   // An address as the page wears it: the whole of it, the keys already pressed standing back
   // and the ones still to come lit. The whole of it, because a chip is the address — the same
-  // one its reply box's placeholder speaks while nothing is armed at all, and a chip saying
-  // `c 2` two pixels from a placeholder saying `g c 2` was a second spelling of one motion,
-  // the shorter of which reaches nothing from a standing start.
+  // one every address surface spells while the chord is armed.
   //
   // Both halves are set at the chip's one size, and the split is carried by ground: the spent
   // keys sit on the chip's own, the live ones on a lit block. Size was the channel once — the
@@ -249,8 +201,7 @@ export function createAddress({
   // between the halves stepped 3px on the press — measured, and larger than the 1.2px slide
   // this replaced, so the fault would have survived one glyph smaller.
   //
-  // The space between the two halves is the address's own, the one `addressLabel` joins on,
-  // so what the chip reads is what every other surface spells. It is a text node and the box
+  // The space between the two halves belongs to the address. It is a text node and the box
   // is block rather than flex for exactly that reason: flex drops a whitespace-only child, and
   // the chip came out `ga 1`.
   //
@@ -296,23 +247,8 @@ export function createAddress({
   let chordArmed = false;
   let aimedList = null;
   let addressDigits = "";
-  // What the aim put on screen, and the way to take it back. Naming a list that draws
-  // nothing until asked is one press doing two things — it narrows the window and opens the
-  // panel the chips are drawn from — so the press that gives the letter back has to give
-  // both back, or the reader keeps a layer they never asked for and the chord costs three
-  // presses out for two in. That is the keyboard-is-a-stack rule failing inside the fix
-  // written for it, which is how it was found.
-  //
-  // Every unused way down takes it back: Escape off the aim, a stray key, focus entering a
-  // box. What makes a way down *used* is the reader landing in what the reveal showed, which
-  // `keepShown` states — and both routes there have to say it. A completed address is one; a
-  // click into the panel the chord just opened is the other. Without that exemption, the
-  // panel would close under the reader's own pointer and drop them on the toggle button.
-  let aimShowed = null;
-  const keepShown = () => (aimShowed = null);
   // Arming, aiming and disarming are one call, because they are one window: naming a list
-  // re-opens it rather than starting a second, and every way down — Escape, a stray key,
-  // focus entering a box — takes the aim with it.
+  // re-opens it rather than starting a second.
   //
   // It stands until one of those, where it stood for a second and a half. A timeout is how a
   // keyboard resolves an ambiguous prefix, and there is none here: `g` is a prefix and
@@ -328,15 +264,6 @@ export function createAddress({
     chordArmed = on;
     aimedList = on ? list : null;
     addressDigits = "";
-    // A list the reader cannot see is a list wearing no addresses: the panel holds the
-    // comments and draws nothing while closed, so naming that list opens it, and the chips
-    // land on boxes that have a geometry to be placed from. The open belongs here rather
-    // than in the arrival, where it left the letter painting nothing at all.
-    //
-    // Taken back before the next state is written, so an aim ending — into the bare window,
-    // or out of the chord altogether — leaves the screen as the letter found it.
-    aimShowed?.();
-    aimShowed = list?.reveal ? list.reveal() : null;
     // The chips are the eye's copy; the window itself is spoken, or the mode change is
     // silent to exactly the reader who can't see them. Off the rows either way, since the
     // rows are what the window answers now — the letters at the first stage, the named
@@ -381,13 +308,12 @@ export function createAddress({
       const covered = banner.getBoundingClientRect().bottom;
       // Every list until one is named, and then that one alone: the offer narrows as the
       // chord advances, and the addresses a reader was already reading keep their places.
-      // Narrows rather than summons, for every list drawn where the reader can see it — a
-      // list that draws nothing until revealed (the shut comment panel) has no box to place
-      // a chip from, so its letter is what both reveals it and paints it.
+      // Narrows rather than summons: both numbered lists live in the authored document,
+      // while panel mnemonics complete their trip without painting numeric chips.
       for (const entry of aimedList ? [aimedList] : ADDRESSES) {
         for (const [i, member] of addressed(entry).entries()) {
           if (addressDigits && !String(i + 1).startsWith(addressDigits)) continue;
-          const r = startsAt(entry.spot?.(member) ?? member, clips);
+          const r = startsAt(member, clips);
           if (!r || r.bottom <= covered) continue; // nothing to see, nothing to address
           const chip = addressChip(entry, i + 1);
           if (r.top < covered) chip.classList.add("lf-in");
@@ -452,9 +378,10 @@ export function createAddress({
   });
   addEventListener("resize", () => chordArmed && paintHere());
 
-  // The chord: one scope, a row per addressable list, a row for the page's two edges, and
-  // the window's own way out. A list row holds the whole motion — its letter names the
-  // list, and the decimal sequence it then binds is the address into it. That is `v`'s shape,
+  // The chord: one scope, a row per panel and addressable list, a row for the page's two
+  // edges, and the window's own way out. A panel's mnemonic completes its travel. A list
+  // row holds the whole motion — its letter names the list, and the decimal sequence it
+  // then binds is the address into it. That is `v`'s shape,
   // a chooser whose second key belongs to the scope the first one stood up, and the reason
   // it is one row rather than two is that a digits row of its own could not name which list
   // it meant. The edges row is the same motion one key shorter: an edge is one place, so its
@@ -470,7 +397,7 @@ export function createAddress({
   // gathered them in the order it walks the stack — backwards, so it named the lists in the
   // opposite order to the line that had just offered them.
   const GO = {
-    title: "Go by address",
+    title: "Go to",
     reach: "with g armed",
     chord: () => chordKeys().join(" "),
     at: () => chordArmed,
@@ -522,6 +449,17 @@ export function createAddress({
           letGo();
         },
       },
+      ...PANEL_DESTINATIONS.map((destination) => ({
+        id: destination.id,
+        keys: [destination.key],
+        does: destination.does,
+        line: destination.line,
+        when: () => !aimedList && destination.when(),
+        run: () => {
+          setChord(false);
+          destination.go();
+        },
+      })),
       ...ADDRESSES.map((entry) => ({
         id: entry.id,
         runFromReference: false,
@@ -565,9 +503,6 @@ export function createAddress({
           );
           if (binding !== "Enter" && longer) return setAddressDigits(number);
           const member = addressed(entry)[+number - 1];
-          // The reveal has done its work: the reader is about to stand in what it showed,
-          // so it is theirs now rather than the aim's to take down.
-          keepShown();
           setChord(false); // before the travel, so the arrival's own scrolling paints nothing
           entry.go(member);
         },
@@ -599,7 +534,7 @@ export function createAddress({
       {
         id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
-        // inside it — the armed chip says so, reading `g` and then `g c`, and the chips on
+        // inside it — the armed chip says so, reading `g` and then `g h`, and the chips on
         // the page narrow with it — so one Escape gives the letter back and the next
         // closes the window. It took both at once, which is the same drift `c` had at the
         // panel: a reader who had narrowed to the wrong list wanted the other one, and
@@ -625,16 +560,15 @@ export function createAddress({
     ],
   };
 
-  // The way in to the chord, named for the reason the two rows above it are: the armed chip
-  // and every address a member speaks are built from this row's own key (addressLabel), so
-  // the letter the reader presses and the letter the page prints cannot be two decisions.
+  // The way in to the chord. Its row supplies the same leader every painted address uses,
+  // so the letter the reader presses and the letter the page prints cannot diverge.
   //
   // The key alone on the line: what it opens is a table, so the scope it stands up names the
   // available lists and their complete ranges, one chip each.
   const GOTO = {
     id: "navigation.address.open",
     keys: ["g"],
-    does: "Go by address — the next key names a list, the page, or an edge",
+    does: "Go to a panel, list member, page, or edge",
     line: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setChord(true),
@@ -642,13 +576,9 @@ export function createAddress({
 
   const isChordArmed = () => chordArmed;
   return {
-    COMMENTS,
     GO,
     GOTO,
-    addressLabel,
-    addressed,
     isChordArmed,
-    keepShown,
     paintAddresses,
     setChord,
   };

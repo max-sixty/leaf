@@ -14,11 +14,8 @@ import { createWorkLines } from "./work-lines.js";
 /* Conversation state and panel reconciliation. */
 export function createConversation(dependencies) {
   const {
-    COMMENTS,
     FOLD_MS,
     MARKED_ANYWHERE,
-    addressLabel,
-    addressed,
     agentName,
     ago,
     captureAuthoredFacets,
@@ -159,12 +156,10 @@ export function createConversation(dependencies) {
   });
   const { paintPageStrip, paintReactStrips } = reactionStrips;
 
-  // The open threads, in the order t/T walk and `g c` addresses. The list is the panel's own
-  // children rather than a record kept beside them: a thread the log settles is renamed out
-  // of them in that frame (foldOut), which takes it out of the walk, out of the addresses and
-  // out of x's press in one stroke. A map of id → address stood here once, written by
-  // renderThreads and read back by the chip and the placeholder — one list held twice, and
-  // the copy free to be a reconcile behind the panel it described.
+  // The open threads, in the order t/T walk. The list is the panel's own children rather
+  // than a record kept beside them: a thread the log settles is renamed out of them in
+  // that frame (foldOut), which takes it out of the walk and out of x's press in one
+  // stroke.
   const openThreads = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
   const placement = createThreadPlacement({
     inChrome,
@@ -214,9 +209,6 @@ export function createConversation(dependencies) {
     widen,
   });
   const cards = createThreadCards({
-    COMMENTS,
-    addressLabel,
-    addressed,
     anchorLabel,
     el,
     isMarked,
@@ -364,10 +356,6 @@ export function createConversation(dependencies) {
     paintWorkLines,
     widen,
     paintThreadQuotes: cards.paintThreadQuotes,
-    syncReplyAddresses: () => {
-      for (const thread of threadsBox.querySelectorAll(":scope > .lf-thread"))
-        thread.lfSync?.();
-    },
     renderPanel,
     showThread,
     get threadList() {

@@ -1142,6 +1142,18 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 f"the {name} grip's line left the panel seam: {reading}"
             )
             assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
+            edge_control = page.locator(edge_selector)
+            edge_control.evaluate("edge => edge.blur()")
+            for _ in range(80):
+                page.keyboard.press("Tab")
+                if edge_control.evaluate("edge => document.activeElement === edge"):
+                    break
+            else:
+                raise AssertionError(f"the keyboard never reached the {name} touch grip")
+            standing = standing_ring(page)
+            assert standing and not standing["cuts"] and not standing["covers"], (
+                f"the {name} touch grip drew a clipped focus ring: {standing}"
+            )
             mid_x = (edge["left"] + edge["right"]) / 2
             mid_y = (edge["top"] + edge["bottom"]) / 2
             assert page.evaluate(

@@ -1329,14 +1329,12 @@ ${MARK_RULES}
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
       .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
         transform: translateY(-50%); }
-      .lf-panel > .lf-edge[data-lf-side="right"] {
-        left: 0; }
-      .lf-panel > .lf-edge[data-lf-side="right"]::before {
-        left: -2px; }
-      .lf-tray-panel > .lf-edge[data-lf-side="left"] {
-        right: 0; }
-      .lf-tray-panel > .lf-edge[data-lf-side="left"]::before {
-        right: -2px; }
+      .lf-edge[data-lf-side="right"] { left: var(--here-ring-w); }
+      .lf-edge[data-lf-side="right"]::before {
+        left: calc(-2px - var(--here-ring-w)); }
+      .lf-edge[data-lf-side="left"] { right: var(--here-ring-w); }
+      .lf-edge[data-lf-side="left"]::before {
+        right: calc(-2px - var(--here-ring-w)); }
       .lf-edge::before { top: 10px; bottom: 10px; border-radius: 1px; opacity: .35; }
     }
     /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a

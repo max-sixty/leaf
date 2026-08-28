@@ -2174,7 +2174,7 @@ function rung() {
   // Whichever tray holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the tray" over two of them.
   const tray = currentTray();
-  if (tray && !panel.contains(active))
+  if (tray)
     return {
       says: `close ${tray}`,
       does: `Close the ${tray} tray`,

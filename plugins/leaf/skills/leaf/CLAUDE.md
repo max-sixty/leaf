@@ -1146,9 +1146,10 @@ The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
 `document.scrollingElement` must be given `pageScroller` explicitly — through
 `scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
-message is scrolled by the panel's own list and by nothing else. The open
-comment panel and tray panel each occupy their own strip when the viewport can
-hold it and cover the page under their respective media query otherwise.
+message is scrolled by the panel's own list and by nothing else. Comments and
+trays are alternate auxiliary workspaces, so only one of their strips stands at
+a time. That workspace occupies a strip when the viewport can hold it and
+covers the page under its respective media query otherwise.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
 strip the chrome holds and the gutter the scroller's own bar takes — a window is
 the page's box on neither count; CSS owns the body's corresponding layout. The
@@ -1833,9 +1834,10 @@ its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
 `restoreTray` runs after all declarations exist and after the first projection
-can populate state-dependent rows. It restores intent through `showTray` without
-replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
-each persisted tray.
+can populate state-dependent rows. It calls the composer's `beforeOpen` policy
+to retire Comments, then presents the remembered tray directly without replaying
+opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
+tray.
 
 Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
 nested in an `x-ask` region, the row names the region: its heading, context, and

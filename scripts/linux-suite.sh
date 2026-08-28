@@ -5,7 +5,7 @@
 # failed on the runner from the day CI landed and none of them could be reproduced.
 #
 #   scripts/linux-suite.sh
-#   scripts/linux-suite.sh tests/test_render_controls.py -k a_press --run-nightly
+#   scripts/linux-suite.sh tests/test_render_aim.py -k aimed_press --run-nightly
 #
 # Needs a Docker daemon that can run linux/amd64 (linux-suite.Dockerfile says why). On
 # Apple silicon that is `colima start --vm-type vz --vz-rosetta`.

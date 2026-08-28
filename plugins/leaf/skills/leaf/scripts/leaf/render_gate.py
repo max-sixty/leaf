@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
+from leaf.event_contracts import thread_universe
 from leaf.event_log import flocked, now_iso, read_events
 from leaf.files import revision_label, version_name, version_num
 from leaf.hosting import LeafHTTPServer
@@ -24,7 +25,6 @@ from leaf.render_checks import (
     wait_for_probe,
 )
 from leaf.service import transition_lock
-from leaf.validation import thread_universe
 
 # ---------- check --render: the browser half of the gate ----------
 

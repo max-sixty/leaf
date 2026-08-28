@@ -30,7 +30,7 @@ export function createSelectionSurface({
   panel,
   panelCovers,
   paintStanding,
-  pendingMarks,
+  pendingMarkParts,
   pointerAt,
   reactionTokens,
   reactionsOn,
@@ -104,7 +104,8 @@ export function createSelectionSurface({
   // better spot.
   function placeComposer(left, top) {
     place(composer, left, top);
-    const rects = pendingMarks().flatMap((where) =>
+    const marks = pendingMarkParts();
+    const rects = marks.flatMap((where) =>
       where instanceof Range
         ? [...where.getClientRects()]
         : [where.getBoundingClientRect()],
@@ -132,7 +133,7 @@ export function createSelectionSurface({
     // one object, so a box standing anywhere on it is a box between them and the thing they
     // are writing about. ⌥-click made that plain by opening the composer under the pointer,
     // which is by definition inside what was clicked.
-    const whole = pendingMarks().some((where) => where instanceof Element);
+    const whole = marks.some((where) => where instanceof Element);
     const touching = (r) =>
       r.left < box.right &&
       box.left < r.right &&
@@ -516,7 +517,7 @@ export function createSelectionSurface({
       return;
     }
     // The record rather than this event's own coordinates, for the reason the record is
-    // kept from a pointer event at all (anchors.js): `click` is a legacy mouse event and
+    // kept from a pointer event at all (pointer.js): `click` is a legacy mouse event and
     // carries the pointer's place rounded to a whole pixel, while markAt measures against
     // getClientRects, whose edges are floats. Asked at the rounded point this answered a
     // different thread than refreshHover had just promised at the true one — a quote lit
@@ -525,9 +526,8 @@ export function createSelectionSurface({
     // A click with no press behind it carries 0,0 rather than a position — `offer` calls
     // click() to supply the keys a span doesn't come with — and the record would answer
     // for wherever the pointer is parked, so that one keeps reading the event.
-    const threadId = ev.detail
-      ? markAt(pointerAt().x, pointerAt().y)
-      : markAt(ev.clientX, ev.clientY);
+    const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
+    const threadId = markAt(point.x, point.y);
     if (threadId) return showThread(threadId);
     // Native controls, including links, keep their ordinary activation. visualAt applies
     // the same unclaimed-gesture rule used when keyboard proxies are discovered.

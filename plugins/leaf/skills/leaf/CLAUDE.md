@@ -80,9 +80,12 @@ takes;
 scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
 highlight rules;
+`runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
+dynamic widget imports, and initial settlement;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
+`runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
@@ -947,6 +950,9 @@ element outlines, and the open composer's pending mark. It clears and paints
 through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
+The anchor runtime exposes only the questions those features ask — `isMarked`,
+`placedAt`, and a snapshot from `pendingMarkParts` — so the pass-owned maps and
+arrays cannot acquire a second writer through the entrypoint.
 
 The same pass answers a second question and records it apart. `placed` is where
 each thread's passage lands in this version; `marked` is what was drawn for it.
@@ -1683,9 +1689,17 @@ keep that state in an attribute, so one `MutationObserver` over `open` and
 ### Standing somewhere
 
 Focus is the reader's current place. `focused` follows it through declared
-shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
-control that contains focus. The ring is derived on each paint; it does not
-store the ask walk's position.
+shadow roots. A native label activation may pass through `body` or a focusable
+container between the pointer press and the control's focus; Leaf treats that
+interval as one logical standing without changing DOM focus or preventing label
+text selection.
+`documentFocused` retargets the logical standing to its document host. Painted
+focus readings use one of those two functions; CSS reads the matching `.lf-focus`,
+`.lf-focus-visible`, and `.lf-focus-within` projections. A key ends the pointer
+interval and restores physical focus before dispatch. Code that acts on physical
+focus otherwise reads `document.activeElement` directly. `markHere` paints one
+`--here-ring` around the semantic ask or control that contains focus. The ring
+is derived on each paint; it does not store the ask walk's position.
 
 A control that draws the band on itself draws it only where nothing else holds
 that box's one outline. An ask written out around the control wears the band

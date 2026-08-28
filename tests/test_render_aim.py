@@ -144,6 +144,40 @@ def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, s
     page.close()
 
 
+def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, serve):
+    """A press can be the first pointer event, and capture still reads its position.
+
+    Aim claims pointerdown during capture and stops the gesture before it reaches the
+    page. The shared position recorder therefore has to run earlier in that same phase:
+    a bubble listener never sees this event, and aim would ask about the stale initial
+    point instead of the paragraph the browser dispatched the press to.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.locator("#p2").evaluate(
+        """target => {
+          const box = target.getBoundingClientRect();
+          const init = {
+            bubbles: true,
+            clientX: box.left + box.width / 2,
+            clientY: box.top + box.height / 2,
+            altKey: true,
+          };
+          target.dispatchEvent(new PointerEvent("pointerdown", init));
+          target.dispatchEvent(new MouseEvent("mousedown", init));
+          target.dispatchEvent(new PointerEvent("pointerup", init));
+          target.dispatchEvent(new MouseEvent("mouseup", init));
+          target.dispatchEvent(new MouseEvent("click", {...init, detail: 1}));
+        }"""
+    )
+
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.locator(".lf-fab").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert page.evaluate(DRAFT_MARK) == "p2"
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize(
     ("example", "required_paths"),
     AIM_PRESS_CASES,

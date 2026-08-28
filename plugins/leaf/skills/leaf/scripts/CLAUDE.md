@@ -10,7 +10,8 @@ The main owners are:
 - `page`: vendored page guidance and vocabulary catalog;
 - `agent_state`: the agent-facing folded page-state reading;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
-- `event_endpoint`: browser-event admission, retry coordination, and append;
+- `event_endpoint` and `event_contracts`: browser-event admission, retry
+  coordination and append, and shared browser/CLI event contracts;
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;

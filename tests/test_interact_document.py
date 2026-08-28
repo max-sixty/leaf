@@ -538,7 +538,8 @@ def test_the_group_stands_down_for_every_outline_the_log_paints():
     }
     assert painted, "the kernel paints no state outline at all, so this reads nothing"
     rule = re.search(
-        r"&:has\(> lf-option > \.lf-pick:focus-visible\)([^{]*)\{([^}]*)\}",
+        r"&:has\(> lf-option > \.lf-pick:is\(:focus-visible, \.lf-focus-visible\)\)"
+        r"([^{]*)\{([^}]*)\}",
         theme,
         re.DOTALL,
     )

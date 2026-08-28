@@ -1416,8 +1416,9 @@ RING_NAMES = """() => {
         // Every rule is asked for its style, because a declaration written after a
         // nested rule is hoisted into a CSSNestedDeclarations, which has one and no
         // selector. The context comes off the parent for the same reason: the layer's
-        // one nested ring says `&:has(> lf-option > .lf-pick:focus-visible)` and nothing
-        // else, which names no rule anybody can find.
+        // one nested ring says
+        // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
+        // and nothing else, which names no rule anybody can find.
         if (rule.style
             && rule.style.getPropertyValue('outline').includes('--here-ring)')) {
           const name = rule.style.getPropertyValue('--lf-here-ring').trim();

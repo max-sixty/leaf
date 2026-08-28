@@ -6,6 +6,7 @@ from typing import NamedTuple, Protocol
 
 from .asks import page_asks, thread_asks
 from .data import measurement_lag_entries, page_data_binding_inventory, read_data
+from .event_contracts import thread_state
 from .events import (
     bare_reaction,
     build_threads,
@@ -32,7 +33,6 @@ from .served_state import presence
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .thread_context import thread_digest
-from .validation import thread_state
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:

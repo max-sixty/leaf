@@ -274,6 +274,7 @@ import {
   observeServerNow,
   quietSince,
 } from "./runtime/presence.js";
+import { createPointer } from "./runtime/pointer.js";
 import { createReactions } from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
@@ -284,6 +285,7 @@ import {
 } from "./runtime/version-activation.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
 import { createVersionNavigation } from "./runtime/version-navigation.js";
+import { createWidgetLoader } from "./runtime/widget-loader.js";
 import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
 import {
   createMeasurements,
@@ -317,7 +319,6 @@ import {
 import {
   MARK_RULES,
   createShadowStage,
-  loadShadowRules,
   pageShadowRoots,
   shadowStage,
 } from "./runtime/shadow.js";
@@ -355,6 +356,7 @@ const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
 });
+const { pointerAt } = createPointer();
 
 createMeasurements({ shownBox });
 
@@ -442,10 +444,12 @@ createShadowStage(watchDisclosures);
 const {
   byCommand,
   claimsEsc,
+  documentFocused,
   elementScopes,
   focused,
   merge,
   pruneScopedElements,
+  recoveredLabelFocus,
   scopeRefs,
   scopesFor,
 } = createScopes({
@@ -454,10 +458,10 @@ const {
 });
 
 // Where the reader is standing, painted: the ring on the ask they are in, the mark on the
-// passage of the comment they are in, and the line saying what the next press does from
-// there. One repaint, because it is one question — every reading is of the focus and the
-// open-ask list, and every signal that moves either (a focus move, an answer taken, a
-// poll, a widget's own state) moves them all.
+// passage of the comment they are in, the focused box's hint, and the line saying what the
+// next press does from there. One repaint, because it is one question — every reading is of
+// the focus and the open-ask list, and every signal that moves either (a focus move, an
+// answer taken, a poll, a widget's own state) moves them all.
 //
 // Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
 // them would flash the scope of nowhere and drop the ring for a frame. Here rather than
@@ -465,6 +469,7 @@ const {
 // evaluates, which is before the line has an element to draw into — the frame is what puts
 // the first paint after both.
 let herePending = false;
+let paintInputHints = () => {};
 function paintHere() {
   if (herePending) return;
   herePending = true;
@@ -479,6 +484,7 @@ function paintHere() {
     // panel's own render was calling the chip pass.
     paintAddresses();
     paintCoreControls();
+    paintInputHints();
     renderLine();
   });
 }
@@ -498,65 +504,14 @@ function reveal(el) {
 }
 
 let anchoringReady = false;
-// The file-side passage reader fences an upgraded element and each of its original
-// direct children when the registry cannot promise its body is verbatim. Remember
-// those parts before custom-element definitions can add or move anything, so the
-// browser can stop captured context at the same seams after every upgrade has run.
-const opaquePassageRoots = new WeakSet();
-const opaquePassageParts = new WeakSet();
-
-function rememberPassageParts(scope = document) {
-  for (const tag of tagsDeclaring(
-    (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
-  ))
-    for (const root of scope.querySelectorAll(tag)) {
-      opaquePassageRoots.add(root);
-      for (const child of root.children) opaquePassageParts.add(child);
-    }
-}
-
-async function upgradeWidgets() {
-  const response = await fetch("/registry.json");
-  if (!response.ok)
-    throw new Error(`leaf: registry failed to load (${response.status})`);
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (responseGeneration && !sameLayer(responseGeneration)) return;
-  Object.assign(registry, await response.json());
-  const registryGeneration = registry.$layer?.generation;
-  if (typeof registryGeneration !== "string" || !registryGeneration)
-    throw new Error("leaf: registry lacks $layer.generation");
-  if (!sameLayer(registryGeneration)) return;
-  if (
-    !registry.$events?.kinds ||
-    !registry.$languages?.names ||
-    !registry.$languages?.paths ||
-    !registry.$tones?.names ||
-    !registry.$reactions?.tokens
-  )
-    throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
-  revealLayer();
-  buildReactBar();
-  rememberPassageParts();
-  rememberAuthoredMarkup();
-  markDeclared(document.body, MARKED_IN_PAGE);
-  // Before the modules import, because a widget's first render asks for these rules and
-  // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
-  if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
-  await Promise.all(
-    tagsDeclaring((entry) => entry["x-upgrade"]).map((tag) =>
-      import(`/widgets/${tag}.js`).catch((err) =>
-        reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
-      ),
-    ),
-  );
-  settle(dress(document.body));
-  // Importing defined the elements and ran their connectedCallbacks; async ones
-  // registered their work via settle(). Wait it out so geometry is final.
-  await Promise.allSettled(settling);
-  // After the wait, because the box a widget scrolls is a box its module built: run this
-  // with the rest of the upgrade and a diff's pre and a code block's are half there.
-  reachScrollers(document.body);
-}
+const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWidgets } =
+  createWidgetLoader({
+    buildReactBar: (...args) => buildReactBar(...args),
+    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+    reportPageError,
+    revealLayer,
+    sameLayer,
+  });
 
 // ---------- comment layer ----------
 
@@ -1374,7 +1329,13 @@ layoutSizes.observe(composer);
 const { showToast } = createNotifications({ liveEl, syncLayout, toastEl });
 
 // ---------- text inputs ----------
-const wireInput = createInput({ keys, showToast, spell });
+const { paint: paintInputs, wire: wireInput } = createInput({
+  focused,
+  keys,
+  showToast,
+  spell,
+});
+paintInputHints = paintInputs;
 
 const { landTyping, pageSelection, selectionAnchor, snapSelection } =
   createSelectionCapture({
@@ -1440,8 +1401,8 @@ const {
   paintStanding: (...args) => conversationRuntime.paintStanding(...args),
   panel,
   panelCovers,
-  pendingMarks: () => anchorRuntime.pendingMarks,
-  pointerAt: () => pointer,
+  pendingMarkParts,
+  pointerAt,
   reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
@@ -1466,7 +1427,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   itemAt,
   openOnDesign,
   openOnVisual,
-  pointerAt: () => pointer,
+  pointerAt,
   raiseOnItem,
   refreshAim,
   spell,
@@ -1684,7 +1645,7 @@ const hasThreads = () => openThreads().length > 0;
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
 // each has a primary Enter action and x changes the same resolution state in either direction.
 const focusedThread = () => {
-  const active = document.activeElement;
+  const active = documentFocused();
   return active?.classList?.contains("lf-thread") ? active : null;
 };
 // The item the reader is standing in, which is what a press means when they have pointed
@@ -1715,12 +1676,12 @@ const focusedThread = () => {
 // from one means the page whole. A box that takes letters never arrives here at all: the
 // typing scope claims the letter before the page is asked.
 //
-// `document.activeElement` rather than `focused()`, for the reason askPosition gives: a
-// control staged in a shadow tree retargets to its host, and the host is the place in the
-// document both the chrome guard and the item walk want. standingConversation below wants
-// the other reading, and says so.
+// `documentFocused()` rather than `focused()`, for the reason askPosition gives: a control
+// staged in a shadow tree retargets to its host, and the host is the place in the document
+// both the chrome guard and the item walk want. standingConversation below wants the inner
+// reading, and says so.
 const standingItem = () => {
-  const held = document.activeElement;
+  const held = documentFocused();
   if (!held || held === document.body || inChrome(held)) return null;
   const working = held.matches?.(ASK_CONTROL) ? standingIn() : null;
   return working ?? itemAt(askPlace(held));
@@ -1894,7 +1855,7 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // Their next Space is then that button rather than the page's scroll. CLAUDE.md's "The
 // reader has to be standing somewhere" holds the rest.
 function rung() {
-  const active = document.activeElement;
+  const active = documentFocused();
   const holding = Boolean(active) && active !== document.body;
   if (fabAnchorAt())
     return {
@@ -2035,6 +1996,7 @@ const {
 } = createAskView({
   PAGE_PAINT_ATTRIBUTE,
   SCROLL,
+  documentFocused,
   announce,
   askEntry,
   askSource,
@@ -2254,12 +2216,12 @@ const COMPOSER = {
 // the scope rather than below it, because a row naming a predicate directly reads the
 // binding as the table is built — the deferring wrapper the branch here used to need was
 // the only thing hiding that.
-const inTheBox = () => panel.contains(document.activeElement);
+const inTheBox = () => panel.contains(documentFocused());
 // The panel thread the reader is in, asked by class because that is the anchors module's
 // question: which logged thread's passage to paint. It is not the box's way out, which
 // climbs further and answers for a seat on the page too — the two readings stayed apart
 // rather than one standing in for the other.
-const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
+const focusedThreadOf = () => documentFocused()?.closest?.(".lf-thread");
 // Where a box hands the reader back to, which is the rung `c` came down. It asked
 // `.lf-thread` and the panel alone, so the two boxes outside the chrome — a conversation
 // seated on the page, and each thread on that seat — had no way out but the page's own
@@ -3005,6 +2967,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   keepShown,
   paintHere,
   panel,
+  recoveredLabelFocus,
   SCOPES,
   scopesFor,
   setChord,
@@ -3167,13 +3130,16 @@ const unaccountedGesture = () =>
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
 // edit.
-const midComposition = () =>
-  composerOpen ||
-  Boolean(fabAnchorAt()) ||
-  unaccountedGesture() ||
-  (document.activeElement?.tagName === "TEXTAREA" &&
-    (document.activeElement.value !== "" ||
-      document.activeElement.hasAttribute("data-lf-offer")));
+const midComposition = () => {
+  const active = focused();
+  return (
+    composerOpen ||
+    Boolean(fabAnchorAt()) ||
+    unaccountedGesture() ||
+    (active?.tagName === "TEXTAREA" &&
+      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+  );
+};
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
 // live root that is an explicit in-place release of the composition hold; on an immutable
 // page it is ordinary version travel.
@@ -3310,6 +3276,15 @@ function refreshHover(...args) {
 }
 function pageShifted(...args) {
   return anchorRuntime.pageShifted(...args);
+}
+function isMarked(...args) {
+  return anchorRuntime.isMarked(...args);
+}
+function placedAt(...args) {
+  return anchorRuntime.placedAt(...args);
+}
+function pendingMarkParts(...args) {
+  return anchorRuntime.pendingMarkParts(...args);
 }
 
 const passageRuntime = createPassages({
@@ -3467,7 +3442,7 @@ conversationRuntime = createConversation({
   generalRow,
   highlightBlocks,
   inChrome,
-  isMarked: (id) => marked.has(id),
+  isMarked,
   itemSays,
   itemWord,
   keys,
@@ -3487,7 +3462,7 @@ conversationRuntime = createConversation({
   paintKeys,
   panelIsOpen: () => panelOpen,
   panelTitle,
-  placedAt: (id) => placed.get(id),
+  placedAt,
   post,
   PRESS,
   quietSince,
@@ -3567,6 +3542,7 @@ anchorRuntime = createAnchors({
   pageWords,
   paintThreadQuotes,
   panel,
+  pointerAt,
   quoteFrom,
   queueLegend,
   rangeOf,
@@ -3585,7 +3561,7 @@ anchorRuntime = createAnchors({
   withdraw,
   worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE, marked, placed, pointer } = anchorRuntime;
+const { VIEW_KEY, ITEM, NOTE } = anchorRuntime;
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });

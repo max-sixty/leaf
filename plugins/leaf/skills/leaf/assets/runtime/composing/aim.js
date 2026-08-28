@@ -40,8 +40,9 @@ export function createAim({
   // is no reason to say nothing: the press still acts (it re-anchors the box), so the
   // promise still paints — what stood down here left that one press made blind.
   function aimedTarget() {
-    if (pointerAt().x < 0) return null;
-    const at = document.elementFromPoint(pointerAt().x, pointerAt().y);
+    const pointer = pointerAt();
+    if (pointer.x < 0) return null;
+    const at = document.elementFromPoint(pointer.x, pointer.y);
     if (!at || inChrome(at)) return null;
     // The explicit Alt-click aim claims a declared part even inside a native control;
     // plain activation and keyboard proxies use visualAt's unclaimed-only default.
@@ -68,12 +69,8 @@ export function createAim({
   // carry that same live state, so the move re-derives the arm from the freshest carrier,
   // through the one setter, rather than trusting the latch.
   document.addEventListener("pointermove", (ev) => {
-    // This listener used to follow the pointer recorder in the monolith. Keep that
-    // ordering explicit now that the recorder is installed by the anchor module. On the
-    // pointer event for the reason the recorder is (anchors.js): `mousemove` carries the
-    // pointer's place rounded to a whole pixel, and this record answers hit tests.
-    pointerAt().x = ev.clientX;
-    pointerAt().y = ev.clientY;
+    // The shared recorder was installed before this listener, so aimedTarget reads this
+    // event's unrounded point when setAiming or refreshAim asks for it below.
     const held = ev.getModifierState(AIM.modifier);
     if (held !== aiming) setAiming(held);
     else refreshAim();

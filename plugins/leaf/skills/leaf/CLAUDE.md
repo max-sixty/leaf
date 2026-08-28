@@ -1147,9 +1147,10 @@ answer for reading position, paging, and libraries. A library that guesses
 `document.scrollingElement` must be given `pageScroller` explicitly — through
 `scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
 message is scrolled by the panel's own list and by nothing else. Comments and
-trays are alternate auxiliary workspaces, so only one of their strips stands at
-a time. That workspace occupies a strip when the viewport can hold it and
-covers the page under its respective media query otherwise.
+trays are alternate auxiliary workspaces, so only one stands at a time. The
+strip-taking workspaces—Comments and Asks—take room when the viewport can hold
+them and cover the page under their respective media query otherwise; Leaves
+always covers because its rows leave this page.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
 strip the chrome holds and the gutter the scroller's own bar takes — a window is
 the page's box on neither count; CSS owns the body's corresponding layout. The
@@ -1834,8 +1835,8 @@ its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
 `restoreTray` runs after all declarations exist and after the first projection
-can populate state-dependent rows. It calls the composer's `beforeOpen` policy
-to retire Comments, then presents the remembered tray directly without replaying
+can populate state-dependent rows. It calls its supplied `beforeOpen` policy to
+retire Comments, then presents the remembered tray directly without replaying
 opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
 tray.
 

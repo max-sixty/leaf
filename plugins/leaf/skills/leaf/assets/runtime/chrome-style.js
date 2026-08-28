@@ -884,7 +884,9 @@ ${MARK_RULES}
     .lf-thread:focus-within { outline: var(--here-ring); --lf-here-ring: thread;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-    .lf-quote:hover { color: var(--ink-2); }
+    .lf-quote:is(:hover, :focus-visible) { color: var(--ink-2); }
+    .lf-quote:focus-visible { outline: var(--here-ring); --lf-here-ring: quote;
+      outline-offset: 2px; }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
        paragraph of it in a 320px column buries the words written about it. So the panel
        names the passage in three lines and the page shows the rest: the mark is already
@@ -1085,15 +1087,29 @@ ${MARK_RULES}
       border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
       color: var(--ink); }
     .lf-help-search:focus-visible { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
-    .lf-help-meta { min-height: 1.2em; margin: 6px 0 0; color: var(--muted);
+    .lf-help-preference { display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin: 6px 0 0; }
+    .lf-help-meta { min-height: 1.2em; color: var(--muted);
       font-size: var(--t-6); }
+    .lf-help-shortcuts { flex: none; min-height: 26px; padding: 2px 8px;
+      color: var(--muted); font-size: var(--t-6); }
+    .lf-help-shortcuts span { color: var(--ink-2); }
     .lf-help-results { min-height: 0; overflow-y: auto; }
     .lf-help-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
     .lf-help h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
       text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-    .lf-help table { width: 100%; border-collapse: collapse; }
+    .lf-help table { display: table; width: 100%; table-layout: fixed;
+      border-collapse: collapse; }
     .lf-help td { padding: 3px 0; vertical-align: baseline; }
     .lf-help td:first-child { width: 84px; white-space: nowrap; }
+    .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
+      border: 0; border-radius: 4px; background: transparent; color: inherit;
+      font: inherit; text-align: left; cursor: pointer; }
+    .lf-help-command:is(:hover, :focus-visible),
+    .lf-help-command[data-lf-selected="true"] { background: var(--chip); }
+    .lf-help-command:focus-visible { outline: var(--here-ring);
+      --lf-here-ring: help-command; outline-offset: 1px; }
+    .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     /* The glyph states its own ink rather than taking the line's. A key chip is the
        one word on either surface the reader has to read to press anything, and on
        --chip the surrounding line's --muted came to 4.46:1 — under AA, and quietly,

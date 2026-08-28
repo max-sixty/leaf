@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from leaf import events as events_model
 from leaf import files as files_model
-from leaf import service as service_model
+from leaf import host as host_model
 from playwright.sync_api import sync_playwright
 
 INTERACT_SCRIPT = (
@@ -134,7 +134,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("CLAUDE_JOB_DIR", raising=False)
     for name in CODEX_IDENTITY:
         monkeypatch.delenv(name, raising=False)
-    return service_model.state_home()
+    return host_model.state_home()
 
 
 @pytest.fixture

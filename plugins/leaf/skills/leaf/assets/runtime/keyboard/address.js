@@ -1,4 +1,4 @@
-import { labelOf, spell } from "./bindings.js";
+import { bindings, labelOf, spell } from "./bindings.js";
 
 export function createAddress({
   EVERYTHING,
@@ -101,6 +101,7 @@ export function createAddress({
   // all times, and the panel builds that box (threadNode). Every other list is reached
   // through the table.
   const COMMENTS = {
+    id: "navigation.comment",
     key: "c",
     word: "comments",
     does: "Go to the nth open comment's reply box",
@@ -127,6 +128,7 @@ export function createAddress({
   const ADDRESSES = [
     COMMENTS,
     {
+      id: "navigation.ask",
       key: "a",
       word: "asks",
       does: "Go to the nth thing this page is waiting on you for",
@@ -137,6 +139,7 @@ export function createAddress({
       go: (ask) => goToAsk(ask, openAsks()),
     },
     {
+      id: "navigation.link",
       key: "l",
       word: "links",
       does: "Go to the nth link",
@@ -150,6 +153,7 @@ export function createAddress({
       },
     },
     {
+      id: "navigation.disclosure",
       key: "d",
       word: "disclosures",
       does: "Go to the nth disclosure and open it",
@@ -203,12 +207,15 @@ export function createAddress({
   // A short number that prefixes a longer one takes Enter. The exact address says so on
   // every standing surface. An unambiguous number completes as soon as its last digit is
   // pressed.
-  const addressKeys = (entry, n) => [
-    labelOf(GOTO),
-    entry.key,
-    String(n),
-    ...(needsCommit(entry, n) ? ["Enter"] : []),
-  ];
+  const addressKeys = (entry, n) =>
+    bindings(GOTO).length
+      ? [
+          labelOf(GOTO),
+          entry.key,
+          String(n),
+          ...(needsCommit(entry, n) ? ["Enter"] : []),
+        ]
+      : [];
   const addressLabel = (entry, n) => addressKeys(entry, n).map(spell).join(" ");
   // How far the chord has come: `g`, and the list's letter once one has named a list. Every
   // surface that shows an address asks it — the chip that heads the key line, the ranges
@@ -464,11 +471,13 @@ export function createAddress({
   // opposite order to the line that had just offered them.
   const GO = {
     title: "Go by address",
+    reach: "with g armed",
     chord: () => chordKeys().join(" "),
     at: () => chordArmed,
     claims: EVERYTHING,
     rows: [
       {
+        id: "navigation.comment.edge",
         // A focused comment is one place, so its two placements complete the chord
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: t/b place the card inside its panel rather than moving
@@ -476,6 +485,18 @@ export function createAddress({
         // is the one offer specific to where the reader stands; list members wear their
         // address chips directly when the chord arms.
         keys: ["t", "b"],
+        routes: [
+          {
+            id: "navigation.comment.top",
+            binding: "t",
+            does: "Put the focused comment at the top of its list",
+          },
+          {
+            id: "navigation.comment.bottom",
+            binding: "b",
+            does: "Put the focused comment at the bottom of its list",
+          },
+        ],
         does: "Put the focused comment at the top / bottom of its list",
         line: "comment top / bottom",
         when: () => !aimedList && Boolean(focusedThread()),
@@ -486,6 +507,7 @@ export function createAddress({
         },
       },
       {
+        id: "navigation.page.return",
         // This is travel from the panel to the page, not an Escape rung: every layer
         // remains standing, so the address says what stays open. A covering panel locks
         // the document scroller and has no page to hand back; ordinary Escape remains
@@ -501,6 +523,8 @@ export function createAddress({
         },
       },
       ...ADDRESSES.map((entry) => ({
+        id: entry.id,
+        runFromReference: false,
         keys: () => {
           if (aimedList !== entry) return [entry.key];
           return nextAddressKeys(entry);
@@ -549,7 +573,20 @@ export function createAddress({
         },
       })),
       {
+        id: "navigation.page.edge",
         keys: ["g", "Shift+g"],
+        routes: [
+          {
+            id: "navigation.page.top",
+            binding: "g",
+            does: "Go to the top of the page",
+          },
+          {
+            id: "navigation.page.bottom",
+            binding: "Shift+g",
+            does: "Go to the bottom of the page",
+          },
+        ],
         does: "Go to the top / bottom of the page",
         line: "top / bottom",
         when: () => !aimedList,
@@ -560,6 +597,7 @@ export function createAddress({
         },
       },
       {
+        id: "navigation.address.back",
         // Two presses in, two presses out. `g` opens the window and a letter names a list
         // inside it — the armed chip says so, reading `g` and then `g c`, and the chips on
         // the page narrow with it — so one Escape gives the letter back and the next
@@ -594,6 +632,7 @@ export function createAddress({
   // The key alone on the line: what it opens is a table, so the scope it stands up names the
   // available lists and their complete ranges, one chip each.
   const GOTO = {
+    id: "navigation.address.open",
     keys: ["g"],
     does: "Go by address — the next key names a list, the page, or an edge",
     line: "go to",

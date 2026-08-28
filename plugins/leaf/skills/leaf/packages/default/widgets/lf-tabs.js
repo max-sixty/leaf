@@ -70,7 +70,12 @@ customElements.define(
       };
       keys(strip, "On a tab", [
         {
+          id: "tab.walk",
           keys: ["ArrowLeft", "ArrowRight"],
+          routes: [
+            { id: "tab.previous", binding: "ArrowLeft", does: "Previous tab" },
+            { id: "tab.next", binding: "ArrowRight", does: "Next tab" },
+          ],
           does: "Previous / next tab, wrapping at the ends",
           line: "walk the tabs",
           repeat: true,
@@ -78,7 +83,12 @@ customElements.define(
             walk((at, n) => (binding === "ArrowRight" ? at + 1 : at - 1 + n) % n),
         },
         {
+          id: "tab.edge",
           keys: ["Home", "End"],
+          routes: [
+            { id: "tab.first", binding: "Home", does: "First tab" },
+            { id: "tab.last", binding: "End", does: "Last tab" },
+          ],
           does: "First / last tab",
           line: "first / last",
           run: (binding) => walk((at, n) => (binding === "Home" ? 0 : n - 1)),

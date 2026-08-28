@@ -6,15 +6,17 @@ from pathlib import Path
 
 import click
 
+from leaf.agent_state import cmd_page_state
 from leaf.checking import cmd_check
 from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
 from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_asks
+from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_stop, start_server
-from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
+from leaf.layer import cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
-from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
+from leaf.page import cmd_catalog, cmd_guidance
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
 from leaf.schema import (
@@ -24,13 +26,13 @@ from leaf.schema import (
 )
 from leaf.service import (
     PageTransaction,
-    host_identity,
     restore_page_claim,
     take_page_claim,
     unacknowledged,
 )
 from leaf.session import cmd_ack, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
+from leaf.vendoring import cmd_init
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:

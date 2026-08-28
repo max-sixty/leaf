@@ -1,4 +1,11 @@
-import { MODIFIER_KEYS, answers, bindings, live } from "./bindings.js";
+import {
+  MODIFIER_KEYS,
+  answers,
+  bindings,
+  commandRoutes,
+  live,
+  word,
+} from "./bindings.js";
 
 export function createDispatch({
   claimsEsc,
@@ -15,6 +22,7 @@ export function createDispatch({
   setChord,
   setReact,
   takesLetters,
+  TYPING,
 }) {
   // The two questions a scope answers, named apart because the surfaces ask them apart: the
   // reference lists a scope the page *has* and filters its rows by liveness only where the reader
@@ -38,9 +46,19 @@ export function createDispatch({
   // the list here instead was the same statement made where only one of the two shadowings
   // could be seen.
   function stack() {
-    return SCOPES.flatMap((scope) =>
-      scope === ELEMENTS ? scopesFor(focused()) : scope,
-    ).filter(standing);
+    const active = focused();
+    const elementStack = scopesFor(active);
+    const typing = takesLetters(active);
+    return SCOPES.flatMap((scope) => {
+      if (scope === ELEMENTS) {
+        if (!typing) return elementStack;
+        const own = elementStack.filter(({ el }) => el === active);
+        const ancestors = elementStack.filter(({ el }) => el !== active);
+        return [...own, TYPING, ...ancestors];
+      }
+      if (scope === TYPING && typing) return [];
+      return scope;
+    }).filter(standing);
   }
   // The claims of every scope nearer the reader than this one, accumulated as either walk
   // steps outward. A scope's own claim is pushed after its rows, because what it takes from
@@ -80,6 +98,7 @@ export function createDispatch({
   function run(ev) {
     const nearer = shadow();
     for (const scope of stack()) {
+      let matched = null;
       for (const row of scope.rows) {
         // The key first, then the claim, then the liveness: a `when` may be the whole event
         // log folded (`a` asks what the page is still waiting on), and asking it of every row
@@ -89,19 +108,87 @@ export function createDispatch({
         if (!row.run) continue;
         const binding = bindings(row).find((b) => answers(b, ev));
         if (!binding || nearer.takes(binding) || !live(row)) continue;
+        if (matched)
+          throw new Error(
+            `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
+              `${word(matched.row.does)}; ${word(row.does)}`,
+          );
+        matched = { row, binding };
+      }
+      if (matched) {
         // A held key repeats keydown where a real button fires once, so a row says whether
         // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
         // per repeat, where a walk wants the repeat and is the reason the flag exists. The
         // repeat is still consumed — Space is a page scroll if it isn't, so holding it on a
         // control would send the page out from under the press the first one made.
         ev.preventDefault();
-        if (ev.repeat && !row.repeat) return true;
-        row.run(binding);
+        if (ev.repeat && !matched.row.repeat) return true;
+        matched.row.run(matched.binding);
         return true;
       }
       nearer.past(scope);
     }
     return false;
+  }
+
+  // An action chosen from the reference has no keydown to match, but it still belongs to
+  // exactly one live scope. Resolve it through the same innermost-first stack and the same
+  // shadowing as a key press. The stable id is the route, while the first declared binding
+  // supplies the argument used by rows whose equivalent keys share one implementation
+  // (Enter/Space).
+  function commandFor(id) {
+    const nearer = shadow();
+    for (const scope of stack()) {
+      const row = scope.rows.find((candidate) => {
+        const ids = [
+          candidate.id,
+          ...commandRoutes(candidate).map((route) => route.id),
+        ];
+        return ids.includes(id) && candidate.run && live(candidate);
+      });
+      if (row) {
+        const route = commandRoutes(row).find((candidate) => candidate.id === id);
+        const active = bindings(row);
+        const binding = route?.binding ?? active[0];
+        if (
+          binding != null &&
+          (!route || active.includes(binding)) &&
+          !nearer.takes(binding)
+        )
+          return { row, binding };
+      }
+      nearer.past(scope);
+    }
+    return null;
+  }
+  // Snapshot every executable route while focus is still on the page. The reference is a
+  // modal scope and correctly shadows the page once it opens; asking after that point would
+  // make every page command look unavailable merely because the chooser itself is standing.
+  function availableCommands() {
+    const available = new Set();
+    const nearer = shadow();
+    for (const scope of stack()) {
+      for (const row of scope.rows) {
+        if (!row.run || !live(row)) continue;
+        const active = bindings(row);
+        const first = active[0];
+        const routes = [
+          { id: row.id, binding: first },
+          ...commandRoutes(row).filter((route) => active.includes(route.binding)),
+        ];
+        for (const route of routes)
+          if (route.binding != null && !nearer.takes(route.binding))
+            available.add(route.id);
+      }
+      nearer.past(scope);
+    }
+    return available;
+  }
+  function executeCommand(id) {
+    const command = commandFor(id);
+    if (!command) return false;
+    command.row.run(command.binding);
+    return true;
   }
 
   // A focus move is the one change in where the reader is standing that no state writer
@@ -127,5 +214,5 @@ export function createDispatch({
   });
   document.addEventListener("focusout", () => paintHere());
 
-  return { readerIn, shadow, stack };
+  return { availableCommands, executeCommand, readerIn, shadow, stack };
 }

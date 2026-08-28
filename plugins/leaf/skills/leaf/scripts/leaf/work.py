@@ -3,19 +3,69 @@
 import sys
 from pathlib import Path
 
-from .events import build_threads, standing_work_claims
+from .asks import asking, quoted_in, replayed_attrs
+from .events import build_threads, note_settlements
 from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
-    asking,
     decisions,
     page_projection,
-    quoted_in,
-    replayed_attrs,
     rewritten_bodies,
 )
 from .registry import require_registry
+
+
+def work_claim_revision(claim: dict, _events: list) -> int:
+    """The exact working document on which widget work was claimed."""
+    return claim["revision"]
+
+
+def standing_work_claims(status: dict, events: list) -> list:
+    """The transient work claims the durable exchange has not ended.
+
+    A claim starts after one exact log sequence. Thread work ends at the agent's
+    next reply in that conversation; widget work ends at a later version note
+    that explicitly settles its id. The sequence boundary matters in both
+    directions: renewing work after an answer creates a new claim, and an old
+    answer cannot settle it merely because it names the same subject.
+
+    A reply and a widget settlement are permanent log answers, and they are the
+    whole test. Resolution is not one: it only hides a thread claim and an
+    unresolve shows it again, so both callers asked for the resolved threads back
+    and the question was never really being asked. What this reading wants of a
+    conversation is who has spoken in it since the claim, so it reads the
+    messages and never the resolution — which is why it names no page.
+    """
+    threads = build_threads(events, {})
+    standing = []
+    for claim in status.get("work", []):
+        subject = claim["subject"]
+        after = claim["after"]
+        if subject["kind"] == "thread":
+            thread = threads.get(subject["id"])
+            if thread is None:
+                continue
+            replied = any(
+                msg["kind"] == "reply"
+                and msg["author"] == "claude"
+                and msg["seq"] > after
+                for msg in thread["msgs"]
+            )
+            if replied:
+                continue
+        elif subject["kind"] == "widget":
+            if any(
+                event["kind"] == "note"
+                and event["seq"] > after
+                and subject["id"] in note_settlements(event, "work")
+                for event in events
+            ):
+                continue
+        else:
+            continue
+        standing.append(claim)
+    return standing
 
 
 def widget_work_seat(

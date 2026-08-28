@@ -30,6 +30,7 @@ from render_support import (
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
+    SOURCE_EXAMPLES,
     SUGGESTION_PAGE,
     TAIL_PAGE,
     THIN_V1,
@@ -102,20 +103,26 @@ def test_the_banner_stands_where_it_says_it_does(browser, serve):
     assert errors == [], errors
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
 def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     """Anchoring has to work on the pages people actually write, not on a fixture built
     to suit it. Every failure here has been a place where what the reader selects and
     what the search reads come apart — an uppercased header, a widget's own chrome, the
     stylesheet a rendered diagram carries — and a hand-built page has none of them. So
-    this drags across every pair of adjacent blocks in every shipped example, which is
+    this drags across every pair of adjacent blocks in every source example, which is
     the shape a real selection takes, and asks for the highlight the composer promises.
+
+    The generated gallery is not another authored input: scripts/gallery.py derives a
+    tab from each source `<main>` and a separate test rejects any drift. Repeating every
+    source passage inside that composition used to be most of this sweep's runtime. Tab
+    labels and hidden-panel navigation have focused gesture tests, so the source corpus
+    retains the content variations while those tests retain the gallery's mechanism.
 
     "Every" includes the words a widget renders into a control, which is why the filter
     below is the runtime's own rule rather than a test for the chrome class: while it was
     the class, the sweep that proves every passage is quotable structurally could not see
-    the passages that weren't. It reaches six tab names, two column headings and a settled
-    group's summary line in the gallery alone."""
+    the passages that weren't. Across the source corpus it reaches attribute-rendered
+    headings, settled summaries, and the tab names in parallel-workstreams."""
     page, errors = open_page(browser, serve(example))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
@@ -2769,7 +2776,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
-    expect(page.locator(".lf-help")).to_contain_text("Walk the versions")
+    expect(page.locator(".lf-help")).to_contain_text("Previous version")
+    expect(page.locator(".lf-help")).to_contain_text("Next version")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()

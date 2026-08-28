@@ -4,8 +4,15 @@ import re
 import sys
 from pathlib import Path
 
+from leaf.asks import (
+    asking,
+    page_awaiting_values,
+    projected_action_holders,
+    quoted_in,
+    thread_ask_projection,
+)
 from leaf.data import data_binding_errors, read_data_store
-from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
+from leaf.events import build_threads
 from leaf.files import list_revisions, revision_path
 from leaf.passages import (
     EMPTY,
@@ -18,16 +25,11 @@ from leaf.projection import (
     NO_RECORD,
     StateProjection,
     action_subjects,
-    asking,
     enclosing_widgets,
     folded_facet,
     markup_facet,
-    page_awaiting_values,
     page_projection,
-    projected_action_holders,
-    quoted_in,
     state_projection,
-    thread_ask_projection,
 )
 from leaf.registry import (
     RegistryError,
@@ -47,6 +49,7 @@ from leaf.structure import (
     parse_structure,
 )
 from leaf.styles import inline_presentation_override_errors
+from leaf.thread_context import thread_roots, thread_structure, thread_widgets
 
 
 def thread_universe(events: list, registry: dict):

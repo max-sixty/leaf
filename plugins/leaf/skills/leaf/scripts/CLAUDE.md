@@ -6,13 +6,23 @@ projection, rendering, and publishing. `interact.py` is the PEP 723 entrypoint;
 
 The main owners are:
 
-- `files`, `page`, and `revisioning`: atomic page files and immutable revisions;
+- `files` and `revisioning`: atomic page files and immutable revisions;
+- `page`: vendored page guidance and vocabulary catalog;
+- `agent_state`: the agent-facing folded page-state reading;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
-- `events`, `conversation`, `projection`, and `work`: event folds and their
-  standing readings;
-- `session`, `service`, `hosting`, `hooks`, and `http`: host identity, process
-  lifetime, leases, and transport;
-- `registry` and `layer`: registry storage and layer composition;
+- `event_endpoint`: browser-event admission, retry coordination, and append;
+- `events` and `projection`: standing event and durable state folds;
+- `thread_context` and `conversation`: thread identity, frozen markup, bounded
+  delivery context, and conversation writes;
+- `work`: transient work claims and widget work seats;
+- `asks`: declaration-driven page and thread request projections;
+- `host`: local paths, process readings, host identity, and session lifetime;
+- `service`: page claims, serialized transactions, and leases;
+- `server` and `hosting`: server address and lifetime state, and the HTTP process;
+- `session` and `hooks`: wait delivery and host lifecycle;
+- `served_state` and `http`: browser-facing state readings and HTTP transport;
+- `registry` and `layer`: registry storage, layer composition, and package commands;
+- `vendoring`: page initialization, layer transitions, and atomic installation;
 - `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
   merged vocabulary contract and authored-page gates;
 - `passages`: the file-side text reading and anchor capture;

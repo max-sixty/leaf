@@ -213,9 +213,12 @@ export function createVersionDiff({
     versionBtn.classList.toggle("on", diffOn);
     // Rewritten on every diff change, so the key it names is taken from the row each time
     // rather than typed into one of the two branches and forgotten in the other.
-    versionBtn.title = diffOn
+    versionBtn.dataset.lfKeyTitle = diffOn
       ? `Showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
-      : `Versions: read one, or mark what changed since it (${chooserLabel()})`;
+      : "Versions: read one, or mark what changed since it";
+    const shortcut = chooserLabel();
+    versionBtn.title =
+      versionBtn.dataset.lfKeyTitle + (shortcut ? ` (${shortcut})` : "");
     for (const row of versionMenu.querySelectorAll(".lf-version-row")) {
       const revision = +row.dataset.lfRevision;
       const baseRevision = runtime.versions.find(

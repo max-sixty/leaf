@@ -188,6 +188,8 @@ export function createReactions({
     claims: EVERYTHING,
     rows: [
       {
+        id: "reaction.choose",
+        runFromReference: false,
         keys: () =>
           reactionTokens()
             .slice(0, 9)
@@ -210,6 +212,7 @@ export function createReactions({
         },
       },
       {
+        id: "reaction.cancel",
         keys: ["Escape"],
         does: "Put the reaction down",
         line: "cancel",

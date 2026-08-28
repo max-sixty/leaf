@@ -15,11 +15,13 @@ export function createAskView({
   inChrome,
   itemSays,
   itemWord,
+  keys,
   openAsks,
   openTray,
   paintAnchors,
   paintHere,
   paintKeys,
+  PRESS,
   panelIsOpen,
   registry,
   reserve,
@@ -162,6 +164,14 @@ export function createAskView({
           const to = openAsks().find((a) => a.id === ask.id);
           if (to) goToAsk(to, openAsks());
         };
+        keys(row, "In the asks tray", [
+          {
+            id: "ask.open",
+            keys: PRESS,
+            does: "Go to this ask and stand on the control that answers it",
+            line: "go to this ask",
+          },
+        ]);
         askRowsById.set(ask.id, row);
       }
       const [kind, says] = row.querySelectorAll(".lf-asks-kind, .lf-asks-says");

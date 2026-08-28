@@ -1,4 +1,12 @@
-import { ariaShortcuts, bindings, checked, live, word } from "./bindings.js";
+import {
+  activeRows,
+  ariaShortcuts,
+  bindings,
+  checked,
+  live,
+  validateRows,
+  word,
+} from "./bindings.js";
 
 let publishedScopes;
 export const focused = (...args) => publishedScopes.focused(...args);
@@ -40,13 +48,17 @@ export function createScopes({ paintHere, upFrom }) {
     scopeRefFor.set(el, ref);
     scopeRefs.add(ref);
   }
-  const sentence = (row) => (typeof row.does === "string" ? row.does : row);
-  const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
+  function forgetScopedElement(el) {
+    const ref = scopeRefFor.get(el);
+    if (ref) scopeRefs.delete(ref);
+    scopeRefFor.delete(el);
+  }
+  const byCommand = (rows) => rows.map((row) => [row.id, row]);
   // One section per title, gathered from every contributor. Written once because the gathering
   // happens twice and used to be spelled three times: here at declaration, where a widget's
   // contributors arrive an upgraded element at a time, and at each open of the reference, where
   // core's scopes and the widgets' are gathered into one list of sections. The rules above are
-  // this function — rows keyed by sentence, `when` and `at` joined by or — and a near-copy of a
+  // this function — rows keyed by command id, `when` and `at` joined by or — and a near-copy of a
   // merge is a merge that drifts on the day one of the three learns something.
   function merge(sections, { title, when, at, claims, rows }) {
     // A contributor the page hasn't got brings nothing. A section's `when` is the OR of its
@@ -115,18 +127,44 @@ export function createScopes({ paintHere, upFrom }) {
       rows: checked(rows, title ?? "a scope"),
       when,
     };
+    // Validate before publishing to either index. A rejected declaration must not leave a
+    // bad scope installed where every later paint fails on it. A capability-gated scope may
+    // depend on state its owner is still initializing, so its first paint remains the gate;
+    // an immediately readable scope can be checked in full now.
+    if (!scope.when) validateRows(scope.rows, title ?? "a scope");
+    scope.validated = !scope.when;
+    const shortcuts = !scope.when
+      ? ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+      : "";
     elementScopes.set(where, scope);
     rememberScopedElement(where);
     // A scope capability may read state whose owner has not finished initializing while
     // modules are still registering. State renderers call paintKeys once that boundary is
     // complete; scopes with no capability gate are safe to expose immediately.
-    if (!scope.when) reflectShortcuts(scope);
+    if (shortcuts) where.setAttribute("aria-keyshortcuts", shortcuts);
     else where.removeAttribute("aria-keyshortcuts");
     paintHere();
     return rows;
   }
   function reflectShortcuts(scope) {
-    const shortcuts = !scope.when || scope.when() ? ariaShortcuts(scope.rows) : "";
+    const available = !scope.when || scope.when();
+    try {
+      if (available) validateRows(scope.rows, scope.title ?? "a scope");
+    } catch (error) {
+      // Capability-gated scopes may only become readable after registration. If that first
+      // validation fails, retract the unpublished contract completely; leaving it in the
+      // weak map would make every later paint fail after the caller handled the one error.
+      if (!scope.validated) {
+        elementScopes.delete(scope.el);
+        forgetScopedElement(scope.el);
+        scope.el.removeAttribute("aria-keyshortcuts");
+      }
+      throw error;
+    }
+    if (available) scope.validated = true;
+    const shortcuts = available
+      ? ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+      : "";
     if (shortcuts) {
       if (scope.el.getAttribute("aria-keyshortcuts") !== shortcuts)
         scope.el.setAttribute("aria-keyshortcuts", shortcuts);
@@ -145,8 +183,7 @@ export function createScopes({ paintHere, upFrom }) {
    * so an announcement cannot name a key the rows stopped binding.
    */
   const saying = (rows) =>
-    rows
-      .filter(live)
+    activeRows(rows, "an announced scope")
       .map((row) => `${spoken(row)} ${word(row.line)}`)
       .join(", ");
   // A row's own label where it has one, read the way every other surface reads a cell, and
@@ -197,7 +234,7 @@ export function createScopes({ paintHere, upFrom }) {
     );
 
   const scopes = {
-    bySentence,
+    byCommand,
     claimsEsc,
     elementScopes,
     focused,

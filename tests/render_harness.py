@@ -44,6 +44,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import events as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
@@ -61,6 +62,13 @@ COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
+# The inputs scripts/gallery.py composes. The gallery is a generated presentation of
+# these pages, not an eleventh author source; tests that exercise authored content use
+# this set while tests of the gallery's own rendering or export keep EXAMPLES.
+SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "gallery")
+assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
+    "expected exactly one generated gallery beside the source examples"
+)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -441,7 +449,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
-        if project.exists() or service_model.config_home().exists():
+        if project.exists() or host_model.config_home().exists():
             initialize(d)
         else:
             clone_initialized_page("examples", d, initialize)

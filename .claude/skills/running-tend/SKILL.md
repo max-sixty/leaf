@@ -12,6 +12,16 @@ is written for a session at a workstation. Work from here lands as a pull
 request that a maintainer merges — the bot has write access, and the `Merge
 access` ruleset holds merging to admins.
 
+## Review threshold
+
+Apply `CLAUDE.md`'s **Stage** section to the verdict. Once a change moves Leaf
+toward a coherent architecture and its claimed path works, the review is done.
+Reserve findings for architectural seams, cross-runtime invariants, public
+surface traps, regressions on the claimed path, or a central claim or test that
+is false. Omit bounded edge cases, exhaustive same-pattern cleanup, minor
+simplification, and prose or test polish unless they expose one of those
+problems.
+
 ## Filing issues in other repos
 
 Standing exception granted: file directly in agent-equipped targets (per

@@ -761,8 +761,8 @@ def _until(page, fact, wanted):
     so rather than passing.
 
     A wait that runs out names the caller's wanted fact and prints its starting and final
-    counters. No response preserves Playwright's timeout as the cause; a busy response
-    stream reaches the same explicit deadline instead of waking this loop forever."""
+    counters. No finished trip preserves Playwright's timeout as the cause; a busy stream
+    reaches the same explicit deadline instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))

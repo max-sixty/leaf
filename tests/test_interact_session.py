@@ -49,6 +49,7 @@ from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import presence as presence_model
 from leaf import registry as registry_model
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
@@ -1766,11 +1767,11 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     monkeypatch.chdir(work)
     assert service_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir)["cwd"] == str(work)
-    assert served_state_model.presence(page_dir, [])["session_cwd"] == str(work)
+    assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
     with service_model.PageTransaction(page_dir) as page:
         page.release_claim()
-    assert served_state_model.presence(page_dir, [])["session_cwd"] == str(work)
-    assert served_state_model.presence(page_dir, [])["session_alive"] is False
+    assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
+    assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
 def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
@@ -2240,7 +2241,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     session_model.cmd_status(claimed, "working", "reading the reconnect traces")
     assert service_model.page_claim(claimed)["turn_closed"] is None
     events = events_model.read_events(claimed)
-    assert served_state_model.presence(claimed, events)["turn_closed"] is None
+    assert presence_model.presence(claimed, events)["turn_closed"] is None
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
@@ -2252,7 +2253,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     assert capsys.readouterr().out == ""
     closed = service_model.page_claim(claimed)["turn_closed"]
     assert closed
-    assert served_state_model.presence(claimed, events)["turn_closed"] == closed
+    assert presence_model.presence(claimed, events)["turn_closed"] == closed
     # And what the agent said it was doing is untouched by the observation of it.
     assert (
         files_model.read_json(claimed / "status.json")["detail"]
@@ -2993,7 +2994,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
     assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
-    assert served_state_model.presence(page_dir, [])["session_alive"] is True
+    assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
     deadline = time.time() + 5
@@ -3001,7 +3002,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
         assert time.time() < deadline, "the deleted job's server stayed up"
         time.sleep(0.05)
     assert service_model.owned_pages("bg-job") == []
-    assert served_state_model.presence(page_dir, [])["session_alive"] is False
+    assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
 def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(

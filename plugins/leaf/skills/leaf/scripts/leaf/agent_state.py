@@ -20,6 +20,7 @@ from .files import (
     version_descriptors,
 )
 from .passages import enclosing_of, page_passages
+from .presence import presence
 from .projection import (
     StateProjection,
     canonical_updates,
@@ -29,7 +30,6 @@ from .projection import (
 )
 from .registry import described, require_registry
 from .revisioning import activate_source
-from .served_state import presence
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .thread_context import thread_digest

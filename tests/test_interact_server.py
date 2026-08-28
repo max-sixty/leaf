@@ -37,6 +37,7 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import presence as presence_model
 from leaf import publishing as publishing_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
@@ -974,7 +975,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
-    monkeypatch.setattr(served_state_model, "other_leaves", neighbours)
+    monkeypatch.setattr(presence_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -1709,7 +1710,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     error = events[-1]
     assert error["kind"] == "error" and error["author"] == "page"
     assert error in service_model.unacknowledged(events, 0)
-    assert served_state_model.presence(page_dir, events)["pending"] == 0
+    assert presence_model.presence(page_dir, events)["pending"] == 0
     result = CliRunner().invoke(
         cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
     )
@@ -1737,12 +1738,12 @@ def test_an_open_stream_records_that_the_page_is_open(server, page_dir):
     that proof — `curl`, the render gate and `page state` all read, and a tab
     that has no news never reads again."""
     events = event_model.read_events(page_dir)
-    assert served_state_model.presence(page_dir, events)["viewed"] is None
+    assert presence_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
-    assert served_state_model.presence(page_dir, events)["viewed"] is None
+    assert presence_model.presence(page_dir, events)["viewed"] is None
     stream, heard = _news(server)
     heard()
-    assert served_state_model.presence(page_dir, events)["viewed"] is not None
+    assert presence_model.presence(page_dir, events)["viewed"] is not None
     stream.close()
 
 

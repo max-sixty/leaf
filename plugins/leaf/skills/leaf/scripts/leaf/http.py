@@ -9,6 +9,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from . import presence as presence_model
 from . import served_state
 from .event_endpoint import EventEndpoint, event_rejection
 from .event_log import read_events
@@ -154,11 +155,11 @@ class Handler(BaseHTTPRequestHandler):
         # reaches neighbouring pages without creating another authorization path.
         # Scan neighbours after releasing this page's lease: they are independent
         # snapshots, and one slow neighbour must not block this page's writers.
-        state["others"] = served_state.other_leaves(self.page_dir)
+        state["others"] = presence_model.other_leaves(self.page_dir)
         state["reading"] = (
             reading
             + "."
-            + served_state.presence_fingerprint(
+            + presence_model.presence_fingerprint(
                 state["listening"], state["session_alive"], state["others"]
             )
         )
@@ -190,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
                 events,
                 view_revision,
                 active,
-                served_state.presence(self.page_dir, events)["claims"],
+                presence_model.presence(self.page_dir, events)["claims"],
                 source_overrides,
                 include_active_view=False,
             )
@@ -275,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
                 # the next look would leave the tab holding a reading this stream
                 # never disagreed with, and never spoke again.
                 if files != files_said or now - looked >= PRESENCE_S:
-                    presence = served_state.presence_reading(self.page_dir)
+                    presence = presence_model.presence_reading(self.page_dir)
                     looked = now
                 reading = f"{files}.{presence}"
                 # Before the word goes out, so a listener that has heard the first

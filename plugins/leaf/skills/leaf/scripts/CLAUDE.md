@@ -21,7 +21,8 @@ The main owners are:
 - `service`: page claims, serialized transactions, and leases;
 - `server` and `hosting`: server address and lifetime state, and the HTTP process;
 - `session` and `hooks`: wait delivery and host lifecycle;
-- `served_state` and `http`: browser-facing state readings and HTTP transport;
+- `presence`: page, claim, and neighboring-leaf presence readings;
+- `served_state` and `http`: browser-facing state projection and HTTP transport;
 - `registry/`: registry storage plus shared, layer-wide, widget, and state
   vocabulary contracts;
 - `layer`: package discovery, composition, and commands;

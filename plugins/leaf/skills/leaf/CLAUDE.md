@@ -2257,7 +2257,7 @@ A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
 The named JavaScript exports in `leaf/render-checks/index.js`, invoked by
-`leaf/render_checks.py` and composed by `leaf/render_gate.py`, each answer one failure
+`leaf/render_checks.py` and composed by `leaf/render_gate/`, each answer one failure
 class. That facade is `leaf/render-checks/index.js`; its directory groups runtime,
 reachability, layout, replay, word, widget-contract, and framing probe owners. The
 served graph imports the public widget API statically, so the JavaScript parser and

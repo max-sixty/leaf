@@ -28,7 +28,7 @@ The main owners are:
 - `vendoring`: page initialization, layer transitions, and atomic installation;
 - `schema`, `structure`, `styles`, and `validation/`: authored-page gates;
 - `passages`: the file-side text reading and anchor capture;
-- `render_checks`, `render_gate`, and `exporting`: browser probes, validation,
+- `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
   and standalone export;
 - `data`, `media`, and `publishing`: page-bound inputs and deployment outputs.
 
@@ -68,6 +68,11 @@ when adding a command.
 The registry is the common contract with the browser. Server-side event gates,
 state folds, catalog output, package checks, and markup validation must consume
 its declarations without a widget-name list.
+
+Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
+owns raw probe results, `reporting` owns human findings, `version` owns retry
+policy, `preview` owns ephemeral servers, and `command` owns the CLI boundary.
+Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
 owns registry-declared instance rules, `admission` owns incoming message markup,

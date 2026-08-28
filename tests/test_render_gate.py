@@ -8,8 +8,9 @@ import time
 import pytest
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
+from leaf.render_gate import scheme as render_gate_scheme
+from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -406,7 +407,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         )
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
     # one document; one seen here is the platform under load and says nothing.
-    assert [e for e in errors if not render_gate_model.resize_observer_error(e)] == []
+    assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
     page.close()
 
 
@@ -463,7 +464,7 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
 
     assert len(pages) == 4
     assert (
-        render_gate_model.recurring_resize_observer_error("render attempt") in failures
+        render_gate_scheme.recurring_resize_observer_error("render attempt") in failures
     )
 
 
@@ -520,7 +521,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     )
     page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
-    assert errors == [render_gate_model.recurring_resize_observer_error("navigation")]
+    assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
     page.close()
 
 
@@ -730,8 +731,8 @@ def test_example_renders(browser, serve, example):
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
-    render_gate.render_version — the pass `version check --render` runs on agent-authored
-    pages — so this sweep also proves the gate a user's page goes through."""
+    render_gate.version.render_version — the pass `version check --render` runs on
+    agent-authored pages — so this sweep also proves the gate a user's page goes through."""
     assert render_gate_model.render_version(browser, serve(example)) == []
 
 

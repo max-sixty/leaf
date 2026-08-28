@@ -57,12 +57,12 @@ from leaf import events as event_folds_model
 from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
+from leaf.render_gate import preview as render_gate_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):

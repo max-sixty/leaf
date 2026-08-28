@@ -12,8 +12,8 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
+from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,

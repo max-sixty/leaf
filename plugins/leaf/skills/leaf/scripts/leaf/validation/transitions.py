@@ -11,7 +11,6 @@ from leaf.projection import (
 
 from .markup import at
 
-
 # A verb with no declared record form (accept/reject — the honoring version
 # retires the wrapper, so there is no markup value to compare) has no record.
 

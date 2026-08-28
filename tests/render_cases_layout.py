@@ -20,7 +20,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
+from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (

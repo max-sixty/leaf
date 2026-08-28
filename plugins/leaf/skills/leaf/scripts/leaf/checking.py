@@ -551,7 +551,7 @@ def cmd_check(
     for line in result.advice:
         print(f"  · {line}")
     if render:
-        from leaf.render_gate import render_check
+        from leaf.render_gate.command import render_check
 
         revisions = list_revisions(page_dir)
         active = revisions[-1] if revisions else 0

@@ -80,6 +80,8 @@ takes;
 scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
 highlight rules;
+`runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
+dynamic widget imports, and initial settlement;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;

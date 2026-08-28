@@ -57,7 +57,8 @@ state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
-`runtime/updates.js` owns canonical action, report, and work-claim feeds;
+`runtime/updates.js` owns the accepted claim snapshot and canonical action,
+report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/version-activation.js` owns version document loading, authored-root
 replacement, and activation serialization;

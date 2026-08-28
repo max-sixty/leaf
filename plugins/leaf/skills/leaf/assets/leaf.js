@@ -1194,19 +1194,6 @@ document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 // distinction for a Comments panel restored or opened during startup; its General
 // composer stays usable while the log-derived list says what it is waiting for.
 
-let agentMsgCount = -1;
-// Whether the page currently believes anything is behind its work claim. An update
-// remains in the feed after settlement, but no local seat presents it under a banner
-// saying nobody holds the page.
-let claimsHeld = false;
-// When the claiming session's last turn ended, as this tab last heard it. Held beside
-// the claims because it is the other half of reading one: a claim is renewed by the same
-// command that renews the page's claim, so a turn ending under both is one fact, and
-// the local seat has to reach it without asking the banner.
-let agentTurnClosed = null;
-// The exact session the turn-closed evidence belongs to. A delegate's update must not
-// be called abandoned merely because the orchestrator's turn ended under it.
-let claimingSession = null;
 // The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
 // not only on the log's, because its age is half of what it says and a claim nobody
 // renews is exactly the one whose age has stopped moving. Keeping the last fold is what
@@ -1217,8 +1204,8 @@ let selectionComposerRuntime;
 
 let updateRuntime;
 const updateSequence = (target = null) => updateRuntime.updateSequence(target);
-const claimUpdateSources = () => updateRuntime.claimUpdateSources();
-const setClaimUpdateSources = (...args) => updateRuntime.setClaimUpdateSources(...args);
+const replaceClaimState = (...args) => updateRuntime.replaceClaimState(...args);
+const workClaimState = () => updateRuntime.workClaimState();
 
 // Panel open/closed is remembered too: it survives live activation, document travel,
 // and reload, so reopening the panel by hand after every revision gets old fast.
@@ -3404,7 +3391,7 @@ conversationRuntime = createConversation({
   announce,
   designIsOn: () => designOn,
   captureAuthoredFacets,
-  claimState: () => ({ agentTurnClosed, claimingSession, claimsHeld }),
+  claimState: workClaimState,
   designName,
   droppedAt,
   el,
@@ -3571,12 +3558,7 @@ stateApplication = createStateApplication({
   activationIsForced,
   accountOutbox,
   clearForcedActivation,
-  claimUpdateSources,
   currentActivation,
-  getAgentMsgCount: () => agentMsgCount,
-  getAgentTurnClosed: () => agentTurnClosed,
-  getClaimingSession: () => claimingSession,
-  getClaimsHeld: () => claimsHeld,
   getSignoffDeclared: () => signoffDeclared,
   latestChip,
   loadMarked,
@@ -3590,6 +3572,7 @@ stateApplication = createStateApplication({
   presented,
   reconcileState,
   refreshHover,
+  replaceClaimState,
   renderOthers,
   renderPanel,
   renderStatus,
@@ -3599,11 +3582,6 @@ stateApplication = createStateApplication({
   revisionDocument,
   runtime,
   sameLayer,
-  setAgentMsgCount: (count) => (agentMsgCount = count),
-  setAgentTurnClosed: (closed) => (agentTurnClosed = closed),
-  setClaimingSession: (session) => (claimingSession = session),
-  setClaimsHeld: (held) => (claimsHeld = held),
-  setClaimUpdateSources,
   setPanel,
   showComparison,
   showNews,

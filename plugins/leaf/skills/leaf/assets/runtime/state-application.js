@@ -7,12 +7,7 @@ export function createStateApplication(dependencies) {
     activationIsForced,
     accountOutbox,
     clearForcedActivation,
-    claimUpdateSources,
     currentActivation,
-    getAgentMsgCount,
-    getAgentTurnClosed,
-    getClaimingSession,
-    getClaimsHeld,
     getSignoffDeclared,
     latestChip,
     loadMarked,
@@ -25,6 +20,7 @@ export function createStateApplication(dependencies) {
     panelIsOpen,
     presented,
     reconcileState,
+    replaceClaimState,
     refreshHover,
     renderOthers,
     renderPanel,
@@ -35,11 +31,6 @@ export function createStateApplication(dependencies) {
     revisionDocument,
     runtime,
     sameLayer,
-    setAgentMsgCount,
-    setAgentTurnClosed,
-    setClaimingSession,
-    setClaimsHeld,
-    setClaimUpdateSources,
     setPanel,
     showComparison,
     showNews,
@@ -50,6 +41,8 @@ export function createStateApplication(dependencies) {
     updateFab,
     versionMenuIsOpen,
   } = dependencies;
+
+  let agentMsgCount = -1;
 
   // Whether an answer was taken before the one the page holds. Answers cross — a read
   // held by a slow proxy or a test while a later one lands, a POST's answer beside a
@@ -185,10 +178,7 @@ export function createStateApplication(dependencies) {
     const priorCurrentLabel = runtime.currentLabel;
     const priorCurrentRevision = runtime.currentRevision;
     const priorCurrentStamp = runtime.currentStamp;
-    const priorClaimUpdateSources = claimUpdateSources();
-    const priorClaimsHeld = getClaimsHeld();
-    const priorAgentTurnClosed = getAgentTurnClosed();
-    const priorClaimingSession = getClaimingSession();
+    let restoreClaimState = () => {};
     const apply = async () => {
       runtime.events = nextEvents;
       let activation = null;
@@ -199,10 +189,12 @@ export function createStateApplication(dependencies) {
       }
       settleAcceptedDrafts();
       runtime.agent = state.agent || "Claude";
-      setClaimUpdateSources(state.claims || []);
-      setClaimsHeld(presented(state).held);
-      setAgentTurnClosed(state.turn_closed || null);
-      setClaimingSession(state.claim_session || null);
+      restoreClaimState = replaceClaimState({
+        sources: state.claims || [],
+        claimsHeld: presented(state).held,
+        agentTurnClosed: state.turn_closed || null,
+        claimingSession: state.claim_session || null,
+      });
       renderStatus(state);
       renderVersions(state);
       stateSignoff(getSignoffDeclared());
@@ -215,16 +207,12 @@ export function createStateApplication(dependencies) {
         const agentReplies = runtime.events.filter(
           (e) => e.author === "claude" && e.kind === "reply",
         );
-        if (
-          getAgentMsgCount() >= 0 &&
-          agentReplies.length > getAgentMsgCount() &&
-          !panelIsOpen()
-        )
+        if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
           showToast(
             `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
             () => setPanel(true),
           );
-        setAgentMsgCount(agentReplies.length);
+        agentMsgCount = agentReplies.length;
       }
       // Last, because the panel has just rendered the log: a widget carried by a reply is
       // on the page by now, so an action naming one that isn't names a widget no version
@@ -319,10 +307,7 @@ export function createStateApplication(dependencies) {
       runtime.currentRevision = priorCurrentRevision;
       runtime.currentStamp = priorCurrentStamp;
       stateSignoff(getSignoffDeclared());
-      setClaimUpdateSources(priorClaimUpdateSources);
-      setClaimsHeld(priorClaimsHeld);
-      setAgentTurnClosed(priorAgentTurnClosed);
-      setClaimingSession(priorClaimingSession);
+      restoreClaimState();
       if (willActivate) location.reload();
       throw error;
     }

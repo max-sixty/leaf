@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf import conversation as conversation_model
 from leaf import events as events_model
-from leaf import rendering as rendering_model
+from leaf import exporting as exporting_model
 from playwright.sync_api import expect
 from render_support import (
     PANEL_PAGE,
@@ -489,7 +489,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         },
     )
     out = tmp_path / "copy.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")

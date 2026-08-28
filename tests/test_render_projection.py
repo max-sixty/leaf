@@ -13,7 +13,7 @@ from leaf import events as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
+from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import validation as validation_model
@@ -1157,7 +1157,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     states one: the number is not the subject, the bound is.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(rendering_model, "SERVED_TIMEOUT_MS", 1500)
+    monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for n in (1, 2):
@@ -1179,7 +1179,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Stalls)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        failures = rendering_model.render_version(
+        failures = render_gate_model.render_version(
             browser,
             f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
         )
@@ -1225,22 +1225,22 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
         return url.replace("v1.html", f"v{n}.html")
 
     # v2 says nothing about either decision; both stand, and nothing is reported.
-    assert rendering_model.render_version(browser, stamp(2, REPLAYED_PAGE)) == []
+    assert render_gate_model.render_version(browser, stamp(2, REPLAYED_PAGE)) == []
 
     # v3 honors both: the pick authored, the card in its dragged-to column.
     honored = REPLAYED_PAGE.replace('id="opt-shim"', 'id="opt-shim" chosen')
     honored = honored.replace(IMPORTER_CARD, "").replace(
         'label="Done">', f'label="Done">{IMPORTER_CARD}'
     )
-    assert rendering_model.render_version(browser, stamp(3, honored)) == []
+    assert render_gate_model.render_version(browser, stamp(3, honored)) == []
 
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with rendering_model.preview_source_server(
+    with render_gate_model.preview_source_server(
         d, contradicted.encode(), 4
     ) as preview_url:
-        failures = rendering_model.render_version(browser, preview_url)
+        failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
     assert any("id=work" in f and "card-importer" in f for f in failures), failures
@@ -1315,7 +1315,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         if widget == "ab-pick"
     } == {("selection", "choose"), ("completion", "answer")}
     assert errors == []
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
 
 def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
@@ -1617,7 +1617,7 @@ def test_the_render_gate_catches_a_relative_apply_action(
             },
         )
 
-    failures = rendering_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url)
 
     tail = (
         ". Replay lays every standing action over the state they already "
@@ -1644,7 +1644,7 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     url = serve(drifting_widget(tmp_path, monkeypatch))
 
     covered = [
-        f for f in rendering_model.render_version(browser, url) if "same place" in f
+        f for f in render_gate_model.render_version(browser, url) if "same place" in f
     ]
 
     assert covered and all("drift-note" in f for f in covered), covered
@@ -1789,7 +1789,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         late = f"http://127.0.0.1:{httpd.server_address[1]}/versions/v1.html?t={TOKEN}"
-        failures = rendering_model.render_version(browser, late)
+        failures = render_gate_model.render_version(browser, late)
     finally:
         httpd.shutdown()
     # The window first, because the gate's verdict on a window that never opened says
@@ -2232,14 +2232,14 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             "detail": {},
         },
     )
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
     hide = "[data-lf-retired] { display: none; }"
     vendored = serve.page_dir / "theme.css"
     css = vendored.read_text()
     assert css.count(hide) == 1
     vendored.write_text(css.replace(hide, ""))
-    failures = rendering_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url)
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -2257,7 +2257,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             upgrade_line + '\n      this.setAttribute("data-lf-state", "shelve");',
         )
     )
-    failures = rendering_model.render_version(browser, url)
+    failures = render_gate_model.render_version(browser, url)
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure

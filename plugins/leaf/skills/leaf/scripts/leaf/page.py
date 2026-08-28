@@ -18,7 +18,6 @@ from .files import (
     revision_path,
     version_descriptors,
 )
-from .http import presence
 from .passages import enclosing_of, page_passages
 from .projection import (
     canonical_updates,
@@ -31,6 +30,7 @@ from .projection import (
 from .registry import described, require_registry
 from .revisioning import activate_source
 from .schema import GUIDANCE_DIR
+from .served_state import presence
 from .service import PageTransaction, running_server, unacknowledged
 from .validation import thread_state
 

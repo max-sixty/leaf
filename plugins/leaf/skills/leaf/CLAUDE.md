@@ -2222,7 +2222,7 @@ A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
 The named JavaScript exports in `leaf/render-checks.js`, invoked by
-`leaf/render_checks.py` and composed by `leaf/rendering.py`, each answer one failure
+`leaf/render_checks.py` and composed by `leaf/render_gate.py`, each answer one failure
 class. The served module imports the public widget API statically, so the JavaScript
 parser and module loader validate its syntax, dependencies, and named exports.
 `coveredWords` is reexported from the import-free `render-checks-standalone.js`, which

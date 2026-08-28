@@ -200,7 +200,7 @@ is written over, and a ring has two.
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
-`leaf.rendering.render_version`, not reproduce one of its probes. Test a helper directly
+`leaf.render_gate.render_version`, not reproduce one of its probes. Test a helper directly
 only when the helper itself carries a contract that would otherwise be hard to
 diagnose, such as the traffic wait reaching its deadline.
 

@@ -32,7 +32,9 @@ The main owners are:
 - `passages`: the file-side text reading and anchor capture;
 - `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
   and standalone export;
-- `data`, `media`, and `publishing`: page-bound inputs and deployment outputs.
+- `data` and `data_contracts`: typed snapshot storage, commands, bindings, and
+  registry-contract validation;
+- `media` and `publishing`: page-bound media and deployment outputs.
 
 Do not put domain logic back into `interact.py` or branch across these owners in
 the CLI.

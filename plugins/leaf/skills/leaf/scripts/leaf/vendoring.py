@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .data import data_contract_errors, page_data_bindings, read_data_store
+from .data import read_data_store
+from .data_contracts import data_contract_errors, page_data_bindings
 from .event_log import flocked, now_iso, read_events
 from .files import (
     json_bytes,

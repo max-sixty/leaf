@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import NamedTuple, Protocol
 
 from .asks import page_asks, thread_asks
-from .data import measurement_lag_entries, page_data_binding_inventory, read_data
+from .data import read_data
+from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .event_contracts import thread_state
 from .events import (
     bare_reaction,

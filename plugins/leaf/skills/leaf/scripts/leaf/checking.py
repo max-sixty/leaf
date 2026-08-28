@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
+from leaf.data import empty_data, read_data_store
+from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.event_log import flocked, read_events
 from leaf.files import list_revisions, revision_path
 from leaf.projection import record_lag, state_projection

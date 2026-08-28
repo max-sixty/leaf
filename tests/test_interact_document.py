@@ -37,6 +37,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
@@ -2393,7 +2394,7 @@ def test_data_set_validates_the_json_value_it_writes(page_dir):
         contract="build-map",
     )
 
-    with pytest.raises(data_model.DataError, match="value is invalid"):
+    with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
 
     assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
@@ -2415,11 +2416,11 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
     with pytest.raises(
-        data_model.DataError, match="recursive reference did not terminate"
+        data_contracts_model.DataError, match="recursive reference did not terminate"
     ):
         data_model.cmd_data_set(page_dir, "loop", {})
 
-    assert data_model.data_contract_errors(
+    assert data_contracts_model.data_contract_errors(
         {
             "revision": 1,
             "sources": {
@@ -2467,14 +2468,14 @@ def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
     """
     (page_dir / "data.json").write_text(stored)
 
-    with pytest.raises(data_model.DataError, match=message):
+    with pytest.raises(data_contracts_model.DataError, match=message):
         data_model.read_data_store(page_dir)
 
 
 def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
     (page_dir / "data.json").write_bytes(b"\xff")
 
-    with pytest.raises(data_model.DataError, match="invalid JSON"):
+    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
         data_model.read_data_store(page_dir)
 
 

@@ -293,6 +293,7 @@ import {
   reachedForWords,
   relabel,
   reserve,
+  WORKS,
   worksInside,
 } from "./runtime/widget-elements.js";
 import {
@@ -1309,12 +1310,7 @@ function syncFloats() {
     const box = composer.getBoundingClientRect();
     placeComposer(box.left, box.top);
   }
-  const anchor = fabAnchorAt();
-  if (anchor?.quote && pageSelection()) updateFab();
-  else if (anchor) {
-    const box = fab.getBoundingClientRect();
-    placeClear(fab, box.left, box.top);
-  }
+  refreshFab();
 }
 function setPanel(open) {
   // Closing while focus is inside would drop it on body, the user's place
@@ -1401,19 +1397,22 @@ const { landTyping, pageSelection, selectionAnchor, snapSelection } =
 
 const {
   BANNER_CLEAR,
+  activateVisual,
   beside,
+  dismissFab,
   fabAnchorAt,
   openOnItem,
   openOnVisual,
   placeClear,
-  raiseOnItem,
   placeComposer,
+  raiseOnItem,
+  refreshFab,
   showFab,
   standDown,
   updateFab,
-  visualAt,
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
+  anchorLabel: (...args) => anchorLabel(...args),
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
@@ -1425,6 +1424,8 @@ const {
   hideComposer: () => hideComposer(),
   hideReference: () => reference.show(false, false),
   inChrome: (node) => inChrome(node),
+  keylineEl,
+  leavePageControl: () => letGo(),
   markAt,
   noteClass: () => NOTE,
   openComposer,
@@ -1432,7 +1433,9 @@ const {
   pageRange: (...args) => pageRange(...args),
   pageScroller,
   pageSelection,
+  pageText: (...args) => pageText(...args),
   pageWords: (...args) => pageWords(...args),
+  paintAnchors,
   paintHere,
   paintStanding: (...args) => conversationRuntime.paintStanding(...args),
   panel,
@@ -1442,15 +1445,18 @@ const {
   reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
+  resolveAnchor: (...args) => resolveAnchor(...args),
   selectionAnchor,
   setReact: (on) => setReact(on),
   showThread,
   showVersionMenu,
   snapSelection,
-  tagsDeclaring,
+  shownParts,
+  shownRect: (...args) => shownRect(...args),
   takesLetters: (node) => takesLetters(node),
   versionMenuIsOpen,
-  visualPartAt: (...args) => visualPartAt(...args),
+  visualActionAnchor: (...args) => visualActionAnchor(...args),
+  visualAt: (...args) => visualAt(...args),
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
@@ -1890,6 +1896,12 @@ const letGo = () => document.body.focus({ preventScroll: true });
 function rung() {
   const active = document.activeElement;
   const holding = Boolean(active) && active !== document.body;
+  if (fabAnchorAt())
+    return {
+      says: "close actions",
+      does: "Close the reaction and comment actions",
+      out: dismissFab,
+    };
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
@@ -2144,7 +2156,6 @@ const {
   EVERYTHING,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
-  beside,
   claimsEsc,
   commentsReveal: () => COMMENTS.reveal(),
   currentRevision: () => runtime.currentRevision,
@@ -2164,8 +2175,6 @@ const {
   reactionVocabulary: () => registry.$reactions?.tokens,
   saying,
   showFab,
-  shownBox,
-  shownRect: (...args) => shownRect(...args),
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
@@ -3277,6 +3286,12 @@ function visualPartAt(...args) {
 function visualPartLabel(...args) {
   return anchorRuntime.visualPartLabel(...args);
 }
+function visualAt(...args) {
+  return anchorRuntime.visualAt(...args);
+}
+function visualActionAnchor(...args) {
+  return anchorRuntime.visualActionAnchor(...args);
+}
 function resolveAnchor(...args) {
   return anchorRuntime.resolveAnchor(...args);
 }
@@ -3538,6 +3553,8 @@ anchorRuntime = createAnchors({
   DATUM,
   SCROLL,
   TEXT_BLOCK,
+  actionAnchor: fabAnchorAt,
+  activateVisual,
   aimBox,
   aimIsOn,
   aimedItem,
@@ -3576,6 +3593,7 @@ anchorRuntime = createAnchors({
   quoteFrom,
   queueLegend,
   rangeOf,
+  refreshAction: refreshFab,
   registry,
   reveal,
   runtime,
@@ -3588,6 +3606,7 @@ anchorRuntime = createAnchors({
   threadsBox,
   under,
   withdraw,
+  worksSelector: WORKS,
 });
 const { VIEW_KEY, ITEM, NOTE, marked, placed, pointer } = anchorRuntime;
 

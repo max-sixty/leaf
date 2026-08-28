@@ -59,8 +59,9 @@ export async function loadShadowRules() {
 
 /* A marked passage is painted, not wrapped (see paintAnchors), so its rules reach it
    through the highlight registry — which styles glyphs, so the underline stands in for
-   a border. Stated once and installed twice: in the document and in every declared
-   shadow root, where document highlight rules cannot reach. */
+   a border. The active visual is an element paint from the same pass. Both are stated
+   once and installed twice: in the document and in every declared shadow root, where
+   document rules cannot reach. */
 export const MARK_RULES = `
   ::highlight(lf-mark) { background-color: var(--mark);
     text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
@@ -70,7 +71,9 @@ export const MARK_RULES = `
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
   ::highlight(lf-pending) { background-color: color-mix(in srgb, var(--accent) 20%, transparent);
     text-decoration: underline 2px solid var(--accent); text-underline-offset: 3px; }
-  ::highlight(lf-react) { background-color: var(--react); }`;
+  ::highlight(lf-react) { background-color: var(--react); }
+  .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
+    cursor: pointer; }`;
 
 // The stage an x-shadow widget renders into. A module never calls attachShadow itself,
 // because the marks the runtime paints come from a registry that is the document's while

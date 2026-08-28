@@ -43,7 +43,9 @@ export function createAim({
     if (pointerAt().x < 0) return null;
     const at = document.elementFromPoint(pointerAt().x, pointerAt().y);
     if (!at || inChrome(at)) return null;
-    const visual = visualAt(at);
+    // The explicit Alt-click aim claims a declared part even inside a native control;
+    // plain activation and keyboard proxies use visualAt's unclaimed-only default.
+    const visual = visualAt(at, { unclaimed: false });
     if (visual?.part) return { visual };
     const item = itemAt(at);
     return item ? { item } : null;

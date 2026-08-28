@@ -2640,7 +2640,11 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
 
     walks = {}
     for settled in (False, True):
-        page.evaluate("() => document.activeElement?.blur()")
+        # Start each walk from the page rather than from the last control in the
+        # previous walk. Blurring preserves that control as the sequential focus
+        # starting point, which only happened to wrap before the page gained a visual
+        # reaction proxy as its first Tab stop.
+        page.evaluate("() => document.body.focus()")
         trail = []
         for _ in range(24):
             page.keyboard.press("Tab")

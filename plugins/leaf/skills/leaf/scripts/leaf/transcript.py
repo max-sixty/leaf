@@ -8,7 +8,8 @@ from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label, revision_path
 from leaf.passages import enclosing_of
 from leaf.projection import page_projection, record_lag
-from leaf.registry import load_registry, reaction_tokens
+from leaf.registry.reactions import reaction_tokens
+from leaf.registry.storage import load_registry
 from leaf.structure import parse_revision
 
 

@@ -39,7 +39,8 @@ from .projection import (
     page_projection,
     state_projection,
 )
-from .registry import RegistryError, layer_generation, load_registry
+from .registry.contract import RegistryError
+from .registry.storage import layer_generation, load_registry
 from .service import claim_path
 from .thread_context import thread_roots, thread_structure
 

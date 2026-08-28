@@ -6,7 +6,7 @@ from pathlib import Path
 from leaf.data import read_data_store
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
-from leaf.registry import require_registry
+from leaf.registry.storage import require_registry
 from leaf.structure import _StructParser, parse_revision, parse_structure
 from leaf.thread_context import thread_structure
 

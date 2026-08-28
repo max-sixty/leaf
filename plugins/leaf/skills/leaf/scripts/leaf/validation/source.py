@@ -7,7 +7,8 @@ from leaf.data import empty_data, read_data_store
 from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.files import revision_path
 from leaf.projection import record_lag, state_projection
-from leaf.registry import RegistryError, load_registry
+from leaf.registry.contract import RegistryError
+from leaf.registry.storage import load_registry
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, PAGE_CSP, parse_structure
 from leaf.styles import (

@@ -33,7 +33,7 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
-from leaf import registry as registry_model
+from leaf.registry import storage as registry_storage
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
@@ -112,7 +112,7 @@ def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
 
 
 def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir):
-    kinds = registry_model.load_registry(page_dir)["$events"]["kinds"]
+    kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
@@ -126,7 +126,7 @@ def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir)
 
 def test_choose_requires_an_id(page_dir):
     # Actions name their widget by id, so an interactive group can't go without one.
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
@@ -138,7 +138,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
     # The registry marks a specimen's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-specimen id="sp" label="a decision">'
         '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
@@ -153,7 +153,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
 def test_an_ask_region_frames_exactly_one_request(page_dir):
     """A broad Ask has one source of liveness and state; zero leaves navigation
     pointing at nothing, while two make its answer and roll-up ownership ambiguous."""
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
@@ -203,7 +203,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
 ):
     """A settled group needs an id for its disclosure state. Once the whole
     unreferenced group leaves, its ids are advisory rather than an error."""
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     assert "'id' is a dependency of 'settled'" in " ".join(
         fragment_errors(
             '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
@@ -237,7 +237,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
 
 
 def test_registry_examples_validate(page_dir):
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     assert any(
         tag.startswith("lf-") and "x-example" in entry
         for tag, entry in registry.items()
@@ -249,7 +249,7 @@ def test_registry_examples_validate(page_dir):
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     registry["lf-diff"]["x-example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )

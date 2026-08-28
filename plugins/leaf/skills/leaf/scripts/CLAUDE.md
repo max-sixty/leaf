@@ -26,8 +26,8 @@ The main owners are:
 - `session` and `hooks`: wait delivery and host lifecycle;
 - `presence`: page, claim, and neighboring-leaf presence readings;
 - `served_state` and `http`: browser-facing state projection and HTTP transport;
-- `registry/`: registry storage plus shared, layer-wide, widget, and state
-  vocabulary contracts;
+- `registry/`: registry vocabulary contracts, composition validation, storage,
+  and page-facing readings;
 - `layer`: package discovery and layer composition;
 - `packages`: package authoring commands and filesystem safety gates;
 - `vendoring`: page initialization, layer transitions, and atomic installation;
@@ -77,6 +77,12 @@ when adding a command.
 The registry is the common contract with the browser. Server-side event gates,
 state folds, catalog output, package checks, and markup validation must consume
 its declarations without a widget-name list.
+
+Within `registry/`, `contract` owns shared schema helpers and layer readings,
+`layer`, `widgets`, and `state` own their complete vocabulary contracts,
+`validation` composes those gates, `storage` owns the vendored-file cache and
+page lookup, and `reactions` owns reaction descriptions. Import the owner
+directly; the package initializer is only a marker.
 
 Within `render_gate/`, `models` owns the values passed between phases, `scheme`
 owns one browser/color lifecycle, `readings` owns raw probe results, `reporting`

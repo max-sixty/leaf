@@ -20,7 +20,9 @@ from .event_log import (
 from .events import undo_error
 from .files import list_revisions, version_revisions
 from .passages import active_enclosing
-from .registry import RegistryError, load_registry, reaction_tokens
+from .registry.contract import RegistryError
+from .registry.reactions import reaction_tokens
+from .registry.storage import load_registry
 from .schema import MESSAGE_KINDS
 from .service import PageTransaction
 from .structure import parse_revision, revision_review_mode

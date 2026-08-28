@@ -13,7 +13,7 @@ from .projection import (
     page_projection,
     rewritten_bodies,
 )
-from .registry import require_registry
+from .registry.storage import require_registry
 
 
 def work_claim_revision(claim: dict, _events: list) -> int:

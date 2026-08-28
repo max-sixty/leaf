@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
-from leaf import registry as registry_model
+from leaf.registry import storage as registry_storage
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
@@ -218,7 +218,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # the DOM with no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
         page.locator(".lf-comments").click()
-        registry = registry_model.load_registry(serve.page_dir)
+        registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         for carried in [e for e in events if e.get("markup")]:
             for wid, rec in structure_model.parse_structure(

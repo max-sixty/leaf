@@ -51,7 +51,8 @@ from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
-from leaf import registry as registry_model
+from leaf.registry import contract as registry_contract
+from leaf.registry import storage as registry_storage
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
 from leaf import server as server_model
@@ -717,7 +718,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     events = events_model.read_events(page_dir)
     assert (
         event_contracts_model.action_contract_error(
-            page_dir, events[-1], events, registry_model.require_registry(page_dir)
+            page_dir, events[-1], events, registry_storage.require_registry(page_dir)
         )
         is None
     )
@@ -2630,8 +2631,8 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
     files_model.write_json(claimed / "registry.json", registry)
     # Without this the test passes for the wrong reason: it has to be a page
     # whose registry the current layer really does refuse.
-    with pytest.raises(registry_model.RegistryError):
-        registry_model.load_registry(claimed)
+    with pytest.raises(registry_contract.RegistryError):
+        registry_storage.load_registry(claimed)
 
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)

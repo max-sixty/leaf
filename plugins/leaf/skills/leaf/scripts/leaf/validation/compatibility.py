@@ -3,12 +3,9 @@
 from pathlib import Path
 
 from leaf import event_contracts
-from leaf.registry import (
-    RegistryError,
-    merge_layer_entries,
-    read_registry_entries,
-    validate_registry,
-)
+from leaf.registry.contract import RegistryError, read_registry_entries
+from leaf.registry.layer import merge_layer_entries
+from leaf.registry.validation import validate_registry
 from leaf.structure import parse_revision, parse_structure
 from leaf.thread_context import thread_structure
 

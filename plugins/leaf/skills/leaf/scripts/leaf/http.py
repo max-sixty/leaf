@@ -27,7 +27,7 @@ from .files import (
     write_json,
 )
 from .locations import path_is_within
-from .registry import layer_generation
+from .registry.storage import layer_generation
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (

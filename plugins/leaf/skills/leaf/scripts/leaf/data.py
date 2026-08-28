@@ -9,7 +9,8 @@ import click
 from .data_contracts import DataError, page_data_bindings, payload_error
 from .event_log import now_iso
 from .files import write_json
-from .registry import is_aware_datetime, require_registry
+from .registry.contract import is_aware_datetime
+from .registry.storage import require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 

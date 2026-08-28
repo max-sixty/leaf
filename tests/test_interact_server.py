@@ -40,7 +40,7 @@ from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import publishing as publishing_model
-from leaf import registry as registry_model
+from leaf.registry import storage as registry_storage
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
@@ -1027,7 +1027,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
         "attempt": "attempt-flight-001",
     }
     results = []
-    layer = registry_model.layer_generation(page_dir)
+    layer = registry_storage.layer_generation(page_dir)
 
     def post():
         # A real retry already carries the layer of the attempt it is retrying. The

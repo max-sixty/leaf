@@ -11,7 +11,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
-from leaf import registry as registry_model
+from leaf.registry import storage as registry_storage
 from leaf import schema as schema_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -315,7 +315,7 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
         cli_model.cli, ["page", "init", str(serve.page_dir)]
     )
     assert initialized.exit_code == 0, initialized.output
-    new_layer = registry_model.layer_generation(serve.page_dir)
+    new_layer = registry_storage.layer_generation(serve.page_dir)
     assert new_layer != old_layer
     replacement = hosting_model.LeafHTTPServer(
         address, http_model.handler_for(serve.page_dir, TOKEN)
@@ -467,7 +467,7 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
         upgraded=False,
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
-    old_layer = registry_model.layer_generation(serve.page_dir)
+    old_layer = registry_storage.layer_generation(serve.page_dir)
 
     old_server = serve.httpd
     address = old_server.server_address
@@ -477,7 +477,7 @@ def test_a_runtime_cannot_adopt_a_new_registry_while_it_is_loading(browser, serv
         cli_model.cli, ["page", "init", str(serve.page_dir)]
     )
     assert initialized.exit_code == 0, initialized.output
-    assert registry_model.layer_generation(serve.page_dir) != old_layer
+    assert registry_storage.layer_generation(serve.page_dir) != old_layer
     replacement = hosting_model.LeafHTTPServer(
         address, http_model.handler_for(serve.page_dir, TOKEN)
     )

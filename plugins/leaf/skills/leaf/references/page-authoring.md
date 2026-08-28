@@ -140,9 +140,9 @@ suggestion, and a suggestion does not propose a widget's state.
 
 ## Honoring reader state
 
-The event log outranks authored markup. The browser replays every standing action
-onto later revisions, but the source must eventually record the decision so the
-page reads correctly without the log:
+The event log outranks authored markup. The server projects every standing action
+and the browser replays that view onto later revisions, but the source must
+eventually record the decision so the page reads correctly without the log:
 
 - Mark every picked option `chosen`.
 - Carry an option a reader wrote in the group's last cell into the group as an

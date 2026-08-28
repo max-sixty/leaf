@@ -7,12 +7,20 @@ from leaf.events import (
     action_rests_on,
     action_retracted,
     anchored_ids,
+    awaits_agent,
+    bare_reaction,
+    build_threads,
+    is_reaction,
     note_settlements,
     report_settlements,
     retractions,
+    seat_root,
+    seats_with_agent,
+    spoken_turns,
     taken_back,
     thread_roots,
     thread_structure,
+    undo_error,
 )
 from leaf.passages import EMPTY, collapse, enclosing_of, page_passages, spoken
 from leaf.registry import retirement_slots, state_specs
@@ -851,7 +859,11 @@ def page_awaiting_values(html, parser, projection, spk, registry: dict) -> dict:
 
 
 def thread_ask_projection(
-    events: list, registry: dict, settled: set
+    events: list,
+    registry: dict,
+    settled: set,
+    *,
+    prepared: tuple | None = None,
 ) -> tuple[list, dict]:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
@@ -865,9 +877,14 @@ def thread_ask_projection(
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
-    structure = thread_structure(events)
-    records, byid, spk = [], {}, {}
-    thread_of = thread_roots(events)
+    if prepared is None:
+        structure = thread_structure(events)
+        projection = None
+        records, byid, spk = [], {}, {}
+        thread_of = thread_roots(events)
+    else:
+        projection, byid, spk, thread_of, structure = prepared
+        records = []
     for e in events:
         if e["kind"] not in ("comment", "reply"):
             continue
@@ -875,10 +892,12 @@ def thread_ask_projection(
         if not markup or thread_of[e["id"]] in settled:
             continue
         frag = structure.fragments[e["id"]]
-        byid.update(frag.by_id)
-        spk.update(spoken(markup, registry))
+        if prepared is None:
+            byid.update(frag.by_id)
+            spk.update(spoken(markup, registry))
         records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
-    projection = state_projection(events, byid, spk, registry, None, {})
+    if projection is None:
+        projection = state_projection(events, byid, spk, registry, None, {})
 
     asks, values = page_ask_projection(
         [rec for _thread, rec in records],
@@ -899,3 +918,294 @@ def thread_ask_projection(
 
 def thread_asks(events: list, registry: dict, settled: set) -> list:
     return thread_ask_projection(events, registry, settled)[0]
+
+
+def _browser_projection(
+    projection: StateProjection,
+    *,
+    scope: str,
+    within: dict,
+    floors: dict,
+) -> dict:
+    """Serialize one declared projection without making the wire its authority."""
+    entries = []
+    for coordinate, (event, spec) in projection.classified.values():
+        restated = []
+        if event["kind"] == "action":
+            restated = [
+                identity
+                for identity in action_rests_on(event, within)
+                if floors.get(identity, 0) > event["revision"]
+            ]
+        entries.append(
+            {
+                "event": event,
+                "coordinate": list(coordinate),
+                "value": folded_facet(event, spec) if spec.get("record") else None,
+                "scope": scope,
+                "restated": restated,
+            }
+        )
+    return {
+        "entries": entries,
+        "actions": [event["id"] for event, _spec in projection.actions.values()],
+        "reports": [
+            event["id"]
+            for standing in projection.reports.values()
+            for event, _spec in standing
+        ],
+        "desired": [event["id"] for event, _spec in projection.desired.values()],
+    }
+
+
+def _thread_projection(events: list, registry: dict):
+    structure = thread_structure(events)
+    roots = thread_roots(events)
+    byid, spk = {}, {}
+    for event in events:
+        if markup := event.get("markup"):
+            fragment = structure.fragments[event["id"]]
+            byid.update(fragment.by_id)
+            spk.update(spoken(markup, registry))
+    projection = state_projection(events, byid, spk, registry, None, floors={})
+    return projection, byid, spk, roots, structure
+
+
+def _thread_awaits_reader(
+    thread: dict,
+    registry: dict,
+    awaiting: dict[str, bool],
+    structure,
+) -> bool:
+    if thread["resolved"]:
+        return False
+    turns = spoken_turns(thread)
+    if not turns or turns[-1]["author"] != "claude":
+        return False
+    last = turns[-1]
+    if last["kind"] == "reply":
+        fragment = structure.fragments.get(last["id"])
+        asks = [
+            rec["attrs"].get("id")
+            for rec in (fragment.lf_elements if fragment else [])
+            if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+        ]
+        structural = (
+            any(awaiting.get(identity, False) for identity in asks) if asks else None
+        )
+        if structural is False or (structural is None and not last.get("awaits")):
+            return False
+    tokens = registry.get("$reactions", {}).get("tokens", {})
+    return not any(
+        is_reaction(message)
+        and message["author"] == "user"
+        and message.get("parent") == last["id"]
+        and (tokens.get(message["token"]) or {}).get("settles")
+        for message in thread["msgs"]
+    )
+
+
+def _browser_conversation(
+    events: list, registry: dict, threads: dict
+) -> tuple[dict, StateProjection]:
+    settled = {identity for identity, thread in threads.items() if thread["resolved"]}
+    prepared = _thread_projection(events, registry)
+    projection, _byid, _spk, _thread_roots_by_message, structure = prepared
+    asks, awaiting = thread_ask_projection(events, registry, settled, prepared=prepared)
+    rendered_threads = []
+    for thread in threads.values():
+        rendered_threads.append(
+            {
+                **thread,
+                "awaits_agent": awaits_agent(thread),
+                "awaits_reader": _thread_awaits_reader(
+                    thread, registry, awaiting, structure
+                ),
+                "bare_reaction": bare_reaction(thread),
+                "seat": seat_root(thread),
+            }
+        )
+    return (
+        {
+            "projection": _browser_projection(
+                projection, scope="conversation", within={}, floors={}
+            ),
+            "asks": {"reader": asks, "unanswered": asks, "awaiting": awaiting},
+            "threads": rendered_threads,
+            "done": [event for event in events if event["kind"] == "done"],
+        },
+        projection,
+    )
+
+
+def _browser_document(
+    html: str,
+    events: list,
+    registry: dict,
+    revision: int,
+    threads: dict,
+    *,
+    prepared: tuple | None = None,
+) -> tuple[dict, StateProjection]:
+    projection, parser, spk = prepared or page_projection(
+        html, events, registry, revision
+    )
+    passages = page_passages(html, registry, decisions(projection.actions, registry))
+    dropped = set(passages.retired) | set(passages.gone)
+    reader_asks, reader_awaiting = page_ask_projection(
+        parser,
+        projection,
+        parser.by_id,
+        spk,
+        registry,
+        dropped,
+        seats_with_agent(threads),
+    )
+    unanswered_asks, unanswered_awaiting = page_ask_projection(
+        parser,
+        projection,
+        parser.by_id,
+        spk,
+        registry,
+        dropped,
+        set(),
+    )
+    within = enclosing_of(spk)
+    floors = retractions(events, revision)
+    return (
+        {
+            "revision": revision,
+            "projection": _browser_projection(
+                projection,
+                scope="document",
+                within=within,
+                floors=floors,
+            ),
+            "asks": {
+                "reader": reader_asks,
+                "unanswered": unanswered_asks,
+                "awaiting": reader_awaiting,
+                "unanswered_awaiting": unanswered_awaiting,
+            },
+        },
+        projection,
+    )
+
+
+def _browser_undo_candidates(
+    events: list,
+    within: dict,
+    document_projection: StateProjection,
+    conversation_projection: StateProjection,
+) -> list[dict]:
+    classified = {
+        **document_projection.classified,
+        **conversation_projection.classified,
+    }
+    candidates = []
+    withdrawn = taken_back(events)
+    for event in reversed(events):
+        if (
+            event.get("author") != "user"
+            or event["kind"] == "undo"
+            or event["id"] in withdrawn
+        ):
+            continue
+        if undo_error({"undoes": event["id"]}, events, within):
+            continue
+        item = {"event": event}
+        if event["kind"] == "action" and event["id"] in classified:
+            coordinate, _entry = classified[event["id"]]
+            item["coordinate"] = list(coordinate)
+        candidates.append(item)
+    return candidates
+
+
+def browser_state(
+    documents: dict[int, str],
+    events: list,
+    registry: dict,
+    active_revision: int,
+    claims: list,
+    active: dict,
+    view_revisions: set[int],
+) -> dict:
+    """The browser's derived reading of one transaction-consistent page snapshot.
+
+    Documents and the append-only log remain the authorities. This object is an
+    ephemeral transport projection, keyed by the exact log sequence and revisions
+    from which it was read.
+    """
+    through_seq = events[-1]["seq"] if events else 0
+    active_html = documents[active_revision]
+    active_projection, active_parser, active_spk = page_projection(
+        active_html, events, registry, active_revision
+    )
+    active_within = enclosing_of(active_spk)
+    threads = build_threads(events, active_within)
+    conversation, conversation_projection = _browser_conversation(
+        events, registry, threads
+    )
+
+    views = {}
+    for revision in sorted(view_revisions):
+        html = documents[revision]
+        document, projection = _browser_document(
+            html,
+            events,
+            registry,
+            revision,
+            threads,
+            prepared=(active_projection, active_parser, active_spk)
+            if revision == active_revision
+            else None,
+        )
+        classified = {
+            **projection.classified,
+            **conversation_projection.classified,
+        }
+        coverage = []
+        for event in events:
+            if event["kind"] in {"action", "report"}:
+                classified_entry = classified.get(event["id"])
+            elif event["kind"] == "undo":
+                classified_entry = classified.get(event["undoes"])
+            else:
+                continue
+            coverage.append(
+                {
+                    "event": event,
+                    "coordinate": (
+                        list(classified_entry[0]) if classified_entry else None
+                    ),
+                }
+            )
+        published_at = next(
+            (
+                event["ts"]
+                for event in reversed(events)
+                if event["kind"] == "note" and event["revision"] == revision
+            ),
+            active.get("activated_at") if active_revision == revision else None,
+        )
+        views[str(revision)] = {
+            "basis": {"revision": revision, "through_seq": through_seq},
+            "document": document,
+            "updates": canonical_updates(projection, claims, threads, events),
+            "undo": _browser_undo_candidates(
+                events, active_within, projection, conversation_projection
+            ),
+            "coverage": coverage,
+            "published_at": published_at,
+        }
+    return {
+        "basis": {"through_seq": through_seq},
+        "views": views,
+        "conversation": conversation,
+        "receipts": [event for event in events if event.get("attempt")],
+        "version_notes": {
+            str(event["version"]): event["text"]
+            for event in events
+            if event["kind"] == "note"
+        },
+    }

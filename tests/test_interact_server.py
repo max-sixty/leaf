@@ -696,6 +696,172 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
+def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
+    """The browser receives a reading, not a log it must interpret again.
+
+    Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
+    name the event accepted by this same POST response and the same sequence boundary.
+    """
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+    sent = {
+        "kind": "action",
+        "revision": 1,
+        "widget": "delivery",
+        "action": "choose",
+        "detail": {"options": ["delivery-now"]},
+        "attempt": "attempt-browser-view-1",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+
+    assert status == 200, body
+    state = json.loads(body)["state"]
+    accepted = state["events"][-1]
+    browser = state["browser"]
+    view = browser["views"]["1"]
+    [entry] = view["document"]["projection"]["entries"]
+    assert browser["basis"] == {"through_seq": accepted["seq"]}
+    assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
+    assert browser["receipts"][-1]["id"] == accepted["id"]
+    assert entry["event"]["id"] == accepted["id"]
+    assert entry["coordinate"] == ["delivery", "delivery", "selection"]
+    assert entry["value"] == ["delivery-now"]
+    assert view["document"]["projection"]["actions"] == [accepted["id"]]
+    assert view["undo"][0]["event"]["id"] == accepted["id"]
+    assert view["coverage"] == [
+        {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
+    ]
+
+
+def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):
+    publish(page_dir)
+
+    status, body = fetch(f"{server}/api/state?revision=999")
+
+    assert status == 400
+    assert json.loads(body) == {"error": "unknown view revision r999"}
+
+
+def test_an_event_with_an_unknown_view_revision_is_not_appended(server, page_dir):
+    publish(page_dir)
+    before = event_model.read_events(page_dir)
+    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    address = urllib.parse.urlsplit(server)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    event = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "This request cannot receive a view for its claimed revision.",
+        "attempt": "attempt-unknown-view",
+    }
+
+    connection.request(
+        "POST",
+        f"/api/event?t={TOKEN}",
+        body=json.dumps(event),
+        headers={
+            "Content-Type": "application/json",
+            "Leaf-Layer": layer,
+            "Leaf-View-Revision": "999",
+        },
+    )
+    response = connection.getresponse()
+    body = json.loads(response.read())
+    connection.close()
+
+    assert response.status == 400
+    assert body["error"] == "unknown view revision r999"
+    assert body["final"] is True
+    assert event_model.read_events(page_dir) == before
+
+
+def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
+    """A version diff compares with the state the live DOM has actually applied.
+
+    Later writes may land while its immutable base document is loading. The on-demand
+    view therefore names the already-observed sequence and projects no event beyond it.
+    """
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+
+    def choose(option, attempt):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": 1,
+                    "widget": "delivery",
+                    "action": "choose",
+                    "detail": {"options": [option]},
+                    "attempt": attempt,
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+        return json.loads(body)["state"]["events"][-1]
+
+    first = choose("delivery-now", "attempt-comparison-first")
+    choose("delivery-later", "attempt-comparison-later")
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={first['seq']}")
+
+    assert status == 200, body
+    browser = json.loads(body)["browser"]
+    assert set(browser["views"]) == {"1"}
+    view = browser["views"]["1"]
+    assert browser["basis"] == {"through_seq": first["seq"]}
+    assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
+    assert view["document"]["projection"]["desired"] == [first["id"]]
+
+
+def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
+    publish(page_dir)
+    latest = event_model.read_events(page_dir)[-1]["seq"]
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest + 1}")
+
+    assert status == 400
+    assert json.loads(body) == {
+        "error": f"view sequence {latest + 1} is newer than log sequence {latest}"
+    }
+
+
+def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
+    publish(page_dir, 1)
+    for version in (2, 3):
+        (page_dir / "versions" / f"v{version}.html").write_text(
+            PAGE.replace("<title>t</title>", f"<title>v{version}</title>")
+        )
+        publish(page_dir, version)
+
+    status, body = fetch(f"{server}/api/state?revision=1")
+
+    assert status == 200, body
+    state = json.loads(body)
+    assert state["active"]["revision"] == 3
+    assert set(state["browser"]["views"]) == {"1", "3"}
+
+
 def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     server, page_dir, monkeypatch
 ):

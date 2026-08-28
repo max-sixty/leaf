@@ -272,6 +272,10 @@ are not two tabs for a single reader unless they share a browser context.
 `Browser.new_page` creates an independent context; `one_reader` supplies one context
 for the tests whose subject is shared tab state.
 
+The static product-site session is the deliberate exception for semantic page state:
+it has no Python authority, so its illustrative gestures last for the current load and
+reset on reload. Do not make browser storage a durable event log for that exhibit.
+
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
 supplies the same language, charset, CSP, theme, module, and main-content shell to
 every specimen. Keep raw documents only when source structure is the subject: lint

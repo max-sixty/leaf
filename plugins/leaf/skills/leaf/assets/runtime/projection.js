@@ -36,7 +36,6 @@ export function createProjection(runtime, dependencies) {
     projectedParent,
     quoteFrom,
     reachScrollers,
-    reactionStanding,
     rememberPassageParts,
     removeOutbox,
     renderQuiet,
@@ -179,36 +178,24 @@ export function createProjection(runtime, dependencies) {
   const {
     compareProjected,
     foldedFacet,
-    retractedIds,
-    retractionFloors,
+    projectionFromView,
     standingState,
     stateProjection,
-    takenBack,
   } = createProjectionFold(runtime, {
     COLLAPSE,
-    containsAcross,
     domFacet,
     elementById,
-    inChrome,
     outbox,
-    stateCoordinate,
-    unitOf,
   });
 
   // One canonical current reading for action admission as for replay: the latest desired
   // action/report at an owner-unit-facet coordinate, falling back to the version's
   // captured authored facet. A gesture may already have changed the live DOM before it
   // calls sendAction, so eligibility never reads that mutable rendering.
-  function projectedFacet(
-    widget,
-    spec,
-    winners = stateProjection(runtime.currentRevision).desired,
-  ) {
+  function projectedFacet(widget, spec, winners = stateProjection().desired) {
     const coordinate = stateCoordinate(widget.id, widget.id, spec);
     const winner = winners.get(coordinate);
-    return winner
-      ? foldedFacet(winner.e, winner.spec.record)
-      : authoredFacets.get(coordinate);
+    return winner ? winner.value : authoredFacets.get(coordinate);
   }
 
   // x-awaits conditions normally name authored configuration attributes (choose,
@@ -284,6 +271,7 @@ export function createProjection(runtime, dependencies) {
       coordinate,
       localOrder: entry.order,
       e: { ...e, id: entry.localId },
+      value: foldedFacet(e, spec.record),
     };
     entry.projection = projection;
     committedProjection.set(coordinate, {
@@ -322,11 +310,7 @@ export function createProjection(runtime, dependencies) {
     if (!spec.record) return authoredMarkup.has(e.widget);
     const unit = unitOf(e, spec);
     const coordinate = stateCoordinate(e.widget, unit, spec);
-    return (
-      stateProjection(runtime.currentRevision, e.id).desired.has(coordinate) ||
-      authoredDetails.has(coordinate) ||
-      authoredMarkup.has(e.widget)
-    );
+    return authoredDetails.has(coordinate) || authoredMarkup.has(e.widget);
   }
 
   // The newest gesture of the reader's own that still stands and can still be taken off
@@ -336,20 +320,15 @@ export function createProjection(runtime, dependencies) {
   // `leaf resolve` is not theirs to undo — and never an undo itself, which is what makes
   // repeated presses a walk backwards instead of a toggle.
   function undoable() {
-    const withdrawn = takenBack();
-    for (let i = runtime.events.length - 1; i >= 0; i--) {
-      const e = runtime.events[i];
-      if (e.author !== "user" || e.kind === "undo" || withdrawn.has(e.id)) continue;
+    for (const candidate of runtime.view?.undo ?? []) {
+      const e = candidate.event;
       if (e.kind === "resolve" || e.kind === "unresolve") return e;
       // A reaction, while it is still a mark: a message with words in it is said rather
       // than unsaid, and a token someone has answered is a conversation now — the
       // reader's move is in the thread the answer opened. One standing on a resolved
       // thread paints nothing, so there is nothing to offer the press. The server
       // refuses the same three (undo_error), this being the offer and that the door.
-      if (e.token) {
-        if (reactionStanding(e)) return e;
-        continue;
-      }
+      if (e.token) return e;
       // On the version it was made against: a later version may have been written
       // around the decision, and a press that paints nothing is not one to offer. What
       // *hearing* such an undo owes is reconciliation's, and is not the same answer.
@@ -492,7 +471,7 @@ export function createProjection(runtime, dependencies) {
   // complete read has committed the coordinate that now represents them; rejected
   // entries leave only after their optimistic token no longer represents the DOM.
   function releaseProjectedOutbox() {
-    const projection = stateProjection(runtime.currentRevision);
+    const projection = stateProjection();
     let removed = false;
     for (const entry of [...outbox]) {
       if (!entry.answered || entry.event.kind !== "action") continue;
@@ -512,14 +491,15 @@ export function createProjection(runtime, dependencies) {
   // to a prior winner or the authored baseline.
   function projectionCoverage(projection) {
     let covered = 0;
-    for (const e of runtime.events) {
-      if (e.kind === "action" || e.kind === "report") {
-        if (projectionCommitted(projection, e)) covered += 1;
-      } else if (e.kind === "undo") {
-        const target = projection.classified.get(e.undoes);
-        if (!target || target.terminal || projectionCommitted(projection, target.e))
-          covered += 1;
+    for (const record of runtime.view?.coverage ?? []) {
+      if (record.coordinate === null) {
+        covered += 1;
+        continue;
       }
+      const e = record.event;
+      const target = projection.classified.get(e.kind === "undo" ? e.undoes : e.id);
+      if (!target || target.terminal || projectionCommitted(projection, target.e))
+        covered += 1;
     }
     return covered;
   }
@@ -576,7 +556,7 @@ export function createProjection(runtime, dependencies) {
       // A baseline no action detail can state replaces a subtree: a recordless verb, or
       // an optional authored scalar absent before its first action.
       for (;;) {
-        projection = stateProjection(runtime.currentRevision);
+        projection = stateProjection();
         for (const entry of projection.classified.values())
           for (const id of entry.restated ?? [])
             elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
@@ -747,7 +727,7 @@ export function createProjection(runtime, dependencies) {
       }
       renderQuiet(document.body);
       paintPending();
-      projection = stateProjection(runtime.currentRevision);
+      projection = stateProjection();
       document.body.setAttribute(
         PAGE_PAINT_ATTRIBUTE.applied,
         String(projectionCoverage(projection)),
@@ -762,9 +742,9 @@ export function createProjection(runtime, dependencies) {
   // while completing the read itself; every asynchronous wake-up must use either the
   // authored-only starting point or an event list whose whole state already committed.
   function reconcileKnownState() {
-    const eventSeq = runtime.events.at(-1)?.seq ?? 0;
+    const eventSeq = runtime.browser?.basis?.through_seq ?? 0;
     const complete = runtime.statePhase === "ready" && eventSeq <= runtime.lastEventSeq;
-    const authoredOnly = runtime.lastEventSeq < 0 && runtime.events.length === 0;
+    const authoredOnly = runtime.lastEventSeq < 0 && eventSeq === 0;
     if (!complete && !authoredOnly) return false;
     reconcileState();
     paintWorkLines();
@@ -780,13 +760,11 @@ export function createProjection(runtime, dependencies) {
   function paintPending() {
     for (const attr of [PAGE_PAINT_ATTRIBUTE.pending, PAGE_PAINT_ATTRIBUTE.reported])
       for (const el of pageQueryAll(`[${attr}]`)) el.removeAttribute(attr);
-    const projection = stateProjection(runtime.currentRevision);
-    for (const [coordinate, { unit, e, spec }] of projection.desired) {
+    const projection = stateProjection();
+    for (const [coordinate, { unit, e, spec, value }] of projection.desired) {
       const el = elementById(unit);
       if (!el || inChrome(el)) continue;
-      const behind = spec.record
-        ? foldedFacet(e, spec.record) !== authoredFacets.get(coordinate)
-        : true;
+      const behind = spec.record ? value !== authoredFacets.get(coordinate) : true;
       if (!behind) continue;
       // The channels keep separate marks so provisional worker news never wears
       // the reader's color. The desired projection chooses which channel owns a
@@ -810,11 +788,11 @@ export function createProjection(runtime, dependencies) {
     committedProjection,
     coordinateProjectionCommitted,
     domFacet,
-    foldedFacet,
     markSettled,
     matchesProjectedWhen,
     paintPending,
     projectedFacet,
+    projectionFromView,
     projectionCommitted,
     rebuild,
     reconcileKnownState,
@@ -823,15 +801,12 @@ export function createProjection(runtime, dependencies) {
     rememberAuthoredMarkup,
     resetAuthoredPage,
     requirementMatches,
-    retractedIds,
-    retractionFloors,
     shallowSigs,
     stageOutboxAction,
     standingState,
     stateCoordinate,
     stateProjection,
     stateSpecs,
-    takenBack,
     undoLast,
     undoable,
     unitOf,

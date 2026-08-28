@@ -9,7 +9,7 @@
  *
  * Which makes the pages on this site live rather than pictures of live ones. Every
  * control is the shipped runtime's own — the banner and its counts, the comment panel,
- * the quote marks in the margin, a board that takes a drag and holds it across a reload —
+ * the quote marks in the margin, and a board that takes a drag for this tab's visit —
  * because the runtime is loaded unmodified beside this file and cannot tell the
  * difference. What it can't have is the other half of the loop: no agent reads this log,
  * so a comment is recorded and answered by nobody.
@@ -29,11 +29,6 @@
  * second copy of that door would be a second thing to keep in step with the first.
  */
 
-// The page these events belong to, which is the document's path with the version file
-// taken off — so a page published with two versions keeps one log across both, as a
-// served page does. Per tab, and per page: a reader who opens three examples is three
-// readers, and closing the tab is how a demo is put back.
-const KEY = `leaf-demo:${location.pathname.replace(/\/versions\/v[1-9]\d*\.html$/, "")}`;
 // Which version this document is, read the way the runtime reads it.
 const VERSION = Number(location.pathname.match(/\/versions\/v([1-9]\d*)\.html$/)?.[1]);
 const REVISION = 1;
@@ -42,9 +37,8 @@ revisionMarker.name = "lf-revision";
 revisionMarker.content = String(REVISION);
 revisionMarker.dataset.lfRuntime = "";
 document.head.append(revisionMarker);
-const LAYER = await fetch("/registry.json")
-  .then((response) => response.json())
-  .then((registry) => registry.$layer.generation);
+const REGISTRY = await fetch("/registry.json").then((response) => response.json());
+const LAYER = REGISTRY.$layer.generation;
 const DATA = await fetch("../data.json")
   .then((response) => (response.ok ? response.json() : { revision: 0, sources: {} }))
   .catch(() => ({ revision: 0, sources: {} }));
@@ -69,18 +63,6 @@ const ANSWER = `This is the demo answering, not an agent. The page stands on a s
 
 It went into the log all the same, with your quote attached — which is exactly what an agent picks up and answers. [Run one from a checkout](/examples.html#run) and a real reply lands right here.`;
 
-// The log is this array. Web storage is where it is mirrored so a reload finds it, and
-// a browser with storage switched off costs the reader their reload rather than the
-// comment they just wrote — which is what reading the store back on every poll would
-// have cost them, silently, at the one moment the page is proving it heard them.
-const kept = (() => {
-  try {
-    return JSON.parse(sessionStorage.getItem(KEY));
-  } catch {
-    return null;
-  }
-})();
-
 // What the page opens on, for an example that ships a thread beside it: the log the
 // build laid in the page directory, which a served page would hand over on the first
 // poll. Awaited at the top of the module, so it is in hand before the runtime beside
@@ -88,23 +70,21 @@ const kept = (() => {
 // empty panel and then a full one, over a reader already reading it. A page with no
 // thread to open on has no file here, and the 404 is that answer.
 //
-// Only where the tab is holding nothing. A reader who came back to this tab has a log
-// that already grew from this seed, and re-reading it would put the thread back under
-// whatever they did to it.
-const events =
-  kept ??
-  (await fetch("../comments.jsonl")
-    .then((res) => (res.ok ? res.text() : ""))
-    .catch(() => "")
-    .then((text) =>
-      text
-        .split("\n")
-        .filter((line) => line.trim())
-        // seq is the line number, as `read_events` numbers a log it reads: the file
-        // holds none, and an event without one is invisible to the runtime's check for
-        // what a poll has brought that the last one hadn't.
-        .map((line, i) => ({ ...JSON.parse(line), seq: i + 1 })),
-    ));
+// A reload deliberately starts again from this seed. Without the Python server there is
+// no durable authority to replay; browser storage would turn this illustrative session
+// into a second implementation of Leaf's persistence and version rules.
+const events = await fetch("../comments.jsonl")
+  .then((res) => (res.ok ? res.text() : ""))
+  .catch(() => "")
+  .then((text) =>
+    text
+      .split("\n")
+      .filter((line) => line.trim())
+      // seq is the line number, as `read_events` numbers a log it reads: the file
+      // holds none, and an event without one is invisible to the runtime's check for
+      // what a poll has brought that the last one hadn't.
+      .map((line, i) => ({ ...JSON.parse(line), seq: i + 1 })),
+  );
 
 // The streams open on this tab's log, told directly when it moves. A served page's
 // stream finds that out by looking at files; this log is in memory, and `append` is
@@ -123,13 +103,252 @@ function append(event, author, agent) {
     ts: new Date().toISOString(),
     seq: events.length + 1,
   });
-  try {
-    sessionStorage.setItem(KEY, JSON.stringify(events));
-  } catch {
-    /* a demo that cannot remember still takes the next comment */
-  }
   for (const ear of ears) ear.speak();
   return events.at(-1);
+}
+
+// This static host cannot run the canonical Python projector. Its session is therefore
+// deliberately a small, ephemeral exhibit: enough structure for the shipped runtime to
+// render this tab's gestures, with no claim that the result is a durable Leaf reading.
+// Real pages never enter this path; their `browser` object is produced under the page
+// transaction in the server.
+const coordinateOf = (event) => {
+  const widget = document.getElementById(event.widget);
+  const channel = event.kind === "action" ? "x-state" : "x-report";
+  const spec = widget && REGISTRY[widget.localName]?.[channel]?.[event.action];
+  if (!spec) return null;
+  const unit = spec.unit === "widget" ? event.widget : event.detail[spec.unit];
+  return typeof unit === "string" ? [event.widget, unit, spec.facet] : null;
+};
+
+const DEMO_COLLAPSE =
+  /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
+const valueOf = (event) => {
+  const widget = document.getElementById(event.widget);
+  const channel = event.kind === "action" ? "x-state" : "x-report";
+  const record =
+    widget && REGISTRY[widget.localName]?.[channel]?.[event.action]?.record;
+  if (!record) return null;
+  const value = event.detail[record.value];
+  if (record.kind === "body") return String(value).replace(DEMO_COLLAPSE, " ").trim();
+  if (record.kind === "attribute") return [...value].sort();
+  return value ?? null;
+};
+
+function demoProjection() {
+  const withdrawn = new Set(
+    events.filter((event) => event.undoes).map((event) => event.undoes),
+  );
+  const entries = [];
+  const actions = new Map();
+  const reports = new Map();
+  for (const event of events) {
+    if (!["action", "report"].includes(event.kind)) continue;
+    const coordinate = coordinateOf(event);
+    if (!coordinate) continue;
+    const key = JSON.stringify(coordinate);
+    entries.push({
+      event,
+      coordinate,
+      value: valueOf(event),
+      scope: "document",
+      restated: [],
+    });
+    if (event.kind === "action") {
+      if (!withdrawn.has(event.id)) actions.set(key, event.id);
+    } else {
+      const standing = reports.get(key) ?? [];
+      standing.push(event.id);
+      reports.set(key, standing);
+    }
+  }
+  const desired = new Map(
+    [...reports].map(([key, standing]) => [key, standing.at(-1)]),
+  );
+  for (const [key, id] of actions) desired.set(key, id);
+  return {
+    entries,
+    actions: [...actions.values()],
+    reports: [...reports.values()].flat(),
+    desired: [...desired.values()],
+  };
+}
+
+function demoThreads() {
+  const withdrawn = new Set(
+    events.filter((event) => event.undoes).map((event) => event.undoes),
+  );
+  const threads = new Map();
+  const threadFor = new Map();
+  const messages = new Map();
+  for (const event of events) {
+    if (withdrawn.has(event.id)) continue;
+    if (event.kind === "comment") {
+      const message = { ...event };
+      const thread = { root: message, msgs: [message], resolved: null };
+      messages.set(message.id, message);
+      threads.set(message.id, thread);
+      threadFor.set(message.id, thread);
+    } else if (event.kind === "reply") {
+      let thread = threadFor.get(event.parent);
+      if (!thread) {
+        thread = { root: { ...event }, msgs: [], resolved: null };
+        threads.set(event.parent, thread);
+        threadFor.set(event.parent, thread);
+      }
+      const message = { ...event };
+      messages.set(message.id, message);
+      thread.msgs.push(message);
+      threadFor.set(message.id, thread);
+    } else if (event.kind === "edit") {
+      const message = messages.get(event.message);
+      if (message) {
+        message.text = event.text;
+        message.edited = { id: event.id, seq: event.seq, ts: event.ts };
+      }
+    } else if (event.kind === "resolve") {
+      const thread = threadFor.get(event.parent);
+      if (thread) thread.resolved = event;
+    } else if (event.kind === "unresolve") {
+      const thread = threadFor.get(event.parent);
+      if (thread) thread.resolved = null;
+    } else if (event.kind === "action" && event.detail?.resolves) {
+      const thread = threads.get(event.detail.resolves);
+      if (thread) thread.resolved = event;
+    }
+  }
+  return [...threads.values()].map((thread) => {
+    const spoken = thread.msgs.filter((message) => !message.token);
+    const last = spoken.at(-1);
+    return {
+      ...thread,
+      awaits_agent: Boolean(!thread.resolved && last && last.author !== "claude"),
+      awaits_reader: Boolean(
+        !thread.resolved &&
+        last?.author === "claude" &&
+        (last.kind !== "reply" || last.awaits),
+      ),
+      bare_reaction: Boolean(thread.root.token && spoken.length === 0),
+      seat:
+        !thread.root.about &&
+        thread.root.anchor &&
+        Object.keys(thread.root.anchor).length === 1
+          ? (thread.root.anchor.section ?? null)
+          : null,
+    };
+  });
+}
+
+const matchesWhen = (element, when = {}) =>
+  Object.entries(when).every(([attribute, values]) => {
+    const present = element.hasAttribute(attribute);
+    const value = element.getAttribute(attribute);
+    return values.some((candidate) =>
+      typeof candidate === "boolean" ? candidate === present : candidate === value,
+    );
+  });
+
+function demoAsks(projection, threads) {
+  const standing = new Set(projection.actions);
+  const withAgent = new Set(
+    threads
+      .filter((thread) => thread.awaits_agent)
+      .map((thread) => thread.seat)
+      .filter(Boolean),
+  );
+  const values = {};
+  const descriptors = [];
+  for (const [tag, entry] of Object.entries(REGISTRY)) {
+    if (tag.startsWith("$") || !entry?.["x-awaits"]) continue;
+    for (const element of document.querySelectorAll(tag)) {
+      if (!element.id || !matchesWhen(element, entry["x-awaits"].when)) continue;
+      const answered = (entry["x-awaits"].answers ?? []).some((verb) => {
+        const spec = entry["x-state"]?.[verb];
+        const coordinate = spec && [element.id, element.id, spec.facet];
+        return projection.entries.some(
+          (candidate) =>
+            candidate.event.widget === element.id &&
+            candidate.event.action === verb &&
+            standing.has(candidate.event.id) &&
+            JSON.stringify(candidate.coordinate) === JSON.stringify(coordinate),
+        );
+      });
+      const awaiting = !answered;
+      values[element.id] = awaiting;
+      if (!awaiting || withAgent.has(element.id)) continue;
+      let surface = element;
+      for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        if (REGISTRY[parent.localName]?.["x-ask"]) {
+          surface = parent;
+          break;
+        }
+      }
+      descriptors.push({ id: surface.id, tag: surface.localName, thread: null });
+    }
+  }
+  return { descriptors, values };
+}
+
+function demoBrowser() {
+  const projection = demoProjection();
+  const threads = demoThreads();
+  const asks = demoAsks(projection, threads);
+  const throughSeq = events.at(-1)?.seq ?? 0;
+  const coverage = events
+    .filter((event) => ["action", "report", "undo"].includes(event.kind))
+    .map((event) => {
+      const target =
+        event.kind === "undo"
+          ? events.find((candidate) => candidate.id === event.undoes)
+          : event;
+      return { event, coordinate: target ? coordinateOf(target) : null };
+    });
+  const undo = [...events]
+    .reverse()
+    .filter(
+      (event) =>
+        event.author === "user" &&
+        ["action", "resolve", "unresolve"].includes(event.kind) &&
+        !events.some((candidate) => candidate.undoes === event.id),
+    )
+    .map((event) => ({
+      event,
+      ...(coordinateOf(event) && { coordinate: coordinateOf(event) }),
+    }));
+  return {
+    basis: { through_seq: throughSeq },
+    views: {
+      [REVISION]: {
+        basis: { revision: REVISION, through_seq: throughSeq },
+        document: {
+          revision: REVISION,
+          projection,
+          asks: {
+            reader: asks.descriptors,
+            unanswered: asks.descriptors,
+            awaiting: asks.values,
+            unanswered_awaiting: asks.values,
+          },
+        },
+        updates: [],
+        undo,
+        coverage,
+        published_at: null,
+      },
+    },
+    conversation: {
+      projection: { entries: [], actions: [], reports: [], desired: [] },
+      asks: { reader: [], unanswered: [], awaiting: {} },
+      threads,
+      done: events.filter((event) => event.kind === "done"),
+    },
+    receipts: events.filter((event) => event.attempt),
+    version_notes: Object.fromEntries(
+      events
+        .filter((event) => event.kind === "note")
+        .map((event) => [event.version, event.text]),
+    ),
+  };
 }
 
 // `full_state`'s answer, field for field. The shape is the runtime's contract with
@@ -189,6 +408,7 @@ const state = () => ({
   // full-state field as a live host and therefore exercises the same package modules.
   data: DATA,
   events,
+  browser: demoBrowser(),
   // The reading a served page stamps on its state and names on its stream, so a tab
   // can tell whether the stream is telling it something it already holds. The log is
   // the whole of what moves here, so its length is the reading.

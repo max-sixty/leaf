@@ -267,8 +267,7 @@ export function createVersionNavigation({
       versionsWalkable = walkable;
       paintKeys();
     }
-    const notes = {};
-    for (const e of runtime.events) if (e.kind === "note") notes[e.version] = e.text;
+    const notes = runtime.browser?.version_notes ?? {};
     const key = JSON.stringify([
       state.active,
       state.versions,

@@ -6,6 +6,7 @@
 export const runtime = {
   active: null,
   agent: "Claude",
+  browser: null,
   currentLabel: null,
   currentRevision: null,
   currentStamp: null,
@@ -19,6 +20,7 @@ export const runtime = {
   statePhase: "waiting",
   undoing: false,
   versions: [],
+  view: null,
 };
 
 export const agentName = () => runtime.agent;

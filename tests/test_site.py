@@ -429,9 +429,12 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         page.close()
 
 
-def test_a_decision_holds_across_a_reload(site, hosted, browser):
-    """The log is the state here as much as anywhere: a pick is an action, and what puts
-    it back on the next load is replay rather than anything the markup remembers."""
+def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
+    """The static site offers a live tab, not a second durable Leaf implementation.
+
+    A gesture paints and is projected for the visit, while reload starts again from the
+    checked-in example. Durable replay belongs to a served page's Python authority.
+    """
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
         chosen = (
@@ -445,10 +448,10 @@ def test_a_decision_holds_across_a_reload(site, hosted, browser):
 
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
-        expect(page.locator("#session-options")).to_have_attribute(
-            "data-lf-pending", "1"
+        expect(page.locator("#session-options[data-lf-pending]")).to_have_count(0)
+        assert "opt-jwt" not in page.evaluate(chosen), (
+            "the static exhibit persisted a decision without a durable authority"
         )
-        assert "opt-jwt" in page.evaluate(chosen), "the reload lost the reader's pick"
         assert not errors, errors[:3]
     finally:
         page.close()

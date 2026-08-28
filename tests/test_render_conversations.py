@@ -1192,6 +1192,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
         "lf-ui",
+        # A native label can pass through an intermediate focus target. These project
+        # the held control's focus until activation settles.
+        "lf-focus",
+        "lf-focus-visible",
         "lf-btn",
         "lf-pill",
         "lf-address",

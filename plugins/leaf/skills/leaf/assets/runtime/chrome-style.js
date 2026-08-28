@@ -257,8 +257,8 @@ export function chromeStyle({
      apart out in the margin. The pill's rule was the suggestion family's, which is a
      family stating a fact about a shape the runtime owns — its own rules there are for
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
-  .lf-btn:focus-visible { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
-  .lf-pill:focus-visible { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
+  .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
+  .lf-pill:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: pill; outline-offset: 1px; }
   /* The keyboard address: the keys that reach this thing right now, worn as a chip
      off its holder's corner so an address arriving moves nothing. The g chord paints one
      on every member of every list it offers and an option wears the one a pick
@@ -328,7 +328,7 @@ export function chromeStyle({
      Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
      class itself. */
   .lf-ui textarea, textarea.lf-ui { padding: 8px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); color: inherit; resize: none; field-sizing: content; max-height: 50vh; overflow-y: auto; }
-  .lf-ui textarea:focus, textarea.lf-ui:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .lf-ui textarea:is(:focus, .lf-focus), textarea.lf-ui:is(:focus, .lf-focus) { outline: none; border-color: color-mix(in srgb, var(--accent) 45%, var(--card)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 ${MARK_RULES}
   body.lf-over-mark { cursor: pointer; }
   /* Holding ⌥ changes what a click means, and nothing on the page said so — the chord's
@@ -445,7 +445,7 @@ ${MARK_RULES}
      element comment — and this is not a rule about diagrams: any outline an element
      wears for a reason other than focus takes the platform's ring away from it, and the
      walk in the suite is what says so the next time it happens. */
-  .lf-mark-el:is(.lf-mark-hover, :focus-visible) { outline-width: var(--here-ring-w);
+  .lf-mark-el:is(.lf-mark-hover, :focus-visible, .lf-focus-visible) { outline-width: var(--here-ring-w);
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* The standing comment's element anchor (paintStanding). It keeps the hairline's own
      inset rather than taking the ask ring's gap, so focusing the thread changes the ring
@@ -480,7 +480,7 @@ ${MARK_RULES}
      below states its whole visible form, so the resting one adds nothing to the clip —
      the padding and border reset that stood here were a real button's, and the note has
      been a span since offer() built it. */
-  .lf-mark-note:focus-visible { position: fixed; z-index: 9050;
+  .lf-mark-note:is(:focus-visible, .lf-focus-visible) { position: fixed; z-index: 9050;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
@@ -632,7 +632,7 @@ ${MARK_RULES}
       text-align: left; padding: 6px 8px; border: 0; border-radius: 4px;
       background: none; color: inherit; cursor: pointer; width: 100%; }
     .lf-version-row:hover { background: var(--chip); }
-    .lf-version-row:focus-visible { outline: var(--here-ring); --lf-here-ring: version-row;
+    .lf-version-row:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: version-row;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     /* The version being read wears the accent rather than a fill, so the row the
        pointer is over stays the one that looks pressable. */
@@ -652,7 +652,7 @@ ${MARK_RULES}
       border: 1px solid var(--rule); border-radius: 4px; background: none;
       color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
     .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
-    .lf-version-diff:focus-visible { outline: var(--here-ring); --lf-here-ring: version-diff;
+    .lf-version-diff:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: version-diff;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
       background: var(--chip); }
@@ -687,7 +687,7 @@ ${MARK_RULES}
     .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
       text-decoration: none; }
     a.lf-others-row:hover { background: var(--chip); }
-    .lf-others-row:focus-visible { outline: var(--here-ring); --lf-here-ring: others-row;
+    .lf-others-row:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: others-row;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-others-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .lf-others-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
@@ -710,7 +710,7 @@ ${MARK_RULES}
        it: while the tray is open the row mirrors the standing ask (markHere) wherever
        the tray lists that ask, so it wears the ask's own outset ring and lost a pixel of
        it to each edge. */
-    .lf-asks-row:is(:focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
+    .lf-asks-row:is(:focus-visible, .lf-focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
       outline: var(--here-ring); --lf-here-ring: asks-row; outline-offset: calc(-1 * var(--here-ring-w)); }
     /* What kind of thing is asking, in the apparatus voice, over the ask's own words in
        the page's. Two lines, because they are two claims: the kind is the runtime's word
@@ -774,8 +774,8 @@ ${MARK_RULES}
     .lf-edge[data-lf-side="left"]::before { right: 2px; }
     /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
        drag that follows it. */
-    .lf-edge:hover::before, .lf-edge:focus-visible::before { opacity: 1; }
-    .lf-edge:focus-visible { outline: var(--here-ring); --lf-here-ring: edge; }
+    .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
+    .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
     .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
     /* The narrowing row, under the head and above the list it narrows. Standing rather
        than raised by a key or a count, for the reason every other control here stands:
@@ -790,7 +790,7 @@ ${MARK_RULES}
     .lf-find-box { flex: 1; min-width: 0; font: inherit; font-size: var(--t-6);
       padding: 3px 8px; border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--paper); color: var(--ink); }
-    .lf-find-box:focus-visible { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
+    .lf-find-box:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: find-box; outline-offset: 1px; }
     /* contain: reaching the end of the thread list must not start scrolling the page
        behind it — one wheel gesture moves one region.
        The frame is declared because the inset is read at both ends of a scroll region:
@@ -813,7 +813,7 @@ ${MARK_RULES}
       scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
         var(--here-ring-room); }
     /* An Escape rung lands here (general box → the list), so the rung is visible. */
-    .lf-threads:focus-visible { outline: var(--here-ring); --lf-here-ring: thread-list;
+    .lf-threads:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: thread-list;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-empty { color: var(--muted); padding: 18px 4px; }
     /* Which part of the page the threads under it are about — the page's own heading,
@@ -850,7 +850,7 @@ ${MARK_RULES}
        (.lf-pinned) has nothing above it at all, and a ring a pixel outside the box was
        three pixels into the strip the scroller clips. Every control packed into this
        list states its own inset for the same reason (theme.css, --here-ring). */
-    button.lf-group:focus-visible { outline: var(--here-ring); --lf-here-ring: run-heading;
+    button.lf-group:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: run-heading;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     /* A thread and the room a resolved one is still giving back (foldOut) are the same
        box, so the fold starts from the box the reader was looking at rather than from
@@ -894,11 +894,11 @@ ${MARK_RULES}
        that no amount of scrolling can help, since the two boxes touch in flow. A ring
        drawn inside the box it names cannot be covered by a neighbour or cut by an edge
        the box itself is within. */
-    .lf-thread:focus-within { outline: var(--here-ring); --lf-here-ring: thread;
+    .lf-thread:is(:focus-within, .lf-focus-within) { outline: var(--here-ring); --lf-here-ring: thread;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-    .lf-quote:is(:hover, :focus-visible) { color: var(--ink-2); }
-    .lf-quote:focus-visible { outline: var(--here-ring); --lf-here-ring: quote;
+    .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
+    .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: quote;
       outline-offset: 2px; }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
        paragraph of it in a 320px column buries the words written about it. So the panel
@@ -1027,13 +1027,13 @@ ${MARK_RULES}
        in flight. The border is there all along, transparent, so the box is paint and
        nothing moves. A standing token keeps its own fill under the pointer, which the
        shared pill's hover would otherwise take for the mark coming off. */
-    .lf-thread:not(:hover, :focus-within) .lf-react-strip:not(.lf-open)
+    .lf-thread:not(:hover, :focus-within, .lf-focus-within) .lf-react-strip:not(.lf-open)
       > .lf-react:not([aria-pressed="true"]) { display: none; }
-    .lf-thread:not(:hover, :focus-within)
+    .lf-thread:not(:hover, :focus-within, .lf-focus-within)
       .lf-react-strip:not(.lf-open):not(:has(> [aria-pressed="true"])) { margin-top: 0; }
     .lf-react-strip > .lf-react:not([aria-pressed="true"]) { border-color: transparent;
       background: transparent; color: var(--muted); }
-    .lf-react-strip > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, [aria-busy="true"]),
+    .lf-react-strip > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
     .lf-react-strip.lf-armed > .lf-react:not([aria-pressed="true"]) {
       border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
     .lf-react-strip > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
@@ -1093,13 +1093,13 @@ ${MARK_RULES}
     .lf-help-close { flex: none; border: 0; border-radius: 50%; width: 26px; height: 26px;
       padding: 0; background: transparent; color: var(--muted); font: 20px/1 var(--sans);
       cursor: pointer; }
-    .lf-help-close:is(:hover, :focus-visible) { background: var(--chip); color: var(--ink); }
-    .lf-help-close:focus-visible { outline: var(--here-ring); --lf-here-ring: help-close;
+    .lf-help-close:is(:hover, :focus-visible, .lf-focus-visible) { background: var(--chip); color: var(--ink); }
+    .lf-help-close:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-close;
       outline-offset: 1px; }
     .lf-help-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
       border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
       color: var(--ink); }
-    .lf-help-search:focus-visible { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
+    .lf-help-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
     .lf-help-preference { display: flex; align-items: center; justify-content: space-between;
       gap: 12px; margin: 6px 0 0; }
     .lf-help-meta { min-height: 1.2em; color: var(--muted);
@@ -1162,7 +1162,7 @@ ${MARK_RULES}
        a list states its own inset (theme.css, --here-ring) — the thread cards and the
        joined option group do the same — and here the line's own border is what stands
        the whole thing off the page. */
-    .lf-key-more:focus-visible { outline: var(--here-ring); --lf-here-ring: key-more;
+    .lf-key-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-keyline kbd.armed { border-color: var(--accent); color: var(--accent); }
     /* Design mode: the reader is commenting on the layer rather than the page, and for

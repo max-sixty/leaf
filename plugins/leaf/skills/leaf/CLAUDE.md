@@ -1674,9 +1674,17 @@ keep that state in an attribute, so one `MutationObserver` over `open` and
 ### Standing somewhere
 
 Focus is the reader's current place. `focused` follows it through declared
-shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
-control that contains focus. The ring is derived on each paint; it does not
-store the ask walk's position.
+shadow roots. A native label activation may pass through `body` or a focusable
+container between the pointer press and the control's focus; Leaf treats that
+interval as one logical standing without changing DOM focus or preventing label
+text selection.
+`documentFocused` retargets the logical standing to its document host. Painted
+focus readings use one of those two functions; CSS reads the matching `.lf-focus`,
+`.lf-focus-visible`, and `.lf-focus-within` projections. A key ends the pointer
+interval and restores physical focus before dispatch. Code that acts on physical
+focus otherwise reads `document.activeElement` directly. `markHere` paints one
+`--here-ring` around the semantic ask or control that contains focus. The ring
+is derived on each paint; it does not store the ask walk's position.
 
 A control that draws the band on itself draws it only where nothing else holds
 that box's one outline. An ask written out around the control wears the band

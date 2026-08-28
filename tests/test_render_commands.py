@@ -38,6 +38,7 @@ from render_support import (
     key_line,
     open_page,
     page_registry,
+    panel_settled,
     primed,
     shown_frames,
     solid_png,
@@ -323,15 +324,18 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     box = page.locator("lf-shot input[type=checkbox]")
     expect(box).to_be_focused()
     assert "show before" in key_line(page)
-    # The overlay is a label. It used to blur its checkbox on mousedown, leaving a human
-    # press long enough for the line to paint the page's bindings before mouseup restored
-    # the screenshot bindings. Hold it across two frames: its focus and line must not move.
+    # The overlay is a label. Its native focus transfer passes through body between
+    # mousedown and mouseup; hold it across two frames so that incomplete transfer cannot
+    # paint the page's bindings as a new keyboard standing.
     page.mouse.down()
-    expect(box).to_be_focused()
     assert "show before" in key_line(page)
-    page.mouse.up()
+    page.keyboard.press(" ")
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
-    assert shown_frames(page) == ["before"]
+    assert "show after" in key_line(page)
+    page.mouse.up()
+    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+    expect(box).to_be_focused()
+    assert shown_frames(page) == ["after"]
     # The visible instruction is a second label for the same switch. A repeated press
     # on its words has the same focus bargain as one on the image.
     text_label = page.locator("lf-shot .lf-shotpick label")
@@ -350,15 +354,66 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     )
     page.mouse.move(*text_at)
     page.mouse.down()
-    expect(box).to_be_focused()
-    assert "show after" in key_line(page)
+    assert "show before" in key_line(page)
     page.mouse.up()
-    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
-    assert shown_frames(page) == ["after"]
+    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
+    expect(box).to_be_focused()
+    assert shown_frames(page) == ["before"]
     # The keyboard's handle, which the label over the image cannot be.
     box.focus()
     page.keyboard.press(" ")
-    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
+    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_a_shot_label_hold_keeps_its_thread_focus_ring(browser, serve):
+    """CSS and JavaScript read the same standing during native label activation."""
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-shot",
+            "author": "claude",
+            "revision": 1,
+            "text": "Compare the two frames:",
+            "markup": (
+                '<lf-shot id="thread-shot" alt="the navigation rail" '
+                f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    shot = page.locator("#thread-shot")
+    thread = page.locator(".lf-thread").filter(has=shot)
+    box = shot.locator('input[type="checkbox"]')
+    box.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(box).to_be_focused()
+    expect(box).to_have_css("--lf-here-ring", "shotpick")
+    expect(thread).to_have_css("--lf-here-ring", "thread")
+
+    at = flip_point(page, "#thread-shot")
+    expect(box).to_be_focused()
+    assert shot.locator(".lf-shotflip").evaluate(
+        "(label, point) => document.elementFromPoint(...point)?.closest('label') === label",
+        at,
+    )
+    page.mouse.move(*at)
+    page.mouse.down()
+    expect(box).to_have_css("--lf-here-ring", "shotpick")
+    expect(thread).to_have_css("--lf-here-ring", "thread")
+    page.mouse.up()
+    expect(box).to_be_focused()
+    expect(box).not_to_have_css("--lf-here-ring", "shotpick")
+    expect(thread).to_have_css("--lf-here-ring", "thread")
     assert errors == []
     page.close()
 

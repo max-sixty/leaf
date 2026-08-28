@@ -254,6 +254,43 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     page.close()
 
 
+def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
+    """Composition reads the control inside a widget's shadow tree, not its host."""
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.evaluate(
+        """() => {
+          const host = document.createElement('section');
+          host.id = 'shadow-editor';
+          const root = host.attachShadow({mode: 'open'});
+          const box = document.createElement('textarea');
+          box.dataset.lfOffer = '';
+          root.append(box);
+          document.querySelector('main').append(host);
+          box.focus();
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    expect(page).to_have_title("Live first")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    assert (
+        page.evaluate(
+            "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
+        )
+        == "TEXTAREA"
+    )
+
+    page.evaluate(
+        "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
+    )
+    ticked(page)
+    expect(page).to_have_title("Live second")
+    assert errors == []
+    page.close()
+
+
 def test_overlapping_state_answers_share_one_live_version_activation(browser, serve):
     """Two ordinary polls cannot replace the main twice.
 

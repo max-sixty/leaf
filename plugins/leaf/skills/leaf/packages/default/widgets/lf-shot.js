@@ -105,16 +105,6 @@ customElements.define(
       box.addEventListener("change", paintKeys);
 
       this.append(flip, row);
-      // A label transfers focus on click, after its mousedown can blur the checkbox.
-      // During a repeated held press, the key line therefore painted the page's bindings
-      // before restoring the screenshot bindings on mouseup. Preserve an existing focus
-      // across either label; their native clicks still flip the box when the press completes.
-      for (const target of box.labels) {
-        target.addEventListener("mousedown", (event) => {
-          if (event.button === 0 && document.activeElement === box)
-            event.preventDefault();
-        });
-      }
       settle(this.register(shots));
     }
 

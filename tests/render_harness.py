@@ -1340,8 +1340,8 @@ def resized(page, width, height):
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
 
 
-def select(page, start, end, steps=8):
-    """Drag a selection from one point to another, pressing on a whole pixel.
+def hold_selection(page, start, end, steps=8):
+    """Drag a selection without releasing, pressing on a whole pixel.
 
     A fractional start point loses the selection outright wherever it and its own
     floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
@@ -1358,6 +1358,11 @@ def select(page, start, end, steps=8):
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
     page.mouse.move(end[0], end[1], steps=steps)
+
+
+def select(page, start, end, steps=8):
+    """Drag and release a selection."""
+    hold_selection(page, start, end, steps)
     page.mouse.up()
 
 

@@ -444,10 +444,12 @@ createShadowStage(watchDisclosures);
 const {
   byCommand,
   claimsEsc,
+  documentFocused,
   elementScopes,
   focused,
   merge,
   pruneScopedElements,
+  recoveredLabelFocus,
   scopeRefs,
   scopesFor,
 } = createScopes({
@@ -456,10 +458,10 @@ const {
 });
 
 // Where the reader is standing, painted: the ring on the ask they are in, the mark on the
-// passage of the comment they are in, and the line saying what the next press does from
-// there. One repaint, because it is one question — every reading is of the focus and the
-// open-ask list, and every signal that moves either (a focus move, an answer taken, a
-// poll, a widget's own state) moves them all.
+// passage of the comment they are in, the focused box's hint, and the line saying what the
+// next press does from there. One repaint, because it is one question — every reading is of
+// the focus and the open-ask list, and every signal that moves either (a focus move, an
+// answer taken, a poll, a widget's own state) moves them all.
 //
 // Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
 // them would flash the scope of nowhere and drop the ring for a frame. Here rather than
@@ -467,6 +469,7 @@ const {
 // evaluates, which is before the line has an element to draw into — the frame is what puts
 // the first paint after both.
 let herePending = false;
+let paintInputHints = () => {};
 function paintHere() {
   if (herePending) return;
   herePending = true;
@@ -481,6 +484,7 @@ function paintHere() {
     // panel's own render was calling the chip pass.
     paintAddresses();
     paintCoreControls();
+    paintInputHints();
     renderLine();
   });
 }
@@ -1376,7 +1380,13 @@ layoutSizes.observe(composer);
 const { showToast } = createNotifications({ liveEl, syncLayout, toastEl });
 
 // ---------- text inputs ----------
-const wireInput = createInput({ keys, showToast, spell });
+const { paint: paintInputs, wire: wireInput } = createInput({
+  focused,
+  keys,
+  showToast,
+  spell,
+});
+paintInputHints = paintInputs;
 
 const { landTyping, pageSelection, selectionAnchor, snapSelection } =
   createSelectionCapture({
@@ -1686,7 +1696,7 @@ const hasThreads = () => openThreads().length > 0;
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
 // each has a primary Enter action and x changes the same resolution state in either direction.
 const focusedThread = () => {
-  const active = document.activeElement;
+  const active = documentFocused();
   return active?.classList?.contains("lf-thread") ? active : null;
 };
 // The item the reader is standing in, which is what a press means when they have pointed
@@ -1717,12 +1727,12 @@ const focusedThread = () => {
 // from one means the page whole. A box that takes letters never arrives here at all: the
 // typing scope claims the letter before the page is asked.
 //
-// `document.activeElement` rather than `focused()`, for the reason askPosition gives: a
-// control staged in a shadow tree retargets to its host, and the host is the place in the
-// document both the chrome guard and the item walk want. standingConversation below wants
-// the other reading, and says so.
+// `documentFocused()` rather than `focused()`, for the reason askPosition gives: a control
+// staged in a shadow tree retargets to its host, and the host is the place in the document
+// both the chrome guard and the item walk want. standingConversation below wants the inner
+// reading, and says so.
 const standingItem = () => {
-  const held = document.activeElement;
+  const held = documentFocused();
   if (!held || held === document.body || inChrome(held)) return null;
   const working = held.matches?.(ASK_CONTROL) ? standingIn() : null;
   return working ?? itemAt(askPlace(held));
@@ -1896,7 +1906,7 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // Their next Space is then that button rather than the page's scroll. CLAUDE.md's "The
 // reader has to be standing somewhere" holds the rest.
 function rung() {
-  const active = document.activeElement;
+  const active = documentFocused();
   const holding = Boolean(active) && active !== document.body;
   if (fabAnchorAt())
     return {
@@ -2048,6 +2058,7 @@ const {
 } = createAskView({
   PAGE_PAINT_ATTRIBUTE,
   SCROLL,
+  documentFocused,
   announce,
   askEntry,
   askSource,
@@ -2267,12 +2278,12 @@ const COMPOSER = {
 // the scope rather than below it, because a row naming a predicate directly reads the
 // binding as the table is built — the deferring wrapper the branch here used to need was
 // the only thing hiding that.
-const inTheBox = () => panel.contains(document.activeElement);
+const inTheBox = () => panel.contains(documentFocused());
 // The panel thread the reader is in, asked by class because that is the anchors module's
 // question: which logged thread's passage to paint. It is not the box's way out, which
 // climbs further and answers for a seat on the page too — the two readings stayed apart
 // rather than one standing in for the other.
-const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
+const focusedThreadOf = () => documentFocused()?.closest?.(".lf-thread");
 // Where a box hands the reader back to, which is the rung `c` came down. It asked
 // `.lf-thread` and the panel alone, so the two boxes outside the chrome — a conversation
 // seated on the page, and each thread on that seat — had no way out but the page's own
@@ -3018,6 +3029,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   keepShown,
   paintHere,
   panel,
+  recoveredLabelFocus,
   SCOPES,
   scopesFor,
   setChord,
@@ -3180,13 +3192,16 @@ const unaccountedGesture = () =>
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
 // edit.
-const midComposition = () =>
-  composerOpen ||
-  Boolean(fabAnchorAt()) ||
-  unaccountedGesture() ||
-  (document.activeElement?.tagName === "TEXTAREA" &&
-    (document.activeElement.value !== "" ||
-      document.activeElement.hasAttribute("data-lf-offer")));
+const midComposition = () => {
+  const active = focused();
+  return (
+    composerOpen ||
+    Boolean(fabAnchorAt()) ||
+    unaccountedGesture() ||
+    (active?.tagName === "TEXTAREA" &&
+      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+  );
+};
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
 // live root that is an explicit in-place release of the composition hold; on an immutable
 // page it is ordinary version travel.

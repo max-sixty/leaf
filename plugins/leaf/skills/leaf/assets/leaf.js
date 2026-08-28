@@ -258,7 +258,6 @@ import {
   startsAt,
 } from "./runtime/geometry.js";
 import {
-  alignText,
   createPassages,
   inChrome,
   inUi,
@@ -268,6 +267,7 @@ import {
   uiInside,
   wrote,
 } from "./runtime/passages.js";
+import { textUnits } from "./runtime/text-alignment.js";
 import {
   ago,
   createPresence,
@@ -3329,7 +3329,6 @@ const {
   COLLAPSE,
   quoteFrom,
   cut,
-  textUnits,
   rangeOf,
   holds,
   neighbourhood,

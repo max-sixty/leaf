@@ -30,10 +30,12 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
     timeout_ms = SERVED_TIMEOUT_MS if timeout_ms is None else timeout_ms
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
+
 def previous_stamp(revision: int, versions: list[dict]) -> dict | None:
     """The newest stamped revision before ``revision``, if one exists."""
     earlier = [version for version in versions if version["revision"] < revision]
     return max(earlier, key=lambda version: version["revision"]) if earlier else None
+
 
 def rendered_revision(url: str, state: dict) -> int:
     """Resolve the immutable revision shown at ``url`` from the public state."""
@@ -54,8 +56,10 @@ RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 def resize_observer_error(text: str) -> bool:
     return text.startswith(RESIZE_OBSERVER_ERROR)
 
+
 def recurring_resize_observer_error(unit: str) -> str:
     return f"{RESIZE_OBSERVER_ERROR} notice recurred on the confirming {unit}"
+
 
 def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
     """Read and report the browser gate for one color scheme."""

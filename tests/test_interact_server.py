@@ -44,7 +44,7 @@ from leaf import publishing as publishing_model
 from leaf.registry import storage as registry_storage
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf.served_state import browser as served_browser
+from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf import server as server_model
 from leaf import service as service_model
@@ -800,11 +800,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
     def record_undo_read(_event, _events, within):
         seen.append(within)
 
-    monkeypatch.setattr(served_browser, "undo_error", record_undo_read)
+    monkeypatch.setattr(served_document, "undo_error", record_undo_read)
     empty = projection_model.StateProjection({}, {}, {}, {}, {})
     event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
 
-    candidates = served_browser._browser_undo_candidates(
+    candidates = served_document._browser_undo_candidates(
         [event], active_within, view_within, {}, empty, empty
     )
 

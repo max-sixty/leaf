@@ -26,12 +26,7 @@ from .files import (
     write_json,
 )
 from .registry import layer_generation
-from .render_checks import (
-    PROBE_ROUTE,
-    PROBE_SOURCE,
-    STANDALONE_ROUTE,
-    STANDALONE_SOURCE,
-)
+from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -429,11 +424,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _get(self):
         path = urlsplit(self.path).path
-        probe_sources = {
-            PROBE_ROUTE: PROBE_SOURCE,
-            STANDALONE_ROUTE: STANDALONE_SOURCE,
-        }
-        if probe_source := probe_sources.get(path):
+        if probe_source := PROBE_SOURCES.get(path):
             self._send(
                 200,
                 "text/javascript; charset=utf-8",

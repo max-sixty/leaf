@@ -2256,13 +2256,15 @@ and finite motion boundary, reads screen and print, and reapplies standing state
 A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
-The named JavaScript exports in `leaf/render-checks.js`, invoked by
+The named JavaScript exports in `leaf/render-checks/index.js`, invoked by
 `leaf/render_checks.py` and composed by `leaf/render_gate.py`, each answer one failure
-class. The served module imports the public widget API statically, so the JavaScript
-parser and module loader validate its syntax, dependencies, and named exports.
-`coveredWords` is reexported from the import-free `render-checks-standalone.js`, which
+class. That facade is `leaf/render-checks/index.js`; its directory groups runtime,
+reachability, layout, replay, word, widget-contract, and framing probe owners. The
+served graph imports the public widget API statically, so the JavaScript parser and
+module loader validate its syntax, dependencies, and named exports.
+`coveredWords` is reexported from the import-free `render-checks/standalone.js`, which
 lets the same implementation inspect an exported `file://` copy after its runtime has
-been removed. `render-checks-init.js` installs the pre-navigation window-error channel.
+been removed. `render-checks/init.js` installs the pre-navigation window-error channel.
 
 | Reading | Contract |
 | --- | --- |

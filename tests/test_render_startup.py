@@ -13,7 +13,7 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model

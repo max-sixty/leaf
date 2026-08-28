@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (

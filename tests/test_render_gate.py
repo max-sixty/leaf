@@ -6,7 +6,7 @@ import re
 import time
 
 import pytest
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model

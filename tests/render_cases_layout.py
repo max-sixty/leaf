@@ -13,7 +13,7 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model

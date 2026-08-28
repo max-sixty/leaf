@@ -6,7 +6,7 @@ import re
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model

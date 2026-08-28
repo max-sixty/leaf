@@ -5,7 +5,7 @@ import re
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
 from playwright.sync_api import expect

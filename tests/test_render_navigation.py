@@ -2971,7 +2971,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert key_line(page) == standing
-    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+    held_ask = page.locator("#first-question[data-lf-ask]")
+    expect(held_ask).to_have_count(1)
+    expect(held_ask).to_have_css("--lf-here-ring", "ask")
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
@@ -3004,6 +3006,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     page.mouse.down()
     assert key_line(page) == thread_standing
+    expect(thread).to_have_css("--lf-here-ring", "thread")
     page.mouse.up()
     assert "reply" not in key_line(page)
     assert errors == []

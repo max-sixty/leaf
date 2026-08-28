@@ -8,15 +8,18 @@ The main owners are:
 
 - `files`, `page`, and `revisioning`: atomic page files and immutable revisions;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
+- `event_endpoint`: browser-event admission, retry coordination, and append;
 - `events`, `conversation`, `projection`, and `work`: event folds and their
   standing readings;
-- `session`, `service`, `hosting`, `hooks`, and `http`: host identity, process
-  lifetime, leases, and transport;
+- `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,
+  and leases;
+- `served_state` and `http`: browser-facing state readings and HTTP transport;
 - `registry` and `layer`: registry storage and layer composition;
 - `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
   merged vocabulary contract and authored-page gates;
 - `passages`: the file-side text reading and anchor capture;
-- `render_checks` and `rendering`: browser validation and export;
+- `render_checks`, `render_gate`, and `exporting`: browser probes, validation,
+  and standalone export;
 - `data`, `media`, and `publishing`: page-bound inputs and deployment outputs.
 
 Do not put domain logic back into `interact.py` or branch across these owners in

@@ -16,12 +16,13 @@ from click.testing import CliRunner
 from conftest import INTERACT_SCRIPT
 from leaf import cli as cli_model
 from leaf import events as events_model
+from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
+from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import validation as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -192,8 +193,9 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
     expect(button).to_have_attribute(
-        "title", "Approve this work; the page stays open for follow-up"
+        "title", "Approve this work; the page stays open for follow-up (L)"
     )
+    expect(button).to_have_attribute("aria-keyshortcuts", "Shift+l")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2024,7 +2026,10 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
     expect(page.locator(".lf-others-panel")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Enter"
+        "aria-keyshortcuts", "ArrowUp ArrowDown"
+    )
+    expect(page.locator("a.lf-others-row").first).to_have_attribute(
+        "aria-keyshortcuts", "Enter"
     )
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")
@@ -2574,7 +2579,7 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     )
     assert errors == []
     page.close()
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
     assert any("1 comment" in found for found in reported), (
         "the line falls on nobody, so a gate that never looked would pass this too"
     )
@@ -2614,7 +2619,7 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
         "the cards fell on nobody, so a gate that never looked would pass this too"
     )
     page.close()
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
 
 def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
@@ -2669,7 +2674,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     assert [box for box in flattened if box["tag"] == "lf-chip"], (
         "a chip with no height left reports nothing, so the floor is gone rather than declared"
     )
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
 
 def test_check_render_refuses_what_only_a_browser_can_see(serve):
@@ -2769,11 +2774,11 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
     A control declared an offer is exempt, since paper has nothing to press: the same
     page's pick mark reads "chosen" and goes unreported either way."""
-    assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
+    assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "a page whose print rendering keeps its words has nothing to report"
     )
 
-    lost = rendering_model.render_version(browser, serve(PRINT_LOSS_PAGE))
+    lost = render_gate_model.render_version(browser, serve(PRINT_LOSS_PAGE))
     assert [f for f in lost if f.startswith("[print]")] == [
         (
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
@@ -2802,7 +2807,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, url)
     assert shown_frames(page) == ["before"]
@@ -2849,7 +2854,7 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     )
 
     standalone = tmp_path / "standalone.html"
-    standalone.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    standalone.write_text(exporting_model.export_page(browser, url, serve.page_dir))
     loose = browser.new_page(viewport={"width": 1200, "height": 900})
     loose.goto(standalone.as_uri(), wait_until="load")
     assert loose.evaluate("document.querySelectorAll('script').length") == 0
@@ -2876,7 +2881,7 @@ def test_a_shot_refuses_a_pair_shot_at_two_widths(browser, serve):
 
     assert [
         f
-        for f in rendering_model.render_version(browser, url)
+        for f in render_gate_model.render_version(browser, url)
         if "600px" in f and "400px" in f
     ], "the gate has to hear about a mismatch, since nobody else will"
 
@@ -2893,7 +2898,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     form control is unselectable in every engine, so a widget that reaches for <button>
     has put its label somewhere the user cannot go. `offer` builds a press as a span
     for exactly this reason, and this is what says so when a widget doesn't use it."""
-    assert rendering_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
+    assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
         "the same page without the two mistakes has nothing to report"
     )
 
@@ -2909,7 +2914,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
         )
 
     assert (
-        rendering_model.render_version(
+        render_gate_model.render_version(
             primed(browser, put_native_link), serve(CARRIED_PAGE)
         )
         == []
@@ -2929,7 +2934,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
             }, {once: true});"""
         )
 
-    found = rendering_model.render_version(
+    found = render_gate_model.render_version(
         primed(browser, put_words_out_of_reach), serve(CARRIED_PAGE)
     )
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
@@ -2972,7 +2977,9 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     the contract, and this test does not pin it."""
     found = [
         f.split("] ", 1)[1]
-        for f in rendering_model.render_version(browser, serve(PAINTED_IN_SILENCE_PAGE))
+        for f in render_gate_model.render_version(
+            browser, serve(PAINTED_IN_SILENCE_PAGE)
+        )
     ]
     assert sorted(set(found)) == [
         (
@@ -3037,7 +3044,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         },
     )
     found = sorted(
-        {f.split("] ", 1)[1] for f in rendering_model.render_version(browser, url)}
+        {f.split("] ", 1)[1] for f in render_gate_model.render_version(browser, url)}
     )
     assert found == [
         (

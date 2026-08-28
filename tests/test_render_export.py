@@ -5,8 +5,8 @@ import itertools
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
+from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
 from playwright.sync_api import expect
 from render_support import (
     EXAMPLES,
@@ -40,7 +40,7 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         )
 
     with pytest.raises(SystemExit, match="could not load its browser probe module"):
-        rendering_model.export_page(
+        exporting_model.export_page(
             primed(browser, break_probe), serve(LONG_PAGE), serve.page_dir
         )
 
@@ -62,7 +62,7 @@ def test_a_table_of_contents_keeps_native_links_in_a_static_copy(
     )
     url = serve(source)
     out = tmp_path / "contents-copy.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -104,7 +104,7 @@ def test_a_gloss_keeps_its_explanation_in_static_media(browser, serve, tmp_path)
     live.close()
 
     out = tmp_path / "gloss-copy.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
     copy = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(copy)
     copy.goto(out.as_uri(), wait_until="load")
@@ -145,7 +145,7 @@ def test_an_export_drops_a_live_widget_work_claim(browser, serve, tmp_path):
     assert result.exit_code == 0, result.output
 
     out = tmp_path / "work-copy.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
     page = browser.new_page()
     errors = watched(page)
     page.goto(out.as_uri(), wait_until="load")
@@ -175,7 +175,7 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
     rather than to any widget."""
     url = serve(example)
     out = tmp_path / "standalone.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900}, bypass_csp=True)
     errors = watched(page)
@@ -336,7 +336,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
 
     out = tmp_path / "standalone.html"
     out.write_text(
-        rendering_model.export_page(
+        exporting_model.export_page(
             primed(browser, refuse_the_first_poll), url, serve.page_dir
         )
     )
@@ -393,7 +393,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
     )
 
     out = tmp_path / "standalone.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
     copy = browser.new_page()
     copy.goto(out.as_uri(), wait_until="load")
     carried = copy.evaluate(inline_custom)
@@ -415,7 +415,7 @@ def test_a_copy_wears_the_mark_and_claims_no_session(browser, serve, tmp_path):
     link here still points at a server)."""
     url = serve(LONG_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page()
     page.goto(out.as_uri(), wait_until="load")

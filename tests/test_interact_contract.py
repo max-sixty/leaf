@@ -51,13 +51,13 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import event_endpoint as event_endpoint_model
 from leaf import events as events_model
-from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
-from leaf import rendering as rendering_model
+from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
@@ -209,7 +209,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     # same standing target and proceed, while the transactional handler keeps the
     # second outside until the first append is visible. A bounded wait keeps the
     # correct serialization from deadlocking the probe itself.
-    real_undo_error = http_model.undo_error
+    real_undo_error = event_endpoint_model.undo_error
     validation_lock = threading.Lock()
     second_validation = threading.Event()
     validation_calls = 0
@@ -226,7 +226,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
             second_validation.set()
         return error
 
-    monkeypatch.setattr(http_model, "undo_error", expose_validation_gap)
+    monkeypatch.setattr(event_endpoint_model, "undo_error", expose_validation_gap)
     start = threading.Barrier(3)
     results = []
 
@@ -706,7 +706,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
 
-    with rendering_model.preview_server(page_dir, 1):
+    with render_gate_model.preview_server(page_dir, 1):
         initing = threading.Thread(target=revendoring, name="re-vendor")
         initing.start()
         assert init_waiting.wait(5)

@@ -1,4 +1,4 @@
-import { bindings, labelOf, live, word } from "./bindings.js";
+import { activeRows, bindings, labelOf, word } from "./bindings.js";
 
 export function createKeyline({
   el,
@@ -27,15 +27,18 @@ export function createKeyline({
     const nearer = shadow();
     const rows = [];
     for (const scope of scopes) {
-      for (const row of scope.rows) {
-        // Shadowing before liveness, for the reason the dispatcher matches the key first:
-        // under the reference every page row is claimed away, and asking each one what the
-        // page is waiting on to then say nothing about it is the table's cost per paint. A
-        // dead row names nothing, so it shadows nothing either.
-        if (!row.line) continue;
+      // Shadowing before liveness, for the reason the dispatcher matches the key first:
+      // under the reference every page row is claimed away, and asking each one what the
+      // page is waiting on to then say nothing about it is the table's cost per paint. A
+      // dead row names nothing, so it shadows nothing either. Keep all unshadowed rows in
+      // the batch so activeRows still rejects two live meanings inside this reachable scope.
+      const reachable = scope.rows.filter((row) => {
+        if (!row.line) return false;
         const bound = bindings(row);
-        if (bound.some((k) => named.has(k) || nearer.takes(k))) continue;
-        if (!live(row)) continue;
+        return !bound.some((k) => named.has(k) || nearer.takes(k));
+      });
+      for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
+        const bound = bindings(row);
         for (const k of bound) named.add(k);
         rows.push(row);
       }

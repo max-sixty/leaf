@@ -1,7 +1,8 @@
-import { bindings, labelOf, live, spell, word } from "./bindings.js";
+import { bindings, declaredBindings, labelOf, live, spell, word } from "./bindings.js";
 
 export function createReference({
   bySentence,
+  characterShortcutsOn,
   el,
   elementScopes,
   ELEMENTS,
@@ -17,6 +18,7 @@ export function createReference({
   readerIn,
   scopeRefs,
   SCOPES,
+  setCharacterShortcuts,
   scopesFor,
 }) {
   // Every scope the page has, gathered by title, for the reference. Not the stack: the
@@ -127,6 +129,29 @@ export function createReference({
       search.spellcheck = false;
       const meta = el("div", "lf-help-meta");
       meta.setAttribute("aria-live", "polite");
+      const preference = el("div", "lf-help-preference");
+      const characterToggle = el("button", "lf-btn lf-help-shortcuts");
+      characterToggle.type = "button";
+      characterToggle.setAttribute("aria-label", "Character shortcuts");
+      const paintCharacterToggle = () => {
+        const on = characterShortcutsOn();
+        characterToggle.setAttribute("aria-pressed", String(on));
+        characterToggle.title = `Turn ${on ? "off" : "on"} letter, number, and punctuation shortcuts`;
+        characterToggle.replaceChildren(
+          document.createTextNode("Character shortcuts "),
+          el("span", "", on ? "on" : "off"),
+        );
+      };
+      paintCharacterToggle();
+      characterToggle.onclick = () => {
+        setCharacterShortcuts(!characterShortcutsOn());
+        // Rebuild the reference from the newly available bindings. Keep focus on the
+        // preference that caused the change instead of returning to search and making
+        // the toggle feel like a navigation command.
+        showHelp(true);
+        helpEl.querySelector(".lf-help-shortcuts").focus({ preventScroll: true });
+      };
+      preference.append(meta, characterToggle);
       const results = el("div", "lf-help-results");
       const empty = el("div", "lf-help-empty", "No matching shortcuts");
       empty.hidden = true;
@@ -183,7 +208,19 @@ export function createReference({
         // the page has, and `?` reaches the reference only from a page nobody has armed, so
         // listed whole it would name `g l` on a page holding no link at all.
         const inIt = readerIn(scope) || scope.claims === EVERYTHING;
-        const rows = scope.rows.filter((row) => row.does && (!inIt || live(row)));
+        // A declared section may merge many element instances under one title. Their
+        // identical bindings are alternatives at different focus locations, not competing
+        // meanings in one dispatch scope, so conflict validation stays on each registered
+        // scope and this aggregate only filters the rows relevant to the current state.
+        const rows = scope.rows.filter(
+          (row) =>
+            row.does &&
+            // Pointer-native actions can deliberately carry a label but no key. Keep
+            // those in the complete reference; only hide a row whose declared character
+            // binding the reader has turned off.
+            (bindings(row).length > 0 || declaredBindings(row).length === 0) &&
+            (!inIt || live(row)),
+        );
         if (!rows.length) continue;
         const title = scope.title ?? "On this page";
         const section = document.createElement("section");
@@ -224,7 +261,7 @@ export function createReference({
       };
       search.addEventListener("input", filter);
       filter();
-      helpEl.append(search, meta, results);
+      helpEl.append(search, preference, results);
     }
     helpEl.classList.toggle("open", open);
     // The reference is a list long enough to scroll, and anything a mouse can scroll a

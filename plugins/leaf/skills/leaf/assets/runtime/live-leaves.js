@@ -40,11 +40,6 @@ export function createLiveLeaves({
         repeat: true,
         run: (binding) => walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1),
       },
-      // Enter is the browser's here, the row being a link — no `run`, because binding it
-      // would click a control the platform has already activated. It carries a word all the
-      // same: the press is real and immediate where the reader is standing, which is what
-      // the line is for.
-      { keys: ["Enter"], does: "Open that leaf in a tab", line: "open it in a tab" },
     ],
     leavesOffered, // the scope's own liveness: a tray with something to walk
   );
@@ -146,6 +141,14 @@ export function createLiveLeaves({
                 target: "_blank",
                 rel: "noopener",
               });
+        if (key !== "self")
+          keys(row, "In the leaves tray", [
+            {
+              keys: ["Enter"],
+              does: "Open that leaf in a tab",
+              line: "open it in a tab",
+            },
+          ]);
         const head = el("div", "lf-others-head");
         head.append(el("span", "lf-dot"), el("span", "lf-others-title"));
         if (key === "self") head.append(el("span", "lf-pill", "this page"));

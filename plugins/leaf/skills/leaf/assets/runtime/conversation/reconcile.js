@@ -29,6 +29,7 @@ export function createConversation(dependencies) {
     isMarked,
     itemSays,
     itemWord,
+    keys,
     landTyping,
     layerPart,
     loadDraft,
@@ -42,10 +43,12 @@ export function createConversation(dependencies) {
     pageQueryAll,
     paintAnchors,
     paintHere,
+    paintKeys,
     panelIsOpen,
     panelTitle,
     placedAt,
     post,
+    PRESS,
     quietSince,
     reachScrollers,
     reachedForWords,
@@ -530,6 +533,8 @@ export function createConversation(dependencies) {
     const label = anchorLabel(t.root.anchor, t.root.about);
     if (label) {
       const quote = el("blockquote", "lf-quote", label);
+      quote.tabIndex = 0;
+      quote.setAttribute("role", "button");
       // The quote is words and a press at once: it says which passage the comment is
       // about, and pressing it travels there. A drag across it is the reader taking the
       // words, so the travel stands down — the reading `offer` makes of its own
@@ -537,6 +542,15 @@ export function createConversation(dependencies) {
       quote.onclick = (ev) => {
         if (ev.detail === 0 || !reachedForWords(quote)) scrollToThread(t.root.id);
       };
+      keys(quote, "On a comment's quoted passage", [
+        {
+          keys: PRESS,
+          does: "Return to the quoted passage on the page",
+          line: "return to the passage",
+          when: () => !quote.classList.contains("detached"),
+          run: () => quote.click(),
+        },
+      ]);
       div.append(quote);
     }
     turns(t).forEach((m) => div.append(msgNode(m)));
@@ -574,14 +588,31 @@ export function createConversation(dependencies) {
       resolve.onclick = async () => {
         const at = openThreads().indexOf(div);
         resolve.disabled = true;
+        paintKeys();
         try {
           await post({ kind: "resolve", parent: t.root.id });
         } finally {
           resolve.disabled = false;
+          paintKeys();
         }
         const kept = openThreads();
         (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
       };
+      keys(resolve, "On a thread's Resolve button", [
+        {
+          keys: PRESS,
+          does: "Resolve it",
+          line: "resolve",
+          when: () => !resolve.disabled,
+        },
+        {
+          keys: ["x"],
+          does: "Resolve it",
+          line: "resolve",
+          when: () => !resolve.disabled,
+          run: () => resolve.click(),
+        },
+      ]);
       actions.append(send, resolve);
       div.append(row, actions);
     } else {
@@ -599,16 +630,33 @@ export function createConversation(dependencies) {
       const reopen = el("button", "lf-reopen lf-thread-action", "Reopen");
       reopen.onclick = async () => {
         reopen.disabled = true;
+        paintKeys();
         try {
           await post({ kind: "unresolve", parent: t.root.id });
         } finally {
           reopen.disabled = false;
+          paintKeys();
         }
         threadsBox
           .querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`)
           ?.focus({ preventScroll: true });
         showThread(t.root.id);
       };
+      keys(reopen, "On a resolved thread", [
+        {
+          keys: PRESS,
+          does: "Reopen it",
+          line: "reopen",
+          when: () => !reopen.disabled,
+        },
+        {
+          keys: ["x"],
+          does: "Reopen it",
+          line: "reopen",
+          when: () => !reopen.disabled,
+          run: () => reopen.click(),
+        },
+      ]);
       actions.append(status, reopen);
       div.append(actions);
     }
@@ -1035,7 +1083,7 @@ export function createConversation(dependencies) {
   // the record, and again by a narrowing that rebuilt the nodes the record was painted on.
   function paintThreadQuotes() {
     const threads = new Map(threadList.map((t) => [t.root.id, t]));
-    for (const div of openThreads()) {
+    for (const div of threadsBox.querySelectorAll(".lf-thread")) {
       const quote = div.querySelector(".lf-quote");
       if (!quote) continue;
       // The words too, for the same reason the class below is repainted here rather than
@@ -1051,10 +1099,12 @@ export function createConversation(dependencies) {
       if (said && quote.textContent !== said) quote.textContent = said;
       const found = isMarked(div.dataset.id);
       quote.classList.toggle("detached", !found);
+      quote.setAttribute("aria-disabled", String(!found));
       quote.title = found
         ? "Jump to this passage"
         : "This passage can't be identified in the version you're viewing";
     }
+    paintKeys();
   }
 
   // A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
@@ -1225,6 +1275,10 @@ export function createConversation(dependencies) {
     paintWorkLines,
     widen,
     paintThreadQuotes,
+    syncReplyAddresses: () => {
+      for (const thread of threadsBox.querySelectorAll(":scope > .lf-thread"))
+        thread.lfSync?.();
+    },
     renderPanel,
     showThread,
     get threadList() {

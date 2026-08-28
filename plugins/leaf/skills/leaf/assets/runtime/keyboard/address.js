@@ -1,4 +1,4 @@
-import { labelOf, spell } from "./bindings.js";
+import { bindings, labelOf, spell } from "./bindings.js";
 
 export function createAddress({
   EVERYTHING,
@@ -203,12 +203,15 @@ export function createAddress({
   // A short number that prefixes a longer one takes Enter. The exact address says so on
   // every standing surface. An unambiguous number completes as soon as its last digit is
   // pressed.
-  const addressKeys = (entry, n) => [
-    labelOf(GOTO),
-    entry.key,
-    String(n),
-    ...(needsCommit(entry, n) ? ["Enter"] : []),
-  ];
+  const addressKeys = (entry, n) =>
+    bindings(GOTO).length
+      ? [
+          labelOf(GOTO),
+          entry.key,
+          String(n),
+          ...(needsCommit(entry, n) ? ["Enter"] : []),
+        ]
+      : [];
   const addressLabel = (entry, n) => addressKeys(entry, n).map(spell).join(" ");
   // How far the chord has come: `g`, and the list's letter once one has named a list. Every
   // surface that shows an address asks it — the chip that heads the key line, the ranges

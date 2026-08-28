@@ -1385,6 +1385,12 @@ of rows applies and which platform keys that context claims. The dispatcher,
 key line, `?` reference, control tooltips, and announcements are projections of
 those objects.
 
+Binding spelling is canonical: modifiers are ordered `Mod`, `Alt`, `Shift`, and
+single-letter keys are lowercase. A produced punctuation glyph carries no Shift
+prefix because the keyboard layout owns that modifier. Validate that form when a
+scope enters the register and compare canonical identities when checking ownership;
+modifier order and letter case do not make distinct presses in the dispatcher.
+
 ### The keyboard is a stack
 
 A press that takes the reader in pushes one layer. Escape pops one. The way out
@@ -1520,9 +1526,9 @@ carries threads. One route answers those by not asking them.
 Standing in a surface is where focus is, not merely that the surface is open. A
 tray's or panel's own button lives in the banner, so opening by pointer leaves
 the reader outside it, and a key, a Tab or a click on its contents is what puts
-them in. Inside a text box the letter is a character — the typing scope claims
-what types one — so a reader reaches a surface's letters from its list rather
-than from its composer.
+them in. Inside a text box the letter is a character, Enter writes a newline, and
+arrows move the caret. The typing scope claims those text-editing keys, so a reader
+reaches a surface's letters and walks from its list rather than from its composer.
 
 Widgets register through `keys(el, title, rows)` in
 `connectedCallback`. A module loaded on a page with no instance must contribute
@@ -1547,13 +1553,14 @@ guard inside `run` if the guard changes whether the key should be shown. When
 the reference needs to describe a page capability while the key line needs to
 promise an immediate press, keep `pageHas` and `readerIn` separate.
 
-`checked` validates declarations when they enter the register. `parsed` and
-`answers` share the supported modifiers `Mod`, `Alt`, and `Shift`. Unknown
-modifier names are errors rather than bindings that accidentally fire on a bare
-key. `spell` is the one platform-aware display of a binding. `PRESS` states the
-native key behavior of controls, and `DISCLOSE` reads the whole set a disclosure
-answers off the element it is asked about; links retain their platform
-distinction from buttons.
+`checked` validates declarations when they enter the register. `activeRows` also
+refuses two live meanings for one binding in the same scope; rows may reuse a
+binding only when their `when` predicates make the states exclusive. `parsed` and
+`answers` share the supported modifiers `Mod`, `Alt`, and `Shift`. Unknown modifier
+names are errors rather than bindings that accidentally fire on a bare key. `spell`
+is the one platform-aware display of a binding. `PRESS` states the native key
+behavior of controls, and `DISCLOSE` reads the whole set a disclosure answers off
+the element it is asked about; links retain their platform distinction from buttons.
 
 A label names this press, not the broad feature. Prefer "Comment on selection"
 or "Hide comments" to "Comment" or "Toggle". Compute the word through `word`
@@ -1568,15 +1575,23 @@ The first live row answering the event runs, prevents the platform default when
 it owns the press, and stops. A focused widget may shadow a page key without
 either scope naming the other.
 
-`claims` lists platform keys a scope consumes even when no registered row
-answers them. A text entry scope uses `takesLetters` and claims only keys that
-would type into that specific control. It does not blanket radio, checkbox,
-slider, Enter, Escape, or a send chord merely because they are form-related.
+`claims` lists platform keys a scope consumes even when no registered row answers
+them. A text entry scope uses `takesLetters` and claims character keys plus the keys
+that edit that specific control: Enter, deletion, caret movement, Home/End, and page
+movement. The claim follows the base key through modifiers, so Shift+Arrow selection,
+Alt character composition, and Mod editing commands remain native. It does not blanket
+radio, checkbox, slider, Escape, or unrelated function keys merely because they are
+form-related. An exact element scope is nearer than that claim, so a wired textarea
+keeps its own Escape or send row; the typing claim then stands before any scope on an
+ancestor widget. This ordering lets a widget contain an editor without taking letters,
+newlines, or caret keys from it.
 
-One box inside another scope states only what it does differently. `FINDING`
-stands before `TYPING` in `SCOPES`, so the find box keeps every text-box key and
-shadows the one it answers for itself: Escape lets the narrowing go, and the box
-on the press after that. One press is one rung there as everywhere else.
+One box inside another scope states only what it does differently. The find box
+registers its Escape and Enter on the exact input element, so those rows stand
+before `TYPING`; the general text-entry claim then stands before any ancestor
+widget, and ancestor scopes still stand before unrelated core modes. Escape lets
+the narrowing go, and the box on the press after that. One press is one rung there
+as everywhere else.
 
 A box hands the reader back to the conversation it is written in, which is the
 rung `c` came down. `backFromBox` climbs `SAYS_IN` from the box where
@@ -1773,7 +1788,8 @@ most two hints: the first live row, then an available Escape or the next row.
 This makes locality the ordinary priority and promotes only the way out of the
 current scene. Its hint chips are `aria-hidden` because placeholders and live
 announcements carry the same facts for assistive technology. The accessible
-`? more` control always opens the complete reference.
+The accessible More control always opens the complete reference. Its `?` binding
+does too while character shortcuts are enabled.
 
 The reference lists every live capability the page has, grouped by scope, and
 filters those rows by normalized key, action, line word, and scope text. Search
@@ -1787,6 +1803,14 @@ through the close control, search field, and actual overflow regions without
 letting focus enter the page behind it. Escape and the close control share one
 registered row. Closing restores the element that opened it; restoration waits
 one frame only when that element is the temporarily removed More control.
+
+The reference also owns the persistent character-shortcut preference. Turning
+it off removes unmodified and Shift-only letter, number, and punctuation bindings
+from dispatch, the key line, the reference, tooltips, address labels, placeholders,
+and `aria-keyshortcuts` in one projection. Space is activation, not a character
+shortcut, and remains live. The native More button and its Enter activation are
+the route back to the setting; do not make the setting depend on the character
+key it disables.
 
 `aria-keyshortcuts` is another projection of the register. Element scopes expose
 their currently available rows, including the scope's capability gate, and a

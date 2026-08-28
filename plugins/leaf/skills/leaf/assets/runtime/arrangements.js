@@ -2,6 +2,7 @@ let publishedArrangements = [];
 export { publishedArrangements as ARRANGEMENTS };
 
 export function createArrangements({
+  CHARACTER_SHORTCUTS_KEY,
   DESIGN_KEY,
   PANEL_KEY,
   TRAY_KEY,
@@ -28,6 +29,11 @@ export function createArrangements({
       ...readerStore.where(TRAY_KEY),
       value: tray,
     })),
+    {
+      name: "character shortcuts off",
+      ...readerStore.where(CHARACTER_SHORTCUTS_KEY),
+      value: "0",
+    },
     { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
   ];
   return publishedArrangements;

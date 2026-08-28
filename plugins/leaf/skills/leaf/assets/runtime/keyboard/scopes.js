@@ -1,4 +1,12 @@
-import { ariaShortcuts, bindings, checked, live, word } from "./bindings.js";
+import {
+  activeRows,
+  ariaShortcuts,
+  bindings,
+  checked,
+  live,
+  validateRows,
+  word,
+} from "./bindings.js";
 
 let publishedScopes;
 export const focused = (...args) => publishedScopes.focused(...args);
@@ -39,6 +47,11 @@ export function createScopes({ paintHere, upFrom }) {
     const ref = new WeakRef(el);
     scopeRefFor.set(el, ref);
     scopeRefs.add(ref);
+  }
+  function forgetScopedElement(el) {
+    const ref = scopeRefFor.get(el);
+    if (ref) scopeRefs.delete(ref);
+    scopeRefFor.delete(el);
   }
   const sentence = (row) => (typeof row.does === "string" ? row.does : row);
   const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
@@ -115,18 +128,44 @@ export function createScopes({ paintHere, upFrom }) {
       rows: checked(rows, title ?? "a scope"),
       when,
     };
+    // Validate before publishing to either index. A rejected declaration must not leave a
+    // bad scope installed where every later paint fails on it. A capability-gated scope may
+    // depend on state its owner is still initializing, so its first paint remains the gate;
+    // an immediately readable scope can be checked in full now.
+    if (!scope.when) validateRows(scope.rows, title ?? "a scope");
+    scope.validated = !scope.when;
+    const shortcuts = !scope.when
+      ? ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+      : "";
     elementScopes.set(where, scope);
     rememberScopedElement(where);
     // A scope capability may read state whose owner has not finished initializing while
     // modules are still registering. State renderers call paintKeys once that boundary is
     // complete; scopes with no capability gate are safe to expose immediately.
-    if (!scope.when) reflectShortcuts(scope);
+    if (shortcuts) where.setAttribute("aria-keyshortcuts", shortcuts);
     else where.removeAttribute("aria-keyshortcuts");
     paintHere();
     return rows;
   }
   function reflectShortcuts(scope) {
-    const shortcuts = !scope.when || scope.when() ? ariaShortcuts(scope.rows) : "";
+    const available = !scope.when || scope.when();
+    try {
+      if (available) validateRows(scope.rows, scope.title ?? "a scope");
+    } catch (error) {
+      // Capability-gated scopes may only become readable after registration. If that first
+      // validation fails, retract the unpublished contract completely; leaving it in the
+      // weak map would make every later paint fail after the caller handled the one error.
+      if (!scope.validated) {
+        elementScopes.delete(scope.el);
+        forgetScopedElement(scope.el);
+        scope.el.removeAttribute("aria-keyshortcuts");
+      }
+      throw error;
+    }
+    if (available) scope.validated = true;
+    const shortcuts = available
+      ? ariaShortcuts(scope.rows, true, scope.title ?? "a scope")
+      : "";
     if (shortcuts) {
       if (scope.el.getAttribute("aria-keyshortcuts") !== shortcuts)
         scope.el.setAttribute("aria-keyshortcuts", shortcuts);
@@ -145,8 +184,7 @@ export function createScopes({ paintHere, upFrom }) {
    * so an announcement cannot name a key the rows stopped binding.
    */
   const saying = (rows) =>
-    rows
-      .filter(live)
+    activeRows(rows, "an announced scope")
       .map((row) => `${spoken(row)} ${word(row.line)}`)
       .join(", ");
   // A row's own label where it has one, read the way every other surface reads a cell, and

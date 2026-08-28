@@ -1581,7 +1581,7 @@ mirrorDraft(generalInput, syncGeneral, "general");
 
 let approving = false;
 function paintApproval() {
-  const approved = runtime.events.some(
+  const approved = (runtime.browser?.conversation?.done ?? []).some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&
@@ -1968,27 +1968,16 @@ function allButTheReference(binding) {
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
 
-const { askEntry, isAwaiting, projectedParent, threadMarkupAwaiting, unansweredAsks } =
-  createAskModel({
-    authoredParentOf: (node) => authoredParents.get(node),
-    awaitsAgent,
-    buildThreads,
-    closestAcross: (...args) => closestAcross(...args),
-    elementById: (...args) => elementById(...args),
-    inChrome: (node) => inChrome(node),
-    matchesProjectedWhen: (...args) => matchesProjectedWhen(...args),
-    matchesWhen,
-    pagePresented,
-    projectedFacet: (...args) => projectedFacet(...args),
-    quoted,
-    registry,
-    runtime,
-    seatRoot,
-    settledAway: (...args) => settledAway(...args),
-    stateCoordinate: (...args) => stateCoordinate(...args),
-    stateProjection: (...args) => stateProjection(...args),
-    tagsDeclaring,
-  });
+const { askEntry, isAwaiting, projectedParent, unansweredAsks } = createAskModel({
+  authoredParentOf: (node) => authoredParents.get(node),
+  closestAcross: (...args) => closestAcross(...args),
+  elementById: (...args) => elementById(...args),
+  pagePresented,
+  registry,
+  runtime,
+  stateProjection: (...args) => stateProjection(...args),
+  tagsDeclaring,
+});
 
 const {
   ASK_CONTROL,
@@ -3065,12 +3054,12 @@ const {
   chooserLabel: () => labelOf(CHOOSER),
   domFacet: (...args) => domFacet(...args),
   elementById: (...args) => elementById(...args),
-  foldedFacet: (...args) => foldedFacet(...args),
   inChrome: (...args) => inChrome(...args),
   quoted,
+  projectionFromView: (...args) => projectionFromView(...args),
+  sameLayer,
   showToast,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  stateProjection: (...args) => stateProjection(...args),
   stateSpecs: (...args) => stateSpecs(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
@@ -3368,9 +3357,6 @@ const runtimeProjection = createProjection(runtime, {
   projectedParent,
   quoteFrom,
   reachScrollers,
-  // Whether a reaction still paints, off the conversation's last fold — built after this
-  // module, so asked lazily.
-  reactionStanding: (e) => conversationRuntime.reactionStanding(e),
   rememberPassageParts,
   removeOutbox,
   renderQuiet,
@@ -3394,11 +3380,11 @@ const {
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  foldedFacet,
   markSettled,
   matchesProjectedWhen,
   paintPending,
   projectedFacet,
+  projectionFromView,
   projectionCommitted,
   rebuild,
   reconcileKnownState,
@@ -3407,13 +3393,10 @@ const {
   rememberAuthoredMarkup,
   resetAuthoredPage,
   requirementMatches,
-  retractedIds,
-  retractionFloors,
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
   stateSpecs,
-  takenBack,
   undoable,
   unitOf,
   withdraw,
@@ -3495,8 +3478,6 @@ conversationRuntime = createConversation({
   renderQuiet,
   renderSaid,
   reportPageError,
-  retractedIds,
-  retractionFloors,
   runtime,
   saveDraft,
   scrollToElement,
@@ -3505,10 +3486,8 @@ conversationRuntime = createConversation({
   sendDraft,
   setPanel,
   settling,
-  takenBack,
   tellDraft,
   threadsBox,
-  threadMarkupAwaiting,
   toggleBtn,
   updateSequence,
   visualPartLabel,
@@ -3519,10 +3498,8 @@ conversationRuntime = createConversation({
 updateRuntime = createUpdates(runtime, {
   closestAcross,
   coordinateProjectionCommitted,
-  inChrome,
   projectionCommitted,
   stateProjection,
-  threadList: () => conversationRuntime.threadList,
 });
 
 anchorRuntime = createAnchors({

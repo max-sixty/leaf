@@ -342,8 +342,7 @@ def page_ask_projection(
     An ordinary x-awaits instance is its local condition minus an explicit answer.
     A roll-up projects the same fact through a nested plan: a false local condition
     stops; direct ordinary interventions take precedence;
-    otherwise child roll-ups recurse; a matching leaf waits. The browser implements
-    this reducer over the DOM and the same standing fold.
+    otherwise child roll-ups recurse; a matching leaf waits.
 
     `with_agent` chooses which question this answers, and is the whole of the
     difference between the two. Given `seats_with_agent`, it is the reader's list: a
@@ -395,7 +394,11 @@ def page_awaiting_values(html, parser, projection, spk, registry: dict) -> dict:
 
 
 def thread_ask_projection(
-    events: list, registry: dict, settled: set
+    events: list,
+    registry: dict,
+    settled: set,
+    *,
+    prepared: tuple | None = None,
 ) -> tuple[list, dict]:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
@@ -409,9 +412,14 @@ def thread_ask_projection(
     agent asked and then withdrew by resolving stays on the banner's count for
     the life of the page, and the walk that steps to it lands in a shut
     disclosure."""
-    structure = thread_structure(events)
-    records, byid, spk = [], {}, {}
-    thread_of = thread_roots(events)
+    if prepared is None:
+        structure = thread_structure(events)
+        projection = None
+        records, byid, spk = [], {}, {}
+        thread_of = thread_roots(events)
+    else:
+        projection, byid, spk, thread_of, structure = prepared
+        records = []
     for e in events:
         if e["kind"] not in ("comment", "reply"):
             continue
@@ -419,10 +427,12 @@ def thread_ask_projection(
         if not markup or thread_of[e["id"]] in settled:
             continue
         frag = structure.fragments[e["id"]]
-        byid.update(frag.by_id)
-        spk.update(spoken(markup, registry))
+        if prepared is None:
+            byid.update(frag.by_id)
+            spk.update(spoken(markup, registry))
         records.extend((thread_of[e["id"]], rec) for rec in frag.lf_elements)
-    projection = state_projection(events, byid, spk, registry, None, {})
+    if projection is None:
+        projection = state_projection(events, byid, spk, registry, None, {})
 
     asks, values = page_ask_projection(
         [rec for _thread, rec in records],

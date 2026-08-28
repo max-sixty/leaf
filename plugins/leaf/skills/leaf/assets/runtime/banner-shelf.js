@@ -106,10 +106,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
             : 1;
       const shelfDelta = event.deltaY * shelfUnit;
       const before = bannerActions.scrollLeft;
-      const limit = Math.max(
-        0,
-        bannerActions.scrollWidth - bannerActions.clientWidth,
-      );
+      const limit = Math.max(0, bannerActions.scrollWidth - bannerActions.clientWidth);
       bannerActions.scrollLeft = Math.max(0, Math.min(limit, before + shelfDelta));
       const consumed = bannerActions.scrollLeft - before;
       const remainder = shelfDelta
@@ -119,10 +116,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
       const pageLocked = view.getComputedStyle(pageScroller).overflowY === "hidden";
       if (remainder && !pageLocked)
         pageScroller.scrollTop += event.deltaY * pageUnit * remainder;
-      if (
-        bannerActions.scrollLeft !== before ||
-        pageScroller.scrollTop !== pageBefore
-      )
+      if (bannerActions.scrollLeft !== before || pageScroller.scrollTop !== pageBefore)
         event.preventDefault();
     },
     { passive: false },

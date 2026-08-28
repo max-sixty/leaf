@@ -36,6 +36,7 @@ server-projected request lifecycle watcher;
 `runtime/asks/view.js` owns ask chrome, marking, and the ask walk;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry and page-click routing;
+`runtime/composing/targets.js` owns keyboard passage hints and whole-page text search;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/input.js` and `runtime/composing/selection.js` own shared input
 and selection-composer state;
@@ -1505,6 +1506,32 @@ not an Escape rung, because it gives no layer back. The address chord states wha
 open: beside the document, `g p` returns from the comment panel to the document and keeps
 both the panel and its narrowing. A panel covering the document cannot make that promise,
 so its ordinary Escape rung remains the route back.
+
+### Passage selection is explicit
+
+`s` names the smallest visible semantic blocks with short, viewport-local hints. The
+names are a prefix-free tree over one alphabet: most targets cost one letter, and only
+the tail branches when a viewport holds more targets than the alphabet. Unlike `g`
+addresses, these names are ephemeral and make no promise across a scroll or revision.
+They are the whole route, so none may be dropped because its chip collides.
+
+Tab and Shift-Tab walk that visible target map and announce the hint with its passage;
+Enter chooses the last one announced. This is the nonvisual reading of the same map, not
+a second selection order. A viewport change that removes or renames that target clears
+the announced choice before Enter can act on it.
+
+`/` inside selection opens a real search input over the whole page reading. There, Tab
+walks repeated occurrences and Enter chooses the active one. Search and hints both make a
+native browser Selection from the passage reader's segments; an atomic visual raises
+the ordinary item surface. Capture, anchoring, `c`, and the composer therefore receive
+the same state as their pointer and caret routes, with no keyboard-only anchor model.
+
+Search is one layer inside selection: Escape returns to the visible hints, then a second
+Escape closes selection. The mode keeps `?` available and claims the rest of the page's
+keyboard while it stands.
+
+After a hint or search chooses a target, Escape clears the native selection or lowers the
+selected atomic item and its comment bar.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The

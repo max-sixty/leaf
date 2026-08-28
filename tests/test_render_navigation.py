@@ -2939,7 +2939,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         steps=10,
     )
     assert "after state" in page.evaluate("() => getSelection().toString()")
-    assert "let go" in key_line(page)
+    assert "unselect" in key_line(page)
     page.mouse.up()
     assert "let go" not in key_line(page)
 

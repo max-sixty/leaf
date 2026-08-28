@@ -3361,6 +3361,7 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # layer's ring rules stood in that position when this was written.
 RING_WALKS = (
     ("the page", (), ("gallery", "design-decision", "ship-review")),
+    ("passage search", ("s", "/"), ("gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     ("the asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "l"), ("gallery",)),
@@ -3390,6 +3391,7 @@ RING_WALK_EXAMPLES = tuple(
 # surface of their own; `c` and `g c` land on the list, which the walk's own first stop
 # reads.
 RING_SCOPE_SURFACE = {
+    "passage search": (".lf-target-search:not([hidden])", None),
     "the asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu.open", None),

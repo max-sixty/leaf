@@ -89,6 +89,7 @@ from render_support import (
     ring_faults,
     rings_drawn,
     round_trip,
+    select,
     serious_axe_violations,
     shown_frames,
     solid_png,

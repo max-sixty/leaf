@@ -388,6 +388,16 @@ property in transit for two frames. That is fixed in the theme, which is why no
 reading here carries such a wait — a wait in front of a reading whose subject never
 moves is a mechanism that cannot fail and cannot help.
 
+A wait states its end as well as its fact. `page.evaluate` takes no timeout in any
+binding, so a promise awaited inside it — an animation's `finished`, a module's load, a
+listener's next call — is a wait nothing bounds. It does not fail in thirty seconds
+naming its test: it spends the job's whole step, and the share of the suite already
+handed to that worker never runs. Bound the await with a `setTimeout` that rejects
+naming what never arrived and the bound it passed, as `render_checks.py`'s probe loader
+races one and the diff renders in `test_render_anchors.py` hold a frame poll against
+one, or state the fact from inside the page and read it with `wait_for_function`.
+`SERVED_TIMEOUT_MS` is the patience the payload gives such a wait.
+
 ### A state the page passes through is not a state to poll for
 
 Use Playwright's `expect(...)` for a state that will become stable and remain true.

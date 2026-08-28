@@ -5,6 +5,7 @@ import re
 import pytest
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -1121,11 +1122,23 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     # once: its node left the list when the thread reopened, and the record it must
     # not clear on its way is the live fold's. Cleared, the thread is pulled out of
     # the list in the middle of the motion carrying it away.
+    # The await states its own end. `page.evaluate` takes no timeout in any binding, so
+    # an animation that never settles `finished` is a wait nothing bounds: this one
+    # didn't, and what should have been this test failing under its own name was the
+    # job's whole 45-minute step, spent here, with the share of the suite already handed
+    # to this worker never run. `SERVED_TIMEOUT_MS` is the patience the payload's own
+    # probes give a promise they await inside `evaluate`, and the rejection comes back
+    # through `evaluate` naming the motion that stopped and the bound it passed.
     page.evaluate(
-        "async (i) => { const m = window.__lfHeld[i];"
+        "async ([i, ranOutMs]) => { const m = window.__lfHeld[i];"
         " m.play(); m.currentTime = m.effect.getComputedTiming().duration;"
-        " await m.finished; }",
-        before,
+        " let timer;"
+        " try {"
+        "   await Promise.race([m.finished, new Promise((_, ranOut) => {"
+        "     timer = setTimeout(() => ranOut(new Error("
+        "       `held fold ${i} did not finish within ${ranOutMs}ms`)), ranOutMs); })]);"
+        " } finally { clearTimeout(timer); } }",
+        [before, render_checks_model.SERVED_TIMEOUT_MS],
     )
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     assert errors == []

@@ -30,6 +30,11 @@ column is what the reader has to take from the page, and its backing sits under
 `<details>`. `leaf page catalog <page>` is the authority for the vendored
 vocabulary and theme.
 
+A page states what is true now, not how it got there. Correct a wrong figure in
+place and drop a superseded claim rather than narrating its withdrawal — the
+`version stamp` changelog and the event log carry the history, so the column does
+not have to.
+
 The stakes decide the ceremony. A quick page — one that exists to get a
 reaction now and will be revised or dropped on it, whatever shape it takes —
 goes live whenever a valid source save passes the markup check. A finished

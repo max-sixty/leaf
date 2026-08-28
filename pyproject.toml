@@ -63,6 +63,8 @@ markers = ["nightly: complete browser or site integration; `--run-nightly` runs 
 # so the one trip on main printed the server thread, execnet's reader, and Playwright's
 # event loop, and named nothing. It then exited the worker, which under `--dist
 # loadgroup` leaves the controller on a session that never finishes — the whole job's
-# cap spent on a run that had reached 99%. Playwright's own 30-second timeouts already
-# fail a stalled browser wait with the test's nodeid, and the workflow's 45-minute step
-# bound is what turns a true wedge into the `failure` `tend-ci-fix` answers.
+# cap spent on a run that had reached 99%. Playwright's own 30-second timeouts fail a
+# stalled browser wait with the test's nodeid, and the workflow's 45-minute step bound is
+# what turns a true wedge into the `failure` `tend-ci-fix` answers. Those timeouts are
+# not free: `evaluate` takes none, so a wait a test states as a promise has to state its
+# end as well — `FRAMES` in `tests/render_harness.py` is that, and carries why.

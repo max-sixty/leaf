@@ -31,6 +31,7 @@ from render_support import (
     JOURNEY_V1,
     JOURNEY_V2,
     LONG_PAGE,
+    RENDERED,
     SENTENCE,
     SHADOWED_DIFF,
     SHORT_SUGGESTION,
@@ -533,9 +534,7 @@ def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
         )
         navigate()
         ready()
-        page.evaluate(
-            "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
-        )
+        page.evaluate(RENDERED)
         cdp.send("Page.stopScreencast")
         assert encoded, "the compositor-frame positive control recorded nothing"
         return [pixels(base64.b64decode(frame)) for frame in encoded]

@@ -24,6 +24,7 @@ from render_support import (
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
+    RENDERED,
     ROOT,
     SPENT,
     STANDS_BACK,
@@ -1417,9 +1418,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     comments = page.locator(".lf-comments")
     comments.click()
     expect(help_el).to_be_hidden()
-    page.evaluate(
-        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
-    )
+    page.evaluate(RENDERED)
     expect(comments).to_be_focused()
     assert errors == []
     page.close()
@@ -2168,9 +2167,6 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     loses focus to `body` does not stop, it silently restarts, and a reader tabbing
     through their own page never gets past the banner."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
-    frame = (
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
     who = """() => {
       let e = document.activeElement;
       while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
@@ -2184,7 +2180,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         for _ in range(24):
             page.keyboard.press("Tab")
             if settled:
-                page.evaluate(frame)
+                page.evaluate(RENDERED)
             trail.append(page.evaluate(who))
         walks["frame" if settled else "fast"] = trail
 
@@ -2210,7 +2206,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         ):
             break
     expect(page.locator(".lf-key-more")).to_be_focused()
-    page.evaluate(frame)
+    page.evaluate(RENDERED)
     expect(page.locator(".lf-key-more")).to_be_focused()
 
     assert errors == []

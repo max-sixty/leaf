@@ -30,6 +30,7 @@ from render_support import (
     MESSAGE_ROOM_PAGE,
     PROPOSED_PAGE,
     REBUILT_INLINE_PAGE,
+    RENDERED,
     REPLY_HOST_PAGE,
     ROOM_HELD,
     ROOM_WIDGETS,
@@ -1627,9 +1628,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     expect(page.locator("#mr-msg-q")).to_be_visible()
     # The re-measure is delivered with the layout that gave these their boxes, so the
     # reading waits for a frame that has been through one.
-    page.evaluate(
-        "() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
+    page.evaluate(RENDERED)
     for suffix, prop in ROOMS:
         assert page.evaluate(ROOM_HELD, [f"mr-msg{suffix}", prop]) == held[suffix], (
             suffix,

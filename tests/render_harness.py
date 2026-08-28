@@ -1066,6 +1066,44 @@ def watched(page):
     return errors
 
 
+# Rendered turns, waited for with a deadline of their own.
+#
+# A frame wait is the one browser wait Playwright does not bound: `evaluate` takes no
+# timeout in any binding, so a promise that never settles blocks the worker for as long
+# as the job lives. Every other wait here ends — Playwright's own thirty seconds, or the
+# deadline `_until` states — and each of those names the test it ran out in. A frame wait
+# that never comes back names nothing: the worker's last word is the nodeid it picked up,
+# the step spends its whole forty-five minutes, and the tests xdist had already handed
+# that worker never run. Runs 33130006054 and 33130455313 ended exactly there, each
+# inside a render test that had reached no assertion.
+#
+# So the wait states its own end. It is the page's clock rather than Playwright's,
+# because there is no seam to hang a driver-side deadline on: the timer keeps running
+# through the frames that stop, and a rejected promise comes back through `evaluate` as
+# the failure of the test that asked for it.
+FRAME_DEADLINE_MS = 30_000
+FRAMES = (
+    "(turns) => new Promise((rendered, ranOut) => {\n"
+    "  const deadline = setTimeout(\n"
+    "    () => ranOut(new Error(turns + ' rendering turns never arrived')),\n"
+    f"    {FRAME_DEADLINE_MS});\n"
+    "  let left = turns;\n"
+    "  const step = () => {\n"
+    "    if (--left > 0) return requestAnimationFrame(step);\n"
+    "    clearTimeout(deadline);\n"
+    "    rendered();\n"
+    "  };\n"
+    "  requestAnimationFrame(step);\n"
+    "})"
+)
+# One turn is the frame a write has been through; two is a turn whose own consequences
+# have been through one, which is what a read after a coalesced repaint needs. Nested
+# animation-frame callbacks have one complete rendering turn between them, so this states
+# rendered progress rather than elapsed time between two frame polls.
+ONE_FRAME = f"() => ({FRAMES})(1)"
+RENDERED = f"() => ({FRAMES})(2)"
+
+
 def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
@@ -1081,7 +1119,7 @@ def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
         page.wait_for_function(ready)
         # Let the rendering turn that earned the readiness stamp finish. A loop
         # notice is delivered by that turn, rather than by the DOM write alone.
-        page.evaluate("() => new Promise(requestAnimationFrame)")
+        page.evaluate(ONE_FRAME)
         fresh = errors[start:]
         del errors[start:]
         notices = [
@@ -1117,9 +1155,7 @@ def key_line(page):
     budget —
     reading a stale line as an eventually right one.
     """
-    page.evaluate(
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
+    page.evaluate(RENDERED)
     return page.locator(".lf-keyline").inner_text()
 
 

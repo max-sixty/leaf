@@ -200,24 +200,16 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     round_trip(page)
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_an_example_comes_up_for_a_reader_who_left_something_standing(
-    browser, serve, example
-):
-    """The corpus read the way a reader reads it the second time. `test_example_renders`
-    above is every example's first visit; this is the same examples with the panel
-    open, a tray standing, or design mode on, which is what the reader who opened one
-    of those gets back on every load until they close it."""
-    assert arrival_findings(browser, serve(example)) == []
-
-
 def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
-    """The sweep above asks whether each example survives an arrangement; this asks
-    whether the reading covers them. The probe speaks only to a returning reader, so
-    every finding here is the arrival pass's, and what it is held to is the
-    arrangements the runtime declares — all of them, in order, because a pass that
-    stopped at the first would leave every surface after it exactly as unwatched as it
-    was before."""
+    """Every arrangement the layer restores is exercised on one representative page.
+
+    Restoring reader furniture is layer-owned and identical under every authored
+    version, so multiplying this reading across the corpus repeats the mechanism rather
+    than adding an input. The probe speaks only to a returning reader, and every finding
+    here is the arrival pass's. It is held to the arrangements the runtime declares —
+    all of them, in order, because a pass that stopped at the first would leave every
+    surface after it exactly as unwatched as it was before.
+    """
 
     def prepare(page):
         # At document start, before the page's own scripts, so what is read is what the

@@ -42,6 +42,7 @@ from render_support import (
     RAIL_FIT,
     REPLY_HOST_PAGE,
     ROOM_GEOMETRY,
+    SOURCE_EXAMPLES,
     TOKEN,
     TWIN_V1,
     TWIN_V2,
@@ -348,13 +349,15 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     )
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
 def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, example):
     """The claim `leaf comment` makes is that a quote read out of the version file
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
-    reading and nothing in the other."""
+    reading and nothing in the other. The generated gallery derives its tab bodies from
+    these sources; its generation check owns that composition, while this sweep keeps
+    one file reading for every page an author can change."""
     # The markup rather than the example, so a shipped log stays out. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and

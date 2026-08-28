@@ -226,6 +226,7 @@ export function createConversation(dependencies) {
     paintKeys,
     paintReactStrips,
     panelCovers,
+    placedAt,
     post,
     PRESS,
     reachedForWords,

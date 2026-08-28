@@ -2129,18 +2129,59 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     assert returned["scroll"] != pytest.approx(sliver["scroll"], abs=0.5)
     assert returned["top"] > returned["banner"]
 
-    # Resolved threads use the same projection. When a later version removes the passage,
-    # their folded quote becomes an informative disabled stop, not a promised no-op.
+    # A resolved thread keeps its page placement even though its folded quote has no live
+    # mark. On a covering phone panel, that retained destination remains an enabled
+    # keyboard action, spends the sheet, and returns to the passage.
     page.get_by_role("button", name="Resolve").click()
     round_trip(page)
+    resized(page, 390, 800)
+    details = page.locator(".lf-details")
+    details.evaluate("el => { el.open = true; }")
+    resolved_quote = details.locator(".lf-quote")
+    expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(resolved_quote).to_have_attribute("aria-disabled", "false")
+    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    placed_before = page.evaluate("() => document.body.scrollTop")
+    resolved_quote.focus()
+    expect(page.locator(".lf-keyline")).to_contain_text("return to the passage")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    placed_after = page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: passage.top,
+                  bottom: passage.bottom, banner: banner.bottom, height: innerHeight};
+        }"""
+    )
+    assert placed_after["scroll"] != placed_before
+    assert placed_after["top"] > placed_after["banner"]
+    assert placed_after["bottom"] < placed_after["height"]
+
+    # When a later version removes the passage altogether, the same folded quote is an
+    # informative disabled stop. A pointer press has no destination to spend the sheet on,
+    # so the covering panel and the page behind it both stay where the reader left them.
+    page.locator(".lf-comments").click()
+    panel_settled(page)
     without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
     (d / "versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)
-    page.locator(".lf-details summary").click()
-    resolved_quote = page.locator(".lf-details .lf-quote")
+    details.evaluate("el => { el.open = true; }")
+    resolved_quote = details.locator(".lf-quote")
+    expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
     assert resolved_quote.get_attribute("aria-keyshortcuts") is None
+    expect(page.locator(".lf-panel")).to_be_visible()
+    stranded_before = page.evaluate("() => document.body.scrollTop")
+    quote_box = resolved_quote.bounding_box()
+    assert quote_box is not None
+    page.mouse.click(
+        quote_box["x"] + quote_box["width"] / 2,
+        quote_box["y"] + quote_box["height"] / 2,
+    )
+    expect(page.locator(".lf-panel")).to_be_visible()
+    assert page.evaluate("() => document.body.scrollTop") == stranded_before
     resolved_quote.focus()
     expect(page.locator(".lf-keyline")).not_to_contain_text("return to the passage")
     assert errors == []

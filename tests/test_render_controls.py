@@ -4003,25 +4003,27 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # stands. A tray, the versions menu and the reference hold controls that do not exist
 # until a key opens them, so the Tab order alone never reaches one: twelve of the
 # layer's ring rules stood in that position when this was written.
-RING_SCOPES = (
-    ("the page", ()),
-    ("the comments", ("c",)),
-    ("the asks tray", ("a",)),
-    ("the leaves tray", ("l",)),
+RING_WALKS = (
+    ("the page", (), ("gallery", "design-decision", "ship-review")),
+    ("the comments", ("c",), ("ship-review",)),
+    ("the asks tray", ("a",), ("ship-review",)),
+    ("the leaves tray", ("l",), ("gallery",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
     # from the row above it. The walk is clamped, so a second press at the top moves
     # nothing and the pair covers a menu of any length this corpus can hold.
-    ("the versions menu", ("v", "ArrowUp", "ArrowUp")),
-    ("the reference", ("?",)),
-    ("design mode", ("i",)),
+    ("the versions menu", ("v", "ArrowUp", "ArrowUp"), ("gallery",)),
+    ("the reference", ("?",), ("gallery",)),
+    ("design mode", ("i",), ("gallery",)),
 )
-# The generated gallery is the open-ended anchor: every authored widget family joins
-# it. Two state neighbours contribute the rings the gallery cannot light itself.
-# Design decision settles and joins options and carries a glossary mark; ship review
-# carries log-hosted element and run-heading marks. The other examples add only repeated
-# instances of mechanisms those three already exercise.
-RING_WALK_EXAMPLES = ("gallery", "design-decision", "ship-review")
+# The gallery is the open-ended page and design-mode anchor: every authored widget family
+# joins it. Design decision contributes settled and joined options plus a glossary mark.
+# Ship review contributes the panel's log-hosted widgets, element mark and run-heading
+# mark, and therefore carries the shared comments and asks chrome. The remaining chrome
+# has no page-owned contents and is walked once on the gallery.
+RING_WALK_EXAMPLES = tuple(
+    dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
+)
 # What each scope has to have opened before its walk means anything, and what the page
 # shows while the key that opens it is live. A key with nothing to show is dead by
 # declaration — `a` on a page waiting on nobody, `l` where the machine has one leaf — so
@@ -4270,7 +4272,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 row.click()
         page_at_rest(page)
 
-        for scope, keys in RING_SCOPES:
+        for scope, keys, corpus in RING_WALKS:
+            if name not in corpus:
+                continue
             # Three rungs, because a scope can be three deep: a tray or a menu over the
             # panel over the page. The last one closes the panel, which is reopened
             # below, so every scope starts from the same page.
@@ -4363,7 +4367,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     # in it. What cannot happen is a scope no selected example ever opens or walks: then its
     # keys are unread and everything below is silent about the controls behind them.
     missing = [s for s in RING_SCOPE_SURFACE if s not in opened] + [
-        f"{s} (walked nothing)" for s, _ in RING_SCOPES if s not in walked_in
+        f"{s} (walked nothing)"
+        for s, _keys, _corpus in RING_WALKS
+        if s not in walked_in
     ]
     assert not missing, "no selected example reached " + ", ".join(sorted(missing))
     assert not faults, "\n  ".join(

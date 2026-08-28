@@ -45,6 +45,7 @@ jobs:
           token: ${{ secrets.TEND_BOT_TOKEN }}
 
       - uses: astral-sh/setup-uv@v7
+      - run: ln -sf "$(command -v uv)" /usr/local/bin/uv
       - run: uv sync --frozen
 
       - uses: max-sixty/tend/claude@0.1.19

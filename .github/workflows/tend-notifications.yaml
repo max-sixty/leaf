@@ -148,6 +148,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
         if: steps.check.outputs.count != '0' || github.event_name == 'workflow_dispatch'
+      - run: ln -sf "$(command -v uv)" /usr/local/bin/uv
+        if: steps.check.outputs.count != '0' || github.event_name == 'workflow_dispatch'
       - run: uv sync --frozen
         if: steps.check.outputs.count != '0' || github.event_name == 'workflow_dispatch'
       - uses: max-sixty/tend/claude@0.1.19

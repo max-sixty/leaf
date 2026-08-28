@@ -119,6 +119,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
         if: steps.gate.outputs.should_run == 'true'
+      - run: ln -sf "$(command -v uv)" /usr/local/bin/uv
+        if: steps.gate.outputs.should_run == 'true'
       - run: uv sync --frozen
         if: steps.gate.outputs.should_run == 'true'
 

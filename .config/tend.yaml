@@ -9,6 +9,16 @@ bot_name: leaf-agent
 # lock as written so a run can't leave lockfile churn in the branch it opens.
 setup:
   - uses: astral-sh/setup-uv@v7
+  # setup-uv publishes uv by appending its toolcache directory to $GITHUB_PATH,
+  # which the agent's sandbox PATH does not inherit. Every command this file
+  # counts on was therefore `uv: command not found` inside a session — the
+  # suite, and `bin/leaf` itself — so a run could neither test a fix nor drive
+  # the CLI it was editing. /usr/local/bin is on the sandbox's PATH, so a link
+  # there hands the agent the same uv these steps and `ci.yaml` use. A link
+  # rather than a `sandbox_path:` entry because the toolcache directory carries
+  # uv's version, and this action is deliberately unpinned: a path written here
+  # would come apart on the next uv release, silently and in exactly this way.
+  - run: ln -sf "$(command -v uv)" /usr/local/bin/uv
   - run: uv sync --frozen
 
 workflows:

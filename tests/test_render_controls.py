@@ -249,7 +249,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """A page that only informs leads with Comments and offers no terminal action.
+    """A page that only informs ends at Comments and offers no terminal action.
 
     The slot the approve button takes on a sign-off page stays empty here rather than
     picking up a neutral control, which is the fact a reader can see: an informational
@@ -259,7 +259,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     # The banner is built in one pass, so a control standing in it is what makes the
     # absence beside it worth reading rather than a row that never rendered.
     expect(page.locator(".lf-comments")).to_be_visible()
-    expect(page.locator(".lf-banner-actions > *").first).to_have_class(
+    expect(page.locator(".lf-banner-actions > *").last).to_have_class(
         re.compile(r"\blf-comments\b")
     )
     assert page.locator(".lf-signoff").count() == 0
@@ -878,6 +878,17 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             "() => getComputedStyle(document.body).overflowY !== 'hidden'"
         )
         actions = page.locator(".lf-banner-actions")
+        page.evaluate(
+            """() => {
+              const actions = document.querySelector('.lf-banner-actions');
+              for (let i = 0; i < 3; i++) {
+                const button = document.createElement('button');
+                button.className = 'lf-ui lf-btn';
+                button.textContent = `Secondary touch destination ${i + 1}`;
+                actions.append(button);
+              }
+            }"""
+        )
         assert actions.evaluate("el => el.scrollWidth > el.clientWidth")
         point = actions.bounding_box()
         gesture = {
@@ -2796,6 +2807,85 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     page.close()
 
 
+def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
+    browser, serve, other_leaf
+):
+    """The status glyph is the page's own replaceable icon, not a second approximation
+    of it. On a desk, All leaves begins the action row beside the left tray and Comments
+    ends it beside the right panel. A phone keeps the primary Comments loop first, where
+    it is initially reachable, and the DOM itself changes order so the keyboard follows
+    the visible route. Crossing that boundary does not throw away the control in focus."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, serve(html))
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-signoff")).to_be_visible()
+
+    mark = page.locator(".lf-banner .lf-dot")
+    mask = mark.evaluate("el => getComputedStyle(el).maskImage")
+    assert "/icon.svg" in mask, f"the banner mark came from {mask!r}, not icon.svg"
+    page.emulate_media(forced_colors="active")
+    forced = mark.evaluate(
+        """el => ({mark: getComputedStyle(el).backgroundColor,
+                    banner: getComputedStyle(el.closest('.lf-banner')).backgroundColor})"""
+    )
+    assert forced["mark"] != forced["banner"], (
+        "the masked page mark disappears into the forced-colors banner"
+    )
+    page.emulate_media(forced_colors="none")
+
+    def actions():
+        return page.locator(".lf-banner-actions > *").evaluate_all(
+            """els => els.map(el =>
+                 [['others', 'lf-others'], ['latest', 'lf-latest-chip'],
+                  ['asks', 'lf-asks'], ['version', 'lf-version'],
+                  ['comments', 'lf-comments'], ['signoff', 'lf-signoff']]
+                   .find(([, cls]) => el.classList.contains(cls))?.[0])
+                 .filter(Boolean)"""
+        )
+
+    wide = actions()
+    assert wide == ["others", "latest", "asks", "version", "signoff", "comments"]
+    others_x = page.locator(".lf-others").bounding_box()["x"]
+    comments = page.locator(".lf-comments").bounding_box()
+    assert others_x < page.viewport_size["width"] / 2, (
+        "the control for the left tray is still sitting in the right half of the banner"
+    )
+    assert comments["x"] + comments["width"] > page.viewport_size["width"] * 0.9, (
+        "the control for the right panel is not standing against that edge"
+    )
+
+    version = page.locator(".lf-version")
+    assert version.bounding_box()["width"] < 100, (
+        "the closed version address still reserved the menu's full draft account"
+    )
+    version.focus()
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "document.activeElement === document.querySelector('.lf-version')"
+    )
+    covering = actions()
+    assert covering == ["comments", "signoff", "latest", "asks", "version", "others"]
+
+    page.locator(".lf-others").focus()
+    resized(page, 1200, 900)
+    assert page.evaluate(
+        "document.activeElement === document.querySelector('.lf-others')"
+    )
+    assert actions() == [
+        "others",
+        "latest",
+        "asks",
+        "version",
+        "signoff",
+        "comments",
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_a_panel_row_follows_its_pages_status_live(
     browser, serve, other_leaf, dead_pid, tmp_path
 ):
@@ -3702,7 +3792,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.mouse.click(*at)
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert shown_frames(page) == ["before"]
-    # The keyboard's handle, which the label over the image cannot be.
+    # The same full target is also the keyboard's native handle.
     page.locator("lf-shot input[type=checkbox]").focus()
     page.keyboard.press(" ")
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
@@ -3710,14 +3800,85 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.close()
 
 
+def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
+    """A tall comparison may put its instruction row more than a viewport below the
+    point being inspected. Both the image and that row are the native checkbox itself,
+    so a click changes state without label activation focusing some distant box and
+    centring it in the viewport. The same causal gesture is checked on a desk and phone."""
+    before = solid_png(390, 844, (232, 226, 213))
+    after = solid_png(390, 844, (214, 226, 235))
+    url = serve(
+        SHOT_PAGE,
+        media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
+    )
+    page, errors = open_page(browser, url)
+    box = page.locator("lf-shot > input.lf-shotflip")
+    expect(box).to_have_accessible_name(
+        "flip — or click the image — the navigation rail"
+    )
+    frame = page.locator('lf-shot .lf-shotframe[data-lf-state="before"]')
+    row = page.locator("lf-shot .lf-shotpick")
+
+    for width in (1200, 390):
+        resized(page, width, 900)
+        page.evaluate(
+            """() => { const r = document.querySelector('lf-shot .lf-shotframe')
+                                  .getBoundingClientRect();
+                       document.body.scrollBy(0, r.top - 140); }"""
+        )
+        image_point = frame.evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            "        return [r.left + r.width / 2, r.top + 80]; }"
+        )
+        assert page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y) === "
+            "document.querySelector('lf-shot > input.lf-shotflip')",
+            image_point,
+        )
+        was_checked = box.is_checked()
+        scroll_before = page.evaluate("document.body.scrollTop")
+        page.mouse.click(*image_point)
+        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        assert box.is_checked() is not was_checked
+        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+
+        # Put the instruction just inside the viewport, then remove the focus left by
+        # the image gesture. An implementation covering only the image would route this
+        # press through the label to a remote checkbox and reproduce the same jump.
+        page.evaluate(
+            """() => { document.activeElement.blur();
+                       const r = document.querySelector('lf-shot .lf-shotpick')
+                                         .getBoundingClientRect();
+                       document.body.scrollBy(0, r.bottom - innerHeight + 60); }"""
+        )
+        row_point = row.evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            "        return [r.left + 10, r.top + r.height / 2]; }"
+        )
+        assert page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y) === "
+            "document.querySelector('lf-shot > input.lf-shotflip')",
+            row_point,
+        )
+        was_checked = box.is_checked()
+        scroll_before = page.evaluate("document.body.scrollTop")
+        page.mouse.click(*row_point)
+        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        assert box.is_checked() is not was_checked
+        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+
+    assert errors == []
+    page.close()
+
+
 def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
-    """Which is the whole reason the control is a checkbox and a label. A copy is the
+    """Which is the whole reason the target is a native checkbox. A copy is the
     rendered DOM with the scripts dropped and every press a handler answered taken out
     with them — the upgrade has already run, so the frames are there, and this switch
     survives that pass because the browser is what works it. A slider would have
     frozen at whatever the reader left it on; `:has(:checked)` is CSS, and the browser
-    owns a checkbox's state — label activation included, so the image goes on being
-    the target in a file with nothing running.
+    owns a checkbox's state, so its transparent box over the image goes on being the
+    target in a file with nothing running.
 
     Through `version export` rather than a copy the test makes itself, which is what
     puts the widget's bargain in front of the code that could break it: a hand-rolled
@@ -3729,8 +3890,8 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     them stacked in the one cell — a fault the frames' own default has since made
     unrepresentable, the after frame being hidden until something checks the box rather
     than until something checks the other box. So the state needs nothing serialized at
-    all, and what is left to lose is the gesture: `for` is a reflected attribute where
-    `checked` was not, and a copy that dropped it would keep every frame and every word
+    all, and what is left to lose is the gesture: the direct native checkbox and its CSS
+    target must survive. A copy that dropped either would keep every frame and every word
     and answer no click on the image."""
     url = serve(
         SHOT_PAGE,

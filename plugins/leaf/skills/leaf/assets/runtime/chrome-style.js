@@ -572,32 +572,40 @@ ${MARK_RULES}
     :scope { cursor: auto;
       font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); }
     .lf-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
-      display: grid; grid-template-columns: minmax(24px, 1fr) minmax(0, max-content);
+      display: flex;
       align-items: center; gap: 10px;
       padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
         calc(14px + var(--lf-safe-left));
       background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
     .lf-banner-status, .lf-banner-actions { display: flex; align-items: center; gap: 10px; }
-    .lf-banner-status { min-width: 0; }
+    .lf-banner-status { flex: 0 1 max-content; min-width: 24px; }
     /* The actions are their own shelf whenever the status and available destinations no
-       longer share the row. Primary controls stay at its beginning; keyboard focus and a
-       horizontal gesture can bring every later address wholly on screen without widening
-       the document. Usually there is nothing to scroll, so the wide arrangement keeps its
-       ordinary single-row reading. Four pixels around the contents belong to the controls'
+       longer share the row. The DOM puts each edge's control nearest the panel it opens:
+       Comments leads the covering shelf, while All leaves leads the wide row beside its
+       left-hand tray. Keyboard focus and a horizontal gesture can bring every later
+       address wholly on screen without widening the document. Usually there is nothing
+       to scroll, so the wide arrangement keeps its ordinary single-row reading. Four
+       pixels around the contents belong to the controls'
        outset focus ring; without them the shelf solved reachability by clipping the sign
        that a keyboard reader had reached anything. One extra inline pixel covers
-       fractional layout at the integer scroll extent. */
-    .lf-banner-actions { min-width: 0; max-width: 100%; justify-self: end; overflow-x: auto;
+       fractional layout at the integer scroll extent. The shelf takes its contents'
+       intrinsic room before the status sentence, then grows through any remaining room:
+       All leaves spends that slack and stays at the left edge, while the other addresses
+       remain against the right edge. If even the controls do not fit, the shelf caps one
+       gap after the status floor and scrolls itself. Safe alignment falls back to that
+       scrollable start rather than stranding its first control offscreen. */
+    .lf-banner-actions { flex: 1 0 max-content; min-width: 0;
+      max-width: calc(100% - 34px); justify-content: safe flex-end; overflow-x: auto;
       overscroll-behavior-inline: contain; scrollbar-width: none; padding: 4px 5px; }
+    .lf-banner-actions > .lf-others { margin-inline-end: auto; }
     .lf-banner-actions::-webkit-scrollbar { display: none; }
     /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
-       mark remains the same one-token status reading — shape is identity, colour is
-       state — and the midrib stays currentColor-independent so every status keeps its
-       registry-owned tone. */
-    .lf-dot { position: relative; width: 14px; height: 14px; border-radius: 80% 0 80% 0;
-      transform: rotate(-45deg); background: var(--muted-2); flex: none; }
-    .lf-dot::after { content: ""; position: absolute; left: 2px; top: 6px; width: 10px;
-      height: 1px; background: var(--card); opacity: .72; transform: rotate(-45deg); }
+       mask is the page's actual vendored mark, so a project that replaces icon.svg does
+       not keep an unrelated leaf-like glyph in the banner. Shape is identity and colour
+       is state, from the same registry-owned tones the tab icon wears. */
+    .lf-dot { width: 16px; height: 16px; background: var(--muted-2); flex: none;
+      -webkit-mask: url("/icon.svg") center / contain no-repeat;
+      mask: url("/icon.svg") center / contain no-repeat; }
     .lf-dot.working { background: var(--accent);
       animation: lf-runtime-4f3c2a8d-pulse 1.4s ease-in-out infinite; }
     .lf-dot.listening { background: var(--ok); }
@@ -605,10 +613,10 @@ ${MARK_RULES}
     .lf-dot.offline { background: var(--danger); }
     .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .lf-status-text .lf-age { color: var(--muted); }
-    /* The status column takes the row's free space and this shelf's column is sized to
-       its own contents, so the row is packed to the right. That decides who pays for a
-       control changing size: it moves itself and everything to its left, while
-       everything to its right keeps its place. Three of these rewrite their own words —
+    /* All leaves spends the shelf's slack; the remaining controls stay packed against
+       the right edge. That decides who pays for a control changing size: it moves itself
+       and the controls to its left, while everything to its right keeps its place. Three
+       of these rewrite their own words —
        "✓ Version approved" is narrower than "Approve version", and two of them count something
        that gains a digit — so each holds room for the widest it may say, taken from the
        words themselves (the reserve calls where the banner is built) rather than stated
@@ -1288,10 +1296,12 @@ ${MARK_RULES}
         padding: var(--lf-safe-top) 0 7px; }
       .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
           calc(14px + var(--lf-safe-left)); gap: 9px; }
-      .lf-banner-actions { grid-row: 2; width: 100%; min-width: 0;
+      .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
+        justify-content: flex-start;
         scroll-padding-inline: calc(14px + var(--lf-safe-left));
         padding: 4px calc(14px + var(--lf-safe-right)) 4px
           calc(14px + var(--lf-safe-left)); gap: 4px; }
+      .lf-banner-actions > .lf-others { margin-inline-end: 0; }
       .lf-banner-actions > .lf-btn { min-height: 40px; padding-inline: 8px; }
       /* A pinned wide row reserves its future Latest address so publication cannot move
          controls. The phone shelf starts at the primary controls, so an unseen slot there
@@ -1333,6 +1343,7 @@ ${MARK_RULES}
        platform-colour outline for every focused chrome control instead of freezing the
        product palette with forced-color-adjust. */
     @media (forced-colors: active) {
+      .lf-dot { background: CanvasText !important; }
       :scope :focus-visible { outline: 2px solid Highlight !important;
         outline-offset: 2px !important; box-shadow: none !important; }
       :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {

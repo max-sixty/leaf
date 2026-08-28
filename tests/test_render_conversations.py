@@ -2308,7 +2308,25 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         page.locator(".lf-comments").click()
         panel_settled(page)
         page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
+        # Keep the quoted passage outside the page's readable viewport. This test is the
+        # drag/plain-press contrast: a readable destination deliberately stays put now,
+        # so only an offscreen passage can prove the plain press still travels.
+        page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
         page.evaluate(RENDERED)
+        destination = page.evaluate(
+            """() => {
+              const target = document.querySelector('#merge-both').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              return {top: target.top, bottom: target.bottom,
+                      banner: banner.bottom, height: innerHeight};
+            }"""
+        )
+        assert (
+            destination["bottom"] <= destination["banner"]
+            or destination["top"] >= destination["height"]
+        ), (
+            f"the quoted passage is still readable, so a click need not travel: {destination}"
+        )
 
         where = "() => document.body.scrollTop"
         before = page.evaluate(where)

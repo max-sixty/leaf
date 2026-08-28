@@ -1558,10 +1558,21 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     links = "".join(
         f'<li><a id="link-{n}" href="#link-{n}">link {n}</a></li>' for n in range(1, 13)
     )
+    lead = "".join(f"<p>Context before the links, line {n}.</p>" for n in range(16))
+    tail = "".join(f"<p>Context after the links, line {n}.</p>" for n in range(16))
     page, errors = open_page(
-        browser, serve(leaf_page("Twelve links", f"<ol>{links}</ol>"))
+        browser, serve(leaf_page("Twelve links", f"{lead}<ol>{links}</ol>{tail}"))
     )
+    page.emulate_media(reduced_motion="reduce")
     line = page.locator(".lf-keyline")
+    page.locator("#link-1").scroll_into_view_if_needed()
+    page.evaluate(
+        """() => {
+          const link = document.querySelector('#link-1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollBy(0, link.top - banner.bottom - 96);
+        }"""
+    )
 
     page.keyboard.press("g")
     expect(line).to_contain_text("l 1–12")
@@ -1587,14 +1598,37 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     page.keyboard.press("Escape")
     expect(line).to_contain_text("1–12")
     page.keyboard.press("1")
+    visible = page.evaluate(
+        """() => {
+          const link = document.querySelector('#link-1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: link.top, bottom: link.bottom,
+                  banner: banner.bottom, height: innerHeight};
+        }"""
+    )
+    assert visible["top"] > visible["banner"] + 48
+    assert visible["bottom"] < visible["height"] - 48
     page.keyboard.press("Enter")
     expect(page.locator("#link-1")).to_be_focused()
+    stayed = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#link-1').getBoundingClientRect().top,
+        })"""
+    )
+    assert stayed["scroll"] == pytest.approx(visible["scroll"], abs=0.5)
+    assert stayed["top"] == pytest.approx(visible["top"], abs=0.5)
 
+    page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("l")
     page.keyboard.press("1")
     page.keyboard.press("2")
     expect(page.locator("#link-12")).to_be_focused()
+    revealed = page.locator("#link-12").bounding_box()
+    assert revealed is not None
+    assert revealed["y"] + revealed["height"] > page.viewport_size["height"] * 0.75
+    assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
     assert errors == []
     page.close()
 
@@ -1925,7 +1959,12 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     """The pointer's return-to-passage action is a focusable, named control too."""
-    url = serve(NOTED_PAGE)
+    lead = "".join(f"<p>Earlier reading context, line {n}.</p>" for n in range(14))
+    tail = "".join(f"<p>Later reading context, line {n}.</p>" for n in range(14))
+    noted_page = NOTED_PAGE.replace('<p id="p1">', f'{lead}<p id="p1">').replace(
+        '<figure id="fig">', f'{tail}<figure id="fig">'
+    )
+    url = serve(noted_page)
     d = serve.page_dir
     events_model.append_event(
         serve.page_dir,
@@ -1938,6 +1977,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         },
     )
     page, errors = open_page(browser, live_url(url))
+    page.emulate_media(reduced_motion="reduce")
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
 
     page.keyboard.press("c")
@@ -1957,15 +1997,71 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
             String(Number(node.dataset.keyboardActivations || 0) + 1);
         })"""
     )
+    passage = page.locator("#p1")
+    passage.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollBy(0, passage.top - banner.bottom - 96);
+        }"""
+    )
+    before = page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: passage.top,
+                  bottom: passage.bottom, banner: banner.bottom, height: innerHeight};
+        }"""
+    )
+    assert before["top"] > before["banner"] + 48
+    assert before["bottom"] < before["height"] - 48
     page.keyboard.press("Enter")
     page.keyboard.press("Space")
     expect(quote).to_have_attribute("data-keyboard-activations", "2")
+    after = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#p1').getBoundingClientRect().top,
+        })"""
+    )
+    assert after["scroll"] == pytest.approx(before["scroll"], abs=0.5)
+    assert after["top"] == pytest.approx(before["top"], abs=0.5)
+
+    # One painted pixel is not a readable arrival. Carry the passage almost entirely
+    # behind the fixed banner, then the same quote must bring it back into view.
+    page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollBy(0, passage.bottom - banner.bottom - 1);
+        }"""
+    )
+    sliver = page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: passage.top,
+                  bottom: passage.bottom, banner: banner.bottom};
+        }"""
+    )
+    assert sliver["top"] < sliver["banner"] < sliver["bottom"]
+    page.keyboard.press("Enter")
+    returned = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#p1').getBoundingClientRect().top,
+          banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+        })"""
+    )
+    assert returned["scroll"] != pytest.approx(sliver["scroll"], abs=0.5)
+    assert returned["top"] > returned["banner"]
 
     # Resolved threads use the same projection. When a later version removes the passage,
     # their folded quote becomes an informative disabled stop, not a promised no-op.
     page.get_by_role("button", name="Resolve").click()
     round_trip(page)
-    without_passage = re.sub(r'<p id="p1">.*?</p>', "", NOTED_PAGE, flags=re.DOTALL)
+    without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
     (d / "versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)

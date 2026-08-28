@@ -46,8 +46,14 @@ export function createVersionNavigation({
   // a reader who leaves a comparison on and scrolls into a stretch that changed nothing
   // has only this control to read it back off, and a colour is not a thing a screen
   // reader announces.
-  const versionLabel = (comparing) =>
-    (comparing ? "Δ " : "") + `${runtime.currentLabel ?? "Draft"} ▾`;
+  // The closed control is an address, not the menu's account of the working document.
+  // Keep it to the stable version token (or Draft); the full "Draft after vN" context
+  // remains in the menu row and the control's title. `label` lets the banner reserve the
+  // largest compact token it can write without reintroducing that account as dead width.
+  const versionLabel = (
+    comparing,
+    label = runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`,
+  ) => (comparing ? "Δ " : "") + `${label} ▾`;
   const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
   // Nothing to open until the log says what versions there are, and a control that answers
   // nothing is a way in painted where there is no layer behind it — the same reason the

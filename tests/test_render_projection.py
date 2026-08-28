@@ -129,7 +129,13 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert abs(after - before) <= 4, (
         f"the passage moved from {before}px to {after}px in the viewport"
     )
-    expect(page.locator(".lf-version")).to_contain_text("Draft after v1")
+    version = page.locator(".lf-version")
+    expect(version).to_have_text("Draft ▾")
+    expect(version).to_have_attribute("title", re.compile(r"^Draft after v1:"))
+    expect(version).to_have_attribute("aria-label", "Draft after v1: open versions")
+    version.click()
+    expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
+    page.keyboard.press("Escape")
     expect(page.locator(".lf-signoff")).to_have_count(0)
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
@@ -191,7 +197,10 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     told(pinned)
 
     expect(live).to_have_title("Live second")
-    expect(live.locator(".lf-version")).to_contain_text("Draft after v1")
+    expect(live.locator(".lf-version")).to_have_text("Draft ▾")
+    expect(live.locator(".lf-version")).to_have_attribute(
+        "title", re.compile(r"^Draft after v1:")
+    )
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
     expect(pinned.locator(".lf-version")).to_contain_text("v1")
@@ -579,7 +588,12 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
         return page.locator(f'.lf-thread[data-id="{thread[section]}"] .lf-quote')
 
     # Centred: the destination the travel computed, which a glide toward it passes
-    # through no earlier position that could be mistaken for.
+    # through no earlier position that could be mistaken for. Put it wholly out of sight
+    # first: a readable destination now keeps the reader's place.
+    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    assert page.locator("#flow").evaluate(
+        "el => el.getBoundingClientRect().bottom <= 0"
+    )
     quote("flow").click()
     page.wait_for_function(
         """() => { const r = document.getElementById('flow').getBoundingClientRect();
@@ -587,6 +601,10 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
                        && Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2; }"""
     )
 
+    page.evaluate("() => document.body.scrollTo(0, 0)")
+    assert page.locator("#long-part").evaluate(
+        "el => el.getBoundingClientRect().top >= innerHeight"
+    )
     quote("long-part").click()
     page.wait_for_function(
         """() => { const r = document.getElementById('long-part').getBoundingClientRect();
@@ -3406,22 +3424,59 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
                 "anchor": {"section": target},
             },
         )["id"]
-        for target in ("w-1", "lf-tree-w-1-diff")
+        for target in ("schema-land", "w-1", "lf-tree-w-1-diff")
     }
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, f"{url}#schema-land")
+    page.emulate_media(reduced_motion="reduce")
     # Initial anchor painting already reveals its evidence. Close both disclosures
     # again so the quote gesture, rather than page startup, is the single changed
     # factor in this journey.
     page.evaluate(
         """() => {
           document.querySelector('#goal-parser').removeAttribute('data-lf-open');
+          document.querySelector('#goal-parser > .lf-task-meta .lf-task-crew')
+            .setAttribute('aria-expanded', 'false');
           document.querySelector('#tree-w-1').removeAttribute('data-lf-open');
         }"""
     )
     expect(page.locator("#w-1")).to_be_hidden()
     page.locator(".lf-comments").click()
+
+    # This option is already readable and is a sibling of the goal's worker. Returning
+    # to it neither needs the worker nor a new reading position.
+    schema = page.locator("#schema-land")
+    schema.scroll_into_view_if_needed()
+    before = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#schema-land').getBoundingClientRect().top,
+          bottom: document.querySelector('#schema-land').getBoundingClientRect().bottom,
+          banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+          height: innerHeight,
+        })"""
+    )
+    assert before["top"] > before["banner"]
+    assert before["bottom"] < before["height"]
+    page.locator(f'.lf-thread[data-id="{threads["schema-land"]}"] .lf-quote').click()
+    after = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#schema-land').getBoundingClientRect().top,
+        })"""
+    )
+    assert after["scroll"] == pytest.approx(before["scroll"], abs=0.5)
+    assert after["top"] == pytest.approx(before["top"], abs=0.5)
+    expect(page.locator("#w-8")).to_be_hidden()
+    expect(page.locator("#schema-choice .lf-task-crew")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+
+    # A worker target is the control: its owner opens and its disclosure state agrees.
     page.locator(f'.lf-thread[data-id="{threads["w-1"]}"] .lf-quote').click()
     expect(page.locator("#w-1")).to_be_visible()
+    expect(
+        page.locator("#goal-parser > .lf-task-meta .lf-task-crew")
+    ).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#lf-tree-w-1-diff")).to_be_hidden()
     page.locator(
         f'.lf-thread[data-id="{threads["lf-tree-w-1-diff"]}"] .lf-quote'

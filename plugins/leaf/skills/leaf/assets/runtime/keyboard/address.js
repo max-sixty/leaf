@@ -145,7 +145,7 @@ export function createAddress({
       // platform's Enter, which the link scope names on the line. A press that navigated
       // would be a door with no landing to look at first.
       go: (link) => {
-        scrollToElement(link);
+        scrollToElement(link, undefined, "nearest");
         link.focus({ preventScroll: true });
       },
     },
@@ -163,7 +163,7 @@ export function createAddress({
       // summary afterwards leaves the platform's own press to close it again, which the
       // disclosure scope names on the line.
       go: (summary) => {
-        scrollToElement(summary.parentElement);
+        scrollToElement(summary.parentElement, undefined, "nearest");
         summary.focus({ preventScroll: true });
       },
     },

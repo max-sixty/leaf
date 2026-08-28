@@ -56,7 +56,7 @@ function button(label, target, cls = "") {
       const command = closestCommandRole(target, "command");
       const goal = closestCommandRole(target.parentElement, "goal");
       if (goal && closestCommandRole(goal, "command") === command)
-        goal.setAttribute("data-lf-open", "");
+        setWorkers(goal, true);
     }
   });
   return node;
@@ -102,10 +102,14 @@ function projectionFocus(plan) {
   };
 }
 
-function toggleWorkers(goal) {
-  goal.toggleAttribute("data-lf-open");
+function setWorkers(goal, open) {
+  goal.toggleAttribute("data-lf-open", open);
   const crew = goal.querySelector(":scope > .lf-task-meta .lf-task-crew");
-  crew?.setAttribute("aria-expanded", String(goal.hasAttribute("data-lf-open")));
+  crew?.setAttribute("aria-expanded", String(open));
+}
+
+function toggleWorkers(goal) {
+  setWorkers(goal, !goal.hasAttribute("data-lf-open"));
 }
 
 function configureGoal(goal) {
@@ -117,7 +121,14 @@ function configureGoal(goal) {
     const conversation = conversationBox(goal, "Say something here");
     if (conversation) goal.append(conversation);
   }
-  goal.addEventListener("lf-reveal", () => goal.setAttribute("data-lf-open", ""));
+  goal.addEventListener("lf-reveal", (event) => {
+    const target = event.detail?.target;
+    if (
+      target instanceof Node &&
+      directCommandRole(goal, "worker").some((worker) => worker.contains(target))
+    )
+      setWorkers(goal, true);
+  });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
     if (event.target.closest("button, a, textarea, input, summary, [data-lf-offer]"))

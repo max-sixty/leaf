@@ -1048,11 +1048,12 @@ export function createAnchors(dependencies) {
   }
 
   // Bring an element in the document to the position its caller names. A thread's element
-  // anchor takes the middle; an Ask takes the readable start so its context comes before
-  // its control. Which box does the travelling is scrollerFor's answer, asked here rather
-  // than assumed: the document's scroller was written into this twice, so an element
-  // standing in the panel's list was taken into view by the platform and then had this
-  // travel spent on the page behind it, moving a reader who had asked for nothing there.
+  // anchor takes the middle, an Ask takes the readable start so its context comes before
+  // its control, and an address takes only the nearest edge needed to show its member.
+  // Which box does the travelling is scrollerFor's answer, asked here rather than assumed:
+  // the document's scroller was written into this twice, so an element standing in the
+  // panel's list was taken into view by the platform and then had this travel spent on the
+  // page behind it, moving a reader who had asked for nothing there.
   // Reveal first, since opening a tab or settled group moves
   // everything below it. For a centred destination, "the middle" means the viewport's:
   // scrollIntoView measures against the scroller's own
@@ -1086,10 +1087,48 @@ export function createAnchors(dependencies) {
   }
   function scrollToElement(el, behavior = scrollBehavior(), block = "center") {
     reveal(el);
-    el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    el.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: block === "nearest" ? behavior : "instant",
+    });
+    if (block === "nearest") return;
     const box = scrollerFor(el);
     if (!under(el, box)) return;
     jumpBy(centreBy(el, block, box), behavior, box);
+  }
+
+  // A wholly readable passage is already an arrival. Keep its place rather than opening
+  // ancestors or centring it again; the thread's standing mark identifies it in situ.
+  // A clipped sliver is not a reading position, so compare the painted intersection with
+  // the destination's whole box as well as the scrollport's fixed-furniture clearance.
+  function readableThreadDestination(where) {
+    const holder =
+      where instanceof Range
+        ? where.startContainer instanceof Element
+          ? where.startContainer
+          : where.startContainer.parentElement
+        : where;
+    if (!holder) return false;
+    const destination =
+      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+    const seen =
+      where instanceof Range
+        ? clipped(destination, holder, new Map())
+        : shownRect(where, new Map());
+    if (!seen) return false;
+    const box = scrollerFor(holder);
+    const view = shownBox(box);
+    const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const close = (a, b) => Math.abs(a - b) <= 0.5;
+    return (
+      destination.top >= view.top + clear &&
+      destination.bottom <= view.bottom &&
+      close(seen.top, destination.top) &&
+      close(seen.right, destination.right) &&
+      close(seen.bottom, destination.bottom) &&
+      close(seen.left, destination.left)
+    );
   }
 
   // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
@@ -1097,21 +1136,34 @@ export function createAnchors(dependencies) {
   // no element to scroll into view, so its own box does the work.
   //
   // Every "show me that comment's passage" route ends here. The focus its caller already
-  // placed in the thread owns the standing paint; this function owns only the travel. It
-  // makes the target's box visible in both axes, then glides the exact mark to the centre
-  // of the region that holds it. No transient effect waits on that motion or survives it
-  // as separate state.
+  // placed in the thread owns the standing paint. If the passage is readable, that paint
+  // identifies it in place. Otherwise this makes the target's box visible in both axes,
+  // then glides the exact mark to the centre of the region that holds it. No transient
+  // effect waits on that motion or survives it as separate state.
   function scrollToThread(id) {
-    const where = marksOf(id)[0] ?? placed.get(id);
+    let where = marksOf(id)[0] ?? placed.get(id);
     if (!where) return;
+    // Revealing and travelling are different promises. A destination can report usable
+    // geometry while hidden="until-found"; open every disclosure that actually owns it
+    // before deciding whether its new painted position already reads well. Widget reveal
+    // handlers must in turn open only ancestors of this destination, never nearby evidence.
+    const holder =
+      where instanceof Range
+        ? where.startContainer instanceof Element
+          ? where.startContainer
+          : where.startContainer.parentElement
+        : where;
+    if (!holder) return;
+    reveal(holder);
+    if (!(where instanceof Range) && !marksOf(id).length) {
+      paintAnchors();
+      where = marksOf(id)[0] ?? where;
+    }
+    if (readableThreadDestination(where)) return;
     if (!(where instanceof Range)) {
-      reveal(where);
-      if (!marksOf(id).length) paintAnchors();
-      scrollToElement(marksOf(id)[0] ?? where);
+      scrollToElement(where);
       return;
     }
-    const holder = where.startContainer.parentElement;
-    reveal(holder);
     // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
     // rendered diagram sits in a box with its own horizontal scroll, which the vertical
     // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.

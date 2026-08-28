@@ -858,7 +858,7 @@ const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");
 bannerStatus.append(dot, statusText);
-const { bannerActions, reserveNewsSlot, showNews } = createBannerShelf({
+const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
   banner,
   el,
   pageScroller,
@@ -970,8 +970,41 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-bannerActions.append(toggleBtn, latestChip, asksBtn, versionBtn, othersBtn);
-if (signoff) toggleBtn.after(approveBtn);
+// Seed the invariant middle once; arrangeBannerControls moves the two edge families
+// around it and later preserves any registry-declared controls added among these three.
+bannerActions.append(latestChip, asksBtn, versionBtn);
+// On a wide row, an edge's address sits at that edge: All leaves is the first control
+// beside the tray it opens on the left, and Comments (plus approval) finishes beside
+// the panel it opens on the right. A covering shelf instead begins with the primary
+// Comments loop, keeping it in the first phone view. This is DOM order rather than CSS
+// `order`, so the tab route says the same thing the row draws. Reordering existing nodes
+// can briefly drop native focus; put it back without moving the page, then make its new
+// shelf position wholly visible.
+function arrangeBannerControls() {
+  const focused = bannerActions.contains(document.activeElement)
+    ? document.activeElement
+    : null;
+  const edges = new Set([toggleBtn, approveBtn, othersBtn]);
+  // Registry-declared blanket answers can join the middle of this shelf after boot.
+  // Preserve every such control in its standing relative order while moving only the
+  // edge-owned addresses; a breakpoint must not strand a later extension at an edge.
+  const middle = [...bannerActions.children].filter((control) => !edges.has(control));
+  const controls = commentsEdge.over.matches
+    ? [toggleBtn, ...(signoff ? [approveBtn] : []), ...middle, othersBtn]
+    : [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
+  bannerActions.append(...controls);
+  if (focused && controls.includes(focused)) {
+    focused.focus({ preventScroll: true });
+    revealFocus(focused);
+    // A MediaQueryList change can arrive before its new grid geometry is observable.
+    // Reveal once more in the first frame painted with that geometry; keep the identity
+    // check so a user who has moved focus meanwhile is never pulled back.
+    requestAnimationFrame(() => {
+      if (document.activeElement === focused) revealFocus(focused);
+    });
+  }
+}
+arrangeBannerControls();
 banner.append(bannerStatus, bannerActions);
 
 // Sign-off belongs to the authored version, while the control belongs to the live
@@ -983,10 +1016,10 @@ function stateSignoff(next) {
   if (shown === signoff) return;
   signoff = shown;
   if (signoff) {
-    toggleBtn.after(approveBtn);
     reserve(approveBtn, ["Approve version", "✓ Version approved"]);
     paintApproval();
   } else approveBtn.remove();
+  arrangeBannerControls();
   syncLayout();
 }
 
@@ -1170,7 +1203,6 @@ chromeRoot.append(
   inspectEl,
 );
 document.body.append(chromeRoot);
-const draftVersionLabel = "Draft after v999 ▾";
 // The controls that rewrite their own words hold the widest of them, measured in the
 // face and padding the banner is using now (see the stylesheet's banner comment). The
 // covering shelf deliberately spends less horizontal padding than the wide row, so its
@@ -1196,8 +1228,10 @@ function reserveBannerControls() {
   reserve(versionBtn, [
     versionLabel(false),
     versionLabel(true),
-    draftVersionLabel,
-    `Δ ${draftVersionLabel}`,
+    versionLabel(false, "Draft"),
+    versionLabel(true, "Draft"),
+    versionLabel(false, "v999"),
+    versionLabel(true, "v999"),
   ]);
   reserve(toggleBtn, ["Comments", "Comments (999)"]);
   reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
@@ -1205,7 +1239,10 @@ function reserveBannerControls() {
   reserve(othersBtn, ["All leaves (999)"]);
 }
 reserveBannerControls();
-commentsEdge.over.addEventListener("change", reserveBannerControls);
+commentsEdge.over.addEventListener("change", () => {
+  arrangeBannerControls();
+  reserveBannerControls();
+});
 // ---------- state ----------
 
 // Until the first state answer, [] means "not read", not "no comments". Keep that

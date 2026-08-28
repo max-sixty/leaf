@@ -198,11 +198,20 @@ export function createVersionDiff({
   function paintDiff() {
     versionBtn.textContent = versionLabel(diffOn);
     versionBtn.classList.toggle("on", diffOn);
+    const currentLabel = runtime.currentLabel ?? "Draft";
     // Rewritten on every diff change, so the key it names is taken from the row each time
-    // rather than typed into one of the two branches and forgotten in the other.
+    // rather than typed into one of the two branches and forgotten in the other. The
+    // closed face is deliberately compact, so its hover and accessible name keep the
+    // full draft-after-version context that the open menu also spells out.
     versionBtn.dataset.lfKeyTitle = diffOn
-      ? `Showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
-      : "Versions: read one, or mark what changed since it";
+      ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
+      : `${currentLabel}: versions; read one, or mark what changed since it`;
+    versionBtn.setAttribute(
+      "aria-label",
+      diffOn
+        ? `${currentLabel}: comparing with v${diffBase}; open versions`
+        : `${currentLabel}: open versions`,
+    );
     const shortcut = chooserLabel();
     versionBtn.title =
       versionBtn.dataset.lfKeyTitle + (shortcut ? ` (${shortcut})` : "");

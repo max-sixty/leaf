@@ -65,7 +65,14 @@ export function createBannerShelf({ banner, el, pageScroller }) {
       focusTransfer.focus({ preventScroll: true });
       revealFocus(focusTransfer);
     } else if (focused && focused !== control && focused.getClientRects().length) {
-      bannerActions.scrollLeft += focused.getBoundingClientRect().left - focusedLeft;
+      // A scroll assignment may quantize a fractional layout delta to the nearest device
+      // pixel. Read the residual once and spend it too, so news cannot leave a focused
+      // destination a single CSS pixel from the place the reader was holding.
+      for (let pass = 0; pass < 2; pass++) {
+        const delta = focused.getBoundingClientRect().left - focusedLeft;
+        if (Math.abs(delta) < 0.01) break;
+        bannerActions.scrollLeft += delta;
+      }
       revealFocus(focused);
     }
   }
@@ -178,5 +185,5 @@ export function createBannerShelf({ banner, el, pageScroller }) {
   for (const event of ["touchend", "touchcancel"])
     banner.addEventListener(event, () => (touch = null), { passive: true });
 
-  return { bannerActions, reserveNewsSlot, showNews };
+  return { bannerActions, reserveNewsSlot, revealFocus, showNews };
 }

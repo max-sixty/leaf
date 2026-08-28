@@ -6,12 +6,12 @@ export function createVersionDiff({
   chooserLabel,
   domFacet,
   elementById,
-  foldedFacet,
   inChrome,
   quoted,
+  projectionFromView,
+  sameLayer,
   showToast,
   stateCoordinate,
-  stateProjection,
   stateSpecs,
   textBlockSelector,
   versionBtn,
@@ -115,7 +115,20 @@ export function createVersionDiff({
     if (!res.ok) throw new Error(`couldn't load ${baseName}`);
     return new DOMParser().parseFromString(await res.text(), "text/html");
   }
-  function applyDiff(doc, baseVersion) {
+  async function baseReading(baseRevision, throughSeq) {
+    const params = new URLSearchParams({
+      revision: String(baseRevision),
+      through_seq: String(throughSeq),
+    });
+    const res = await fetch(`/api/view?${params}`);
+    if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
+    const generation = res.headers.get("Leaf-Layer");
+    if (generation && !sameLayer(generation)) return null;
+    const answer = await res.json();
+    if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
+    return answer.browser;
+  }
+  function applyDiff(doc, baseVersion, baseReading) {
     // Multiset membership rather than an alignment: an unchanged block that
     // merely moved stays unmarked; a changed or new one has no base twin.
     const base = new Map();
@@ -140,7 +153,9 @@ export function createVersionDiff({
     )?.revision;
     if (baseRevision == null)
       throw new Error(`version v${baseVersion} has no revision`);
-    const baseProjection = stateProjection(baseRevision);
+    const baseView = baseReading?.views?.[String(baseRevision)];
+    if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+    const baseProjection = projectionFromView(baseView, baseReading.conversation);
     for (const { tag, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {
@@ -159,9 +174,7 @@ export function createVersionDiff({
           // means an unrelated fact on this unit never enters the choice.
           const coordinate = stateCoordinate(widget.id, el.id, spec);
           const writer = baseProjection.desired.get(coordinate);
-          const before = writer
-            ? foldedFacet(writer.e, spec.record)
-            : domFacet(baseEl, spec.record);
+          const before = writer ? writer.value : domFacet(baseEl, spec.record);
           const now = domFacet(el, spec.record);
           if (before === now) continue;
           // The element the change reads on: the option now picked, or the moved
@@ -245,16 +258,35 @@ export function createVersionDiff({
   // many times the reader arrives there.
   async function showComparison(base) {
     const mine = ++diffRequest;
+    const baseRevision = runtime.versions.find(
+      (candidate) => candidate.version === base,
+    )?.revision;
+    if (baseRevision == null) {
+      showToast(`Couldn't load v${base}`);
+      return;
+    }
+    const documentRequest = baseDocument(base);
     let doc;
+    let reading;
     try {
-      doc = await baseDocument(base);
+      while (mine === diffRequest) {
+        const throughSeq = runtime.view?.basis?.through_seq;
+        if (!Number.isInteger(throughSeq))
+          throw new Error("the current reading has no log sequence");
+        [doc, reading] = await Promise.all([
+          documentRequest,
+          baseReading(baseRevision, throughSeq),
+        ]);
+        if (reading === null || mine !== diffRequest) return;
+        if (runtime.view?.basis?.through_seq === throughSeq) break;
+      }
     } catch {
       showToast(`Couldn't load v${base}`);
       return;
     }
     if (mine !== diffRequest) return;
     if (diffOn) setDiff(false); // the old base's marks, before the new base's land
-    const n = applyDiff(doc, base);
+    const n = applyDiff(doc, base, reading);
     setDiff(true, base);
     showToast(
       n

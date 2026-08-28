@@ -74,7 +74,10 @@ export function createStateApplication(dependencies) {
       if (dataChanged) notifyDataSubscribers();
     };
     const nextEvents = state.events;
-    const eventSeq = nextEvents.at(-1)?.seq ?? 0;
+    const nextBrowser = state.browser;
+    const eventSeq = nextBrowser?.basis?.through_seq;
+    if (!Number.isInteger(eventSeq) || eventSeq < 0)
+      throw new TypeError("state browser must name its log sequence");
     // An answer taken before the one the page holds is judged as a stale sequence is
     // (takenBefore). Before the sequence gate because a stale answer may carry the same
     // sequence as the newer one and differ in everything the sequence does not order —
@@ -169,6 +172,7 @@ export function createStateApplication(dependencies) {
       !versionMenuIsOpen() &&
       targetRevision === state.active.revision;
     const priorEvents = runtime.events;
+    const priorBrowser = runtime.browser;
     const priorStatePhase = runtime.statePhase;
     const priorLastEventSeq = runtime.lastEventSeq;
     const priorReading = runtime.reading;
@@ -178,15 +182,24 @@ export function createStateApplication(dependencies) {
     const priorCurrentLabel = runtime.currentLabel;
     const priorCurrentRevision = runtime.currentRevision;
     const priorCurrentStamp = runtime.currentStamp;
+    const priorView = runtime.view;
     let restoreClaimState = () => {};
     const apply = async () => {
       runtime.events = nextEvents;
+      runtime.browser = nextBrowser;
       let activation = null;
       runtime.statePhase = "ready";
       if (willActivate) {
         clearForcedActivation();
         activation = await activateRevision(incoming, state.active);
       }
+      runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
+      if (
+        !runtime.view ||
+        runtime.view.basis?.through_seq !== eventSeq ||
+        runtime.view.basis?.revision !== runtime.currentRevision
+      )
+        throw new TypeError("state browser has no matching revision view");
       settleAcceptedDrafts();
       runtime.agent = state.agent || "Claude";
       restoreClaimState = replaceClaimState({
@@ -204,8 +217,11 @@ export function createStateApplication(dependencies) {
         renderPanel();
         // Sign-off is a fact in the log, not a click this tab happens to remember, so a
         // reload (or the other tab) shows it too.
-        const agentReplies = runtime.events.filter(
-          (e) => e.author === "claude" && e.kind === "reply",
+        const agentReplies = (runtime.browser.conversation?.threads ?? []).flatMap(
+          (thread) =>
+            thread.msgs.filter(
+              (message) => message.author === "claude" && message.kind === "reply",
+            ),
         );
         if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
           showToast(
@@ -250,7 +266,7 @@ export function createStateApplication(dependencies) {
       // every surviving optimistic action, then releases the entries whose attempts the
       // read contained. A same-widget event later in this state can therefore never be
       // skipped under the hold and exposed only after the hold disappears.
-      accountOutbox(nextEvents);
+      accountOutbox(nextBrowser.receipts ?? []);
       // Sequence consumers render after replay, so their history and the widget's
       // standing body describe the same poll. This also fires when the event list did
       // not grow: applyAction may have deferred while a user was typing, then become
@@ -294,6 +310,7 @@ export function createStateApplication(dependencies) {
       // reading so focus, panel, and undo cannot consume a log tail the page never
       // adopted. The next poll retries the candidate from the same complete boundary.
       runtime.events = priorEvents;
+      runtime.browser = priorBrowser;
       runtime.statePhase = priorStatePhase;
       runtime.lastEventSeq = priorLastEventSeq;
       runtime.reading = priorReading;
@@ -306,6 +323,7 @@ export function createStateApplication(dependencies) {
       runtime.currentLabel = priorCurrentLabel;
       runtime.currentRevision = priorCurrentRevision;
       runtime.currentStamp = priorCurrentStamp;
+      runtime.view = priorView;
       stateSignoff(getSignoffDeclared());
       restoreClaimState();
       if (willActivate) location.reload();

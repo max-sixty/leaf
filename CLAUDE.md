@@ -55,9 +55,11 @@ the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event.
 
 Actions and reports share the registry-declared coordinate of owner widget,
-fold unit, and facet. Python and JavaScript derive winners, retractions, and
-settlement from the same declarations. Page-widget state is bounded by document
-version; widgets frozen into thread markup use the conversation window.
+fold unit, and facet. Python derives winners, retractions, settlement, asks,
+threads, and updates in one transaction-consistent browser view. JavaScript
+resolves that view onto live DOM nodes and overlays only unresolved local
+gestures. Page-widget state is bounded by document version; widgets frozen into
+thread markup use the conversation window.
 
 The page directory is the durable record and deployment unit. `index.html` is
 mutable author source; revisions and stamped versions are immutable. The event

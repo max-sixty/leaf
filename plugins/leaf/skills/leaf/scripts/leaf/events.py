@@ -327,13 +327,11 @@ def report_settlements(events: list, upto=None) -> dict:
 
 
 def action_rests_on(event: dict, within: dict) -> list:
-    """The runtime's restsOn, read the same way here: the sending widget plus
-    every detail id it contains, `resolves` aside. This is the one key space for
+    """The sending widget plus every detail id it contains, `resolves` aside.
+    This is the one key space for
     liveness — fold survival, retraction floors, and the earning of `restated`
-    all go through it, in both runtimes — while `action_subjects` stays the
-    words gate's finer, subject-keyed view of the same containment. Two views,
-    one containment test; a third keying would fork the JS/Python twin a third
-    way.
+    all go through it, while `action_subjects` stays the words gate's finer,
+    subject-keyed view of the same containment.
 
     `within` is where each id sits, and nothing else about the page. Liveness
     never asks what an element says, and the difference is not tidiness: words

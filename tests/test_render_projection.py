@@ -740,6 +740,71 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.close()
 
 
+def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
+    """The immutable file and its state must describe the DOM in one reading.
+
+    Hold the first projected base after the server has answered it, advance the open
+    page with a report, and then deliver that stale base. The comparison asks again at
+    the new sequence before painting; otherwise it marks the task as changed even though
+    the same report stands on both the base and current documents.
+    """
+    url = serve(REPORT_PAGE)
+    d = serve.page_dir
+    stamp_page(
+        d,
+        REPORT_PAGE.replace("</main>", '<p id="new-copy">A new prose line.</p></main>'),
+        "added prose",
+    )
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    held = []
+    requests = []
+
+    def hold_first_view(route):
+        requests.append(route.request.url)
+        if not held:
+            held.append([route, None, False])
+        else:
+            route.continue_()
+
+    page.route("**/api/view*", hold_first_view)
+    try:
+        page.locator(".lf-version").click()
+        with page.expect_request("**/api/view*"):
+            page.locator('.lf-version-diff[data-lf-version="1"]').click()
+        page.wait_for_timeout(0)  # let the request event enter its route callback
+        assert held, "the first comparison view was not held"
+        held[0][1] = held[0][0].fetch()
+
+        events_model.append_event(
+            d,
+            {
+                "kind": "report",
+                "author": "claude",
+                "revision": 1,
+                "widget": "t-parser",
+                "action": "status",
+                "detail": {"status": "done"},
+            },
+        )
+        told(page)
+        expect(page.locator("#t-parser")).to_have_attribute("status", "done")
+
+        with page.expect_request("**/api/view*"):
+            held[0][0].fulfill(response=held[0][1])
+            held[0][2] = True
+        page.wait_for_timeout(0)
+        assert len(requests) >= 2, "the stale comparison view was not retried"
+        expect(page.locator(".lf-version")).to_have_text("Δ v2 ▾")
+        expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
+        expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
+    finally:
+        if held and not held[0][2]:
+            held[0][0].fulfill(response=held[0][1])
+        page.unroute("**/api/view*")
+    assert errors == []
+    page.close()
+
+
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
     """The half of a roster no version can write down. A standing report states what
     each worker is doing; only the log knows when it last said so, and a page that keeps

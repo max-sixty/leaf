@@ -1,6 +1,7 @@
 import { createThreadModel } from "./model.js";
 import { createInlineConversations } from "./inline.js";
 import { createConversationMessages } from "./messages.js";
+import { createConversationNarrowing } from "./narrowing.js";
 import { createThreadPlacement } from "./placement.js";
 import { createReplies } from "./replies.js";
 import { createWorkLines } from "./work-lines.js";
@@ -62,8 +63,6 @@ export function createConversation(dependencies) {
     renderQuiet,
     renderSaid,
     reportPageError,
-    retractedIds,
-    retractionFloors,
     runtime,
     saveDraft,
     scrollToElement,
@@ -73,10 +72,8 @@ export function createConversation(dependencies) {
     sendReaction,
     setPanel,
     settling,
-    takenBack,
     tellDraft,
     threadsBox,
-    threadMarkupAwaiting,
     toggleBtn,
     updateSequence,
     visualPartLabel,
@@ -84,7 +81,6 @@ export function createConversation(dependencies) {
     withdraw,
   } = dependencies;
   let threadList = [];
-  const markupAwaiting = new Map();
   const {
     awaitsAgent,
     awaitsReader,
@@ -92,20 +88,14 @@ export function createConversation(dependencies) {
     buildThreads,
     conversational,
     isReaction,
-    reactionStanding,
     reactionsOn,
     spoken,
     seatRoot,
     tokenEntry,
     turns,
   } = createThreadModel({
-    elementById,
     registry,
-    retractedIds,
-    retractionFloors,
     runtime,
-    takenBack,
-    markupAwaiting: (message) => markupAwaiting.get(message.id) ?? null,
   });
   const {
     anchorLabel,
@@ -180,35 +170,20 @@ export function createConversation(dependencies) {
     updateSequence,
   });
 
-  // ---------- narrowing the list ----------
-  // Two narrowings, and they compose: the words a reader is looking for, and whether the
-  // thread is one the agent has left with them. Neither is stored — see the find row's own
-  // comment for why a remembered narrowing is the trap rather than the convenience.
-  //
-  // Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
-  // because the banner's ask count asks the same question from the other side: a request
-  // whose own conversation is with the agent is not the reader's to deal with. The panel
-  // saying so while the banner went on counting the ask was one fact told two ways.
-  let finding = "";
-  let needsYou = false;
-  const narrowed = () => Boolean(finding) || needsYou;
-
-  // What a search reads: everything the panel shows of a thread, plus the part of the page
-  // it is on — so "merge rule" finds the threads under that heading as well as the ones
-  // that say the words. The label is the panel's own rendering of the anchor, which is what
-  // the reader can see and therefore what they would search for.
-  const threadWords = (t, group) =>
-    [
-      anchorLabel(t.root.anchor, t.root.about),
-      group.label,
-      ...t.msgs.map((m) => m.text ?? m.token),
-    ]
-      .join("\n")
-      .toLowerCase();
-
-  const inFilter = (t, group) =>
-    (!needsYou || awaitsReader(t)) &&
-    (!finding || threadWords(t, group).includes(finding));
+  const narrowing = createConversationNarrowing({
+    anchorLabel,
+    awaitsReader,
+    el,
+    findInput,
+    needsBtn,
+    paintWorkLines,
+    panelTitle,
+    renderThreads,
+    runtime,
+    threads: () => threadList,
+    threadsBox,
+  });
+  const { inFilter, narrowed, noMatchNote, paintNarrowing, widen } = narrowing;
 
   // The reconcile's one mover, shared by the list and the resolved disclosure: make
   // `parent`'s children `nodes`, in that order, touching nothing already in its place.
@@ -233,19 +208,6 @@ export function createConversation(dependencies) {
     "No comments yet. Select any text on the page to comment on it, or use the box below.",
   );
   const waitingNote = el("div", "lf-empty", "Loading current comments…");
-  // The page has comments and the reader's narrowing is standing between them and it. It
-  // names the narrowing rather than saying nothing was found, because the reader may have
-  // arrived here from a key or from a second tab and what is on screen has to say why.
-  const noMatch = el("div", "lf-empty");
-  function noMatchNote() {
-    const said = finding
-      ? needsYou
-        ? `Nothing waiting on you says “${finding}”.`
-        : `No comment says “${finding}”.`
-      : "Nothing is waiting on you.";
-    if (noMatch.textContent !== said) noMatch.textContent = said;
-    return noMatch;
-  }
 
   // The heading over a run of threads, kept across reconciles so a scroll position, a focus
   // ring and the sticky pin survive a poll. A button where the page still holds the heading
@@ -702,45 +664,6 @@ export function createConversation(dependencies) {
     const grow =
       panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
 
-    // A structured reply asks through its x-awaits widgets. Project the last reply bodies
-    // before applying the panel's narrowing, so a new question cannot be excluded before
-    // its markup has had a chance to admit the thread. Stage only the cached bodies, never
-    // complete hidden thread cards: building a card wires its reply box to document-level
-    // draft and flight listeners, and a filtered card has no node the next reconcile can
-    // reuse. Each body keeps skeletal thread/message ancestry while connected: widget
-    // setup may read its message timestamp or card geometry, and upgrades only once before
-    // the cache moves it into the lasting card. Connection lets the shared action fold
-    // find widget ids and distinguish an open request from one the reader already answered.
-    // The stage leaves synchronously, before a frame can expose it.
-    const markupReplies = [];
-    for (const t of open) {
-      const last = spoken(t).at(-1);
-      if (last?.kind !== "reply") continue;
-      if (!last.markup) {
-        markupAwaiting.set(last.id, null);
-        continue;
-      }
-      markupReplies.push({ reply: last, thread: t });
-    }
-    const bodies = markupReplies.map(({ reply }) => msgBody(reply));
-    const stage = el("div", "lf-thread-stage");
-    bodies.forEach((body, index) => {
-      if (body.isConnected) return;
-      const { reply, thread } = markupReplies[index];
-      const skeleton = el("div", "lf-thread");
-      skeleton.dataset.id = thread.root.id;
-      skeleton.append(msgNode(reply));
-      stage.append(skeleton);
-    });
-    if (stage.childElementCount) {
-      threadsBox.append(stage);
-      captureAuthoredFacets(stage);
-    }
-    const readings = threadMarkupAwaiting(bodies);
-    markupReplies.forEach(({ reply }, index) =>
-      markupAwaiting.set(reply.id, readings[index]),
-    );
-    stage.remove();
     // Where the reader's own narrowing applies, and the only place it does: the page's
     // marks, the inline conversation seats and the banner's count are readings of the log
     // and go on saying what the log says. What the panel shows is the panel's business.
@@ -775,9 +698,8 @@ export function createConversation(dependencies) {
       }
       wanted.push(node);
     }
-    for (const e of runtime.events) {
-      if (e.kind === "done") wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
-    }
+    for (const e of runtime.browser?.conversation?.done ?? [])
+      wanted.push(systemNode(e, `✓ Approved ${ago(e.ts)}`));
     if (resolved.length) {
       if (!resolvedBox) {
         resolvedBox = el("details", "lf-details");
@@ -853,61 +775,6 @@ export function createConversation(dependencies) {
       const target = elementById(thread.root.holds);
       if (target && !inChrome(target)) target.dataset.lfHeld = thread.root.id;
     }
-  }
-
-  // The two surfaces that say what the narrowing is doing, written together because they
-  // are one fact told twice: how much of the conversation is in front of the reader, and
-  // how much of it is still theirs to answer. One writer, so the phase before the log has
-  // been read and the phase after it cannot come to spell the same state differently.
-  //
-  // The banner counts what the page has; the head says how much of that is on screen. They
-  // differ only while a narrowing stands, which is exactly when the reader needs telling
-  // that the list is not the whole of it — and there is nothing to tell where the page has
-  // no open threads to narrow.
-  function paintNarrowing(open, shown) {
-    const showing = shown.filter((t) => !t.resolved).length;
-    panelTitle.textContent =
-      narrowed() && open.length ? `Showing ${showing} of ${open.length}` : "Comments";
-    const waiting = open.filter(awaitsReader).length;
-    needsBtn.textContent = waiting ? `Waiting on you (${waiting})` : "Waiting on you";
-    // Pressable while it stands pressed, so the reader can always let it go; dead only when
-    // there is nothing for it to show and it is not the thing hiding the list.
-    needsBtn.disabled = !needsYou && !waiting;
-  }
-
-  // Re-render the list alone, for the one change that is the panel's own rather than the
-  // log's: the reader narrowing it. Nothing about the page moved, so the anchor pass is not
-  // asked again — the list is rebuilt from the record it already wrote.
-  function renarrow() {
-    if (runtime.statePhase !== "ready") return;
-    renderThreads(threadList);
-    paintWorkLines();
-    // A new set of results starts at its own beginning. Keeping the old offset lands the
-    // reader in the middle of a shorter list, or past the end of it, over a change they
-    // made a keystroke at a time.
-    threadsBox.scrollTop = 0;
-  }
-  findInput.addEventListener("input", () => {
-    finding = findInput.value.trim().toLowerCase();
-    renarrow();
-  });
-  needsBtn.onclick = () => {
-    needsYou = !needsYou;
-    needsBtn.setAttribute("aria-pressed", String(needsYou));
-    needsBtn.classList.toggle("on", needsYou);
-    renarrow();
-  };
-  // Everything the reader narrowed, let go at once — what Escape in the find box does, and
-  // what a thread arriving from outside the narrowing needs before it can be revealed.
-  function widen() {
-    if (!narrowed()) return false;
-    finding = "";
-    needsYou = false;
-    findInput.value = "";
-    needsBtn.setAttribute("aria-pressed", "false");
-    needsBtn.classList.remove("on");
-    renarrow();
-    return true;
   }
 
   // The panel's side of what the anchor pass drew, read off that pass's own record so the
@@ -1096,7 +963,6 @@ export function createConversation(dependencies) {
     bareReaction,
     paintStanding,
     reactionsOn,
-    reactionStanding,
     loadMarked,
     anchorLabel,
     openThreads,
@@ -1118,7 +984,7 @@ export function createConversation(dependencies) {
       return threadList;
     },
     get needsYou() {
-      return needsYou;
+      return narrowing.needsYou;
     },
     get pageStrip() {
       return pageStrip;

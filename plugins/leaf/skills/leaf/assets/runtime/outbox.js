@@ -82,16 +82,18 @@ export function createOutbox(runtime, dependencies) {
   // only statement this tab knows, so its caller may paint while the outbox keeps replay
   // and undo held for a complete read.
   function actionStands(event) {
-    if (!runtime.events.some((candidate) => candidate.id === event.id)) return true;
+    if (
+      !(runtime.browser?.receipts ?? []).some((candidate) => candidate.id === event.id)
+    )
+      return true;
     const el = elementById(event.widget);
     const spec = el && registry[el.localName]?.["x-state"]?.[event.action];
     if (!el || !spec) return false;
     const unit = unitOf(event, spec);
     if (typeof unit !== "string") return false;
     return (
-      stateProjection(runtime.currentRevision).actions.get(
-        stateCoordinate(event.widget, unit, spec),
-      )?.e.id === event.id
+      stateProjection().actions.get(stateCoordinate(event.widget, unit, spec))?.e.id ===
+      event.id
     );
   }
 
@@ -177,7 +179,7 @@ export function createOutbox(runtime, dependencies) {
         continue;
       }
       const answer = decoded.answer;
-      const acceptedEvent = answer?.state?.events?.find(
+      const acceptedEvent = answer?.state?.browser?.receipts?.find(
         (candidate) => candidate.attempt === event.attempt,
       );
       if (res.ok && answer?.ok === true && acceptedEvent) {

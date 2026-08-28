@@ -34,7 +34,12 @@ export function createLiveLeaves({
     "In the leaves tray",
     [
       {
+        id: "leaf.walk",
         keys: ["ArrowUp", "ArrowDown"],
+        routes: [
+          { id: "leaf.previous", binding: "ArrowUp", does: "Previous leaf" },
+          { id: "leaf.next", binding: "ArrowDown", does: "Next leaf" },
+        ],
         does: "Walk the leaves",
         line: "walk the leaves",
         repeat: true,
@@ -144,6 +149,7 @@ export function createLiveLeaves({
         if (key !== "self")
           keys(row, "In the leaves tray", [
             {
+              id: "leaf.open",
               keys: ["Enter"],
               does: "Open that leaf in a tab",
               line: "open it in a tab",

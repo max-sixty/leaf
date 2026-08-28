@@ -2776,7 +2776,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
-    expect(page.locator(".lf-help")).to_contain_text("Walk the versions")
+    expect(page.locator(".lf-help")).to_contain_text("Previous version")
+    expect(page.locator(".lf-help")).to_contain_text("Next version")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()

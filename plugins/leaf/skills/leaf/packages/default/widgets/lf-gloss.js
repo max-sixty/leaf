@@ -67,6 +67,7 @@ customElements.define(
 
       keys(this.#mark, "On an explanation", [
         {
+          id: "explanation.close",
           keys: ["Escape"],
           does: "Close this explanation",
           line: "close explanation",

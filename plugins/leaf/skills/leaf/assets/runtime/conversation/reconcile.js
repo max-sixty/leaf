@@ -544,6 +544,7 @@ export function createConversation(dependencies) {
       };
       keys(quote, "On a comment's quoted passage", [
         {
+          id: "passage.return",
           keys: PRESS,
           does: "Return to the quoted passage on the page",
           line: "return to the passage",
@@ -600,13 +601,8 @@ export function createConversation(dependencies) {
       };
       keys(resolve, "On a thread's Resolve button", [
         {
-          keys: PRESS,
-          does: "Resolve it",
-          line: "resolve",
-          when: () => !resolve.disabled,
-        },
-        {
-          keys: ["x"],
+          id: "thread.resolve",
+          keys: [...PRESS, "x"],
           does: "Resolve it",
           line: "resolve",
           when: () => !resolve.disabled,
@@ -644,13 +640,8 @@ export function createConversation(dependencies) {
       };
       keys(reopen, "On a resolved thread", [
         {
-          keys: PRESS,
-          does: "Reopen it",
-          line: "reopen",
-          when: () => !reopen.disabled,
-        },
-        {
-          keys: ["x"],
+          id: "thread.reopen",
+          keys: [...PRESS, "x"],
           does: "Reopen it",
           line: "reopen",
           when: () => !reopen.disabled,

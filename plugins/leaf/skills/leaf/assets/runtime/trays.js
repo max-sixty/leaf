@@ -226,7 +226,12 @@ export function createTrays({
   // button — so the scope names what walking does and leaves the press to the button.
   keys(asksPanel, "In the asks tray", [
     {
+      id: "ask.walk",
       keys: ["ArrowUp", "ArrowDown"],
+      routes: [
+        { id: "ask.previous", binding: "ArrowUp", does: "Previous ask" },
+        { id: "ask.next", binding: "ArrowDown", does: "Next ask" },
+      ],
       does: "Walk the asks",
       line: "walk the asks",
       repeat: true,

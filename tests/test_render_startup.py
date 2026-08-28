@@ -1587,7 +1587,8 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         """async () => {
           const { keys } = await import('/runtime/widget-api.js');
           keys(document.body, 'On a draft',
-               [{ keys: ['F2'], does: 'a project widget using the same heading' }]);
+               [{ id: 'test.project-widget', keys: ['F2'],
+                  does: 'a project widget using the same heading' }]);
         }"""
     )
     page.keyboard.press("?")

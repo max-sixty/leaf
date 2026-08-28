@@ -12,7 +12,7 @@ from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_asks
 from leaf.hosting import cmd_serve, cmd_stop, start_server
-from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
+from leaf.layer import cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
 from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
 from leaf.passages import active_enclosing
@@ -31,6 +31,7 @@ from leaf.service import (
 )
 from leaf.session import cmd_ack, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
+from leaf.vendoring import cmd_init
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:

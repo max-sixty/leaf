@@ -14,7 +14,8 @@ The main owners are:
 - `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,
   and leases;
 - `served_state` and `http`: browser-facing state readings and HTTP transport;
-- `registry` and `layer`: registry storage and layer composition;
+- `registry` and `layer`: registry storage, layer composition, and package commands;
+- `vendoring`: page initialization, layer transitions, and atomic installation;
 - `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
   merged vocabulary contract and authored-page gates;
 - `passages`: the file-side text reading and anchor capture;

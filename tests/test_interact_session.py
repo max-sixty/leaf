@@ -53,6 +53,7 @@ from leaf import served_state as served_state_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import validation as validation_model
+from leaf import vendoring as vendoring_model
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):
@@ -1485,7 +1486,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s9")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     second = tmp_path / "second"
-    layer_model.cmd_init(second)
+    vendoring_model.cmd_init(second)
     capsys.readouterr()
     session_model.cmd_status(second, "waiting", "")
     session_model.cmd_status(page_dir, "waiting", "")
@@ -1523,7 +1524,7 @@ def test_a_page_served_mid_wait_joins_the_running_watch(
     serving(page_dir, 1)
     assert service_model.claim_page(page_dir)
     joined = tmp_path / "joined"
-    layer_model.cmd_init(joined)
+    vendoring_model.cmd_init(joined)
     capsys.readouterr()
     session_model.cmd_status(joined, "waiting", "")
     serving(joined, 2)
@@ -1802,7 +1803,7 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
 
     monkeypatch.setattr(layer_model, "composed_theme", held_composed_theme)
     executor = ThreadPoolExecutor(max_workers=1)
-    first = executor.submit(layer_model.cmd_init, page)
+    first = executor.submit(vendoring_model.cmd_init, page)
     try:
         assert reached_layer.wait(timeout=10), (
             "the first init never reached its held read"

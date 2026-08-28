@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.checking import SourceCheck, check_source
 from leaf.files import list_revisions, revision_path, write_revision
+from leaf.validation.source import SourceCheck, check_source
 
 
 class Activation(NamedTuple):

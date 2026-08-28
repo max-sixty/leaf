@@ -7,7 +7,6 @@ from pathlib import Path
 import click
 
 from leaf.agent_state import cmd_page_state
-from leaf.checking import cmd_check
 from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
 from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
@@ -32,6 +31,7 @@ from leaf.service import (
 )
 from leaf.session import cmd_ack, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
+from leaf.validation.command import cmd_check
 from leaf.vendoring import cmd_init
 
 

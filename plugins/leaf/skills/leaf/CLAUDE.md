@@ -83,6 +83,7 @@ highlight rules;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
+`runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;

@@ -59,6 +59,7 @@ export function createAnchors(dependencies) {
     pageWords,
     paintThreadQuotes,
     panel,
+    pointerAt,
     quoteFrom,
     queueLegend,
     rangeOf,
@@ -600,6 +601,7 @@ export function createAnchors(dependencies) {
       const item = aimedItem();
       return item ? { el: item, part: "" } : null;
     }
+    const pointer = pointerAt();
     if (designIsOn() && pointer.x >= 0)
       return designTarget(document.elementFromPoint(pointer.x, pointer.y));
     return null;
@@ -655,7 +657,6 @@ export function createAnchors(dependencies) {
     inspectEl.style.left = `${Math.max(2, corner.left)}px`;
     inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
   }
-  const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
   let hovering = null;
   let hoverQueued = false;
   const marksOf = (id) => marked.get(id) ?? [];
@@ -1261,6 +1262,7 @@ export function createAnchors(dependencies) {
       // panel already says for itself, on the quote that makes it. Unconditional because
       // toggle runs no update step when the answer has not changed, unlike the add that
       // noteMarks and the standing paint have to guard.
+      const pointer = pointerAt();
       const onMark = markAt(pointer.x, pointer.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
       const id = hoveredThreadOf()?.dataset.id ?? onMark;
@@ -1270,32 +1272,9 @@ export function createAnchors(dependencies) {
       if (id !== hovering || hoverCardOf(id) !== hoverThread) paintHover(id);
     });
   }
-  // The pointer's place is read off a pointer event and not off `mousemove`, because the
-  // legacy mouse events round clientX/clientY to whole pixels and the browser hit-tests the
-  // position they were rounded from. Every consumer of this record asks a hit-test question
-  // — what a press would take, whether a mark is under the hand — so a rounded point is an
-  // answer about somewhere the pointer is not, and within a pixel of a boundary it is a
-  // different element: an ⌥ aim outlined the option above the one the press then took,
-  // because the outline asked elementFromPoint at the rounded point while the press read
-  // the target the browser resolved at the true one.
-  document.addEventListener("pointermove", (ev) => {
-    pointer.x = ev.clientX;
-    pointer.y = ev.clientY;
-    refreshHover();
-  });
-  // A finger arrives already down. A tap dispatches `pointerdown` and then the
-  // compatibility mouse events — no `pointermove` anywhere in it — so a record kept from
-  // movement alone is still its start value when the click asks, and a consumer with no
-  // guard asks elementFromPoint about a point off the page: the quote under the finger
-  // opened nothing. The press is the pointer's place too, and for a tap it is the only
-  // statement of it: a drag still dispatches `pointermove` until the browser cancels it.
-  // No hover refresh with it — a mouse has already moved to this point and refreshed
-  // there — which is not a claim that the record paints no hover on touch. pageShifted
-  // reads it too, and a drag reached that paint before this recorder existed.
-  document.addEventListener("pointerdown", (ev) => {
-    pointer.x = ev.clientX;
-    pointer.y = ev.clientY;
-  });
+  // The shared pointer recorder is installed before this listener, so the hover reads the
+  // same unrounded point the browser used for the event's hit test.
+  document.addEventListener("pointermove", refreshHover);
   // The page moving under a parked pointer is the pointer moving over the page: what a
   // press would take, whether a mark is under the hand, and where every legend box
   // stands can all change with no mouse event to say so, and a box left over the old
@@ -1347,7 +1326,6 @@ export function createAnchors(dependencies) {
     refreshAim,
     dockSeats,
     paintAnchors,
-    pointer,
     fragmentId,
     markAt,
     scrollToElement,

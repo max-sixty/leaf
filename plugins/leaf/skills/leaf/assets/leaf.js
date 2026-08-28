@@ -274,6 +274,7 @@ import {
   observeServerNow,
   quietSince,
 } from "./runtime/presence.js";
+import { createPointer } from "./runtime/pointer.js";
 import { createReactions } from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
@@ -355,6 +356,7 @@ const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
 });
+const { pointerAt } = createPointer();
 
 createMeasurements({ shownBox });
 
@@ -1441,7 +1443,7 @@ const {
   panel,
   panelCovers,
   pendingMarks: () => anchorRuntime.pendingMarks,
-  pointerAt: () => pointer,
+  pointerAt,
   reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
@@ -1466,7 +1468,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   itemAt,
   openOnDesign,
   openOnVisual,
-  pointerAt: () => pointer,
+  pointerAt,
   raiseOnItem,
   refreshAim,
   spell,
@@ -3590,6 +3592,7 @@ anchorRuntime = createAnchors({
   pageWords,
   paintThreadQuotes,
   panel,
+  pointerAt,
   quoteFrom,
   queueLegend,
   rangeOf,
@@ -3608,7 +3611,7 @@ anchorRuntime = createAnchors({
   withdraw,
   worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE, marked, placed, pointer } = anchorRuntime;
+const { VIEW_KEY, ITEM, NOTE, marked, placed } = anchorRuntime;
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });

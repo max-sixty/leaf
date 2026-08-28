@@ -42,6 +42,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
@@ -55,7 +56,6 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread_context as thread_context_model
-from leaf import validation as validation_model
 from leaf import vendoring as vendoring_model
 
 
@@ -714,7 +714,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     # The action door accepts this event, so the shape is the product's own.
     events = events_model.read_events(page_dir)
     assert (
-        validation_model.action_contract_error(
+        event_contracts_model.action_contract_error(
             page_dir, events[-1], events, registry_model.require_registry(page_dir)
         )
         is None

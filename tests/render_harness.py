@@ -1074,8 +1074,10 @@ def watched(page):
 # deadline `_until` states — and each of those names the test it ran out in. A frame wait
 # that never comes back names nothing: the worker's last word is the nodeid it picked up,
 # the step spends its whole forty-five minutes, and the tests xdist had already handed
-# that worker never run. Runs 33130006054 and 33130455313 ended exactly there, each
-# inside a render test that had reached no assertion.
+# that worker never run. No run has been measured ending here: the three 45-minute `ci`
+# runs on main were traced, under a call tracer, to a response body read before the
+# browser had finished delivering it. This bounds a class the suite is open to; it makes
+# no claim on those runs.
 #
 # So the wait states its own end, on the page's clock rather than Playwright's. A
 # driver-side deadline is available — a flag a nested `requestAnimationFrame` sets, read

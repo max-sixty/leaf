@@ -4642,6 +4642,12 @@ RING_SCOPES = (
     ("the reference", ("?",)),
     ("design mode", ("i",)),
 )
+# The generated gallery is the open-ended anchor: every authored widget family joins
+# it. Two state neighbours contribute the rings the gallery cannot light itself.
+# Design decision settles and joins options and carries a glossary mark; ship review
+# carries log-hosted element and run-heading marks. The other examples add only repeated
+# instances of mechanisms those three already exercise.
+RING_WALK_EXAMPLES = ("gallery", "design-decision", "ship-review")
 # What each scope has to have opened before its walk means anything, and what the page
 # shows while the key that opens it is live. A key with nothing to show is dead by
 # declaration — `a` on a page waiting on nobody, `l` where the machine has one leaf — so
@@ -4822,9 +4828,9 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     browser, serve, live_leaf
 ):
-    """The invariant asked of the whole layer and the whole corpus at once. Neither half
-    is evidence without the other: a clean walk says nothing about a rule it never met,
-    and a rule the walk met says nothing if the reading excused every side of it.
+    """The invariant asked of the whole layer and its causal corpus at once. Neither
+    half is evidence without the other: a clean walk says nothing about a rule it never
+    met, and a rule the walk met says nothing if the reading excused every side of it.
 
     The population is the rings the layer declares (`RING_NAMES`), read out of the
     page's own composed stylesheets rather than kept in a list beside them, for the
@@ -4862,7 +4868,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    for example in EXAMPLES:
+    examples = {example.stem: example for example in EXAMPLES}
+    assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
+        "the ring walk names examples that no longer exist: "
+        + ", ".join(sorted(missing))
+    )
+    for name in RING_WALK_EXAMPLES:
+        example = examples[name]
         # The path, not the markup: the fixture lays in the log the example ships, and a
         # thread and the widgets a message carries are controls this walk has to stand
         # on. One of those threads is anchored to an element rather than a passage,
@@ -4981,13 +4993,13 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         f"{sorted(unseen)}"
     )
     assert not errors, errors
-    # Corpus-wide, because a scope can be dead on a page with nothing to put in it. What
-    # cannot happen is a scope no example in the corpus ever opens or walks: then its
+    # Across the causal walk, because a scope can be dead on a page with nothing to put
+    # in it. What cannot happen is a scope no selected example ever opens or walks: then its
     # keys are unread and everything below is silent about the controls behind them.
     missing = [s for s in RING_SCOPE_SURFACE if s not in opened] + [
         f"{s} (walked nothing)" for s, _ in RING_SCOPES if s not in walked_in
     ]
-    assert not missing, "no example in the corpus reached " + ", ".join(sorted(missing))
+    assert not missing, "no selected example reached " + ", ".join(sorted(missing))
     assert not faults, "\n  ".join(
         [f"{len(faults)} faults over {stops} stops:"] + faults
     )

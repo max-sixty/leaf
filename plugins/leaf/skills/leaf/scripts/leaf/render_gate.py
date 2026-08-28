@@ -105,426 +105,19 @@ def _render_version_attempt(
     reading completed. `browser` is a live Playwright browser; nothing here imports
     playwright at module level, so the module stays importable without it."""
     from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
     )
     opened_pages = []
 
-    def in_scheme(scheme):
-        page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
-        opened_pages.append(page)
-        page._leaf_probe_timeout_ms = served_timeout_ms
-        errors = []
-        resize_notices = []
-
-        def served_here(path):
-            return served(page, url, path, timeout_ms=served_timeout_ms)
-
-        def console_message(message):
-            if message.type != "error":
-                return
-            (resize_notices if resize_observer_error(message.text) else errors).append(
-                message.text
-            )
-
-        def probe_failure(error):
-            page.close()
-            return (
-                [
-                    (
-                        f"[{scheme}] the browser probe module failed: "
-                        f"{str(error).strip().splitlines()[0]}"
-                    )
-                ],
-                [],
-                False,
-            )
-
-        page.on("console", console_message)
-        page.on("pageerror", lambda e: errors.append(str(e)))
-        # The console's own word for a bad response is "Failed to load resource",
-        # which names nothing; carry the status and URL so a failure says what
-        # went missing.
-        page.on(
-            "response",
-            lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-        )
-        install_window_errors(page)
-        try:
-            # `load`, not `networkidle`: the page holds a request open to hear
-            # about news, so the network is never idle and never will be. The
-            # wait that matters is the next line, which asks the runtime itself.
-            page.goto(url, wait_until="load")
-            wait_for_probe(page, "runtimeStarted")
-        except PlaywrightTimeout:
-            page.close()
-            explanations = [*errors, *resize_notices]
-            return (
-                [
-                    f"[{scheme}] the runtime never injected its banner — "
-                    + ("; ".join(explanations) or "and no console error explains why")
-                ],
-                [],
-                False,
-            )
-        except PlaywrightError as error:
-            return probe_failure(error)
-        # Every reading below is of a settled page. The widget layer writes half the
-        # document, so a box measured while it is still drawing belongs to no version of
-        # the page — which is the stamp `version export` waits on for the same reason.
-        try:
-            wait_for_probe(page, "upgraded")
-        except PlaywrightTimeout:
-            page.close()
-            explanations = [*errors, *resize_notices]
-            return (
-                [
-                    f"[{scheme}] the widget layer never finished upgrading — "
-                    + ("; ".join(explanations) or "and no console error explains why")
-                ],
-                [],
-                False,
-            )
-        except PlaywrightError as error:
-            return probe_failure(error)
-        # The served documents every reading below is asked against, read once each
-        # (`served` says why they are read from out here rather than fetched inside
-        # the page). The registry alone used to be fetched seven times a scheme, to
-        # answer seven questions about one document. What the readings get now is
-        # data, so most of them are plain synchronous DOM walks with nothing left in
-        # them to await, let alone hang in.
-        try:
-            registry = served_here("/registry.json").json()
-            # The readings in the page mean widgets, so they are handed only those:
-            # $keys spells its members in the x- keys' own names, and a sweep over
-            # every entry took it for a widget called $keys.
-            widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
-            state = served_here("/api/state").json()
-            markup = served_here(urlsplit(url).path).text()
-            # Every replay and conflict check is bounded by immutable revision.
-            # A stamped URL resolves through the stamp map; an exact source preview
-            # uses the synthetic active revision exposed only by its preview server.
-            here = rendered_revision(url, state)
-            before = previous_stamp(here, state["versions"])
-            earlier = served_here(before["url"]).text() if before else None
-        except PlaywrightTimeout as e:
-            page.close()
-            # The first line only: the rest is playwright's call log, which says
-            # nothing about the page that a reader of this failure needs.
-            return (
-                [
-                    *[f"[{scheme}] console: {error}" for error in errors],
-                    *[f"[{scheme}] console: {notice}" for notice in resize_notices],
-                    (
-                        f"[{scheme}] the server stopped answering: "
-                        f"{str(e).splitlines()[0]}"
-                    ),
-                ],
-                [],
-                False,
-            )
-        # The widgets the log has moved, in the log's order. Both replayed kinds,
-        # once: the caught-up stamp counts reports beside actions, so the wait below
-        # counts what this holds, and the verbatim reading excuses exactly these.
-        touched = [
-            e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
-        ]
-        # Every reading below is of a page at rest, and the upgrade stamp above is
-        # one third of that. The stamp is written without awaiting the first read, so
-        # a gate reading there reads the authored board, the unanswered question and
-        # the body the reader has since rewritten — a page nobody is shown. The
-        # caught-up stamp is the log's answer to that, and the frame it lands in is
-        # the first frame of whatever the replay set moving, a replay past the
-        # presentation boundary moving rather than teleporting. Both waits are taken
-        # in both schemes, because every reading below has boxes or words in it. The
-        # windows open under load alone, which is how one page passed at a desk and
-        # reported words drawn over words under a full suite ("The page finishes
-        # twice", in the layer's own CLAUDE.md).
-        unsettled = []
-        replayed = True
-        try:
-            wait_for_probe(page, "dataApplied", state["data"]["revision"])
-        except PlaywrightTimeout:
-            replayed = False
-            unsettled = [
-                (
-                    "the runtime never presented external data revision "
-                    f"{state['data']['revision']}"
-                )
-            ]
-        if replayed and touched:
-            applied = len(touched)
-            try:
-                wait_for_probe(page, "logApplied", applied)
-            except PlaywrightTimeout:
-                replayed = False
-                stalled = (
-                    "the runtime never finished replaying the log "
-                    f"({applied} action(s))"
-                )
-                unsettled = [stalled]
-        if replayed:
-            try:
-                wait_for_probe(page, "pageSettled")
-            except PlaywrightTimeout:
-                unsettled = [
-                    "the page never stopped moving: "
-                    + ", ".join(evaluate_probe(page, "moving"))
-                ]
-        failsoft = evaluate_probe(page, "failSoftErrors")
-        missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
-        missing_visual_providers = evaluate_probe(
-            page, "missingVisualProviders", widgets
-        )
-        tiny = evaluate_probe(page, "tinyBoxes", widgets)
-        unmarkable = evaluate_probe(page, "unmarkableItems")
-        overflow = evaluate_probe(page, "bodyOverflow")
-        misplaced = evaluate_probe(page, "misplacedBoxes")
-        withheld = evaluate_probe(page, "withheldRoom")
-        squeezed = evaluate_probe(page, "squeezedTables")
-        clipped = evaluate_probe(page, "clippedControls")
-        unreachable = evaluate_probe(page, "unreachableWords")
-        covered = evaluate_probe(page, "coveredWords")
-        unread = evaluate_probe(page, "unreadSyntax")
-        # Shadow roots the registry doesn't declare: the passage walk, the
-        # capture and the id lookups cross exactly the declared ones, so an
-        # undeclared root's words silently anchor quotes astray. UA shadow roots
-        # are closed and invisible here; anything open was attached by a module.
-        undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
-        # Replay is scheme-blind, so one scheme's reading covers both.
-        conflicts = []
-        dishonest_verbatim = []
-        silent = []
-        missing_conversations = []
-        undeclared_attrs = []
-        retired = []
-        if scheme == "light":
-            # x-conversation promises one page view per matching instance. A widget in
-            # thread chrome already has the thread's reply surface and conversationBox
-            # deliberately returns none there. Everywhere else, ask the merged registry
-            # for the instances and the module's own marker for the host it placed.
-            missing_conversations = evaluate_probe(
-                page, "missingConversations", widgets
-            )
-            # x-verbatim honesty: the entry claims the body reaches the reader
-            # as its own words, and the two readings built on that claim — the
-            # browser's says() and the file's spoken() — are compared here on
-            # every instance the log hasn't moved (a decided or rewritten
-            # widget legitimately shows other words). A module that renders
-            # something in the body's stead while the entry still says
-            # verbatim strands quotes on words the screen no longer shows.
-            # Both documents, because a widget an agent sent has words of its
-            # own — in the frozen fragment that carries it, which is the file
-            # side for it exactly as the version is for a page widget. Asked of
-            # the version alone the two sides both read empty and the comparison
-            # passed on the agreement of two blanks; asked of neither, an
-            # x-verbatim widget in a message could render something other than
-            # its own words with nothing saying so, which is the one thing the
-            # declaration promises and the reason a quote may rest on it.
-            shown = evaluate_probe(
-                page, "shownVerbatim", {"widgets": widgets, "touched": touched}
-            )
-            if shown:
-                _byid, thread_spk, _threads = thread_universe(state["events"], registry)
-                spk = {**thread_spk, **spoken(markup, registry)}
-                dishonest_verbatim = [
-                    f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
-                    f"{s['says'][:80]!r} where the file reads "
-                    f"{spk.get(s['id'], EMPTY).words[:80]!r}"
-                    for s in shown
-                    if s["says"] != spk.get(s["id"], EMPTY).words
-                ]
-            if touched and replayed and earlier is not None:
-                conflicts = evaluate_probe(
-                    page,
-                    "replayOverrides",
-                    {"curHtml": markup, "prevHtml": earlier},
-                )
-            # Behind the caught-up wait above: a report moves a painted attribute and
-            # the pass that speaks it runs before the stamp, so a reading taken any
-            # earlier asks after a word the page has not been asked to say yet. A page
-            # that never caught up is already reported there and read no further.
-            if replayed:
-                silent = evaluate_probe(page, "silentWords", widgets)
-                # Behind the same wait, because reconciliation is one of the two
-                # writers: an applyAction states one declared fact whole, and a
-                # record form is exactly the attribute it may state that fact in.
-                undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", widgets)
-                # Behind it too: the settlement mark is replay's own write, so a
-                # reading taken earlier asks after paint the page has not been
-                # asked to make yet. The expected outcomes are the file's, scoped
-                # to each holder's own relation: `decisions` folds any verb that
-                # retires somewhere in the vocabulary, so a verb of that name on
-                # a family it settles nothing of decides nothing here — the
-                # browser's write reads the per-holder relation, and a comparison
-                # against anything wider would fail a page both sides are right
-                # about.
-                if slots := retirement_slots(registry):
-                    projection, vparser, _ = page_projection(
-                        markup, state["events"], registry, here
-                    )
-                    outcomes = decisions(projection.actions, registry)
-                    holders = []
-                    for h in retirement_holders(vparser, registry):
-                        declared = slots[h["tag"]]
-                        outcome = outcomes.get(h["id"])
-                        if outcome not in declared:
-                            outcome = None
-                        holders.append(
-                            {
-                                "tag": h["tag"],
-                                "id": h["id"],
-                                "outcome": outcome,
-                                "slots": sorted(declared.get(outcome, ())),
-                            }
-                        )
-                    if holders:
-                        retired = evaluate_probe(page, "retiredSlots", holders)
-        # One scheme, the palettes carrying no geometry between them, and before the
-        # medium moves: a box's inset is what it declared in either.
-        #
-        # The document's boxes, not the layer's over them. This is the only reading
-        # here that reaches the runtime's own chrome, and it reaches it by accident:
-        # inside `display: none` an element's own display is still `block` and its
-        # padding and margins still resolve, so a shut panel answers with numbers that
-        # look like the page's. They are not the panel's own. A size container query
-        # does not match in there, so a rule switching a slot between two forms is
-        # stuck on one of them, and a percentage margin comes back unresolved for
-        # `px` to read as its bare number. Every box reading beside this one sees zero
-        # and stops, which is the honest answer.
-        #
-        # And the finding would be one the author cannot act on. Everything in here is
-        # somebody else's: the layer's own parts, told to them in the words of a class
-        # no page of theirs has, and a widget an agent sent in a reply, frozen in an
-        # append-only log and admitted at a door of its own. Either way the version
-        # would stay refused with no edit that clears it, which is why the coarse
-        # question — which document is this in — is the right one to ask here. That is the failure examples/CLAUDE.md names as the
-        # reason a gate reading was moved out once already. The layer's half is leaf's
-        # own to hold, and the suite holds it with the panel open, where the styles are
-        # the panel's and the margin is one somebody can see.
-        trapped = (
-            [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
-            if scheme == "light"
-            else []
-        )
-        # Last, and in one scheme: paper has no color scheme, and the medium has to be
-        # put back before anything else reads a box.
-        on_paper = []
-        if scheme == "light":
-            screen = evaluate_probe(page, "paperWords")
-            page.emulate_media(media="print")
-            paper = evaluate_probe(page, "paperWords")
-            # Paper is laid out by rules no other medium runs, and it is the medium
-            # nobody looks at, so the overlap reading is taken here too while it holds.
-            on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
-            page.emulate_media(media="screen")
-            # Paired on the words as well as the position: the page is live, and a state
-            # landing between the two readings would otherwise shift one against the
-            # other and report whatever happened to line up. A pair that disagrees says
-            # nothing, which is the right way round — the next run reads it again.
-            on_paper += [
-                f"[print] {s['at']} drops {json.dumps(s['text'])}, which it says on screen"
-                for s, p in zip(screen, paper)
-                if s["text"] == p["text"] and s["shown"] and not p["shown"]
-            ]
-        # Last of all, because it is the only reading here that writes: it applies each
-        # standing action again, which is a no-op exactly when the contract holds and a
-        # page nobody should read any further when it doesn't. Behind the same caught-up
-        # wait as the conflicts above, for the same reason — a page mid-replay has not
-        # finished producing the state the second application is measured against.
-        relative = []
-        if scheme == "light" and replayed:
-            relative = evaluate_probe(page, "relativeReplays")
-        # The print reset and replay above can resize what an observer watches. Chrome
-        # delivers that notice in the next rendering turn, so closing on the write
-        # would call an attempt complete before its last error channel had spoken.
-        evaluate_probe(page, "nextFrame")
-        page.close()
-        found = [f"[{scheme}] console: {e}" for e in errors]
-        found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
-        if missing_upgrades:
-            found.append(
-                f"[{scheme}] upgraded widgets did not define their elements: "
-                + ", ".join(f"<{tag}>" for tag in missing_upgrades)
-            )
-        found += [
-            f"[{scheme}] <{p['tag']} id={p['id']!r}> declares addressable visual "
-            f"parts but its module does not provide {', '.join(p['missing'])}"
-            for p in missing_visual_providers
-        ]
-        if tiny:
-            found.append(
-                f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
-            )
-        found += [
-            f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
-            " and offers no box to mark: it draws none of its own and no element inside"
-            " it draws one either, so a comment anchored here would outline nothing and"
-            " the ask walk would travel to the top of the page. Put the words in an"
-            " element that takes a box"
-            for u in unmarkable
-        ]
-        if overflow > 0:
-            found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
-        found += [f"[{scheme}] {s}" for s in misplaced]
-        found += [f"[{scheme}] {w}" for w in withheld]
-        found += [f"[{scheme}] {s}" for s in squeezed]
-        found += [
-            f"[{scheme}] the control .{c['ctrl'].split()[0]}"
-            + (f" (#{c['id']})" if c["id"] else "")
-            + f" is drawn {c['lost']}px outside the {c['by']} that clips it, where"
-            " nothing can scroll to reach it — the page offers a press it does not show"
-            for c in clipped
-        ]
-        found += [f"[{scheme}] {w}" for w in unreachable]
-        found += [f"[{scheme}] {c}" for c in covered]
-        found += [f"[{scheme}] {u}" for u in unread]
-        if undeclared_shadow:
-            found.append(
-                f"[{scheme}] shadow roots the registry doesn't declare "
-                f"(an undeclared root's words anchor quotes astray; declare "
-                f"x-shadow): {', '.join(undeclared_shadow)}"
-            )
-        found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
-        found += [f"[{scheme}] {s}" for s in silent]
-        for c in missing_conversations:
-            found.append(
-                f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
-                f"rendered {c['hosts']} matching hosts; its module must place exactly "
-                "one conversationBox"
-            )
-        for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
-            found.append(
-                f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "
-                "its registry entry does not declare — declare it as a verb's record "
-                "form (x-state) if a version is meant to carry it, or write the state "
-                "on the chrome the module built"
-            )
-        for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
-            box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
-            found.append(
-                f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
-                f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
-                f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
-                f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
-                f"neighbour it hasn't got, and the box is where that margin stops. "
-                f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
-                f"in theme.css reaches it"
-            )
-
-        found += [f"[{scheme}] {r}" for r in retired]
-        found += [f"[{scheme}] {u}" for u in unsettled]
-        found += [f"[{scheme}] {c}" for c in conflicts]
-        found += [f"[{scheme}] {r}" for r in relative]
-        found += on_paper
-        notices = [f"[{scheme}] console: {e}" for e in resize_notices]
-        return found, notices, True
-
     try:
-        light, light_notices, light_complete = in_scheme("light")
-        dark, dark_notices, dark_complete = in_scheme("dark")
+        light, light_notices, light_complete = _render_scheme(
+            browser, url, "light", served_timeout_ms, opened_pages
+        )
+        dark, dark_notices, dark_complete = _render_scheme(
+            browser, url, "dark", served_timeout_ms, opened_pages
+        )
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
@@ -535,6 +128,413 @@ def _render_version_attempt(
         [*light_notices, *dark_notices],
         light_complete and dark_complete,
     )
+
+
+def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
+    """Read and report the browser gate for one color scheme."""
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
+    opened_pages.append(page)
+    page._leaf_probe_timeout_ms = served_timeout_ms
+    errors = []
+    resize_notices = []
+
+    def served_here(path):
+        return served(page, url, path, timeout_ms=served_timeout_ms)
+
+    def console_message(message):
+        if message.type != "error":
+            return
+        (resize_notices if resize_observer_error(message.text) else errors).append(
+            message.text
+        )
+
+    def probe_failure(error):
+        page.close()
+        return (
+            [
+                (
+                    f"[{scheme}] the browser probe module failed: "
+                    f"{str(error).strip().splitlines()[0]}"
+                )
+            ],
+            [],
+            False,
+        )
+
+    page.on("console", console_message)
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    # The console's own word for a bad response is "Failed to load resource",
+    # which names nothing; carry the status and URL so a failure says what
+    # went missing.
+    page.on(
+        "response",
+        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
+    )
+    install_window_errors(page)
+    try:
+        # `load`, not `networkidle`: the page holds a request open to hear
+        # about news, so the network is never idle and never will be. The
+        # wait that matters is the next line, which asks the runtime itself.
+        page.goto(url, wait_until="load")
+        wait_for_probe(page, "runtimeStarted")
+    except PlaywrightTimeout:
+        page.close()
+        explanations = [*errors, *resize_notices]
+        return (
+            [
+                f"[{scheme}] the runtime never injected its banner — "
+                + ("; ".join(explanations) or "and no console error explains why")
+            ],
+            [],
+            False,
+        )
+    except PlaywrightError as error:
+        return probe_failure(error)
+    # Every reading below is of a settled page. The widget layer writes half the
+    # document, so a box measured while it is still drawing belongs to no version of
+    # the page — which is the stamp `version export` waits on for the same reason.
+    try:
+        wait_for_probe(page, "upgraded")
+    except PlaywrightTimeout:
+        page.close()
+        explanations = [*errors, *resize_notices]
+        return (
+            [
+                f"[{scheme}] the widget layer never finished upgrading — "
+                + ("; ".join(explanations) or "and no console error explains why")
+            ],
+            [],
+            False,
+        )
+    except PlaywrightError as error:
+        return probe_failure(error)
+    # The served documents every reading below is asked against, read once each
+    # (`served` says why they are read from out here rather than fetched inside
+    # the page). The registry alone used to be fetched seven times a scheme, to
+    # answer seven questions about one document. What the readings get now is
+    # data, so most of them are plain synchronous DOM walks with nothing left in
+    # them to await, let alone hang in.
+    try:
+        registry = served_here("/registry.json").json()
+        # The readings in the page mean widgets, so they are handed only those:
+        # $keys spells its members in the x- keys' own names, and a sweep over
+        # every entry took it for a widget called $keys.
+        widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+        state = served_here("/api/state").json()
+        markup = served_here(urlsplit(url).path).text()
+        # Every replay and conflict check is bounded by immutable revision.
+        # A stamped URL resolves through the stamp map; an exact source preview
+        # uses the synthetic active revision exposed only by its preview server.
+        here = rendered_revision(url, state)
+        before = previous_stamp(here, state["versions"])
+        earlier = served_here(before["url"]).text() if before else None
+    except PlaywrightTimeout as e:
+        page.close()
+        # The first line only: the rest is playwright's call log, which says
+        # nothing about the page that a reader of this failure needs.
+        return (
+            [
+                *[f"[{scheme}] console: {error}" for error in errors],
+                *[f"[{scheme}] console: {notice}" for notice in resize_notices],
+                (f"[{scheme}] the server stopped answering: {str(e).splitlines()[0]}"),
+            ],
+            [],
+            False,
+        )
+    # The widgets the log has moved, in the log's order. Both replayed kinds,
+    # once: the caught-up stamp counts reports beside actions, so the wait below
+    # counts what this holds, and the verbatim reading excuses exactly these.
+    touched = [
+        e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
+    ]
+    # Every reading below is of a page at rest, and the upgrade stamp above is
+    # one third of that. The stamp is written without awaiting the first read, so
+    # a gate reading there reads the authored board, the unanswered question and
+    # the body the reader has since rewritten — a page nobody is shown. The
+    # caught-up stamp is the log's answer to that, and the frame it lands in is
+    # the first frame of whatever the replay set moving, a replay past the
+    # presentation boundary moving rather than teleporting. Both waits are taken
+    # in both schemes, because every reading below has boxes or words in it. The
+    # windows open under load alone, which is how one page passed at a desk and
+    # reported words drawn over words under a full suite ("The page finishes
+    # twice", in the layer's own CLAUDE.md).
+    unsettled = []
+    replayed = True
+    try:
+        wait_for_probe(page, "dataApplied", state["data"]["revision"])
+    except PlaywrightTimeout:
+        replayed = False
+        unsettled = [
+            (
+                "the runtime never presented external data revision "
+                f"{state['data']['revision']}"
+            )
+        ]
+    if replayed and touched:
+        applied = len(touched)
+        try:
+            wait_for_probe(page, "logApplied", applied)
+        except PlaywrightTimeout:
+            replayed = False
+            stalled = (
+                f"the runtime never finished replaying the log ({applied} action(s))"
+            )
+            unsettled = [stalled]
+    if replayed:
+        try:
+            wait_for_probe(page, "pageSettled")
+        except PlaywrightTimeout:
+            unsettled = [
+                "the page never stopped moving: "
+                + ", ".join(evaluate_probe(page, "moving"))
+            ]
+    failsoft = evaluate_probe(page, "failSoftErrors")
+    missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
+    missing_visual_providers = evaluate_probe(page, "missingVisualProviders", widgets)
+    tiny = evaluate_probe(page, "tinyBoxes", widgets)
+    unmarkable = evaluate_probe(page, "unmarkableItems")
+    overflow = evaluate_probe(page, "bodyOverflow")
+    misplaced = evaluate_probe(page, "misplacedBoxes")
+    withheld = evaluate_probe(page, "withheldRoom")
+    squeezed = evaluate_probe(page, "squeezedTables")
+    clipped = evaluate_probe(page, "clippedControls")
+    unreachable = evaluate_probe(page, "unreachableWords")
+    covered = evaluate_probe(page, "coveredWords")
+    unread = evaluate_probe(page, "unreadSyntax")
+    # Shadow roots the registry doesn't declare: the passage walk, the
+    # capture and the id lookups cross exactly the declared ones, so an
+    # undeclared root's words silently anchor quotes astray. UA shadow roots
+    # are closed and invisible here; anything open was attached by a module.
+    undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", registry)
+    # Replay is scheme-blind, so one scheme's reading covers both.
+    conflicts = []
+    dishonest_verbatim = []
+    silent = []
+    missing_conversations = []
+    undeclared_attrs = []
+    retired = []
+    if scheme == "light":
+        # x-conversation promises one page view per matching instance. A widget in
+        # thread chrome already has the thread's reply surface and conversationBox
+        # deliberately returns none there. Everywhere else, ask the merged registry
+        # for the instances and the module's own marker for the host it placed.
+        missing_conversations = evaluate_probe(page, "missingConversations", widgets)
+        # x-verbatim honesty: the entry claims the body reaches the reader
+        # as its own words, and the two readings built on that claim — the
+        # browser's says() and the file's spoken() — are compared here on
+        # every instance the log hasn't moved (a decided or rewritten
+        # widget legitimately shows other words). A module that renders
+        # something in the body's stead while the entry still says
+        # verbatim strands quotes on words the screen no longer shows.
+        # Both documents, because a widget an agent sent has words of its
+        # own — in the frozen fragment that carries it, which is the file
+        # side for it exactly as the version is for a page widget. Asked of
+        # the version alone the two sides both read empty and the comparison
+        # passed on the agreement of two blanks; asked of neither, an
+        # x-verbatim widget in a message could render something other than
+        # its own words with nothing saying so, which is the one thing the
+        # declaration promises and the reason a quote may rest on it.
+        shown = evaluate_probe(
+            page, "shownVerbatim", {"widgets": widgets, "touched": touched}
+        )
+        if shown:
+            _byid, thread_spk, _threads = thread_universe(state["events"], registry)
+            spk = {**thread_spk, **spoken(markup, registry)}
+            dishonest_verbatim = [
+                f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
+                f"{s['says'][:80]!r} where the file reads "
+                f"{spk.get(s['id'], EMPTY).words[:80]!r}"
+                for s in shown
+                if s["says"] != spk.get(s["id"], EMPTY).words
+            ]
+        if touched and replayed and earlier is not None:
+            conflicts = evaluate_probe(
+                page,
+                "replayOverrides",
+                {"curHtml": markup, "prevHtml": earlier},
+            )
+        # Behind the caught-up wait above: a report moves a painted attribute and
+        # the pass that speaks it runs before the stamp, so a reading taken any
+        # earlier asks after a word the page has not been asked to say yet. A page
+        # that never caught up is already reported there and read no further.
+        if replayed:
+            silent = evaluate_probe(page, "silentWords", widgets)
+            # Behind the same wait, because reconciliation is one of the two
+            # writers: an applyAction states one declared fact whole, and a
+            # record form is exactly the attribute it may state that fact in.
+            undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", widgets)
+            # Behind it too: the settlement mark is replay's own write, so a
+            # reading taken earlier asks after paint the page has not been
+            # asked to make yet. The expected outcomes are the file's, scoped
+            # to each holder's own relation: `decisions` folds any verb that
+            # retires somewhere in the vocabulary, so a verb of that name on
+            # a family it settles nothing of decides nothing here — the
+            # browser's write reads the per-holder relation, and a comparison
+            # against anything wider would fail a page both sides are right
+            # about.
+            if slots := retirement_slots(registry):
+                projection, vparser, _ = page_projection(
+                    markup, state["events"], registry, here
+                )
+                outcomes = decisions(projection.actions, registry)
+                holders = []
+                for h in retirement_holders(vparser, registry):
+                    declared = slots[h["tag"]]
+                    outcome = outcomes.get(h["id"])
+                    if outcome not in declared:
+                        outcome = None
+                    holders.append(
+                        {
+                            "tag": h["tag"],
+                            "id": h["id"],
+                            "outcome": outcome,
+                            "slots": sorted(declared.get(outcome, ())),
+                        }
+                    )
+                if holders:
+                    retired = evaluate_probe(page, "retiredSlots", holders)
+    # One scheme, the palettes carrying no geometry between them, and before the
+    # medium moves: a box's inset is what it declared in either.
+    #
+    # The document's boxes, not the layer's over them. This is the only reading
+    # here that reaches the runtime's own chrome, and it reaches it by accident:
+    # inside `display: none` an element's own display is still `block` and its
+    # padding and margins still resolve, so a shut panel answers with numbers that
+    # look like the page's. They are not the panel's own. A size container query
+    # does not match in there, so a rule switching a slot between two forms is
+    # stuck on one of them, and a percentage margin comes back unresolved for
+    # `px` to read as its bare number. Every box reading beside this one sees zero
+    # and stops, which is the honest answer.
+    #
+    # And the finding would be one the author cannot act on. Everything in here is
+    # somebody else's: the layer's own parts, told to them in the words of a class
+    # no page of theirs has, and a widget an agent sent in a reply, frozen in an
+    # append-only log and admitted at a door of its own. Either way the version
+    # would stay refused with no edit that clears it, which is why the coarse
+    # question — which document is this in — is the right one to ask here. That is the failure examples/CLAUDE.md names as the
+    # reason a gate reading was moved out once already. The layer's half is leaf's
+    # own to hold, and the suite holds it with the panel open, where the styles are
+    # the panel's and the margin is one somebody can see.
+    trapped = (
+        [t for t in evaluate_probe(page, "trappedMargins") if not t["chrome"]]
+        if scheme == "light"
+        else []
+    )
+    # Last, and in one scheme: paper has no color scheme, and the medium has to be
+    # put back before anything else reads a box.
+    on_paper = []
+    if scheme == "light":
+        screen = evaluate_probe(page, "paperWords")
+        page.emulate_media(media="print")
+        paper = evaluate_probe(page, "paperWords")
+        # Paper is laid out by rules no other medium runs, and it is the medium
+        # nobody looks at, so the overlap reading is taken here too while it holds.
+        on_paper = [f"[print] {c}" for c in evaluate_probe(page, "coveredWords")]
+        page.emulate_media(media="screen")
+        # Paired on the words as well as the position: the page is live, and a state
+        # landing between the two readings would otherwise shift one against the
+        # other and report whatever happened to line up. A pair that disagrees says
+        # nothing, which is the right way round — the next run reads it again.
+        on_paper += [
+            f"[print] {s['at']} drops {json.dumps(s['text'])}, which it says on screen"
+            for s, p in zip(screen, paper)
+            if s["text"] == p["text"] and s["shown"] and not p["shown"]
+        ]
+    # Last of all, because it is the only reading here that writes: it applies each
+    # standing action again, which is a no-op exactly when the contract holds and a
+    # page nobody should read any further when it doesn't. Behind the same caught-up
+    # wait as the conflicts above, for the same reason — a page mid-replay has not
+    # finished producing the state the second application is measured against.
+    relative = []
+    if scheme == "light" and replayed:
+        relative = evaluate_probe(page, "relativeReplays")
+    # The print reset and replay above can resize what an observer watches. Chrome
+    # delivers that notice in the next rendering turn, so closing on the write
+    # would call an attempt complete before its last error channel had spoken.
+    evaluate_probe(page, "nextFrame")
+    page.close()
+    found = [f"[{scheme}] console: {e}" for e in errors]
+    found += [f"[{scheme}] a widget failed soft: {t}" for t in failsoft]
+    if missing_upgrades:
+        found.append(
+            f"[{scheme}] upgraded widgets did not define their elements: "
+            + ", ".join(f"<{tag}>" for tag in missing_upgrades)
+        )
+    found += [
+        f"[{scheme}] <{p['tag']} id={p['id']!r}> declares addressable visual "
+        f"parts but its module does not provide {', '.join(p['missing'])}"
+        for p in missing_visual_providers
+    ]
+    if tiny:
+        found.append(
+            f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
+        )
+    found += [
+        f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
+        " and offers no box to mark: it draws none of its own and no element inside"
+        " it draws one either, so a comment anchored here would outline nothing and"
+        " the ask walk would travel to the top of the page. Put the words in an"
+        " element that takes a box"
+        for u in unmarkable
+    ]
+    if overflow > 0:
+        found.append(f"[{scheme}] the page scrolls sideways by {overflow}px")
+    found += [f"[{scheme}] {s}" for s in misplaced]
+    found += [f"[{scheme}] {w}" for w in withheld]
+    found += [f"[{scheme}] {s}" for s in squeezed]
+    found += [
+        f"[{scheme}] the control .{c['ctrl'].split()[0]}"
+        + (f" (#{c['id']})" if c["id"] else "")
+        + f" is drawn {c['lost']}px outside the {c['by']} that clips it, where"
+        " nothing can scroll to reach it — the page offers a press it does not show"
+        for c in clipped
+    ]
+    found += [f"[{scheme}] {w}" for w in unreachable]
+    found += [f"[{scheme}] {c}" for c in covered]
+    found += [f"[{scheme}] {u}" for u in unread]
+    if undeclared_shadow:
+        found.append(
+            f"[{scheme}] shadow roots the registry doesn't declare "
+            f"(an undeclared root's words anchor quotes astray; declare "
+            f"x-shadow): {', '.join(undeclared_shadow)}"
+        )
+    found += [f"[{scheme}] {d}" for d in dishonest_verbatim]
+    found += [f"[{scheme}] {s}" for s in silent]
+    for c in missing_conversations:
+        found.append(
+            f"[{scheme}] <{c['tag']} id={c['id']!r}> declares x-conversation but "
+            f"rendered {c['hosts']} matching hosts; its module must place exactly "
+            "one conversationBox"
+        )
+    for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
+        found.append(
+            f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "
+            "its registry entry does not declare — declare it as a verb's record "
+            "form (x-state) if a version is meant to carry it, or write the state "
+            "on the chrome the module built"
+        )
+    for t in {(x["tag"], x["edge"]): x for x in trapped}.values():
+        box = f"<{t['tag']}" + (f" class={t['cls']!r}" if t["cls"] else "") + ">"
+        found.append(
+            f"[{scheme}] {box} draws {t['drawn']:g}px of inset and shows "
+            f"{t['drawn'] + t['margin']:g}px {t['edge']} what it holds "
+            f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
+            f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
+            f"neighbour it hasn't got, and the box is where that margin stops. "
+            f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
+            f"in theme.css reaches it"
+        )
+
+    found += [f"[{scheme}] {r}" for r in retired]
+    found += [f"[{scheme}] {u}" for u in unsettled]
+    found += [f"[{scheme}] {c}" for c in conflicts]
+    found += [f"[{scheme}] {r}" for r in relative]
+    found += on_paper
+    notices = [f"[{scheme}] console: {e}" for e in resize_notices]
+    return found, notices, True
 
 
 def render_version(browser, url: str, served_timeout_ms: int | None = None) -> list:

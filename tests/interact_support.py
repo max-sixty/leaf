@@ -38,6 +38,7 @@ from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
+from leaf import served_state as served_state_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
@@ -256,7 +257,9 @@ def stamp(d, version, text="stamped", completes=()):
 
 def page_state(d):
     events = events_model.read_events(d)
-    return http_model.full_state(d, events, files_model.published_versions(d, events))
+    return served_state_model.full_state(
+        d, events, files_model.published_versions(d, events)
+    )
 
 
 def record_claim(page, **fields):

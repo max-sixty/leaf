@@ -39,6 +39,7 @@ from leaf import publishing as publishing_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf import served_state as served_state_model
 from leaf import service as service_model
 
 
@@ -730,7 +731,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
-    monkeypatch.setattr(http_model, "other_leaves", neighbours)
+    monkeypatch.setattr(served_state_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -1465,7 +1466,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     error = events[-1]
     assert error["kind"] == "error" and error["author"] == "page"
     assert error in service_model.unacknowledged(events, 0)
-    assert http_model.presence(page_dir, events)["pending"] == 0
+    assert served_state_model.presence(page_dir, events)["pending"] == 0
     result = CliRunner().invoke(
         cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
     )
@@ -1493,12 +1494,12 @@ def test_an_open_stream_records_that_the_page_is_open(server, page_dir):
     that proof — `curl`, the render gate and `page state` all read, and a tab
     that has no news never reads again."""
     events = event_model.read_events(page_dir)
-    assert http_model.presence(page_dir, events)["viewed"] is None
+    assert served_state_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
-    assert http_model.presence(page_dir, events)["viewed"] is None
+    assert served_state_model.presence(page_dir, events)["viewed"] is None
     stream, heard = _news(server)
     heard()
-    assert http_model.presence(page_dir, events)["viewed"] is not None
+    assert served_state_model.presence(page_dir, events)["viewed"] is not None
     stream.close()
 
 
@@ -2234,14 +2235,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = http_model.full_state
+    original = served_state_model.full_state
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(http_model, "full_state", held_state)
+    monkeypatch.setattr(served_state_model, "full_state", held_state)
     response = []
 
     def read_state():

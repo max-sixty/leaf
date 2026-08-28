@@ -46,10 +46,10 @@ from leaf import events as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
-from leaf import http as http_model
 from leaf import layer as layer_model
 from leaf import registry as registry_model
 from leaf import schema as schema_model
+from leaf import served_state as served_state_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import validation as validation_model
@@ -1764,11 +1764,11 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     monkeypatch.chdir(work)
     assert service_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir)["cwd"] == str(work)
-    assert http_model.presence(page_dir, [])["session_cwd"] == str(work)
+    assert served_state_model.presence(page_dir, [])["session_cwd"] == str(work)
     with service_model.PageTransaction(page_dir) as page:
         page.release_claim()
-    assert http_model.presence(page_dir, [])["session_cwd"] == str(work)
-    assert http_model.presence(page_dir, [])["session_alive"] is False
+    assert served_state_model.presence(page_dir, [])["session_cwd"] == str(work)
+    assert served_state_model.presence(page_dir, [])["session_alive"] is False
 
 
 def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
@@ -2238,7 +2238,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     session_model.cmd_status(claimed, "working", "reading the reconnect traces")
     assert service_model.page_claim(claimed)["turn_closed"] is None
     events = events_model.read_events(claimed)
-    assert http_model.presence(claimed, events)["turn_closed"] is None
+    assert served_state_model.presence(claimed, events)["turn_closed"] is None
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
@@ -2250,7 +2250,7 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     assert capsys.readouterr().out == ""
     closed = service_model.page_claim(claimed)["turn_closed"]
     assert closed
-    assert http_model.presence(claimed, events)["turn_closed"] == closed
+    assert served_state_model.presence(claimed, events)["turn_closed"] == closed
     # And what the agent said it was doing is untouched by the observation of it.
     assert (
         files_model.read_json(claimed / "status.json")["detail"]
@@ -2277,7 +2277,7 @@ def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page
     another machine's opinion. The payload states the writer's clock so the reading is
     made against that one; without it a skewed laptop misreads every age on the page,
     in one direction and with nothing to give it away."""
-    state = http_model.full_state(page_dir, [], [])
+    state = served_state_model.full_state(page_dir, [], [])
     written = datetime.fromisoformat(state["now"])
     assert abs((datetime.now().astimezone() - written).total_seconds()) < 60
 
@@ -2286,8 +2286,8 @@ def test_the_state_payload_says_when_it_was_taken(page_dir):
     """Two answers can cross on the wire, and nothing the log orders tells them apart
     when neither carries a new event. Each says when the server took it, so a tab
     keeps the later one whichever lands last."""
-    first = http_model.full_state(page_dir, [], [])
-    second = http_model.full_state(page_dir, [], [])
+    first = served_state_model.full_state(page_dir, [], [])
+    second = served_state_model.full_state(page_dir, [], [])
     assert first["taken"] < second["taken"]
     assert abs(time.time() - second["taken"]) < 60
 
@@ -2991,7 +2991,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
     assert service_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
-    assert http_model.presence(page_dir, [])["session_alive"] is True
+    assert served_state_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
     deadline = time.time() + 5
@@ -2999,7 +2999,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
         assert time.time() < deadline, "the deleted job's server stayed up"
         time.sleep(0.05)
     assert service_model.owned_pages("bg-job") == []
-    assert http_model.presence(page_dir, [])["session_alive"] is False
+    assert served_state_model.presence(page_dir, [])["session_alive"] is False
 
 
 def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(

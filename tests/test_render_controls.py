@@ -3091,8 +3091,8 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 ):
     """The corpus sweep above reads every example, and reads all of them with the chrome
     shut: it never presses a key, so the comment panel, its box, the trays, the versions
-    menu, the keyboard reference and the chord's chips are surfaces forty parametrisations
-    pass straight over. A `role="list"` whose children are run headings and threads shipped
+    menu, the keyboard reference and the chord's chips are surfaces forty readings pass
+    straight over. A `role="list"` whose children are run headings and threads shipped
     through it, green every time.
 
     One page rather than the corpus, because the chrome is the same on all of them: what

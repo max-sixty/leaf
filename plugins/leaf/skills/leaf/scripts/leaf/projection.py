@@ -17,6 +17,95 @@ from leaf.registry import retirement_slots, state_specs
 from leaf.structure import _StructParser, parse_structure
 
 
+def _report_updates(projection) -> list[dict]:
+    if projection is None:
+        return []
+    standing = {
+        event["id"]
+        for entries in projection.reports.values()
+        for event, _spec in entries
+    }
+    effective = {
+        event["id"]
+        for event, _spec in projection.desired.values()
+        if event["kind"] == "report"
+    }
+    updates = []
+    for _coordinate, (event, spec) in projection.classified.values():
+        if event["kind"] != "report":
+            continue
+        update_field = spec.get("update")
+        updates.append(
+            {
+                "id": event["id"],
+                "target": {"kind": "widget", "id": event["widget"]},
+                "source": "report",
+                "action": event["action"],
+                "detail": event["detail"],
+                "text": event["detail"][update_field] if update_field else None,
+                "ts": event["ts"],
+                "revision": event["revision"],
+                "seq": event["seq"],
+                "agent": event.get("agent"),
+                "session": event.get("session"),
+                "disposition": (
+                    "effective"
+                    if event["id"] in effective
+                    else "standing"
+                    if event["id"] in standing
+                    else "settled"
+                ),
+            }
+        )
+    return updates
+
+
+def _claim_effective(claim: dict, threads: dict, events: list) -> bool:
+    target = claim["target"]
+    if target["kind"] == "thread":
+        thread = threads.get(target["id"])
+        return bool(
+            thread
+            and not thread["resolved"]
+            and not any(
+                message["kind"] == "reply"
+                and message["author"] == "claude"
+                and message["seq"] > claim["log_floor"]
+                for message in thread["msgs"]
+            )
+        )
+    return not any(
+        event["kind"] == "note"
+        and event["seq"] > claim["log_floor"]
+        and target["id"] in note_settlements(event, "work")
+        for event in events
+    )
+
+
+def _claim_updates(claims: list, threads: dict, events: list) -> list[dict]:
+    return [
+        {
+            **claim,
+            "disposition": (
+                "effective" if _claim_effective(claim, threads, events) else "settled"
+            ),
+        }
+        for claim in claims
+    ]
+
+
+def _update_order(update: dict) -> tuple:
+    return (
+        update["seq"] if update["source"] == "report" else update["log_floor"],
+        0 if update["source"] == "report" else 1,
+        datetime.fromisoformat(update["ts"]),
+        update["source"],
+        update["target"]["kind"],
+        update["target"]["id"],
+        update["id"],
+    )
+
+
 def canonical_updates(
     projection,
     claims: list,
@@ -24,85 +113,9 @@ def canonical_updates(
     events: list,
 ) -> list[dict]:
     """Normalize projected reports and ephemeral claims into one update feed."""
-    report_standing = set()
-    report_effective = set()
-    if projection is not None:
-        report_standing = {
-            event["id"]
-            for entries in projection.reports.values()
-            for event, _spec in entries
-        }
-        report_effective = {
-            event["id"]
-            for event, _spec in projection.desired.values()
-            if event["kind"] == "report"
-        }
-
-    updates = []
-    if projection is not None:
-        for _coordinate, (event, spec) in projection.classified.values():
-            if event["kind"] != "report":
-                continue
-            update_field = spec.get("update")
-            updates.append(
-                {
-                    "id": event["id"],
-                    "target": {"kind": "widget", "id": event["widget"]},
-                    "source": "report",
-                    "action": event["action"],
-                    "detail": event["detail"],
-                    "text": event["detail"][update_field] if update_field else None,
-                    "ts": event["ts"],
-                    "revision": event["revision"],
-                    "seq": event["seq"],
-                    "agent": event.get("agent"),
-                    "session": event.get("session"),
-                    "disposition": (
-                        "effective"
-                        if event["id"] in report_effective
-                        else "standing"
-                        if event["id"] in report_standing
-                        else "settled"
-                    ),
-                }
-            )
-
-    for claim in claims:
-        target = claim["target"]
-        if target["kind"] == "thread":
-            thread = threads.get(target["id"])
-            effective = bool(
-                thread
-                and not thread["resolved"]
-                and not any(
-                    message["kind"] == "reply"
-                    and message["author"] == "claude"
-                    and message["seq"] > claim["log_floor"]
-                    for message in thread["msgs"]
-                )
-            )
-        else:
-            effective = not any(
-                event["kind"] == "note"
-                and event["seq"] > claim["log_floor"]
-                and target["id"] in note_settlements(event, "work")
-                for event in events
-            )
-        updates.append(
-            {**claim, "disposition": "effective" if effective else "settled"}
-        )
-
     return sorted(
-        updates,
-        key=lambda update: (
-            update["seq"] if update["source"] == "report" else update["log_floor"],
-            0 if update["source"] == "report" else 1,
-            datetime.fromisoformat(update["ts"]),
-            update["source"],
-            update["target"]["kind"],
-            update["target"]["id"],
-            update["id"],
-        ),
+        [*_report_updates(projection), *_claim_updates(claims, threads, events)],
+        key=_update_order,
     )
 
 

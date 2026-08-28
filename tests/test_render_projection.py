@@ -32,6 +32,7 @@ from render_support import (
     LIVE_V2,
     LIVE_V3,
     MARKDOWN_REPLY,
+    ONE_FRAME,
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
@@ -3565,12 +3566,12 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
     )
 
     retired_updates = page.evaluate(
-        """async () => {
+        f"""async () => {{
           window.__retiredCommand.querySelector('#api-errors')
             .setAttribute('status', 'done');
-          await new Promise(resolve => requestAnimationFrame(resolve));
+          await ({ONE_FRAME})();
           return window.__retiredUpdates;
-        }"""
+        }}"""
     )
 
     assert retired_updates == 0

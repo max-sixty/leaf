@@ -1077,15 +1077,22 @@ def watched(page):
 # that worker never run. Runs 33130006054 and 33130455313 ended exactly there, each
 # inside a render test that had reached no assertion.
 #
-# So the wait states its own end. It is the page's clock rather than Playwright's,
-# because there is no seam to hang a driver-side deadline on: the timer keeps running
-# through the frames that stop, and a rejected promise comes back through `evaluate` as
-# the failure of the test that asked for it.
+# So the wait states its own end, on the page's clock rather than Playwright's. A
+# driver-side deadline is available — a flag a nested `requestAnimationFrame` sets, read
+# by `page.wait_for_function(polling=...)`, whose `TimeoutError` names the test the same
+# way — but it costs a second round trip and a page-global name, and it does not compose
+# into a larger page script the way `RING_NEW_STOP` composes this one. The page-side
+# timer keeps running through the frames that stop, and its rejected promise comes back
+# through `evaluate` as the failure of the test that asked for it.
+#
+# What that bounds is a page whose compositor has stopped drawing. `setTimeout` and
+# `requestAnimationFrame` share the renderer's main thread, so a page that blocks the
+# thread itself stops the deadline along with the frames, and still wedges silently.
 FRAME_DEADLINE_MS = 30_000
 FRAMES = (
     "(turns) => new Promise((rendered, ranOut) => {\n"
     "  const deadline = setTimeout(\n"
-    "    () => ranOut(new Error(turns + ' rendering turns never arrived')),\n"
+    "    () => ranOut(new Error(`only ${turns - left} of ${turns} rendering turns arrived`)),\n"
     f"    {FRAME_DEADLINE_MS});\n"
     "  let left = turns;\n"
     "  const step = () => {\n"

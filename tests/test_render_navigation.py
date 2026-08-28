@@ -914,23 +914,22 @@ def test_an_address_is_never_drawn_on_the_key_line(browser, serve):
     # step waits for the runtime's own paint frame, since the chips follow a scroll on a
     # frame of their own and boxes read in the same turn are the positions it just left.
     fouled = page.evaluate(
-        """async () => {
-             const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+        f"""async () => {{
              const line = () => document.querySelector('.lf-keyline').getBoundingClientRect();
              const hit = (a, b) => a.left < b.right && b.left < a.right
                                 && a.top < b.bottom && b.top < a.bottom;
              const out = [];
              const room = document.body.scrollHeight - document.body.clientHeight;
-             for (let i = 0; i <= 20; i++) {
+             for (let i = 0; i <= 20; i++) {{
                document.body.scrollTo(0, Math.round((room * i) / 20));
-               await frame(); await frame();
+               await ({RENDERED})();
                const bar = line();
                for (const chip of document.querySelectorAll('.lf-addresses > .lf-address'))
                  if (hit(chip.getBoundingClientRect(), bar))
                    out.push(chip.textContent + ' at ' + Math.round(document.body.scrollTop));
-             }
+             }}
              return out;
-           }"""
+           }}"""
     )
     assert fouled == [], (
         f"addresses are drawn over the key line that explains them: {fouled}"

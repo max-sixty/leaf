@@ -28,7 +28,7 @@ from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
 # navigation waits on. tests/CLAUDE.md, "A wait consumes a fact the system states".
-from render_support import BOTH_STAMPS, navigate, open_page, select
+from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
@@ -264,10 +264,15 @@ def test_every_example_says_what_it_is_and_links_back(site, hosted, browser):
 # The drag's own last step, waited out rather than timed: a timeout queued once the drag
 # has returned runs behind the one the runtime queued from that mouseup, and one frame
 # behind that is the key line as this drag left it. Why `expect` cannot ask instead is
-# tests/CLAUDE.md, "A state the page passes through is not a state to poll for".
-AFTER_THE_DRAG = """() => new Promise(done => setTimeout(() => requestAnimationFrame(
-  () => done({ text: getSelection().toString(),
-               says: document.querySelector('.lf-keyline').textContent }))))"""
+# tests/CLAUDE.md, "A state the page passes through is not a state to poll for". The
+# timeout bounds the queue hop only, so the frame is asked for through `ONE_FRAME`, which
+# carries the deadline a bare `requestAnimationFrame` has not got.
+AFTER_THE_DRAG = f"""async () => {{
+  await new Promise(done => setTimeout(done));
+  await ({ONE_FRAME})();
+  return {{ text: getSelection().toString(),
+           says: document.querySelector('.lf-keyline').textContent }};
+}}"""
 
 
 def drag_across(page, selector):

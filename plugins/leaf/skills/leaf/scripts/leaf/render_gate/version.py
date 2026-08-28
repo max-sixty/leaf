@@ -62,6 +62,7 @@ def _render_version_attempt(
         light_complete and dark_complete,
     )
 
+
 def render_version(browser, url: str, served_timeout_ms: int | None = None) -> list:
     """Read a version, confirming a complete attempt that reports a ResizeObserver
     loop notice.

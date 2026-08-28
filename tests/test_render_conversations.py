@@ -1128,10 +1128,18 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     # once: its node left the list when the thread reopened, and the record it must
     # not clear on its way is the live fold's. Cleared, the thread is pulled out of
     # the list in the middle of the motion carrying it away.
+    # The await states its own end. `page.evaluate` takes no timeout in any binding, so
+    # an animation that never settles `finished` is a wait nothing bounds: on run
+    # 33165671503 this one didn't, and what should have been this test failing in thirty
+    # seconds under its own name was the job's whole 45-minute bound, spent here, with
+    # the quarter of the suite already handed to this worker never run. Thirty seconds
+    # because that is where every other browser wait in the suite runs out, and the
+    # rejection comes back through `evaluate` naming the motion that stopped.
     page.evaluate(
         "async (i) => { const m = window.__lfHeld[i];"
         " m.play(); m.currentTime = m.effect.getComputedTiming().duration;"
-        " await m.finished; }",
+        " await Promise.race([m.finished, new Promise((_, ranOut) => setTimeout("
+        "   () => ranOut(new Error(`held fold ${i} never ran out`)), 30_000))]); }",
         before,
     )
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)

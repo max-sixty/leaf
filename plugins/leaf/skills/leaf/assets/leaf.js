@@ -276,7 +276,7 @@ import {
   quietSince,
 } from "./runtime/presence.js";
 import { createPointer } from "./runtime/pointer.js";
-import { createReactions } from "./runtime/reactions.js";
+import { createReactions, paintReactionStanding } from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
@@ -1399,7 +1399,7 @@ const {
   pageWords: (...args) => pageWords(...args),
   paintAnchors,
   paintHere,
-  paintStanding: (...args) => conversationRuntime.paintStanding(...args),
+  paintStanding: paintReactionStanding,
   panel,
   panelCovers,
   pendingMarkParts,

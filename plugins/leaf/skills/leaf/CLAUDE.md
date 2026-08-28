@@ -42,8 +42,8 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/reactions.js` owns reaction vocabulary, pills, sending, the armed mode, and
-reaction-specific undo wording;
+`runtime/reactions.js` owns reaction vocabulary, pills and their standing paint,
+sending, the armed mode, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
@@ -102,6 +102,8 @@ and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
 filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
+`runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
+surfaces;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore

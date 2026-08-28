@@ -26,6 +26,8 @@ runtime owners. An owner may publish a factory-built capability after boot wires
 dependencies; it never reaches back through the entry module or public facade.
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
+`runtime/deferred-modals.js` holds authored modals outside the top layer until the
+first presentation boundary;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event POST,
 and page-error channel;
 `runtime/asks/model.js` owns request discovery and folding;

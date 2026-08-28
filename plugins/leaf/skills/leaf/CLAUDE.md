@@ -938,6 +938,9 @@ element outlines, and the open composer's pending mark. It clears and paints
 through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
+The anchor runtime exposes only the questions those features ask — `isMarked`,
+`placedAt`, and a snapshot from `pendingMarkParts` — so the pass-owned maps and
+arrays cannot acquire a second writer through the entrypoint.
 
 The same pass answers a second question and records it apart. `placed` is where
 each thread's passage lands in this version; `marked` is what was drawn for it.

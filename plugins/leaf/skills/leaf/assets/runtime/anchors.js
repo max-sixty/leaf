@@ -1321,8 +1321,9 @@ export function createAnchors(dependencies) {
     visualPartLabel,
     resolveAnchor,
     NOTE,
-    marked,
-    placed,
+    isMarked: (id) => marked.has(id),
+    placedAt: (id) => placed.get(id),
+    pendingMarkParts: () => [...pendingMarks],
     refreshAim,
     dockSeats,
     paintAnchors,
@@ -1333,9 +1334,6 @@ export function createAnchors(dependencies) {
     paintStanding,
     refreshHover,
     pageShifted,
-    get pendingMarks() {
-      return pendingMarks;
-    },
   };
   publishedAnchors = anchors;
   return anchors;

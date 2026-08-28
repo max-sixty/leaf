@@ -1452,7 +1452,7 @@ const {
   paintStanding: (...args) => conversationRuntime.paintStanding(...args),
   panel,
   panelCovers,
-  pendingMarks: () => anchorRuntime.pendingMarks,
+  pendingMarkParts,
   pointerAt,
   reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
@@ -3339,6 +3339,15 @@ function refreshHover(...args) {
 function pageShifted(...args) {
   return anchorRuntime.pageShifted(...args);
 }
+function isMarked(...args) {
+  return anchorRuntime.isMarked(...args);
+}
+function placedAt(...args) {
+  return anchorRuntime.placedAt(...args);
+}
+function pendingMarkParts(...args) {
+  return anchorRuntime.pendingMarkParts(...args);
+}
 
 const passageRuntime = createPassages({
   PAGE_PAINT_ATTRIBUTE,
@@ -3501,7 +3510,7 @@ conversationRuntime = createConversation({
   generalRow,
   highlightBlocks,
   inChrome,
-  isMarked: (id) => marked.has(id),
+  isMarked,
   itemSays,
   itemWord,
   keys,
@@ -3521,7 +3530,7 @@ conversationRuntime = createConversation({
   paintKeys,
   panelIsOpen: () => panelOpen,
   panelTitle,
-  placedAt: (id) => placed.get(id),
+  placedAt,
   post,
   PRESS,
   quietSince,
@@ -3626,7 +3635,7 @@ anchorRuntime = createAnchors({
   withdraw,
   worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE, marked, placed } = anchorRuntime;
+const { VIEW_KEY, ITEM, NOTE } = anchorRuntime;
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });

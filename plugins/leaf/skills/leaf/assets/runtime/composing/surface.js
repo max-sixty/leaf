@@ -30,7 +30,7 @@ export function createSelectionSurface({
   panel,
   panelCovers,
   paintStanding,
-  pendingMarks,
+  pendingMarkParts,
   pointerAt,
   reactionTokens,
   reactionsOn,
@@ -104,7 +104,8 @@ export function createSelectionSurface({
   // better spot.
   function placeComposer(left, top) {
     place(composer, left, top);
-    const rects = pendingMarks().flatMap((where) =>
+    const marks = pendingMarkParts();
+    const rects = marks.flatMap((where) =>
       where instanceof Range
         ? [...where.getClientRects()]
         : [where.getBoundingClientRect()],
@@ -132,7 +133,7 @@ export function createSelectionSurface({
     // one object, so a box standing anywhere on it is a box between them and the thing they
     // are writing about. ⌥-click made that plain by opening the composer under the pointer,
     // which is by definition inside what was clicked.
-    const whole = pendingMarks().some((where) => where instanceof Element);
+    const whole = marks.some((where) => where instanceof Element);
     const touching = (r) =>
       r.left < box.right &&
       box.left < r.right &&

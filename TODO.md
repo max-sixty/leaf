@@ -137,6 +137,20 @@
   hand. If this recurs, evaluate carrying the comment anchor and page URL in the
   dispatch and allowing that page to re-vendor from a named checkout.
 
+- **Make optional packages one command to use.** Command Hub currently has to be
+  selected by its checkout-relative `examples/packages/command-hub` path. First, ship
+  it as an optional package in Leaf's installed payload and let
+  `leaf page init --package command-hub PAGE` resolve that bundled name through the
+  ordinary package composition path. This is enough for an agent to create and
+  dogfood a hub without asking the user to find a checkout, launcher, or package
+  directory; Command Hub remains a package rather than becoming core vocabulary.
+
+  Later, let `leaf package install SOURCE` place an outside package in a user-owned
+  store and make the same `--package NAME` form select it. Package names should resolve
+  to directories before composition, so bundled and installed packages keep one
+  contract. Let dogfooding determine what installation needs for source identity,
+  updates, pinning, and trust rather than adding those policies to the first shortcut.
+
 - **Deferred design-mode additions.** Each needs evidence before implementation:
 
   - Generate a crop from the replayed page if a design comment is misread without a

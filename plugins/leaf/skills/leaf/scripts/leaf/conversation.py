@@ -27,7 +27,7 @@ from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, contract_writer
 from leaf.structure import parse_revision
 from leaf.thread_context import thread_roots
-from leaf.validation import check_markup, read_text_arg
+from leaf.validation.admission import check_markup, read_text_arg
 
 
 def _thread_root(events: list, to: str) -> tuple[str, dict | None]:

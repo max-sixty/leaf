@@ -1,22 +1,54 @@
-"""Merged registry storage, layer composition, and page-facing readings."""
+"""Registry storage, validation orchestration, and page-facing readings."""
 
 import sys
 from pathlib import Path
 
-from leaf import registry_contract as _contract
 from leaf.files import file_stamp
+
+from . import contract as _contract
+from .layer import (
+    _required_layer_declarations,
+    _validate_event_contracts,
+    _validate_layer_declarations,
+)
+from .layer import merge_layer_entries as merge_layer_entries
+from .state import (
+    _validate_awaiting_units,
+    _validate_retirement_facets,
+    retirement_slots,
+)
+from .widgets import (
+    _validate_widget_relations,
+    _validate_widget_schemas,
+    _widget_entries,
+)
 
 RegistryError = _contract.RegistryError
 aware_instant = _contract.aware_instant
 is_aware_datetime = _contract.is_aware_datetime
 json_validator = _contract.json_validator
 read_registry_entries = _contract.read_registry_entries
-retirement_slots = _contract.retirement_slots
 state_specs = _contract.state_specs
-validate_registry = _contract.validate_registry
 visual_parts = _contract.visual_parts
 
 _registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
+
+
+def validate_registry(registry: dict, source) -> dict:
+    """Validate one complete vocabulary in its stable rejection order."""
+    path = source
+    kinds, names, paths, tones, data, tokens = _required_layer_declarations(
+        registry, path
+    )
+    _validate_event_contracts(kinds, path)
+    _validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
+    widgets = _widget_entries(registry, path)
+    _validate_widget_schemas(widgets, path)
+    slots = retirement_slots(registry)
+    _validate_widget_relations(widgets, data, slots, path)
+    _validate_retirement_facets(slots, widgets, path)
+    _validate_awaiting_units(widgets, path)
+    return registry
 
 
 def read_registry(path: Path):
@@ -59,42 +91,6 @@ def require_registry(page_dir: Path) -> dict:
     if registry is None:
         sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
     return registry
-
-
-def merge_layer_entries(merged: dict, entries: dict) -> None:
-    """Fold one layer's top-level registry entries into the merge.
-
-    A tag entry replaces the earlier one whole; schemas never deep-merge,
-    because a half-old, half-new contract is no layer's vocabulary. A $ entry
-    merges by member: it is not a contract but the layer's namespace of shared
-    facts. Under replace-whole, a project declaring its one idiom vendored a
-    $idioms holding exactly that idiom — its theme rules kept styling,
-    theme.css concatenating where the registry did not, while `page catalog`
-    silently dropped the shipped ten. A member that is itself a map merges by
-    its own keys for the same reason one level down: $languages.paths is
-    indexed by extension, and a layer adding `.svelte` must not silently drop
-    every shipped extension with it. Scalar and list members replace whole —
-    a names list is one statement — and the grain here decides nothing the
-    gates don't re-check: validation and the vocabulary stamp read the merged
-    result, whichever layer each piece came from.
-
-    Inside a map member the merge is JSON merge-patch: a later layer's value
-    replaces the key, a new key joins, and `null` removes one — which is the
-    only way a project can take a shipped reaction token off its bar, or a user
-    an extension off `$languages.paths`, without restating the whole map.
-    """
-    for name, entry in entries.items():
-        earlier = merged.get(name)
-        if not (name.startswith("$") and earlier is not None):
-            merged[name] = entry
-            continue
-        combined = {**earlier, **entry}
-        for key, value in entry.items():
-            if isinstance(value, dict) and isinstance(earlier.get(key), dict):
-                combined[key] = {
-                    k: v for k, v in {**earlier[key], **value}.items() if v is not None
-                }
-        merged[name] = {k: v for k, v in combined.items() if v is not None}
 
 
 def reaction_tokens(registry: dict | None) -> dict:

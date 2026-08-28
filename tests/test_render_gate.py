@@ -10,7 +10,7 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -99,7 +99,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
 
     def break_probe(page):
         page.route(
-            "**/_leaf/render-checks.js",
+            "**/_leaf/render-checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -121,7 +121,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
 
     def make_readiness_async(page):
         page.route(
-            "**/_leaf/render-checks.js",
+            "**/_leaf/render-checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -152,7 +152,7 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
                 body="await new Promise(() => {});",
             )
 
-        page.route("**/_leaf/render-checks.js", never_finishes)
+        page.route("**/_leaf/render-checks/index.js", never_finishes)
 
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=100

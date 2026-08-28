@@ -47,7 +47,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):

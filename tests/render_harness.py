@@ -673,10 +673,13 @@ class Traffic:
         `response` event fires on the headers, and `Response.json` then waits on the
         finished fact with no deadline of its own — the one wait in this harness that
         cannot run out. A page that abandons an answer it no longer wants leaves a
-        request the browser never finishes, and reading that body stopped the worker
-        dead: three runs on main spent their 45-minute bound inside this call, naming
-        no test and leaving no traceback. Queued and unread, such a response instead
-        lets `_until` reach its own deadline and print the counters."""
+        request the browser never finishes, and reading that body stopped a worker
+        dead: a locally reproduced wedge was traced with both workers inside
+        `Response.json`, and the runs on main that spend their whole 45-minute bound
+        name no test and leave no traceback. A run reaches that bound only with both
+        workers stopped, and on the CI runs parsed for it the second one was past this
+        site, in teardown. Queued and unread, such a response instead lets `_until`
+        reach its own deadline and print the counters."""
         while True:
             ready = [r for r in self._responses if r.request in self._complete]
             if not ready:

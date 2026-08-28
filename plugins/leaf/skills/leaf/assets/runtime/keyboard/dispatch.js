@@ -17,6 +17,7 @@ export function createDispatch({
   keepShown,
   paintHere,
   panel,
+  recoveredLabelFocus,
   SCOPES,
   scopesFor,
   setChord,
@@ -96,6 +97,7 @@ export function createDispatch({
     }
   });
   function run(ev) {
+    const recovered = recoveredLabelFocus(ev);
     const nearer = shadow();
     for (const scope of stack()) {
       let matched = null;
@@ -105,7 +107,7 @@ export function createDispatch({
         // the press is not for makes the cost of a keystroke the size of the table rather
         // than the size of the match. A row that matches and is dead still falls through to
         // the scope behind it, which is what `continue` says either way round.
-        if (!row.run) continue;
+        if (!row.run && !recovered) continue;
         const binding = bindings(row).find((b) => answers(b, ev));
         if (!binding || nearer.takes(binding) || !live(row)) continue;
         if (matched)
@@ -129,7 +131,8 @@ export function createDispatch({
         // other one — but does not claim the platform's half of it.
         if (!matched.row.native) ev.preventDefault();
         if (ev.repeat && !matched.row.repeat) return true;
-        matched.row.run(matched.binding);
+        if (matched.row.run) matched.row.run(matched.binding);
+        else recovered.click();
         return true;
       }
       nearer.past(scope);

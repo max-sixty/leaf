@@ -37,17 +37,18 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
+from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import structure as structure_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -538,7 +539,8 @@ def test_the_group_stands_down_for_every_outline_the_log_paints():
     }
     assert painted, "the kernel paints no state outline at all, so this reads nothing"
     rule = re.search(
-        r"&:has\(> lf-option > \.lf-pick:focus-visible\)([^{]*)\{([^}]*)\}",
+        r"&:has\(> lf-option > \.lf-pick:is\(:focus-visible, \.lf-focus-visible\)\)"
+        r"([^{]*)\{([^}]*)\}",
         theme,
         re.DOTALL,
     )
@@ -1547,7 +1549,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
-        serialized = service_model.lock_is_held(page_dir / "comments.jsonl")
+        serialized = leases_model.lock_is_held(page_dir / "comments.jsonl")
         reporting = executor.submit(
             conversation_model.cmd_report,
             page_dir,
@@ -2392,7 +2394,7 @@ def test_data_set_validates_the_json_value_it_writes(page_dir):
         contract="build-map",
     )
 
-    with pytest.raises(data_model.DataError, match="value is invalid"):
+    with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
 
     assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
@@ -2414,11 +2416,11 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
     with pytest.raises(
-        data_model.DataError, match="recursive reference did not terminate"
+        data_contracts_model.DataError, match="recursive reference did not terminate"
     ):
         data_model.cmd_data_set(page_dir, "loop", {})
 
-    assert data_model.data_contract_errors(
+    assert data_contracts_model.data_contract_errors(
         {
             "revision": 1,
             "sources": {
@@ -2466,14 +2468,14 @@ def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
     """
     (page_dir / "data.json").write_text(stored)
 
-    with pytest.raises(data_model.DataError, match=message):
+    with pytest.raises(data_contracts_model.DataError, match=message):
         data_model.read_data_store(page_dir)
 
 
 def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
     (page_dir / "data.json").write_bytes(b"\xff")
 
-    with pytest.raises(data_model.DataError, match="invalid JSON"):
+    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
         data_model.read_data_store(page_dir)
 
 

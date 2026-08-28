@@ -1,21 +1,35 @@
 import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
+import { moveScrollerBy } from "./scrolling.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
+// Anchors are shallow records of primitive coordinates. Compare the complete records:
+// reading only the left operand's keys made a whole-visual anchor equal the part anchor
+// that extended it, but not the other way around.
+export const sameAnchor = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const left = Object.keys(a).sort();
+  const right = Object.keys(b).sort();
+  return (
+    left.length === right.length &&
+    left.every((key, index) => key === right[index] && a[key] === b[key])
+  );
+};
 
 export function createAnchors(dependencies) {
   const {
     DATUM,
     scrollBehavior,
-    TEXT_BLOCK,
+    actionAnchor,
+    activateVisual,
     aimBox,
     aimIsOn,
     aimedItem,
     anchorLabel,
     anchorsReady,
     bareReaction,
-    banner,
     blockAt,
     buildThreads,
     closestAcross,
@@ -37,7 +51,6 @@ export function createAnchors(dependencies) {
     inChrome,
     inUi,
     inspectEl,
-    landedAt,
     offer,
     pageQueryAll,
     pageScroller,
@@ -45,14 +58,14 @@ export function createAnchors(dependencies) {
     pageWords,
     paintThreadQuotes,
     panel,
+    pointerAt,
     quoteFrom,
     queueLegend,
     rangeOf,
+    refreshAction,
     registry,
     reveal,
-    runtime,
     scrollerFor,
-    setLanded,
     setPanel,
     settledAway,
     tagsDeclaring,
@@ -60,118 +73,8 @@ export function createAnchors(dependencies) {
     threadsBox,
     under,
     withdraw,
+    worksSelector,
   } = dependencies;
-
-  // ---------- view continuity ----------
-  // Following a new version replaces the authored main, whether the live root keeps this
-  // document or historical travel opens another one. A raw replacement leaves the reader
-  // at the top mid-session, standing nowhere in the walk they were making. Where they are
-  // rides across as one semantic view — and through tabStore on document travel, per-tab
-  // because a place in a page shouldn't outlive it. Two things are recorded, because
-  // askPosition reads two the runtime can write down: the passage they were reading, and
-  // the ask the n/p walk had stepped them to. The passage travels as a landmark rather
-  // than a pixel offset, since content moves between versions: re-find it by its text
-  // within its section, then the section alone, and only fall back to the raw offset when
-  // neither survived the revision. The panel's own open state is restored separately
-  // (PANEL_KEY); because that runs first, the column is already reflowed by the time we
-  // scroll.
-  const VIEW_KEY = "lf-view";
-  const LANDMARK_CAP = 160;
-
-  // The page's own text blocks the reader can see, in document order, with the rect of each
-  // one's first line — one reading of what is in front of them, for the two questions that
-  // ask it: which passage a version change should land them back on (below), and where a
-  // walk over the page's asks starts when they have pointed at nothing (askPosition).
-  // A block's landmark is the top of its first line (a range), not its border box; restore
-  // measures the matched text the same way, so the line box's leading cancels out.
-  function* blocksOnScreen() {
-    // The painted banner edge separates hidden head content from the reader's first
-    // visible block. Read its box directly: the declared height can be a calc() with a
-    // safe-area inset, whose serialized text is not a number.
-    const bannerBottom = banner.getBoundingClientRect().bottom;
-    for (const block of document.querySelectorAll(TEXT_BLOCK)) {
-      // [hidden] needs an explicit skip: hidden="until-found" resolves to
-      // content-visibility, under which descendants still report real rects —
-      // but what's behind an inactive tab isn't what the reader is reading.
-      if (inChrome(block) || block.closest("[hidden]")) continue;
-      const range = document.createRange();
-      range.selectNodeContents(block);
-      const rect = range.getBoundingClientRect();
-      if (rect.height && rect.bottom > bannerBottom) yield [block, rect];
-    }
-  }
-  // The quote and the section it's searched in come from the same block, or the search is
-  // filtered to a section the text isn't in and can only ever fail — restore then falls back
-  // to the section, which doesn't absorb content added above the reader inside it.
-  function captureView() {
-    const view = { revision: runtime.currentRevision, y: pageScroller.scrollTop };
-    // Where the ask walk left off, which is the reader's place stated more exactly than
-    // any block can state it — the walk put them there on purpose. Its element identity
-    // does not survive an authored-main replacement, and the module variable does not
-    // survive document travel, so the id is the one form both can restore. The ring is not
-    // recorded beside it: it is painted from focus, and another document starts on the page.
-    view.ask = landedAt()?.id;
-    for (const [block, rect] of blocksOnScreen()) {
-      const section = block.closest("[id]");
-      if (!view.section && section) {
-        // The first on-screen block's section, kept only until a quotable block supplies
-        // its own: a page with nothing quotable on screen still has somewhere to land.
-        view.section = section.id;
-        view.sectionTop = shownBox(section).top;
-      }
-      // Written down the way a comment's quote is, so the search that re-finds it is
-      // looking for a string of the same kind.
-      const text = cut(quoteFrom(textNodesUnder(block)), 0, LANDMARK_CAP);
-      // A short line ("Risks") would match anywhere; keep scanning for a quotable block.
-      if (text.length >= 24) {
-        // Unconditionally, so a quotable block under no section clears the earlier one
-        // rather than sending the search into a subtree its text isn't in.
-        view.section = section?.id;
-        view.sectionTop = section && shownBox(section).top;
-        view.quote = text;
-        view.quoteTop = rect.top;
-        break;
-      }
-    }
-    return view;
-  }
-
-  // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
-  // animating from the replacement's raw position is worse than the jump it replaces.
-  // Moving to a mark the reader asked for is the other case, and says so.
-  // The document scrolls for its own content; the panel's list scrolls for a widget an
-  // agent sent in a reply. Most callers mean the document, so it remains the default.
-  const jumpBy = (dy, behavior = "instant", box = pageScroller) =>
-    box.scrollBy({ top: dy, behavior });
-  function restoreView(view) {
-    // Where the walk left off, put back before the scroll below restores the coarser
-    // reading of the same fact — and put back whether or not this version answered that
-    // ask, since an ask the reader has not stepped off is still the one they would step
-    // from. The document's own lookup rather than elementById: the ask list is the
-    // document's (openAsks), and a landing inside a shadow tree is one askStep could never
-    // measure against. A thread's ask is not here yet — the panel is rebuilt from the log
-    // on the first poll, which is behind this — so the record answers for the page's asks
-    // and says nothing about the panel's, rather than restoring a second time later over a
-    // walk the reader has made since.
-    setLanded((view.ask && document.getElementById(view.ask)) || null);
-    const text = pageText();
-    const found = view.quote && resolveAnchor(view, text);
-    if (found?.segments) {
-      reveal(found.segments[0].node.parentElement); // the passage may sit behind a tab
-      jumpBy(rangeOf(found.segments).getBoundingClientRect().top - view.quoteTop);
-      return;
-    }
-    const section = resolveAnchor({ section: view.section }, text)?.element;
-    if (section) {
-      reveal(section);
-      // The shown reading on both sides of the subtraction, because the landmark is
-      // whatever id stands nearest the block the reader was on, and a section that
-      // generates no box of its own is one a suggestion wrapping whole sections leaves
-      // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
-      // that had somewhere to land did nothing, silently, and left the reader at the top.
-      jumpBy(shownBox(section).top - view.sectionTop);
-    } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
-  }
 
   // ---------- anchors ----------
   // An anchor names a passage: a section id, a quote, or both. Resolving one is the only
@@ -213,16 +116,163 @@ export function createAnchors(dependencies) {
     return typeof part === "string" ? visualPart(visual, part) : null;
   }
   const visualPartLabel = (visual, part) => visualPart(visual, part)?.label ?? null;
+  const declaredVisualSelector = () =>
+    [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+  const genericVisualSelector = "svg, img, figure";
+  const visualSelector = () =>
+    [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+  const interactiveSelector = `${worksSelector},[data-lf-offer]`;
+  const parentAcross = (element) =>
+    element?.parentElement ?? element?.getRootNode()?.host ?? null;
+  const outermostAcross = (element, selector) => {
+    for (let parent = parentAcross(element); parent;) {
+      const outer = closestAcross(parent, selector);
+      if (!outer) break;
+      element = outer;
+      parent = parentAcross(element);
+    }
+    return element;
+  };
+  const unclaimedVisualGesture = (target) =>
+    !inChrome(target) && !inUi(target) && !closestAcross(target, interactiveSelector);
+  // A declared provider owns every hit inside it, including an inner svg wrapped by a
+  // generic figure. Without one, the outermost ordinary picture is the target. Generated
+  // ids remain implementation details; the nearest authored id is the durable seat.
+  function visualAt(target, { unclaimed = true } = {}) {
+    if (unclaimed && !unclaimedVisualGesture(target)) return null;
+    const declared = declaredVisualSelector();
+    let element = declared ? closestAcross(target, declared) : null;
+    if (element) element = outermostAcross(element, declared);
+    else {
+      element = closestAcross(target, genericVisualSelector);
+      if (element) element = outermostAcross(element, genericVisualSelector);
+      const providers =
+        element && declared ? [...element.querySelectorAll(declared)] : [];
+      // A figure holding one declared visual is its semantic caption/frame. Delegating
+      // the wrapper to that provider gives its padding, caption, drawing, and keyboard
+      // proxy one target. A figure holding several visuals remains a target of its own.
+      if (providers.length === 1 && unclaimedVisualGesture(providers[0]))
+        element = providers[0];
+    }
+    if (!element) return null;
+    const seat = closestAcross(element, '[id]:not(.lf-ui):not([id^="lf-"])');
+    return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
+  }
+
+  // Pointer activation may use the picture itself. Keyboard activation uses controls the
+  // runtime owns beside it, so generated provider markup keeps its own roles and remains
+  // clean when the live layer is removed from an exported copy. Each visual exposes its
+  // whole target and, when declared, each stable part.
+  const visualActionHolders = new WeakMap();
+  const visualActionAnchor = (anchor) =>
+    pageQueryAll(".lf-visual-action").find((control) =>
+      sameAnchor(control.lfAnchor, anchor),
+    ) ?? null;
+  // A proxy stands after the thing whose visibility controls the picture. In particular,
+  // putting it inside a closed details makes the control impossible to focus, so the
+  // disclosure is the stable seat and focusing the proxy can reveal the target inside it.
+  // Shadow renderers share their host as a seat; one holder there avoids moving several
+  // sibling holders past one another on every paint.
+  function visualActionSeat(candidate) {
+    let seat =
+      candidate.getRootNode() instanceof ShadowRoot
+        ? candidate.getRootNode().host
+        : candidate;
+    for (let current = seat; current; current = parentAcross(current))
+      if (current.matches?.("details")) seat = current;
+    return seat;
+  }
+  function prepareVisualActions() {
+    const groups = new Map();
+    const claimed = [];
+    const kept = new Set();
+    for (const candidate of pageQueryAll(visualSelector())) {
+      const found = visualAt(candidate);
+      if (!found || found.element !== candidate) continue;
+      const targets = [
+        {
+          anchor: { section: found.id },
+          label: anchorLabel({ section: found.id }).replace(/^§\s*/, "") || found.id,
+        },
+        ...[...declaredVisualParts(candidate)].flatMap((token) => {
+          const part = visualPart(candidate, token);
+          return part && unclaimedVisualGesture(part.element)
+            ? [
+                {
+                  anchor: { section: found.id, visual: token },
+                  label: part.label,
+                },
+              ]
+            : [];
+        }),
+      ];
+      const seat = visualActionSeat(candidate);
+      let group = groups.get(seat);
+      if (!group) {
+        group = [];
+        groups.set(seat, group);
+      }
+      for (const target of targets)
+        if (!claimed.some((anchor) => sameAnchor(anchor, target.anchor))) {
+          claimed.push(target.anchor);
+          group.push(target);
+        }
+    }
+    for (const [seat, targets] of groups) {
+      if (!targets.length) continue;
+      let record = visualActionHolders.get(seat);
+      if (!record?.holder.isConnected) {
+        record = { holder: offer("span", "lf-visual-actions") };
+        visualActionHolders.set(seat, record);
+      }
+      const { holder } = record;
+      const unused = new Set(holder.children);
+      const controls = targets.map(({ anchor, label }) => {
+        let control = [...unused].find((child) => sameAnchor(child.lfAnchor, anchor));
+        if (!control) {
+          control = offer("button", "lf-visual-action lf-quiet");
+          control.onfocus = () => {
+            let current = resolveAnchor(control.lfAnchor, pageText());
+            let element = current?.marks?.[0] ?? current?.element;
+            if (!element) return;
+            reveal(element);
+            current = resolveAnchor(control.lfAnchor, pageText());
+            element = current?.marks?.[0] ?? current?.element;
+            element?.scrollIntoView({
+              behavior: "instant",
+              block: "nearest",
+              inline: "nearest",
+            });
+          };
+          control.onclick = () => activateVisual(control.lfAnchor, control);
+        }
+        unused.delete(control);
+        control.lfAnchor = anchor;
+        const name = `React or comment on ${label}`;
+        if (control.textContent !== name) control.textContent = name;
+        return control;
+      });
+      for (const control of unused) control.remove();
+      controls.forEach((control, index) => {
+        if (holder.children[index] !== control)
+          holder.insertBefore(control, holder.children[index] ?? null);
+      });
+      if (seat.nextSibling !== holder) seat.after(holder);
+      kept.add(holder);
+    }
+    for (const holder of pageQueryAll(".lf-visual-actions"))
+      if (!kept.has(holder)) holder.remove();
+  }
 
   // ---------- pointing at an item ----------
   // One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
-  // only route to an item whose words are all inside controls. A plain click reaches the
-  // visuals, which have no text to select. Two more routes were tried and cut: a rule in
-  // the margin raised by hovering, too strong for what it offered and placed at the
-  // item's own left edge, which is the page's margin only for an item the page happens
-  // to have left-aligned; and a row of chips beside the 💬 offering the selection's
-  // enclosing chain ("⬚ paragraph", "⬚ section") — a correction nobody had asked for,
-  // paid in chrome beside every selection a user made.
+  // only route to an item whose words are all inside controls. A plain click reaches a
+  // visual when it did not finish a passage selection. Two more routes were tried and
+  // cut. A margin rule raised by hovering was too strong for what it offered and sat at
+  // the item's own left edge, which is the page's margin only when that item happens to
+  // be left-aligned. A row of chips beside the 💬 offered the selection's enclosing chain
+  // ("⬚ paragraph", "⬚ section") — a correction nobody had asked for, paid in chrome
+  // beside every selection a user made.
   //
   // A whole item writes {section: <id>} with no quote. A declared picture part adds its
   // authored `visual` token; the section remains the durable seat. Both coordinates come
@@ -418,6 +468,7 @@ export function createAnchors(dependencies) {
   const placed = new Map();
   let pendingMarks = []; // the same record for the open composer's own passage
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
+  let actionOutline = []; // the visual target whose action bar is standing
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -426,6 +477,7 @@ export function createAnchors(dependencies) {
       const item = aimedItem();
       return item ? { el: item, part: "" } : null;
     }
+    const pointer = pointerAt();
     if (designIsOn() && pointer.x >= 0)
       return designTarget(document.elementFromPoint(pointer.x, pointer.y));
     return null;
@@ -481,7 +533,6 @@ export function createAnchors(dependencies) {
     inspectEl.style.left = `${Math.max(2, corner.left)}px`;
     inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
   }
-  const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
   let hovering = null;
   let hoverQueued = false;
   const marksOf = (id) => marked.get(id) ?? [];
@@ -530,15 +581,18 @@ export function createAnchors(dependencies) {
 
   function paintAnchors(threads = buildThreads()) {
     if (!anchorsReady()) return;
+    prepareVisualActions();
     for (const where of allMarks())
       if (where instanceof Element) where.classList.remove("lf-mark-el");
     for (const where of [...reacted.values()].flat())
       if (where instanceof Element) where.classList.remove("lf-react-el");
     for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
+    for (const el of actionOutline) el.classList.remove("lf-action-target");
     marked.clear();
     reacted.clear();
     placed.clear();
     pendingOutline = [];
+    actionOutline = [];
 
     const text = pageText(); // read once, for every anchor this pass places
     const posted = [];
@@ -656,6 +710,11 @@ export function createAnchors(dependencies) {
         }
     }
     if (draft?.segments) pending.push(...pendingMarks);
+
+    const active = actionAnchor();
+    const action = active && !active.quote ? resolveAnchor(active, text) : null;
+    actionOutline = action?.element ? (action.marks ?? shownParts(action.element)) : [];
+    for (const part of actionOutline) part.classList.add("lf-action-target");
 
     // The composer's echo of its own passage, decided here because here is where it is known
     // whether the page is showing that passage. Usually it is — the box opens beside the words
@@ -886,12 +945,11 @@ export function createAnchors(dependencies) {
   }
 
   // Bring an element in the document to the position its caller names. A thread's element
-  // anchor takes the middle, an Ask takes the readable start so its context comes before
-  // its control, and an address takes only the nearest edge needed to show its member.
-  // Which box does the travelling is scrollerFor's answer, asked here rather than assumed:
-  // the document's scroller was written into this twice, so an element standing in the
-  // panel's list was taken into view by the platform and then had this travel spent on the
-  // page behind it, moving a reader who had asked for nothing there.
+  // anchor takes the middle; an Ask takes the readable start so its context comes before
+  // its control. Which box does the travelling is scrollerFor's answer, asked here rather
+  // than assumed: the document's scroller was written into this twice, so an element
+  // standing in the panel's list was taken into view by the platform and then had this
+  // travel spent on the page behind it, moving a reader who had asked for nothing there.
   // Reveal first, since opening a tab or settled group moves
   // everything below it. For a centred destination, "the middle" means the viewport's:
   // scrollIntoView measures against the scroller's own
@@ -905,7 +963,8 @@ export function createAnchors(dependencies) {
   // is the panel's list where that is what scrolls.
   //
   // It glides, because a page the reader is already holding is one the motion keeps their
-  // place in — the same reason a restore doesn't (jumpBy). An arrival passes "instant" for
+  // place in — the same reason a restore doesn't (moveScrollerBy). An arrival passes
+  // "instant" for
   // exactly that reason: a document that appeared a moment ago holds no place to keep, so
   // the glide would be animating from nowhere.
   function centreBy(where, block = "center", box = pageScroller) {
@@ -930,16 +989,17 @@ export function createAnchors(dependencies) {
       inline: "nearest",
       behavior: block === "nearest" ? behavior : "instant",
     });
+    // `nearest` is a request to reveal only. Once the platform has done that, a
+    // second centring move would turn a small correction into a page jump.
     if (block === "nearest") return;
     const box = scrollerFor(el);
     if (!under(el, box)) return;
-    jumpBy(centreBy(el, block, box), behavior, box);
+    moveScrollerBy(box, centreBy(el, block, box), behavior);
   }
 
-  // A wholly readable passage is already an arrival. Keep its place rather than opening
-  // ancestors or centring it again; the thread's standing mark identifies it in situ.
-  // A clipped sliver is not a reading position, so compare the painted intersection with
-  // the destination's whole box as well as the scrollport's fixed-furniture clearance.
+  // A comment destination already fully visible in its own scroller needs no travel.
+  // Compare its unclipped geometry with what every clipping ancestor actually exposes;
+  // an element can be in the viewport while still hidden behind a nested scroller edge.
   function readableThreadDestination(where) {
     const holder =
       where instanceof Range
@@ -974,17 +1034,13 @@ export function createAnchors(dependencies) {
   // no element to scroll into view, so its own box does the work.
   //
   // Every "show me that comment's passage" route ends here. The focus its caller already
-  // placed in the thread owns the standing paint. If the passage is readable, that paint
-  // identifies it in place. Otherwise this makes the target's box visible in both axes,
-  // then glides the exact mark to the centre of the region that holds it. No transient
-  // effect waits on that motion or survives it as separate state.
+  // placed in the thread owns the standing paint; this function owns only the travel. It
+  // makes the target's box visible in both axes, then glides the exact mark to the centre
+  // of the region that holds it. No transient effect waits on that motion or survives it
+  // as separate state.
   function scrollToThread(id) {
     let where = marksOf(id)[0] ?? placed.get(id);
     if (!where) return;
-    // Revealing and travelling are different promises. A destination can report usable
-    // geometry while hidden="until-found"; open every disclosure that actually owns it
-    // before deciding whether its new painted position already reads well. Widget reveal
-    // handlers must in turn open only ancestors of this destination, never nearby evidence.
     const holder =
       where instanceof Range
         ? where.startContainer instanceof Element
@@ -1006,7 +1062,7 @@ export function createAnchors(dependencies) {
     // rendered diagram sits in a box with its own horizontal scroll, which the vertical
     // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
     holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-    jumpBy(centreBy(where), scrollBehavior());
+    moveScrollerBy(pageScroller, centreBy(where), scrollBehavior());
   }
 
   // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which
@@ -1131,6 +1187,7 @@ export function createAnchors(dependencies) {
       // panel already says for itself, on the quote that makes it. Unconditional because
       // toggle runs no update step when the answer has not changed, unlike the add that
       // noteMarks and the standing paint have to guard.
+      const pointer = pointerAt();
       const onMark = markAt(pointer.x, pointer.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
       const id = hoveredThreadOf()?.dataset.id ?? onMark;
@@ -1140,32 +1197,9 @@ export function createAnchors(dependencies) {
       if (id !== hovering || hoverCardOf(id) !== hoverThread) paintHover(id);
     });
   }
-  // The pointer's place is read off a pointer event and not off `mousemove`, because the
-  // legacy mouse events round clientX/clientY to whole pixels and the browser hit-tests the
-  // position they were rounded from. Every consumer of this record asks a hit-test question
-  // — what a press would take, whether a mark is under the hand — so a rounded point is an
-  // answer about somewhere the pointer is not, and within a pixel of a boundary it is a
-  // different element: an ⌥ aim outlined the option above the one the press then took,
-  // because the outline asked elementFromPoint at the rounded point while the press read
-  // the target the browser resolved at the true one.
-  document.addEventListener("pointermove", (ev) => {
-    pointer.x = ev.clientX;
-    pointer.y = ev.clientY;
-    refreshHover();
-  });
-  // A finger arrives already down. A tap dispatches `pointerdown` and then the
-  // compatibility mouse events — no `pointermove` anywhere in it — so a record kept from
-  // movement alone is still its start value when the click asks, and a consumer with no
-  // guard asks elementFromPoint about a point off the page: the quote under the finger
-  // opened nothing. The press is the pointer's place too, and for a tap it is the only
-  // statement of it: a drag still dispatches `pointermove` until the browser cancels it.
-  // No hover refresh with it — a mouse has already moved to this point and refreshed
-  // there — which is not a claim that the record paints no hover on touch. pageShifted
-  // reads it too, and a drag reached that paint before this recorder existed.
-  document.addEventListener("pointerdown", (ev) => {
-    pointer.x = ev.clientX;
-    pointer.y = ev.clientY;
-  });
+  // The shared pointer recorder is installed before this listener, so the hover reads the
+  // same unrounded point the browser used for the event's hit test.
+  document.addEventListener("pointermove", refreshHover);
   // The page moving under a parked pointer is the pointer moving over the page: what a
   // press would take, whether a mark is under the hand, and where every legend box
   // stands can all change with no mouse event to say so, and a box left over the old
@@ -1173,12 +1207,21 @@ export function createAnchors(dependencies) {
   // that says so — a scroll, a window resize, a replay's marks landing (paintAnchors),
   // a widget's FLIP settling, and the reflows only the legend's observers hear, the
   // panel opening re-centring the column among them.
+  let actionFrame = 0;
+  function queueActionPlacement() {
+    if (actionFrame) return;
+    actionFrame = requestAnimationFrame(() => {
+      actionFrame = 0;
+      refreshAction();
+    });
+  }
   function pageShifted() {
     refreshHover();
     refreshAim();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();
+    if (actionAnchor()) queueActionPlacement();
   }
   // At the document and at capture, because scroll does not bubble and body is not the
   // page's only scroller: a board scrolls its columns sideways, and a card carried under
@@ -1187,26 +1230,24 @@ export function createAnchors(dependencies) {
   document.addEventListener("scroll", pageShifted, { capture: true, passive: true });
 
   const anchors = {
-    VIEW_KEY,
-    blocksOnScreen,
-    captureView,
-    restoreView,
     sectionOf,
     ITEM,
     isItem,
     itemAt,
     itemWord,
     itemSays,
+    visualAt,
+    visualActionAnchor,
     visualPartAt,
     visualPartLabel,
     resolveAnchor,
     NOTE,
-    marked,
-    placed,
+    isMarked: (id) => marked.has(id),
+    placedAt: (id) => placed.get(id),
+    pendingMarkParts: () => [...pendingMarks],
     refreshAim,
     dockSeats,
     paintAnchors,
-    pointer,
     fragmentId,
     markAt,
     scrollToElement,
@@ -1214,9 +1255,6 @@ export function createAnchors(dependencies) {
     paintStanding,
     refreshHover,
     pageShifted,
-    get pendingMarks() {
-      return pendingMarks;
-    },
   };
   publishedAnchors = anchors;
   return anchors;

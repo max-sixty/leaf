@@ -48,10 +48,10 @@ from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -744,8 +744,10 @@ def _until(page, fact, wanted):
     runs its timeout out and says so rather than passing.
 
     A wait that runs out names the caller's wanted fact and prints its starting and final
-    counters. No response preserves Playwright's timeout as the cause; a busy response
-    stream reaches the same explicit deadline instead of waking this loop forever."""
+    counters. The final reading comes after the timeout because the response listener may
+    settle the fact as the timeout is delivered. No response preserves Playwright's
+    timeout as the cause; a busy response stream reaches the same explicit deadline
+    instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
@@ -758,9 +760,11 @@ def _until(page, fact, wanted):
             response = page.wait_for_event("response", timeout=remaining)
             page.lf_traffic.settle_response(response)
     except PlaywrightTimeout as ran_out:
+        ended = _traffic(page)
+        if fact(ended):
+            return
         raise AssertionError(
-            f"the page never {wanted}: the wait began on {began} and gave up on "
-            f"{_traffic(page)}"
+            f"the page never {wanted}: the wait began on {began} and gave up on {ended}"
         ) from ran_out
 
 
@@ -1336,8 +1340,8 @@ def resized(page, width, height):
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
 
 
-def select(page, start, end, steps=8):
-    """Drag a selection from one point to another, pressing on a whole pixel.
+def hold_selection(page, start, end, steps=8):
+    """Drag a selection without releasing, pressing on a whole pixel.
 
     A fractional start point loses the selection outright wherever it and its own
     floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
@@ -1354,6 +1358,11 @@ def select(page, start, end, steps=8):
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
     page.mouse.move(end[0], end[1], steps=steps)
+
+
+def select(page, start, end, steps=8):
+    """Drag and release a selection."""
+    hold_selection(page, start, end, steps)
     page.mouse.up()
 
 

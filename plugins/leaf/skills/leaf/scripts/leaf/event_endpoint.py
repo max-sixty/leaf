@@ -4,6 +4,13 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from .event_contracts import (
+    action_contract_error,
+    event_record_error,
+    held_comment_error,
+    version_response_comment_error,
+    visual_anchor_error,
+)
 from .event_log import (
     AttemptConflict,
     AttemptExecution,
@@ -17,13 +24,6 @@ from .registry import RegistryError, load_registry, reaction_tokens
 from .schema import MESSAGE_KINDS
 from .service import PageTransaction
 from .structure import parse_revision, revision_review_mode
-from .validation import (
-    action_contract_error,
-    event_record_error,
-    held_comment_error,
-    version_response_comment_error,
-    visual_anchor_error,
-)
 
 EventAnswer = tuple[int, dict]
 StateReader = Callable[[], dict]

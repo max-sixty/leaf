@@ -37,6 +37,8 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import publishing as publishing_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
@@ -701,6 +703,245 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
+def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
+    """The browser receives a reading, not a log it must interpret again.
+
+    Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
+    name the event accepted by this same POST response and the same sequence boundary.
+    """
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+    sent = {
+        "kind": "action",
+        "revision": 1,
+        "widget": "delivery",
+        "action": "choose",
+        "detail": {"options": ["delivery-now"]},
+        "attempt": "attempt-browser-view-1",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+
+    assert status == 200, body
+    state = json.loads(body)["state"]
+    accepted = state["events"][-1]
+    browser = state["browser"]
+    view = browser["views"]["1"]
+    [entry] = view["document"]["projection"]["entries"]
+    assert browser["basis"] == {"through_seq": accepted["seq"]}
+    assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
+    assert browser["receipts"][-1]["id"] == accepted["id"]
+    assert entry["event"]["id"] == accepted["id"]
+    assert entry["coordinate"] == ["delivery", "delivery", "selection"]
+    assert entry["value"] == ["delivery-now"]
+    assert view["document"]["projection"]["actions"] == [accepted["id"]]
+    assert view["undo"][0]["event"]["id"] == accepted["id"]
+    assert view["undo"][0]["restores_desired"] is False
+    assert view["coverage"] == [
+        {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
+    ]
+
+
+def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
+    """The DOM need not re-fold the log to know a prior action will reappear."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+
+    for option, attempt in (
+        ("delivery-now", "attempt-prior-winner-1"),
+        ("delivery-later", "attempt-prior-winner-2"),
+    ):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": 1,
+                    "widget": "delivery",
+                    "action": "choose",
+                    "detail": {"options": [option]},
+                    "attempt": attempt,
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+
+    latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    assert latest["event"]["detail"] == {"options": ["delivery-later"]}
+    assert latest["restores_desired"] is True
+
+
+def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
+    """A pinned view paints its own projection but admits undo against live threads."""
+    active_within = {"settled-on-live-page": ("live",)}
+    view_within = {"settled-on-pinned-view": ("pinned",)}
+    seen = []
+
+    def record_undo_read(_event, _events, within):
+        seen.append(within)
+
+    monkeypatch.setattr(served_state_model, "undo_error", record_undo_read)
+    empty = served_state_model.StateProjection({}, {}, {}, {}, {})
+    event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
+
+    candidates = served_state_model._browser_undo_candidates(
+        [event], active_within, view_within, {}, empty, empty
+    )
+
+    assert [candidate["event"] for candidate in candidates] == [event]
+    assert seen == [active_within]
+
+
+def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
+    for path in (page_dir / "revisions").glob("*.html"):
+        path.unlink()
+    (page_dir / "index.html").unlink()
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq=0")
+
+    assert status == 400
+    assert json.loads(body) == {
+        "error": f"no active revision; write {page_dir / 'index.html'} first"
+    }
+
+
+def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):
+    publish(page_dir)
+
+    status, body = fetch(f"{server}/api/state?revision=999")
+
+    assert status == 400
+    assert json.loads(body) == {"error": "unknown view revision r999"}
+
+
+def test_an_event_with_an_unknown_view_revision_is_not_appended(server, page_dir):
+    publish(page_dir)
+    before = event_model.read_events(page_dir)
+    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    address = urllib.parse.urlsplit(server)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    event = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "This request cannot receive a view for its claimed revision.",
+        "attempt": "attempt-unknown-view",
+    }
+
+    connection.request(
+        "POST",
+        f"/api/event?t={TOKEN}",
+        body=json.dumps(event),
+        headers={
+            "Content-Type": "application/json",
+            "Leaf-Layer": layer,
+            "Leaf-View-Revision": "999",
+        },
+    )
+    response = connection.getresponse()
+    body = json.loads(response.read())
+    connection.close()
+
+    assert response.status == 400
+    assert body["error"] == "unknown view revision r999"
+    assert body["final"] is True
+    assert event_model.read_events(page_dir) == before
+
+
+def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
+    """A version diff compares with the state the live DOM has actually applied.
+
+    Later writes may land while its immutable base document is loading. The on-demand
+    view therefore names the already-observed sequence and projects no event beyond it.
+    """
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+
+    def choose(option, attempt):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": 1,
+                    "widget": "delivery",
+                    "action": "choose",
+                    "detail": {"options": [option]},
+                    "attempt": attempt,
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+        return json.loads(body)["state"]["events"][-1]
+
+    first = choose("delivery-now", "attempt-comparison-first")
+    choose("delivery-later", "attempt-comparison-later")
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={first['seq']}")
+
+    assert status == 200, body
+    browser = json.loads(body)["browser"]
+    assert set(browser["views"]) == {"1"}
+    view = browser["views"]["1"]
+    assert browser["basis"] == {"through_seq": first["seq"]}
+    assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
+    assert view["document"]["projection"]["desired"] == [first["id"]]
+
+
+def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
+    publish(page_dir)
+    latest = event_model.read_events(page_dir)[-1]["seq"]
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest + 1}")
+
+    assert status == 400
+    assert json.loads(body) == {
+        "error": f"view sequence {latest + 1} is newer than log sequence {latest}"
+    }
+
+
+def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
+    publish(page_dir, 1)
+    for version in (2, 3):
+        (page_dir / "versions" / f"v{version}.html").write_text(
+            PAGE.replace("<title>t</title>", f"<title>v{version}</title>")
+        )
+        publish(page_dir, version)
+
+    status, body = fetch(f"{server}/api/state?revision=1")
+
+    assert status == 200, body
+    state = json.loads(body)
+    assert state["active"]["revision"] == 3
+    assert set(state["browser"]["views"]) == {"1", "3"}
+
+
 def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     server, page_dir, monkeypatch
 ):
@@ -723,19 +964,19 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     scanned = threading.Event()
     original = http_model.Handler._page_state
 
-    def own_state(handler, events, source_error=None):
-        assert service_model.lock_is_held(page_dir / "comments.jsonl")
+    def own_state(handler, events, source_error=None, view_revision=None):
+        assert leases_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
-        return original(handler, events, source_error)
+        return original(handler, events, source_error, view_revision)
 
     def neighbours(directory):
         assert directory == page_dir
-        assert not service_model.lock_is_held(page_dir / "comments.jsonl")
+        assert not leases_model.lock_is_held(page_dir / "comments.jsonl")
         scanned.set()
         return []
 
     monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
-    monkeypatch.setattr(served_state_model, "other_leaves", neighbours)
+    monkeypatch.setattr(presence_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -852,13 +1093,13 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
 ):
     """Standing startup must fail before it opens a socket or records a URL."""
     monkeypatch.setattr(event_model, "fcntl", None)
-    monkeypatch.setattr(service_model, "fcntl", None)
+    monkeypatch.setattr(leases_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.cmd_serve(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.start_server(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        service_model.lock_is_held(page_dir / "server.lock")
+        leases_model.lock_is_held(page_dir / "server.lock")
     assert not (page_dir / "server.lock").exists()
     assert not (page_dir / "service.json").exists()
 
@@ -1470,7 +1711,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     error = events[-1]
     assert error["kind"] == "error" and error["author"] == "page"
     assert error in service_model.unacknowledged(events, 0)
-    assert served_state_model.presence(page_dir, events)["pending"] == 0
+    assert presence_model.presence(page_dir, events)["pending"] == 0
     result = CliRunner().invoke(
         cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
     )
@@ -1498,12 +1739,12 @@ def test_an_open_stream_records_that_the_page_is_open(server, page_dir):
     that proof — `curl`, the render gate and `page state` all read, and a tab
     that has no news never reads again."""
     events = event_model.read_events(page_dir)
-    assert served_state_model.presence(page_dir, events)["viewed"] is None
+    assert presence_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
-    assert served_state_model.presence(page_dir, events)["viewed"] is None
+    assert presence_model.presence(page_dir, events)["viewed"] is None
     stream, heard = _news(server)
     heard()
-    assert served_state_model.presence(page_dir, events)["viewed"] is not None
+    assert presence_model.presence(page_dir, events)["viewed"] is not None
     stream.close()
 
 
@@ -2080,7 +2321,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
     (left,) = nested.rglob("left/service.json")
     assert not files_model.read_json(left)["enabled"]
-    assert not service_model.lock_is_held(left.parent / "server.lock")
+    assert not leases_model.lock_is_held(left.parent / "server.lock")
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
@@ -2273,7 +2514,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     writer = threading.Thread(target=resolve_then_claim)
     writer.start()
     assert writer_entered.wait(5)
-    assert service_model.lock_is_held(page_dir / "comments.jsonl")
+    assert leases_model.lock_is_held(page_dir / "comments.jsonl")
     release.set()
     reader.join(5)
     writer.join(5)

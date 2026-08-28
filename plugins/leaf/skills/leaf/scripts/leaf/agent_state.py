@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import NamedTuple, Protocol
 
 from .asks import page_asks, thread_asks
-from .data import measurement_lag_entries, page_data_binding_inventory, read_data
+from .data import read_data
+from .data_contracts import measurement_lag_entries, page_data_binding_inventory
+from .event_contracts import thread_state
 from .events import (
     bare_reaction,
     build_threads,
@@ -19,6 +21,7 @@ from .files import (
     version_descriptors,
 )
 from .passages import enclosing_of, page_passages
+from .presence import presence
 from .projection import (
     StateProjection,
     canonical_updates,
@@ -28,11 +31,9 @@ from .projection import (
 )
 from .registry import described, require_registry
 from .revisioning import activate_source
-from .served_state import presence
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .thread_context import thread_digest
-from .validation import thread_state
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -248,12 +249,10 @@ def _apply_thread_state(state: dict, events: list, registry: dict) -> None:
 def _write_page_state(
     page_dir: Path, events: list, source_error: str | None = None
 ) -> None:
-    """Where the page stands, as one JSON object — the agent-side twin of the
-    browser's /api/state, folded rather than raw. /api/state ships the log and
-    lets the runtime replay it; a session picking a page up owes the same
-    reading, and doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this prints the readings the runtime derives, from the same
-    constructions it derives them with: the active revision's elements, the
+    """Where the page stands, as one JSON object — the agent-facing projection
+    beside the browser projection in /api/state. A session picking a page up needs
+    the same reading; doing it in-head over `leaf events` is how a standing decision
+    gets missed. So this prints the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), authored
     measurements whose live source has run again (`measurement_lag_entries`), the

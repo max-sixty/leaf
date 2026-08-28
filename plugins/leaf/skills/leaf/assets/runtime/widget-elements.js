@@ -92,13 +92,55 @@ export function quoted(el) {
 }
 
 // What a page's own markup works: a link to follow, a control to set, a disclosure to
-// open, a player to start. HTML's interactive content is where this comes from rather
-// than a list anyone here may add to, and it differs in two places, both about whether a
-// click can arrive. `summary` stands for `details`, because only the summary is the press
-// and the body under it is prose the reader may point at like any other. And nothing
-// embedded (`iframe`, `embed`, `object`): a click inside one never crosses into this
-// document, so listing them would guard a gesture no listener out here can see.
-const WORKS = "a, audio, button, input, label, select, summary, textarea, video";
+// open, a player to start. Browser-native interactive content, the ARIA widget roles,
+// and the platform's explicit focus/edit/drag markers are one boundary shared by every
+// gesture owner. `summary` stands for `details`, because only the summary is the press and
+// the body under it is prose the reader may point at like any other. Nothing embedded
+// (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
+// listing them would guard a gesture no listener out here can see.
+export const WORKS = [
+  "a",
+  "audio[controls]",
+  "button",
+  "img[usemap]",
+  "input:not([type='hidden'])",
+  "label",
+  "select",
+  "summary",
+  "textarea",
+  "video[controls]",
+  "[contenteditable]:not([contenteditable='false'])",
+  "[draggable='true']",
+  "[tabindex]:not([tabindex='-1'])",
+  "[role='application']",
+  "[role='button']",
+  "[role='checkbox']",
+  "[role='combobox']",
+  "[role='grid']",
+  "[role='gridcell']",
+  "[role='link']",
+  "[role='listbox']",
+  "[role='menu']",
+  "[role='menubar']",
+  "[role='menuitem']",
+  "[role='menuitemcheckbox']",
+  "[role='menuitemradio']",
+  "[role='option']",
+  "[role='radio']",
+  "[role='radiogroup']",
+  "[role='scrollbar']",
+  "[role='searchbox']",
+  "[role='separator'][tabindex]",
+  "[role='slider']",
+  "[role='spinbutton']",
+  "[role='switch']",
+  "[role='tab']",
+  "[role='tablist']",
+  "[role='textbox']",
+  "[role='tree']",
+  "[role='treegrid']",
+  "[role='treeitem']",
+].join(",");
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and

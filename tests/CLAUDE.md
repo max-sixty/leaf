@@ -200,9 +200,9 @@ is written over, and a ring has two.
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
-`leaf.render_gate.render_version`, not reproduce one of its probes. Test a helper directly
-only when the helper itself carries a contract that would otherwise be hard to
-diagnose, such as the traffic wait reaching its deadline.
+`leaf.render_gate.version.render_version`, not reproduce one of its probes. Test a
+helper directly only when the helper itself carries a contract that would otherwise
+be hard to diagnose, such as the traffic wait reaching its deadline.
 
 Re-vendor before trusting a result that depends on runtime, theme, registry, or
 widget changes. A page directory owns the layer copied into it by `page init`; it
@@ -271,6 +271,10 @@ panel state and drafts live in `localStorage`, while reading position lives in
 are not two tabs for a single reader unless they share a browser context.
 `Browser.new_page` creates an independent context; `one_reader` supplies one context
 for the tests whose subject is shared tab state.
+
+The static product-site session is the deliberate exception for semantic page state:
+it has no Python authority, so its illustrative gestures last for the current load and
+reset on reload. Do not make browser storage a durable event log for that exhibit.
 
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
 supplies the same language, charset, CSP, theme, module, and main-content shell to

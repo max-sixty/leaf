@@ -32,6 +32,7 @@ from render_support import (
     _publish,
     card_body,
     composer_quote,
+    hold_selection,
     key_line,
     leaf_page,
     live_url,
@@ -2760,7 +2761,11 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
 
     walks = {}
     for settled in (False, True):
-        page.evaluate("() => document.activeElement?.blur()")
+        # Start each walk from the page rather than from the last control in the
+        # previous walk. Blurring preserves that control as the sequential focus
+        # starting point, which only happened to wrap before the page gained a visual
+        # reaction proxy as its first Tab stop.
+        page.evaluate("() => document.body.focus()")
         trail = []
         for _ in range(24):
             page.keyboard.press("Tab")
@@ -2889,6 +2894,208 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.keyboard.press("?")
     expect(page.locator("#note")).to_have_value("c?")
     expect(page.locator(".lf-help")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
+    """Leaf treats a label's native activation as one keyboard standing.
+
+    Chromium moves focus through body between mousedown and native label activation.
+    That intermediate state must not repaint focus-derived surfaces. The native click
+    and text selection must still work."""
+    html = leaf_page(
+        "label focus",
+        """
+<h1 id="frames">Choose a frame</h1>
+<lf-options id="first-question" choose>
+  <lf-option id="first-frame"><strong>First</strong>
+    <label><input id="first" type="radio" name="first-frame">
+      <span>first state</span></label>
+  </lf-option>
+  <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
+</lf-options>
+<lf-options id="frame-question" choose>
+  <lf-option id="after-frame"><strong>After</strong>
+    <label id="frame-label"><input id="frame" type="radio" name="frame">
+      <span>after state</span></label>
+  </lf-option>
+  <lf-option id="before-frame"><strong>Before</strong></lf-option>
+</lf-options>
+""",
+    )
+    page, errors = open_page(
+        browser, serve(html, anchored=[("frames", "Choose a frame")])
+    )
+    first = page.locator("#first")
+    control = page.locator("#frame")
+    words = page.locator("#frame-label span")
+    first.focus()
+    standing = key_line(page)
+    assert "let go" in standing
+    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+
+    # A secondary contact does not drive native label activation, so it must not
+    # start the logical transaction either.
+    page.evaluate(
+        """() => {
+          const init = {bubbles: true, composed: true, pointerId: 98,
+                        pointerType: 'touch', isPrimary: false, button: 0};
+          document.querySelector('#frame-label').dispatchEvent(
+            new PointerEvent('pointerdown', init)
+          );
+          document.activeElement.blur();
+        }"""
+    )
+    assert "let go" not in key_line(page)
+    page.evaluate(
+        """() => dispatchEvent(new PointerEvent('pointerup', {
+          bubbles: true, composed: true, pointerId: 98,
+          pointerType: 'touch', isPrimary: false, button: 0
+        }))"""
+    )
+    first.focus()
+    assert key_line(page) == standing
+
+    bounds = words.bounding_box()
+    assert bounds is not None
+    middle = (bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2)
+    page.mouse.move(*middle)
+    page.mouse.down()
+    page.evaluate(
+        """() => {
+          const init = {bubbles: true, composed: true, pointerId: 99,
+                        pointerType: 'touch', isPrimary: true, button: 0};
+          document.body.dispatchEvent(new PointerEvent('pointerdown', init));
+          dispatchEvent(new PointerEvent('pointerup', init));
+        }"""
+    )
+    assert key_line(page) == standing
+    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+    page.mouse.up()
+    expect(control).to_be_checked()
+    expect(control).to_be_focused()
+    expect(page.locator("#frame-question[data-lf-ask]")).to_have_count(1)
+
+    hold_selection(
+        page,
+        (bounds["x"] + 2, middle[1]),
+        (bounds["x"] + bounds["width"] - 2, middle[1]),
+        steps=10,
+    )
+    assert "after state" in page.evaluate("() => getSelection().toString()")
+    assert "let go" in key_line(page)
+    page.mouse.up()
+    assert "let go" not in key_line(page)
+
+    # A focused thread has a runtime-owned scope outside the generic control register.
+    # It reads the same logical focus while the press moves toward the label's control.
+    page.evaluate("() => getSelection().removeAllRanges()")
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread")
+    thread.focus()
+    thread_standing = key_line(page)
+    assert "reply" in thread_standing
+    bounds = words.bounding_box()
+    assert bounds is not None
+    page.mouse.move(
+        bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2
+    )
+    page.mouse.down()
+    assert key_line(page) == thread_standing
+    page.mouse.up()
+    assert "reply" not in key_line(page)
+    assert errors == []
+    page.close()
+
+
+def test_a_label_press_keeps_the_shortcut_hint_on_the_focused_box(browser, serve):
+    """Immediate focus readers share the label transaction with the painted ones."""
+    page, errors = open_page(browser, serve(INLINE_PAGE))
+    page.locator("#p").click(click_count=3)
+    page.locator(".lf-fab").click()
+    box = page.locator(".lf-composer textarea")
+    label = page.locator(".lf-composer .lf-suggest-row")
+    expect(box).to_be_focused()
+    expect(label).to_be_visible()
+    expect(box).to_have_attribute("placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$"))
+    hint = box.get_attribute("placeholder")
+    assert hint is not None
+
+    bounds = label.bounding_box()
+    assert bounds is not None
+    page.mouse.move(
+        bounds["x"] + bounds["width"] - 2, bounds["y"] + bounds["height"] / 2
+    )
+    page.mouse.down()
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert box.get_attribute("placeholder") == hint
+    page.keyboard.type("x")
+    expect(box).to_have_value("x")
+    page.mouse.up()
+    expect(label.locator("input")).to_be_checked()
+    expect(box).to_have_attribute("placeholder", "Replacement text")
+
+    box.focus()
+    expect(box).to_have_attribute("placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$"))
+    replacement_hint = box.get_attribute("placeholder")
+    assert replacement_hint is not None
+    text_bounds = label.evaluate(
+        """label => {
+          const node = [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const box = range.getBoundingClientRect();
+          return {x: box.x, y: box.y, width: box.width, height: box.height};
+        }"""
+    )
+    hold_selection(
+        page,
+        (text_bounds["x"] + 2, text_bounds["y"] + text_bounds["height"] / 2),
+        (
+            text_bounds["x"] + text_bounds["width"] - 2,
+            text_bounds["y"] + text_bounds["height"] / 2,
+        ),
+        steps=10,
+    )
+    assert "Suggest replacement text" in page.evaluate(
+        "() => getSelection().toString()"
+    )
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert box.get_attribute("placeholder") == replacement_hint
+    page.mouse.up()
+    expect(box).to_have_attribute("placeholder", "Replacement text")
+    assert errors == []
+    page.close()
+
+
+def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
+    """A synchronous input sync cannot hide an intermediate focus from repaint."""
+    page, errors = open_page(browser, serve(INLINE_PAGE, comments=2))
+    page.locator(".lf-comments").click()
+    general = page.locator(".lf-general textarea")
+    replies = page.locator(".lf-thread textarea")
+    general.focus()
+    key_line(page)
+    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", general.get_attribute("placeholder"))
+
+    # Cross A -> B (and sync B) -> C in one turn, before the coalesced focus paint.
+    replies.evaluate_all(
+        """boxes => {
+          boxes[0].focus();
+          boxes[0].dispatchEvent(new Event('input', {bubbles: true}));
+          boxes[1].focus();
+        }"""
+    )
+    key_line(page)
+    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    assert replies.nth(0).get_attribute("placeholder") == "Reply · g c 1"
+    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
     assert errors == []
     page.close()
 

@@ -1192,6 +1192,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
         "lf-ui",
+        # A native label can pass through an intermediate focus target. These project
+        # the held control's focus until activation settles.
+        "lf-focus",
+        "lf-focus-visible",
         "lf-btn",
         "lf-pill",
         "lf-address",
@@ -1213,6 +1217,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-mark",
         "lf-react",
         "lf-docked",  # a seat's measured fallback, the word a suggestion row docks under
+        # Visual reactions add a quiet keyboard proxy beside the authored target and
+        # an outline on the target while its shared action bar is standing.
+        "lf-visual-actions",
+        "lf-visual-action",
+        "lf-action-target",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
@@ -2276,6 +2285,85 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
         )
         assert not ring_faults(
             rings_drawn(page), "after a press on the card already standing in"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
+def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
+    browser, serve
+):
+    """A touch scroll begins as a press and ends in ``pointercancel`` when the browser
+    takes the gesture. Cancellation must not undo the scroll by landing the card, but it
+    must end the provisional press: the next independent focus arrival still brings its
+    thread out from under the run heading.
+
+    Dispatch the pointer events directly so the browser does not add a mouse click or a
+    default focus after the cancellation. An unrelated pointer first proves which gesture
+    owns the hold; the matching cancellation and the focus after it then distinguish
+    release-without-landing from both a stale hold and an ordinary pointer-up landing."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+
+        first = page.locator(".lf-threads > .lf-thread").first
+        first.evaluate("el => el.focus({preventScroll: true})")
+        page.evaluate(RENDERED)
+        page.evaluate(BURY, 20)
+        page.evaluate(RENDERED)
+        before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+        assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
+            "the setup did not put the first card under its heading"
+        )
+
+        page.evaluate(
+            """() => {
+              const card = document.querySelector('.lf-threads > .lf-thread');
+              card.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true, isPrimary: true, pointerId: 7,
+              }));
+              dispatchEvent(new PointerEvent('pointercancel', {
+                isPrimary: false, pointerId: 8,
+              }));
+            }"""
+        )
+        page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
+        first.evaluate("el => el.focus({preventScroll: true})")
+        page.evaluate(RENDERED)
+        assert page.evaluate(COVERED_TOP) is not None, (
+            "an unrelated pointer cancellation released the active panel gesture"
+        )
+
+        page.evaluate(
+            """() => dispatchEvent(new PointerEvent('pointercancel', {
+              isPrimary: true, pointerId: 7,
+            }))"""
+        )
+        assert (
+            page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+            == before
+        ), "cancelling a touch-scroll gesture landed the thread and undid the scroll"
+
+        page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
+        first.evaluate("el => el.focus({preventScroll: true})")
+        page.evaluate(RENDERED)
+        assert page.evaluate(COVERED_TOP) is None, (
+            "the cancelled press suppressed the next focus landing and left the card "
+            f"under its heading: {page.evaluate(COVERED_TOP)}"
         )
 
         assert errors == []

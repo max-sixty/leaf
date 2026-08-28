@@ -13,10 +13,11 @@ from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import validation as validation_model
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_source_server
+from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_support import (
     ASKS_IN_ORDER,
@@ -263,6 +264,43 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         "el => el.style.getPropertyValue('--lf-panel-w').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
+    assert errors == []
+    page.close()
+
+
+def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
+    """Composition reads the control inside a widget's shadow tree, not its host."""
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.evaluate(
+        """() => {
+          const host = document.createElement('section');
+          host.id = 'shadow-editor';
+          const root = host.attachShadow({mode: 'open'});
+          const box = document.createElement('textarea');
+          box.dataset.lfOffer = '';
+          root.append(box);
+          document.querySelector('main').append(host);
+          box.focus();
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    expect(page).to_have_title("Live first")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    assert (
+        page.evaluate(
+            "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
+        )
+        == "TEXTAREA"
+    )
+
+    page.evaluate(
+        "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
+    )
+    ticked(page)
+    expect(page).to_have_title("Live second")
     assert errors == []
     page.close()
 
@@ -720,6 +758,71 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
     ) == ["t-parser"]
+    assert errors == []
+    page.close()
+
+
+def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
+    """The immutable file and its state must describe the DOM in one reading.
+
+    Hold the first projected base after the server has answered it, advance the open
+    page with a report, and then deliver that stale base. The comparison asks again at
+    the new sequence before painting; otherwise it marks the task as changed even though
+    the same report stands on both the base and current documents.
+    """
+    url = serve(REPORT_PAGE)
+    d = serve.page_dir
+    stamp_page(
+        d,
+        REPORT_PAGE.replace("</main>", '<p id="new-copy">A new prose line.</p></main>'),
+        "added prose",
+    )
+    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
+    held = []
+    requests = []
+
+    def hold_first_view(route):
+        requests.append(route.request.url)
+        if not held:
+            held.append([route, None, False])
+        else:
+            route.continue_()
+
+    page.route("**/api/view*", hold_first_view)
+    try:
+        page.locator(".lf-version").click()
+        with page.expect_request("**/api/view*"):
+            page.locator('.lf-version-diff[data-lf-version="1"]').click()
+        page.wait_for_timeout(0)  # let the request event enter its route callback
+        assert held, "the first comparison view was not held"
+        held[0][1] = held[0][0].fetch()
+
+        events_model.append_event(
+            d,
+            {
+                "kind": "report",
+                "author": "claude",
+                "revision": 1,
+                "widget": "t-parser",
+                "action": "status",
+                "detail": {"status": "done"},
+            },
+        )
+        told(page)
+        expect(page.locator("#t-parser")).to_have_attribute("status", "done")
+
+        with page.expect_request("**/api/view*"):
+            held[0][0].fulfill(response=held[0][1])
+            held[0][2] = True
+        page.wait_for_timeout(0)
+        assert len(requests) >= 2, "the stale comparison view was not retried"
+        expect(page.locator(".lf-version")).to_have_text("Δ v2 ▾")
+        expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
+        expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
+    finally:
+        if held and not held[0][2]:
+            held[0][0].fulfill(response=held[0][1])
+        page.unroute("**/api/view*")
     assert errors == []
     page.close()
 
@@ -1259,9 +1362,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with render_gate_model.preview_source_server(
-        d, contradicted.encode(), 4
-    ) as preview_url:
+    with preview_source_server(d, contradicted.encode(), 4) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures

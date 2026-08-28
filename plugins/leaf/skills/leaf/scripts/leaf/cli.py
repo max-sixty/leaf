@@ -14,8 +14,8 @@ from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_asks
 from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_stop, start_server
-from leaf.layer import cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
+from leaf.packages import cmd_package_check, cmd_package_init
 from leaf.page import cmd_catalog, cmd_guidance
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp

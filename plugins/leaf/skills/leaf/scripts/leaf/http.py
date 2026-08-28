@@ -9,14 +9,15 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from . import presence as presence_model
 from . import served_state
 from .event_endpoint import EventEndpoint, event_rejection
 from .event_log import read_events
 from .files import (
+    active_descriptor,
     latest_revision,
     list_revisions,
     list_versions,
-    path_is_within,
     published_versions,
     revision_num,
     revision_path,
@@ -25,13 +26,9 @@ from .files import (
     version_revisions,
     write_json,
 )
+from .locations import path_is_within
 from .registry import layer_generation
-from .render_checks import (
-    PROBE_ROUTE,
-    PROBE_SOURCE,
-    STANDALONE_ROUTE,
-    STANDALONE_SOURCE,
-)
+from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -103,17 +100,31 @@ class Handler(BaseHTTPRequestHandler):
             if version <= self.preview_upto
         ]
 
-    def _page_state(self, events: list, source_error: str | None = None) -> dict:
+    def _page_state(
+        self,
+        events: list,
+        source_error: str | None = None,
+        view_revision: int | None = None,
+    ) -> dict:
         """The page's own state from a caller's transaction-consistent log."""
-        state = served_state.full_state(
+        active_override = None
+        source_overrides = None
+        if self.preview_source is not None:
+            active_override = self.preview_source["active"]
+            source_overrides = {
+                active_override["revision"]: self.preview_source["data"].decode("utf-8")
+            }
+        return served_state.full_state(
             self.page_dir,
             events,
             layer=self.layer,
             source_error=source_error,
+            view_revision=view_revision,
+            active_override=active_override,
+            source_overrides=source_overrides,
         )
-        return state
 
-    def page_state(self) -> dict:
+    def page_state(self, view_revision: int | None = None) -> dict:
         """The current reading used by GET and accepted POST responses.
 
         A claim's ``log_floor`` is meaningful only beside the same log snapshot it
@@ -134,24 +145,88 @@ class Handler(BaseHTTPRequestHandler):
             if self.preview_source is None:
                 activation = activate_source(self.page_dir, page.events)
                 reading = served_state.page_reading(self.page_dir)
-                state = self._page_state(page.events, activation.error)
+                state = self._page_state(
+                    page.events, activation.error, view_revision=view_revision
+                )
             else:
                 reading = served_state.page_reading(self.page_dir)
-                state = self._page_state(page.events)
-                state["active"] = self.preview_source["active"]
+                state = self._page_state(page.events, view_revision=view_revision)
         # Every URL in `others` carries the machine key (`host_key`), so the list
         # reaches neighbouring pages without creating another authorization path.
         # Scan neighbours after releasing this page's lease: they are independent
         # snapshots, and one slow neighbour must not block this page's writers.
-        state["others"] = served_state.other_leaves(self.page_dir)
+        state["others"] = presence_model.other_leaves(self.page_dir)
         state["reading"] = (
             reading
             + "."
-            + served_state.presence_fingerprint(
+            + presence_model.presence_fingerprint(
                 state["listening"], state["session_alive"], state["others"]
             )
         )
         return state
+
+    def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
+        """One revision projected at an exact already-observed log boundary."""
+        with PageTransaction(self.page_dir) as page:
+            if self.preview_source is None:
+                activate_source(self.page_dir, page.events)
+                try:
+                    active = active_descriptor(self.page_dir, page.events)
+                except SystemExit as error:
+                    raise ValueError(str(error)) from error
+                source_overrides = None
+            else:
+                active = self.preview_source["active"]
+                source_overrides = {
+                    active["revision"]: self.preview_source["data"].decode("utf-8")
+                }
+            latest_seq = page.events[-1]["seq"] if page.events else 0
+            if through_seq > latest_seq:
+                raise ValueError(
+                    f"view sequence {through_seq} is newer than log sequence {latest_seq}"
+                )
+            events = [event for event in page.events if event["seq"] <= through_seq]
+            projected = served_state.project_browser_state(
+                self.page_dir,
+                events,
+                view_revision,
+                active,
+                presence_model.presence(self.page_dir, events)["claims"],
+                source_overrides,
+                include_active_view=False,
+            )
+        if projected is None:
+            raise ValueError("page registry cannot be projected")
+        return projected
+
+    def requested_view_revision(self, *, header: bool = False) -> int | None:
+        raw = (
+            self.headers.get("Leaf-View-Revision")
+            if header
+            else parse_qs(urlsplit(self.path).query).get("revision", [None])[-1]
+            or self.headers.get("Leaf-View-Revision")
+        )
+        if raw in (None, ""):
+            return None
+        try:
+            revision = int(raw)
+        except (TypeError, ValueError) as error:
+            raise ValueError("view revision must be a positive integer") from error
+        if revision < 1:
+            raise ValueError("view revision must be a positive integer")
+        return revision
+
+    def requested_view_sequence(self) -> int:
+        raw = parse_qs(urlsplit(self.path).query).get("through_seq", [None])[-1]
+        if raw in (None, ""):
+            raise ValueError("view sequence is required")
+        try:
+            sequence = int(raw)
+        except (TypeError, ValueError) as error:
+            raise ValueError("view sequence must be a non-negative integer") from error
+        if sequence < 0:
+            raise ValueError("view sequence must be a non-negative integer")
+        return sequence
 
     def log_message(self, *args):
         pass
@@ -201,7 +276,7 @@ class Handler(BaseHTTPRequestHandler):
                 # the next look would leave the tab holding a reading this stream
                 # never disagreed with, and never spoke again.
                 if files != files_said or now - looked >= PRESENCE_S:
-                    presence = served_state.presence_reading(self.page_dir)
+                    presence = presence_model.presence_reading(self.page_dir)
                     looked = now
                 reading = f"{files}.{presence}"
                 # Before the word goes out, so a listener that has heard the first
@@ -429,11 +504,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _get(self):
         path = urlsplit(self.path).path
-        probe_sources = {
-            PROBE_ROUTE: PROBE_SOURCE,
-            STANDALONE_ROUTE: STANDALONE_SOURCE,
-        }
-        if probe_source := probe_sources.get(path):
+        if probe_source := PROBE_SOURCES.get(path):
             self._send(
                 200,
                 "text/javascript; charset=utf-8",
@@ -449,7 +520,25 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/state":
             # Versions pass through the handler's own view, so a preview state
             # agrees with the version it serves.
-            self._json(self.page_state())
+            try:
+                revision = self.requested_view_revision()
+                state = self.page_state(revision)
+            except ValueError as error:
+                self._json({"error": str(error)}, 400)
+                return
+            self._json(state)
+            return
+        if path == "/api/view":
+            try:
+                revision = self.requested_view_revision()
+                if revision is None:
+                    raise ValueError("view revision is required")
+                sequence = self.requested_view_sequence()
+                browser = self.page_browser_view(revision, sequence)
+            except ValueError as error:
+                self._json({"error": str(error)}, 400)
+                return
+            self._json({"browser": browser})
             return
         # Browsers ask for this unprompted, and go on asking where nothing in the
         # markup names an icon — the runtime's link is written as the chrome is built,
@@ -481,7 +570,19 @@ class Handler(BaseHTTPRequestHandler):
         if self.posted_error:
             self._refuse(self.posted_error)
             return
-        status, answer = self.event_endpoint.accept(self.posted, self.page_state)
+        try:
+            view_revision = self.requested_view_revision(header=True)
+        except ValueError as error:
+            self._refuse(str(error))
+            return
+        if view_revision is not None and view_revision not in list_revisions(
+            self.page_dir
+        ):
+            self._refuse(f"unknown view revision r{view_revision}")
+            return
+        status, answer = self.event_endpoint.accept(
+            self.posted, lambda: self.page_state(view_revision)
+        )
         self._json(answer, status)
 
 

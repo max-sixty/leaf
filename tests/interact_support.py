@@ -45,8 +45,8 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
-from leaf import validation as validation_model
 from leaf import vendoring as vendoring_model
+from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"

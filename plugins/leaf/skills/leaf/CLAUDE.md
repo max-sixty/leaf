@@ -42,8 +42,8 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/reactions.js` owns reaction vocabulary, pills, sending, the armed mode, and
-reaction-specific undo wording;
+`runtime/reactions.js` owns reaction vocabulary, pills and their standing paint,
+sending, the armed mode, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
@@ -75,31 +75,48 @@ rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
 guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
-`runtime/scrolling.js` owns the document scroller identity and the gutter its bar
-takes;
+`runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
+and the gutter its bar takes;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
 highlight rules;
+`runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
+dynamic widget imports, and initial settlement;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
+`runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
+`runtime/view-continuity.js` owns persisted semantic reading landmarks, arrival
+landing across authored-document replacement, and the page-block reading used to
+start directional walks;
+`runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping;
 `runtime/navigation.js` owns reader travel and scroller selection;
 `runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
-`runtime/conversation/model.js` owns the thread fold;
+`runtime/conversation/model.js` adapts server-projected threads to browser callers;
 `runtime/conversation/messages.js` owns message rendering;
 `runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
 `runtime/conversation/inline.js` owns conversation seats rendered into the page;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
-`runtime/conversation/landing.js` owns conversation input discovery and focus travel;
+`runtime/conversation/folding.js` owns resolution-fold state and motion;
+`runtime/conversation/landing.js` owns conversation input discovery, focus travel,
+and panel arrival;
+`runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
+filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
+`runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
+surfaces;
+`runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
+state, and their reply, resolve, and reopen controls;
+`runtime/conversation/thread-list.js` owns retained panel list reconciliation;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore
 statements; `runtime/projection/data.js` owns keyed runtime-data DOM
-reconciliation; `runtime/projection/fold.js` owns canonical action and report state;
+reconciliation; `runtime/projection/fold.js` adapts canonical action and report state
+to live DOM nodes and the local outbox;
 `runtime/projection.js` owns projection reconciliation and undo. The entry module
 composes their mutually dependent callbacks.
 
@@ -289,11 +306,11 @@ accepted event because its rendering failed.
 
 A recorded action may be optimistic because its gesture has already changed the
 DOM. Drag and edit are examples. `stageOutboxAction` gives that local value the
-same semantic coordinate as logged state and commits it on the exact widget and
-unit nodes that carry it. `stateProjection` overlays all surviving recorded
-outbox actions after logged winners in `outboxOrder`. Until a complete read
-accounts for an attempt, its local winner outranks any older log winner on the
-same coordinate.
+same semantic coordinate as the server view and commits it on the exact widget
+and unit nodes that carry it. The browser projection adapter overlays all
+surviving recorded outbox actions after authoritative winners in `outboxOrder`.
+Until a complete read accounts for an attempt, its local winner outranks any
+older log winner on the same coordinate.
 
 A press whose result has not changed the DOM waits for the log. Recordless
 settlements and completion presses do not enter the optimistic overlay. The
@@ -318,11 +335,11 @@ represents the DOM. Delivery may continue while that correction waits for a
 live drag or editor to finish.
 
 `accountOutbox` runs only after `receiveState` has installed and rendered a
-complete state. It links accepted events to entries, resolves readers waiting on
+complete state. It links receipt events to entries, resolves readers waiting on
 those events, removes non-action entries whose delivery is complete, and calls
-`releaseProjectedOutbox` for actions. Never remove an action merely because a
-POST returned 200 or because an attempt appears in an event array that failed
-partway through rendering.
+`releaseProjectedOutbox` for actions. Never remove an action merely because a POST
+returned 200 or because an attempt appears in a receipt list that failed partway
+through rendering.
 
 `unaccountedGesture` is true while undo is in flight, the outbox is nonempty, or
 a widget is visibly dragging. Navigation and undo both consult it. Navigating
@@ -354,7 +371,7 @@ therefore survives its response.
 The DOM is a projection of three ordered inputs:
 
 1. the authored state captured from this version;
-2. standing actions and reports in the authoritative log window;
+2. standing actions and reports in the server's transaction-consistent browser view;
 3. surviving optimistic recorded actions in the outbox.
 
 The semantic coordinate is
@@ -373,16 +390,24 @@ projections. `x-awaits.answers` says which actions actually close the request;
 orthogonal actions do not, and neither does a conversation standing in the widget's
 declared `x-conversation` seat — that takes the request off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
-it. `x-awaits.rollup` derives a nested request from direct
-interventions and child roll-ups, using the same reducer in the browser and file
-projection.
+it. `x-awaits.rollup` derives a nested request from direct interventions and child
+roll-ups in Python; the browser receives the resulting ids and awaiting values.
 
-`stateProjection(upto)` is the pure derived view. It classifies every action and
-report, applies version and retraction windows, drops withdrawn actions and
-answered reports, folds the last action for each coordinate, retains report
-winners, overlays unresolved local records, and gives a reader action precedence
-over a provisional report on the same coordinate. Winners on independent
-coordinates compose in event order through `compareProjected`.
+Python's `state_projection` is the durable derived view. Under the same page
+transaction as `/api/state`, `browser_state` serializes its classified events and
+winners, asks, conversations, updates, undo candidates, receipts, and coverage at
+one `through_seq`. A normal response projects the revision the tab shows and the
+active revision it may install next. A version comparison requests its older base
+from `/api/view` at the exact `through_seq` already applied to the live DOM, so every
+view used together has the same sequence basis without every state read parsing all
+historical revisions. Page coordinates use that revision's document window;
+conversation coordinates use the unbounded frozen-markup window.
+
+The browser's `stateProjection` is a DOM adapter. It resolves those declared
+coordinates back to current widget modules and overlays unresolved local records.
+It does not derive retractions, settlements, thread structure, asks, updates, or
+undo eligibility from raw events. Winners on independent coordinates still
+compose in event order through `compareProjected`.
 
 The two durable channels share the coordinate model but retain their meaning:
 
@@ -396,8 +421,8 @@ The two durable channels share the coordinate model but retain their meaning:
 `stateProjection` is uncached because registry declarations resolve through the
 live DOM. Thread construction and recordless restoration can replace node
 identities. Its result has four views: `actions`, `reports`, `classified`, and
-`desired`. Add a consumer to one of these views instead of building another fold
-over raw `events`.
+`desired`. Add a browser consumer to one of these views or extend the Python wire
+view instead of building another fold over raw `events`.
 
 `committedProjection` is not a second state authority. It is a checkpoint of
 what node identities and semantic winner the DOM currently represents. Each
@@ -408,11 +433,11 @@ its authored baseline stands.
 
 `projectionCommitted` compares the desired coordinate with that checkpoint.
 Terminal events count as committed because this version has no applicable state
-to paint. `projectionCoverage` converts coordinate commits back to event
-coverage for `data-lf-applied`: superseded actions and answered reports are
-covered when the coordinate that represents them is committed, and an undo is
-covered when its target's coordinate has moved to the prior winner or authored
-baseline.
+to paint. The server supplies coverage records and `projectionCoverage` checks
+their coordinates against DOM commits for `data-lf-applied`: superseded actions
+and answered reports are covered when the coordinate that represents them is
+committed, and an undo is covered when its target's coordinate has moved to the
+prior winner or authored baseline.
 
 ### Reconciliation
 
@@ -520,9 +545,9 @@ documents written after this version. A widget instantiated inside frozen thread
 markup is in chrome and reads the whole action sequence because the conversation,
 not a page version, owns it.
 
-Threads also read the whole log. `retractionFloors(Infinity)` keeps a
-conversation current on a pinned page even when the document projection remains
-historical. Registry-declared `x-conversation` seats show an exact-section
+The server projects threads from the whole log, so a conversation stays current
+on a pinned page even when the document projection remains historical.
+Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document; the Comments panel
 keeps the complete thread and its interactive replies. A root declared with
 `response: {kind: version, verb: <answer>}` keeps that exact-section view
@@ -531,8 +556,9 @@ response. Dropping the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
-later version does not revive retracted state. `retractedIds` uses containment,
-not a global id lookup, when deciding which detailed parts an action rests on.
+later version does not revive retracted state. Python's projection uses
+containment, not a global id lookup, when deciding which detailed parts an action
+rests on.
 
 ### Event sequences for modules
 
@@ -574,12 +600,12 @@ field, verb, or widget name. Claims use their required detail as `detail.text`
 and `text`. The state boundary performs this normalization once, before
 downstream code sees private status storage.
 
-`sequence` is the action traversal. It applies widget, optional verb, version
-window, and liveness in one place, then returns structured clones so modules
-cannot mutate the private event list. `watchActions` and `watchUpdates` subscribe
-the two public readings to `lf-actions` and invoke the callback immediately. The
-same rendering function therefore handles a module connected before the first
-state and one constructed by a later thread reconcile.
+`actionSequence` traverses the classified events in the installed server view,
+then returns structured clones so modules cannot mutate the reading.
+`updateSequence` filters the server-normalized update feed. `watchActions` and
+`watchUpdates` subscribe the two public readings to `lf-actions` and invoke the
+callback immediately. The same rendering function therefore handles a module
+connected before the first state and one constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
 event list did not grow and the heartbeat's re-application of the state the page
@@ -598,7 +624,7 @@ assertion is as old as its revision.
 `actionStands` answers whether one accepted action is still the reader's winner
 for its semantic coordinate. It treats a newly accepted event as standing when
 the tab has not yet installed an event list containing its id, then asks
-`stateProjection` once authoritative history contains it. Modules use this
+the installed projection once an authoritative receipt contains it. Modules use this
 after a send whose visible choreography depends on whether the accepted action
 survived later events.
 
@@ -939,6 +965,9 @@ element outlines, and the open composer's pending mark. It clears and paints
 through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
+The anchor runtime exposes only the questions those features ask — `isMarked`,
+`placedAt`, and a snapshot from `pendingMarkParts` — so the pass-owned maps and
+arrays cannot acquire a second writer through the entrypoint.
 
 The same pass answers a second question and records it apart. `placed` is where
 each thread's passage lands in this version; `marked` is what was drawn for it.
@@ -1064,7 +1093,7 @@ without closing the thread.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
-sideways scroller, then `jumpBy` glides the exact mark to its final position in
+sideways scroller, then `moveScrollerBy` glides the exact mark to its final position in
 the region that holds it. The travel owns no standing or arrival state. Focus
 already supplies the durable answer through `paintStanding`, and a transient
 page effect does not observe, restart, or reconcile across the browser's
@@ -1685,9 +1714,17 @@ keep that state in an attribute, so one `MutationObserver` over `open` and
 ### Standing somewhere
 
 Focus is the reader's current place. `focused` follows it through declared
-shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
-control that contains focus. The ring is derived on each paint; it does not
-store the ask walk's position.
+shadow roots. A native label activation may pass through `body` or a focusable
+container between the pointer press and the control's focus; Leaf treats that
+interval as one logical standing without changing DOM focus or preventing label
+text selection.
+`documentFocused` retargets the logical standing to its document host. Painted
+focus readings use one of those two functions; CSS reads the matching `.lf-focus`,
+`.lf-focus-visible`, and `.lf-focus-within` projections. A key ends the pointer
+interval and restores physical focus before dispatch. Code that acts on physical
+focus otherwise reads `document.activeElement` directly. `markHere` paints one
+`--here-ring` around the semantic ask or control that contains focus. The ring
+is derived on each paint; it does not store the ask walk's position.
 
 A control that draws the band on itself draws it only where nothing else holds
 that box's one outline. An ask written out around the control wears the band
@@ -2255,13 +2292,15 @@ and finite motion boundary, reads screen and print, and reapplies standing state
 A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
-The named JavaScript exports in `leaf/render-checks.js`, invoked by
-`leaf/render_checks.py` and composed by `leaf/render_gate.py`, each answer one failure
-class. The served module imports the public widget API statically, so the JavaScript
-parser and module loader validate its syntax, dependencies, and named exports.
-`coveredWords` is reexported from the import-free `render-checks-standalone.js`, which
+The named JavaScript exports in `leaf/render-checks/index.js`, invoked by
+`leaf/render_checks.py` and composed by `leaf/render_gate/`, each answer one failure
+class. That facade is `leaf/render-checks/index.js`; its directory groups runtime,
+reachability, layout, replay, word, widget-contract, and framing probe owners. The
+served graph imports the public widget API statically, so the JavaScript parser and
+module loader validate its syntax, dependencies, and named exports.
+`coveredWords` is reexported from the import-free `render-checks/standalone.js`, which
 lets the same implementation inspect an exported `file://` copy after its runtime has
-been removed. `render-checks-init.js` installs the pre-navigation window-error channel.
+been removed. `render-checks/init.js` installs the pre-navigation window-error channel.
 
 | Reading | Contract |
 | --- | --- |

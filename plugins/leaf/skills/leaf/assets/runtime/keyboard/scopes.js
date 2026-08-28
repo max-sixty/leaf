@@ -1,4 +1,5 @@
 import {
+  MODIFIER_KEYS,
   activeRows,
   ariaShortcuts,
   bindings,
@@ -198,18 +199,101 @@ export function createScopes({ paintHere, upFrom }) {
       .map((b) => (b === " " ? "Space" : b))
       .join(" or ");
 
-  // Where the reader is standing, which is not what `document.activeElement` answers: focus
-  // inside a shadow tree retargets to the host, so every question the register asks about
-  // the focused element got the widget instead of the control. A staged control found no
-  // scope of its own, matched no control scope, and would have had a press aimed at its
-  // host. The climb out of a tree was written long ago (upFrom); the descent into one was
-  // not, and the comment below promised it anyway — lf-diff's per-file disclosure declared
-  // its keys and no surface said a word about them.
-  const focused = () => {
+  const deepestFocus = () => {
     let el = document.activeElement;
     while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
     return el;
   };
+  const FOCUS = "lf-focus";
+  const FOCUS_VISIBLE = "lf-focus-visible";
+  const FOCUS_WITHIN = "lf-focus-within";
+  // A label's mousedown can blur the already-focused element to body, or a containing
+  // thread can seat itself, before native activation focuses the control on mouseup. Those
+  // intermediate targets are not a new keyboard standing. Keep the prior focus as the
+  // JavaScript reading and project its CSS pseudo-classes while the pointer is inside that
+  // native transaction. Neither changes DOM focus or prevents pointer default, so a drag can
+  // still select a label's authored words.
+  let labelPress = null;
+  const markLabelPress = (held, pointerId) => {
+    held.classList.add(FOCUS);
+    const within = [];
+    for (let node = held; node; node = upFrom(node)) {
+      node.classList.add(FOCUS_WITHIN);
+      within.push(node);
+    }
+    if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
+    labelPress = { held, pointerId, within };
+  };
+  const finishLabelPress = () => {
+    const press = labelPress;
+    if (!press) return null;
+    labelPress = null;
+    press.held.classList.remove(FOCUS);
+    press.held.classList.remove(FOCUS_VISIBLE);
+    for (const node of press.within) node.classList.remove(FOCUS_WITHIN);
+    paintHere();
+    return press;
+  };
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (labelPress || !event.isPrimary || event.button !== 0) return;
+      const label = event
+        .composedPath()
+        .find((node) => node?.localName === "label" && node.control);
+      if (!label) return;
+      const active = deepestFocus();
+      if (active && active !== document.body) markLabelPress(active, event.pointerId);
+    },
+    true,
+  );
+  const releaseLabelPress = (event) => {
+    if (!labelPress) return;
+    if ("pointerId" in event && event.pointerId !== labelPress.pointerId) return;
+    finishLabelPress();
+  };
+  addEventListener("pointerup", releaseLabelPress, true);
+  addEventListener("pointercancel", releaseLabelPress, true);
+  addEventListener("blur", releaseLabelPress);
+
+  // A key changes the active input device and ends the pointer's provisional standing. Put
+  // physical focus back before the bubbling dispatcher and the platform default run. Text
+  // entry then remains the browser's; a platform activation row needs the event-specific
+  // target below because the key event itself was aimed at an intermediate focus target.
+  const recoveredLabelKeys = new WeakMap();
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      const active = deepestFocus();
+      if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+      const { held } = finishLabelPress();
+      if (active === held) return;
+      if (!held.isConnected) return;
+      held.focus({ preventScroll: true });
+      if (deepestFocus() === held) recoveredLabelKeys.set(event, held);
+    },
+    true,
+  );
+
+  // Where the reader is standing, which is not always what `document.activeElement`
+  // answers. Focus inside a shadow tree retargets to the host, while the label transition
+  // above can report body or a containing element until its click completes. The register
+  // needs the inner element in both cases so its scope stays the one the reader is leaving
+  // or working.
+  const focused = () => {
+    const active = deepestFocus();
+    return labelPress?.held.isConnected ? labelPress.held : active;
+  };
+  // Document readings want the host of a control staged in a shadow tree. Retarget the
+  // logical reading every time, so a label transaction and an ordinary shadow focus take
+  // the same path and no painted surface invents its own exception.
+  const documentFocused = () => {
+    let held = focused();
+    for (let root = held?.getRootNode(); root?.host; root = held.getRootNode())
+      held = root.host;
+    return held;
+  };
+  const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
   // The element scopes covering a node, innermost first — the climb crosses a shadow
   // boundary the way `closest` climbs inside one, so a widget staging its controls in a
@@ -236,12 +320,14 @@ export function createScopes({ paintHere, upFrom }) {
   const scopes = {
     byCommand,
     claimsEsc,
+    documentFocused,
     elementScopes,
     focused,
     keys,
     merge,
     paintKeys,
     pruneScopedElements,
+    recoveredLabelFocus,
     saying,
     scopeRefs,
     scopesFor,

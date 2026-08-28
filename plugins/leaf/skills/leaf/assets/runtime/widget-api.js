@@ -12,8 +12,8 @@ export { keys, paintKeys, saying } from "./keyboard/scopes.js";
 export { scrollerFor } from "./navigation.js";
 export { announce, toast } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
+export { alignText } from "./text-alignment.js";
 export {
-  alignText,
   inChrome,
   inUi,
   renderRetired,

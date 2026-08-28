@@ -18,7 +18,7 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * leaf/validation.py); it is never inferred from the markup's silence. Widgets opt in via an
+ * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
  * applyAction(action, detail) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
@@ -259,7 +259,6 @@ import {
   startsAt,
 } from "./runtime/geometry.js";
 import {
-  alignText,
   createPassages,
   inChrome,
   inUi,
@@ -269,13 +268,16 @@ import {
   uiInside,
   wrote,
 } from "./runtime/passages.js";
+import { createViewContinuity } from "./runtime/view-continuity.js";
+import { textUnits } from "./runtime/text-alignment.js";
 import {
   ago,
   createPresence,
   observeServerNow,
   quietSince,
 } from "./runtime/presence.js";
-import { createReactions } from "./runtime/reactions.js";
+import { createPointer } from "./runtime/pointer.js";
+import { createReactions, paintReactionStanding } from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
 import { createUpdates } from "./runtime/updates.js";
@@ -285,6 +287,7 @@ import {
 } from "./runtime/version-activation.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
 import { createVersionNavigation } from "./runtime/version-navigation.js";
+import { createWidgetLoader } from "./runtime/widget-loader.js";
 import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
 import {
   createMeasurements,
@@ -294,6 +297,7 @@ import {
   reachedForWords,
   relabel,
   reserve,
+  WORKS,
   worksInside,
 } from "./runtime/widget-elements.js";
 import {
@@ -317,7 +321,6 @@ import {
 import {
   MARK_RULES,
   createShadowStage,
-  loadShadowRules,
   pageShadowRoots,
   shadowStage,
 } from "./runtime/shadow.js";
@@ -355,6 +358,7 @@ const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient
   currentRevision: () => runtime.currentRevision,
   layerGeneration: vendoredLayerGeneration,
 });
+const { pointerAt } = createPointer();
 
 createMeasurements({ shownBox });
 
@@ -445,10 +449,12 @@ createShadowStage(watchDisclosures);
 const {
   byCommand,
   claimsEsc,
+  documentFocused,
   elementScopes,
   focused,
   merge,
   pruneScopedElements,
+  recoveredLabelFocus,
   scopeRefs,
   scopesFor,
 } = createScopes({
@@ -457,10 +463,10 @@ const {
 });
 
 // Where the reader is standing, painted: the ring on the ask they are in, the mark on the
-// passage of the comment they are in, and the line saying what the next press does from
-// there. One repaint, because it is one question — every reading is of the focus and the
-// open-ask list, and every signal that moves either (a focus move, an answer taken, a
-// poll, a widget's own state) moves them all.
+// passage of the comment they are in, the focused box's hint, and the line saying what the
+// next press does from there. One repaint, because it is one question — every reading is of
+// the focus and the open-ask list, and every signal that moves either (a focus move, an
+// answer taken, a poll, a widget's own state) moves them all.
 //
 // Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
 // them would flash the scope of nowhere and drop the ring for a frame. Here rather than
@@ -468,6 +474,7 @@ const {
 // evaluates, which is before the line has an element to draw into — the frame is what puts
 // the first paint after both.
 let herePending = false;
+let paintInputHints = () => {};
 function paintHere() {
   if (herePending) return;
   herePending = true;
@@ -482,6 +489,7 @@ function paintHere() {
     // panel's own render was calling the chip pass.
     paintAddresses();
     paintCoreControls();
+    paintInputHints();
     renderLine();
   });
 }
@@ -501,65 +509,14 @@ function reveal(el) {
 }
 
 let anchoringReady = false;
-// The file-side passage reader fences an upgraded element and each of its original
-// direct children when the registry cannot promise its body is verbatim. Remember
-// those parts before custom-element definitions can add or move anything, so the
-// browser can stop captured context at the same seams after every upgrade has run.
-const opaquePassageRoots = new WeakSet();
-const opaquePassageParts = new WeakSet();
-
-function rememberPassageParts(scope = document) {
-  for (const tag of tagsDeclaring(
-    (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
-  ))
-    for (const root of scope.querySelectorAll(tag)) {
-      opaquePassageRoots.add(root);
-      for (const child of root.children) opaquePassageParts.add(child);
-    }
-}
-
-async function upgradeWidgets() {
-  const response = await fetch("/registry.json");
-  if (!response.ok)
-    throw new Error(`leaf: registry failed to load (${response.status})`);
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (responseGeneration && !sameLayer(responseGeneration)) return;
-  Object.assign(registry, await response.json());
-  const registryGeneration = registry.$layer?.generation;
-  if (typeof registryGeneration !== "string" || !registryGeneration)
-    throw new Error("leaf: registry lacks $layer.generation");
-  if (!sameLayer(registryGeneration)) return;
-  if (
-    !registry.$events?.kinds ||
-    !registry.$languages?.names ||
-    !registry.$languages?.paths ||
-    !registry.$tones?.names ||
-    !registry.$reactions?.tokens
-  )
-    throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
-  revealLayer();
-  buildReactBar();
-  rememberPassageParts();
-  rememberAuthoredMarkup();
-  markDeclared(document.body, MARKED_IN_PAGE);
-  // Before the modules import, because a widget's first render asks for these rules and
-  // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
-  if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
-  await Promise.all(
-    tagsDeclaring((entry) => entry["x-upgrade"]).map((tag) =>
-      import(`/widgets/${tag}.js`).catch((err) =>
-        reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
-      ),
-    ),
-  );
-  settle(dress(document.body));
-  // Importing defined the elements and ran their connectedCallbacks; async ones
-  // registered their work via settle(). Wait it out so geometry is final.
-  await Promise.allSettled(settling);
-  // After the wait, because the box a widget scrolls is a box its module built: run this
-  // with the rest of the upgrade and a diff's pre and a code block's are half there.
-  reachScrollers(document.body);
-}
+const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWidgets } =
+  createWidgetLoader({
+    buildReactBar: (...args) => buildReactBar(...args),
+    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+    reportPageError,
+    revealLayer,
+    sameLayer,
+  });
 
 // ---------- comment layer ----------
 
@@ -1354,12 +1311,7 @@ function syncFloats() {
     const box = composer.getBoundingClientRect();
     placeComposer(box.left, box.top);
   }
-  const anchor = fabAnchorAt();
-  if (anchor?.quote && pageSelection()) updateFab();
-  else if (anchor) {
-    const box = fab.getBoundingClientRect();
-    placeClear(fab, box.left, box.top);
-  }
+  refreshFab();
 }
 function setPanel(open) {
   if (open && currentTray()) showTray(null);
@@ -1424,7 +1376,13 @@ layoutSizes.observe(composer);
 const { showToast } = createNotifications({ liveEl, syncLayout, toastEl });
 
 // ---------- text inputs ----------
-const wireInput = createInput({ keys, showToast, spell });
+const { paint: paintInputs, wire: wireInput } = createInput({
+  focused,
+  keys,
+  showToast,
+  spell,
+});
+paintInputHints = paintInputs;
 
 const { landTyping, pageSelection, selectionAnchor, snapSelection } =
   createSelectionCapture({
@@ -1447,19 +1405,22 @@ const { landTyping, pageSelection, selectionAnchor, snapSelection } =
 
 const {
   BANNER_CLEAR,
+  activateVisual,
   beside,
+  dismissFab,
   fabAnchorAt,
   openOnItem,
   openOnVisual,
   placeClear,
-  raiseOnItem,
   placeComposer,
+  raiseOnItem,
+  refreshFab,
   showFab,
   standDown,
   updateFab,
-  visualAt,
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
+  anchorLabel: (...args) => anchorLabel(...args),
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
@@ -1471,6 +1432,8 @@ const {
   hideComposer: () => hideComposer(),
   hideReference: () => reference.show(false, false),
   inChrome: (node) => inChrome(node),
+  keylineEl,
+  leavePageControl: () => letGo(),
   markAt,
   noteClass: () => NOTE,
   openComposer,
@@ -1478,25 +1441,30 @@ const {
   pageRange: (...args) => pageRange(...args),
   pageScroller,
   pageSelection,
+  pageText: (...args) => pageText(...args),
   pageWords: (...args) => pageWords(...args),
+  paintAnchors,
   paintHere,
-  paintStanding: (...args) => conversationRuntime.paintStanding(...args),
+  paintStanding: paintReactionStanding,
   panel,
   panelCovers,
-  pendingMarks: () => anchorRuntime.pendingMarks,
-  pointerAt: () => pointer,
+  pendingMarkParts,
+  pointerAt,
   reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
+  resolveAnchor: (...args) => resolveAnchor(...args),
   selectionAnchor,
   setReact: (on) => setReact(on),
   showThread,
   showVersionMenu,
   snapSelection,
-  tagsDeclaring,
+  shownParts,
+  shownRect: (...args) => shownRect(...args),
   takesLetters: (node) => takesLetters(node),
   versionMenuIsOpen,
-  visualPartAt: (...args) => visualPartAt(...args),
+  visualActionAnchor: (...args) => visualActionAnchor(...args),
+  visualAt: (...args) => visualAt(...args),
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
@@ -1506,7 +1474,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   itemAt,
   openOnDesign,
   openOnVisual,
-  pointerAt: () => pointer,
+  pointerAt,
   raiseOnItem,
   refreshAim,
   spell,
@@ -1659,7 +1627,7 @@ mirrorDraft(generalInput, syncGeneral, "general");
 
 let approving = false;
 function paintApproval() {
-  const approved = runtime.events.some(
+  const approved = (runtime.browser?.conversation?.done ?? []).some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&
@@ -1724,7 +1692,7 @@ const hasThreads = () => openThreads().length > 0;
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
 // each has a primary Enter action and x changes the same resolution state in either direction.
 const focusedThread = () => {
-  const active = document.activeElement;
+  const active = documentFocused();
   return active?.classList?.contains("lf-thread") ? active : null;
 };
 // The item the reader is standing in, which is what a press means when they have pointed
@@ -1755,12 +1723,12 @@ const focusedThread = () => {
 // from one means the page whole. A box that takes letters never arrives here at all: the
 // typing scope claims the letter before the page is asked.
 //
-// `document.activeElement` rather than `focused()`, for the reason askPosition gives: a
-// control staged in a shadow tree retargets to its host, and the host is the place in the
-// document both the chrome guard and the item walk want. standingConversation below wants
-// the other reading, and says so.
+// `documentFocused()` rather than `focused()`, for the reason askPosition gives: a control
+// staged in a shadow tree retargets to its host, and the host is the place in the document
+// both the chrome guard and the item walk want. standingConversation below wants the inner
+// reading, and says so.
 const standingItem = () => {
-  const held = document.activeElement;
+  const held = documentFocused();
   if (!held || held === document.body || inChrome(held)) return null;
   const working = held.matches?.(ASK_CONTROL) ? standingIn() : null;
   return working ?? itemAt(askPlace(held));
@@ -1931,8 +1899,14 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // Their next Space is then that button rather than the page's scroll. CLAUDE.md's "The
 // reader has to be standing somewhere" holds the rest.
 function rung() {
-  const active = document.activeElement;
+  const active = documentFocused();
   const holding = Boolean(active) && active !== document.body;
+  if (fabAnchorAt())
+    return {
+      says: "close actions",
+      does: "Close the reaction and comment actions",
+      out: dismissFab,
+    };
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
@@ -2037,27 +2011,16 @@ function allButTheReference(binding) {
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
 
-const { askEntry, isAwaiting, projectedParent, threadMarkupAwaiting, unansweredAsks } =
-  createAskModel({
-    authoredParentOf: (node) => authoredParents.get(node),
-    awaitsAgent,
-    buildThreads,
-    closestAcross: (...args) => closestAcross(...args),
-    elementById: (...args) => elementById(...args),
-    inChrome: (node) => inChrome(node),
-    matchesProjectedWhen: (...args) => matchesProjectedWhen(...args),
-    matchesWhen,
-    pagePresented,
-    projectedFacet: (...args) => projectedFacet(...args),
-    quoted,
-    registry,
-    runtime,
-    seatRoot,
-    settledAway: (...args) => settledAway(...args),
-    stateCoordinate: (...args) => stateCoordinate(...args),
-    stateProjection: (...args) => stateProjection(...args),
-    tagsDeclaring,
-  });
+const { askEntry, isAwaiting, projectedParent, unansweredAsks } = createAskModel({
+  authoredParentOf: (node) => authoredParents.get(node),
+  closestAcross: (...args) => closestAcross(...args),
+  elementById: (...args) => elementById(...args),
+  pagePresented,
+  registry,
+  runtime,
+  stateProjection: (...args) => stateProjection(...args),
+  tagsDeclaring,
+});
 
 const {
   ASK_CONTROL,
@@ -2077,6 +2040,7 @@ const {
 } = createAskView({
   PAGE_PAINT_ATTRIBUTE,
   scrollBehavior,
+  documentFocused,
   announce,
   askEntry,
   askSource,
@@ -2189,7 +2153,6 @@ const {
   EVERYTHING,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
-  beside,
   claimsEsc,
   commentsReveal: () => COMMENTS.reveal(),
   currentRevision: () => runtime.currentRevision,
@@ -2209,8 +2172,6 @@ const {
   reactionVocabulary: () => registry.$reactions?.tokens,
   saying,
   showFab,
-  shownBox,
-  shownRect: (...args) => shownRect(...args),
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
@@ -2301,12 +2262,12 @@ const COMPOSER = {
 // the scope rather than below it, because a row naming a predicate directly reads the
 // binding as the table is built — the deferring wrapper the branch here used to need was
 // the only thing hiding that.
-const inTheBox = () => panel.contains(document.activeElement);
+const inTheBox = () => panel.contains(documentFocused());
 // The panel thread the reader is in, asked by class because that is the anchors module's
 // question: which logged thread's passage to paint. It is not the box's way out, which
 // climbs further and answers for a seat on the page too — the two readings stayed apart
 // rather than one standing in for the other.
-const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
+const focusedThreadOf = () => documentFocused()?.closest?.(".lf-thread");
 // Where a box hands the reader back to, which is the rung `c` came down. It asked
 // `.lf-thread` and the panel alone, so the two boxes outside the chrome — a conversation
 // seated on the page, and each thread on that seat — had no way out but the page's own
@@ -3052,6 +3013,7 @@ const { availableCommands, executeCommand, readerIn, shadow, stack } = createDis
   keepShown,
   paintHere,
   panel,
+  recoveredLabelFocus,
   SCOPES,
   scopesFor,
   setChord,
@@ -3137,12 +3099,12 @@ const {
   chooserLabel: () => labelOf(CHOOSER),
   domFacet: (...args) => domFacet(...args),
   elementById: (...args) => elementById(...args),
-  foldedFacet: (...args) => foldedFacet(...args),
   inChrome: (...args) => inChrome(...args),
   quoted,
+  projectionFromView: (...args) => projectionFromView(...args),
+  sameLayer,
   showToast,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  stateProjection: (...args) => stateProjection(...args),
   stateSpecs: (...args) => stateSpecs(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
@@ -3214,13 +3176,16 @@ const unaccountedGesture = () =>
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
 // edit.
-const midComposition = () =>
-  composerOpen ||
-  Boolean(fabAnchorAt()) ||
-  unaccountedGesture() ||
-  (document.activeElement?.tagName === "TEXTAREA" &&
-    (document.activeElement.value !== "" ||
-      document.activeElement.hasAttribute("data-lf-offer")));
+const midComposition = () => {
+  const active = focused();
+  return (
+    composerOpen ||
+    Boolean(fabAnchorAt()) ||
+    unaccountedGesture() ||
+    (active?.tagName === "TEXTAREA" &&
+      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+  );
+};
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
 // live root that is an explicit in-place release of the composition hold; on an immutable
 // page it is ordinary version travel.
@@ -3251,6 +3216,7 @@ latestChip.onclick = () => goActive();
 // (restatement_errors), not something inferred here from silence.
 let conversationRuntime;
 let anchorRuntime;
+let viewRuntime;
 
 function buildThreads(...args) {
   return conversationRuntime.buildThreads(...args);
@@ -3296,13 +3262,13 @@ function showThread(...args) {
 }
 
 function blocksOnScreen(...args) {
-  return anchorRuntime.blocksOnScreen(...args);
+  return viewRuntime.blocksOnScreen(...args);
 }
 function captureView(...args) {
-  return anchorRuntime.captureView(...args);
+  return viewRuntime.captureView(...args);
 }
 function restoreView(...args) {
-  return anchorRuntime.restoreView(...args);
+  return viewRuntime.restoreView(...args);
 }
 function sectionOf(...args) {
   return anchorRuntime.sectionOf(...args);
@@ -3321,6 +3287,12 @@ function visualPartAt(...args) {
 }
 function visualPartLabel(...args) {
   return anchorRuntime.visualPartLabel(...args);
+}
+function visualAt(...args) {
+  return anchorRuntime.visualAt(...args);
+}
+function visualActionAnchor(...args) {
+  return anchorRuntime.visualActionAnchor(...args);
 }
 function resolveAnchor(...args) {
   return anchorRuntime.resolveAnchor(...args);
@@ -3351,6 +3323,15 @@ function refreshHover(...args) {
 }
 function pageShifted(...args) {
   return anchorRuntime.pageShifted(...args);
+}
+function isMarked(...args) {
+  return anchorRuntime.isMarked(...args);
+}
+function placedAt(...args) {
+  return anchorRuntime.placedAt(...args);
+}
+function pendingMarkParts(...args) {
+  return anchorRuntime.pendingMarkParts(...args);
 }
 
 const passageRuntime = createPassages({
@@ -3384,7 +3365,6 @@ const {
   COLLAPSE,
   quoteFrom,
   cut,
-  textUnits,
   rangeOf,
   holds,
   neighbourhood,
@@ -3422,9 +3402,6 @@ const runtimeProjection = createProjection(runtime, {
   projectedParent,
   quoteFrom,
   reachScrollers,
-  // Whether a reaction still paints, off the conversation's last fold — built after this
-  // module, so asked lazily.
-  reactionStanding: (e) => conversationRuntime.reactionStanding(e),
   rememberPassageParts,
   removeOutbox,
   renderQuiet,
@@ -3448,11 +3425,11 @@ const {
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  foldedFacet,
   markSettled,
   matchesProjectedWhen,
   paintPending,
   projectedFacet,
+  projectionFromView,
   projectionCommitted,
   rebuild,
   reconcileKnownState,
@@ -3461,13 +3438,10 @@ const {
   rememberAuthoredMarkup,
   resetAuthoredPage,
   requirementMatches,
-  retractedIds,
-  retractionFloors,
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
   stateSpecs,
-  takenBack,
   undoable,
   unitOf,
   withdraw,
@@ -3496,7 +3470,6 @@ conversationRuntime = createConversation({
   COMMENTS,
   FOLD_MS,
   MARKED_ANYWHERE,
-  scrollBehavior,
   addressLabel,
   addressed,
   agentName,
@@ -3514,7 +3487,7 @@ conversationRuntime = createConversation({
   generalRow,
   highlightBlocks,
   inChrome,
-  isMarked: (id) => marked.has(id),
+  isMarked,
   itemSays,
   itemWord,
   keys,
@@ -3535,7 +3508,7 @@ conversationRuntime = createConversation({
   panelIsOpen: () => panelOpen,
   panelCovers,
   panelTitle,
-  placedAt: (id) => placed.get(id),
+  placedAt,
   post,
   PRESS,
   quietSince,
@@ -3550,8 +3523,6 @@ conversationRuntime = createConversation({
   renderQuiet,
   renderSaid,
   reportPageError,
-  retractedIds,
-  retractionFloors,
   runtime,
   saveDraft,
   scrollToElement,
@@ -3560,10 +3531,8 @@ conversationRuntime = createConversation({
   sendDraft,
   setPanel,
   settling,
-  takenBack,
   tellDraft,
   threadsBox,
-  threadMarkupAwaiting,
   toggleBtn,
   updateSequence,
   visualPartLabel,
@@ -3574,23 +3543,21 @@ conversationRuntime = createConversation({
 updateRuntime = createUpdates(runtime, {
   closestAcross,
   coordinateProjectionCommitted,
-  inChrome,
   projectionCommitted,
   stateProjection,
-  threadList: () => conversationRuntime.threadList,
 });
 
 anchorRuntime = createAnchors({
   DATUM,
   scrollBehavior,
-  TEXT_BLOCK,
+  actionAnchor: fabAnchorAt,
+  activateVisual,
   aimBox,
   aimIsOn,
   aimedItem,
   anchorLabel,
   anchorsReady: () => anchoringReady,
   bareReaction: (t) => conversationRuntime.bareReaction(t),
-  banner,
   blockAt,
   buildThreads,
   closestAcross,
@@ -3612,7 +3579,6 @@ anchorRuntime = createAnchors({
   inChrome,
   inUi,
   inspectEl,
-  landedAt,
   offer,
   pageQueryAll,
   pageScroller,
@@ -3620,14 +3586,14 @@ anchorRuntime = createAnchors({
   pageWords,
   paintThreadQuotes,
   panel,
+  pointerAt,
   quoteFrom,
   queueLegend,
   rangeOf,
+  refreshAction: refreshFab,
   registry,
   reveal,
-  runtime,
   scrollerFor,
-  setLanded,
   setPanel,
   settledAway,
   tagsDeclaring,
@@ -3635,8 +3601,26 @@ anchorRuntime = createAnchors({
   threadsBox,
   under,
   withdraw,
+  worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE, marked, placed, pointer } = anchorRuntime;
+const { ITEM, NOTE } = anchorRuntime;
+
+viewRuntime = createViewContinuity({
+  TEXT_BLOCK,
+  banner,
+  cut,
+  inChrome,
+  landedAt,
+  pageScroller,
+  pageText,
+  quoteFrom,
+  rangeOf,
+  resolveAnchor,
+  reveal,
+  runtime,
+  setLanded,
+  textNodesUnder,
+});
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });
@@ -3776,47 +3760,12 @@ createArrangements({
 // taken back off them. Main is withheld from paint, but body is the visible scroll box and
 // can name itself to Chrome now.
 letGo();
-// Where an arrival lands — version switch, reload, back, a URL naming an element (the
-// panel and a remembered tray's strip are restored just above, so the column is already
-// reflowed; the tray's pixels wait for replay). The browser answers
-// this twice, and both answers are taken before the page is done becoming itself:
-// upgrades change its height afterwards (tabs collapse, diagrams render, diff files
-// fold), so a restored offset points into a document that no longer exists and a
-// fragment jump lands at an element a tab has since closed over. Hence manual
-// restoration, and hence the fragment travelling the same road — that was the half of
-// this takeover left to the platform, which cannot see the page the upgrade makes.
-//
-// The ranking is the browser's own, restated once the geometry has settled. A fresh
-// navigation is someone arriving at a named place, so the fragment outranks the saved
-// position: that position is wherever this tab last left this page, and a URL naming an
-// element is not a request to resume it. A reload or a back is someone returning, where
-// the fragment is left over from a reference followed earlier and their own position is
-// the answer. An id this version hasn't got falls through to that position, the same way
-// a reference naming one paints detached rather than dead-ending.
-history.scrollRestoration = "manual";
-const ARRIVING = performance.getEntriesByType("navigation")[0]?.type === "navigate";
-// Parsed inside its own guard, which is a different question from whether the store
-// answered: tabStore hands back null for a store that refused, and what a page wrote
-// there is only JSON while every version of this runtime agrees about the shape. A
-// landmark that no longer parses costs the reader their scroll position; throwing here
-// would cost them the page, at module top level, with nothing else having run.
-const savedView = (() => {
-  try {
-    return JSON.parse(tabStore.get(VIEW_KEY) || "null");
-  } catch {
-    return null;
-  }
-})();
-addEventListener("pagehide", () => {
-  if (!anchoringReady) return;
-  tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
+const { landArrival, savedView } = viewRuntime.installArrival({
+  fragmentId,
+  ready: () => anchoringReady,
+  scrollToElement,
+  tabStore,
 });
-function landArrival() {
-  const aimed =
-    ARRIVING && resolveAnchor({ section: fragmentId(location.hash) })?.element;
-  if (aimed) scrollToElement(aimed, "instant");
-  else if (savedView) restoreView(savedView);
-}
 const savedComposer = pendingComposer();
 
 // ---------- start ----------

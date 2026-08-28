@@ -42,12 +42,15 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
+from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import registry as registry_model
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
@@ -55,7 +58,6 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread_context as thread_context_model
-from leaf import validation as validation_model
 from leaf import vendoring as vendoring_model
 
 
@@ -714,7 +716,7 @@ def test_a_page_decision_that_settles_a_thread_carries_its_conversation(
     # The action door accepts this event, so the shape is the product's own.
     events = events_model.read_events(page_dir)
     assert (
-        validation_model.action_contract_error(
+        event_contracts_model.action_contract_error(
             page_dir, events[-1], events, registry_model.require_registry(page_dir)
         )
         is None
@@ -1021,15 +1023,15 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         text=True,
         env=os.environ,
     )
-    lease_path = service_model.waiter_lease_path(page_dir, host_model.host_identity())
+    lease_path = leases_model.waiter_lease_path(page_dir, host_model.host_identity())
     deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not service_model.lock_is_held(lease_path):
+    while time.monotonic() < deadline and not leases_model.lock_is_held(lease_path):
         if acknowledging.poll() is not None:
             break
         time.sleep(0.05)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert service_model.lock_is_held(lease_path), (
+    assert leases_model.lock_is_held(lease_path), (
         "acknowledgement returned without holding the next wait"
     )
     status_before_delivery = (page_dir / "status.json").read_bytes()
@@ -1051,8 +1053,8 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
     identity = host_model.host_identity()
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(page_dir, identity)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, identity)
     )
     assert lease
     with lease:
@@ -1117,9 +1119,9 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
     identity = host_model.host_identity()
-    lease_path = service_model.waiter_lease_path(page_dir, identity)
+    lease_path = leases_model.waiter_lease_path(page_dir, identity)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert service_model.lock_is_held(lease_path)
+    assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
@@ -1172,9 +1174,9 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
     identity = host_model.host_identity()
-    lease_path = service_model.waiter_lease_path(page_dir, identity)
+    lease_path = leases_model.waiter_lease_path(page_dir, identity)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert service_model.lock_is_held(lease_path)
+    assert leases_model.lock_is_held(lease_path)
     assert acknowledging.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
@@ -1280,7 +1282,7 @@ def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
     assert readings[0].lost is True
     assert readings[0].restarted is None
     assert files_model.read_json(page_dir / "service.json")["enabled"] is False
-    assert not service_model.lock_is_held(page_dir / "server.lock")
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
 def test_wait_restarts_a_server_that_died_under_it(
@@ -1639,11 +1641,11 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         text=True,
     )
     deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not service_model.lock_is_held(
+    while time.monotonic() < deadline and not leases_model.lock_is_held(
         page_dir / "waiter.lock"
     ):
         time.sleep(0.05)
-    assert service_model.lock_is_held(page_dir / "waiter.lock")
+    assert leases_model.lock_is_held(page_dir / "waiter.lock")
 
     host_env = os.environ | {
         "CLAUDE_CODE_SESSION_ID": "host-owner",
@@ -1662,8 +1664,8 @@ def test_a_host_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spawn)
         if (
             claim
             and claim["id"] == "host-owner"
-            and service_model.lock_is_held(
-                service_model.waiter_lease_path(page_dir, claim)
+            and leases_model.lock_is_held(
+                leases_model.waiter_lease_path(page_dir, claim)
             )
         ):
             break
@@ -1766,11 +1768,11 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     monkeypatch.chdir(work)
     assert service_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir)["cwd"] == str(work)
-    assert served_state_model.presence(page_dir, [])["session_cwd"] == str(work)
+    assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
     with service_model.PageTransaction(page_dir) as page:
         page.release_claim()
-    assert served_state_model.presence(page_dir, [])["session_cwd"] == str(work)
-    assert served_state_model.presence(page_dir, [])["session_alive"] is False
+    assert presence_model.presence(page_dir, [])["session_cwd"] == str(work)
+    assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
 def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
@@ -1899,8 +1901,8 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     page = codex_claimed_page
     session_model.cmd_status(page, "waiting", "")
     session = service_model.page_claim(page)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(page, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page, session)
     )
     assert lease
 
@@ -1933,8 +1935,8 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
 
     # Pending output still has to cross context and be acknowledged before handling.
     events_model.append_event(page, {"kind": "comment", "author": "user", "text": "hi"})
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(page, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page, session)
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
@@ -2144,7 +2146,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     lease_path = (
         page_dir / "waiter.lock"
         if identity_names
-        else service_model.waiter_lease_path(page_dir, host_model.host_identity())
+        else leases_model.waiter_lease_path(page_dir, host_model.host_identity())
     )
     first = spawn(
         [launcher, "wait", str(page_dir)],
@@ -2154,9 +2156,9 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
         env=os.environ,
     )
     deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not service_model.lock_is_held(lease_path):
+    while time.monotonic() < deadline and not leases_model.lock_is_held(lease_path):
         time.sleep(0.05)
-    assert service_model.lock_is_held(lease_path)
+    assert leases_model.lock_is_held(lease_path)
 
     second = subprocess.run(
         [launcher, "wait", str(page_dir)],
@@ -2171,7 +2173,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
 
     first.terminate()
     first.communicate(timeout=10)
-    assert not service_model.lock_is_held(lease_path)
+    assert not leases_model.lock_is_held(lease_path)
 
 
 def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
@@ -2181,8 +2183,8 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
     first = host_model.host_identity()
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(page_dir, first)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, first)
     )
     assert lease and page_state(page_dir)["listening"]
 
@@ -2200,7 +2202,7 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
 ):
     """A page-local lease proves only an unclaimed bare-shell watch."""
     session_model.cmd_status(page_dir, "waiting", "")
-    bare = service_model.take_waiter_lease(page_dir / "waiter.lock")
+    bare = leases_model.take_waiter_lease(page_dir / "waiter.lock")
     assert bare
     try:
         assert page_state(page_dir)["listening"]
@@ -2208,10 +2210,10 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
         assert service_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
-        assert not service_model.lock_is_held(
-            service_model.waiter_lease_path(page_dir, claim)
+        assert not leases_model.lock_is_held(
+            leases_model.waiter_lease_path(page_dir, claim)
         )
-        assert service_model.lock_is_held(page_dir / "waiter.lock")
+        assert leases_model.lock_is_held(page_dir / "waiter.lock")
         assert not page_state(page_dir)["listening"]
 
         hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "host-owner"})
@@ -2240,19 +2242,19 @@ def test_the_stop_hook_records_the_ending_of_the_turn_behind_a_claim(claimed, ca
     session_model.cmd_status(claimed, "working", "reading the reconnect traces")
     assert service_model.page_claim(claimed)["turn_closed"] is None
     events = events_model.read_events(claimed)
-    assert served_state_model.presence(claimed, events)["turn_closed"] is None
+    assert presence_model.presence(claimed, events)["turn_closed"] is None
 
     # A live watcher: the guard has nothing to say, and the ending is recorded anyway.
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
     closed = service_model.page_claim(claimed)["turn_closed"]
     assert closed
-    assert served_state_model.presence(claimed, events)["turn_closed"] == closed
+    assert presence_model.presence(claimed, events)["turn_closed"] == closed
     # And what the agent said it was doing is untouched by the observation of it.
     assert (
         files_model.read_json(claimed / "status.json")["detail"]
@@ -2313,8 +2315,8 @@ def test_stop_hook_blocks_a_turn_that_leaves_a_page_unwatched(claimed, capsys):
 
     # A live watcher, and a closed page, each end the turn cleanly.
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
@@ -2386,8 +2388,8 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
     session_model.cmd_status(claimed, "waiting", "")
     # Watched, so the guard's other clause is clear and what fires below can only
     # be this one.
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, service_model.page_claim(claimed))
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, service_model.page_claim(claimed))
     )
     assert lease
     asked = events_model.append_event(
@@ -2445,8 +2447,8 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # Watched, which is the whole of what clears the guard's other case and
     # clears nothing here.
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     asked = events_model.append_event(
@@ -2549,8 +2551,8 @@ def test_a_clarification_thread_carries_a_version_response_while_the_reader_owns
     publish(claimed)
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     older_question = events_model.append_event(
@@ -2633,8 +2635,8 @@ def test_the_guard_survives_a_page_vendored_before_the_layer_moved(claimed, caps
 
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     asked = events_model.append_event(
@@ -2663,8 +2665,8 @@ def test_prompt_hook_surfaces_comments_claude_never_picked_up(claimed, capsys):
     # Not while a watcher is live: it prints them itself, and sending Claude to start a
     # second `leaf wait` would print every unacknowledged event twice.
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     hooks_model.cmd_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
@@ -2993,7 +2995,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
     assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
-    assert served_state_model.presence(page_dir, [])["session_alive"] is True
+    assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
     deadline = time.time() + 5
@@ -3001,7 +3003,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
         assert time.time() < deadline, "the deleted job's server stayed up"
         time.sleep(0.05)
     assert service_model.owned_pages("bg-job") == []
-    assert served_state_model.presence(page_dir, [])["session_alive"] is False
+    assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
 def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
@@ -3037,7 +3039,7 @@ def test_a_server_exits_when_its_session_is_hard_killed(
     server.wait(timeout=5)
     assert server.returncode == 0, server.stderr.read()
     assert files_model.read_json(page_dir / "service.json")["enabled"] is True
-    assert not service_model.lock_is_held(page_dir / "server.lock")
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
 def test_a_live_session_can_take_over_an_existing_server(
@@ -3275,7 +3277,7 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     assert not stopping.is_alive(), "server stop did not cross the release barrier"
     assert errors == []
     assert outcomes == ["stopped server"]
-    assert not service_model.lock_is_held(page_dir / "server.lock")
+    assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
 def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_server):
@@ -3442,8 +3444,8 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
     to the agent — a reaction is not the reader speaking. The reader's words are."""
     session_model.cmd_status(claimed, "waiting", "")
     session = service_model.page_claim(claimed)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(claimed, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, session)
     )
     assert lease
     events_model.append_event(

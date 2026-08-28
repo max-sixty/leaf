@@ -27,6 +27,8 @@ from leaf import files as interact_files
 from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import layer as layer_model
+from leaf import locations as interact_locations
+from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
 
@@ -552,13 +554,13 @@ def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
     nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
     nested.parent.mkdir(parents=True)
     nested.write_text("nested")
-    location = vendoring_model._path_location
+    location = vendoring_model.path_location
 
     def case_insensitive(path):
         found = location(path)
         return found._replace(tail=tuple(part.casefold() for part in found.tail))
 
-    monkeypatch.setattr(vendoring_model, "_path_location", case_insensitive)
+    monkeypatch.setattr(vendoring_model, "path_location", case_insensitive)
 
     result = runner.invoke(
         cli_model.cli,
@@ -815,21 +817,24 @@ def test_path_case_policy_matches_the_filesystem(tmp_path):
     probe.mkdir()
     alias_resolves = (tmp_path / "cASEpROBE").exists()
 
-    assert interact_files._filesystem_case_sensitive(tmp_path) is not alias_resolves
+    assert interact_locations._filesystem_case_sensitive(tmp_path) is not alias_resolves
 
 
 def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch):
     upper = tmp_path / "FutureScope"
     lower = tmp_path / "fUTUREsCOPE"
-    monkeypatch.setattr(interact_files, "_filesystem_case_sensitive", lambda path: True)
-    assert not interact_files.locations_overlap(
-        interact_files._path_location(upper), interact_files._path_location(lower)
+    monkeypatch.setattr(
+        interact_locations, "_filesystem_case_sensitive", lambda path: True
+    )
+    assert not interact_locations.locations_overlap(
+        interact_locations.path_location(upper),
+        interact_locations.path_location(lower),
     )
 
     monkeypatch.setattr(
-        interact_files, "_filesystem_case_sensitive", lambda path: False
+        interact_locations, "_filesystem_case_sensitive", lambda path: False
     )
-    assert interact_files.paths_same(upper, lower)
+    assert interact_locations.paths_same(upper, lower)
 
 
 @pytest.mark.parametrize(
@@ -849,8 +854,8 @@ def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert layer_model.initialized_page_owning(page / name) == page
-    assert layer_model.initialized_page_owning(page / ".leaf" / name) is None
+    assert packages_model.initialized_page_owning(page / name) == page
+    assert packages_model.initialized_page_owning(page / ".leaf" / name) is None
 
 
 @pytest.mark.parametrize(
@@ -864,12 +869,12 @@ def test_initialized_page_owns_declared_directory_trees(
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert layer_model.initialized_page_owning(page / directory / "future") == page
+    assert packages_model.initialized_page_owning(page / directory / "future") == page
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        interact_files, "_filesystem_case_sensitive", lambda path: False
+        interact_locations, "_filesystem_case_sensitive", lambda path: False
     )
     first = tmp_path / "Result.css"
     second = tmp_path / "rESULT.CSS"

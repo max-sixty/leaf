@@ -94,6 +94,7 @@ from render_support import (
     flip_point,
     geometry,
     held_stale,
+    key_line,
     leaf_page,
     live_url,
     live_watcher,
@@ -2861,13 +2862,45 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.mouse.click(*at)
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     assert shown_frames(page) == ["after"]
-    page.mouse.click(*at)
+    box = page.locator("lf-shot input[type=checkbox]")
+    expect(box).to_be_focused()
+    assert "show before" in key_line(page)
+    # The overlay is a label. It used to blur its checkbox on mousedown, leaving a human
+    # press long enough for the line to paint the page's bindings before mouseup restored
+    # the screenshot bindings. Hold it across two frames: its focus and line must not move.
+    page.mouse.down()
+    expect(box).to_be_focused()
+    assert "show before" in key_line(page)
+    page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert shown_frames(page) == ["before"]
-    # The keyboard's handle, which the label over the image cannot be.
-    page.locator("lf-shot input[type=checkbox]").focus()
-    page.keyboard.press(" ")
+    # The visible instruction is a second label for the same switch. A repeated press
+    # on its words has the same focus bargain as one on the image.
+    text_label = page.locator("lf-shot .lf-shotpick label")
+    label_bounds = text_label.bounding_box()
+    assert label_bounds is not None
+    text_at = (
+        label_bounds["x"] + label_bounds["width"] - 2,
+        label_bounds["y"] + label_bounds["height"] / 2,
+    )
+    assert text_label.evaluate(
+        """(label, point) => {
+          const hit = document.elementFromPoint(...point);
+          return hit?.closest('label') === label && hit !== label.control;
+        }""",
+        text_at,
+    )
+    page.mouse.move(*text_at)
+    page.mouse.down()
+    expect(box).to_be_focused()
+    assert "show after" in key_line(page)
+    page.mouse.up()
     expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+    assert shown_frames(page) == ["after"]
+    # The keyboard's handle, which the label over the image cannot be.
+    box.focus()
+    page.keyboard.press(" ")
+    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert errors == []
     page.close()
 

@@ -363,6 +363,70 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:
                 pass  # the peer left mid-answer; nobody to tell
 
+    def _serve_root(self) -> None:
+        if self.preview_source is not None:
+            events = read_events(self.page_dir)
+            revision = self.preview_source["active"]["revision"]
+            source = self.preview_source["data"].decode("utf-8")
+            version = None
+        else:
+            with PageTransaction(self.page_dir) as page:
+                activate_source(self.page_dir, page.events)
+                events = page.events
+            try:
+                revision = latest_revision(self.page_dir)
+            except SystemExit:
+                self._json({"error": "no active revision; write index.html first"}, 404)
+                return
+            source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
+            version = stamped_version(events, revision)
+        try:
+            projected = runtime_document(source, revision, version)
+        except ValueError as error:
+            self._json({"error": str(error)}, 500)
+            return
+        self._send(200, "text/html; charset=utf-8", projected)
+
+    def _serve_page_path(self, path: str) -> bool:
+        if path.startswith("/versions/"):
+            version = version_num(Path(path).name)
+            events = read_events(self.page_dir)
+            mapping = version_revisions(events)
+            if version not in self.versions_live(events) or version not in mapping:
+                self._json(
+                    {"error": "not stamped yet; run `leaf version stamp` first"},
+                    404,
+                )
+                return True
+            source = (self.page_dir / path.lstrip("/")).read_text(encoding="utf-8")
+            self._send(
+                200,
+                "text/html; charset=utf-8",
+                runtime_document(source, mapping[version], version),
+            )
+            return True
+        if path.startswith("/revisions/"):
+            name = Path(path).name
+            revision = revision_num(name)
+            if (
+                revision not in list_revisions(self.page_dir)
+                or revision_path(self.page_dir, revision).name != name
+            ):
+                self._json({"error": "unknown revision"}, 404)
+                return True
+        file = self.page_dir / path.lstrip("/")
+        # The allowlist rejects traversal spellings; containment is the second
+        # boundary for a page directory edited or symlinked after vendoring.
+        if file.is_file() and path_is_within(file, self.page_dir):
+            ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
+            # charset describes an encoding, so it rides on the types that
+            # have one. On a PNG it is noise.
+            if ctype not in BINARY_TYPES:
+                ctype += "; charset=utf-8"
+            self._send(200, ctype, file.read_bytes())
+            return True
+        return False
+
     def _get(self):
         path = urlsplit(self.path).path
         probe_sources = {
@@ -377,32 +441,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path == "/":
-            if self.preview_source is not None:
-                events = read_events(self.page_dir)
-                revision = self.preview_source["active"]["revision"]
-                source = self.preview_source["data"].decode("utf-8")
-                version = None
-            else:
-                with PageTransaction(self.page_dir) as page:
-                    activate_source(self.page_dir, page.events)
-                    events = page.events
-                try:
-                    revision = latest_revision(self.page_dir)
-                except SystemExit:
-                    self._json(
-                        {"error": "no active revision; write index.html first"}, 404
-                    )
-                    return
-                source = revision_path(self.page_dir, revision).read_text(
-                    encoding="utf-8"
-                )
-                version = stamped_version(events, revision)
-            try:
-                projected = runtime_document(source, revision, version)
-            except ValueError as error:
-                self._json({"error": str(error)}, 500)
-                return
-            self._send(200, "text/html; charset=utf-8", projected)
+            self._serve_root()
             return
         if path == "/api/news":
             self._news()
@@ -420,44 +459,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/favicon.ico":
             self._send(204, "image/x-icon", b"")
             return
-        if SERVED_PATH.fullmatch(path):
-            if path.startswith("/versions/"):
-                version = version_num(Path(path).name)
-                events = read_events(self.page_dir)
-                mapping = version_revisions(events)
-                if version not in self.versions_live(events) or version not in mapping:
-                    self._json(
-                        {"error": "not stamped yet; run `leaf version stamp` first"},
-                        404,
-                    )
-                    return
-                source = (self.page_dir / path.lstrip("/")).read_text(encoding="utf-8")
-                self._send(
-                    200,
-                    "text/html; charset=utf-8",
-                    runtime_document(source, mapping[version], version),
-                )
-                return
-            if path.startswith("/revisions/"):
-                name = Path(path).name
-                revision = revision_num(name)
-                if (
-                    revision not in list_revisions(self.page_dir)
-                    or revision_path(self.page_dir, revision).name != name
-                ):
-                    self._json({"error": "unknown revision"}, 404)
-                    return
-            file = self.page_dir / path.lstrip("/")
-            # The allowlist rejects traversal spellings; containment is the second
-            # boundary for a page directory edited or symlinked after vendoring.
-            if file.is_file() and path_is_within(file, self.page_dir):
-                ctype = CONTENT_TYPES.get(Path(path).suffix, "application/octet-stream")
-                # charset describes an encoding, so it rides on the types that
-                # have one. On a PNG it is noise.
-                if ctype not in BINARY_TYPES:
-                    ctype += "; charset=utf-8"
-                self._send(200, ctype, file.read_bytes())
-                return
+        if SERVED_PATH.fullmatch(path) and self._serve_page_path(path):
+            return
         self._json({"error": "not found"}, 404)
 
     def _post(self):

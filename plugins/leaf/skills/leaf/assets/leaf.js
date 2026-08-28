@@ -741,6 +741,7 @@ const {
   clearForcedActivation,
   goActive,
   renderVersions,
+  snapshotVersionNavigation,
   showVersionMenu,
   versionBtn,
   versionLabel,
@@ -3372,6 +3373,7 @@ designRuntime = createDesign({
   syncGeneral,
   tagsDeclaring,
   tabStore,
+  worksSelector: WORKS,
 });
 
 stateApplication = createStateApplication({
@@ -3410,6 +3412,7 @@ stateApplication = createStateApplication({
   showComparison,
   showNews,
   showToast,
+  snapshotVersionNavigation,
   settleAcceptedDrafts,
   stateSignoff,
   trackActivation,

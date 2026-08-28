@@ -311,6 +311,31 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     context.close()
 
 
+def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
+    """A nested control owns its click even when its platform contract is an ARIA role."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "gloss control",
+                '<h1>Term</h1><p><lf-gloss tip="An explanation.">'
+                'term <span role="button" tabindex="0">work it</span>'
+                "</lf-gloss></p>",
+            )
+        ),
+    )
+    control = page.get_by_role("button", name="work it", exact=True)
+    bubble = page.get_by_role("note")
+    control.hover()
+    expect(bubble).to_be_visible()
+    control.click()
+    page.mouse.move(0, 0)
+    page.locator("body").focus()
+    expect(bubble).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     """The tip is x-says page text, so a comment can rest on it like a tab's rendered
     label. Following that comment must reveal the otherwise hidden popover before the

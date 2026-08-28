@@ -579,6 +579,38 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.close()
 
 
+def test_design_mode_names_every_platform_control_from_the_shared_boundary(
+    browser, serve
+):
+    """Design mode names and captures controls from the runtime's full platform list.
+
+    A slider nested in an ordinary section has no widget tag or native element name to
+    put it on a smaller selector. Its ARIA role must still become the named design part.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "design controls",
+                '<h1>Controls</h1><section id="volume">'
+                '<span role="slider" tabindex="0" aria-label="Volume" '
+                'aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">50</span>'
+                "</section>",
+            )
+        ),
+    )
+    page.keyboard.press("i")
+    slider = page.get_by_role("slider", name="Volume")
+    slider.hover()
+    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    slider.click()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "layer · Volume · section · volume"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     """The banner, the panel, a control on either: what no comment could reach before.
 

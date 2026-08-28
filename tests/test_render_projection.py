@@ -13,9 +13,10 @@ from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_source_server
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_support import (
@@ -1339,9 +1340,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with render_gate_model.preview_source_server(
-        d, contradicted.encode(), 4
-    ) as preview_url:
+    with preview_source_server(d, contradicted.encode(), 4) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures

@@ -221,9 +221,7 @@ class EventEndpoint:
                     registry, rejection = registry_or_rejection()
                     if rejection:
                         return rejection
-                    page_by_id = parse_revision(
-                        self.page_dir, event["revision"]
-                    ).by_id
+                    page_by_id = parse_revision(self.page_dir, event["revision"]).by_id
                     for error in (
                         held_comment_error(event, page_by_id, registry),
                         version_response_comment_error(event, page_by_id, registry),
@@ -236,9 +234,7 @@ class EventEndpoint:
                 }:
                     return event_rejection(event, f"unknown parent {event['parent']!r}")
                 if kind == "undo" and (
-                    error := undo_error(
-                        event, events, active_enclosing(self.page_dir)
-                    )
+                    error := undo_error(event, events, active_enclosing(self.page_dir))
                 ):
                     return event_rejection(event, error)
                 event["author"] = "page" if kind == "error" else "user"

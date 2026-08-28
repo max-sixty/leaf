@@ -1,6 +1,5 @@
 """Declaration-driven page and thread ask projections."""
 
-from leaf.events import thread_roots, thread_structure
 from leaf.passages import page_passages, spoken
 from leaf.projection import (
     StateProjection,
@@ -11,6 +10,7 @@ from leaf.projection import (
     state_coordinate,
     state_projection,
 )
+from leaf.thread_context import thread_roots, thread_structure
 
 
 def asking(attrs: dict, when: dict) -> bool:

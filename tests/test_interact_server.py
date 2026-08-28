@@ -44,6 +44,7 @@ from leaf import schema as schema_model
 from leaf import served_state as served_state_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import thread_context as thread_context_model
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -2524,7 +2525,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
         "the tear took the reply with it, so nothing below is being read"
     )
-    assert event_model.thread_roots(events)["r-kept"] == "c-lost"
+    assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
     threads = event_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
         f"the two readings put the reply in different conversations: {list(threads)}"

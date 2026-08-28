@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .event_log import jsonl_line
-from .events import batch_threads
 from .files import _path_location, paths_same, read_json, write_json
 from .host import host_identity
 from .hosting import start_server
@@ -22,6 +21,7 @@ from .service import (
     unacknowledged,
     waiter_lease_path,
 )
+from .thread_context import batch_threads
 from .work import work_subject
 
 

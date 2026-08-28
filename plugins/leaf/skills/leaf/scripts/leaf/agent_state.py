@@ -11,7 +11,6 @@ from .events import (
     build_threads,
     is_reaction,
     seats_with_agent,
-    thread_digest,
 )
 from .files import (
     active_descriptor,
@@ -32,6 +31,7 @@ from .revisioning import activate_source
 from .served_state import presence
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .thread_context import thread_digest
 from .validation import thread_state
 
 

@@ -54,6 +54,7 @@ from leaf import served_state as served_state_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import thread_context as thread_context_model
 from leaf import validation as validation_model
 from leaf import vendoring as vendoring_model
 
@@ -882,7 +883,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
     # characters a longer sequence number spends.
     assert headers[-1] - headers[9] < 100, headers
     [thread] = json.loads(header)["threads"]
-    assert len(thread["messages"]) == events_model.SHOWN
+    assert len(thread["messages"]) == thread_context_model.SHOWN
     assert thread["elided"]["messages"] == 52
     # The opening message survives the bound: it holds what the thread is about.
     assert thread["messages"][0]["id"] == root["id"]

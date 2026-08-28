@@ -11,6 +11,7 @@ from leaf import render_checks as render_checks_model
 from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import validation as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -161,6 +162,47 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     assert failures
     assert all("did not load" in failure for failure in failures)
     assert all("within 100ms" in failure for failure in failures)
+
+
+def test_the_render_gate_waits_for_the_page_to_be_presented(browser, serve):
+    """Applied state is not yet a visible page when the first read was slow enough to
+    show the recovery sheet. The sheet's animation ends before its minimum dwell does,
+    so neither caught-up state nor an empty animation list says the page is available
+    to a visual reading. Hold each scheme's first read past the sheet's delay and plant
+    syntax the gate can report only after the runtime's presentation stamp releases it.
+    """
+    delayed = []
+
+    def delay_first_read(page):
+        first = True
+
+        def answer(route):
+            nonlocal first
+            if first:
+                first = False
+                delayed.append(route.request.url)
+                time.sleep(0.05)
+            route.continue_()
+
+        page.route("**/api/state*", answer)
+
+    waiting_page = UNANSWERED_CODE_PAGE.replace(
+        "</head>",
+        "<style>:root { --lf-presentation-delay: 0ms; "
+        "--lf-presentation-dwell: 800ms; }</style>\n</head>",
+    )
+    failures = render_gate_model.render_version(
+        primed(browser, delay_first_read), serve(waiting_page)
+    )
+
+    assert len(delayed) == 2, "both scheme reads must cross the presentation boundary"
+    for scheme in ("light", "dark"):
+        assert any(
+            failure.startswith(
+                f"[{scheme}] code marked cm is the ink of the code around it"
+            )
+            for failure in failures
+        ), (scheme, failures)
 
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
@@ -1698,6 +1740,29 @@ def test_a_traffic_wait_accounts_for_the_response_it_consumes():
             return "answer"
 
     _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the response")
+
+
+def test_a_traffic_wait_accepts_completion_delivered_with_its_timeout():
+    """The ordinary response listener can settle the trip as the waiter times out."""
+
+    class EdgeTraffic:
+        done = False
+
+        def settle(self):
+            pass
+
+        def __str__(self):
+            return f"done={self.done}"
+
+    class EdgePage:
+        lf_traffic = EdgeTraffic()
+
+        def wait_for_event(self, event, **_kwargs):
+            assert event == "response"
+            self.lf_traffic.done = True
+            raise PlaywrightTimeout("response met its deadline")
+
+    _until(EdgePage(), lambda traffic: traffic.done, "accounted for the response")
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

@@ -79,6 +79,8 @@ guards, deferred measurement, and control sizing;
 and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
 the declaration-derived names and layout queries the runtime supplies it;
+`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
+document room left after the panel and trays;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;

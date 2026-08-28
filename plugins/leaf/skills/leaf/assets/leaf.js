@@ -238,13 +238,7 @@ import {
 } from "./runtime/outbox.js";
 import { createDataProjection } from "./runtime/projection/data.js";
 import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
-import {
-  createAnchors,
-  itemWord,
-  shownBand,
-  shownBox,
-  shownParts,
-} from "./runtime/anchors.js";
+import { createAnchors, itemWord } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
 import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
@@ -257,6 +251,13 @@ import {
   standingConversation,
 } from "./runtime/conversation/landing.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
+import {
+  shownBand,
+  shownBox,
+  shownParts,
+  shownRect,
+  startsAt,
+} from "./runtime/geometry.js";
 import {
   alignText,
   createPassages,
@@ -3324,12 +3325,6 @@ function visualPartLabel(...args) {
 function resolveAnchor(...args) {
   return anchorRuntime.resolveAnchor(...args);
 }
-function shownRect(...args) {
-  return anchorRuntime.shownRect(...args);
-}
-function startsAt(...args) {
-  return anchorRuntime.startsAt(...args);
-}
 function refreshAim(...args) {
   return anchorRuntime.refreshAim(...args);
 }
@@ -3638,7 +3633,6 @@ anchorRuntime = createAnchors({
   tagsDeclaring,
   textNodesUnder,
   threadsBox,
-  uiInside,
   under,
   withdraw,
 });

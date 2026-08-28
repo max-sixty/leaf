@@ -1,7 +1,8 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; leaf.js composes those owners and owns boot only. */
 export { ARRANGEMENTS } from "./arrangements.js";
-export { itemWord, shownBand, shownBox, shownParts } from "./anchors.js";
+export { itemWord } from "./anchors.js";
+export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { answeredContext, askSource, openAsks } from "./asks/model.js";
 export { conversationBox } from "./conversation/box.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";

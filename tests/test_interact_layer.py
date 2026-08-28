@@ -28,6 +28,7 @@ from leaf import hooks as hooks_model
 from leaf import host as host_model
 from leaf import layer as layer_model
 from leaf import locations as interact_locations
+from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
 
@@ -853,8 +854,8 @@ def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert layer_model.initialized_page_owning(page / name) == page
-    assert layer_model.initialized_page_owning(page / ".leaf" / name) is None
+    assert packages_model.initialized_page_owning(page / name) == page
+    assert packages_model.initialized_page_owning(page / ".leaf" / name) is None
 
 
 @pytest.mark.parametrize(
@@ -868,7 +869,7 @@ def test_initialized_page_owns_declared_directory_trees(
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert layer_model.initialized_page_owning(page / directory / "future") == page
+    assert packages_model.initialized_page_owning(page / directory / "future") == page
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):

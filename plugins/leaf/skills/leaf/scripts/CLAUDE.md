@@ -26,7 +26,8 @@ The main owners are:
 - `served_state` and `http`: browser-facing state projection and HTTP transport;
 - `registry/`: registry storage plus shared, layer-wide, widget, and state
   vocabulary contracts;
-- `layer`: package discovery, composition, and commands;
+- `layer`: package discovery and layer composition;
+- `packages`: package authoring commands and filesystem safety gates;
 - `vendoring`: page initialization, layer transitions, and atomic installation;
 - `schema`, `structure`, `styles`, and `validation/`: authored-page gates;
 - `passages`: the file-side text reading and anchor capture;

@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from .data import read_data
-from .events import (
+from .event_log import (
     AttemptConflict,
     AttemptExecution,
     _attempt_payload,
@@ -20,8 +20,8 @@ from .events import (
     now_iso,
     read_cursor,
     read_events,
-    undo_error,
 )
+from .events import undo_error
 from .files import (
     STAGED,
     active_descriptor,

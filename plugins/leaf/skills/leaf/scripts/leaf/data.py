@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 from referencing.exceptions import Unresolvable
 
-from .events import now_iso, read_events
+from .event_log import now_iso, read_events
 from .files import list_revisions, revision_path, write_json
 from .registry import aware_instant, is_aware_datetime, json_validator, require_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME

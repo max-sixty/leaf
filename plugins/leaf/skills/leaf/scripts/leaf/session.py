@@ -5,7 +5,8 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .events import batch_threads, jsonl_line
+from .event_log import jsonl_line
+from .events import batch_threads
 from .files import _path_location, paths_same, read_json, write_json
 from .hosting import start_server
 from .passages import active_enclosing

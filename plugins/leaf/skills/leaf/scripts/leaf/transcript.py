@@ -3,13 +3,8 @@
 import sys
 from pathlib import Path
 
-from leaf.events import (
-    build_threads,
-    is_reaction,
-    jsonl_line,
-    read_events,
-    taken_back,
-)
+from leaf.event_log import jsonl_line, read_events
+from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label, revision_path
 from leaf.passages import enclosing_of
 from leaf.projection import page_projection, record_lag

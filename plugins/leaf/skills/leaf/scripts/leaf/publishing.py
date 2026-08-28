@@ -4,7 +4,8 @@ import json
 import sys
 from pathlib import Path
 
-from leaf.events import append_event, standing_work_claims, work_claim_revision
+from leaf.event_log import append_event
+from leaf.events import standing_work_claims, work_claim_revision
 from leaf.files import (
     replace_files,
     revision_path,

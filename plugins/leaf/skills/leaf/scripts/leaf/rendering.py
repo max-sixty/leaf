@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.data import read_data
-from leaf.events import flocked, now_iso, read_events
+from leaf.event_log import flocked, now_iso, read_events
 from leaf.files import published_versions, revision_label, version_name, version_num
 from leaf.hosting import LeafHTTPServer
 from leaf.http import handler_for

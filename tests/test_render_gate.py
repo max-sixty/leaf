@@ -46,6 +46,7 @@ from render_support import (
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
+    Traffic,
     _traffic,
     _until,
     arrange_return,
@@ -1682,8 +1683,8 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     )
 
 
-def test_a_traffic_wait_accounts_for_the_response_it_consumes():
-    """The waiter may resume before Traffic's ordinary response listener under load."""
+def test_a_traffic_wait_accounts_for_the_trip_it_consumes():
+    """The waiter may resume before Traffic's ordinary listeners under load."""
 
     class LateTraffic:
         done = False
@@ -1691,8 +1692,8 @@ def test_a_traffic_wait_accounts_for_the_response_it_consumes():
         def settle(self):
             pass
 
-        def settle_response(self, response):
-            assert response == "answer"
+        def settle_finished(self, request):
+            assert request == "trip"
             self.done = True
 
         def __str__(self):
@@ -1702,10 +1703,51 @@ def test_a_traffic_wait_accounts_for_the_response_it_consumes():
         lf_traffic = LateTraffic()
 
         def wait_for_event(self, event, **_kwargs):
-            assert event == "response"
-            return "answer"
+            assert event == "requestfinished"
+            return "trip"
 
-    _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the response")
+    _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the trip")
+
+
+def test_traffic_leaves_a_body_the_browser_has_not_finished_handing_over():
+    """`Response.json` waits on the finished fact with no deadline of its own, so a
+    body read before the browser has one is the single wait here that cannot run out —
+    the one that spent a whole CI run's bound and named no test. A response settles
+    when its trip finishes and waits in the queue until then."""
+
+    class Request:
+        url = "http://page/api/state"
+
+    class Unfinished:
+        ok = True
+        read = False
+        request = Request()
+
+        def json(self):
+            self.read = True
+            return {"events": []}
+
+    class Page:
+        """The page's own event surface, which is all Traffic asks of one."""
+
+        def __init__(self):
+            self.listeners = {}
+
+        def on(self, event, handler):
+            self.listeners[event] = handler
+
+    page = Page()
+    traffic = Traffic(page)
+    response = Unfinished()
+
+    page.listeners["response"](response)
+    traffic.settle()
+    assert not response.read, "a body was read before the browser had all of it"
+    assert traffic.heard == 1, "the headers stopped counting as a state answer"
+
+    page.listeners["requestfinished"](response.request)
+    traffic.settle()
+    assert response.read, "the finished body never settled, so the queue only grows"
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

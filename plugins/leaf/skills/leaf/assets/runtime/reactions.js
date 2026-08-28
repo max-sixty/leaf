@@ -3,7 +3,6 @@ export function createReactions({
   EVERYTHING,
   anchorLabel,
   announce,
-  beside,
   claimsEsc,
   commentsReveal,
   currentRevision,
@@ -23,8 +22,6 @@ export function createReactions({
   reactionVocabulary,
   saying,
   showFab,
-  shownBox,
-  shownRect,
   standingConversation,
   standingItem,
   undoable,
@@ -147,10 +144,7 @@ export function createReactions({
       if (strip) reactSurface = strip;
       else if (fabAnchorAt() || here) {
         if (here) {
-          showFab(
-            { section: here.id },
-            ...beside(shownRect(here, new Map()) ?? shownBox(here)),
-          );
+          showFab({ section: here.id });
           reactRaised = true;
         }
         reactSurface = fabBar;
@@ -188,6 +182,8 @@ export function createReactions({
     claims: EVERYTHING,
     rows: [
       {
+        id: "reaction.choose",
+        runFromReference: false,
         keys: () =>
           reactionTokens()
             .slice(0, 9)
@@ -210,6 +206,7 @@ export function createReactions({
         },
       },
       {
+        id: "reaction.cancel",
         keys: ["Escape"],
         does: "Put the reaction down",
         line: "cancel",

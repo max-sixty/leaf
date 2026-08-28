@@ -18,7 +18,7 @@
  * was made on, without the page's author having to copy it into the next one by
  * hand. When a version does mean to overrule one — the content the decision was
  * about got rewritten — `version check` makes the author say so (see restatement_errors in
- * leaf/validation.py); it is never inferred from the markup's silence. Widgets opt in via an
+ * the leaf.validation package); it is never inferred from the markup's silence. Widgets opt in via an
  * applyAction(action, detail) method stating an absolute value, so a reload keeps the
  * user's drag and a second tab follows along live.
  *
@@ -179,6 +179,8 @@ import {
 import { createSelectionSurface } from "./runtime/composing/surface.js";
 import { agentName, runtime } from "./runtime/context.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
+import { createDeferredModals } from "./runtime/deferred-modals.js";
+import { createLayerClient } from "./runtime/layer-client.js";
 import {
   CONTROL_WORD_CAP,
   DESIGN_KEY,
@@ -236,13 +238,7 @@ import {
 } from "./runtime/outbox.js";
 import { createDataProjection } from "./runtime/projection/data.js";
 import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
-import {
-  createAnchors,
-  itemWord,
-  shownBand,
-  shownBox,
-  shownParts,
-} from "./runtime/anchors.js";
+import { createAnchors, itemWord } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
@@ -254,6 +250,13 @@ import {
   standingConversation,
 } from "./runtime/conversation/landing.js";
 import { createConversation } from "./runtime/conversation/reconcile.js";
+import {
+  shownBand,
+  shownBox,
+  shownParts,
+  shownRect,
+  startsAt,
+} from "./runtime/geometry.js";
 import {
   alignText,
   createPassages,
@@ -271,6 +274,7 @@ import {
   observeServerNow,
   quietSince,
 } from "./runtime/presence.js";
+import { createPointer } from "./runtime/pointer.js";
 import { createReactions } from "./runtime/reactions.js";
 import { createStateApplication } from "./runtime/state-application.js";
 import { createStateFeed } from "./runtime/state-feed.js";
@@ -281,6 +285,7 @@ import {
 } from "./runtime/version-activation.js";
 import { createVersionDiff } from "./runtime/version-diff.js";
 import { createVersionNavigation } from "./runtime/version-navigation.js";
+import { createWidgetLoader } from "./runtime/widget-loader.js";
 import { failSoft, settle, settling } from "./runtime/widget-upgrade.js";
 import {
   createMeasurements,
@@ -290,6 +295,7 @@ import {
   reachedForWords,
   relabel,
   reserve,
+  WORKS,
   worksInside,
 } from "./runtime/widget-elements.js";
 import {
@@ -313,7 +319,6 @@ import {
 import {
   MARK_RULES,
   createShadowStage,
-  loadShadowRules,
   pageShadowRoots,
   shadowStage,
 } from "./runtime/shadow.js";
@@ -343,141 +348,15 @@ async function undoLast(...args) {
 // Capture the authored share before the runtime paints roots or appends head chrome.
 const versionRoots = captureVersionRoots();
 
-// A modal is promoted into the top layer and makes the rest of the document inert. Both
-// facts escape an ancestor paint gate: hiding it with CSS alone would still disable the
-// Comments chrome that deliberately remains usable while first replay waits. Custom
-// widgets load after this module, so turn authored-main showModal() calls into measurable,
-// non-modal dialogs until replay has produced the page. A widget can still close one
-// while waiting; only a connected, still-open dialog whose post-replay place is visible
-// is promoted, so replay retiring its authored branch cannot resurrect stale UI on top.
-const nativeDialogShow = HTMLDialogElement.prototype.show;
-const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
-const nativeDialogClose = HTMLDialogElement.prototype.close;
-const deferredModals = new Set();
-const inAuthoredMain = (node) => {
-  const main = document.querySelector("body > main");
-  for (let at = node; at;) {
-    if (at === main) return true;
-    if (at.parentElement) at = at.parentElement;
-    else {
-      const root = at.getRootNode();
-      at = root instanceof ShadowRoot ? root.host : null;
-    }
-  }
-  return false;
-};
-HTMLDialogElement.prototype.showModal = function () {
-  if (
-    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) &&
-    inAuthoredMain(this)
-  ) {
-    if (!this.open) nativeDialogShow.call(this);
-    deferredModals.add(this);
-    return;
-  }
-  return nativeDialogShowModal.call(this);
-};
-HTMLDialogElement.prototype.show = function () {
-  deferredModals.delete(this);
-  return nativeDialogShow.call(this);
-};
-HTMLDialogElement.prototype.close = function (returnValue) {
-  deferredModals.delete(this);
-  return nativeDialogClose.call(this, returnValue);
-};
-function promoteDeferredModals() {
-  for (const dialog of deferredModals) {
-    if (
-      !dialog.isConnected ||
-      !dialog.open ||
-      !inAuthoredMain(dialog) ||
-      !dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true })
-    ) {
-      dialog.removeAttribute("open");
-      continue;
-    }
-    // Removing the non-modal state directly emits no spurious close event; the widget
-    // asked for one opening, and this is that opening finally becoming modal.
-    dialog.removeAttribute("open");
-    nativeDialogShowModal.call(dialog);
-  }
-  deferredModals.clear();
-}
-// The page's one door to the log, spelled once. Two callers reach it — `post`, which
-// orders the reader's own gestures through it, and the error report below, which
-// deliberately doesn't — and what they share is the request rather than anything about
-// the sending: same path, same method, same encoding, so a door that moved would move
-// for both. Whether a send waits on the one before it belongs to the caller.
+const { promoteDeferredModals } = createDeferredModals({
+  presentedAttribute: PAGE_PAINT_ATTRIBUTE.presented,
+});
 const vendoredLayerGeneration = "__LEAF_LAYER_GENERATION__";
-let layerGeneration = vendoredLayerGeneration;
-let revealLayer;
-const layerReady = new Promise((resolve) => (revealLayer = resolve));
-let layerReloading = false;
-function sameLayer(generation) {
-  if (generation === layerGeneration) return true;
-  if (!layerReloading) {
-    layerReloading = true;
-    location.reload();
-  }
-  return false;
-}
-
-const postEvent = async (event) => {
-  await layerReady;
-  const response = await fetch("/api/event", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Leaf-Layer": layerGeneration,
-    },
-    body: JSON.stringify(event),
-  });
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (response.ok && responseGeneration && !sameLayer(responseGeneration)) return null;
-  return response;
-};
-
-// The page reporting itself broken, to the party who can fix it: the agent
-// authored the page and its widgets, and before this the only route for a
-// live-session fault was the reader pasting a console nobody told them to
-// open. The event lands in the log as kind "error", author "page" — the
-// watcher hears it beside comments and reports; the reader's pending count
-// never claims it. Deduped per message per load (a reload may repeat one —
-// bounded noise over silence), capped so a fault in a loop cannot flood the
-// log, and sent bare rather than through post(): a poll fault reporting
-// itself through the poll would recurse, and nothing here needs the answer.
-// Not part of the helper surface a module gets: an upgrade that throws is already on
-// this path through window.error, and a widget that wants to say so itself has
-// failSoft, which puts the message where the reader is looking.
-const reportedErrors = new Set();
-function reportPageError(text) {
-  console.error(`leaf: ${text}`);
-  if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
-  reportedErrors.add(text);
-  postEvent({
-    kind: "error",
-    text,
-    ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
-  }).catch(() => {});
-}
-window.addEventListener("error", (e) => {
-  // Chrome also puts ResizeObserver loop notices on window.error without an
-  // exception. This one live page cannot tell an occasional scheduling notice
-  // from a layout feedback loop, so it persists neither in the reader's log. The
-  // render gate and test navigation take one complete confirming reading and
-  // report a notice that recurs there.
-  if (e.message?.startsWith("ResizeObserver loop")) return;
-  reportPageError(`${e.message} (${e.filename}:${e.lineno})`);
+const { postEvent, reportPageError, revealLayer, sameLayer } = createLayerClient({
+  currentRevision: () => runtime.currentRevision,
+  layerGeneration: vendoredLayerGeneration,
 });
-window.addEventListener("unhandledrejection", (e) => {
-  // Chrome's stack embeds "Error: message"; Firefox's carries frames only, so a
-  // stack alone can post an error event that never says what failed.
-  const reason = String(e.reason);
-  const stack = e.reason?.stack;
-  reportPageError(
-    !stack ? reason : stack.includes(reason) ? stack : `${reason}\n${stack}`,
-  );
-});
+const { pointerAt } = createPointer();
 
 createMeasurements({ shownBox });
 
@@ -518,8 +397,12 @@ function receiveState(...args) {
 // below; what is here is the vocabulary they and the widget modules share.
 //
 // A row:
+//   id    — its stable dotted identity. Words and keys may change without changing the
+//           route used by the reference and other projections.
 //   keys  — the bindings it answers: "d", "Escape", "Mod+Enter", "Shift+a", " ".
 //           A function where the set is the page's (an option group's 1–N).
+//   routes— optional stable subcommands when those bindings mean different things. The
+//           keyline keeps the compact row; the reference presents each route separately.
 //   label — how it renders. Computed from `keys` unless the row is a chord whose second
 //           half is another scope's row, and then built from that row rather than typed.
 //   does  — the overlay's sentence.
@@ -559,12 +442,14 @@ const watchDisclosures = (root) =>
 createShadowStage(watchDisclosures);
 
 const {
-  bySentence,
+  byCommand,
   claimsEsc,
+  documentFocused,
   elementScopes,
   focused,
   merge,
   pruneScopedElements,
+  recoveredLabelFocus,
   scopeRefs,
   scopesFor,
 } = createScopes({
@@ -573,10 +458,10 @@ const {
 });
 
 // Where the reader is standing, painted: the ring on the ask they are in, the mark on the
-// passage of the comment they are in, and the line saying what the next press does from
-// there. One repaint, because it is one question — every reading is of the focus and the
-// open-ask list, and every signal that moves either (a focus move, an answer taken, a
-// poll, a widget's own state) moves them all.
+// passage of the comment they are in, the focused box's hint, and the line saying what the
+// next press does from there. One repaint, because it is one question — every reading is of
+// the focus and the open-ask list, and every signal that moves either (a focus move, an
+// answer taken, a poll, a widget's own state) moves them all.
 //
 // Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
 // them would flash the scope of nowhere and drop the ring for a frame. Here rather than
@@ -584,6 +469,7 @@ const {
 // evaluates, which is before the line has an element to draw into — the frame is what puts
 // the first paint after both.
 let herePending = false;
+let paintInputHints = () => {};
 function paintHere() {
   if (herePending) return;
   herePending = true;
@@ -598,6 +484,7 @@ function paintHere() {
     // panel's own render was calling the chip pass.
     paintAddresses();
     paintCoreControls();
+    paintInputHints();
     renderLine();
   });
 }
@@ -617,65 +504,14 @@ function reveal(el) {
 }
 
 let anchoringReady = false;
-// The file-side passage reader fences an upgraded element and each of its original
-// direct children when the registry cannot promise its body is verbatim. Remember
-// those parts before custom-element definitions can add or move anything, so the
-// browser can stop captured context at the same seams after every upgrade has run.
-const opaquePassageRoots = new WeakSet();
-const opaquePassageParts = new WeakSet();
-
-function rememberPassageParts(scope = document) {
-  for (const tag of tagsDeclaring(
-    (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
-  ))
-    for (const root of scope.querySelectorAll(tag)) {
-      opaquePassageRoots.add(root);
-      for (const child of root.children) opaquePassageParts.add(child);
-    }
-}
-
-async function upgradeWidgets() {
-  const response = await fetch("/registry.json");
-  if (!response.ok)
-    throw new Error(`leaf: registry failed to load (${response.status})`);
-  const responseGeneration = response.headers.get("Leaf-Layer");
-  if (responseGeneration && !sameLayer(responseGeneration)) return;
-  Object.assign(registry, await response.json());
-  const registryGeneration = registry.$layer?.generation;
-  if (typeof registryGeneration !== "string" || !registryGeneration)
-    throw new Error("leaf: registry lacks $layer.generation");
-  if (!sameLayer(registryGeneration)) return;
-  if (
-    !registry.$events?.kinds ||
-    !registry.$languages?.names ||
-    !registry.$languages?.paths ||
-    !registry.$tones?.names ||
-    !registry.$reactions?.tokens
-  )
-    throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
-  revealLayer();
-  buildReactBar();
-  rememberPassageParts();
-  rememberAuthoredMarkup();
-  markDeclared(document.body, MARKED_IN_PAGE);
-  // Before the modules import, because a widget's first render asks for these rules and
-  // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
-  if (tagsDeclaring((entry) => entry["x-shadow"]).length) await loadShadowRules();
-  await Promise.all(
-    tagsDeclaring((entry) => entry["x-upgrade"]).map((tag) =>
-      import(`/widgets/${tag}.js`).catch((err) =>
-        reportPageError(`widget ${tag} failed to load: ${err?.message ?? err}`),
-      ),
-    ),
-  );
-  settle(dress(document.body));
-  // Importing defined the elements and ran their connectedCallbacks; async ones
-  // registered their work via settle(). Wait it out so geometry is final.
-  await Promise.allSettled(settling);
-  // After the wait, because the box a widget scrolls is a box its module built: run this
-  // with the rest of the upgrade and a diff's pre and a code block's are half there.
-  reachScrollers(document.body);
-}
+const { opaquePassageParts, opaquePassageRoots, rememberPassageParts, upgradeWidgets } =
+  createWidgetLoader({
+    buildReactBar: (...args) => buildReactBar(...args),
+    rememberAuthoredMarkup: (...args) => rememberAuthoredMarkup(...args),
+    reportPageError,
+    revealLayer,
+    sameLayer,
+  });
 
 // ---------- comment layer ----------
 
@@ -1429,12 +1265,7 @@ function syncFloats() {
     const box = composer.getBoundingClientRect();
     placeComposer(box.left, box.top);
   }
-  const anchor = fabAnchorAt();
-  if (anchor?.quote && pageSelection()) updateFab();
-  else if (anchor) {
-    const box = fab.getBoundingClientRect();
-    placeClear(fab, box.left, box.top);
-  }
+  refreshFab();
 }
 function setPanel(open) {
   // Closing while focus is inside would drop it on body, the user's place
@@ -1498,7 +1329,13 @@ layoutSizes.observe(composer);
 const { showToast } = createNotifications({ liveEl, syncLayout, toastEl });
 
 // ---------- text inputs ----------
-const wireInput = createInput({ keys, showToast, spell });
+const { paint: paintInputs, wire: wireInput } = createInput({
+  focused,
+  keys,
+  showToast,
+  spell,
+});
+paintInputHints = paintInputs;
 
 const { landTyping, pageSelection, selectionAnchor, snapSelection } =
   createSelectionCapture({
@@ -1521,19 +1358,22 @@ const { landTyping, pageSelection, selectionAnchor, snapSelection } =
 
 const {
   BANNER_CLEAR,
+  activateVisual,
   beside,
+  dismissFab,
   fabAnchorAt,
   openOnItem,
   openOnVisual,
   placeClear,
-  raiseOnItem,
   placeComposer,
+  raiseOnItem,
+  refreshFab,
   showFab,
   standDown,
   updateFab,
-  visualAt,
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
+  anchorLabel: (...args) => anchorLabel(...args),
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
@@ -1545,6 +1385,8 @@ const {
   hideComposer: () => hideComposer(),
   hideReference: () => reference.show(false, false),
   inChrome: (node) => inChrome(node),
+  keylineEl,
+  leavePageControl: () => letGo(),
   markAt,
   noteClass: () => NOTE,
   openComposer,
@@ -1552,25 +1394,30 @@ const {
   pageRange: (...args) => pageRange(...args),
   pageScroller,
   pageSelection,
+  pageText: (...args) => pageText(...args),
   pageWords: (...args) => pageWords(...args),
+  paintAnchors,
   paintHere,
   paintStanding: (...args) => conversationRuntime.paintStanding(...args),
   panel,
   panelCovers,
-  pendingMarks: () => anchorRuntime.pendingMarks,
-  pointerAt: () => pointer,
+  pendingMarkParts,
+  pointerAt,
   reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
+  resolveAnchor: (...args) => resolveAnchor(...args),
   selectionAnchor,
   setReact: (on) => setReact(on),
   showThread,
   showVersionMenu,
   snapSelection,
-  tagsDeclaring,
+  shownParts,
+  shownRect: (...args) => shownRect(...args),
   takesLetters: (node) => takesLetters(node),
   versionMenuIsOpen,
-  visualPartAt: (...args) => visualPartAt(...args),
+  visualActionAnchor: (...args) => visualActionAnchor(...args),
+  visualAt: (...args) => visualAt(...args),
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
@@ -1580,7 +1427,7 @@ const { AIM, aimIsOn, aimedItem } = createAim({
   itemAt,
   openOnDesign,
   openOnVisual,
-  pointerAt: () => pointer,
+  pointerAt,
   raiseOnItem,
   refreshAim,
   spell,
@@ -1673,6 +1520,7 @@ const PANEL_SAY = {
   // of the register reads too — g names a list and then a member of it. The box says
   // the same key from its own placeholder, so the second press is discoverable from
   // the panel without the reference open.
+  id: "comment.write",
   keys: ["c"],
   does: () => generalHint(),
   line: "comment",
@@ -1797,7 +1645,7 @@ const hasThreads = () => openThreads().length > 0;
 // control inside it, whose own press is its own. Open and resolved threads both qualify:
 // each has a primary Enter action and x changes the same resolution state in either direction.
 const focusedThread = () => {
-  const active = document.activeElement;
+  const active = documentFocused();
   return active?.classList?.contains("lf-thread") ? active : null;
 };
 // The item the reader is standing in, which is what a press means when they have pointed
@@ -1828,12 +1676,12 @@ const focusedThread = () => {
 // from one means the page whole. A box that takes letters never arrives here at all: the
 // typing scope claims the letter before the page is asked.
 //
-// `document.activeElement` rather than `focused()`, for the reason askPosition gives: a
-// control staged in a shadow tree retargets to its host, and the host is the place in the
-// document both the chrome guard and the item walk want. standingConversation below wants
-// the other reading, and says so.
+// `documentFocused()` rather than `focused()`, for the reason askPosition gives: a control
+// staged in a shadow tree retargets to its host, and the host is the place in the document
+// both the chrome guard and the item walk want. standingConversation below wants the inner
+// reading, and says so.
 const standingItem = () => {
-  const held = document.activeElement;
+  const held = documentFocused();
   if (!held || held === document.body || inChrome(held)) return null;
   const working = held.matches?.(ASK_CONTROL) ? standingIn() : null;
   return working ?? itemAt(askPlace(held));
@@ -2007,8 +1855,14 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // Their next Space is then that button rather than the page's scroll. CLAUDE.md's "The
 // reader has to be standing somewhere" holds the rest.
 function rung() {
-  const active = document.activeElement;
+  const active = documentFocused();
   const holding = Boolean(active) && active !== document.body;
+  if (fabAnchorAt())
+    return {
+      says: "close actions",
+      does: "Close the reaction and comment actions",
+      out: dismissFab,
+    };
   if (holding && !inChrome(active))
     return { says: "let go", does: "Let go of what you are standing on", out: letGo };
   // Whichever tray holds the edge, named by the rung so the reader is told what the
@@ -2048,6 +1902,7 @@ function rung() {
 // being true the day the first rung became letting go of an ask, which is no layer at
 // all — the line saying "let go" while the reference said "layer" about the same press.
 const BACK_OUT = {
+  id: "navigation.back",
   keys: ["Escape"],
   does: () => rung()?.does,
   line: () => rung()?.says,
@@ -2152,6 +2007,7 @@ const {
 } = createAskView({
   PAGE_PAINT_ATTRIBUTE,
   SCROLL,
+  documentFocused,
   announce,
   askEntry,
   askSource,
@@ -2262,7 +2118,6 @@ const {
   EVERYTHING,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
-  beside,
   claimsEsc,
   commentsReveal: () => COMMENTS.reveal(),
   currentRevision: () => runtime.currentRevision,
@@ -2282,8 +2137,6 @@ const {
   reactionVocabulary: () => registry.$reactions?.tokens,
   saying,
   showFab,
-  shownBox,
-  shownRect: (...args) => shownRect(...args),
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
@@ -2296,17 +2149,55 @@ const HELP = {
   claims: EVERYTHING,
   rows: [
     {
+      id: "reference.focus.walk",
       keys: ["Tab", "Shift+Tab"],
       does: "Move through this reference",
       line: "move",
       repeat: true,
+      runFromReference: false,
       run: (binding) => reference.move(binding === "Tab" ? 1 : -1),
     },
     {
+      id: "reference.command.next",
+      keys: ["ArrowDown"],
+      does: "Choose the next command",
+      line: "next command",
+      repeat: true,
+      runFromReference: false,
+      // The list is built before search receives focus, so physical liveness is false at
+      // that instant even though this is one of the reference's standing instructions.
+      referenceWhen: () => true,
+      when: () => reference.onCommandRail,
+      run: () => reference.moveCommand(1),
+    },
+    {
+      id: "reference.command.previous",
+      keys: ["ArrowUp"],
+      does: "Choose the previous command",
+      line: "previous command",
+      repeat: true,
+      runFromReference: false,
+      referenceWhen: () => true,
+      when: () => reference.onCommandRail,
+      run: () => reference.moveCommand(-1),
+    },
+    {
+      id: "reference.command.run",
+      keys: ["Enter"],
+      does: "Run the chosen command",
+      line: "run command",
+      runFromReference: false,
+      referenceWhen: () => true,
+      when: () => reference.onCommandRail,
+      run: () => reference.runSelected(),
+    },
+    {
+      id: "reference.close",
       keys: ["Escape"],
       does: "Close this reference",
       line: "close help",
       also: helpClose,
+      runFromReference: false,
       run: () => reference.show(false),
     },
   ],
@@ -2320,6 +2211,7 @@ const COMPOSER = {
   at: () => composerOpen,
   rows: [
     {
+      id: "composer.close",
       keys: ["Escape"],
       does: "Close the composer, keeping the draft",
       line: "close — draft kept",
@@ -2335,12 +2227,12 @@ const COMPOSER = {
 // the scope rather than below it, because a row naming a predicate directly reads the
 // binding as the table is built — the deferring wrapper the branch here used to need was
 // the only thing hiding that.
-const inTheBox = () => panel.contains(document.activeElement);
+const inTheBox = () => panel.contains(documentFocused());
 // The panel thread the reader is in, asked by class because that is the anchors module's
 // question: which logged thread's passage to paint. It is not the box's way out, which
 // climbs further and answers for a seat on the page too — the two readings stayed apart
 // rather than one standing in for the other.
-const focusedThreadOf = () => document.activeElement?.closest?.(".lf-thread");
+const focusedThreadOf = () => documentFocused()?.closest?.(".lf-thread");
 // Where a box hands the reader back to, which is the rung `c` came down. It asked
 // `.lf-thread` and the panel alone, so the two boxes outside the chrome — a conversation
 // seated on the page, and each thread on that seat — had no way out but the page's own
@@ -2385,6 +2277,7 @@ keys(
   "In the find box",
   [
     {
+      id: "comment.find.close",
       keys: ["Escape"],
       does: () =>
         narrowed()
@@ -2400,6 +2293,7 @@ keys(
       },
     },
     {
+      id: "comment.find.first",
       keys: ["Enter"],
       does: "Go to the first comment found",
       line: "first found",
@@ -2416,6 +2310,7 @@ const TYPING = {
   claims: TEXT_ENTRY,
   rows: [
     {
+      id: "text.leave",
       keys: ["Escape"],
       does: "Leave the box, keeping what is typed",
       line: () => backFromBox()?.line ?? "back to list",
@@ -2463,6 +2358,7 @@ const PANEL = {
   at: inPanel,
   rows: [
     {
+      id: "comment.waiting.toggle",
       // `w` for the words the control says, the way `l` spells the leaves and `a` the
       // asks. It is the phrase the page already uses for the same question asked of its
       // widgets (n/p), asked here of the conversation — so the reader learns one idea and
@@ -2492,6 +2388,7 @@ const PANEL = {
       run: () => needsBtn.click(),
     },
     {
+      id: "comment.find",
       // `/` is what every list with a search field takes it with, and the one letter a
       // text box does not shadow: the typing scope claims what types a character, so the
       // press only ever reaches here from the list rather than from a box in it.
@@ -2529,6 +2426,7 @@ const THREAD = {
   at: () => Boolean(focusedThread()),
   rows: [
     {
+      id: "thread.primary",
       keys: ["Enter"],
       does: () =>
         focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
@@ -2560,6 +2458,7 @@ const THREAD = {
       },
     },
     {
+      id: "thread.resolution.toggle",
       // `x` and not `r`, though resolve is the word it does: the press beside it in this
       // same scope is the reply, and a reader meeting `r` on the line reads "reply" before
       // they read "resolve". A key spelling its own word is the wrong key when the
@@ -2626,7 +2525,7 @@ const standingOn = (title, sel, rows) => ({
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
 const LINK = standingOn("On a link", "a[href]", [
-  { keys: ["Enter"], does: "Follow it", line: "follow" },
+  { id: "link.follow", keys: ["Enter"], does: "Follow it", line: "follow" },
 ]);
 
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps
@@ -2676,6 +2575,7 @@ const disclosed = (el) =>
 createDisclosure({ disclosed, inChrome });
 const DISCLOSURE = standingOn("On a disclosure", DISCLOSURE_SELECTOR, [
   {
+    id: "disclosure.toggle",
     keys: () => DISCLOSE(focused()),
     does: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
@@ -2714,6 +2614,7 @@ const CONTROL = {
   when: () => Boolean(document.querySelector(CONTROL_SELECTOR)),
   rows: [
     {
+      id: "control.activate",
       keys: PRESS,
       does: "Work the focused control",
       line: "press it",
@@ -2734,6 +2635,7 @@ const DESIGN = {
   at: () => designOn,
   rows: [
     {
+      id: "design.comment",
       keys: [],
       label: "click",
       does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
@@ -2741,6 +2643,7 @@ const DESIGN = {
     {
       // Both keys, on one row: i is the toggle and Escape the mode's own rung, and two
       // chips reading "leave design" said one thing twice on the line.
+      id: "design.leave",
       keys: ["Escape", "i"],
       does: "Leave design mode",
       line: "leave design",
@@ -2759,6 +2662,7 @@ const DESIGN = {
 // this page is behind. Named, because the chip that jumps straight to the current page
 // spells that motion in its tooltip.
 const CHOOSER = {
+  id: "version.open",
   keys: ["v"],
   does: "The versions, and what each one changed",
   line: "versions",
@@ -2774,6 +2678,8 @@ const CHOOSER = {
 // cannot correct it is the register's own oldest bug. Its place in the table is nominal:
 // renderLine gives it the permanent More control instead of spending a hint slot on it.
 const REFERENCE = {
+  id: "reference.open",
+  runFromReference: false,
   keys: ["?"],
   does: "This key reference",
   line: "more",
@@ -2783,6 +2689,7 @@ const REFERENCE = {
 const PAGE = {
   rows: [
     {
+      id: "comment.create",
       keys: ["c"],
       // One key, four destinations, and the surfaces name the one in front of the reader:
       // a live selection, the item a click raised the 💬 on, the box belonging to whatever
@@ -2807,6 +2714,7 @@ const PAGE = {
       // the bar the pointer sees, digits on: the same tokens in the same order, so a
       // reader who has seen the bar once knows the keys. Nine at most, the digits being
       // the addresses.
+      id: "reaction.open",
       keys: ["r"],
       does: () =>
         `React — ${reactionTokens()
@@ -2818,7 +2726,12 @@ const PAGE = {
       run: () => setReact(true),
     },
     {
+      id: "thread.walk",
       keys: ["j", "k"],
+      routes: [
+        { id: "thread.next", binding: "j", does: "Next open thread" },
+        { id: "thread.previous", binding: "k", does: "Previous open thread" },
+      ],
       does: "Next / previous open thread",
       line: "threads",
       when: hasThreads,
@@ -2833,7 +2746,20 @@ const PAGE = {
       // rather than which way, so the second half had nowhere to come from and ended up
       // a pair only its author knew. Naming the direction is also what leaves the noun's
       // shifted letter to the answer that acts on all of them at once (A, below).
+      id: "ask.walk",
       keys: ["n", "p"],
+      routes: [
+        {
+          id: "ask.next",
+          binding: "n",
+          does: "Next thing this page is waiting on you for",
+        },
+        {
+          id: "ask.previous",
+          binding: "p",
+          does: "Previous thing this page is waiting on you for",
+        },
+      ],
       does: "Next / previous thing this page is waiting on you for",
       line: "asks",
       when: () => openAsks().length > 0,
@@ -2844,6 +2770,7 @@ const PAGE = {
       // (n/p above), and the noun every surface names this tray by. What it opens is the
       // list those keys walk, which until now the reader could only reach by walking it:
       // there was no way to see what was waiting without visiting each one in turn.
+      id: "ask.tray.toggle",
       keys: ["a"],
       does: () =>
         `${openTray("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
@@ -2859,7 +2786,12 @@ const PAGE = {
       },
     },
     {
+      id: "page.half-scroll",
       keys: ["d", "u"],
+      routes: [
+        { id: "page.half-down", binding: "d", does: "Half a page down" },
+        { id: "page.half-up", binding: "u", does: "Half a page up" },
+      ],
       does: "Half a page down / up",
       line: "half a page",
       repeat: true,
@@ -2870,6 +2802,7 @@ const PAGE = {
       // for the "Other leaves" the button said before the count was one off the list
       // it promised — so the key went on spelling a word nothing on screen said, and
       // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
+      id: "leaf.tray.toggle",
       keys: ["l"],
       does: () => `${openTray("leaves") ? "Hide" : "Show"} the machine's leaves`,
       line: () => `${openTray("leaves") ? "hide" : "show"} leaves`,
@@ -2894,6 +2827,7 @@ const PAGE = {
       // unshifted letter that ends the matter for every one of them is a press too
       // cheap for what it does. The walk is spelled in directions (n/p), so the noun was
       // free for the tray above, which is what it now opens.
+      id: "ask.answer-all",
       keys: ["Shift+a"],
       does: () =>
         standingAnswers()
@@ -2906,6 +2840,7 @@ const PAGE = {
       },
     },
     {
+      id: "version.approve",
       keys: ["Shift+l"],
       does: "Approve this version",
       line: "looks good",
@@ -2921,6 +2856,7 @@ const PAGE = {
       // words by claiming its letters. The word is "undo" and never the verb it is
       // about to state — `move` is one widget's word, and a line that said it would
       // be naming a member where the mechanism is what holds.
+      id: "history.undo",
       keys: ["z"],
       does: () => undoSentence(),
       line: "undo",
@@ -2948,6 +2884,7 @@ const PAGE = {
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
       // than this row, so while it stands this one is shadowed off the line.
+      id: "design.enter",
       keys: ["i"],
       does: "Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
       line: "design mode",
@@ -2958,6 +2895,7 @@ const PAGE = {
     // Neither says a word for the line, so neither is ever promised as the next press —
     // one rule where the three exemptions this replaced were three.
     {
+      id: "browser.caret",
       keys: ["F7"],
       does: "Caret browsing (the browser's): select text by keyboard, then c",
     },
@@ -3030,7 +2968,7 @@ function paintCoreControls() {
     (latestBound ? ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})` : "");
 }
 
-const { readerIn, shadow, stack } = createDispatch({
+const { availableCommands, executeCommand, readerIn, shadow, stack } = createDispatch({
   claimsEsc,
   containsAcross: (container, node) => containsAcross(container, node),
   ELEMENTS,
@@ -3040,6 +2978,7 @@ const { readerIn, shadow, stack } = createDispatch({
   keepShown,
   paintHere,
   panel,
+  recoveredLabelFocus,
   SCOPES,
   scopesFor,
   setChord,
@@ -3048,12 +2987,14 @@ const { readerIn, shadow, stack } = createDispatch({
   TYPING,
 });
 const reference = createReference({
-  bySentence,
+  byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
+  availableCommands,
   el,
   elementScopes,
   ELEMENTS,
   EVERYTHING,
+  executeCommand,
   focused,
   helpClose,
   helpEl,
@@ -3200,13 +3141,16 @@ const unaccountedGesture = () =>
 // have typed — a composition surface is a focused textarea, any holding words, or a
 // widget-built one (data-lf-offer) even empty, because deleting everything is still an
 // edit.
-const midComposition = () =>
-  composerOpen ||
-  Boolean(fabAnchorAt()) ||
-  unaccountedGesture() ||
-  (document.activeElement?.tagName === "TEXTAREA" &&
-    (document.activeElement.value !== "" ||
-      document.activeElement.hasAttribute("data-lf-offer")));
+const midComposition = () => {
+  const active = focused();
+  return (
+    composerOpen ||
+    Boolean(fabAnchorAt()) ||
+    unaccountedGesture() ||
+    (active?.tagName === "TEXTAREA" &&
+      (active.value !== "" || active.hasAttribute("data-lf-offer")))
+  );
+};
 // Through the chooser's one door, so the chip opens exactly the version it names. At the
 // live root that is an explicit in-place release of the composition hold; on an immutable
 // page it is ordinary version travel.
@@ -3308,14 +3252,14 @@ function visualPartAt(...args) {
 function visualPartLabel(...args) {
   return anchorRuntime.visualPartLabel(...args);
 }
+function visualAt(...args) {
+  return anchorRuntime.visualAt(...args);
+}
+function visualActionAnchor(...args) {
+  return anchorRuntime.visualActionAnchor(...args);
+}
 function resolveAnchor(...args) {
   return anchorRuntime.resolveAnchor(...args);
-}
-function shownRect(...args) {
-  return anchorRuntime.shownRect(...args);
-}
-function startsAt(...args) {
-  return anchorRuntime.startsAt(...args);
 }
 function refreshAim(...args) {
   return anchorRuntime.refreshAim(...args);
@@ -3343,6 +3287,15 @@ function refreshHover(...args) {
 }
 function pageShifted(...args) {
   return anchorRuntime.pageShifted(...args);
+}
+function isMarked(...args) {
+  return anchorRuntime.isMarked(...args);
+}
+function placedAt(...args) {
+  return anchorRuntime.placedAt(...args);
+}
+function pendingMarkParts(...args) {
+  return anchorRuntime.pendingMarkParts(...args);
 }
 
 const passageRuntime = createPassages({
@@ -3506,7 +3459,7 @@ conversationRuntime = createConversation({
   generalRow,
   highlightBlocks,
   inChrome,
-  isMarked: (id) => marked.has(id),
+  isMarked,
   itemSays,
   itemWord,
   keys,
@@ -3526,7 +3479,7 @@ conversationRuntime = createConversation({
   paintKeys,
   panelIsOpen: () => panelOpen,
   panelTitle,
-  placedAt: (id) => placed.get(id),
+  placedAt,
   post,
   PRESS,
   quietSince,
@@ -3575,6 +3528,8 @@ anchorRuntime = createAnchors({
   DATUM,
   SCROLL,
   TEXT_BLOCK,
+  actionAnchor: fabAnchorAt,
+  activateVisual,
   aimBox,
   aimIsOn,
   aimedItem,
@@ -3610,9 +3565,11 @@ anchorRuntime = createAnchors({
   pageWords,
   paintThreadQuotes,
   panel,
+  pointerAt,
   quoteFrom,
   queueLegend,
   rangeOf,
+  refreshAction: refreshFab,
   registry,
   reveal,
   runtime,
@@ -3623,11 +3580,11 @@ anchorRuntime = createAnchors({
   tagsDeclaring,
   textNodesUnder,
   threadsBox,
-  uiInside,
   under,
   withdraw,
+  worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE, marked, placed, pointer } = anchorRuntime;
+const { VIEW_KEY, ITEM, NOTE } = anchorRuntime;
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });

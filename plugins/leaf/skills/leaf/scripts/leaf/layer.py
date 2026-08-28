@@ -13,6 +13,7 @@ from .files import (
     paths_same,
     replace_files,
 )
+from .host import config_home
 from .schema import (
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
@@ -26,9 +27,8 @@ from .schema import (
     PAGE_OWNED_FILES,
     VENDORED_FILES,
 )
-from .service import config_home
 from .styles import css_syntax_errors
-from .validation import incoming_registry
+from .validation.compatibility import incoming_registry
 
 
 def resolve_packages(selected: tuple[str, ...]) -> list[Path]:

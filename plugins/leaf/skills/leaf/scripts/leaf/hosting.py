@@ -12,17 +12,19 @@ from urllib.parse import urlsplit
 
 from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
+from .host import host_identity
 from .http import handler_for
-from .service import (
-    PageTransaction,
-    host_identity,
+from .server import (
     host_key,
     lifetime_note,
-    lock_is_held,
     page_access,
     page_url,
     running_server,
     stop_when_service_ends,
+)
+from .service import (
+    PageTransaction,
+    lock_is_held,
     transition_lock,
 )
 
@@ -120,6 +122,112 @@ def server_at(bind: str, port: int, handler) -> LeafHTTPServer:
         return LeafHTTPServer(("0.0.0.0", port), handler)
 
 
+def _serve_claim(
+    page_dir: Path,
+    page: PageTransaction,
+    service: dict | None,
+    standing: bool,
+    revive: bool,
+) -> bool:
+    """Validate this launch against desired state and page ownership."""
+    if revive and (not service or not service["enabled"]):
+        sys.exit("service was stopped; not reviving")
+
+    identity = host_identity()
+    claim = page.claim
+    claimed = bool(
+        not standing
+        and identity is not None
+        and claim is not None
+        and claim["released"] is None
+        and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
+    )
+    if not standing and identity is not None and not claimed:
+        sys.exit(
+            f"this host session no longer owns {page_dir}; the server was not started"
+        )
+    if revive and service and service["lifetime"] == "session" and not claimed:
+        sys.exit("this session no longer owns the service; not reviving")
+    return claimed
+
+
+def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> bool:
+    """Report a compatible running server, or say a fresh bind is needed."""
+    existing = running_server(page_dir)
+    if not existing:
+        return False
+    if host and urlsplit(existing["url"]).hostname != host.lower():
+        sys.exit(
+            f"already serving at {existing['url']}; "
+            "leaf server stop first, then re-run with --host"
+        )
+    if standing and existing["lifetime"] != "standing":
+        sys.exit(
+            f"already serving as a session server at {existing['url']}; "
+            "leaf server stop first, then re-run with --standing"
+        )
+    print(existing["url"], flush=True)
+    print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+    return True
+
+
+def _take_server_lease(page_dir: Path):
+    """Take the process lease, or report the concurrent server that won it."""
+    lease = open(  # noqa: SIM115 - held until the server process exits
+        page_dir / "server.lock", "a+b"
+    )
+    try:
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lease.close()
+        winner = running_server(page_dir)
+        if winner:
+            print(winner["url"], flush=True)
+            print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+            return None
+        sys.exit(f"another server run is serving {page_dir}; re-run")
+    return lease
+
+
+def _bind_server(page_dir: Path, access: dict, token: str, ports: list, lease):
+    """Bind the first available port, preserving a recorded address contract."""
+    for port in ports:
+        try:
+            return server_at(
+                access["bind"],
+                port,
+                handler_for(page_dir, token, protocol_version="HTTP/1.1"),
+            )
+        except OSError as error:
+            if error.errno == errno.EADDRINUSE and "port" not in access:
+                continue
+            lease.close()
+            sys.exit(
+                f"can't serve {page_dir} on {access['bind']}"
+                f"{':' + str(access['port']) if 'port' in access else ''}: "
+                f"{error}\nthat address is kept in "
+                f"{page_dir / 'service.json'}; delete that file to derive "
+                "the address again from this session, or re-run with --host NAME."
+            )
+    return None
+
+
+def _service_record(access: dict, httpd, standing: bool, claimed: bool) -> dict:
+    """The durable desired state for a newly bound server."""
+    lifetime = (
+        "standing"
+        if standing or access.get("lifetime") == "standing" or not claimed
+        else "session"
+    )
+    return {
+        "host": access["host"],
+        "bind": access["bind"],
+        "port": httpd.server_address[1],
+        "enabled": True,
+        "lifetime": lifetime,
+    }
+
+
 def cmd_serve(
     page_dir: Path,
     host: str | None = None,
@@ -138,93 +246,19 @@ def cmd_serve(
     httpd = None
     with flocked(transition_lock(page_dir)), PageTransaction(page_dir) as page:
         service = read_json(page_dir / "service.json")
-        if revive and (not service or not service["enabled"]):
-            sys.exit("service was stopped; not reviving")
-
-        identity = host_identity()
-        claim = page.claim
-        claimed = bool(
-            not standing
-            and identity is not None
-            and claim is not None
-            and claim["released"] is None
-            and (claim["host"], claim["id"]) == (identity["host"], identity["id"])
-        )
-        if not standing and identity is not None and not claimed:
-            sys.exit(
-                f"this host session no longer owns {page_dir}; "
-                "the server was not started"
-            )
-        if revive and service and service["lifetime"] == "session" and not claimed:
-            sys.exit("this session no longer owns the service; not reviving")
-
-        existing = running_server(page_dir)
-        if existing:
-            if host and urlsplit(existing["url"]).hostname != host.lower():
-                sys.exit(
-                    f"already serving at {existing['url']}; "
-                    "leaf server stop first, then re-run with --host"
-                )
-            if standing and existing["lifetime"] != "standing":
-                sys.exit(
-                    f"already serving as a session server at {existing['url']}; "
-                    "leaf server stop first, then re-run with --standing"
-                )
-            print(existing["url"], flush=True)
-            print(lifetime_note(page_dir), file=sys.stderr, flush=True)
+        claimed = _serve_claim(page_dir, page, service, standing, revive)
+        if _reuse_server(page_dir, host, standing):
             return
 
         access = page_access(page_dir, host)
         token = host_key()
         base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
         ports = [access["port"]] if "port" in access else [*range(base, base + 10), 0]
-        lease = open(  # noqa: SIM115 - held until the server process exits
-            page_dir / "server.lock", "a+b"
-        )
-        try:
-            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            lease.close()
-            winner = running_server(page_dir)
-            if winner:
-                print(winner["url"], flush=True)
-                print(lifetime_note(page_dir), file=sys.stderr, flush=True)
-                return
-            sys.exit(f"another server run is serving {page_dir}; re-run")
-
-        for port in ports:
-            try:
-                httpd = server_at(
-                    access["bind"],
-                    port,
-                    handler_for(page_dir, token, protocol_version="HTTP/1.1"),
-                )
-                break
-            except OSError as error:
-                if error.errno == errno.EADDRINUSE and "port" not in access:
-                    continue
-                lease.close()
-                sys.exit(
-                    f"can't serve {page_dir} on {access['bind']}"
-                    f"{':' + str(access['port']) if 'port' in access else ''}: "
-                    f"{error}\nthat address is kept in "
-                    f"{page_dir / 'service.json'}; delete that file to derive "
-                    "the address again from this session, or re-run with "
-                    "--host NAME."
-                )
-
-        lifetime = (
-            "standing"
-            if standing or access.get("lifetime") == "standing" or not claimed
-            else "session"
-        )
-        service = {
-            "host": access["host"],
-            "bind": access["bind"],
-            "port": httpd.server_address[1],
-            "enabled": True,
-            "lifetime": lifetime,
-        }
+        lease = _take_server_lease(page_dir)
+        if lease is None:
+            return
+        httpd = _bind_server(page_dir, access, token, ports, lease)
+        service = _service_record(access, httpd, standing, claimed)
         write_json(page_dir / "service.json", service)
         url = page_url(service["host"], service["port"], token)
 

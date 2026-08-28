@@ -251,7 +251,7 @@ export function createSelectionComposer(runtime, dependencies) {
     if (!fabAnchor()) return;
     const anchor = fabAnchor();
     const { left, top } = fab.getBoundingClientRect();
-    showFab(null);
+    showFab(null, null, { returnFocus: "none" });
     openComposer(anchor, "", left, top);
   };
   // Cancel discards. Escape and outside clicks only hide, keeping the draft either way.

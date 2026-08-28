@@ -1,4 +1,11 @@
-import { MODIFIER_KEYS, answers, bindings, live, word } from "./bindings.js";
+import {
+  MODIFIER_KEYS,
+  answers,
+  bindings,
+  commandRoutes,
+  live,
+  word,
+} from "./bindings.js";
 
 export function createDispatch({
   claimsEsc,
@@ -10,6 +17,7 @@ export function createDispatch({
   keepShown,
   paintHere,
   panel,
+  recoveredLabelFocus,
   SCOPES,
   scopesFor,
   setChord,
@@ -89,6 +97,7 @@ export function createDispatch({
     }
   });
   function run(ev) {
+    const recovered = recoveredLabelFocus(ev);
     const nearer = shadow();
     for (const scope of stack()) {
       let matched = null;
@@ -98,7 +107,7 @@ export function createDispatch({
         // the press is not for makes the cost of a keystroke the size of the table rather
         // than the size of the match. A row that matches and is dead still falls through to
         // the scope behind it, which is what `continue` says either way round.
-        if (!row.run) continue;
+        if (!row.run && !recovered) continue;
         const binding = bindings(row).find((b) => answers(b, ev));
         if (!binding || nearer.takes(binding) || !live(row)) continue;
         if (matched)
@@ -116,12 +125,73 @@ export function createDispatch({
         // control would send the page out from under the press the first one made.
         ev.preventDefault();
         if (ev.repeat && !matched.row.repeat) return true;
-        matched.row.run(matched.binding);
+        if (matched.row.run) matched.row.run(matched.binding);
+        else recovered.click();
         return true;
       }
       nearer.past(scope);
     }
     return false;
+  }
+
+  // An action chosen from the reference has no keydown to match, but it still belongs to
+  // exactly one live scope. Resolve it through the same innermost-first stack and the same
+  // shadowing as a key press. The stable id is the route, while the first declared binding
+  // supplies the argument used by rows whose equivalent keys share one implementation
+  // (Enter/Space).
+  function commandFor(id) {
+    const nearer = shadow();
+    for (const scope of stack()) {
+      const row = scope.rows.find((candidate) => {
+        const ids = [
+          candidate.id,
+          ...commandRoutes(candidate).map((route) => route.id),
+        ];
+        return ids.includes(id) && candidate.run && live(candidate);
+      });
+      if (row) {
+        const route = commandRoutes(row).find((candidate) => candidate.id === id);
+        const active = bindings(row);
+        const binding = route?.binding ?? active[0];
+        if (
+          binding != null &&
+          (!route || active.includes(binding)) &&
+          !nearer.takes(binding)
+        )
+          return { row, binding };
+      }
+      nearer.past(scope);
+    }
+    return null;
+  }
+  // Snapshot every executable route while focus is still on the page. The reference is a
+  // modal scope and correctly shadows the page once it opens; asking after that point would
+  // make every page command look unavailable merely because the chooser itself is standing.
+  function availableCommands() {
+    const available = new Set();
+    const nearer = shadow();
+    for (const scope of stack()) {
+      for (const row of scope.rows) {
+        if (!row.run || !live(row)) continue;
+        const active = bindings(row);
+        const first = active[0];
+        const routes = [
+          { id: row.id, binding: first },
+          ...commandRoutes(row).filter((route) => active.includes(route.binding)),
+        ];
+        for (const route of routes)
+          if (route.binding != null && !nearer.takes(route.binding))
+            available.add(route.id);
+      }
+      nearer.past(scope);
+    }
+    return available;
+  }
+  function executeCommand(id) {
+    const command = commandFor(id);
+    if (!command) return false;
+    command.row.run(command.binding);
+    return true;
   }
 
   // A focus move is the one change in where the reader is standing that no state writer
@@ -147,5 +217,5 @@ export function createDispatch({
   });
   document.addEventListener("focusout", () => paintHere());
 
-  return { readerIn, shadow, stack };
+  return { availableCommands, executeCommand, readerIn, shadow, stack };
 }

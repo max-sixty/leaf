@@ -15,10 +15,10 @@
  * over the image drives one checkbox, so the pointer rests on the change and clicks
  * without aiming, and the two states swap under it.
  *
- * Everything that needs is native: the state is a checkbox, the swap a `:has(:checked)`
- * rule in the theme. No handler runs after the upgrade, so a serialized copy of this
- * page — DOM kept, script tags dropped — still flips, and a printed one stacks both
- * frames instead. A dragged slider would have survived neither.
+ * Everything that drives the flip is native: the state is a checkbox, the swap a
+ * `:has(:checked)` rule in the theme. A serialized copy of this page — DOM kept, script
+ * tags dropped — still flips, and a printed one stacks both frames instead. A dragged
+ * slider would have survived neither.
  *
  * Two kinds of word, and they are marked differently on purpose. Each frame's caption
  * names which state it holds, which is the widget's own word and the only thing telling
@@ -95,6 +95,7 @@ customElements.define(
       // form's submit, and there is no form on a leaf page.
       keys(box, "On a screenshot", [
         {
+          id: "screenshot.toggle",
           keys: [" "],
           does: () => `Show the ${box.checked ? "before" : "after"} frame`,
           line: () => `show ${box.checked ? "before" : "after"}`,

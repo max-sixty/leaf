@@ -1,6 +1,8 @@
 import { createThreadModel } from "./model.js";
+import { createInlineConversations } from "./inline.js";
 import { createConversationMessages } from "./messages.js";
 import { createThreadPlacement } from "./placement.js";
+import { createReplies } from "./replies.js";
 import { createWorkLines } from "./work-lines.js";
 
 /* Conversation folding and panel reconciliation. */
@@ -131,6 +133,17 @@ export function createConversation(dependencies) {
     reportPageError,
     visualPartLabel,
     tokenEntry,
+  });
+  const { wireReply } = createReplies({
+    landTyping,
+    loadDraft,
+    mirrorDraft,
+    post,
+    runtime,
+    saveDraft,
+    sendDraft,
+    tellDraft,
+    wireInput,
   });
 
   // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
@@ -277,193 +290,22 @@ export function createConversation(dependencies) {
   // element does — the rebuild this replaced snapped it shut on every one.
   let resolvedBox = null;
 
-  // A thread has one send in flight even though its reply draft has two views. wireInput's
-  // private hold is still the right scope for every other composer, which has one control;
-  // a reply adds this thread-scoped hold and announces it on the document bus so both Send
-  // controls render the same fact. The promise is the post itself, because a queue would
-  // serialize the duplicate rather than refuse it.
-  const REPLY_FLIGHT_NEWS = "lf-reply-flight";
-  const replyFlights = new Map(); // thread id -> post in flight
-  const replyBusy = (id) => replyFlights.has(id);
-  const tellReplyFlight = (id) =>
-    document.dispatchEvent(new CustomEvent(REPLY_FLIGHT_NEWS, { detail: { id } }));
-
-  function mirrorReplyFlight(ta, sync, id) {
-    const update = (ev) => {
-      if (ev.detail.id !== id) return;
-      if (!ta.isConnected)
-        return document.removeEventListener(REPLY_FLIGHT_NEWS, update);
-      sync();
-    };
-    document.addEventListener(REPLY_FLIGHT_NEWS, update);
-  }
-
-  async function sendReply(t, text, raw, owns) {
-    const id = t.root.id;
-    if (replyBusy(id)) return null;
-    const draftCtx = "reply:" + id;
-    const flight = sendDraft(draftCtx, owns, (attempt) =>
-      post({
-        kind: "reply",
-        parent: id,
-        revision: runtime.currentRevision,
-        text,
-        attempt,
-      }),
-    );
-    replyFlights.set(id, flight);
-    tellReplyFlight(id);
-    try {
-      return await flight;
-    } finally {
-      replyFlights.delete(id);
-      tellReplyFlight(id);
-    }
-  }
-
-  // One reply draft and one send path, however many views the thread has. The panel adds
-  // an address and reveals the sent message; an inline conversation supplies neither.
-  // Everything else — persistence, mirroring, the wire event and the focus landing — is
-  // the thread's and is therefore stated once.
-  function wireReply(t, input, send, { address, landed } = {}) {
-    const draftCtx = "reply:" + t.root.id;
-    input.value = loadDraft(draftCtx) ?? "";
-    const sync = wireInput(input, {
-      hint: "Reply",
-      sends: "send",
-      address,
-      sendBtn: send,
-      busy: () => replyBusy(t.root.id),
-      // localStorage notifies other tabs but skips this document. A conversation's
-      // inline and panel boxes are two views here, so reply drafts take the same bus
-      // directly. Other draft kinds still have one view per document.
-      save: (v) => {
-        saveDraft(draftCtx, v);
-        tellDraft(draftCtx, v);
-      },
-      send: async (text, raw) => {
-        const sent = await sendReply(t, text, raw, () => input.value === raw);
-        if (!sent) return;
-        landed?.(sent);
-        landTyping(input);
-      },
-    });
-    sync();
-    mirrorDraft(input, sync, draftCtx);
-    mirrorReplyFlight(input, sync, t.root.id);
-    return sync;
-  }
-
-  function conversationMessageNode(thread, message) {
-    let node = thread.querySelector(
-      `:scope > .lf-conversation-msg[data-event="${message.id}"]`,
-    );
-    if (node) {
-      const time = node.querySelector("time");
-      const when = ago(message.ts);
-      if (time.textContent !== when) time.textContent = when;
-      syncEdited(node.querySelector(":scope > .lf-conversation-head"), message);
-      const body = node.querySelector(":scope > .lf-conversation-body");
-      const revision = message.edited?.id ?? "";
-      if (node.lfRevision !== revision) {
-        if (message.suggestion) body.textContent = message.text;
-        else body.innerHTML = renderMessageMarkdown(message.text);
-        node.lfRevision = revision;
-      }
-      return node;
-    }
-    node = offer("div", `lf-conversation-msg ${message.author}`);
-    node.dataset.event = message.id;
-    const head = el("div", "lf-conversation-head");
-    head.append(
-      el("b", "", message.author === "claude" ? message.agent || "Agent" : "You"),
-      el("time", "", ago(message.ts)),
-    );
-    syncEdited(head, message);
-    const body = el("div", "lf-conversation-body");
-    if (message.suggestion) body.textContent = message.text;
-    else body.innerHTML = renderMessageMarkdown(message.text);
-    node.lfRevision = message.edited?.id ?? "";
-    node.append(head, body);
-    if (message.markup) {
-      const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
-      open.onclick = () => showThread(message.id);
-      node.append(open);
-    }
-    return node;
-  }
-
-  function conversationThreadNode(host, t) {
-    let thread = host.querySelector(
-      `:scope > .lf-conversation-thread[data-thread="${t.root.id}"]`,
-    );
-    if (!thread) {
-      thread = offer("div", "lf-conversation-thread");
-      thread.dataset.thread = t.root.id;
-      thread.tabIndex = -1;
-    }
-    // Turns only: a reaction on a message is the panel's strip to show, and the seat is
-    // the textual projection of the exchange.
-    const messages = turns(t).map((message) =>
-      conversationMessageNode(thread, message),
-    );
-    let tail;
-    if (t.resolved) {
-      const compose = thread.querySelector(":scope > .lf-say");
-      if (compose?.contains(focused())) thread.focus({ preventScroll: true });
-      tail = thread.querySelector(":scope > .lf-conversation-resolved");
-      const settledBy =
-        t.resolved.author === "claude"
-          ? `✓ Resolved by ${t.resolved.agent || "Agent"}`
-          : "✓ Resolved";
-      if (!tail) tail = offer("div", "lf-conversation-resolved");
-      if (tail.textContent !== settledBy) tail.textContent = settledBy;
-    } else if (t.root.response?.kind === "version") {
-      // The page seat shows what the reader proposed. Their reply workspace remains
-      // in Comments; the agent's response is the next authored version.
-      tail = null;
-    } else {
-      tail = thread.querySelector(":scope > .lf-say");
-      if (!tail) {
-        tail = offer("div", "lf-say");
-        const input = offer("textarea");
-        const send = offer("button", "lf-btn primary", "Send");
-        tail.append(input, send);
-        wireReply(t, input, send);
-      }
-    }
-    const work = thread.querySelector(":scope > .lf-work-line");
-    setChildren(thread, [
-      ...messages,
-      ...(work ? [work] : []),
-      ...(tail ? [tail] : []),
-    ]);
-    return thread;
-  }
-
-  function renderConversations(threads) {
-    for (const host of document.querySelectorAll(
-      ".lf-conversation[data-lf-conversation]",
-    )) {
-      const owner = elementById(host.dataset.lfConversation);
-      const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-      // Before the first comment, conversationBox's first-message composer is already
-      // the complete view. An externally arriving root may find unsent first-message
-      // words here, so the root does not get to take their only box. A hold-capable seat
-      // stays reachable after every root so an ordinary conversation cannot remove the
-      // stronger send route.
-      if (!owned.length) continue;
-      const first = host.lfFirstMessage;
-      const hold = registry[owner.localName]?.["x-conversation"]?.hold;
-      const pending = hold || loadDraft("say:" + owner.id) !== null ? first : null;
-      const work = host.querySelector(":scope > .lf-work-line");
-      setChildren(host, [
-        ...(work ? [work] : []),
-        ...owned.map((thread) => conversationThreadNode(host, thread)),
-        ...(pending ? [pending] : []),
-      ]);
-    }
-  }
+  const { renderConversations } = createInlineConversations({
+    ago,
+    el,
+    elementById,
+    focused,
+    loadDraft,
+    offer,
+    registry,
+    renderMessageMarkdown,
+    seatRoot,
+    setChildren,
+    showThread,
+    syncEdited,
+    turns,
+    wireReply,
+  });
 
   // The one number in the list's scroll-padding that CSS cannot work out: a run heading
   // sticks over the top of this box, and a long one wraps, so how much of the top is
@@ -544,6 +386,7 @@ export function createConversation(dependencies) {
       };
       keys(quote, "On a comment's quoted passage", [
         {
+          id: "passage.return",
           keys: PRESS,
           does: "Return to the quoted passage on the page",
           line: "return to the passage",
@@ -600,13 +443,8 @@ export function createConversation(dependencies) {
       };
       keys(resolve, "On a thread's Resolve button", [
         {
-          keys: PRESS,
-          does: "Resolve it",
-          line: "resolve",
-          when: () => !resolve.disabled,
-        },
-        {
-          keys: ["x"],
+          id: "thread.resolve",
+          keys: [...PRESS, "x"],
           does: "Resolve it",
           line: "resolve",
           when: () => !resolve.disabled,
@@ -644,13 +482,8 @@ export function createConversation(dependencies) {
       };
       keys(reopen, "On a resolved thread", [
         {
-          keys: PRESS,
-          does: "Reopen it",
-          line: "reopen",
-          when: () => !reopen.disabled,
-        },
-        {
-          keys: ["x"],
+          id: "thread.reopen",
+          keys: [...PRESS, "x"],
           does: "Reopen it",
           line: "reopen",
           when: () => !reopen.disabled,

@@ -1,15 +1,29 @@
-/* Anchor resolution, geometry, painting, and navigation. */
+import { shownBox, shownParts, shownRect } from "./geometry.js";
+
+/* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
-export const shownBand = (...args) => publishedAnchors.shownBand(...args);
-export const shownBox = (...args) => publishedAnchors.shownBox(...args);
-export const shownParts = (...args) => publishedAnchors.shownParts(...args);
+// Anchors are shallow records of primitive coordinates. Compare the complete records:
+// reading only the left operand's keys made a whole-visual anchor equal the part anchor
+// that extended it, but not the other way around.
+export const sameAnchor = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const left = Object.keys(a).sort();
+  const right = Object.keys(b).sort();
+  return (
+    left.length === right.length &&
+    left.every((key, index) => key === right[index] && a[key] === b[key])
+  );
+};
 
 export function createAnchors(dependencies) {
   const {
     DATUM,
     SCROLL,
     TEXT_BLOCK,
+    actionAnchor,
+    activateVisual,
     aimBox,
     aimIsOn,
     aimedItem,
@@ -45,9 +59,11 @@ export function createAnchors(dependencies) {
     pageWords,
     paintThreadQuotes,
     panel,
+    pointerAt,
     quoteFrom,
     queueLegend,
     rangeOf,
+    refreshAction,
     registry,
     reveal,
     runtime,
@@ -58,9 +74,9 @@ export function createAnchors(dependencies) {
     tagsDeclaring,
     textNodesUnder,
     threadsBox,
-    uiInside,
     under,
     withdraw,
+    worksSelector,
   } = dependencies;
 
   // ---------- view continuity ----------
@@ -224,16 +240,163 @@ export function createAnchors(dependencies) {
     return typeof part === "string" ? visualPart(visual, part) : null;
   }
   const visualPartLabel = (visual, part) => visualPart(visual, part)?.label ?? null;
+  const declaredVisualSelector = () =>
+    [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+  const genericVisualSelector = "svg, img, figure";
+  const visualSelector = () =>
+    [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+  const interactiveSelector = `${worksSelector},[data-lf-offer]`;
+  const parentAcross = (element) =>
+    element?.parentElement ?? element?.getRootNode()?.host ?? null;
+  const outermostAcross = (element, selector) => {
+    for (let parent = parentAcross(element); parent;) {
+      const outer = closestAcross(parent, selector);
+      if (!outer) break;
+      element = outer;
+      parent = parentAcross(element);
+    }
+    return element;
+  };
+  const unclaimedVisualGesture = (target) =>
+    !inChrome(target) && !inUi(target) && !closestAcross(target, interactiveSelector);
+  // A declared provider owns every hit inside it, including an inner svg wrapped by a
+  // generic figure. Without one, the outermost ordinary picture is the target. Generated
+  // ids remain implementation details; the nearest authored id is the durable seat.
+  function visualAt(target, { unclaimed = true } = {}) {
+    if (unclaimed && !unclaimedVisualGesture(target)) return null;
+    const declared = declaredVisualSelector();
+    let element = declared ? closestAcross(target, declared) : null;
+    if (element) element = outermostAcross(element, declared);
+    else {
+      element = closestAcross(target, genericVisualSelector);
+      if (element) element = outermostAcross(element, genericVisualSelector);
+      const providers =
+        element && declared ? [...element.querySelectorAll(declared)] : [];
+      // A figure holding one declared visual is its semantic caption/frame. Delegating
+      // the wrapper to that provider gives its padding, caption, drawing, and keyboard
+      // proxy one target. A figure holding several visuals remains a target of its own.
+      if (providers.length === 1 && unclaimedVisualGesture(providers[0]))
+        element = providers[0];
+    }
+    if (!element) return null;
+    const seat = closestAcross(element, '[id]:not(.lf-ui):not([id^="lf-"])');
+    return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
+  }
+
+  // Pointer activation may use the picture itself. Keyboard activation uses controls the
+  // runtime owns beside it, so generated provider markup keeps its own roles and remains
+  // clean when the live layer is removed from an exported copy. Each visual exposes its
+  // whole target and, when declared, each stable part.
+  const visualActionHolders = new WeakMap();
+  const visualActionAnchor = (anchor) =>
+    pageQueryAll(".lf-visual-action").find((control) =>
+      sameAnchor(control.lfAnchor, anchor),
+    ) ?? null;
+  // A proxy stands after the thing whose visibility controls the picture. In particular,
+  // putting it inside a closed details makes the control impossible to focus, so the
+  // disclosure is the stable seat and focusing the proxy can reveal the target inside it.
+  // Shadow renderers share their host as a seat; one holder there avoids moving several
+  // sibling holders past one another on every paint.
+  function visualActionSeat(candidate) {
+    let seat =
+      candidate.getRootNode() instanceof ShadowRoot
+        ? candidate.getRootNode().host
+        : candidate;
+    for (let current = seat; current; current = parentAcross(current))
+      if (current.matches?.("details")) seat = current;
+    return seat;
+  }
+  function prepareVisualActions() {
+    const groups = new Map();
+    const claimed = [];
+    const kept = new Set();
+    for (const candidate of pageQueryAll(visualSelector())) {
+      const found = visualAt(candidate);
+      if (!found || found.element !== candidate) continue;
+      const targets = [
+        {
+          anchor: { section: found.id },
+          label: anchorLabel({ section: found.id }).replace(/^§\s*/, "") || found.id,
+        },
+        ...[...declaredVisualParts(candidate)].flatMap((token) => {
+          const part = visualPart(candidate, token);
+          return part && unclaimedVisualGesture(part.element)
+            ? [
+                {
+                  anchor: { section: found.id, visual: token },
+                  label: part.label,
+                },
+              ]
+            : [];
+        }),
+      ];
+      const seat = visualActionSeat(candidate);
+      let group = groups.get(seat);
+      if (!group) {
+        group = [];
+        groups.set(seat, group);
+      }
+      for (const target of targets)
+        if (!claimed.some((anchor) => sameAnchor(anchor, target.anchor))) {
+          claimed.push(target.anchor);
+          group.push(target);
+        }
+    }
+    for (const [seat, targets] of groups) {
+      if (!targets.length) continue;
+      let record = visualActionHolders.get(seat);
+      if (!record?.holder.isConnected) {
+        record = { holder: offer("span", "lf-visual-actions") };
+        visualActionHolders.set(seat, record);
+      }
+      const { holder } = record;
+      const unused = new Set(holder.children);
+      const controls = targets.map(({ anchor, label }) => {
+        let control = [...unused].find((child) => sameAnchor(child.lfAnchor, anchor));
+        if (!control) {
+          control = offer("button", "lf-visual-action lf-quiet");
+          control.onfocus = () => {
+            let current = resolveAnchor(control.lfAnchor, pageText());
+            let element = current?.marks?.[0] ?? current?.element;
+            if (!element) return;
+            reveal(element);
+            current = resolveAnchor(control.lfAnchor, pageText());
+            element = current?.marks?.[0] ?? current?.element;
+            element?.scrollIntoView({
+              behavior: "instant",
+              block: "nearest",
+              inline: "nearest",
+            });
+          };
+          control.onclick = () => activateVisual(control.lfAnchor, control);
+        }
+        unused.delete(control);
+        control.lfAnchor = anchor;
+        const name = `React or comment on ${label}`;
+        if (control.textContent !== name) control.textContent = name;
+        return control;
+      });
+      for (const control of unused) control.remove();
+      controls.forEach((control, index) => {
+        if (holder.children[index] !== control)
+          holder.insertBefore(control, holder.children[index] ?? null);
+      });
+      if (seat.nextSibling !== holder) seat.after(holder);
+      kept.add(holder);
+    }
+    for (const holder of pageQueryAll(".lf-visual-actions"))
+      if (!kept.has(holder)) holder.remove();
+  }
 
   // ---------- pointing at an item ----------
   // One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
-  // only route to an item whose words are all inside controls. A plain click reaches the
-  // visuals, which have no text to select. Two more routes were tried and cut: a rule in
-  // the margin raised by hovering, too strong for what it offered and placed at the
-  // item's own left edge, which is the page's margin only for an item the page happens
-  // to have left-aligned; and a row of chips beside the 💬 offering the selection's
-  // enclosing chain ("⬚ paragraph", "⬚ section") — a correction nobody had asked for,
-  // paid in chrome beside every selection a user made.
+  // only route to an item whose words are all inside controls. A plain click reaches a
+  // visual when it did not finish a passage selection. Two more routes were tried and
+  // cut. A margin rule raised by hovering was too strong for what it offered and sat at
+  // the item's own left edge, which is the page's margin only when that item happens to
+  // be left-aligned. A row of chips beside the 💬 offered the selection's enclosing chain
+  // ("⬚ paragraph", "⬚ section") — a correction nobody had asked for, paid in chrome
+  // beside every selection a user made.
   //
   // A whole item writes {section: <id>} with no quote. A declared picture part adds its
   // authored `visual` token; the section remains the durable seat. Both coordinates come
@@ -429,6 +592,7 @@ export function createAnchors(dependencies) {
   const placed = new Map();
   let pendingMarks = []; // the same record for the open composer's own passage
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
+  let actionOutline = []; // the visual target whose action bar is standing
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -437,169 +601,10 @@ export function createAnchors(dependencies) {
       const item = aimedItem();
       return item ? { el: item, part: "" } : null;
     }
+    const pointer = pointerAt();
     if (designIsOn() && pointer.x >= 0)
       return designTarget(document.elementFromPoint(pointer.x, pointer.y));
     return null;
-  }
-  // What a container lets the reader see of what it holds, or null where it shows all of
-  // it. Overflow is one of three ways to draw nothing past an edge: paint containment and
-  // content-visibility both clip while overflow computes `visible`, and a box under either
-  // would be drawn at a rect the reader never sees. The band itself is the padding box less
-  // whatever a scrollbar takes — clientLeft and clientWidth, where a border box says
-  // nothing about either, and a box drawn under a border is drawn nowhere as surely as one
-  // past the edge.
-  //
-  // `version check --render` imports this to ask which container cut a box away, so the
-  // band a handover is refused against and the band the page paints to are one reading.
-  // Written twice they disagreed twice, each copy right about one of the two things above
-  // and wrong about the other.
-  function shownBand(el) {
-    const s = getComputedStyle(el);
-    if (
-      s.overflowX === "visible" &&
-      s.overflowY === "visible" &&
-      !/paint|strict|content/.test(s.contain) &&
-      s.contentVisibility === "visible"
-    )
-      return null;
-    const b = el.getBoundingClientRect();
-    const left = b.left + el.clientLeft,
-      top = b.top + el.clientTop;
-    return {
-      left,
-      top,
-      right: left + el.clientWidth,
-      bottom: top + el.clientHeight,
-    };
-  }
-  // The box an element shows as. An element that generates none of its own — a
-  // display: contents wrapper — shows as what its contents paint, so its bounds are
-  // theirs, and a range asks the platform for that union in one read. Its own rect is
-  // (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
-  // reads as a real place at the top of the page, so whatever measured it travelled there.
-  //
-  // No widget in the vocabulary is one now — lf-suggestion was, and its theme comment
-  // carries what that cost — but the wrong answer is the platform's rather than that
-  // widget's: a page or a project layer styles any wrapper this way in a line. This
-  // lived inside the legend's own reading once, where it stood as a fact about the
-  // legend rather than about elements, which is exactly why the travel went on asking
-  // the element directly and centred the top of the document. One answer to "where is
-  // this element", so there is no second way to ask.
-  function shownBox(el) {
-    const r = el.getBoundingClientRect();
-    if (r.width || r.height) return r;
-    const contents = document.createRange();
-    contents.selectNodeContents(el);
-    return contents.getBoundingClientRect();
-  }
-  // The same reading in elements rather than pixels, for the marks the runtime paints on
-  // the page's own elements: an outline needs a box to hang on, so a mark aimed at a
-  // boxless element goes to the boxes its contents make. Read from the platform rather
-  // than from the registry, because generating no box is not a fact about which widget
-  // this is — any wrapper in any layer can do it, and CSS has no selector that says so.
-  //
-  // Area, where shownBox asks only for a box, because the two want different things of
-  // one: bounds are bounds whichever dimension is flat, while a ring is only worth hanging
-  // where it can be seen.
-  //
-  // The runtime's own chrome leaves by name rather than on that test. Area read as though
-  // it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
-  // a span with no width, so the apparatus fell out on its own. The line saying how many
-  // comments a block holds is clipped to a pixel and has one — so an ask that had been
-  // commented on wore its ring on the runtime's word about the page rather than on the
-  // page, and the pixel it hung from moves the first time a comment lands. That question is
-  // already asked, declared labels and all, and it is the one the anchor pass puts
-  // to a text node — so what a mark hangs on and what a quote may name cannot come apart.
-  // Bounded at the element, for the reason given where the question is stated: a widget an
-  // agent sent stands inside the panel, and asked about the page instead it would have no
-  // child of its own left to fall back to.
-  function shownParts(el) {
-    const r = el.getBoundingClientRect();
-    if (r.width && r.height) return [el];
-    return [...el.children]
-      .filter((child) => !uiInside(child, el))
-      .flatMap((child) => shownParts(child));
-  }
-  // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
-  // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
-  // ancestor's clip can reach — that is the point of it — so the box owes the clips an
-  // answer of its own: an option's table box runs on under its group's overflow: hidden,
-  // and a card half-scrolled out of a board is half gone. A box drawn from the raw rect
-  // claims pixels the page has already refused, over the neighbour standing in them.
-  // body is the page's own scroller, so its edge is one of these too: what is scrolled
-  // off screen has no rect, and a legend draws boxes for what is on it and nothing for
-  // the rest.
-  //
-  // The walk stops at a box the viewport holds rather than the document: nothing above a
-  // `position: fixed` element clips it, so the ancestors past that one are answering about a
-  // flow the element left. Every box in the chrome is behind one — the comment panel is
-  // fixed, and body is the page's scroller narrowed to the column beside it — so a reply box
-  // measured through body's band came back wholly clipped away, at any window wide enough for
-  // the panel to stand beside the page rather than over it. The one caller before this asked
-  // only about the page's own items, none of which is ever inside a fixed box, which is why
-  // the walk could be written as "every ancestor" and read as complete.
-  //
-  // Which leaves the viewport itself, applied to everything: for a box in the page it is
-  // what body's own band already said, and for one in a fixed layer it is the whole of what
-  // clips it.
-  //
-  // `clips` caches each ancestor's answer for one pass: the legend asks for every item
-  // on the page in one breath, and the items share their scrollers, so what a pass spends
-  // on the walk is two style reads per ancestor rather than two per item per ancestor.
-  function shownRect(item, clips) {
-    return clipped(shownBox(item), item, clips);
-  }
-  // Where a member begins, as the reader sees it: the first of the boxes it paints that
-  // survives the clips, rather than the bounds of all of them. They are the same box for
-  // anything in flow and different for an inline that wraps, whose bounds run from the
-  // column's left margin to its right — so a digit placed on that corner sat four hundred
-  // pixels from the link it addressed, a line above it, on top of somebody else's sentence.
-  // `shownBox`'s union answers "how much room does this take", which is what a legend box and
-  // an aim outline want; this answers "where does it start", which is what anything hung on a
-  // corner wants. The first that survives rather than the first outright, since a link whose
-  // opening line has scrolled away still has a corner on the line below it.
-  const startsAt = (item, clips) => {
-    const fragments = item.getClientRects();
-    return (fragments.length ? [...fragments] : [shownBox(item)])
-      .map((box) => clipped(box, item, clips))
-      .find(Boolean);
-  };
-  // The clips standing over a box, applied to it. Taken apart from shownRect because the two
-  // readings above want the same walk over different boxes.
-  function clipped(box, item, clips) {
-    let left = Math.max(box.left, 0),
-      top = Math.max(box.top, 0),
-      right = Math.min(box.right, innerWidth),
-      bottom = Math.min(box.bottom, innerHeight);
-    // From the box itself, not from its parent: an element is not clipped by its own
-    // overflow — that clips what it holds — so its band is skipped and only its position is
-    // read. Starting at the parent instead asked the question of every ancestor of a fixed
-    // box and never of the box, which is the same bug one level up: in design mode the aim
-    // resolves the comment panel itself, and the panel measured through body's band came
-    // back wholly clipped away, so a mode whose row promises a click on the chrome drew
-    // nothing over the chrome.
-    for (let a = item; a; a = a.parentElement) {
-      let c = clips.get(a);
-      if (c === undefined)
-        clips.set(
-          a,
-          (c = {
-            band: shownBand(a),
-            // Read here rather than out of shownBand, whose answer is a band and is the
-            // render gate's too: what clips a box and what a box is positioned against are
-            // two facts, and one of them is this walk's alone.
-            fixed: getComputedStyle(a).position === "fixed",
-          }),
-        );
-      if (a !== item && c.band) {
-        left = Math.max(left, c.band.left);
-        top = Math.max(top, c.band.top);
-        right = Math.min(right, c.band.right);
-        bottom = Math.min(bottom, c.band.bottom);
-      }
-      if (c.fixed) break;
-    }
-    return right > left && bottom > top ? { left, top, right, bottom } : null;
   }
   // The aim's one writer, and the whole of its paint: the box in the chrome's layer
   // (aimBox), the cursor's half of the same promise, and in design mode the name of what
@@ -652,7 +657,6 @@ export function createAnchors(dependencies) {
     inspectEl.style.left = `${Math.max(2, corner.left)}px`;
     inspectEl.style.top = `${(above >= 0 ? above : corner.top + 2) + pageScroller.scrollTop}px`;
   }
-  const pointer = { x: -1, y: -1 }; // last seen, so a repaint can re-answer the hover
   let hovering = null;
   let hoverQueued = false;
   const marksOf = (id) => marked.get(id) ?? [];
@@ -701,15 +705,18 @@ export function createAnchors(dependencies) {
 
   function paintAnchors(threads = buildThreads()) {
     if (!anchorsReady()) return;
+    prepareVisualActions();
     for (const where of allMarks())
       if (where instanceof Element) where.classList.remove("lf-mark-el");
     for (const where of [...reacted.values()].flat())
       if (where instanceof Element) where.classList.remove("lf-react-el");
     for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
+    for (const el of actionOutline) el.classList.remove("lf-action-target");
     marked.clear();
     reacted.clear();
     placed.clear();
     pendingOutline = [];
+    actionOutline = [];
 
     const text = pageText(); // read once, for every anchor this pass places
     const posted = [];
@@ -827,6 +834,11 @@ export function createAnchors(dependencies) {
         }
     }
     if (draft?.segments) pending.push(...pendingMarks);
+
+    const active = actionAnchor();
+    const action = active && !active.quote ? resolveAnchor(active, text) : null;
+    actionOutline = action?.element ? (action.marks ?? shownParts(action.element)) : [];
+    for (const part of actionOutline) part.classList.add("lf-action-target");
 
     // The composer's echo of its own passage, decided here because here is where it is known
     // whether the page is showing that passage. Usually it is — the box opens beside the words
@@ -1250,6 +1262,7 @@ export function createAnchors(dependencies) {
       // panel already says for itself, on the quote that makes it. Unconditional because
       // toggle runs no update step when the answer has not changed, unlike the add that
       // noteMarks and the standing paint have to guard.
+      const pointer = pointerAt();
       const onMark = markAt(pointer.x, pointer.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
       const id = hoveredThreadOf()?.dataset.id ?? onMark;
@@ -1259,32 +1272,9 @@ export function createAnchors(dependencies) {
       if (id !== hovering || hoverCardOf(id) !== hoverThread) paintHover(id);
     });
   }
-  // The pointer's place is read off a pointer event and not off `mousemove`, because the
-  // legacy mouse events round clientX/clientY to whole pixels and the browser hit-tests the
-  // position they were rounded from. Every consumer of this record asks a hit-test question
-  // — what a press would take, whether a mark is under the hand — so a rounded point is an
-  // answer about somewhere the pointer is not, and within a pixel of a boundary it is a
-  // different element: an ⌥ aim outlined the option above the one the press then took,
-  // because the outline asked elementFromPoint at the rounded point while the press read
-  // the target the browser resolved at the true one.
-  document.addEventListener("pointermove", (ev) => {
-    pointer.x = ev.clientX;
-    pointer.y = ev.clientY;
-    refreshHover();
-  });
-  // A finger arrives already down. A tap dispatches `pointerdown` and then the
-  // compatibility mouse events — no `pointermove` anywhere in it — so a record kept from
-  // movement alone is still its start value when the click asks, and a consumer with no
-  // guard asks elementFromPoint about a point off the page: the quote under the finger
-  // opened nothing. The press is the pointer's place too, and for a tap it is the only
-  // statement of it: a drag still dispatches `pointermove` until the browser cancels it.
-  // No hover refresh with it — a mouse has already moved to this point and refreshed
-  // there — which is not a claim that the record paints no hover on touch. pageShifted
-  // reads it too, and a drag reached that paint before this recorder existed.
-  document.addEventListener("pointerdown", (ev) => {
-    pointer.x = ev.clientX;
-    pointer.y = ev.clientY;
-  });
+  // The shared pointer recorder is installed before this listener, so the hover reads the
+  // same unrounded point the browser used for the event's hit test.
+  document.addEventListener("pointermove", refreshHover);
   // The page moving under a parked pointer is the pointer moving over the page: what a
   // press would take, whether a mark is under the hand, and where every legend box
   // stands can all change with no mouse event to say so, and a box left over the old
@@ -1292,12 +1282,21 @@ export function createAnchors(dependencies) {
   // that says so — a scroll, a window resize, a replay's marks landing (paintAnchors),
   // a widget's FLIP settling, and the reflows only the legend's observers hear, the
   // panel opening re-centring the column among them.
+  let actionFrame = 0;
+  function queueActionPlacement() {
+    if (actionFrame) return;
+    actionFrame = requestAnimationFrame(() => {
+      actionFrame = 0;
+      refreshAction();
+    });
+  }
   function pageShifted() {
     refreshHover();
     refreshAim();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();
+    if (actionAnchor()) queueActionPlacement();
   }
   // At the document and at capture, because scroll does not bubble and body is not the
   // page's only scroller: a board scrolls its columns sideways, and a card carried under
@@ -1316,21 +1315,18 @@ export function createAnchors(dependencies) {
     itemAt,
     itemWord,
     itemSays,
+    visualAt,
+    visualActionAnchor,
     visualPartAt,
     visualPartLabel,
     resolveAnchor,
     NOTE,
-    marked,
-    placed,
-    shownBand,
-    shownBox,
-    shownParts,
-    shownRect,
-    startsAt,
+    isMarked: (id) => marked.has(id),
+    placedAt: (id) => placed.get(id),
+    pendingMarkParts: () => [...pendingMarks],
     refreshAim,
     dockSeats,
     paintAnchors,
-    pointer,
     fragmentId,
     markAt,
     scrollToElement,
@@ -1338,9 +1334,6 @@ export function createAnchors(dependencies) {
     paintStanding,
     refreshHover,
     pageShifted,
-    get pendingMarks() {
-      return pendingMarks;
-    },
   };
   publishedAnchors = anchors;
   return anchors;

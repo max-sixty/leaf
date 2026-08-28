@@ -189,6 +189,7 @@ customElements.define(
     #keys(card, grip) {
       const held = () => this.#grabbed?.grip === grip;
       const grab = {
+        id: "board.grab",
         keys: PRESS,
         does: "Grab the card",
         line: "grab the card",
@@ -203,7 +204,14 @@ customElements.define(
       return keys(grip, "On a card grip", [
         grab,
         {
+          id: "board.move",
           keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"],
+          routes: [
+            { id: "board.move-up", binding: "ArrowUp", does: "Move it up" },
+            { id: "board.move-down", binding: "ArrowDown", does: "Move it down" },
+            { id: "board.move-left", binding: "ArrowLeft", does: "Move it left" },
+            { id: "board.move-right", binding: "ArrowRight", does: "Move it right" },
+          ],
           label: "arrows",
           does: "Move it",
           line: "move",
@@ -218,6 +226,7 @@ customElements.define(
             ),
         },
         {
+          id: "board.drop",
           keys: PRESS,
           does: "Drop it here",
           line: "drop",
@@ -225,6 +234,7 @@ customElements.define(
           run: () => this.#drop(),
         },
         {
+          id: "board.cancel",
           keys: ["Escape"],
           does: "Cancel the move",
           line: "cancel the move",

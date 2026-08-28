@@ -13,14 +13,14 @@ import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
-from leaf import service as service_model
+from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1042,7 +1042,7 @@ def live_leaf(tmp_path, monkeypatch):
     held = []
 
     def go(name, title):
-        d = service_model.state_home() / "pages" / name
+        d = host_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         (d / "versions" / "v1.html").write_text(
@@ -1416,8 +1416,9 @@ RING_NAMES = """() => {
         // Every rule is asked for its style, because a declaration written after a
         // nested rule is hoisted into a CSSNestedDeclarations, which has one and no
         // selector. The context comes off the parent for the same reason: the layer's
-        // one nested ring says `&:has(> lf-option > .lf-pick:focus-visible)` and nothing
-        // else, which names no rule anybody can find.
+        // one nested ring says
+        // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
+        // and nothing else, which names no rule anybody can find.
         if (rule.style
             && rule.style.getPropertyValue('outline').includes('--here-ring)')) {
           const name = rule.style.getPropertyValue('--lf-here-ring').trim();
@@ -1607,7 +1608,7 @@ RINGS_DRAWN = f"""async () => {{
             `its ${{side}} edge is ${{Math.round(by * 10) / 10}}px outside ` + who
             + ` (ring ${{at(ring)}} vs band ${{at(band)}})`;
     }};
-    // `clipped` in anchors.js is this walk, and this is its shape: from the box itself
+    // `clipped` in runtime/geometry.js is this walk, and this is its shape: from the box itself
     // rather than its parent, skipping the box's own band because an element is not clipped
     // by its own overflow, and stopping at the first fixed box. Its comment records what
     // starting at the parent cost — "the question of every ancestor of a fixed box and

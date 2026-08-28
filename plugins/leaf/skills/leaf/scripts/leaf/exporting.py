@@ -9,7 +9,7 @@ from leaf.data import read_data
 from leaf.event_log import read_events
 from leaf.files import published_versions, version_name
 from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
-from leaf.render_gate import preview_server
+from leaf.render_gate.preview import preview_server
 from leaf.schema import _DIR_FILES, MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import parse_structure
 

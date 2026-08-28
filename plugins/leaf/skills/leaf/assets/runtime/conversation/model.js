@@ -1,4 +1,6 @@
 /* The conversation log's version-independent thread fold. */
+import { sameAnchor } from "../anchors.js";
+
 export function createThreadModel(dependencies) {
   const {
     elementById,
@@ -153,9 +155,6 @@ export function createThreadModel(dependencies) {
   // The bare reactions standing on exactly this anchor — the bar's own question, asked
   // so its pills can say which tokens are already there. Anchors are compared as
   // records, the way the file compares them.
-  const sameAnchor = (a, b) =>
-    JSON.stringify(a, Object.keys(a ?? {}).sort()) ===
-    JSON.stringify(b, Object.keys(b ?? {}).sort());
   const reactionsOn = (anchor) =>
     lastThreads
       .filter(

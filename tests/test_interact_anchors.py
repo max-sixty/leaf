@@ -21,7 +21,7 @@ from interact_support import (
     suggested,
 )
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import hooks as hooks_model
 
 

@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
-from leaf import events as events_model
+from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
     ADDRESS_PAGE,
@@ -32,6 +32,7 @@ from render_support import (
     _publish,
     card_body,
     composer_quote,
+    hold_selection,
     key_line,
     leaf_page,
     live_url,
@@ -1358,6 +1359,7 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
         "BUTTON",
         "INPUT",
         "BUTTON",
+        "BUTTON",
     ]
 
     # And the box that does have something out of sight is one of those stops, which is
@@ -1425,6 +1427,76 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
     )
     expect(comments).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
+    """The reference is the command register made usable, not a second list of prose.
+
+    Search narrows that register, arrows choose a result, and Enter runs it through the
+    same scoped command route as its key. A command outside the reader's current scope
+    stays selectable, but explains the scope it needs instead of closing and doing
+    nothing. Stable command IDs are exposed on the results so words can change without
+    breaking this route or tooling built on it."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
+    help_el = page.locator(".lf-help")
+    search = page.get_by_role("combobox", name="Search keyboard shortcuts")
+
+    page.keyboard.press("?")
+    search.fill("resolve it")
+    result = help_el.locator(
+        '.lf-help-command[data-lf-command="thread.resolution.toggle"]'
+    )
+    expect(result).to_have_count(1)
+    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
+    expect(search).to_have_attribute("aria-haspopup", "grid")
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    expect(result.locator("xpath=ancestor::tr")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.keyboard.type("!")
+    expect(search).to_have_value("resolve it!")
+    expect(help_el.locator(".lf-help-empty")).to_be_visible()
+    page.keyboard.press("Backspace")
+    page.keyboard.press("ArrowDown")
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    expect(help_el).to_be_visible()
+    expect(help_el.locator(".lf-help-meta")).to_have_text(
+        "Available on a focused thread"
+    )
+    search.fill("put the reaction down")
+    cancel_reaction = help_el.locator(
+        '.lf-help-command[data-lf-command="reaction.cancel"]'
+    )
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    expect(help_el.locator(".lf-help-meta")).to_have_text("Available with r armed")
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("?")
+    search.fill("previous open thread")
+    previous = help_el.locator('.lf-help-command[data-lf-command="thread.previous"]')
+    expect(previous).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(previous).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    thread = page.locator(".lf-thread").last
+    expect(thread).to_be_focused()
+    page.keyboard.press("?")
+    search.fill("resolve it")
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    expect(help_el).to_be_hidden()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     assert errors == []
     page.close()
 
@@ -1998,7 +2070,8 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
           host.append(box);
           document.querySelector('main').append(host);
           keys(host, 'Around a text box', [
-            {keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
+            {id: 'test.widget',
+             keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              does: 'Work the widget', line: 'work widget',
              run: (binding) => host.dataset.fired = binding},
           ]);
@@ -2065,8 +2138,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             let declaration = 'declared';
             try {
               keys(button, id, [
-                {keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
-                {keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
+                {id: 'test.kept-first', keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
+                {id: 'test.kept-second', keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
               ], when);
             } catch (error) {
               declaration = error.message;
@@ -2084,14 +2157,25 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           };
           return {
             ambiguous: declare('ambiguous', [
-              {keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
-              {keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
+              {id: 'test.first', keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
+              {id: 'test.second', keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
             ]),
             exclusive: declare('exclusive', [
-              {keys: ['F2'], does: 'First state', line: 'first',
+              {id: 'test.first-state', keys: ['F2'], does: 'First state', line: 'first',
                when: () => true, run: () => {}},
-              {keys: ['F2'], does: 'Second state', line: 'second',
+              {id: 'test.second-state', keys: ['F2'], does: 'Second state', line: 'second',
                when: () => false, run: () => {}},
+            ]),
+            missingIdentity: declare('missing-identity', [
+              {keys: ['F5'], does: 'Anonymous command', line: 'anonymous', run: () => {}},
+            ]),
+            malformedIdentity: declare('malformed-identity', [
+              {id: 'Sentence shaped identity', keys: ['F5'], does: 'Named badly',
+               line: 'bad identity', run: () => {}},
+            ]),
+            duplicateIdentity: declare('duplicate-identity', [
+              {id: 'test.same', keys: ['F5'], does: 'First route', line: 'first', run: () => {}},
+              {id: 'test.same', keys: ['F6'], does: 'Second route', line: 'second', run: () => {}},
             ]),
             modifierAlias: conflicts([
               {keys: ['Mod+Shift+x'], does: 'First alias'},
@@ -2106,7 +2190,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {keys: ['Shift+?'], does: 'Shifted alias'},
             ]),
             noncanonical: declare('noncanonical', [
-              {keys: ['Shift+Mod+x'], does: 'Noncanonical binding',
+              {id: 'test.noncanonical', keys: ['Shift+Mod+x'], does: 'Noncanonical binding',
                line: 'work', run: () => {}},
             ]),
             immediateTransaction: keptInvalid('kept-immediate'),
@@ -2116,6 +2200,9 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     )
     assert "two live meanings for F2" in answers["ambiguous"], answers
     assert answers["exclusive"] == "declared", answers
+    assert "has no stable command id" in answers["missingIdentity"], answers
+    assert "is not a stable command id" in answers["malformedIdentity"], answers
+    assert "declares test.same twice" in answers["duplicateIdentity"], answers
     assert "two live meanings for Shift+Mod+x" in answers["modifierAlias"], answers
     assert "two live meanings for A" in answers["caseAlias"], answers
     assert "two live meanings for Shift+?" in answers["punctuationAlias"], answers
@@ -2131,20 +2218,43 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page.evaluate(
         """async () => {
           const { keys } = await import('/runtime/widget-api.js');
+          let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
             button.textContent = label;
             document.querySelector('main').append(button);
+            if (!first) first = button;
             keys(button, 'Repeated controls', [
-              {keys: ['F3'], does: () => `Work ${label}`, line: 'work', run: () => {}},
+              {id: 'test.repeated', keys: ['F3'], does: () => `Work ${label}`,
+               line: 'work', run: () => button.dataset.fired = '1'},
+              ...(label === 'Second' ? [{
+                id: 'test.second-only', keys: ['F6'], does: 'Work only the second',
+                line: 'second only', reach: 'on the second control',
+                run: () => button.dataset.secondFired = '1',
+              }] : []),
             ]);
           }
-          document.querySelector('main button').focus();
+          first.focus();
         }"""
     )
     page.keyboard.press("?")
     expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
-    page.keyboard.press("Escape")
+    search = page.get_by_role("combobox", name="Search keyboard shortcuts")
+    search.fill("work only the second")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-help-meta")).to_have_text(
+        "Available on the second control"
+    )
+    search.fill("work first")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("button", name="First", exact=True)).to_have_attribute(
+        "data-fired", "1"
+    )
+    expect(page.get_by_role("button", name="Second", exact=True)).not_to_have_attribute(
+        "data-fired", "1"
+    )
     assert errors == []
     page.close()
 
@@ -2246,12 +2356,14 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     toggle.focus()
     page.keyboard.press("Enter")
     expect(toggle).to_have_attribute("aria-pressed", "true")
-    page.keyboard.press("Escape")
+    create = page.locator('.lf-help-command[data-lf-command="comment.create"]')
+    expect(create).to_have_attribute("data-lf-available", "true")
+    create.click()
+    expect(page.locator(".lf-help")).to_be_hidden()
     expect(version).to_have_attribute("aria-keyshortcuts", "v")
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r" · c$")
     )
-    page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     assert errors == []
     page.close()
@@ -2273,7 +2385,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     expect(line).to_contain_text("d / u")
     expect(line).to_contain_text("half a page")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("Half a page down / up")
+    expect(page.locator(".lf-help")).to_contain_text("Half a page down")
+    expect(page.locator(".lf-help")).to_contain_text("Half a page up")
     expect(page.locator(".lf-help")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
     expect(line).not_to_contain_text("F7")
@@ -2283,7 +2396,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
-              { keys: ['F2'], does: 'a press with nothing to say for itself',
+              { id: 'test.no-line', keys: ['F2'],
+                does: 'a press with nothing to say for itself',
                 run: () => {} },
             ]);
             return 'declared';
@@ -2305,7 +2419,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
-              { keys: ['Ctrl+k'], does: 'a modifier the matcher never asks about',
+              { id: 'test.bad-modifier', keys: ['Ctrl+k'],
+                does: 'a modifier the matcher never asks about',
                 line: 'a key that is really just k', run: () => {} },
             ]);
             return 'declared';
@@ -2470,13 +2585,16 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
     more = page.get_by_role("button", name="? more", exact=True)
     more.click()
     help_el = page.locator(".lf-help")
-    search = page.get_by_role("searchbox", name="Search keyboard shortcuts")
+    search = page.get_by_role("combobox", name="Search keyboard shortcuts")
     expect(help_el).to_be_visible()
     expect(search).to_be_focused()
 
     search.fill("d / u")
-    expect(help_el.locator("tr:not([hidden])")).to_have_count(1)
-    expect(help_el.locator("tr:not([hidden])")).to_contain_text("Half a page down / up")
+    expect(help_el.locator("tr:not([hidden])")).to_have_count(2)
+    expect(help_el.locator("tr:not([hidden])").nth(0)).to_contain_text(
+        "Half a page down"
+    )
+    expect(help_el.locator("tr:not([hidden])").nth(1)).to_contain_text("Half a page up")
 
     search.fill("comment panel")
     expect(
@@ -2523,7 +2641,11 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
 
     walks = {}
     for settled in (False, True):
-        page.evaluate("() => document.activeElement?.blur()")
+        # Start each walk from the page rather than from the last control in the
+        # previous walk. Blurring preserves that control as the sequential focus
+        # starting point, which only happened to wrap before the page gained a visual
+        # reaction proxy as its first Tab stop.
+        page.evaluate("() => document.body.focus()")
         trail = []
         for _ in range(24):
             page.keyboard.press("Tab")
@@ -2656,6 +2778,207 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     page.close()
 
 
+def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
+    """Leaf treats a label's native activation as one keyboard standing.
+
+    Chromium moves focus through body between mousedown and native label activation.
+    That intermediate state must not repaint focus-derived surfaces. The native click
+    and text selection must still work."""
+    html = leaf_page(
+        "label focus",
+        """
+<h1 id="frames">Choose a frame</h1>
+<lf-options id="first-question" choose>
+  <lf-option id="first-frame"><strong>First</strong>
+    <label><input id="first" type="radio" name="first-frame">
+      <span>first state</span></label>
+  </lf-option>
+  <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
+</lf-options>
+<lf-options id="frame-question" choose>
+  <lf-option id="after-frame"><strong>After</strong>
+    <label id="frame-label"><input id="frame" type="radio" name="frame">
+      <span>after state</span></label>
+  </lf-option>
+  <lf-option id="before-frame"><strong>Before</strong></lf-option>
+</lf-options>
+""",
+    )
+    page, errors = open_page(
+        browser, serve(html, anchored=[("frames", "Choose a frame")])
+    )
+    first = page.locator("#first")
+    control = page.locator("#frame")
+    words = page.locator("#frame-label span")
+    first.focus()
+    standing = key_line(page)
+    assert "let go" in standing
+    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+
+    # A secondary contact does not drive native label activation, so it must not
+    # start the logical transaction either.
+    page.evaluate(
+        """() => {
+          const init = {bubbles: true, composed: true, pointerId: 98,
+                        pointerType: 'touch', isPrimary: false, button: 0};
+          document.querySelector('#frame-label').dispatchEvent(
+            new PointerEvent('pointerdown', init)
+          );
+          document.activeElement.blur();
+        }"""
+    )
+    assert "let go" not in key_line(page)
+    page.evaluate(
+        """() => dispatchEvent(new PointerEvent('pointerup', {
+          bubbles: true, composed: true, pointerId: 98,
+          pointerType: 'touch', isPrimary: false, button: 0
+        }))"""
+    )
+    first.focus()
+    assert key_line(page) == standing
+
+    bounds = words.bounding_box()
+    assert bounds is not None
+    middle = (bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2)
+    page.mouse.move(*middle)
+    page.mouse.down()
+    page.evaluate(
+        """() => {
+          const init = {bubbles: true, composed: true, pointerId: 99,
+                        pointerType: 'touch', isPrimary: true, button: 0};
+          document.body.dispatchEvent(new PointerEvent('pointerdown', init));
+          dispatchEvent(new PointerEvent('pointerup', init));
+        }"""
+    )
+    assert key_line(page) == standing
+    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+    page.mouse.up()
+    expect(control).to_be_checked()
+    expect(control).to_be_focused()
+    expect(page.locator("#frame-question[data-lf-ask]")).to_have_count(1)
+
+    hold_selection(
+        page,
+        (bounds["x"] + 2, middle[1]),
+        (bounds["x"] + bounds["width"] - 2, middle[1]),
+        steps=10,
+    )
+    assert "after state" in page.evaluate("() => getSelection().toString()")
+    assert "let go" in key_line(page)
+    page.mouse.up()
+    assert "let go" not in key_line(page)
+
+    # A focused thread has a runtime-owned scope outside the generic control register.
+    # It reads the same logical focus while the press moves toward the label's control.
+    page.evaluate("() => getSelection().removeAllRanges()")
+    page.locator(".lf-comments").click()
+    thread = page.locator(".lf-threads > .lf-thread")
+    thread.focus()
+    thread_standing = key_line(page)
+    assert "reply" in thread_standing
+    bounds = words.bounding_box()
+    assert bounds is not None
+    page.mouse.move(
+        bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2
+    )
+    page.mouse.down()
+    assert key_line(page) == thread_standing
+    page.mouse.up()
+    assert "reply" not in key_line(page)
+    assert errors == []
+    page.close()
+
+
+def test_a_label_press_keeps_the_shortcut_hint_on_the_focused_box(browser, serve):
+    """Immediate focus readers share the label transaction with the painted ones."""
+    page, errors = open_page(browser, serve(INLINE_PAGE))
+    page.locator("#p").click(click_count=3)
+    page.locator(".lf-fab").click()
+    box = page.locator(".lf-composer textarea")
+    label = page.locator(".lf-composer .lf-suggest-row")
+    expect(box).to_be_focused()
+    expect(label).to_be_visible()
+    expect(box).to_have_attribute("placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$"))
+    hint = box.get_attribute("placeholder")
+    assert hint is not None
+
+    bounds = label.bounding_box()
+    assert bounds is not None
+    page.mouse.move(
+        bounds["x"] + bounds["width"] - 2, bounds["y"] + bounds["height"] / 2
+    )
+    page.mouse.down()
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert box.get_attribute("placeholder") == hint
+    page.keyboard.type("x")
+    expect(box).to_have_value("x")
+    page.mouse.up()
+    expect(label.locator("input")).to_be_checked()
+    expect(box).to_have_attribute("placeholder", "Replacement text")
+
+    box.focus()
+    expect(box).to_have_attribute("placeholder", re.compile(r"(⌘⏎|Ctrl\+⏎)$"))
+    replacement_hint = box.get_attribute("placeholder")
+    assert replacement_hint is not None
+    text_bounds = label.evaluate(
+        """label => {
+          const node = [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const box = range.getBoundingClientRect();
+          return {x: box.x, y: box.y, width: box.width, height: box.height};
+        }"""
+    )
+    hold_selection(
+        page,
+        (text_bounds["x"] + 2, text_bounds["y"] + text_bounds["height"] / 2),
+        (
+            text_bounds["x"] + text_bounds["width"] - 2,
+            text_bounds["y"] + text_bounds["height"] / 2,
+        ),
+        steps=10,
+    )
+    assert "Suggest replacement text" in page.evaluate(
+        "() => getSelection().toString()"
+    )
+    page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
+    assert box.get_attribute("placeholder") == replacement_hint
+    page.mouse.up()
+    expect(box).to_have_attribute("placeholder", "Replacement text")
+    assert errors == []
+    page.close()
+
+
+def test_focus_paint_releases_every_text_box_crossed_before_a_frame(browser, serve):
+    """A synchronous input sync cannot hide an intermediate focus from repaint."""
+    page, errors = open_page(browser, serve(INLINE_PAGE, comments=2))
+    page.locator(".lf-comments").click()
+    general = page.locator(".lf-general textarea")
+    replies = page.locator(".lf-thread textarea")
+    general.focus()
+    key_line(page)
+    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", general.get_attribute("placeholder"))
+
+    # Cross A -> B (and sync B) -> C in one turn, before the coalesced focus paint.
+    replies.evaluate_all(
+        """boxes => {
+          boxes[0].focus();
+          boxes[0].dispatchEvent(new Event('input', {bubbles: true}));
+          boxes[1].focus();
+        }"""
+    )
+    key_line(page)
+    assert general.get_attribute("placeholder") == "Comment on the page · c"
+    assert replies.nth(0).get_attribute("placeholder") == "Reply · g c 1"
+    assert re.search(r"(⌘⏎|Ctrl\+⏎)$", replies.nth(1).get_attribute("placeholder"))
+    assert errors == []
+    page.close()
+
+
 def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, other_leaf):
     """A key's word is the meaning it has now, not one wide enough to cover every
     meaning it could have. c opens a box on the selection, on the item a click raised the
@@ -2756,14 +3079,18 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.get_by_role("heading", name="Go by address", exact=True)
     ).to_be_visible()
-    expect(help_el.locator("tr", has_text="top / bottom").locator("kbd")).to_have_text(
-        "g g / g G"
-    )
+    expect(
+        help_el.locator("tr", has_text="top of the page").locator("kbd")
+    ).to_have_text("g g")
+    expect(
+        help_el.locator("tr", has_text="bottom of the page").locator("kbd")
+    ).to_have_text("g G")
     expect(help_el).not_to_contain_text("open comment's reply box")
     # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.
     expect(help_el).not_to_contain_text("On a link")
-    expect(help_el).not_to_contain_text("Next / previous open thread")
+    expect(help_el).not_to_contain_text("Next open thread")
+    expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
     # The chooser is the one version key a first version has: its menu holds this
@@ -2775,7 +3102,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # it, leaving `v` opening a layer no key could close.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Walk the versions")
+    expect(help_el).not_to_contain_text("Previous version")
+    expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
 
@@ -2805,11 +3133,13 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     ).to_have_text("g c 1–2")
     expect(help_el).not_to_contain_text("link on screen")
     expect(help_el).not_to_contain_text("waiting on you for")
-    expect(help_el).to_contain_text("Next / previous open thread")
+    expect(help_el).to_contain_text("Next open thread")
+    expect(help_el).to_contain_text("Previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
     # Still one version, so the menu's section holds its way out and not its walk.
     expect(help_el).to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Walk the versions")
+    expect(help_el).not_to_contain_text("Previous version")
+    expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
@@ -2823,7 +3153,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     )
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
-    expect(help_el).to_contain_text("Walk the versions")
+    expect(help_el).to_contain_text("Previous version")
+    expect(help_el).to_contain_text("Next version")
     expect(help_el).to_contain_text("c 1–2")
     page.keyboard.press("Escape")
 

@@ -10,6 +10,7 @@ export function createAskView({
   asksPanel,
   banner,
   blocksOnScreen,
+  documentFocused,
   el,
   elementById,
   inChrome,
@@ -166,6 +167,7 @@ export function createAskView({
         };
         keys(row, "In the asks tray", [
           {
+            id: "ask.open",
             keys: PRESS,
             does: "Go to this ask and stand on the control that answers it",
             line: "go to this ask",
@@ -279,11 +281,11 @@ export function createAskView({
   // ask parts from neither list: its question is settled, so there is nothing left there to
   // be standing in, and a settled group goes on being named by its own words.
   //
-  // document.activeElement rather than focused(), for the reason askPosition gives: a
+  // Document focus rather than the inner control, for the reason askPosition gives: a
   // control staged in a shadow tree retargets to its host, and the host is the place in the
   // document this wants.
   function standingIn() {
-    const held = document.activeElement;
+    const held = documentFocused();
     if (!held || held === document.body) return null;
     const place = askPlace(held);
     return (
@@ -346,11 +348,11 @@ export function createAskView({
   // reading. Every one of them can be absent, and then the first ask is the only answer
   // there is.
   //
-  // document.activeElement rather than focused(): a control staged in a shadow tree
+  // Document focus rather than the inner control: a control staged in a shadow tree
   // retargets to its host, which is exactly what this question wants — a place in the
   // document to measure the asks against, not the control the register would dispatch to.
   function askPosition() {
-    const held = document.activeElement;
+    const held = documentFocused();
     // The banner stands over the page rather than in it, and its controls are addresses
     // the reader holds from wherever they are. The Asks button focuses itself on the way
     // to running this, so measuring from it would send every press on it back to the top.

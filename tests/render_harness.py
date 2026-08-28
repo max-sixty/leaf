@@ -42,15 +42,16 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -61,6 +62,13 @@ COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
+# The inputs scripts/gallery.py composes. The gallery is a generated presentation of
+# these pages, not an eleventh author source; tests that exercise authored content use
+# this set while tests of the gallery's own rendering or export keep EXAMPLES.
+SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "gallery")
+assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
+    "expected exactly one generated gallery beside the source examples"
+)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -441,7 +449,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
-        if project.exists() or service_model.config_home().exists():
+        if project.exists() or host_model.config_home().exists():
             initialize(d)
         else:
             clone_initialized_page("examples", d, initialize)
@@ -761,8 +769,10 @@ def _until(page, fact, wanted):
     so rather than passing.
 
     A wait that runs out names the caller's wanted fact and prints its starting and final
-    counters. No finished trip preserves Playwright's timeout as the cause; a busy stream
-    reaches the same explicit deadline instead of waking this loop forever."""
+    counters. The final reading comes after the timeout because the page's own
+    `requestfinished` listener may settle the fact as the timeout is delivered. No
+    finished trip preserves Playwright's timeout as the cause; a busy stream reaches the
+    same explicit deadline instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
@@ -775,9 +785,11 @@ def _until(page, fact, wanted):
             request = page.wait_for_event("requestfinished", timeout=remaining)
             page.lf_traffic.settle_finished(request)
     except PlaywrightTimeout as ran_out:
+        ended = _traffic(page)
+        if fact(ended):
+            return
         raise AssertionError(
-            f"the page never {wanted}: the wait began on {began} and gave up on "
-            f"{_traffic(page)}"
+            f"the page never {wanted}: the wait began on {began} and gave up on {ended}"
         ) from ran_out
 
 
@@ -1353,8 +1365,8 @@ def resized(page, width, height):
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
 
 
-def select(page, start, end, steps=8):
-    """Drag a selection from one point to another, pressing on a whole pixel.
+def hold_selection(page, start, end, steps=8):
+    """Drag a selection without releasing, pressing on a whole pixel.
 
     A fractional start point loses the selection outright wherever it and its own
     floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
@@ -1371,6 +1383,11 @@ def select(page, start, end, steps=8):
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
     page.mouse.move(end[0], end[1], steps=steps)
+
+
+def select(page, start, end, steps=8):
+    """Drag and release a selection."""
+    hold_selection(page, start, end, steps)
     page.mouse.up()
 
 

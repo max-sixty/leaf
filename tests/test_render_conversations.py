@@ -4,7 +4,7 @@ import re
 
 import pytest
 from leaf import conversation as conversation_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -1192,6 +1192,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
         "lf-ui",
+        # A native label can pass through an intermediate focus target. These project
+        # the held control's focus until activation settles.
+        "lf-focus",
+        "lf-focus-visible",
         "lf-btn",
         "lf-pill",
         "lf-address",
@@ -1213,6 +1217,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-mark",
         "lf-react",
         "lf-docked",  # a seat's measured fallback, the word a suggestion row docks under
+        # Visual reactions add a quiet keyboard proxy beside the authored target and
+        # an outline on the target while its shared action bar is standing.
+        "lf-visual-actions",
+        "lf-visual-action",
+        "lf-action-target",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )

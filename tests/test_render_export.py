@@ -31,7 +31,7 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
 
     def break_probe(page):
         page.route(
-            "**/_leaf/render-checks.js",
+            "**/_leaf/render-checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",

@@ -4,6 +4,7 @@ import json
 import secrets
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from .data import data_contract_errors, page_data_bindings, read_data_store
 from .event_log import flocked, now_iso, read_events
@@ -19,7 +20,13 @@ from .files import (
     revision_path,
     write_json,
 )
-from .layer import checked_layer_inputs, compose_layer, input_paths, layer_inputs
+from .layer import (
+    LayerComposition,
+    checked_layer_inputs,
+    compose_layer,
+    input_paths,
+    layer_inputs,
+)
 from .projection import page_projection
 from .schema import LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
 from .service import (
@@ -29,7 +36,7 @@ from .service import (
     lock_is_held,
     transition_lock,
 )
-from .validation import vocabulary_gaps
+from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_seats
 
 
@@ -110,20 +117,12 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         )
 
 
-def _vendor_page(
-    page_dir: Path,
-    *,
-    fresh: bool,
-    inputs: list[Path],
-    page_target: Path,
-    selected: tuple[str, ...],
-) -> None:
-    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
-    # where drift has to be caught: a tag or verb the new layer omits, or a
-    # detail schema that no longer accepts an old payload, makes a recorded
-    # action foreign on the first reload — the lost-decision bug reintroduced
-    # through vocabulary drift instead of version-scoping.
-    roots = checked_layer_inputs(inputs)
+class _VendoredLayer(NamedTuple):
+    top_files: dict[str, bytes]
+    directory_files: dict[str, dict[str, bytes]]
+
+
+def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:
     destinations = [
         *(page_target / name for name in PACKAGE_FILES),
         *(page_target / sub for sub in ("versions", *PACKAGE_DIRS)),
@@ -143,9 +142,16 @@ def _vendor_page(
             f"package {package} overlaps page destination "
             f"{destination}; package and page paths must be separate"
         )
-    composition = compose_layer(roots)
-    incoming = composition.registry
-    events = read_events(page_dir)
+
+
+def _refuse_vocabulary_drift(
+    page_dir: Path, events: list[dict], incoming: dict
+) -> None:
+    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
+    # where drift has to be caught: a tag or verb the new layer omits, or a
+    # detail schema that no longer accepts an old payload, makes a recorded
+    # action foreign on the first reload — the lost-decision bug reintroduced
+    # through vocabulary drift instead of version-scoping.
     gaps = vocabulary_gaps(page_dir, events, incoming)
     if gaps:
         sys.exit(
@@ -154,6 +160,11 @@ def _vendor_page(
             + "\nre-vendoring would silently stop these replaying — the user's"
             " recorded decisions among them."
         )
+
+
+def _refuse_data_contract_drift(
+    page_dir: Path, events: list[dict], incoming: dict
+) -> None:
     stored_data = read_data_store(page_dir)
     # The outgoing registry is historical input, not a contract arriving at the
     # current code's boundary. It may legitimately predate a new kernel invariant;
@@ -192,58 +203,72 @@ def _vendor_page(
             + "\n".join(f"  - {error}" for error in data_errors)
             + "\nclear those sources with `leaf data clear` before re-vendoring."
         )
+
+
+def _refuse_unseated_work(page_dir: Path, events: list[dict], incoming: dict) -> None:
     try:
         revision = latest_revision(page_dir)
     except SystemExit:
         revision = None
-    if revision is not None:
-        html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        projection, parser, _spk = page_projection(html, events, incoming, revision)
-        unseated = widget_work_without_seats(
-            html,
-            parser,
-            projection,
-            events,
-            read_json(page_dir / "status.json") or {},
-            incoming,
+    if revision is None:
+        return
+    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+    projection, parser, _spk = page_projection(html, events, incoming, revision)
+    unseated = widget_work_without_seats(
+        html,
+        parser,
+        projection,
+        events,
+        read_json(page_dir / "status.json") or {},
+        incoming,
+    )
+    if unseated:
+        sys.exit(
+            "the incoming layer would remove the local seat for active widget work on "
+            + ", ".join(repr(widget) for widget in unseated)
+            + "; stamp a later version with --completes for that work before "
+            "re-vendoring"
         )
-        if unseated:
-            sys.exit(
-                "the incoming layer would remove the local seat for active widget "
-                "work on "
-                + ", ".join(repr(widget) for widget in unseated)
-                + "; stamp a later version with --completes for that work before "
-                "re-vendoring"
-            )
 
-    # Resolve and read the complete incoming layer before the first page write.
-    # A bad late package must not leave the registry newer than the theme or its
-    # modules.
-    top_files = composition.top_files
+
+def _validate_page_transition(page_dir: Path, incoming: dict) -> None:
+    events = read_events(page_dir)
+    _refuse_vocabulary_drift(page_dir, events, incoming)
+    _refuse_data_contract_drift(page_dir, events, incoming)
+    _refuse_unseated_work(page_dir, events, incoming)
+
+
+def _stamp_layer(
+    composition: LayerComposition, selected: tuple[str, ...]
+) -> _VendoredLayer:
     # `page init` is the contract transition, even when its input bytes happen to
     # match the last run. The browser carries this epoch on every write so an open
     # tab cannot post through a runtime whose server contract was re-vendored under it.
     generation = secrets.token_hex(16)
+    incoming = composition.registry
     incoming["$layer"] = {"generation": generation, "packages": list(selected)}
+    top_files = composition.top_files
     runtime = top_files["leaf.js"]
     top_files["leaf.js"] = runtime.replace(
         LAYER_PLACEHOLDER, json.dumps(generation).encode()
     )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
-    directory_files = composition.directory_files
+    return _VendoredLayer(top_files, composition.directory_files)
 
+
+def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
     # Resolve every destination conflict before touching the page. A directory
     # where one vendored file belongs must not leave the top-level layer newer
     # than its modules.
     if (page_dir.exists() or page_dir.is_symlink()) and not page_dir.is_dir():
         sys.exit(f"{page_dir} must be a directory")
     file_targets = [
-        *(page_dir / name for name in top_files),
+        *(page_dir / name for name in layer.top_files),
         *(
             page_dir / sub / name
             for sub in PACKAGE_DIRS
-            for name in directory_files[sub]
+            for name in layer.directory_files[sub]
         ),
     ]
     directories = {
@@ -293,7 +318,16 @@ def _vendor_page(
     for target in file_targets:
         if (target.exists() or target.is_symlink()) and not target.is_file():
             sys.exit(f"{target} must be a file")
+    return directories
 
+
+def _commit_layer(
+    page_dir: Path,
+    *,
+    fresh: bool,
+    layer: _VendoredLayer,
+    directories: set[Path],
+) -> None:
     # Owner-only when this call creates it: the directory holds the discussion
     # and service state whose URL carries the machine key. A directory the
     # caller already made keeps the mode they chose.
@@ -309,20 +343,20 @@ def _vendor_page(
     # makes every other file live, so it is the final replacement.
     writes = [
         (page_dir / name, data, False)
-        for name, data in top_files.items()
+        for name, data in layer.top_files.items()
         if name != "registry.json"
     ]
     writes.extend(
         (page_dir / sub / name, data, False)
         for sub in PACKAGE_DIRS
-        for name, data in directory_files[sub].items()
+        for name, data in layer.directory_files[sub].items()
     )
-    writes.append((page_dir / "registry.json", top_files["registry.json"], False))
+    writes.append((page_dir / "registry.json", layer.top_files["registry.json"], False))
     replace_files(writes)
 
     for sub in PACKAGE_DIRS:
         destination = page_dir / sub
-        wanted = set(directory_files[sub])
+        wanted = set(layer.directory_files[sub])
         for stale in sorted(
             destination.rglob("*"), key=lambda path: len(path.parts), reverse=True
         ):
@@ -348,3 +382,23 @@ def _vendor_page(
     with open(page_dir / "comments.jsonl", "a", encoding="utf-8"):
         pass
     print(f"initialized {page_dir}")
+
+
+def _vendor_page(
+    page_dir: Path,
+    *,
+    fresh: bool,
+    inputs: list[Path],
+    page_target: Path,
+    selected: tuple[str, ...],
+) -> None:
+    roots = checked_layer_inputs(inputs)
+    _refuse_input_destination_overlap(roots, page_target)
+    # Resolve and read the complete incoming layer before the first page write.
+    # A bad late package must not leave the registry newer than the theme or its
+    # modules.
+    composition = compose_layer(roots)
+    _validate_page_transition(page_dir, composition.registry)
+    layer = _stamp_layer(composition, selected)
+    directories = _checked_destinations(page_dir, layer)
+    _commit_layer(page_dir, fresh=fresh, layer=layer, directories=directories)

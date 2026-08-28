@@ -9,14 +9,15 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import validation as validation_model
+from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_source_server
+from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_support import (
     ASKS_IN_ORDER,
@@ -250,6 +251,43 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         "el => el.style.getPropertyValue('--lf-head').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
+    assert errors == []
+    page.close()
+
+
+def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
+    """Composition reads the control inside a widget's shadow tree, not its host."""
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.evaluate(
+        """() => {
+          const host = document.createElement('section');
+          host.id = 'shadow-editor';
+          const root = host.attachShadow({mode: 'open'});
+          const box = document.createElement('textarea');
+          box.dataset.lfOffer = '';
+          root.append(box);
+          document.querySelector('main').append(host);
+          box.focus();
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+    told(page)
+    expect(page).to_have_title("Live first")
+    expect(page.locator(".lf-latest-chip")).to_be_visible()
+    assert (
+        page.evaluate(
+            "() => document.querySelector('#shadow-editor').shadowRoot.activeElement?.tagName"
+        )
+        == "TEXTAREA"
+    )
+
+    page.evaluate(
+        "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
+    )
+    ticked(page)
+    expect(page).to_have_title("Live second")
     assert errors == []
     page.close()
 
@@ -1237,9 +1275,7 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with render_gate_model.preview_source_server(
-        d, contradicted.encode(), 4
-    ) as preview_url:
+    with preview_source_server(d, contradicted.encode(), 4) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures

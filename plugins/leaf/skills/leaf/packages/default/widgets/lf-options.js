@@ -347,6 +347,8 @@ customElements.define(
         // branch the reader could see.
         keys(mark, SECTION, [
           {
+            id: "option.toggle-nth",
+            runFromReference: false,
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
             // are the markup's and do not change under the reader — where the chord's
@@ -362,6 +364,7 @@ customElements.define(
             },
           },
           {
+            id: "option.write",
             keys: ["Enter"],
             does: "Write another option",
             line: "write another option",
@@ -373,7 +376,16 @@ customElements.define(
               }),
           },
           {
+            id: "option.walk",
             keys: ["ArrowUp", "ArrowDown"],
+            routes: [
+              {
+                id: "option.previous",
+                binding: "ArrowUp",
+                does: "Previous option",
+              },
+              { id: "option.next", binding: "ArrowDown", does: "Next option" },
+            ],
             does: "Walk the options",
             line: "walk the options",
             repeat: true,
@@ -385,6 +397,7 @@ customElements.define(
               ]?.focus(),
           },
           {
+            id: "option.toggle",
             keys: [" "],
             does: "Toggle the focused option",
             line: "toggle",
@@ -392,7 +405,12 @@ customElements.define(
           },
           // Tab is the platform's, and reaching the mark is what a reader has to know
           // before any of the above is any use. No binding, so the line never offers it.
-          { keys: [], label: "⇥", does: "Reach an option's mark" },
+          {
+            id: "option.reach",
+            keys: [],
+            label: "⇥",
+            does: "Reach an option's mark",
+          },
         ]);
       }
     }

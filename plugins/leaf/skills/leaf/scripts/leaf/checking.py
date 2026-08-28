@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
 from leaf.event_log import flocked, read_events
-from leaf.events import retractions, thread_structure
+from leaf.events import retractions
 from leaf.files import list_revisions, revision_path
 from leaf.passages import spoken
 from leaf.projection import (
@@ -27,24 +27,26 @@ from leaf.styles import (
     inline_presentation_override_errors,
     root_tokens,
 )
-from leaf.validation import (
+from leaf.thread_context import thread_structure
+from leaf.validation.instances import (
     addressable_instance_errors,
     ask_region_errors,
     declared_word_errors,
-    id_errors,
     language_class_errors,
     line_ref_errors,
-    media_errors,
-    page_boundary_errors,
     reference_errors,
-    report_errors,
-    restatement_errors,
-    structure_errors,
     suggestion_errors,
-    unpointable_blocks,
     visual_part_errors,
     widget_errors,
 )
+from leaf.validation.markup import (
+    id_errors,
+    media_errors,
+    page_boundary_errors,
+    structure_errors,
+    unpointable_blocks,
+)
+from leaf.validation.transitions import report_errors, restatement_errors
 
 
 class SourceCheck(NamedTuple):
@@ -549,7 +551,7 @@ def cmd_check(
     for line in result.advice:
         print(f"  · {line}")
     if render:
-        from leaf.render_gate import render_check
+        from leaf.render_gate.command import render_check
 
         revisions = list_revisions(page_dir)
         active = revisions[-1] if revisions else 0

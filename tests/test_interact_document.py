@@ -37,8 +37,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
-from leaf import event_log as event_log_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
 from leaf import passages as passages_model
@@ -48,7 +47,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import structure as structure_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -539,7 +538,8 @@ def test_the_group_stands_down_for_every_outline_the_log_paints():
     }
     assert painted, "the kernel paints no state outline at all, so this reads nothing"
     rule = re.search(
-        r"&:has\(> lf-option > \.lf-pick:focus-visible\)([^{]*)\{([^}]*)\}",
+        r"&:has\(> lf-option > \.lf-pick:is\(:focus-visible, \.lf-focus-visible\)\)"
+        r"([^{]*)\{([^}]*)\}",
         theme,
         re.DOTALL,
     )
@@ -2879,7 +2879,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     )
     publish(page_dir)
     tied = "2026-08-24T12:00:00-07:00"
-    monkeypatch.setattr(event_log_model, "now_iso", lambda: tied)
+    monkeypatch.setattr(events_model, "now_iso", lambda: tied)
     first = events_model.append_event(
         page_dir,
         {

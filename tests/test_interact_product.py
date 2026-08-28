@@ -30,14 +30,14 @@ from leaf import checking as checking_model
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
 from leaf import registry as registry_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):

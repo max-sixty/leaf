@@ -22,12 +22,12 @@ from interact_support import (
     widget_entry,
 )
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
+from leaf import host as host_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import vendoring as vendoring_model
 
 
@@ -613,8 +613,8 @@ def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
     is a different question; `test_a_run_ends_only_the_servers_it_started` asks
     it."""
     root = tmp_path_factory.getbasetemp()
-    assert service_model.config_home().is_relative_to(root)
-    assert service_model.state_home().is_relative_to(root)
+    assert host_model.config_home().is_relative_to(root)
+    assert host_model.state_home().is_relative_to(root)
 
 
 def test_init_user_layer_applies(tmp_path, monkeypatch):

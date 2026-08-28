@@ -2,14 +2,25 @@
 // selection composer. They persist a draft on each keystroke, send on ⌘/Ctrl+Enter, and
 // can't be double-sent by an impatient second click. Growing with their content is the
 // stylesheet's job (field-sizing), not this file's.
-// Returns a sync() the caller runs after setting .value programmatically, so the send
-// button agrees with what's in the box.
-export function createInput({ keys, showToast, spell }) {
+// wire() returns a sync() the caller runs after setting .value programmatically, so the
+// send button agrees with what's in the box.
+export function createInput({ focused, keys, showToast, spell }) {
   // The send binding, and the register's spelling of it: the placeholder, the button's
   // tooltip and the row a box declares all read one string, where the constant they used to
   // share sat beside a listener that bound the chord independently.
   const SEND = "Mod+Enter";
   const SEND_KEYS = spell(SEND);
+  // Focus-derived hints join the runtime's one standing paint. Only the input losing the
+  // standing and the one gaining it can change for that reason.
+  const inputPaints = new WeakMap();
+  let paintedInput = null;
+  const paintInputs = () => {
+    const held = focused();
+    const input = held && inputPaints.has(held) ? held : null;
+    if (paintedInput && paintedInput !== input) inputPaints.get(paintedInput)?.();
+    if (input) inputPaints.get(input)?.();
+    paintedInput = input;
+  };
   // `sends` is the word the box's own send row says — "send", "suggest", "comment" — since
   // a composer in suggestion mode and a thread's reply are the same binding doing different
   // things, and the row is where the surfaces read that from.
@@ -37,11 +48,17 @@ export function createInput({ keys, showToast, spell }) {
     // stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
     const paint = () => {
-      const suffix = document.activeElement === ta ? SEND_KEYS : address?.();
-      ta.placeholder = suffix ? `${label()} · ${suffix}` : label();
+      // Read the shared logical focus so this hint agrees with the key line and rings.
+      const standing = focused() === ta;
+      const suffix = standing ? SEND_KEYS : address?.();
+      const placeholder = suffix ? `${label()} · ${suffix}` : label();
+      if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
     };
-    ta.addEventListener("focus", paint);
-    ta.addEventListener("blur", paint);
+    inputPaints.set(ta, paint);
+    const repaint = () => {
+      if (focused() === ta) paintInputs();
+      else paint();
+    };
     sendBtn.title = `Send (${SEND_KEYS})`;
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
@@ -51,12 +68,14 @@ export function createInput({ keys, showToast, spell }) {
     // element, and the guard in submit() is what actually holds; a focusable button
     // saying it can't send yet is better than one the reader can't reach to find out.
     const sync = () => {
-      paint();
+      repaint();
       const disabled = String(sending || busy() || !ta.value.trim());
       sendBtn.setAttribute("aria-disabled", disabled);
       altBtn?.setAttribute("aria-disabled", disabled);
     };
-    paint();
+    // A runtime-built box is normally wired before it can receive focus. Preserve the
+    // bookkeeping too if a caller wires one that is already standing.
+    repaint();
     const submit = async (sender) => {
       if (sending || busy()) return;
       // A send key on an empty box answered with silence reads as a send that
@@ -89,6 +108,7 @@ export function createInput({ keys, showToast, spell }) {
     // binding doing two things.
     keys(ta, "In a text box", [
       {
+        id: "text.send",
         keys: [SEND],
         does: "Send what you have typed",
         line: sends,
@@ -100,5 +120,5 @@ export function createInput({ keys, showToast, spell }) {
     return sync;
   }
 
-  return wireInput;
+  return { paint: paintInputs, wire: wireInput };
 }

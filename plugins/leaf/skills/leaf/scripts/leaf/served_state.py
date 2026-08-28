@@ -267,9 +267,7 @@ def _browser_conversation(
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     prepared = _thread_projection(events, registry)
     projection, _byid, _spk, _roots, structure = prepared
-    asks, awaiting = thread_ask_projection(
-        events, registry, settled, prepared=prepared
-    )
+    asks, awaiting = thread_ask_projection(events, registry, settled, prepared=prepared)
     rendered_threads = [
         {
             **thread,

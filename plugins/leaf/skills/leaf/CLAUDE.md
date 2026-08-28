@@ -77,6 +77,8 @@ guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
 and the gutter its bar takes;
+`runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
+the declaration-derived names and layout queries the runtime supplies it;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;

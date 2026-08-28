@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -26,7 +27,6 @@ from interact_support import (
     published,
     state_json,
 )
-from leaf import checking as checking_model
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
@@ -223,14 +223,14 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     (page_dir / "index.html").write_bytes(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
-    assert checking_model.cmd_check(page_dir) == 0
+    assert checking_command.cmd_check(page_dir) == 0
     capsys.readouterr()
 
     (page_dir / "versions" / "v2.html").write_text(PAGE)
     (page_dir / "index.html").write_bytes(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
-    assert checking_model.cmd_check(page_dir) == 0
+    assert checking_command.cmd_check(page_dir) == 0
     assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick']" in (
         capsys.readouterr().out
     )

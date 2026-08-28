@@ -10,6 +10,7 @@ The main owners are:
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance and vocabulary catalog;
 - `agent_state`: the agent-facing folded page-state reading;
+- `transcript`: the agent-facing raw event stream and Markdown transcript;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_endpoint` and `event_contracts`: browser-event admission, retry
   coordination and append, and shared browser/CLI event contracts;
@@ -30,7 +31,8 @@ The main owners are:
 - `layer`: package discovery and layer composition;
 - `packages`: package authoring commands and filesystem safety gates;
 - `vendoring`: page initialization, layer transitions, and atomic installation;
-- `schema`, `structure`, `styles`, and `validation/`: authored-page gates;
+- `schema`, `structure`, `styles`, and `validation/`: authored-page gates, the
+  complete source reading, and the `version check` command;
 - `passages`: the file-side text reading and anchor capture;
 - `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
   and standalone export;
@@ -75,14 +77,16 @@ The registry is the common contract with the browser. Server-side event gates,
 state folds, catalog output, package checks, and markup validation must consume
 its declarations without a widget-name list.
 
-Within `render_gate/`, `scheme` owns one browser/color lifecycle, `readings`
-owns raw probe results, `reporting` owns human findings, `version` owns retry
-policy, `preview` owns ephemeral servers, and `command` owns the CLI boundary.
-Import the owner directly; the package initializer is only a marker.
+Within `render_gate/`, `models` owns the values passed between phases, `scheme`
+owns one browser/color lifecycle, `readings` owns raw probe results, `reporting`
+owns human findings, `version` owns retry policy, `preview` owns ephemeral
+servers, and `command` owns the CLI boundary. Import the owner directly; the
+package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
 owns registry-declared instance rules, `admission` owns incoming message markup,
 `compatibility` owns layer changes against the standing log, `source_history`
-owns predecessor readings and continuity, and `transitions` compares authored
-revisions with standing actions and reports. Import the owner directly; the
-package initializer is only a marker, not a second API to maintain.
+owns predecessor readings and continuity, `transitions` compares authored
+revisions with standing actions and reports, `source` composes those gates into
+one reading, and `command` owns its CLI and render handoff. Import the owner
+directly; the package initializer is only a marker, not a second API to maintain.

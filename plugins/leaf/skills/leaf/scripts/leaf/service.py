@@ -15,7 +15,6 @@ from leaf.event_log import (
     read_events,
     require_cross_process_locking,
 )
-from leaf.events import work_claim_revision
 from leaf.files import read_json, write_json
 from leaf.host import (
     host_identity,
@@ -24,6 +23,7 @@ from leaf.host import (
     session_lifetime,
     state_home,
 )
+from leaf.work import work_claim_revision
 
 try:
     import fcntl

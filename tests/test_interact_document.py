@@ -34,6 +34,7 @@ from interact_support import (
     state_json,
     suggest,
 )
+from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
@@ -386,7 +387,7 @@ def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
 
     The quote itself is uncapped on both sides. This is the neighbourhood only."""
     _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
-    assert int(found.group(1)) == passages_model.CONTEXT
+    assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
 
 def test_the_render_viewport_is_wide_enough_to_have_margins():

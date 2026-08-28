@@ -5,8 +5,8 @@ import re
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
+from leaf import anchor_capture as anchor_capture_model
 from leaf import event_log as events_model
-from leaf import passages as passages_model
 from leaf import registry as registry_model
 from playwright.sync_api import expect
 from render_support import (
@@ -290,7 +290,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
-        expected_anchor = passages_model.capture_anchor(
+        expected_anchor = anchor_capture_model.capture_anchor(
             FENCED_CAPTURE_PAGE, registry, quote, section
         )
         selected = page.evaluate(

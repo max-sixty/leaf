@@ -1,13 +1,9 @@
-"""State projections and change readings for one served page."""
+"""Browser projections from page documents and the standing event log."""
 
-import hashlib
-import time
 from pathlib import Path
 
-from .asks import page_ask_projection, thread_ask_projection
-from .data import read_data
-from .event_log import now_iso
-from .events import (
+from ..asks import page_ask_projection, thread_ask_projection
+from ..events import (
     action_rests_on,
     action_retracted,
     awaits_agent,
@@ -21,17 +17,9 @@ from .events import (
     taken_back,
     undo_error,
 )
-from .files import (
-    STAGED,
-    active_descriptor,
-    file_stamp,
-    list_revisions,
-    revision_path,
-    version_descriptors,
-)
-from .passages import enclosing_of, page_passages, spoken
-from .presence import presence
-from .projection import (
+from ..files import list_revisions, revision_path
+from ..passages import enclosing_of, page_passages, spoken
+from ..projection import (
     StateProjection,
     canonical_updates,
     decisions,
@@ -39,10 +27,9 @@ from .projection import (
     page_projection,
     state_projection,
 )
-from .registry.contract import RegistryError
-from .registry.storage import layer_generation, load_registry
-from .service import claim_path
-from .thread_context import thread_roots, thread_structure
+from ..registry.contract import RegistryError
+from ..registry.storage import load_registry
+from ..thread_context import thread_roots, thread_structure
 
 
 def _browser_projection(
@@ -432,90 +419,3 @@ def project_browser_state(
         active,
         wanted if include_active_view else {requested_revision},
     )
-
-
-def full_state(
-    page_dir: Path,
-    events: list,
-    _versions: list | None = None,
-    layer: str | None = None,
-    source_error: str | None = None,
-    view_revision: int | None = None,
-    active_override: dict | None = None,
-    source_overrides: dict[int, str] | None = None,
-) -> dict:
-    if active_override is not None:
-        active = active_override
-    else:
-        try:
-            active = active_descriptor(page_dir, events)
-        except SystemExit:
-            active = None
-    present = presence(page_dir, events)
-    browser = project_browser_state(
-        page_dir,
-        events,
-        view_revision,
-        active,
-        present["claims"],
-        source_overrides,
-    )
-    return {
-        "layer": layer or layer_generation(page_dir),
-        # The clock every timestamp below was written by. A seat dating one reads
-        # `Date.now()`, which is the reader's own machine: a laptop an hour out
-        # calls a claim made this minute an hour stale, on every seat at once, and
-        # neither side can tell from the timestamp alone. Sent so the reading is
-        # against the writer's clock rather than the reader's.
-        "now": now_iso(),
-        # The moment this answer was taken, for a tab holding two. Answers cross — two
-        # sockets, one held by a proxy or a test while a later one lands, a POST's
-        # answer beside a read — and the log's sequence and the data's revision order
-        # everything in a state but the reading, which is a hash with no order of its
-        # own. Stamped inside the page transaction every served answer is built under,
-        # so the order of these is the order the answers were taken in, whichever
-        # order they land. The wall clock rather than a counter: a counter starts over
-        # with the server, and a tab open across that restart would refuse every
-        # answer until the count caught up.
-        "taken": time.time(),
-        "active": active,
-        "versions": version_descriptors(page_dir, events),
-        "source_error": source_error,
-        "data": read_data(page_dir),
-        **present,
-        "browser": browser,
-        # As logged: a message's text is Markdown the page's vendored runtime renders,
-        # and its markup is the fragment the CLI gate validated. The wire adds nothing,
-        # so the only vocabulary a page's frozen layer has to keep speaking is the
-        # log's own, which $events already stamps.
-        "events": events,
-    }
-
-
-# The one thing a reading must not be built from. The server writes `viewed.json` for
-# as long as a tab holds the page open, so counting it would make the page's own
-# presence change the page's token: a stream asking "has anything changed?" would be
-# told yes, by its own listener.
-UNWATCHED = frozenset({"viewed.json"})
-
-
-def page_reading(page_dir: Path) -> str:
-    """A short token naming this reading of the page.
-
-    Every direct child of the page directory, rather than the files a state response is
-    known to read. The known-list is unmaintainable in the way that does not fail
-    loudly: leave one out and the page simply stops hearing about that kind of news,
-    with nothing red to say so. Directories are stamped without descending, which is
-    enough — a new version file moves `versions/`, and the vendored layer cannot change
-    under a served page at all, since re-vendoring restarts the server.
-
-    Stat stamps rather than contents: the question is only whether anything moved, and
-    the answer has to be cheap enough to ask many times a second.
-    """
-    stamps = sorted(
-        (entry.name, file_stamp(entry))
-        for entry in page_dir.iterdir()
-        if entry.name not in UNWATCHED and not STAGED.fullmatch(entry.name)
-    )
-    stamps.append(("", file_stamp(claim_path(page_dir))))
-    return hashlib.sha256(repr(stamps).encode()).hexdigest()[:16]

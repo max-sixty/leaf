@@ -10,7 +10,6 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import presence as presence_model
-from . import served_state
 from .event_endpoint import EventEndpoint, event_rejection
 from .event_log import read_events
 from .files import (
@@ -37,6 +36,9 @@ from .schema import (
     NO_KEY,
     SERVED_PATH,
 )
+from .served_state import browser as served_browser
+from .served_state import page as served_page
+from .served_state import reading as served_reading
 from .service import PageTransaction
 from .structure import parse_structure
 
@@ -114,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
             source_overrides = {
                 active_override["revision"]: self.preview_source["data"].decode("utf-8")
             }
-        return served_state.full_state(
+        return served_page.full_state(
             self.page_dir,
             events,
             layer=self.layer,
@@ -144,12 +146,12 @@ class Handler(BaseHTTPRequestHandler):
         with PageTransaction(self.page_dir) as page:
             if self.preview_source is None:
                 activation = activate_source(self.page_dir, page.events)
-                reading = served_state.page_reading(self.page_dir)
+                reading = served_reading.page_reading(self.page_dir)
                 state = self._page_state(
                     page.events, activation.error, view_revision=view_revision
                 )
             else:
-                reading = served_state.page_reading(self.page_dir)
+                reading = served_reading.page_reading(self.page_dir)
                 state = self._page_state(page.events, view_revision=view_revision)
         # Every URL in `others` carries the machine key (`host_key`), so the list
         # reaches neighbouring pages without creating another authorization path.
@@ -186,7 +188,7 @@ class Handler(BaseHTTPRequestHandler):
                     f"view sequence {through_seq} is newer than log sequence {latest_seq}"
                 )
             events = [event for event in page.events if event["seq"] <= through_seq]
-            projected = served_state.project_browser_state(
+            projected = served_browser.project_browser_state(
                 self.page_dir,
                 events,
                 view_revision,
@@ -268,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while not self.server.stopping:
                 now = time.monotonic()
-                files = served_state.page_reading(self.page_dir)
+                files = served_reading.page_reading(self.page_dir)
                 # Presence is re-read on its own clock, and again whenever the files
                 # move. The tab is about to ask, and the answer it gets is built from
                 # fresh presence, so what this stream remembers saying has to be too:

@@ -39,11 +39,13 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
+from leaf import projection as projection_model
 from leaf import publishing as publishing_model
 from leaf.registry import storage as registry_storage
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf import served_state as served_state_model
+from leaf.served_state import browser as served_browser
+from leaf.served_state import page as served_page
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import thread_context as thread_context_model
@@ -798,11 +800,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
     def record_undo_read(_event, _events, within):
         seen.append(within)
 
-    monkeypatch.setattr(served_state_model, "undo_error", record_undo_read)
-    empty = served_state_model.StateProjection({}, {}, {}, {}, {})
+    monkeypatch.setattr(served_browser, "undo_error", record_undo_read)
+    empty = projection_model.StateProjection({}, {}, {}, {}, {})
     event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
 
-    candidates = served_state_model._browser_undo_candidates(
+    candidates = served_browser._browser_undo_candidates(
         [event], active_within, view_within, {}, empty, empty
     )
 
@@ -2480,14 +2482,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = served_state_model.full_state
+    original = served_page.full_state
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(served_state_model, "full_state", held_state)
+    monkeypatch.setattr(served_page, "full_state", held_state)
     response = []
 
     def read_state():

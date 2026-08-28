@@ -2709,6 +2709,14 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
+        if event["id"] == "c-any":
+            event = {
+                **event,
+                "markup": event["markup"].replace(
+                    "choose multiple>",
+                    'choose multiple label="Pick any that apply.">',
+                ),
+            }
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     asks = page.locator(".lf-asks")
@@ -2806,6 +2814,9 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(asks).to_have_text("Asks (1)")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator('#tq-set > [data-lf-said="label"]')).to_have_text(
+        "Pick any that apply."
+    )
 
     # The chord's promise holds from a mark: g c then 1 reaches the first thread's
     # reply box, and no pick is sent for the digit the chord took.

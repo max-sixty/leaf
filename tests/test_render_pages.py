@@ -8,10 +8,10 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
-from leaf.registry import storage as registry_storage
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -52,10 +52,12 @@ from render_support import (
     composer_quote,
     leaf_page,
     live_url,
+    nudge,
     open_page,
     page_registry,
     panel_settled,
     record_claim,
+    refuse,
     resized,
     stamp_version_file,
     told,
@@ -497,7 +499,13 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page.close()
 
 
-def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
+def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serve):
+    """A failed candidate owns neither the agent name nor the reply count.
+
+    The first read reaches panel and version rendering before malformed projection data
+    rejects it. That candidate must announce nothing and leave no version behind; a
+    complete retry announces the reply once with the agent recorded on the message.
+    """
     url = serve(TWIN_V1)
     d = serve.page_dir
     root = events_model.append_event(
@@ -509,22 +517,110 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
             "text": "which host answers?",
         },
     )
-    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 
-    events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "claude",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "this one does",
-        },
+    broken = []
+
+    def fail_after_rendering_the_panel(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        state["agent"] = "Rejected agent"
+        rejected_version = {
+            **state["versions"][-1],
+            "version": state["versions"][-1]["version"] + 100,
+        }
+        state["versions"].append(rejected_version)
+        state["browser"].setdefault("version_notes", {})[
+            str(rejected_version["version"])
+        ] = "Rejected version"
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_rendering_the_panel)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "agent": "Codex",
+                "parent": root["id"],
+                "text": "this one does",
+            },
+        )
+    assert (
+        page.evaluate(
+            "async () => (await import('/runtime/widget-api.js')).agentName()"
+        )
+        == "Claude"
     )
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+
+    version_menu = page.locator(".lf-version-menu")
+    assert version_menu.get_attribute("aria-keyshortcuts") is None
+    page.locator(".lf-version").click()
+    expect(version_menu).not_to_contain_text("Rejected version")
+    page.keyboard.press("Escape")
+
+    toast = page.locator(".lf-toast")
+    assert "show" not in toast.get_attribute("class").split()
+    page.wait_for_timeout(100)
+    assert "Codex replied" not in page.locator(".lf-live").text_content()
+
+    page.unroute("**/api/state*")
+    nudge(d)
     told(page)
-    expect(page.locator(".lf-toast")).to_have_text("Codex replied — open Comments")
+    expect(toast).to_have_text("Codex replied — open Comments")
+    expect(toast).to_have_class(re.compile(r"\bshow\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
+    """Rollback preserves an unchanged chooser subtree and its focused row."""
+    url = serve(TWIN_V1)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    page.locator(".lf-version").click()
+    menu = page.locator(".lf-version-menu")
+    row = menu.locator(".lf-version-row").first
+    expect(row).to_be_focused()
+
+    broken = []
+
+    def fail_after_rendering_versions(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_rendering_versions)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        nudge(d)
+    expect(menu).to_be_visible()
+    expect(row).to_be_focused()
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+
+    page.unroute("**/api/state*")
+    nudge(d)
+    told(page)
     assert errors == []
     page.close()
 

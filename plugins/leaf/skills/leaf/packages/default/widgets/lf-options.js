@@ -111,6 +111,7 @@ import {
   offer,
   once,
   quoted,
+  reachedForWords,
   relabel,
   reserve,
   sendAction,
@@ -184,23 +185,10 @@ customElements.define(
       if (this.hasAttribute("settled")) this.#settle();
       if (!choosable) return;
       this.addEventListener("click", (e) => {
-        // A click that ends a drag-select is that selection's, not a pick. The runtime
-        // guards its own controls (see `offer`); this is the option, which is no control
-        // at all — a drag across an option's prose ends here, not on the mark. Same
-        // question, so the same test: did this click's mouseup leave the selection where
-        // it is (its focus end)? Asking whether the selection contains the option instead
-        // answers yes for any selection over the group, and the option stops taking picks
-        // until the user clears it.
+        // A click ending a drag-select belongs to the selection rather than the option.
         const option = e.target.closest?.("lf-option");
-        const sel = getSelection();
-        if (
-          e.detail !== 0 &&
-          sel &&
-          !sel.isCollapsed &&
-          option?.contains(sel.focusNode)
-        )
-          return;
         if (!option || option.parentElement !== this) return;
+        if (e.detail !== 0 && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the reader was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that

@@ -1725,11 +1725,19 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
         "opening the draft's editor answered the question"
     )
 
+    words = page.locator("#ro-column-p")
+    box = words.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+    assert page.evaluate("() => !getSelection().isCollapsed")
+    assert not option.evaluate(picked), "selecting the option's words answered it"
+
     assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
         "the reader working the evidence sent Claude a decision they never made"
     )
 
     # And the option's own words still answer it, which is what the card is for.
+    page.evaluate("() => getSelection().removeAllRanges()")
     page.locator("#ro-column-p").click()
     expect(page.locator("#ro-column > .lf-pick")).to_have_text("your pick")
     round_trip(page)

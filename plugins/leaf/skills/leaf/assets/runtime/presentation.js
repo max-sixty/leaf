@@ -151,14 +151,16 @@ export const MARKED_IN_PAGE = Object.freeze({
   "x-wide": PAGE_PAINT_ATTRIBUTE.wide,
 });
 
+function* elementsIn(root, selector) {
+  if (root.matches?.(selector)) yield root;
+  yield* root.querySelectorAll(selector);
+}
+
 export function markDeclared(root, painted) {
   for (const [key, attr] of Object.entries(painted))
     for (const tag of tagsDeclaring((entry) => entry[key])) {
       const declared = registry[tag][key];
-      for (const el of [
-        ...(root.matches?.(tag) ? [root] : []),
-        ...root.querySelectorAll(tag),
-      ])
+      for (const el of elementsIn(root, tag))
         el.setAttribute(attr, declared === true ? "" : declared);
     }
 }
@@ -194,7 +196,7 @@ export function markDeclared(root, painted) {
 export function renderSaid(root) {
   for (const [tag, entry] of widgetEntries()) {
     if (!entry["x-says"]) continue;
-    for (const el of root.querySelectorAll(tag))
+    for (const el of elementsIn(root, tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
         const text = el.getAttribute(attr);
         if (text === null || el.querySelector(`:scope > [data-lf-said="${attr}"]`))
@@ -282,5 +284,5 @@ export function renderQuiet(root) {
     ...tagsDeclaring((entry) => entry["x-paints"]),
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
   ].join(", ");
-  for (const el of root.querySelectorAll(painting)) quietWord(el, quietFacts(el));
+  for (const el of elementsIn(root, painting)) quietWord(el, quietFacts(el));
 }

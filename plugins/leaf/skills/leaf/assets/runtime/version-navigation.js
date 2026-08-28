@@ -241,6 +241,53 @@ export function createVersionNavigation({
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
+  // A state candidate can be rejected after this owner has painted it. Keep the stable
+  // versions array, private render cache, controls, and menu subtree one restoration
+  // boundary; callers cannot reconstruct those facts from runtime fields alone. An open
+  // menu keeps its existing nodes when they never changed, because their identity carries
+  // the reader's focus.
+  function snapshotVersionNavigation() {
+    const prior = {
+      active: structuredClone(runtime.active),
+      currentLabel: runtime.currentLabel,
+      currentRevision: runtime.currentRevision,
+      currentStamp: runtime.currentStamp,
+      latestAttributes: [...latestChip.attributes].map(({ name, value }) => [
+        name,
+        value,
+      ]),
+      latestText: latestChip.textContent,
+      lastVersionsKey,
+      menuChildren: [...versionMenu.childNodes],
+      versionBtnDisabled: versionBtn.disabled,
+      versions: structuredClone(versions),
+      versionsWalkable,
+    };
+    return () => {
+      const repaintKeys = versionsWalkable !== prior.versionsWalkable;
+      versions.splice(0, versions.length, ...prior.versions);
+      runtime.active = prior.active;
+      runtime.currentLabel = prior.currentLabel;
+      runtime.currentRevision = prior.currentRevision;
+      runtime.currentStamp = prior.currentStamp;
+      lastVersionsKey = prior.lastVersionsKey;
+      versionsWalkable = prior.versionsWalkable;
+      const menuChildren = [...versionMenu.childNodes];
+      if (
+        menuChildren.length !== prior.menuChildren.length ||
+        menuChildren.some((child, index) => child !== prior.menuChildren[index])
+      )
+        versionMenu.replaceChildren(...prior.menuChildren);
+      versionBtn.disabled = prior.versionBtnDisabled;
+      paintDiff();
+      for (const { name } of [...latestChip.attributes])
+        latestChip.removeAttribute(name);
+      for (const [name, value] of prior.latestAttributes)
+        latestChip.setAttribute(name, value);
+      latestChip.textContent = prior.latestText;
+      if (repaintKeys) paintKeys();
+    };
+  }
   const goVersion = (version) => {
     if (version === runtime.currentStamp) return;
     const target = versions.find((candidate) => candidate.version === version);
@@ -416,6 +463,7 @@ export function createVersionNavigation({
     goActive,
     goVersion,
     renderVersions,
+    snapshotVersionNavigation,
     showVersionMenu,
     versionBtn,
     versionLabel,

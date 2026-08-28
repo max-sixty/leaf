@@ -47,6 +47,7 @@ export function createDesign(dependencies) {
     syncGeneral,
     tagsDeclaring,
     tabStore,
+    worksSelector,
   } = dependencies;
 
   function setDesign(on, { spoken = true } = {}) {
@@ -218,13 +219,7 @@ export function createDesign(dependencies) {
   // are different remarks. Nothing where the press is the mode's own machinery: the
   // composer being typed into, the 💬 that opens it, the name floating under the pointer.
   const DESIGN_OWN = ".lf-composer, .lf-fab-bar, .lf-inspect";
-  // The platform's own words for a thing the user works, which is what design mode names a
-  // press by. A separator is on the list because a focusable one is a window splitter — the
-  // panel's edge is the case — and a press that lands on it has landed on something the
-  // reader can point at by name rather than on the region behind it.
-  const CONTROLS =
-    "[data-lf-offer], button, [role=button], [role=separator], a, select, summary," +
-    " input, textarea, label";
+  const CONTROLS = `${worksSelector},[data-lf-offer]`;
   function designTarget(node) {
     const at = node?.nodeType === 1 ? node : node?.parentElement;
     if (!at || closestAcross(at, DESIGN_OWN)) return null;

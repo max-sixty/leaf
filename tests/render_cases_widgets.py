@@ -30,7 +30,10 @@ def written_anchors(page_dir, html, limit=40):
             continue
         try:
             anchors.append(
-                (quote, anchor_capture_model.capture_anchor(html, registry, quote, None))
+                (
+                    quote,
+                    anchor_capture_model.capture_anchor(html, registry, quote, None),
+                )
             )
         except ValueError:
             continue

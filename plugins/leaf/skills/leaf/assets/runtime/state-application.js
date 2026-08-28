@@ -1,3 +1,14 @@
+const APPLICATION_RUNTIME_FIELDS = Object.freeze([
+  "agent",
+  "browser",
+  "events",
+  "lastEventSeq",
+  "reading",
+  "state",
+  "statePhase",
+  "view",
+]);
+
 export function createStateApplication(dependencies) {
   const {
     LIVE_ROOT,
@@ -35,6 +46,7 @@ export function createStateApplication(dependencies) {
     showComparison,
     showNews,
     showToast,
+    snapshotVersionNavigation,
     settleAcceptedDrafts,
     stateSignoff,
     trackActivation,
@@ -171,18 +183,14 @@ export function createStateApplication(dependencies) {
       (!midComposition() || activationIsForced()) &&
       !versionMenuIsOpen() &&
       targetRevision === state.active.revision;
-    const priorEvents = runtime.events;
-    const priorBrowser = runtime.browser;
-    const priorStatePhase = runtime.statePhase;
-    const priorLastEventSeq = runtime.lastEventSeq;
-    const priorReading = runtime.reading;
-    const priorState = runtime.state;
-    const priorActive = runtime.active;
-    const priorVersions = runtime.versions;
-    const priorCurrentLabel = runtime.currentLabel;
-    const priorCurrentRevision = runtime.currentRevision;
-    const priorCurrentStamp = runtime.currentStamp;
-    const priorView = runtime.view;
+    const prior = {
+      runtime: Object.fromEntries(
+        APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
+      ),
+    };
+    const restoreVersionNavigation = snapshotVersionNavigation();
+    let nextAgentMsgCount = null;
+    let replyToast = null;
     let restoreClaimState = () => {};
     const apply = async () => {
       runtime.events = nextEvents;
@@ -224,11 +232,11 @@ export function createStateApplication(dependencies) {
             ),
         );
         if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
-          showToast(
-            `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
-            () => setPanel(true),
-          );
-        agentMsgCount = agentReplies.length;
+          replyToast = {
+            message: `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
+            onClick: () => setPanel(true),
+          };
+        nextAgentMsgCount = agentReplies.length;
       }
       // Last, because the panel has just rendered the log: a widget carried by a reply is
       // on the page by now, so an action naming one that isn't names a widget no version
@@ -309,26 +317,18 @@ export function createStateApplication(dependencies) {
       // rendering it. If any required surface refuses the state, restore the last whole
       // reading so focus, panel, and undo cannot consume a log tail the page never
       // adopted. The next poll retries the candidate from the same complete boundary.
-      runtime.events = priorEvents;
-      runtime.browser = priorBrowser;
-      runtime.statePhase = priorStatePhase;
-      runtime.lastEventSeq = priorLastEventSeq;
-      runtime.reading = priorReading;
-      runtime.state = priorState;
-      if (priorReading === null)
+      Object.assign(runtime, prior.runtime);
+      restoreVersionNavigation();
+      if (runtime.reading === null)
         document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.reading);
-      else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, priorReading);
-      runtime.active = priorActive;
-      runtime.versions = priorVersions;
-      runtime.currentLabel = priorCurrentLabel;
-      runtime.currentRevision = priorCurrentRevision;
-      runtime.currentStamp = priorCurrentStamp;
-      runtime.view = priorView;
+      else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
       stateSignoff(getSignoffDeclared());
       restoreClaimState();
       if (willActivate) location.reload();
       throw error;
     }
+    if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
+    if (replyToast) showToast(replyToast.message, replyToast.onClick);
   }
 
   return { receiveState };

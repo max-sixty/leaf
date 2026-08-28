@@ -8,6 +8,7 @@ from typing import NamedTuple
 from .event_log import jsonl_line
 from .events import batch_threads
 from .files import _path_location, paths_same, read_json, write_json
+from .host import host_identity
 from .hosting import start_server
 from .passages import active_enclosing
 from .registry import RegistryError, described, load_registry
@@ -15,7 +16,6 @@ from .revisioning import activate_source
 from .service import (
     PageTransaction,
     claim_page,
-    host_identity,
     owned_pages,
     running_server,
     take_waiter_lease,

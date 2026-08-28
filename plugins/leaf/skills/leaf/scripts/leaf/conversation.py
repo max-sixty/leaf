@@ -13,6 +13,7 @@ from leaf.files import (
     revision_path,
     version_revisions,
 )
+from leaf.host import message_identity
 from leaf.passages import capture_anchor
 from leaf.projection import (
     decisions,
@@ -23,7 +24,7 @@ from leaf.projection import (
 from leaf.registry import require_registry
 from leaf.revisioning import activate_source
 from leaf.schema import MESSAGE_KINDS
-from leaf.service import PageTransaction, contract_writer, message_identity
+from leaf.service import PageTransaction, contract_writer
 from leaf.structure import parse_revision
 from leaf.validation import (
     check_markup,

@@ -14,7 +14,8 @@ The main owners are:
 - `events`, `conversation`, `projection`, and `work`: event folds, durable state,
   and their standing readings;
 - `asks`: declaration-driven page and thread request projections;
-- `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,
+- `host`: local paths, process readings, host identity, and session lifetime;
+- `session`, `service`, `hosting`, and `hooks`: page ownership, server lifetime,
   and leases;
 - `served_state` and `http`: browser-facing state readings and HTTP transport;
 - `registry` and `layer`: registry storage, layer composition, and package commands;

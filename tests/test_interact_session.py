@@ -45,6 +45,7 @@ from leaf import conversation as conversation_model
 from leaf import events as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import registry as registry_model
@@ -1018,9 +1019,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         text=True,
         env=os.environ,
     )
-    lease_path = service_model.waiter_lease_path(
-        page_dir, service_model.host_identity()
-    )
+    lease_path = service_model.waiter_lease_path(page_dir, host_model.host_identity())
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline and not service_model.lock_is_held(lease_path):
         if acknowledging.poll() is not None:
@@ -1049,7 +1048,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    identity = service_model.host_identity()
+    identity = host_model.host_identity()
     lease = service_model.take_waiter_lease(
         service_model.waiter_lease_path(page_dir, identity)
     )
@@ -1115,7 +1114,7 @@ def test_ack_rearm_keeps_the_other_pages_when_its_batch_page_transfers(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = service_model.host_identity()
+    identity = host_model.host_identity()
     lease_path = service_model.waiter_lease_path(page_dir, identity)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert service_model.lock_is_held(lease_path)
@@ -1170,7 +1169,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
         text=True,
     )
     writer = fifo_writer(status_path, "the rearm never selected its batch page")
-    identity = service_model.host_identity()
+    identity = host_model.host_identity()
     lease_path = service_model.waiter_lease_path(page_dir, identity)
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     assert service_model.lock_is_held(lease_path)
@@ -1733,7 +1732,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_en
     Its premise is this process's own ancestry, which is the developer's to
     supply: run the suite from inside Codex and the walk finds that session,
     correctly, and there is no refusal here to read."""
-    if any(program == "codex" for _, program in service_model.ancestry()):
+    if any(program == "codex" for _, program in host_model.ancestry()):
         pytest.skip("run from inside Codex, which is the codex above this one")
     page = tmp_path / "handmade-page"
     launcher = PLUGIN_ROOT / "bin" / "leaf"
@@ -2143,7 +2142,7 @@ def test_wait_lease_is_exact_and_excludes_another_wait(
     lease_path = (
         page_dir / "waiter.lock"
         if identity_names
-        else service_model.waiter_lease_path(page_dir, service_model.host_identity())
+        else service_model.waiter_lease_path(page_dir, host_model.host_identity())
     )
     first = spawn(
         [launcher, "wait", str(page_dir)],
@@ -2179,7 +2178,7 @@ def test_a_new_claim_cannot_borrow_the_previous_sessions_wait_lease(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "first")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert service_model.claim_page(page_dir)
-    first = service_model.host_identity()
+    first = host_model.host_identity()
     lease = service_model.take_waiter_lease(
         service_model.waiter_lease_path(page_dir, first)
     )

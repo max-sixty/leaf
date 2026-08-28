@@ -34,6 +34,7 @@ from leaf import event_endpoint as event_endpoint_model
 from leaf import event_log as event_log_model
 from leaf import events as event_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import publishing as publishing_model
@@ -2030,7 +2031,7 @@ def test_a_page_left_standing_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(service_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_standing(host_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -2124,7 +2125,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     page ships about itself (`presence`), so the panel's row and that page's own
     banner judge from one shape — where the claiming session is working included,
     which is the one thing on a row's hover that no title could ever say."""
-    pages = service_model.state_home() / "pages"
+    pages = host_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     files_model.write_json(
         pages / "live" / "status.json",
@@ -2294,9 +2295,7 @@ def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
     reader already arrived on, because there is one key for the machine — so a
     `--host` reader sees the neighbours, and sees no key they were not already
     holding. Gating it again is what to do if the key is ever scoped per page."""
-    neighbour_page(
-        service_model.state_home() / "pages" / "live", title="The other page"
-    )
+    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
     state = json.loads(fetch(f"{wildcard_server}/api/state")[1])
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 

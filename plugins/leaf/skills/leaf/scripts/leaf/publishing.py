@@ -12,9 +12,10 @@ from leaf.files import (
     stamped_version,
     version_path,
 )
+from leaf.host import message_identity
 from leaf.projection import folded_facet, markup_facet, page_projection
 from leaf.revisioning import activate_source
-from leaf.service import PageTransaction, contract_writer, message_identity
+from leaf.service import PageTransaction, contract_writer
 from leaf.validation import read_text_arg
 from leaf.work import widget_work_without_seats
 

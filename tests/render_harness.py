@@ -44,6 +44,7 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import events as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
@@ -448,7 +449,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
-        if project.exists() or service_model.config_home().exists():
+        if project.exists() or host_model.config_home().exists():
             initialize(d)
         else:
             clone_initialized_page("examples", d, initialize)

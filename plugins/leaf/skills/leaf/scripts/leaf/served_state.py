@@ -16,6 +16,7 @@ from .files import (
     read_json,
     version_descriptors,
 )
+from .host import state_home
 from .registry import layer_generation
 from .service import (
     claim_is_active,
@@ -24,7 +25,6 @@ from .service import (
     claim_update_sources,
     page_claim,
     running_server,
-    state_home,
     unacknowledged,
     wait_is_live,
 )

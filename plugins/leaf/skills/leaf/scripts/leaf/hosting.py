@@ -12,10 +12,10 @@ from urllib.parse import urlsplit
 
 from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
+from .host import host_identity
 from .http import handler_for
 from .service import (
     PageTransaction,
-    host_identity,
     host_key,
     lifetime_note,
     lock_is_held,

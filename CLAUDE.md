@@ -10,6 +10,10 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
+Use this freedom to try coherent new features and learn from them without
+settling every product detail first. Surface architectural problems, but fix
+them separately when the experiment leaves the architecture easy to change.
+
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
 

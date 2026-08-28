@@ -19,6 +19,7 @@ class _SchemeContext:
     replayed: bool
     unsettled: list
 
+
 @dataclass(frozen=True, slots=True)
 class _SchemeReadings:
     failsoft: list

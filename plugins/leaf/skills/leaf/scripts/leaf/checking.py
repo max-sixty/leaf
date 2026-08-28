@@ -6,17 +6,9 @@ from typing import NamedTuple
 
 from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
 from leaf.event_log import flocked, read_events
-from leaf.events import retractions
 from leaf.files import list_revisions, revision_path
-from leaf.passages import spoken
-from leaf.projection import (
-    StateProjection,
-    protected_ids,
-    record_lag,
-    retirement_holders,
-    state_projection,
-)
-from leaf.registry import RegistryError, load_registry, visual_parts
+from leaf.projection import record_lag, state_projection
+from leaf.registry import RegistryError, load_registry
 from leaf.schema import VENDORED_FILES
 from leaf.service import transition_lock
 from leaf.structure import LF_META, PAGE_CSP, parse_structure
@@ -46,7 +38,14 @@ from leaf.validation.markup import (
     structure_errors,
     unpointable_blocks,
 )
-from leaf.validation.transitions import report_errors, restatement_errors
+from leaf.validation.source_history import (
+    RevisionReading,
+    TransitionReading,
+    continuity_errors,
+    revision_reading,
+    transition_errors,
+    transition_reading,
+)
 
 
 class SourceCheck(NamedTuple):
@@ -62,25 +61,6 @@ class SourceCheck(NamedTuple):
     errors: list[str]
     advice: list[str]
     column: int
-
-
-class _RevisionReading(NamedTuple):
-    """The active and predecessor documents this exact source is checked against."""
-
-    revisions: list[int]
-    active: int
-    committed_active: bool
-    predecessor: int
-    previous: object
-    previous_words: dict
-
-
-class _TransitionReading(NamedTuple):
-    """The current document's words and standing projection at its predecessor."""
-
-    words: dict
-    floors: dict
-    projection: StateProjection
 
 
 def _source_bytes(page_dir: Path) -> tuple[bytes, str | None]:
@@ -169,45 +149,6 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     return errors
 
 
-def _revision_reading(
-    page_dir: Path,
-    data: bytes,
-    events: list,
-    registry: dict | None,
-) -> _RevisionReading:
-    """Read the predecessor whose still-standing decisions this source must keep."""
-    revisions = list_revisions(page_dir)
-    active = revisions[-1] if revisions else 0
-    active_data = revision_path(page_dir, active).read_bytes() if active else None
-    same_as_active = active_data == data
-    committed_active = bool(
-        active
-        and same_as_active
-        and any(
-            event["kind"] == "note" and event["revision"] == active for event in events
-        )
-    )
-    predecessor = (
-        active
-        if committed_active
-        else (revisions[-2] if same_as_active and len(revisions) > 1 else active)
-    )
-    previous = parse_structure("")
-    previous_words = {}
-    if predecessor:
-        previous_html = revision_path(page_dir, predecessor).read_text(encoding="utf-8")
-        previous = parse_structure(previous_html)
-        previous_words = spoken(previous_html, registry or {})
-    return _RevisionReading(
-        revisions,
-        active,
-        committed_active,
-        predecessor,
-        previous,
-        previous_words,
-    )
-
-
 def _registry_errors(
     page_dir: Path,
     events: list,
@@ -267,130 +208,6 @@ def _registry_errors(
     return stored_data, errors
 
 
-def _continuity_errors(
-    events: list,
-    parser,
-    registry: dict | None,
-    revision: _RevisionReading,
-) -> tuple[list[str], list[str]]:
-    """Protect predecessor anchors, standing state, and retirement holders."""
-    if not revision.predecessor or revision.committed_active or registry is None:
-        return [], []
-    gone = revision.previous.ids - parser.ids
-    previous_parts = {
-        (record["attrs"]["id"], part)
-        for record in revision.previous.lf_elements
-        if record["attrs"].get("id")
-        for part in visual_parts(record, registry)
-    }
-    current_parts = {
-        (record["attrs"]["id"], part)
-        for record in parser.lf_elements
-        if record["attrs"].get("id")
-        for part in visual_parts(record, registry)
-    }
-    dropped_parts = sorted(
-        f"{section} · {part}"
-        for section, part in previous_parts - current_parts
-        if section in parser.ids
-    )
-    errors = []
-    if dropped_parts:
-        errors.append(
-            f"visual parts present in revision r{revision.predecessor} but dropped in "
-            f"index.html (anchors on them will break): {dropped_parts}"
-        )
-    previous_projection = state_projection(
-        events,
-        revision.previous.by_id,
-        revision.previous_words,
-        registry,
-        revision.predecessor,
-    )
-    protected = protected_ids(
-        retirement_holders(revision.previous, registry),
-        events,
-        gone,
-        previous_projection,
-        revision.previous_words,
-        registry,
-    )
-    dropped = sorted(gone & protected)
-    dropped_advice = sorted(gone - protected)
-    if dropped:
-        errors.append(
-            f"protected ids present in revision r{revision.predecessor} but dropped in "
-            "index.html (unresolved threads, standing state, or widget "
-            f"retirement still need them): {dropped}"
-        )
-    return errors, dropped_advice
-
-
-def _transition_reading(
-    html: str,
-    events: list,
-    parser,
-    registry: dict | None,
-    revision: _RevisionReading,
-) -> _TransitionReading:
-    """Project standing log changes onto this source from its predecessor."""
-    words = spoken(html, registry or {})
-    floors = retractions(events, revision.predecessor)
-    projection = state_projection(
-        events,
-        parser.by_id,
-        words,
-        registry or {},
-        revision.predecessor,
-        floors,
-    )
-    return _TransitionReading(words, floors, projection)
-
-
-def _transition_errors(
-    parser,
-    registry: dict | None,
-    revision: _RevisionReading,
-    transition: _TransitionReading,
-    allow_transition: bool,
-) -> list[str]:
-    """Validate decision retractions and report settlements in changed source."""
-    if revision.committed_active:
-        return []
-    errors = restatement_errors(
-        parser,
-        revision.previous,
-        revision.previous_words,
-        transition.words,
-        revision.predecessor,
-        registry or {},
-        transition.projection,
-        transition.floors,
-    )
-    errors.extend(
-        report_errors(
-            parser,
-            revision.previous,
-            revision.previous_words,
-            transition.words,
-            registry or {},
-            transition.projection,
-        )
-    )
-    if not allow_transition:
-        if parser.restated:
-            errors.append(
-                "index.html carries restated decisions; stamp these exact bytes "
-                "to record their retraction"
-            )
-        if parser.overruled:
-            errors.append(
-                "index.html overrules standing reports; stamp these exact bytes "
-                "to record their settlement"
-            )
-    return errors
-
-
 def _presentation_errors(page_dir: Path, parser) -> tuple[int, list[str]]:
     """Validate authored and vendored CSS and return the readable column width."""
     theme_css = (
@@ -413,8 +230,8 @@ def _source_advice(
     parser,
     registry: dict | None,
     stored_data: dict,
-    revision: _RevisionReading,
-    transition: _TransitionReading,
+    revision: RevisionReading,
+    transition: TransitionReading,
     dropped_ids: list[str],
 ) -> list[str]:
     """Report non-blocking drift after every error-producing phase has run."""
@@ -472,20 +289,20 @@ def check_source(
     except RegistryError as error:
         registry = None
         errors.append(str(error))
-    revision = _revision_reading(page_dir, data, events, registry)
+    revision = revision_reading(page_dir, data, events, registry)
     stored_data, registry_errors = _registry_errors(
         page_dir, events, parser, registry, revision.revisions
     )
     errors.extend(registry_errors)
 
-    continuity_errors, dropped_advice = _continuity_errors(
+    source_history_errors, dropped_advice = continuity_errors(
         events, parser, registry, revision
     )
-    errors.extend(continuity_errors)
+    errors.extend(source_history_errors)
 
-    transition = _transition_reading(html, events, parser, registry, revision)
+    transition = transition_reading(html, events, parser, registry, revision)
     errors.extend(
-        _transition_errors(parser, registry, revision, transition, allow_transition)
+        transition_errors(parser, registry, revision, transition, allow_transition)
     )
 
     taken = sorted(parser.ids & thread_structure(events).ids)

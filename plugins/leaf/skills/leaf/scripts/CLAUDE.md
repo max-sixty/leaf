@@ -77,6 +77,7 @@ Import the owner directly; the package initializer is only a marker.
 
 Within `validation/`, `markup` owns shared document structure rules, `instances`
 owns registry-declared instance rules, `admission` owns incoming message markup,
-`compatibility` owns layer changes against the standing log, and `transitions`
-owns authored revisions against standing actions and reports. Import the owner
-directly; the package initializer is only a marker, not a second API to maintain.
+`compatibility` owns layer changes against the standing log, `source_history`
+owns predecessor readings and continuity, and `transitions` compares authored
+revisions with standing actions and reports. Import the owner directly; the
+package initializer is only a marker, not a second API to maintain.

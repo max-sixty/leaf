@@ -4,12 +4,12 @@ import re
 import sys
 from pathlib import Path
 
+from leaf import event_contracts
 from leaf.asks import (
     asking,
     quoted_in,
 )
 from leaf.data import data_binding_errors, read_data_store
-from leaf import event_contracts
 from leaf.files import list_revisions
 from leaf.passages import (
     EMPTY,

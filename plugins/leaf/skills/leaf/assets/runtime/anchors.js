@@ -1,4 +1,4 @@
-import { shownBox, shownParts, shownRect } from "./geometry.js";
+import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
 import { moveScrollerBy } from "./scrolling.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
@@ -21,7 +21,7 @@ export const sameAnchor = (a, b) => {
 export function createAnchors(dependencies) {
   const {
     DATUM,
-    SCROLL,
+    scrollBehavior,
     actionAnchor,
     activateVisual,
     aimBox,
@@ -982,12 +982,51 @@ export function createAnchors(dependencies) {
           : Math.max((view.height - rect.height) / 2, clear);
     return rect.top - view.top - place;
   }
-  function scrollToElement(el, behavior = SCROLL, block = "center") {
+  function scrollToElement(el, behavior = scrollBehavior(), block = "center") {
     reveal(el);
-    el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    el.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: block === "nearest" ? behavior : "instant",
+    });
+    // `nearest` is a request to reveal only. Once the platform has done that, a
+    // second centring move would turn a small correction into a page jump.
+    if (block === "nearest") return;
     const box = scrollerFor(el);
     if (!under(el, box)) return;
     moveScrollerBy(box, centreBy(el, block, box), behavior);
+  }
+
+  // A comment destination already fully visible in its own scroller needs no travel.
+  // Compare its unclipped geometry with what every clipping ancestor actually exposes;
+  // an element can be in the viewport while still hidden behind a nested scroller edge.
+  function readableThreadDestination(where) {
+    const holder =
+      where instanceof Range
+        ? where.startContainer instanceof Element
+          ? where.startContainer
+          : where.startContainer.parentElement
+        : where;
+    if (!holder) return false;
+    const destination =
+      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+    const seen =
+      where instanceof Range
+        ? clippedRect(destination, holder, new Map())
+        : shownRect(where, new Map());
+    if (!seen) return false;
+    const box = scrollerFor(holder);
+    const view = shownBox(box);
+    const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const close = (a, b) => Math.abs(a - b) <= 0.5;
+    return (
+      destination.top >= view.top + clear &&
+      destination.bottom <= view.bottom &&
+      close(seen.top, destination.top) &&
+      close(seen.right, destination.right) &&
+      close(seen.bottom, destination.bottom) &&
+      close(seen.left, destination.left)
+    );
   }
 
   // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
@@ -1000,21 +1039,30 @@ export function createAnchors(dependencies) {
   // of the region that holds it. No transient effect waits on that motion or survives it
   // as separate state.
   function scrollToThread(id) {
-    const where = marksOf(id)[0] ?? placed.get(id);
+    let where = marksOf(id)[0] ?? placed.get(id);
     if (!where) return;
+    const holder =
+      where instanceof Range
+        ? where.startContainer instanceof Element
+          ? where.startContainer
+          : where.startContainer.parentElement
+        : where;
+    if (!holder) return;
+    reveal(holder);
+    if (!(where instanceof Range) && !marksOf(id).length) {
+      paintAnchors();
+      where = marksOf(id)[0] ?? where;
+    }
+    if (readableThreadDestination(where)) return;
     if (!(where instanceof Range)) {
-      reveal(where);
-      if (!marksOf(id).length) paintAnchors();
-      scrollToElement(marksOf(id)[0] ?? where);
+      scrollToElement(where);
       return;
     }
-    const holder = where.startContainer.parentElement;
-    reveal(holder);
     // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
     // rendered diagram sits in a box with its own horizontal scroll, which the vertical
     // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
     holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-    moveScrollerBy(pageScroller, centreBy(where), SCROLL);
+    moveScrollerBy(pageScroller, centreBy(where), scrollBehavior());
   }
 
   // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which

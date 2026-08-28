@@ -3,8 +3,8 @@ export const scrollerFor = (...args) => publishedNavigation.scrollerFor(...args)
 
 export function createNavigation({
   BANNER_CLEAR,
-  REDUCED,
-  SCROLL,
+  reducedMotion,
+  scrollBehavior,
   beside,
   inChrome,
   inPanel,
@@ -91,7 +91,7 @@ export function createNavigation({
     // half of the press still travels. Both halves therefore go where they were pointed.
     const standing = next === document.activeElement;
     next.focus({ preventScroll: true });
-    if (standing) next.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     scrollToThread(next.dataset.id);
   }
 
@@ -101,7 +101,7 @@ export function createNavigation({
   // reads the list's declared scroll-padding, including its sticky heading and focus-ring
   // room, from the same authority the j/k walk uses.
   function placeThreadEdge(thread, edge) {
-    thread.scrollIntoView({ behavior: SCROLL, block: edge });
+    thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }
 
   // d and u step the reader half a page down and up — less's pair, and half a page rather
@@ -127,7 +127,7 @@ export function createNavigation({
   // at the foot banks no debt for u to press back through; and the step stands down the
   // moment the box moves under another hand — a wheel, a centering — because the reader's
   // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
-  // rest of the runtime's motion already gives (SCROLL).
+  // rest of the runtime's motion already gives (scrollBehavior()).
   //
   // The page the step halves is the one the reader can see. The document's box lends its
   // top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
@@ -168,7 +168,7 @@ export function createNavigation({
   // back through, and an edge may be asked for as the height it cannot exceed.
   function glideTo(box, goal) {
     goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
-    if (REDUCED) {
+    if (reducedMotion()) {
       box.scrollTo({ top: goal, behavior: "instant" });
       return;
     }
@@ -178,6 +178,11 @@ export function createNavigation({
     const tick = (now) => {
       if (!holding(box)) {
         glide = null; // the box moved under another hand; theirs wins
+        return;
+      }
+      if (reducedMotion()) {
+        box.scrollTo({ top: goal, behavior: "instant" });
+        glide = null;
         return;
       }
       // Floored as well as capped: a rAF timestamp is its frame's start, which can precede

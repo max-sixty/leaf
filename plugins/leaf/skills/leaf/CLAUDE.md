@@ -59,6 +59,8 @@ event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, version preparation,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
+`runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
+overflow travel, and the banner's touch bridge to the document scroller;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
@@ -1115,11 +1117,14 @@ outside selection, quote capture, widget word readings, and clipboard output.
 `display: contents` descendants paint. `shownParts` returns the visible elements
 on which an outline can be drawn. `shownRect` clips the result through scrolling
 ancestors and the viewport, stopping ancestor clipping at a fixed-position box.
+`clippedRect` applies that same clipping walk to a box already measured from a
+Range, using the element that owns the Range as the start of the walk.
 Use:
 
 - `shownBox` for travel, bounds, and reading-position landmarks;
 - `shownParts` for ask rings and element-anchor outlines;
-- `shownRect` for visible placement of floating chrome and address chips.
+- `shownRect` for visible placement of floating chrome and address chips;
+- `clippedRect` only when the subject has no element box of its own.
 
 Do not read `getBoundingClientRect()` directly when the target may generate no
 box. A `display: contents` element reports an origin-like zero rectangle that
@@ -1189,9 +1194,11 @@ The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
 `document.scrollingElement` must be given `pageScroller` explicitly — through
 `scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
-message is scrolled by the panel's own list and by nothing else. The open
-comment panel and tray panel each occupy their own strip when the viewport can
-hold it and cover the page under their respective media query otherwise.
+message is scrolled by the panel's own list and by nothing else. Comments and
+trays are alternate auxiliary workspaces, so only one stands at a time. The
+strip-taking workspaces—Comments and Asks—take room when the viewport can hold
+them and cover the page under their respective media query otherwise; Leaves
+always covers because its rows leave this page.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
 strip the chrome holds and the gutter the scroller's own bar takes — a window is
 the page's box on neither count; CSS owns the body's corresponding layout. The
@@ -1587,6 +1594,10 @@ A row has these meanings:
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
   platform's own on a link, or one another scope's row already runs.
+- `native: true` performs `run` without preventing the platform default. Use it
+  when Leaf must change state before the browser completes the same press, not
+  to leave an otherwise owned press half-handled. It still follows the ordinary
+  `repeat` policy; declare `repeat: true` when repeated keydowns must also run.
 
 `live` answers the declared liveness once for every projection. Do not repeat a
 guard inside `run` if the guard changes whether the key should be shown. When
@@ -1612,8 +1623,9 @@ fact used by a word or liveness predicate changes.
 Scopes nest by focus. `scopesFor` produces the active stack and element scopes
 are spliced where their elements stand. The dispatcher walks innermost first.
 The first live row answering the event runs, prevents the platform default when
-it owns the press, and stops. A focused widget may shadow a page key without
-either scope naming the other.
+it owns the press, and stops. A `native` row runs and stops the scope walk but
+leaves that default intact. A focused widget may shadow a page key without either
+scope naming the other.
 
 `claims` lists platform keys a scope consumes even when no registered row answers
 them. A text entry scope uses `takesLetters` and claims character keys plus the keys
@@ -1903,9 +1915,10 @@ its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
 `restoreTray` runs after all declarations exist and after the first projection
-can populate state-dependent rows. It restores intent through `showTray` without
-replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
-each persisted tray.
+can populate state-dependent rows. It calls its supplied `beforeOpen` policy to
+retire Comments, then presents the remembered tray directly without replaying
+opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
+tray.
 
 Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
 nested in an `x-ask` region, the row names the region: its heading, context, and

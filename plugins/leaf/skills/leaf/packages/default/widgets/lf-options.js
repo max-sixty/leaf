@@ -101,7 +101,6 @@
 import {
   HIDDEN,
   actionStands,
-  agentName,
   conversationBox,
   conversationInput,
   inChrome,
@@ -213,7 +212,7 @@ customElements.define(
             : `Dropped “${name}”`;
         sendAction(this, "choose", { options: [...next].map((o) => o.id) }).then(
           (ok) => {
-            if (ok) toast(`${said} — sent to ${agentName()}`);
+            if (ok) toast(`${said} — recorded`);
           },
         );
       });
@@ -272,7 +271,7 @@ customElements.define(
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         if (actionStands(accepted)) this.#answered(true);
-        toast(`Marked answered — sent to ${agentName()}`);
+        toast("Marked answered — recorded");
         return true;
       });
       this.#sending(sent);

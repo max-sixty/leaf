@@ -46,8 +46,14 @@ export function createVersionNavigation({
   // a reader who leaves a comparison on and scrolls into a stretch that changed nothing
   // has only this control to read it back off, and a colour is not a thing a screen
   // reader announces.
-  const versionLabel = (comparing) =>
-    (comparing ? "Δ " : "") + `${runtime.currentLabel ?? "Draft"} ▾`;
+  // The closed control is an address, not the menu's account of the working document.
+  // Keep it to the stable version token (or Draft); the full "Draft after vN" context
+  // remains in the menu row and the control's title. `label` lets the banner reserve the
+  // largest compact token it can write without reintroducing that account as dead width.
+  const versionLabel = (
+    comparing,
+    label = runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`,
+  ) => (comparing ? "Δ " : "") + `${label} ▾`;
   const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
   // Nothing to open until the log says what versions there are, and a control that answers
   // nothing is a way in painted where there is no layer behind it — the same reason the
@@ -87,6 +93,18 @@ export function createVersionNavigation({
   const versionsToWalk = () => versionCount() > 1;
   // The walk is the versions, not every press in the menu.
   const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
+  const versionStops = () =>
+    [...versionMenu.querySelectorAll("button:not(:disabled)")].filter(
+      (control) => control.getClientRects().length,
+    );
+  // A menu is a transient reading of the chooser, not a layer over the next control a
+  // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
+  // exit only from the boundary control in the direction being travelled. The native row
+  // below closes the menu first and then leaves the browser to complete that same Tab.
+  const atVersionBoundary = (end) => {
+    const stops = versionStops();
+    return document.activeElement === stops.at(end);
+  };
   // One setter stating the whole outcome, per showComposer and showFab: nothing reads
   // the class back to find out whether the menu is up.
   function showVersionMenu(open) {
@@ -199,13 +217,10 @@ export function createVersionNavigation({
     ],
     versionsToWalk,
   );
-  // The way out is the menu standing, not the reader being inside it: a menu opened and
-  // then Tabbed out of is still over the page, and an Escape that could not reach it left
-  // the reader closing the panel underneath instead. So the rung is a mode rather than the
-  // element scope's — which is what every other layer that can outlive its own focus does
-  // (the composer holds a draft the reader clicked away from; the leaves tray stands while
-  // focus is on the button that opened it). The menu's walk stays the element scope's,
-  // because a walk has nothing to walk unless focus is on a row.
+  // The way out is the menu standing, not whether it has multiple versions to walk. So the
+  // rung is a mode rather than the element scope's: on the common first version the menu
+  // still needs Escape even though there is no neighbouring row. The menu's walk stays the
+  // element scope's, because a walk has nothing to walk unless focus is on a row.
   const VERSIONS = {
     title: "In the versions menu",
     // The way out is live wherever the way in is, which is the wider fact and not the walk's:
@@ -226,6 +241,29 @@ export function createVersionNavigation({
     // statement rather than a suspension the surfaces have to be told about separately.
     claims: allButTheReference,
     rows: [
+      {
+        id: "version.leave-forward",
+        keys: ["Tab"],
+        does: "Leave the versions menu forward",
+        line: "leave versions",
+        native: true,
+        // A held Tab is still one continuous trip through the controls. When its repeated
+        // keydown reaches the boundary, closing is part of that press just as it is for a
+        // fresh Tab; only the platform's focus move remains native.
+        repeat: true,
+        when: () => atVersionBoundary(-1),
+        run: () => showVersionMenu(false),
+      },
+      {
+        id: "version.leave-backward",
+        keys: ["Shift+Tab"],
+        does: "Leave the versions menu backward",
+        line: "leave versions",
+        native: true,
+        repeat: true,
+        when: () => atVersionBoundary(0),
+        run: () => showVersionMenu(false),
+      },
       {
         id: "version.close",
         keys: ["Escape"],

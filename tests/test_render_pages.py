@@ -1013,6 +1013,18 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"{room['line']:.0f}px key line"
     )
 
+    # The covering shelf is taller than the desktop row. A reader can cross that
+    # breakpoint by rotating or resizing an already-open page, so the flow reservation
+    # follows the rendered banner in both directions rather than keeping its startup
+    # measurement and either covering the document or leaving a blank strip.
+    for width in (390, 900):
+        resized(page, width, 844)
+        room = page.evaluate(CHROME_ROOM)
+        assert abs(room["head"] - room["banner"]) <= 1, (
+            f"after resizing to {width}px, the document reserved {room['head']:.0f}px "
+            f"for a {room['banner']:.0f}px banner"
+        )
+
     page.emulate_media(media="print")
     printed = page.evaluate(CHROME_ROOM)
     assert printed["head"] <= 1 and printed["foot"] <= 1, (

@@ -29,6 +29,7 @@
  * matters at 17px. */
 
 :root {
+  color-scheme: light dark;
   /* Warm neutrals: the paper is ivory rather than white and every grey above it
      carries the same warmth, so nothing on the page reads as a cool grey pasted
      onto a warm ground. */
@@ -699,6 +700,9 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
    * column, and four widgets letting a diagram out were found the day it could. */
   @container style(--lf-frame: 1) { * { --lf-room: 0px; } }
   main > * { --lf-room: inherit; }
+}
+@media screen and (max-width: 640px) {
+  main { padding-top: 28px; padding-bottom: 72px; }
 }
 /* The headings are the body serif at weight, size and spacing — one voice, four
  * volumes — rather than a display face over a text face. A page whose subject is
@@ -1486,7 +1490,7 @@ html.lf-versioning::view-transition-new(root) {
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so
  * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and SCROLL, which answer the same preference themselves.
+ * motion() and the live motion readings, which answer the same preference themselves.
  *
  * The two halves are not written alike, because a duration is a way of keeping
  * an animation and no way at all of keeping a transition. An animation is

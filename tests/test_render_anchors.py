@@ -60,45 +60,28 @@ pytestmark = pytest.mark.nightly
 
 
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
-    """`blocksOnScreen` decides which blocks count as the ones being read, and it draws
-    the line at the banner's lower edge — captureView stores the first of them as the
-    reader's landmark, and the ask walk starts from it. It reads that edge off
-    --lf-banner-h, the one place the height is stated and the term seven rules place
-    themselves against.
+    """The document reserves exactly the head covered by the painted banner.
 
-    Two ways that could quietly stop being a reading. The token could go — renamed,
-    moved off body, put behind a query — and `parseFloat` of nothing is NaN, which the
-    fallback turns into a line at zero: every block on the page counts as read, the
-    landmark becomes whatever is at the top of the document, and nothing raises. Or the
-    banner could come to be drawn to some other height, and the declaration would answer
-    for a bar that is not there.
-
-    So the number is asked of both ends: what the stylesheet says, and where the bar the
-    reader is looking at actually ends. The second is narrower than it looks, and worth
-    saying so — `.lf-banner` takes its height from this very token, so changing the token
-    moves both ends together and the comparison holds. What it catches is the bar coming
-    to a different size than its height: a padding or a border added to the banner, or a
-    package theme setting the height directly. The first assertion is the one that
-    catches the token itself going away."""
+    A missing reservation puts the first block under the banner. A mismatched reservation
+    also makes anchored browser scrolls stop above or below the visible page.
+    """
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
     stated, drawn = page.evaluate(
         """() => [
-        parseFloat(
-          getComputedStyle(document.body).getPropertyValue('--lf-banner-h')),
-        document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
-    ]"""
+            parseFloat(getComputedStyle(document.body, '::before').height),
+            document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
+        ]"""
     )
     page.close()
 
     assert stated > 0, (
-        "--lf-banner-h no longer resolves on body, so the anchor pass reads its "
-        f"on-screen line as {stated} and every block on the page counts as one the "
-        "reader is looking at"
+        f"the banner reserves {stated}px, so the page's first block is no longer held "
+        "clear of its painted chrome"
     )
     assert drawn == stated, (
-        f"the banner is drawn to {drawn}px and states {stated}px, so the line the "
-        "anchor pass draws between read and unread is in neither place"
+        f"the banner is drawn to {drawn}px but the page reserves {stated}px, so the "
+        "first block and anchored scrolls land against different edges"
     )
     assert errors == [], errors
 
@@ -2948,6 +2931,50 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+
+    # A comparison checkbox is the menu's internal Tab stop rather than part of its
+    # arrow-key row walk. Reaching it must not be mistaken for leaving the popup.
+    compared, compared_errors = open_page(browser, url.replace("/v1.html", "/v2.html"))
+    compared.keyboard.press("v")
+    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.keyboard.press("Tab")
+    comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
+    expect(comparison).to_be_focused()
+    expect(compared.locator(".lf-version-menu")).to_be_visible()
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave versions")
+    compared.keyboard.press("?")
+    expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")
+    compared.keyboard.press("Escape")
+    expect(comparison).to_be_focused()
+
+    # Holding Tab sends repeated keydowns after the first stop. The boundary action must
+    # repeat too: leaving the browser's focus move native does not mean leaving the menu
+    # painted over the control that move reaches.
+    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    compared.keyboard.up("Tab")
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
+
+    compared.keyboard.press("v")
+    compared.locator('.lf-version-row[data-lf-version="2"]').focus()
+    compared.keyboard.down("Shift")
+    compared.keyboard.down("Tab")
+    expect(comparison).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    compared.keyboard.up("Tab")
+    compared.keyboard.up("Shift")
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
+    assert compared_errors == []
+    compared.close()
+
     page, errors = open_page(browser, url, pin=True)
 
     page.keyboard.press("v")

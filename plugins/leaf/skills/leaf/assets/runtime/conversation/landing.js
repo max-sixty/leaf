@@ -1,6 +1,6 @@
 import { shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
-import { SCROLL } from "../motion.js";
+import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
 
 const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
@@ -34,7 +34,7 @@ export function landInConversation(box, route = null) {
 export function createConversationLanding({ scrollToThread }) {
   const focusConversation = ({ held, box }) => {
     box.focus({ preventScroll: true });
-    held.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    held.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     if (held.dataset.id) scrollToThread(held.dataset.id);
   };
   publishedLand = ({ held = null, box, route = null }) => {
@@ -111,7 +111,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
   const standing = () => focused()?.closest?.(".lf-thread");
   const land = (thread) => {
     if (thread && threadsBox.contains(thread))
-      thread.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+      thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   };
   // The primary pointer owns the provisional landing until that same gesture ends. A
   // cancellation means the browser took it for something else — commonly a touch scroll —
@@ -147,7 +147,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
     if (!node) return;
     const thread = node.closest(".lf-thread");
     node.scrollIntoView({
-      behavior: SCROLL,
+      behavior: scrollBehavior(),
       block: node === thread ? "center" : "nearest",
     });
     thread.classList.remove("grow");

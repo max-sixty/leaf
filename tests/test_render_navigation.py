@@ -1330,10 +1330,10 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     The sweep that fixes that asks the box whether it may scroll, and the theme says every
     table may (`table { display: block; overflow-x: auto }`). So pointing it at the
     reference tagged all fourteen of its tables, none of which overflows: leaving the
-    reference by Tab went from one press to fifteen, each stop wearing the browser's own
-    ring rather than the layer's. A rule saying a box *could* scroll is not the same fact
-    as a box that *has* something out of sight, and only the second is somewhere a reader
-    needs to be able to stand.
+    reference by Tab went from its native controls to fifteen extra stops, each wearing
+    the browser's own ring rather than the layer's. A rule saying a box *could* scroll is
+    not the same fact as a box that *has* something out of sight, and only the second is
+    somewhere a reader needs to be able to stand.
 
     Asserted as the whole set rather than a count, because the count was right before and
     the members were wrong: every stop in the overlay has to be a control the reference
@@ -1417,16 +1417,13 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
 
-    # An outside press owns its own focus. Closing for that press must not restore More
-    # a frame later and take the reader back out of the control they just chose.
+    # The native modal makes the page behind it inert. Its reachable light-dismiss gesture
+    # is the backdrop, which closes the reference and returns to the door rather than
+    # pretending a page control can be pressed through the modal layer.
     opener.click()
-    comments = page.locator(".lf-comments")
-    comments.click()
+    page.mouse.click(2, 2)
     expect(help_el).to_be_hidden()
-    page.evaluate(
-        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
-    )
-    expect(comments).to_be_focused()
+    expect(opener).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1633,10 +1630,21 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     links = "".join(
         f'<li><a id="link-{n}" href="#link-{n}">link {n}</a></li>' for n in range(1, 13)
     )
+    lead = "".join(f"<p>Context before the links, line {n}.</p>" for n in range(16))
+    tail = "".join(f"<p>Context after the links, line {n}.</p>" for n in range(16))
     page, errors = open_page(
-        browser, serve(leaf_page("Twelve links", f"<ol>{links}</ol>"))
+        browser, serve(leaf_page("Twelve links", f"{lead}<ol>{links}</ol>{tail}"))
     )
+    page.emulate_media(reduced_motion="reduce")
     line = page.locator(".lf-keyline")
+    page.locator("#link-1").scroll_into_view_if_needed()
+    page.evaluate(
+        """() => {
+          const link = document.querySelector('#link-1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollBy(0, link.top - banner.bottom - 96);
+        }"""
+    )
 
     page.keyboard.press("g")
     expect(line).to_contain_text("l 1–12")
@@ -1662,14 +1670,37 @@ def test_an_address_reaches_every_member_of_a_long_list(browser, serve):
     page.keyboard.press("Escape")
     expect(line).to_contain_text("1–12")
     page.keyboard.press("1")
+    visible = page.evaluate(
+        """() => {
+          const link = document.querySelector('#link-1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: link.top, bottom: link.bottom,
+                  banner: banner.bottom, height: innerHeight};
+        }"""
+    )
+    assert visible["top"] > visible["banner"] + 48
+    assert visible["bottom"] < visible["height"] - 48
     page.keyboard.press("Enter")
     expect(page.locator("#link-1")).to_be_focused()
+    stayed = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#link-1').getBoundingClientRect().top,
+        })"""
+    )
+    assert stayed["scroll"] == pytest.approx(visible["scroll"], abs=0.5)
+    assert stayed["top"] == pytest.approx(visible["top"], abs=0.5)
 
+    page.evaluate("() => document.body.scrollTo(0, 0)")
     page.keyboard.press("g")
     page.keyboard.press("l")
     page.keyboard.press("1")
     page.keyboard.press("2")
     expect(page.locator("#link-12")).to_be_focused()
+    revealed = page.locator("#link-12").bounding_box()
+    assert revealed is not None
+    assert revealed["y"] + revealed["height"] > page.viewport_size["height"] * 0.75
+    assert revealed["y"] + revealed["height"] <= page.viewport_size["height"]
     assert errors == []
     page.close()
 
@@ -2000,7 +2031,12 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
 
 def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     """The pointer's return-to-passage action is a focusable, named control too."""
-    url = serve(NOTED_PAGE)
+    lead = "".join(f"<p>Earlier reading context, line {n}.</p>" for n in range(14))
+    tail = "".join(f"<p>Later reading context, line {n}.</p>" for n in range(14))
+    noted_page = NOTED_PAGE.replace('<p id="p1">', f'{lead}<p id="p1">').replace(
+        '<figure id="fig">', f'{tail}<figure id="fig">'
+    )
+    url = serve(noted_page)
     d = serve.page_dir
     events_model.append_event(
         serve.page_dir,
@@ -2013,6 +2049,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         },
     )
     page, errors = open_page(browser, live_url(url))
+    page.emulate_media(reduced_motion="reduce")
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
 
     page.keyboard.press("c")
@@ -2032,22 +2069,119 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
             String(Number(node.dataset.keyboardActivations || 0) + 1);
         })"""
     )
+    passage = page.locator("#p1")
+    passage.scroll_into_view_if_needed()
+    page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollBy(0, passage.top - banner.bottom - 96);
+        }"""
+    )
+    before = page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: passage.top,
+                  bottom: passage.bottom, banner: banner.bottom, height: innerHeight};
+        }"""
+    )
+    assert before["top"] > before["banner"] + 48
+    assert before["bottom"] < before["height"] - 48
     page.keyboard.press("Enter")
     page.keyboard.press("Space")
     expect(quote).to_have_attribute("data-keyboard-activations", "2")
+    after = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#p1').getBoundingClientRect().top,
+        })"""
+    )
+    assert after["scroll"] == pytest.approx(before["scroll"], abs=0.5)
+    assert after["top"] == pytest.approx(before["top"], abs=0.5)
 
-    # Resolved threads use the same projection. When a later version removes the passage,
-    # their folded quote becomes an informative disabled stop, not a promised no-op.
+    # One painted pixel is not a readable arrival. Carry the passage almost entirely
+    # behind the fixed banner, then the same quote must bring it back into view.
+    page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollBy(0, passage.bottom - banner.bottom - 1);
+        }"""
+    )
+    sliver = page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: passage.top,
+                  bottom: passage.bottom, banner: banner.bottom};
+        }"""
+    )
+    assert sliver["top"] < sliver["banner"] < sliver["bottom"]
+    page.keyboard.press("Enter")
+    returned = page.evaluate(
+        """() => ({
+          scroll: document.body.scrollTop,
+          top: document.querySelector('#p1').getBoundingClientRect().top,
+          banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+        })"""
+    )
+    assert returned["scroll"] != pytest.approx(sliver["scroll"], abs=0.5)
+    assert returned["top"] > returned["banner"]
+
+    # A resolved thread keeps its page placement even though its folded quote has no live
+    # mark. On a covering phone panel, that retained destination remains an enabled
+    # keyboard action, spends the sheet, and returns to the passage.
     page.get_by_role("button", name="Resolve").click()
     round_trip(page)
-    without_passage = re.sub(r'<p id="p1">.*?</p>', "", NOTED_PAGE, flags=re.DOTALL)
+    resized(page, 390, 800)
+    details = page.locator(".lf-details")
+    details.evaluate("el => { el.open = true; }")
+    resolved_quote = details.locator(".lf-quote")
+    expect(resolved_quote).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(resolved_quote).to_have_attribute("aria-disabled", "false")
+    page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
+    placed_before = page.evaluate("() => document.body.scrollTop")
+    resolved_quote.focus()
+    expect(page.locator(".lf-keyline")).to_contain_text("return to the passage")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    placed_after = page.evaluate(
+        """() => {
+          const passage = document.querySelector('#p1').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return {scroll: document.body.scrollTop, top: passage.top,
+                  bottom: passage.bottom, banner: banner.bottom, height: innerHeight};
+        }"""
+    )
+    assert placed_after["scroll"] != placed_before
+    assert placed_after["top"] > placed_after["banner"]
+    assert placed_after["bottom"] < placed_after["height"]
+
+    # When a later version removes the passage altogether, the same folded quote is an
+    # informative disabled stop. A pointer press has no destination to spend the sheet on,
+    # so the covering panel and the page behind it both stay where the reader left them.
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    without_passage = re.sub(r'<p id="p1">.*?</p>', "", noted_page, flags=re.DOTALL)
     (d / "versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)
-    page.locator(".lf-details summary").click()
-    resolved_quote = page.locator(".lf-details .lf-quote")
+    details.evaluate("el => { el.open = true; }")
+    resolved_quote = details.locator(".lf-quote")
+    expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
     assert resolved_quote.get_attribute("aria-keyshortcuts") is None
+    expect(page.locator(".lf-panel")).to_be_visible()
+    stranded_before = page.evaluate("() => document.body.scrollTop")
+    quote_box = resolved_quote.bounding_box()
+    assert quote_box is not None
+    page.mouse.click(
+        quote_box["x"] + quote_box["width"] / 2,
+        quote_box["y"] + quote_box["height"] / 2,
+    )
+    expect(page.locator(".lf-panel")).to_be_visible()
+    assert page.evaluate("() => document.body.scrollTop") == stranded_before
     resolved_quote.focus()
     expect(page.locator(".lf-keyline")).not_to_contain_text("return to the passage")
     assert errors == []
@@ -2272,7 +2406,7 @@ def test_the_signoff_key_approves_the_version(browser, serve):
 
     page.keyboard.press("Shift+l")
     round_trip(page)
-    expect(approve).to_have_text("✓ Approved")
+    expect(approve).to_have_text("✓ Version approved")
     expect(approve).not_to_have_attribute("aria-keyshortcuts", "Shift+l")
     assert "(L)" not in approve.get_attribute("title")
     done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
@@ -2431,6 +2565,33 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     )
     assert "Ctrl is no modifier" in modified, modified
     assert "Mod, Alt, Shift" in modified, modified
+
+    # A registered result may deliberately precede the platform's own half of a press.
+    # It still enters through the same register — and therefore the same surfaces and
+    # scoping — but the dispatcher must not cancel that native result. The versions menu
+    # uses this for the Tab that closes it before the browser moves focus past its door.
+    native = page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          const owner = document.createElement('div');
+          owner.tabIndex = -1;
+          document.body.append(owner);
+          owner.focus();
+          let ran = 0;
+          keys(owner, 'A native companion', [
+            { id: 'test.native-companion', keys: ['F2'],
+              does: 'Run before the browser', line: 'run first',
+              native: true, run: () => ran++ },
+          ]);
+          const event = new KeyboardEvent(
+            'keydown', {key: 'F2', bubbles: true, cancelable: true}
+          );
+          owner.dispatchEvent(event);
+          owner.remove();
+          return {ran, prevented: event.defaultPrevented};
+        }"""
+    )
+    assert native == {"ran": 1, "prevented": False}, native
     assert errors == []
     page.close()
 
@@ -2851,7 +3012,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert key_line(page) == standing
-    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+    held_ask = page.locator("#first-question[data-lf-ask]")
+    expect(held_ask).to_have_count(1)
+    expect(held_ask).to_have_css("--lf-here-ring", "ask")
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
@@ -2884,6 +3047,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     page.mouse.down()
     assert key_line(page) == thread_standing
+    expect(thread).to_have_css("--lf-here-ring", "thread")
     page.mouse.up()
     assert "reply" not in key_line(page)
     assert errors == []
@@ -3881,7 +4045,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
         page.goto(serve(NOTED_PAGE), wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         expect(page.locator(".lf-status-text")).to_have_text(
-            "Server offline — comments won't send"
+            "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
 
         page.keyboard.press("c")

@@ -371,13 +371,16 @@ main, main * {
         page.close()
 
 
-def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, serve):
-    """Restored runtime chrome may not publish authored asks as current log state.
+def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
+    browser, serve
+):
+    """Restored chrome may neither publish stale asks nor replace a current choice.
 
     The tray was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Once replay presents the page, the restored tray paints the accepted state directly.
+    Opening Comments during that interval replaces the remembered tray, and replay leaves
+    the current workspace standing while it paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
     events_model.append_event(
@@ -409,6 +412,8 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
             "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
         )
         assert held, "the positive control did not hold the first state response"
+        body = page.locator("body")
+        expect(body).to_have_attribute("data-lf-tray", "asks")
         expect(page.locator(".lf-asks")).to_be_hidden()
         expect(page.locator(".lf-asks-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
@@ -416,13 +421,15 @@ def test_persisted_asks_wait_for_replay_before_they_become_actionable(browser, s
         comments = page.get_by_role("button", name=re.compile("^Comments"))
         expect(comments).to_be_enabled()
         comments.click()
+        expect(body).not_to_have_attribute("data-lf-tray", "asks")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
-        expect(page.locator(".lf-asks-panel")).to_be_visible()
+        expect(page.locator(".lf-asks")).to_be_hidden()
+        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(page.locator(".lf-panel")).to_be_visible()
         expect(page.locator("button.lf-asks-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []
@@ -484,7 +491,7 @@ def test_an_unavailable_first_poll_releases_a_useful_page(browser, serve):
         )
         expect(page.locator("main")).to_be_visible()
         expect(page.locator(".lf-status-text")).to_have_text(
-            "Server offline — comments won't send"
+            "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
         assert page.locator("body").get_attribute("data-lf-applied") is None
         assert page.evaluate("() => window.__lfPresentation.releases") == 1
@@ -1521,13 +1528,13 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
             {"kind": "comment", "author": "user", "revision": 1, "text": "Missed."},
         )
     expect(page.locator(".lf-status-text")).to_have_text(
-        "Server offline — comments won't send"
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     page.unroute("**/api/state*")
     told(page)
     expect(page.locator(".lf-thread", has_text="Missed.")).to_have_count(1)
     expect(page.locator(".lf-status-text")).not_to_have_text(
-        "Server offline — comments won't send"
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
     assert errors == []
     page.close()
@@ -1547,7 +1554,9 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     port = serve.httpd.server_address[1]
     serve.httpd.shutdown()
     serve.httpd.server_close()
-    expect(status).to_have_text("Server offline — comments won't send")
+    expect(status).to_have_text(
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    )
 
     httpd = hosting_model.LeafHTTPServer(
         ("127.0.0.1", port), http_model.handler_for(serve.page_dir, TOKEN)
@@ -1560,7 +1569,9 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     )
     told(page)
     expect(page.locator(".lf-thread", has_text="Back.")).to_have_count(1)
-    expect(status).not_to_have_text("Server offline — comments won't send")
+    expect(status).not_to_have_text(
+        "Server offline — reconnecting. Keep this page open so pending changes can send."
+    )
     # The requests that failed while the server was down are the one thing the
     # console may hold; a page fault of the runtime's own would say something else.
     assert all("net::ERR" in error for error in errors), errors

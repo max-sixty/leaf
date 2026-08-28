@@ -123,7 +123,13 @@ export function createDispatch({
         // per repeat, where a walk wants the repeat and is the reason the flag exists. The
         // repeat is still consumed — Space is a page scroll if it isn't, so holding it on a
         // control would send the page out from under the press the first one made.
-        ev.preventDefault();
+        //
+        // A `native` row is the narrow converse: Leaf has a result to perform before the
+        // platform completes the same press. The versions menu closes at its Tab boundary,
+        // for example, and the browser then carries focus forward from its stable door. It
+        // remains a registered press — and therefore visible, scoped and shadowed like every
+        // other one — but does not claim the platform's half of it.
+        if (!matched.row.native) ev.preventDefault();
         if (ev.repeat && !matched.row.repeat) return true;
         if (matched.row.run) matched.row.run(matched.binding);
         else recovered.click();

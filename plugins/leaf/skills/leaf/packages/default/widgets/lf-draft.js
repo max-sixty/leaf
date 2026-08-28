@@ -75,7 +75,6 @@
  */
 import {
   DISCLOSE,
-  agentName,
   dataBody,
   once,
   offer,
@@ -370,7 +369,7 @@ customElements.define(
       const ok = await sendAction(this, "edit", { text });
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      if (ok) toast(`Restored ${label.toLowerCase()} — sent to ${agentName()}`);
+      if (ok) toast(`Restored ${label.toLowerCase()} — recorded`);
     }
 
     #open(seed, at) {
@@ -456,7 +455,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       if (ok) {
-        toast(`Edited “${this.id}” — sent to ${agentName()}`);
+        toast(`Edited “${this.id}” — recorded`);
       } else {
         const standing = loadEdit(this.id);
         // Null means the same shared generation was settled by the other tab while

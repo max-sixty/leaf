@@ -4,8 +4,21 @@ import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
 // this instead.
-export const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-export const SCROLL = REDUCED ? "instant" : "smooth";
+const preference = matchMedia("(prefers-reduced-motion: reduce)");
+const active = new Set();
+export const reducedMotion = () => preference.matches;
+export const scrollBehavior = () => (preference.matches ? "instant" : "smooth");
+export function onMotionPreferenceChange(listener) {
+  const changed = (event) => listener(event.matches);
+  preference.addEventListener("change", changed);
+  return () => preference.removeEventListener("change", changed);
+}
+preference.addEventListener("change", (event) => {
+  // Preference changes apply to motion already under the reader as well as the next
+  // gesture. Finishing reaches each caller's ordinary cleanup path; cancelling here
+  // would reject `finished` and strand folds whose end state is installed there.
+  if (event.matches) for (const played of [...active]) played.finish();
+});
 
 // Web-Animations motion goes through here, so a reader who asked for stillness is
 // answered in one place rather than by each widget remembering the check: null under
@@ -18,7 +31,7 @@ export function motion(el, keyframes, ms) {
   // collapses exactly as reduced motion does. This one shared check reaches folds and
   // FLIP alike without a widget learning whether the page has been presented.
   if (
-    REDUCED ||
+    reducedMotion() ||
     runtime.projectingState ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)
   )
@@ -28,6 +41,7 @@ export function motion(el, keyframes, ms) {
     easing: "ease",
     fill: "forwards",
   });
+  active.add(played);
   // Hold the last frame until the caller's direct `finished.then(cleanup)` has made
   // that frame true in DOM/CSS, then release the effect. The extra microtask is the
   // ordering: our reaction was registered first, so cancelling in it would expose the
@@ -36,8 +50,12 @@ export function motion(el, keyframes, ms) {
   // filled animation behind. Cancellation is already the release, and the rejection
   // arm consumes it so an interrupted move reports no unhandled promise.
   played.finished.then(
-    () => queueMicrotask(() => played.cancel()),
-    () => {},
+    () =>
+      queueMicrotask(() => {
+        active.delete(played);
+        played.cancel();
+      }),
+    () => active.delete(played),
   );
   return played;
 }

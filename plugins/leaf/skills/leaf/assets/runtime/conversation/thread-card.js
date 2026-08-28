@@ -12,11 +12,14 @@ export function createThreadCards(dependencies) {
     openThreads,
     paintKeys,
     paintReactStrips,
+    panelCovers,
+    placedAt,
     post,
     PRESS,
     reachedForWords,
     revealThread,
     scrollToThread,
+    setPanel,
     showThread,
     syncMsgNode,
     threadList,
@@ -24,6 +27,7 @@ export function createThreadCards(dependencies) {
     turns,
     wireReply,
   } = dependencies;
+  const hasDestination = (id) => isMarked(id) || Boolean(placedAt(id));
 
   // A thread's node is found where it already stands — the open list or the resolved
   // disclosure — and kept: the log is append-only, so a kept node only ever gains
@@ -68,7 +72,13 @@ export function createThreadCards(dependencies) {
       // words, so the travel stands down — the reading `offer` makes of its own
       // controls, which this is not one of.
       quote.onclick = (ev) => {
-        if (ev.detail === 0 || !reachedForWords(quote)) scrollToThread(t.root.id);
+        if (ev.detail !== 0 && reachedForWords(quote)) return;
+        // A covering sheet should spend itself only on a real return. `detached` cannot
+        // answer that: a resolved thread has no painted mark but keeps the placement it
+        // can still travel to. Read the anchor pass's two destination records instead.
+        if (!hasDestination(t.root.id)) return;
+        if (panelCovers()) setPanel(false);
+        scrollToThread(t.root.id);
       };
       keys(quote, "On a comment's quoted passage", [
         {
@@ -76,7 +86,7 @@ export function createThreadCards(dependencies) {
           keys: PRESS,
           does: "Return to the quoted passage on the page",
           line: "return to the passage",
-          when: () => !quote.classList.contains("detached"),
+          when: () => hasDestination(t.root.id),
           run: () => quote.click(),
         },
       ]);
@@ -202,7 +212,10 @@ export function createThreadCards(dependencies) {
       const thread = threads.get(div.dataset.id);
       const said = thread && anchorLabel(thread.root.anchor, thread.root.about);
       if (said && quote.textContent !== said) quote.textContent = said;
-      const found = isMarked(div.dataset.id);
+      // Resolved threads deliberately carry no mark, but retain the placement their
+      // folded quote can return to. One reading owns visual, assistive, keyboard, and
+      // pointer availability so the same quote never becomes a pointer-only action.
+      const found = hasDestination(div.dataset.id);
       quote.classList.toggle("detached", !found);
       quote.setAttribute("aria-disabled", String(!found));
       quote.title = found

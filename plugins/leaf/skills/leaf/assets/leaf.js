@@ -167,6 +167,7 @@
 import { chromeStyle } from "./runtime/chrome-style.js";
 import {
   COVERING,
+  NON_COVERING,
   PANEL_KEY,
   PANEL_MIN,
   PANEL_PROP,
@@ -235,7 +236,7 @@ import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
-import { FOLD_MS, REDUCED, SCROLL, motion } from "./runtime/motion.js";
+import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
 import {
   actionAvailable,
@@ -248,6 +249,7 @@ import { createDataProjection } from "./runtime/projection/data.js";
 import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
 import { createAnchors, itemWord } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
+import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
@@ -426,8 +428,11 @@ function receiveState(...args) {
 //           double-click.
 //   when  — its liveness. The one predicate every surface asks.
 //   run   — the press, taking the binding that fired.
+//   native— whether the platform completes its default after `run`. Off by default: a
+//           row normally owns the press it answers.
 //   repeat— whether holding the key repeats the press. Off by default: a held `]` was a
-//           page navigation per repeat, and a held pick a `choose` per repeat.
+//           page navigation per repeat, and a held pick a `choose` per repeat. It applies
+//           to native rows too, independently of whether their platform default repeats.
 //
 // A scope is where the keyboard means something particular — the page, a focused thread,
 // a card grip, a box being typed in. It declares its rows and where it holds, and where it
@@ -615,6 +620,7 @@ style.dataset.lfRuntime = "1";
 style.textContent = chromeStyle({
   COVERING,
   MARK_RULES,
+  NON_COVERING,
   PAGE_PAINT_ATTRIBUTE,
   PANEL_PROP,
   STRIP_TRAY_RULE,
@@ -654,30 +660,26 @@ const commentsEdge = drawnEdge({
 const banner = el("div", "lf-ui lf-banner");
 const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
-// The controls the banner's news arrives as, each present only while it has
-// something to say. Room a control has once taken is room it keeps for the rest of the
-// page's life: before it first appears there is nothing to hold, so a page that never
-// falls behind pays nothing for the chip, and once one has stood somewhere the others
-// can't close ranks over it — a second tab deciding the last pending suggestion took the
-// ✓ Accept all away and slid the New-version chip 148px right, under whoever was
-// reaching for it. Reserving from the start instead would hold room on every row for news
-// that page will never get, which shows as a gap the moment one of them is there and its
-// neighbour isn't; reserving nothing is the movement. This spends only where the
-// alternative is a control moving, and only on the pages that got the news.
-//
-// One setter stating the whole outcome, per showComposer and showFab, so no caller has
-// to know which of the two ways of being absent this control is currently in.
-const showNews = (control, on) => {
-  if (on) control.dataset.lfStood = "1";
-  control.style.display = on || control.dataset.lfStood ? "" : "none";
-  control.style.visibility = on ? "" : "hidden";
-};
-const latestChip = el("button", "lf-ui lf-btn lf-latest-chip", "");
+const bannerStatus = el("div", "lf-banner-status");
+bannerStatus.append(dot, statusText);
+const { bannerActions, reserveNewsSlot, revealFocus, showNews } = createBannerShelf({
+  banner,
+  el,
+  pageScroller,
+});
+// The hidden pinned slot carries representative words as well as a measured width: an
+// empty button is shorter, so its first real label would still move vertically.
+const latestChip = el(
+  "button",
+  "lf-ui lf-btn lf-latest-chip",
+  "New page available → open v999",
+);
 // The keyboard reaches this through the chooser rather than past it: v opens the menu, and
 // the letter again takes the current page. The chip names that motion, spelled from the
 // two rows that make it rather than typed out beside them.
 latestChip.dataset.lfKeyTitle = "Open the current page";
 latestChip.title = latestChip.dataset.lfKeyTitle;
+if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
   askRows,
@@ -698,6 +700,9 @@ const {
   traysEdge,
   trayStrip,
 } = createTrays({
+  beforeOpen: () => {
+    if (chromeLayout?.panelIsOpen()) setPanel(false);
+  },
   drawnEdge,
   el,
   keys,
@@ -764,23 +769,48 @@ const {
 const toggleBtn = el("button", "lf-btn lf-comments", "Comments");
 toggleBtn.title = "Show or hide the comment panel";
 toggleBtn.setAttribute("aria-expanded", "false");
-const approveBtn = el("button", "lf-btn primary lf-signoff", "✓ Looks good");
+const approveBtn = el("button", "lf-btn primary lf-signoff", "Approve version");
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's ask is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
 // the reader has not seen yet.
 approveBtn.disabled = true;
-banner.append(
-  dot,
-  statusText,
-  el("span", "lf-spacer"),
-  othersBtn,
-  latestChip,
-  asksBtn,
-  versionBtn,
-  toggleBtn,
-);
-if (signoff) banner.append(approveBtn);
+// Seed the invariant middle once; arrangeBannerControls moves the two edge families
+// around it and later preserves any registry-declared controls added among these three.
+bannerActions.append(latestChip, asksBtn, versionBtn);
+// On a wide row, an edge's address sits at that edge: All leaves is the first control
+// beside the tray it opens on the left, and Comments (plus approval) finishes beside
+// the panel it opens on the right. A covering shelf instead begins with the primary
+// Comments loop, keeping it in the first phone view. This is DOM order rather than CSS
+// `order`, so the tab route says the same thing the row draws. Reordering existing nodes
+// can briefly drop native focus; put it back without moving the page, then make its new
+// shelf position wholly visible.
+function arrangeBannerControls() {
+  const focused = bannerActions.contains(document.activeElement)
+    ? document.activeElement
+    : null;
+  const edges = new Set([toggleBtn, approveBtn, othersBtn]);
+  // Registry-declared blanket answers can join the middle of this shelf after boot.
+  // Preserve every such control in its standing relative order while moving only the
+  // edge-owned addresses; a breakpoint must not strand a later extension at an edge.
+  const middle = [...bannerActions.children].filter((control) => !edges.has(control));
+  const controls = commentsEdge.over.matches
+    ? [toggleBtn, ...(signoff ? [approveBtn] : []), ...middle, othersBtn]
+    : [othersBtn, ...middle, ...(signoff ? [approveBtn] : []), toggleBtn];
+  bannerActions.append(...controls);
+  if (focused && controls.includes(focused)) {
+    focused.focus({ preventScroll: true });
+    revealFocus(focused);
+    // A MediaQueryList change can arrive before its new grid geometry is observable.
+    // Reveal once more in the first frame painted with that geometry; keep the identity
+    // check so a user who has moved focus meanwhile is never pulled back.
+    requestAnimationFrame(() => {
+      if (document.activeElement === focused) revealFocus(focused);
+    });
+  }
+}
+arrangeBannerControls();
+banner.append(bannerStatus, bannerActions);
 
 // Sign-off belongs to the authored version, while the control belongs to the live
 // chrome that survives one. A soft activation can therefore add or remove the same
@@ -790,11 +820,12 @@ function stateSignoff(next) {
   const shown = signoffDeclared && runtime.currentStamp !== null;
   if (shown === signoff) return;
   signoff = shown;
+  if (!signoff) approveBtn.remove();
+  arrangeBannerControls();
   if (signoff) {
-    banner.append(approveBtn);
-    reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
+    reserve(approveBtn, ["Approve version", "✓ Version approved"]);
     paintApproval();
-  } else approveBtn.remove();
+  }
   syncLayout();
 }
 
@@ -811,7 +842,7 @@ closeBtn.setAttribute("aria-label", "Close comments");
 // is a count free to disagree with the list under it.
 const panelTitle = el("span", "", "Comments");
 panelHead.append(panelTitle, closeBtn);
-commentsEdge.handle(panel);
+commentsEdge.handle(panel, () => closeBtn);
 // Narrowing the list, which is the panel's own view and not the page's state: neither
 // box is remembered across a reload, the way a browser's find bar is not. A remembered
 // narrowing is a trap: the reader returns to three of twenty-four threads with nothing on
@@ -901,12 +932,12 @@ composer.append(composerQuote, suggestRow, composerInput, composerRow);
 const toastEl = el("div", "lf-ui lf-toast");
 const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
-const helpEl = el("div", "lf-ui lf-help");
-helpEl.setAttribute("role", "dialog");
+const helpEl = document.createElement("dialog");
+helpEl.className = "lf-ui lf-help";
 helpEl.setAttribute("aria-label", "Keyboard reference");
 helpEl.setAttribute("aria-modal", "true");
 helpEl.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
-const helpClose = el("button", "lf-help-close", "×");
+const helpClose = el("button", "lf-btn lf-help-close", "Close");
 helpClose.type = "button";
 helpClose.title = "Close keyboard reference";
 helpClose.setAttribute("aria-label", "Close keyboard reference");
@@ -978,24 +1009,57 @@ chromeRoot.append(
   inspectEl,
 );
 document.body.append(chromeRoot);
-// The controls that rewrite their own words hold the widest of them now, measured in
-// the face the banner just rendered them in (see the stylesheet's banner comment).
-// The counters hold the widest they reach anywhere below a thousand, so no count
-// they write can move them — a page with a thousand open threads, or a machine with
-// a thousand live pages, is not one anyone hands a user.
-if (signoff) reserve(approveBtn, ["✓ Looks good", "✓ Approved"]);
-const draftVersionLabel = "Draft after v999 ▾";
-reserve(versionBtn, [
-  versionLabel(false),
-  versionLabel(true),
-  draftVersionLabel,
-  `Δ ${draftVersionLabel}`,
-]);
-reserve(toggleBtn, ["Comments", "Comments (999)"]);
-reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
-reserve(asksBtn, ["Asks (999)"]);
-reserve(othersBtn, ["All leaves (999)"]);
+// The controls that rewrite their own words hold the widest of them, measured in the
+// face and padding the banner is using now (see the stylesheet's banner comment). The
+// covering shelf deliberately spends less horizontal padding than the wide row, so its
+// media-query transition has to renew these measurements in both directions; an inline
+// minimum measured once on a desk would otherwise make that responsive padding inert.
+// The counters hold the widest they reach anywhere below a thousand, so no count they
+// write can move them — a page with a thousand open threads, or a machine with a thousand
+// live pages, is not one anyone hands a user.
+function reserveBannerControls() {
+  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  // News keeps one readable address while it changes words. The action row itself owns
+  // overflow now, so no control has to collapse into an illegible pressure release. The
+  // covering rule fully removes an unseen slot, including from measurement, so lend it
+  // the shown class for this synchronous, invisible reading and put its actual state
+  // straight back.
+  const latestWasShown = latestChip.classList.contains("lf-news-shown");
+  latestChip.classList.add("lf-news-shown");
+  reserve(latestChip, [
+    "New page available → open v999",
+    "Latest edit couldn't be shown",
+  ]);
+  latestChip.classList.toggle("lf-news-shown", latestWasShown);
+  reserve(versionBtn, [
+    versionLabel(false),
+    versionLabel(true),
+    versionLabel(false, "Draft"),
+    versionLabel(true, "Draft"),
+    versionLabel(false, "v999"),
+    versionLabel(true, "v999"),
+  ]);
+  reserve(toggleBtn, ["Comments", "Comments (999)"]);
+  reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
+  reserve(asksBtn, ["Asks (999)"]);
+  reserve(othersBtn, ["All leaves (999)"]);
+}
+reserveBannerControls();
+commentsEdge.over.addEventListener("change", () => {
+  arrangeBannerControls();
+  reserveBannerControls();
+});
+// ---------- state ----------
 
+// Until the first state answer, [] means "not read", not "no comments". Keep that
+// distinction for a Comments panel restored or opened during startup; its General
+// composer stays usable while the log-derived list says what it is waiting for.
+
+// The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
+// not only on the log's, because its age is half of what it says and a claim nobody
+// renews is exactly the one whose age has stopped moving. Keeping the last fold is what
+// makes that cheap: buildThreads walks the log and the page, and a second walk every two
+// seconds would answer nothing the last one didn't.
 let selectionComposerRuntime;
 
 let updateRuntime;
@@ -1010,6 +1074,7 @@ chromeLayout = createChromeLayout({
   composer,
   composerIsOpen: () => composerOpen,
   containsAcross: (...args) => containsAcross(...args),
+  currentTray,
   dockSeats: () => anchorRuntime?.dockSeats(),
   focused,
   generalRow,
@@ -1024,6 +1089,7 @@ chromeLayout = createChromeLayout({
   renderPanel: (...args) => renderPanel(...args),
   reserveListClearance,
   scrollerGutter,
+  showTray,
   syncGeneral: (...args) => syncGeneral(...args),
   toastEl,
   toggleBtn,
@@ -1296,7 +1362,7 @@ function paintApproval() {
     runtime.currentStamp === null ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
-  approveBtn.textContent = approved ? "✓ Approved" : "✓ Looks good";
+  approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
   paintHere();
 }
 approveBtn.onclick = async () => {
@@ -1548,11 +1614,8 @@ const letGo = () => document.body.focus({ preventScroll: true });
 // ring stayed on it, the one place in the runtime a key put the reader somewhere with no
 // key to take them out again.
 //
-// Inside the chrome it is the layers first, in the order the reader is in them: the leaves
-// tray goes before the comment panel — it was opened for a glance, where the panel is the
-// work itself — unless focus stands inside the panel, since a reader backing out of its
-// general box is standing on its list, and their next Escape taking a tray off the far
-// side of the screen took the key away from the work it was unwinding.
+// Inside the chrome it is the open workspace first. Trays and Comments replace one
+// another, so a standing tray is the one auxiliary layer Escape can unwind.
 //
 // Then the last rung leaves the chrome, because closing the panel does not put the reader
 // back on the page: it lands them on the control that closes it, deliberately (setPanel
@@ -1573,7 +1636,7 @@ function rung() {
   // Whichever tray holds the edge, named by the rung so the reader is told what the
   // press will take rather than being told "close the tray" over two of them.
   const tray = currentTray();
-  if (tray && !panel.contains(active))
+  if (tray)
     return {
       says: `close ${tray}`,
       does: `Close the ${tray} tray`,
@@ -1700,7 +1763,7 @@ const {
   syncAsks,
 } = createAskView({
   PAGE_PAINT_ATTRIBUTE,
-  SCROLL,
+  scrollBehavior,
   documentFocused,
   announce,
   askEntry,
@@ -1711,6 +1774,7 @@ const {
   asksPanel,
   banner,
   blocksOnScreen,
+  closeTray: () => showTray(null),
   el,
   elementById: (...args) => elementById(...args),
   inChrome: (node) => inChrome(node),
@@ -1732,6 +1796,7 @@ const {
   showNews,
   shownParts,
   tagsDeclaring,
+  trayCovers: () => traysEdge.over.matches,
   unansweredAsks,
   versionBtn,
 });
@@ -1739,8 +1804,8 @@ const {
 const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThread } =
   createNavigation({
     BANNER_CLEAR,
-    REDUCED,
-    SCROLL,
+    reducedMotion,
+    scrollBehavior,
     beside,
     inChrome: (node) => inChrome(node),
     inPanel,
@@ -3165,6 +3230,7 @@ conversationRuntime = createConversation({
   paintHere,
   paintKeys,
   panelIsOpen,
+  panelCovers,
   panelTitle,
   placedAt,
   post,
@@ -3207,7 +3273,7 @@ updateRuntime = createUpdates(runtime, {
 
 anchorRuntime = createAnchors({
   DATUM,
-  SCROLL,
+  scrollBehavior,
   actionAnchor: fabAnchorAt,
   activateVisual,
   aimBox,
@@ -3265,6 +3331,7 @@ const { ITEM, NOTE } = anchorRuntime;
 
 viewRuntime = createViewContinuity({
   TEXT_BLOCK,
+  banner,
   cut,
   inChrome,
   landedAt,

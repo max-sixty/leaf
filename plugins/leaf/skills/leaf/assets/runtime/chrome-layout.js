@@ -27,6 +27,7 @@ export const PANEL_MIN = 320;
 // strikes — the page keeps at least what the panel takes — without putting the posture
 // itself in play.
 export const COVERING = `(width <= ${PANEL_W * 2}px)`;
+export const NON_COVERING = `(width > ${PANEL_W * 2}px)`;
 // Where each standing width is written, and where the cascade reads it. Named rather than
 // spelled, because the stylesheet and the runtime's writer are two ends of one fact
 // and a property spelled twice is two facts the day one of them moves.
@@ -43,6 +44,7 @@ export function createChromeLayout({
   composer,
   composerIsOpen,
   containsAcross,
+  currentTray,
   dockSeats,
   focused,
   generalRow,
@@ -57,6 +59,7 @@ export function createChromeLayout({
   renderPanel,
   reserveListClearance,
   scrollerGutter,
+  showTray,
   syncGeneral,
   toastEl,
   toggleBtn,
@@ -184,11 +187,11 @@ export function createChromeLayout({
     // The toast lives in the same corner as the panel's Send button. Beside a wide
     // panel it steps left; over a covering sheet it stays inside the viewport and
     // rises above the whole composer, including a textarea grown by an unsent draft.
-    toastEl.style.right = (panelBeside ? commentsEdge.width() + 18 : 18) + "px";
-    toastEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 18 : 18) + "px";
+    toastEl.style.right = `calc(${panelBeside ? commentsEdge.width() + 18 : 18}px + var(--lf-safe-right))`;
+    toastEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 18 : 18}px + var(--lf-safe-bottom))`;
     // The key line takes the toast's lift over a covering sheet, or the sheet's own
     // composer stands on the words saying what Esc will do to it.
-    keylineEl.style.bottom = (panelCovers() ? generalRow.offsetHeight + 14 : 14) + "px";
+    keylineEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 14 : 14}px + var(--lf-safe-bottom))`;
     // Beside the page, the comment panel owns the right strip all the way to its foot. The
     // line starts at the window's left, so cap its room at that strip rather than letting a
     // long computed hint cross into the general comment box. A covering panel is handled by
@@ -307,6 +310,7 @@ export function createChromeLayout({
     refreshFab();
   }
   function setPanel(open) {
+    if (open && currentTray()) showTray(null);
     // Closing while focus is inside would drop it on body, the user's place
     // lost silently; it lands on the one control that reopens what just closed.
     if (!open && panel.contains(document.activeElement))

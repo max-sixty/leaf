@@ -25,6 +25,8 @@ from render_support import (
     PAINTED_IN_SILENCE_PAGE,
     PRINT_LOSS_PAGE,
     REPLY_HOST_PAGE,
+    SCROLL_SETTLE_MS,
+    SCROLL_STILL,
     SETTLED_PAGE,
     SHORT_CHIP_PAGE,
     SHOT_PAGE,
@@ -38,8 +40,8 @@ from render_support import (
     key_line,
     open_page,
     page_registry,
-    panel_settled,
     primed,
+    resized,
     shown_frames,
     solid_png,
 )
@@ -324,20 +326,16 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     box = page.locator("lf-shot input[type=checkbox]")
     expect(box).to_be_focused()
     assert "show before" in key_line(page)
-    # The overlay is a label. Its native focus transfer passes through body between
-    # mousedown and mouseup; hold it across two frames so that incomplete transfer cannot
-    # paint the page's bindings as a new keyboard standing.
+    # The native checkbox is the overlay itself. Hold it across two frames: focus and the
+    # screenshot key line must remain stable for the whole human press.
     page.mouse.down()
-    assert "show before" in key_line(page)
-    page.keyboard.press(" ")
-    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
-    assert "show after" in key_line(page)
-    page.mouse.up()
-    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
     expect(box).to_be_focused()
-    assert shown_frames(page) == ["after"]
-    # The visible instruction is a second label for the same switch. A repeated press
-    # on its words has the same focus bargain as one on the image.
+    assert "show before" in key_line(page)
+    page.mouse.up()
+    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
+    assert shown_frames(page) == ["before"]
+    # The visible instruction sits under the same native overlay. A repeated held press
+    # there keeps both focus and the screenshot key line stable too.
     text_label = page.locator("lf-shot .lf-shotpick label")
     label_bounds = text_label.bounding_box()
     assert label_bounds is not None
@@ -345,87 +343,104 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
         label_bounds["x"] + label_bounds["width"] - 2,
         label_bounds["y"] + label_bounds["height"] / 2,
     )
-    assert text_label.evaluate(
-        """(label, point) => {
-          const hit = document.elementFromPoint(...point);
-          return hit?.closest('label') === label && hit !== label.control;
-        }""",
+    assert box.evaluate(
+        "(control, point) => document.elementFromPoint(...point) === control",
         text_at,
     )
     page.mouse.move(*text_at)
     page.mouse.down()
-    assert "show before" in key_line(page)
-    page.mouse.up()
-    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     expect(box).to_be_focused()
-    assert shown_frames(page) == ["before"]
-    # The keyboard's handle, which the label over the image cannot be.
+    assert "show after" in key_line(page)
+    page.mouse.up()
+    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+    assert shown_frames(page) == ["after"]
+    # The same full target is the keyboard's native handle.
     box.focus()
     page.keyboard.press(" ")
-    expect(page.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
+    expect(page.locator('.lf-shotframe[data-lf-state="before"]')).to_be_visible()
     assert errors == []
     page.close()
 
 
-def test_a_shot_label_hold_keeps_its_thread_focus_ring(browser, serve):
-    """CSS and JavaScript read the same standing during native label activation."""
+def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
+    """A tall comparison may put its instruction row more than a viewport below the
+    point being inspected. Both the image and that row are the native checkbox itself,
+    so a click changes state without label activation focusing some distant box and
+    centring it in the viewport. The same causal gesture is checked on a desk and phone."""
+    before = solid_png(390, 844, (232, 226, 213))
+    after = solid_png(390, 844, (214, 226, 235))
     url = serve(
         SHOT_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
-    )
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-shot",
-            "author": "claude",
-            "revision": 1,
-            "text": "Compare the two frames:",
-            "markup": (
-                '<lf-shot id="thread-shot" alt="the navigation rail" '
-                f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
-            ),
-        },
+        media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
-    panel_settled(page)
-    shot = page.locator("#thread-shot")
-    thread = page.locator(".lf-thread").filter(has=shot)
-    box = shot.locator('input[type="checkbox"]')
-    box.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
-    expect(box).to_be_focused()
-    expect(box).to_have_css("--lf-here-ring", "shotpick")
-    expect(thread).to_have_css("--lf-here-ring", "thread")
-
-    at = flip_point(page, "#thread-shot")
-    expect(box).to_be_focused()
-    assert shot.locator(".lf-shotflip").evaluate(
-        "(label, point) => document.elementFromPoint(...point)?.closest('label') === label",
-        at,
+    box = page.locator("lf-shot > input.lf-shotflip")
+    expect(box).to_have_accessible_name(
+        "flip — or click the image — the navigation rail"
     )
-    page.mouse.move(*at)
-    page.mouse.down()
-    expect(box).to_have_css("--lf-here-ring", "shotpick")
-    expect(thread).to_have_css("--lf-here-ring", "thread")
-    page.mouse.up()
-    expect(box).to_be_focused()
-    expect(box).not_to_have_css("--lf-here-ring", "shotpick")
-    expect(thread).to_have_css("--lf-here-ring", "thread")
+    frame = page.locator('lf-shot .lf-shotframe[data-lf-state="before"]')
+    row = page.locator("lf-shot .lf-shotpick")
+
+    for width in (1200, 390):
+        resized(page, width, 900)
+        page.evaluate(
+            """() => { const r = document.querySelector('lf-shot .lf-shotframe')
+                                  .getBoundingClientRect();
+                       document.body.scrollBy(0, r.top - 140); }"""
+        )
+        image_point = frame.evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            "        return [r.left + r.width / 2, r.top + 80]; }"
+        )
+        assert page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y) === "
+            "document.querySelector('lf-shot > input.lf-shotflip')",
+            image_point,
+        )
+        was_checked = box.is_checked()
+        scroll_before = page.evaluate("document.body.scrollTop")
+        page.mouse.click(*image_point)
+        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        assert box.is_checked() is not was_checked
+        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+
+        # Put the instruction just inside the viewport, then remove the focus left by
+        # the image gesture. An implementation covering only the image would route this
+        # press through the label to a remote checkbox and reproduce the same jump.
+        page.evaluate(
+            """() => { document.activeElement.blur();
+                       const r = document.querySelector('lf-shot .lf-shotpick')
+                                         .getBoundingClientRect();
+                       document.body.scrollBy(0, r.bottom - innerHeight + 60); }"""
+        )
+        row_point = row.evaluate(
+            "el => { const r = el.getBoundingClientRect();"
+            "        return [r.left + 10, r.top + r.height / 2]; }"
+        )
+        assert page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y) === "
+            "document.querySelector('lf-shot > input.lf-shotflip')",
+            row_point,
+        )
+        was_checked = box.is_checked()
+        scroll_before = page.evaluate("document.body.scrollTop")
+        page.mouse.click(*row_point)
+        page.wait_for_function(SCROLL_STILL, arg=SCROLL_SETTLE_MS)
+        assert box.is_checked() is not was_checked
+        assert abs(page.evaluate("document.body.scrollTop") - scroll_before) <= 1
+
     assert errors == []
     page.close()
 
 
 def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
-    """Which is the whole reason the control is a checkbox and a label. A copy is the
+    """Which is the whole reason the target is a native checkbox. A copy is the
     rendered DOM with the scripts dropped and every press a handler answered taken out
     with them — the upgrade has already run, so the frames are there, and this switch
     survives that pass because the browser is what works it. A slider would have
     frozen at whatever the reader left it on; `:has(:checked)` is CSS, and the browser
-    owns a checkbox's state — label activation included, so the image goes on being
-    the target in a file with nothing running.
+    owns a checkbox's state, so its transparent box over the image goes on being the
+    target in a file with nothing running.
 
     Through `version export` rather than a copy the test makes itself, which is what
     puts the widget's bargain in front of the code that could break it: a hand-rolled
@@ -437,8 +452,8 @@ def test_a_shot_still_flips_with_every_script_removed(browser, serve, tmp_path):
     them stacked in the one cell — a fault the frames' own default has since made
     unrepresentable, the after frame being hidden until something checks the box rather
     than until something checks the other box. So the state needs nothing serialized at
-    all, and what is left to lose is the gesture: `for` is a reflected attribute where
-    `checked` was not, and a copy that dropped it would keep every frame and every word
+    all, and what is left to lose is the gesture: the direct native checkbox and its CSS
+    target must survive. A copy that dropped either would keep every frame and every word
     and answer no click on the image."""
     url = serve(
         SHOT_PAGE,

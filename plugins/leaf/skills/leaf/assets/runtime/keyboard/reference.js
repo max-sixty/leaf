@@ -126,6 +126,28 @@ export function createReference({
       .toLocaleLowerCase()
       .replace(/\s+/g, " ")
       .trim();
+  helpEl.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    showHelp(false);
+  });
+  // A modal dialog's backdrop reports the dialog itself as the click target. Compare
+  // the pointer with the painted box so the backdrop remains a light-dismiss surface
+  // without turning the dialog's own padding into one.
+  helpEl.addEventListener("mousedown", (event) => {
+    if (event.target !== helpEl) return;
+    const box = helpEl.getBoundingClientRect();
+    if (
+      event.clientX < box.left ||
+      event.clientX > box.right ||
+      event.clientY < box.top ||
+      event.clientY > box.bottom
+    ) {
+      // Closing returns focus to the door. Consume the backdrop press so the dialog's
+      // default mousedown focus does not immediately replace that deliberate return.
+      event.preventDefault();
+      showHelp(false);
+    }
+  });
   function showHelp(open, restoreFocus = true) {
     // Focusing a text input replaces the document selection. Keep a passage the reader has
     // in hand when `?` opens the reference, while an ordinary open lands directly in search.
@@ -393,6 +415,8 @@ export function createReference({
       helpEl.append(search, preference, results);
     }
     helpEl.classList.toggle("open", open);
+    if (open && !helpEl.open) helpEl.showModal();
+    else if (!open && helpEl.open) helpEl.close();
     // The reference is a list long enough to scroll, and anything a mouse can scroll a
     // keyboard has to reach. `reachScrollers` is the runtime's one answer to that and had
     // never been pointed at the chrome it builds after upgrade: its rows carry no control,
@@ -401,9 +425,9 @@ export function createReference({
     // sweep reads computed overflow and a hidden box has none.
     if (open) reachScrollers(helpEl);
     if (open)
-      (preserveSelection ? helpEl : helpEl.querySelector(".lf-help-search")).focus({
-        preventScroll: true,
-      });
+      helpEl
+        .querySelector(preserveSelection ? ".lf-help-close" : ".lf-help-search")
+        .focus({ preventScroll: true });
     // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
     // press's own focus is the browser's default action, still to come — a restore made from
     // out here would be putting focus back for the click to take again.

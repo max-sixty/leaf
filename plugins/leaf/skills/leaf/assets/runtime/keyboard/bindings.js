@@ -211,6 +211,10 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
+    if (row.native && !row.run)
+      throw new Error(
+        `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
+      );
     if (!row.id) throw new Error(`leaf: row ${i} of ${where} has no stable command id`);
     if (typeof row.id !== "string" || !COMMAND_ID.test(row.id))
       throw new Error(

@@ -8,6 +8,7 @@ const LANDMARK_CAP = 160;
 export function createViewContinuity(dependencies) {
   const {
     TEXT_BLOCK,
+    banner,
     cut,
     inChrome,
     landedAt,
@@ -42,20 +43,9 @@ export function createViewContinuity(dependencies) {
   // A block's landmark is the top of its first line (a range), not its border box; restore
   // measures the matched text the same way, so the line box's leading cancels out.
   function* blocksOnScreen() {
-    // Where the banner's lower edge is, off the declaration the banner is drawn to
-    // rather than as a number copied from it. --lf-banner-h is stated once on body
-    // (chrome-style.js) and seven rules place themselves against it; this used to
-    // carry 42 with a comment saying whose 42 it was, which is a copy with a note
-    // attached rather than a reading.
-    //
-    // What that costs is quiet, because this decides which blocks count as the ones
-    // being read: captureView stores the first as the reader's landmark and the ask
-    // walk starts from it. A taller banner and a block hidden behind it is the one
-    // the reader is scrolled back to on their next visit; a shorter one and the first
-    // paragraph they can actually see is skipped. Neither raises anything.
-    const bannerBottom =
-      parseFloat(getComputedStyle(document.body).getPropertyValue("--lf-banner-h")) ||
-      0;
+    // Read the painted edge directly. The declared height may contain a safe-area
+    // `calc()`, whose serialized value is not a number even though its box is exact.
+    const bannerBottom = banner.getBoundingClientRect().bottom;
     for (const block of document.querySelectorAll(TEXT_BLOCK)) {
       // [hidden] needs an explicit skip: hidden="until-found" resolves to
       // content-visibility, under which descendants still report real rects —

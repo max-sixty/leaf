@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
+from .asks import page_asks, thread_asks
 from .data import measurement_lag_entries, page_data_binding_inventory, read_data
 from .events import (
     bare_reaction,
@@ -23,10 +24,8 @@ from .projection import (
     StateProjection,
     canonical_updates,
     decisions,
-    page_asks,
     page_projection,
     record_lag_entries,
-    thread_asks,
 )
 from .registry import described, require_registry
 from .revisioning import activate_source

@@ -4,6 +4,13 @@ import re
 import sys
 from pathlib import Path
 
+from leaf.asks import (
+    asking,
+    page_awaiting_values,
+    projected_action_holders,
+    quoted_in,
+    thread_ask_projection,
+)
 from leaf.data import data_binding_errors, read_data_store
 from leaf.events import build_threads, thread_roots, thread_structure, thread_widgets
 from leaf.files import list_revisions, revision_path
@@ -18,16 +25,11 @@ from leaf.projection import (
     NO_RECORD,
     StateProjection,
     action_subjects,
-    asking,
     enclosing_widgets,
     folded_facet,
     markup_facet,
-    page_awaiting_values,
     page_projection,
-    projected_action_holders,
-    quoted_in,
     state_projection,
-    thread_ask_projection,
 )
 from leaf.registry import (
     RegistryError,

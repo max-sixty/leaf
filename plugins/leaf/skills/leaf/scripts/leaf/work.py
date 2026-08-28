@@ -3,16 +3,14 @@
 import sys
 from pathlib import Path
 
+from .asks import asking, quoted_in, replayed_attrs
 from .events import build_threads, standing_work_claims
 from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
-    asking,
     decisions,
     page_projection,
-    quoted_in,
-    replayed_attrs,
     rewritten_bodies,
 )
 from .registry import require_registry

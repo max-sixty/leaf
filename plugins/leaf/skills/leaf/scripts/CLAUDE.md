@@ -11,8 +11,9 @@ The main owners are:
 - `agent_state`: the agent-facing folded page-state reading;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
 - `event_endpoint`: browser-event admission, retry coordination, and append;
-- `events`, `conversation`, `projection`, and `work`: event folds and their
-  standing readings;
+- `events`, `conversation`, `projection`, and `work`: event folds, durable state,
+  and their standing readings;
+- `asks`: declaration-driven page and thread request projections;
 - `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,
   and leases;
 - `served_state` and `http`: browser-facing state readings and HTTP transport;

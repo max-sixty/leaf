@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from leaf.asks import page_awaiting_values
 from leaf.event_log import append_event
 from leaf.events import thread_roots
 from leaf.files import (
@@ -16,7 +17,6 @@ from leaf.passages import capture_anchor
 from leaf.projection import (
     decisions,
     markup_facet,
-    page_awaiting_values,
     page_projection,
     rewritten_bodies,
 )

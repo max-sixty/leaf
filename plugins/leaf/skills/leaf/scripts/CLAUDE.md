@@ -8,6 +8,7 @@ The main owners are:
 
 - `files`, `page`, and `revisioning`: atomic page files and immutable revisions;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
+- `event_endpoint`: browser-event admission, retry coordination, and append;
 - `events`, `conversation`, `projection`, and `work`: event folds and their
   standing readings;
 - `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,

@@ -105,8 +105,8 @@ filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
 surfaces;
-`runtime/conversation/thread-card.js` owns retained panel thread cards and their
-reply, resolve, and reopen controls;
+`runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
+state, and their reply, resolve, and reopen controls;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore

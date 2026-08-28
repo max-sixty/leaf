@@ -6,6 +6,7 @@ export function createThreadCards(dependencies) {
     addressed,
     anchorLabel,
     el,
+    isMarked,
     keys,
     msgNode,
     openThreads,
@@ -18,6 +19,7 @@ export function createThreadCards(dependencies) {
     scrollToThread,
     showThread,
     syncMsgNode,
+    threadList,
     threadsBox,
     turns,
     wireReply,
@@ -180,5 +182,43 @@ export function createThreadCards(dependencies) {
     return div;
   }
 
-  return { threadNode };
+  // The panel's side of what the anchor pass drew, read off that pass's own record so the
+  // two views can't disagree: a passage rewritten in a later version has no home to jump to,
+  // and a dead-looking link is worse than one that says so. Called by the pass that writes
+  // the record, and again by a narrowing that rebuilt the nodes the record was painted on.
+  function paintThreadQuotes() {
+    const threads = new Map(threadList().map((t) => [t.root.id, t]));
+    for (const div of threadsBox.querySelectorAll(".lf-thread")) {
+      const quote = div.querySelector(".lf-quote");
+      if (!quote) continue;
+      // The words too, for the same reason the class below is repainted here rather than
+      // written where the node was built. An element anchor is labelled with its item's
+      // own opening words, and the item may be a widget an agent sent — built by this
+      // same reconcile and not yet in the document when the node wearing the label was
+      // made, so the reading came back empty and the label fell to the bare id. The
+      // reconcile keeps a node it has already built, so nothing else ever asked again:
+      // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
+      // for the life of the tab.
+      const thread = threads.get(div.dataset.id);
+      const said = thread && anchorLabel(thread.root.anchor, thread.root.about);
+      if (said && quote.textContent !== said) quote.textContent = said;
+      const found = isMarked(div.dataset.id);
+      quote.classList.toggle("detached", !found);
+      quote.setAttribute("aria-disabled", String(!found));
+      quote.title = found
+        ? "Jump to this passage"
+        : "This passage can't be identified in the version you're viewing";
+    }
+    paintKeys();
+  }
+
+  // A kept node may still be moved by a later reconcile, and reinsertion restarts CSS
+  // animations — so the class comes off the moment its animation has run. A node grown
+  // while its list was off-screen never ran one; the panelOpen gate above is what keeps
+  // that replay from greeting the panel's next open.
+  threadsBox.addEventListener("animationend", (ev) =>
+    ev.target.classList.remove("grow"),
+  );
+
+  return { paintThreadQuotes, threadNode };
 }

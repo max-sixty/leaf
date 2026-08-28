@@ -377,6 +377,7 @@ def _restores_desired(
 def _browser_undo_candidates(
     events: list,
     within: dict,
+    document_within: dict,
     document_floors: dict,
     document_projection: StateProjection,
     conversation_projection: StateProjection,
@@ -402,7 +403,7 @@ def _browser_undo_candidates(
             item["coordinate"] = list(coordinate)
             if event["id"] in document_projection.classified:
                 projection = document_projection
-                action_within = within
+                action_within = document_within
                 floors = document_floors
             else:
                 projection = conversation_projection
@@ -493,6 +494,7 @@ def browser_state(
             "updates": canonical_updates(projection, claims, threads, events),
             "undo": _browser_undo_candidates(
                 events,
+                active_within,
                 within,
                 floors,
                 projection,

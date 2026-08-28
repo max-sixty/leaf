@@ -787,6 +787,27 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     assert latest["restores_desired"] is True
 
 
+def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
+    """A pinned view paints its own projection but admits undo against live threads."""
+    active_within = {"settled-on-live-page": ("live",)}
+    view_within = {"settled-on-pinned-view": ("pinned",)}
+    seen = []
+
+    def record_undo_read(_event, _events, within):
+        seen.append(within)
+
+    monkeypatch.setattr(served_state_model, "undo_error", record_undo_read)
+    empty = served_state_model.StateProjection({}, {}, {}, {}, {})
+    event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
+
+    candidates = served_state_model._browser_undo_candidates(
+        [event], active_within, view_within, {}, empty, empty
+    )
+
+    assert [candidate["event"] for candidate in candidates] == [event]
+    assert seen == [active_within]
+
+
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
     for path in (page_dir / "revisions").glob("*.html"):
         path.unlink()

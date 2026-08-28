@@ -2244,9 +2244,9 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     )
     native_page_state = http_model.Handler.page_state
 
-    def delayed_page_state(handler):
+    def delayed_page_state(handler, view_revision=None):
         time.sleep(0.5)
-        return native_page_state(handler)
+        return native_page_state(handler, view_revision)
 
     monkeypatch.setattr(http_model.Handler, "page_state", delayed_page_state)
     out = tmp_path / "data-copy.html"

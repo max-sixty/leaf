@@ -3425,7 +3425,6 @@ conversationRuntime = createConversation({
   COMMENTS,
   FOLD_MS,
   MARKED_ANYWHERE,
-  SCROLL,
   addressLabel,
   addressed,
   agentName,

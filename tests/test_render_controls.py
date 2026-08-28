@@ -1016,12 +1016,16 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             )
 
         # At the product's 320px floor the comment sheet has no possible width to move
-        # through, so it offers no inert separator. The narrower tray still does.
-        resized(page, 320, 800)
+        # through, so it offers no inert separator. A reader standing on the grip lands on
+        # its surviving close control before it disappears; the narrower tray still moves.
         page.locator(".lf-comments").click()
         panel_settled(page)
         comments_edge = page.locator(".lf-panel > .lf-edge")
+        comments_edge.focus()
+        expect(comments_edge).to_be_focused()
+        resized(page, 320, 800)
         assert comments_edge.evaluate("edge => edge.hidden")
+        expect(page.locator(".lf-panel-head .lf-btn")).to_be_focused()
         assert comments_edge.get_attribute(
             "aria-valuemin"
         ) == comments_edge.get_attribute("aria-valuemax")
@@ -1101,6 +1105,10 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             assert edge["width"] >= 43.9 and edge["height"] >= 43.9, reading
             assert edge["left"] >= -0.1
             assert edge["right"] <= reading["viewport"] + 0.1
+            if name == "comments":
+                assert edge["left"] >= reading["contentEdge"] - 0.1, reading
+            else:
+                assert edge["right"] <= reading["contentEdge"] + 0.1, reading
             assert abs(reading["lineCenter"] - reading["seamCenter"]) <= 0.6, (
                 f"the {name} grip's line left the panel seam: {reading}"
             )

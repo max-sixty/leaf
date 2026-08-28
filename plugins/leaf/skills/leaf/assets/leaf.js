@@ -992,7 +992,7 @@ closeBtn.setAttribute("aria-label", "Close comments");
 // is a count free to disagree with the list under it.
 const panelTitle = el("span", "", "Comments");
 panelHead.append(panelTitle, closeBtn);
-commentsEdge.handle(panel);
+commentsEdge.handle(panel, () => closeBtn);
 // Narrowing the list, which is the panel's own view and not the page's state: neither
 // box is remembered across a reload, the way a browser's find bar is not. A remembered
 // narrowing is a trap: the reader returns to three of twenty-four threads with nothing on

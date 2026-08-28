@@ -101,7 +101,7 @@ export function createTrays({
   // aria-label the card needs (axe: aria-prohibited-attr, serious).
   const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
   othersPanel.setAttribute("aria-label", "Leaves on this machine");
-  traysEdge.handle(othersPanel);
+  traysEdge.handle(othersPanel, () => othersBtn);
   const leavesList = trayList(othersPanel);
   // A tray of the page's own open asks, on the same edge: one row per thing the page is
   // waiting on the reader for, in the order the page asks them. The list is openAsks() and
@@ -109,7 +109,7 @@ export function createTrays({
   // what kind of thing it is standing for.
   const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
   asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
-  traysEdge.handle(asksPanel);
+  traysEdge.handle(asksPanel, () => asksBtn);
   const asksList = trayList(asksPanel);
 
   // The left edge holds one tray at a time. Leaves and asks are the same furniture asking

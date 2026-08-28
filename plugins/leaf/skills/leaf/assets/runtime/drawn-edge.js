@@ -59,9 +59,13 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
         handle.setAttribute("aria-valuemax", String(Math.round(cap())));
         // A boundary with no distance to travel is not a control. This happens to the
         // comment sheet at the supported 320px floor: leaving its separator in the tab
-        // order promised a resize no pointer or arrow could make, and on touch exposed
-        // only the few pixels of its reach that happened to fall inside the viewport.
-        handle.hidden = cap() <= min;
+        // order promised a resize no pointer or arrow could make. Transfer a reader who
+        // was standing on it before taking it away — the browser otherwise silently
+        // drops focus to body during a rotation that closes the range.
+        const fixed = cap() <= min;
+        if (fixed && handle === document.activeElement)
+          handle.lfFixedFocus().focus({ preventScroll: true });
+        handle.hidden = fixed;
       }
     }
     // The reader's answer, taken and kept. Held to the window on the way in, because a drag
@@ -85,8 +89,12 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
      * does: the tray panel's edge slides in with the tray standing on it, and a closed
      * region's edge is hidden by the same rule that hides the region.
      */
-    function handle(region) {
+    function handle(region, fixedFocus) {
       const edge = el("div", "lf-ui lf-edge");
+      // The owner names the control that survives when this edge has no range. Stored on
+      // the handle because state walks all mirrored handles together, while the target is
+      // each region's own — the comment panel closes, each tray returns to its toggle.
+      edge.lfFixedFocus = fixedFocus;
       edge.dataset.lfSide = side;
       edge.setAttribute("role", "separator");
       edge.setAttribute("aria-orientation", "vertical");

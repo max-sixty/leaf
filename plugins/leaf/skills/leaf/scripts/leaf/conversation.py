@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from leaf.anchor_capture import capture_anchor
 from leaf.asks import page_awaiting_values
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import append_event
@@ -15,7 +16,6 @@ from leaf.files import (
 )
 from leaf.host import message_identity
 from leaf.leases import contract_writer
-from leaf.passages import capture_anchor
 from leaf.projection import (
     decisions,
     markup_facet,

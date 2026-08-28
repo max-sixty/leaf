@@ -1,5 +1,6 @@
 """Shared widgets browser-integration cases and readings."""
 
+from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
 from render_harness import (
@@ -29,7 +30,10 @@ def written_anchors(page_dir, html, limit=40):
             continue
         try:
             anchors.append(
-                (quote, passages_model.capture_anchor(html, registry, quote, None))
+                (
+                    quote,
+                    anchor_capture_model.capture_anchor(html, registry, quote, None),
+                )
             )
         except ValueError:
             continue

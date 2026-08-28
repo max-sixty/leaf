@@ -33,7 +33,8 @@ The main owners are:
 - `vendoring`: page initialization, layer transitions, and atomic installation;
 - `schema`, `structure`, `styles`, and `validation/`: authored-page gates, the
   complete source reading, and the `version check` command;
-- `passages`: the file-side text reading and anchor capture;
+- `passages` and `anchor_capture`: the file-side text reading and authored
+  anchor construction;
 - `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
   and standalone export;
 - `data` and `data_contracts`: typed snapshot storage, commands, bindings, and

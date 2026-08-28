@@ -2,7 +2,7 @@ import { shownBox } from "./geometry.js";
 import { moveScrollerBy } from "./scrolling.js";
 
 /* Semantic reading position preserved across authored-document replacement. */
-export const VIEW_KEY = "lf-view";
+const VIEW_KEY = "lf-view";
 const LANDMARK_CAP = 160;
 
 export function createViewContinuity(dependencies) {
@@ -140,5 +140,50 @@ export function createViewContinuity(dependencies) {
     } else pageScroller.scrollTo({ top: view.y, behavior: "instant" });
   }
 
-  return { blocksOnScreen, captureView, restoreView };
+  function installArrival({ fragmentId, ready, scrollToElement, tabStore }) {
+    // Where an arrival lands — version switch, reload, back, a URL naming an element (the
+    // panel and a remembered tray's strip are restored just above, so the column is already
+    // reflowed; the tray's pixels wait for replay). The browser answers
+    // this twice, and both answers are taken before the page is done becoming itself:
+    // upgrades change its height afterwards (tabs collapse, diagrams render, diff files
+    // fold), so a restored offset points into a document that no longer exists and a
+    // fragment jump lands at an element a tab has since closed over. Hence manual
+    // restoration, and hence the fragment travelling the same road — that was the half of
+    // this takeover left to the platform, which cannot see the page the upgrade makes.
+    //
+    // The ranking is the browser's own, restated once the geometry has settled. A fresh
+    // navigation is someone arriving at a named place, so the fragment outranks the saved
+    // position: that position is wherever this tab last left this page, and a URL naming an
+    // element is not a request to resume it. A reload or a back is someone returning, where
+    // the fragment is left over from a reference followed earlier and their own position is
+    // the answer. An id this version hasn't got falls through to that position, the same way
+    // a reference naming one paints detached rather than dead-ending.
+    history.scrollRestoration = "manual";
+    const ARRIVING = performance.getEntriesByType("navigation")[0]?.type === "navigate";
+    // Parsed inside its own guard, which is a different question from whether the store
+    // answered: tabStore hands back null for a store that refused, and what a page wrote
+    // there is only JSON while every version of this runtime agrees about the shape. A
+    // landmark that no longer parses costs the reader their scroll position; throwing here
+    // would cost them the page, at module top level, with nothing else having run.
+    const savedView = (() => {
+      try {
+        return JSON.parse(tabStore.get(VIEW_KEY) || "null");
+      } catch {
+        return null;
+      }
+    })();
+    addEventListener("pagehide", () => {
+      if (!ready()) return;
+      tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
+    });
+    function landArrival() {
+      const aimed =
+        ARRIVING && resolveAnchor({ section: fragmentId(location.hash) })?.element;
+      if (aimed) scrollToElement(aimed, "instant");
+      else if (savedView) restoreView(savedView);
+    }
+    return { landArrival, savedView };
+  }
+
+  return { blocksOnScreen, captureView, installArrival, restoreView };
 }

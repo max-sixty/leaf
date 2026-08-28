@@ -86,8 +86,9 @@ dynamic widget imports, and initial settlement;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
-`runtime/view-continuity.js` owns semantic reading landmarks across authored-document
-replacement and supplies the page-block reading used to start directional walks;
+`runtime/view-continuity.js` owns persisted semantic reading landmarks, arrival
+landing across authored-document replacement, and the page-block reading used to
+start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping;
 `runtime/navigation.js` owns reader travel and scroller selection;

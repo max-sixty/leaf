@@ -1132,6 +1132,7 @@ def open_page(
     wait_until="load",
     context=None,
     upgraded=True,
+    color_scheme="light",
 ):
     """A page with its console errors collected and its document and log state applied.
 
@@ -1147,6 +1148,9 @@ def open_page(
     arrived. Network silence is not a readiness fact; the stamps state that the document
     and its log finished applying.
 
+    `color_scheme` sets the medium before page modules evaluate. A supplied context owns
+    its own medium instead, just as it owns the rest of its browser state.
+
     False is for the one test whose subject is the interval between them, which holds the
     registry fetch open and so never earns either. It waits on the banner instead, which
     says only that the runtime's module evaluated — long before the anchor pass has run,
@@ -1158,7 +1162,7 @@ def open_page(
         context.new_page()
         if context
         else browser.new_page(
-            viewport={"width": 1200, "height": 900}, color_scheme="light"
+            viewport={"width": 1200, "height": 900}, color_scheme=color_scheme
         )
     )
     # Before the first navigation, so the count is of everything this page ever asked for.

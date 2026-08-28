@@ -3057,11 +3057,7 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
 
 
 @pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-@pytest.mark.parametrize("width", [1200, 420])
-def test_examples_have_no_serious_wcag_a_or_aa_violations(
-    browser, serve, example, color_scheme, width
-):
+def test_examples_have_no_serious_wcag_a_or_aa_violations(browser, serve, example):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
@@ -3072,13 +3068,20 @@ def test_examples_have_no_serious_wcag_a_or_aa_violations(
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    page, errors = open_page(browser, serve(example))
-    resized(page, width, 900)
-    page.emulate_media(color_scheme=color_scheme)
-    violations, report = serious_axe_violations(page)
-    assert violations == [], report
-    assert errors == []
-    page.close()
+    url = serve(example)
+    findings = []
+    for color_scheme in ("light", "dark"):
+        page, errors = open_page(browser, url, color_scheme=color_scheme)
+        for width in (1200, 420):
+            resized(page, width, 900)
+            violations, report = serious_axe_violations(page)
+            if violations:
+                findings.append(f"[{width}px {color_scheme}]\n{report}")
+        if errors:
+            findings.append(f"[{color_scheme}] browser errors: {errors}")
+        page.close()
+
+    assert findings == [], "\n\n".join(findings)
 
 
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])

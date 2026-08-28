@@ -12,8 +12,9 @@ The main owners are:
   standing readings;
 - `session`, `service`, `hosting`, `hooks`, and `http`: host identity, process
   lifetime, leases, and transport;
-- `registry`, `layer`, `schema`, `structure`, `styles`, and `validation`: the
-  merged vocabulary and authored-page gates;
+- `registry` and `layer`: registry storage and layer composition;
+- `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
+  merged vocabulary contract and authored-page gates;
 - `passages`: the file-side text reading and anchor capture;
 - `render_checks` and `rendering`: browser validation and export;
 - `data`, `media`, and `publishing`: page-bound inputs and deployment outputs.

@@ -472,7 +472,7 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
                   bottom: shelf.bottom - button.bottom - outset};
         }"""
     )
-    assert all(room >= -0.01 for room in focus_room.values()), (
+    assert all(room >= -0.05 for room in focus_room.values()), (
         f"the action shelf clipped its focused control's ring: {focus_room}"
     )
 

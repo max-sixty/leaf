@@ -55,6 +55,7 @@ from render_support import (
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     WRAP_TOP,
+    _traffic,
     _until,
     actions,
     author_test_widget,
@@ -266,6 +267,99 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
     assert errors == []
     page.close()
+
+
+def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_broken(
+    browser, serve
+):
+    """A read can outlive the revision it named and come back to a page that has moved.
+
+    An answer carries the view of the revision its request named and of the active one
+    the page may activate into, and of no other. A press that activates while such a read
+    is in the air therefore leaves the page standing on a revision the answer says nothing
+    about, and composition holds it from taking the newer one instead. That is a stale
+    answer rather than a broken page: nothing is applied, nothing is reported, and the
+    next read — asked on the revision the page now stands on — carries it forward.
+    """
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.locator(".lf-comments").click()
+    general = page.locator(".lf-general textarea")
+    general.fill("Do not replace the page under these words.")
+
+    # One read, held open while it still names the first revision. Releasing it below is
+    # what sends it, so the server answers it against the log and versions of that
+    # moment while the request still asks for the revision the page has since left.
+    held = []
+    sent = []
+
+    def hold_the_first_read(route):
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    def release_the_held_read():
+        # Released, not popped: the list is the record and the armed flag both, so
+        # emptying it would arm the route again and hold the page's next read for good.
+        # `sent` is what lets the cleanup below run this after a failed assertion
+        # without answering the same route twice.
+        if held and not sent:
+            sent.append(True)
+            held[0].continue_()
+
+    page.route("**/api/state*", hold_the_first_read)
+    try:
+        (serve.page_dir / "index.html").write_text(LIVE_V2)
+
+        # The chip's press moves the page to the second revision under that held read,
+        # and the reader goes on composing, so the third revision arrives as news the
+        # page holds.
+        told(page)
+        page.locator(".lf-latest-chip").click()
+        expect(page).to_have_title("Live second")
+        general.focus()
+        expect(general).to_be_focused()
+        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        told(page)
+        expect(page).to_have_title("Live second")
+
+        assert held, "the positive control held no read at all"
+        # The premise of the whole arrangement, stated rather than inferred: a read the
+        # page took while it still stood on the first revision. Held after the press it
+        # would name the second, and the answer would carry the view the page wants.
+        assert held[0].request.headers.get("leaf-view-revision") == "1", (
+            "the held read was not the one taken on the first revision"
+        )
+        heard = _traffic(page).heard
+        release_the_held_read()
+        _until(page, lambda t: t.heard > heard, "a state answer came back")
+        # Not `ticked`: the heartbeat dispatches `lf-actions` on its own cadence, so the
+        # page's next pass can be one this delivery had no part in. Wait instead until
+        # the page holds the reading the server holds.
+        told(page)
+        expect(page).to_have_title("Live second")
+        assert errors == []
+        assert [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "error"
+        ] == [], "the page reported a stale answer as a fault"
+
+        # Nothing about the drop cost the page the version it was holding.
+        general.fill("")
+        page.locator("#live-reading").click()
+        told(page)
+        expect(page).to_have_title("Live third")
+        assert "/versions/" not in page.url
+        assert errors == []
+    finally:
+        # A route handler is a live browser resource after the verdict stops depending
+        # on it, and an abandoned one hangs context teardown even when every assertion
+        # passed.
+        release_the_held_read()
+        page.unroute("**/api/state*")
+        page.close()
 
 
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):

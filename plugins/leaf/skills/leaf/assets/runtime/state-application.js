@@ -183,6 +183,18 @@ export function createStateApplication(dependencies) {
       (!midComposition() || activationIsForced()) &&
       !versionMenuIsOpen() &&
       targetRevision === state.active.revision;
+    // The last coordinate the commit boundary judges, beside sequence and active
+    // revision: the answer holds a view of the revision the page named when it asked and
+    // of the one it may activate into, and of no others. An activation between the ask
+    // and the answer leaves the page on neither — it is showing a revision this answer
+    // says nothing about, so there is no view here to install and no version to move to.
+    // Dropped like the gates above: the page's next read names the revision it holds
+    // now, and that answer projects it.
+    const showing = willActivate ? targetRevision : runtime.currentRevision;
+    if (!nextBrowser.views?.[String(showing)]) {
+      notifyChangedData();
+      return;
+    }
     const prior = {
       runtime: Object.fromEntries(
         APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
@@ -202,6 +214,9 @@ export function createStateApplication(dependencies) {
         activation = await activateRevision(incoming, state.active);
       }
       runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
+      // What is left for this to catch, now that a late answer is dropped above: an
+      // answer that is malformed rather than late, and an activation that left the page
+      // somewhere the gate did not predict. Both are faults, so both are loud.
       if (
         !runtime.view ||
         runtime.view.basis?.through_seq !== eventSeq ||

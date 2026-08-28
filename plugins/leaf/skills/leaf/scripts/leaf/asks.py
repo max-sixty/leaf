@@ -143,6 +143,189 @@ def projected_action_holders(
     return holders
 
 
+class _AskReducer:
+    """One page or frozen-thread request fold over a shared state projection."""
+
+    def __init__(
+        self,
+        source,
+        projection,
+        byid,
+        spk,
+        registry: dict,
+        dropped: set,
+        with_agent: set[str],
+        *,
+        thread: bool,
+    ):
+        self.projection = projection
+        self.byid = byid
+        self.spk = spk
+        self.registry = registry
+        self.with_agent = with_agent
+        self.thread = thread
+        elements = source.lf_elements if hasattr(source, "lf_elements") else source
+        self.records = [
+            record
+            for record in elements
+            if (registry.get(record["tag"]) or {}).get("x-awaits") is not None
+        ]
+        self.positioned_holders = projected_action_holders(projection, byid, registry)
+
+        self.exists: dict[int, bool] = {}
+        self.local: dict[int, bool] = {}
+        for record in self.records:
+            unit = record["attrs"].get("id")
+            self.exists[id(record)] = not (
+                (unit and unit in dropped) or quoted_in(record, registry)
+            )
+            self.local[id(record)] = self.exists[id(record)] and asking(
+                replayed_attrs(record, projection),
+                self._entry(record)["x-awaits"].get("when"),
+            )
+
+        self.direct: dict[int, list] = {}
+        for record in self.records:
+            if owner := self._rollup_owner(record):
+                self.direct.setdefault(id(owner), []).append(record)
+        self.values: dict[int, bool] = {}
+
+    def _entry(self, record):
+        return self.registry[record["tag"]]
+
+    def _holder(self, record):
+        unit = record["attrs"].get("id")
+        return self.positioned_holders.get(unit, record.get("holder"))
+
+    def _contains(self, ancestor, record):
+        while record:
+            if record is ancestor:
+                return True
+            record = self._holder(record)
+        return False
+
+    def _answered(self, record):
+        entry = self._entry(record)
+        if self.thread:
+            if not entry.get("x-state"):
+                return True
+            until = entry["x-awaits"].get("until")
+            attrs = replayed_attrs(record, self.projection)
+            if until and asking(attrs, until["when"]):
+                unit = record["attrs"].get("id")
+                return any(
+                    action["widget"] == unit and action["action"] == until["verb"]
+                    for action, _spec in self.projection.actions.values()
+                )
+        return answered_ask(
+            record,
+            entry,
+            self.projection,
+            self.byid,
+            self.spk,
+            self.registry,
+        ) or seat_with_agent(
+            record,
+            entry,
+            self.projection,
+            self.with_agent,
+        )
+
+    def _rollup_owner(self, record):
+        record = self._holder(record)
+        while record:
+            if (
+                (self.registry.get(record["tag"]) or {})
+                .get("x-awaits", {})
+                .get("rollup")
+            ):
+                return record
+            record = self._holder(record)
+        return None
+
+    def _awaits(self, record):
+        key = id(record)
+        if key in self.values:
+            return self.values[key]
+        if not self.exists[key]:
+            self.values[key] = False
+            return False
+        if not self.local[key]:
+            self.values[key] = False
+            return False
+        declaration = self._entry(record)["x-awaits"]
+        if not declaration.get("rollup"):
+            self.values[key] = not self._answered(record)
+            return self.values[key]
+        descendants = self.direct.get(key, [])
+        interventions = [
+            candidate
+            for candidate in descendants
+            if not self._entry(candidate)["x-awaits"].get("rollup")
+            and self.local[id(candidate)]
+        ]
+        if interventions:
+            self.values[key] = any(
+                self._awaits(candidate) for candidate in interventions
+            )
+            return self.values[key]
+        children = [
+            candidate
+            for candidate in descendants
+            if self._entry(candidate)["x-awaits"].get("rollup")
+        ]
+        self.values[key] = (
+            any(self._awaits(candidate) for candidate in children)
+            if children
+            else not self._answered(record)
+        )
+        return self.values[key]
+
+    def _surfaces(self):
+        open_records = [record for record in self.records if self._awaits(record)]
+        visible = [
+            record
+            for record in open_records
+            if not self._entry(record)["x-awaits"].get("rollup")
+            or not any(
+                inner is not record and self._contains(record, inner)
+                for inner in open_records
+            )
+        ]
+        surfaces = []
+        seen = set()
+        for record in visible:
+            surface = record
+            holder = self._holder(record)
+            while holder:
+                if (self.registry.get(holder["tag"]) or {}).get("x-ask"):
+                    surface = holder
+                    break
+                holder = self._holder(holder)
+            if id(surface) not in seen:
+                seen.add(id(surface))
+                surfaces.append(surface)
+        return surfaces
+
+    def result(self) -> tuple[list, dict[str, bool]]:
+        surfaces = self._surfaces()
+        return (
+            [
+                {
+                    "id": record["attrs"].get("id"),
+                    "tag": record["tag"],
+                    "thread": None,
+                }
+                for record in surfaces
+            ],
+            {
+                record["attrs"]["id"]: self.values[id(record)]
+                for record in self.records
+                if record["attrs"].get("id")
+            },
+        )
+
+
 def page_ask_projection(
     source,
     projection,
@@ -171,135 +354,16 @@ def page_ask_projection(
     and refusing the pick over the reader's own remark would refuse them the answer
     they were asked for. Frozen thread markup seats no conversation either way.
     """
-    elements = source.lf_elements if hasattr(source, "lf_elements") else source
-    records = [
-        rec
-        for rec in elements
-        if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
-    ]
-    positioned_holders = projected_action_holders(projection, byid, registry)
-
-    def entry(rec):
-        return registry[rec["tag"]]
-
-    def holder(rec):
-        unit = rec["attrs"].get("id")
-        return positioned_holders.get(unit, rec.get("holder"))
-
-    def contains(ancestor, rec):
-        while rec:
-            if rec is ancestor:
-                return True
-            rec = holder(rec)
-        return False
-
-    def answered(rec):
-        rec_entry = entry(rec)
-        if thread:
-            if not rec_entry.get("x-state"):
-                return True
-            until = rec_entry["x-awaits"].get("until")
-            attrs = replayed_attrs(rec, projection)
-            if until and asking(attrs, until["when"]):
-                unit = rec["attrs"].get("id")
-                return any(
-                    action["widget"] == unit and action["action"] == until["verb"]
-                    for action, _spec in projection.actions.values()
-                )
-        return answered_ask(
-            rec, rec_entry, projection, byid, spk, registry
-        ) or seat_with_agent(rec, rec_entry, projection, with_agent)
-
-    def rollup_owner(rec):
-        rec = holder(rec)
-        while rec:
-            if (registry.get(rec["tag"]) or {}).get("x-awaits", {}).get("rollup"):
-                return rec
-            rec = holder(rec)
-        return None
-
-    exists: dict[int, bool] = {}
-    local: dict[int, bool] = {}
-    for rec in records:
-        unit = rec["attrs"].get("id")
-        exists[id(rec)] = not ((unit and unit in dropped) or quoted_in(rec, registry))
-        local[id(rec)] = exists[id(rec)] and asking(
-            replayed_attrs(rec, projection), entry(rec)["x-awaits"].get("when")
-        )
-
-    direct: dict[int, list] = {}
-    for rec in records:
-        if owner := rollup_owner(rec):
-            direct.setdefault(id(owner), []).append(rec)
-
-    values: dict[int, bool] = {}
-
-    def awaits(rec):
-        key = id(rec)
-        if key in values:
-            return values[key]
-        if not exists[key]:
-            values[key] = False
-            return False
-        if not local[key]:
-            values[key] = False
-            return False
-        declaration = entry(rec)["x-awaits"]
-        if not declaration.get("rollup"):
-            values[key] = not answered(rec)
-            return values[key]
-        descendants = direct.get(key, [])
-        interventions = [
-            candidate
-            for candidate in descendants
-            if not entry(candidate)["x-awaits"].get("rollup") and local[id(candidate)]
-        ]
-        if interventions:
-            values[key] = any(awaits(candidate) for candidate in interventions)
-            return values[key]
-        children = [
-            candidate
-            for candidate in descendants
-            if entry(candidate)["x-awaits"].get("rollup")
-        ]
-        values[key] = (
-            any(awaits(candidate) for candidate in children)
-            if children
-            else not answered(rec)
-        )
-        return values[key]
-
-    open_records = [rec for rec in records if awaits(rec)]
-    visible = [
-        rec
-        for rec in open_records
-        if not entry(rec)["x-awaits"].get("rollup")
-        or not any(inner is not rec and contains(rec, inner) for inner in open_records)
-    ]
-    surfaces = []
-    seen_surfaces = set()
-    for rec in visible:
-        surface = rec
-        holder_rec = holder(rec)
-        while holder_rec:
-            if (registry.get(holder_rec["tag"]) or {}).get("x-ask"):
-                surface = holder_rec
-                break
-            holder_rec = holder(holder_rec)
-        if id(surface) not in seen_surfaces:
-            seen_surfaces.add(id(surface))
-            surfaces.append(surface)
-    return (
-        [
-            {"id": rec["attrs"].get("id"), "tag": rec["tag"], "thread": None}
-            for rec in surfaces
-        ],
-        {
-            rec["attrs"]["id"]: values[id(rec)]
-            for rec in records
-            if rec["attrs"].get("id")
-        },
-    )
+    return _AskReducer(
+        source,
+        projection,
+        byid,
+        spk,
+        registry,
+        dropped,
+        with_agent,
+        thread=thread,
+    ).result()
 
 
 def page_asks(

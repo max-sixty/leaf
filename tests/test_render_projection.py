@@ -163,7 +163,11 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert stamped.exit_code == 0, stamped.output
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(page.locator(".lf-signoff")).to_be_visible()
+    signoff = page.locator(".lf-signoff")
+    expect(signoff).to_be_visible()
+    assert signoff.evaluate("el => parseFloat(el.style.minWidth) > 0"), (
+        "soft activation measured approval while its control was detached"
+    )
     assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
         "stamping the displayed revision replaced its main"
     )

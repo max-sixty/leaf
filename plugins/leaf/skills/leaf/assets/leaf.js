@@ -1019,11 +1019,12 @@ function stateSignoff(next) {
   const shown = signoffDeclared && runtime.currentStamp !== null;
   if (shown === signoff) return;
   signoff = shown;
+  if (!signoff) approveBtn.remove();
+  arrangeBannerControls();
   if (signoff) {
     reserve(approveBtn, ["Approve version", "✓ Version approved"]);
     paintApproval();
-  } else approveBtn.remove();
-  arrangeBannerControls();
+  }
   syncLayout();
 }
 

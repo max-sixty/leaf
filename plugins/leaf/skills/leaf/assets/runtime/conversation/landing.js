@@ -1,4 +1,4 @@
-import { shownBox } from "../anchors.js";
+import { shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { SCROLL } from "../motion.js";
 import { closestAcross } from "../passages.js";

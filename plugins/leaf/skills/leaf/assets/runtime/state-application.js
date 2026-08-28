@@ -1,0 +1,317 @@
+export function createStateApplication(dependencies) {
+  const {
+    LIVE_ROOT,
+    PAGE_PAINT_ATTRIBUTE,
+    acceptData,
+    activateRevision,
+    activationIsForced,
+    accountOutbox,
+    clearForcedActivation,
+    currentActivation,
+    getSignoffDeclared,
+    latestChip,
+    loadMarked,
+    midComposition,
+    notifyDataSubscribers,
+    observeServerNow,
+    paintAnchors,
+    paintApproval,
+    paintWorkLines,
+    panelIsOpen,
+    presented,
+    reconcileState,
+    replaceClaimState,
+    refreshHover,
+    renderOthers,
+    renderPanel,
+    renderStatus,
+    renderVersions,
+    reportPageError,
+    restoreView,
+    revisionDocument,
+    runtime,
+    sameLayer,
+    setPanel,
+    showComparison,
+    showNews,
+    showToast,
+    settleAcceptedDrafts,
+    stateSignoff,
+    trackActivation,
+    updateFab,
+    versionMenuIsOpen,
+  } = dependencies;
+
+  let agentMsgCount = -1;
+
+  // Whether an answer was taken before the one the page holds. Answers cross — a read
+  // held by a slow proxy or a test while a later one lands, a POST's answer beside a
+  // read — and the log's sequence and the data's revision order everything in a state
+  // but the reading, which is a hash with no order of its own. The server stamps each
+  // answer with the moment it was taken, inside the transaction every answer is built
+  // under, so this is the order they were taken in whichever order they land. Equal is
+  // not before: the heartbeat re-applies the held answer itself.
+  const takenBefore = (state) =>
+    runtime.state !== null && state.taken < runtime.state.taken;
+
+  async function receiveState(state) {
+    // Every state this page reads passes here — the poll's, and the one an accepted
+    // event response carries — so the generation is checked once for both rather than
+    // at each door it arrives through.
+    if (!sameLayer(state.layer)) return;
+    if (typeof state.taken !== "number")
+      throw new TypeError("state must say when it was taken");
+    // Ahead of the sequence checks below, which drop a response as state: a reading
+    // that arrives out of order still says what time it is where the timestamps are
+    // written, and that is the one thing in it that cannot be stale.
+    observeServerNow(state.now);
+    // Events and source snapshots are independent authorities serialized by the same page
+    // transaction but observed through overlapping responses. Their revisions form a pair,
+    // not one total order: a response with an older event tail may still carry the newest
+    // data. Accept that component before the event gate, and never move either one backward.
+    const dataChanged = acceptData(state.data);
+    const notifyChangedData = () => {
+      if (dataChanged) notifyDataSubscribers();
+    };
+    const nextEvents = state.events;
+    const eventSeq = nextEvents.at(-1)?.seq ?? 0;
+    // An answer taken before the one the page holds is judged as a stale sequence is
+    // (takenBefore). Before the sequence gate because a stale answer may carry the same
+    // sequence as the newer one and differ in everything the sequence does not order —
+    // status, claims, the reading itself.
+    if (takenBefore(state)) {
+      const activation = currentActivation();
+      if (activation) await activation;
+      notifyChangedData();
+      return;
+    }
+    // A POST's answer and a read can cross. The log is append-only, so a response
+    // behind one already rendered is unambiguously stale; accepting it would move
+    // every event-derived view backwards until the next read. Kept beside the stamp's
+    // gate: that orders the server's answers, and this holds the log's order against
+    // any answer at all, one a test built included.
+    if (eventSeq < runtime.lastEventSeq) {
+      const activation = currentActivation();
+      if (activation) await activation;
+      notifyChangedData();
+      return;
+    }
+    // Polls and POST answers may overlap. A document activation is the one state read
+    // that cannot safely interleave: a second one would capture or replace the halfway
+    // upgraded main. Let it commit, then judge this response against its resulting
+    // version, sequence and stamp.
+    let activationInFlight = currentActivation();
+    if (activationInFlight) await activationInFlight;
+    if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
+      notifyChangedData();
+      return;
+    }
+    const targetRevision = state.active?.revision ?? null;
+    if (!Number.isInteger(targetRevision) || targetRevision < 1)
+      throw new TypeError("state active must name a positive revision");
+    if (LIVE_ROOT && runtime.currentRevision === null)
+      throw new TypeError("the live document has no lf-revision marker");
+    if (runtime.active && targetRevision < runtime.active.revision) {
+      notifyChangedData();
+      return;
+    }
+    const wantsActivation =
+      LIVE_ROOT &&
+      runtime.currentRevision !== null &&
+      targetRevision > runtime.currentRevision;
+    let incoming = null;
+    let incomingFailed = false;
+    if (wantsActivation) {
+      latestChip.textContent = `New page available → open ${state.active.label}`;
+      showNews(latestChip, true);
+    }
+    // Messages render from Markdown; have the renderer in hand before the panel
+    // builds a body, so msgNode stays synchronous. Fetch the next authored document on
+    // the same background stretch rather than making either network trip wait on the
+    // other.
+    const preparations = [];
+    if (nextEvents.some((e) => e.kind === "comment" || e.kind === "reply"))
+      preparations.push(loadMarked());
+    if (wantsActivation)
+      preparations.push(
+        revisionDocument(state.active)
+          .then((doc) => (incoming = doc))
+          .catch((error) => {
+            incomingFailed = true;
+            reportPageError(
+              `revision ${targetRevision} failed to load: ${error?.message ?? error}`,
+            );
+          }),
+      );
+    await Promise.all(preparations);
+    if (wantsActivation && incoming === null && !incomingFailed) {
+      notifyChangedData();
+      return;
+    }
+    // The preparation above yields. A newer response may have completed while this one was
+    // waiting, and two responses may have joined the same version-file promise before
+    // either had an activation to await. Serialize again at the commit boundary, then
+    // judge this candidate against the version and sequence the winner installed.
+    activationInFlight = currentActivation();
+    if (activationInFlight) await activationInFlight;
+    if (eventSeq < runtime.lastEventSeq || takenBefore(state)) {
+      notifyChangedData();
+      return;
+    }
+    if (runtime.active && targetRevision < runtime.active.revision) {
+      notifyChangedData();
+      return;
+    }
+    const willActivate =
+      Boolean(incoming) &&
+      targetRevision > runtime.currentRevision &&
+      (!midComposition() || activationIsForced()) &&
+      !versionMenuIsOpen() &&
+      targetRevision === state.active.revision;
+    const priorEvents = runtime.events;
+    const priorStatePhase = runtime.statePhase;
+    const priorLastEventSeq = runtime.lastEventSeq;
+    const priorReading = runtime.reading;
+    const priorState = runtime.state;
+    const priorActive = runtime.active;
+    const priorVersions = runtime.versions;
+    const priorCurrentLabel = runtime.currentLabel;
+    const priorCurrentRevision = runtime.currentRevision;
+    const priorCurrentStamp = runtime.currentStamp;
+    let restoreClaimState = () => {};
+    const apply = async () => {
+      runtime.events = nextEvents;
+      let activation = null;
+      runtime.statePhase = "ready";
+      if (willActivate) {
+        clearForcedActivation();
+        activation = await activateRevision(incoming, state.active);
+      }
+      settleAcceptedDrafts();
+      runtime.agent = state.agent || "Claude";
+      restoreClaimState = replaceClaimState({
+        sources: state.claims || [],
+        claimsHeld: presented(state).held,
+        agentTurnClosed: state.turn_closed || null,
+        claimingSession: state.claim_session || null,
+      });
+      renderStatus(state);
+      renderVersions(state);
+      stateSignoff(getSignoffDeclared());
+      paintApproval();
+      renderOthers(state);
+      if (eventSeq > runtime.lastEventSeq || activation) {
+        renderPanel();
+        // Sign-off is a fact in the log, not a click this tab happens to remember, so a
+        // reload (or the other tab) shows it too.
+        const agentReplies = runtime.events.filter(
+          (e) => e.author === "claude" && e.kind === "reply",
+        );
+        if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
+          showToast(
+            `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
+            () => setPanel(true),
+          );
+        agentMsgCount = agentReplies.length;
+      }
+      // Last, because the panel has just rendered the log: a widget carried by a reply is
+      // on the page by now, so an action naming one that isn't names a widget no version
+      // holds, and reconciliation can retire it instead of looking for it forever.
+      reconcileState();
+      // Outside the log-growth block: a work claim lands and ages without changing an
+      // event this tab holds. After widget reconciliation because a module may rebuild
+      // its authored subtree; the local line is the transient overlay that follows it.
+      paintWorkLines();
+      if (activation) {
+        restoreView(activation.view);
+        paintAnchors();
+        updateFab();
+        if (activation.comparedFrom !== null) showComparison(activation.comparedFrom);
+        showToast(`Updated to ${runtime.currentLabel}`);
+      }
+      // Only a complete application advances the read boundary. A render fault may
+      // already have changed some local surfaces, but it has not made a state safe to use
+      // for replay or undo; leaving the sequence unresolved retries the whole read.
+      runtime.lastEventSeq = Math.max(runtime.lastEventSeq, eventSeq);
+      // Stamped in the same place, because it answers the same question about a
+      // wider subject: the sequence says how much of the log the page holds, the
+      // reading how much of the page's whole state — status, data, claims, versions
+      // — none of which moves the sequence at all. Not by the same rule: a hash has
+      // no order, so the moment the server took the answer is what keeps a stale one
+      // from writing it, and that answer was turned away at the door above.
+      runtime.reading = state.reading ?? null;
+      // Kept so the heartbeat can re-render time-dependent chrome without asking the
+      // server for a copy of what the page already has, and for `taken`, which the
+      // door above judges the next answer by.
+      runtime.state = state;
+      if (runtime.reading !== null)
+        document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
+      // Accounting changes no hold by itself. It first projects this complete log plus
+      // every surviving optimistic action, then releases the entries whose attempts the
+      // read contained. A same-widget event later in this state can therefore never be
+      // skipped under the hold and exposed only after the hold disappears.
+      accountOutbox(nextEvents);
+      // Sequence consumers render after replay, so their history and the widget's
+      // standing body describe the same poll. This also fires when the event list did
+      // not grow: applyAction may have deferred while a user was typing, then become
+      // applicable on the next poll after they close the editor.
+      document.dispatchEvent(new Event("lf-actions"));
+      notifyDataSubscribers();
+    };
+    try {
+      if (willActivate) {
+        const running = (async () => {
+          if (document.startViewTransition) {
+            document.documentElement.classList.add("lf-versioning");
+            try {
+              const transition = document.startViewTransition(apply);
+              // A skipped transition — the document hidden at the call or
+              // mid-flight, or a second transition starting — still runs the
+              // update and settles `finished` with it, but rejects `ready`,
+              // which nothing here awaits. Unhandled, that rejection reaches
+              // the page's error report as a logged fault.
+              transition.ready.catch(() => {});
+              await transition.finished;
+            } finally {
+              document.documentElement.classList.remove("lf-versioning");
+              // The transition's snapshots temporarily replace what is under a parked
+              // pointer. Ask again once the live page owns those pixels, even when no
+              // pointer move reports the change.
+              refreshHover();
+            }
+          } else await apply();
+        })();
+        const clearActivation = trackActivation(running);
+        try {
+          await running;
+        } finally {
+          clearActivation();
+        }
+      } else await apply();
+    } catch (error) {
+      // Candidate history is useful only while this one synchronous application is
+      // rendering it. If any required surface refuses the state, restore the last whole
+      // reading so focus, panel, and undo cannot consume a log tail the page never
+      // adopted. The next poll retries the candidate from the same complete boundary.
+      runtime.events = priorEvents;
+      runtime.statePhase = priorStatePhase;
+      runtime.lastEventSeq = priorLastEventSeq;
+      runtime.reading = priorReading;
+      runtime.state = priorState;
+      if (priorReading === null)
+        document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.reading);
+      else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, priorReading);
+      runtime.active = priorActive;
+      runtime.versions = priorVersions;
+      runtime.currentLabel = priorCurrentLabel;
+      runtime.currentRevision = priorCurrentRevision;
+      runtime.currentStamp = priorCurrentStamp;
+      stateSignoff(getSignoffDeclared());
+      restoreClaimState();
+      if (willActivate) location.reload();
+      throw error;
+    }
+  }
+
+  return { receiveState };
+}

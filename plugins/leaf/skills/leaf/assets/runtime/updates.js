@@ -26,10 +26,30 @@ export function createUpdates(runtime, dependencies) {
     threadList,
   } = dependencies;
 
-  // Replace-in-place work claims, already normalized by the server out of status.json's
-  // private store. Reports join them in updateSequence below. Keeping only source records
-  // here means target and lifecycle are derived in one projection for every consumer.
-  let claimUpdateSources = [];
+  // A state answer supplies claim records with the page-level evidence that says whether
+  // anything still stands behind them. Keep that accepted snapshot together so the feed
+  // and its work lines cannot read different applications.
+  let claimState = Object.freeze({
+    sources: Object.freeze([]),
+    claimsHeld: false,
+    agentTurnClosed: null,
+    claimingSession: null,
+  });
+  function replaceClaimState(next) {
+    const prior = claimState;
+    claimState = Object.freeze({
+      sources: Object.freeze(structuredClone(next.sources)),
+      claimsHeld: next.claimsHeld,
+      agentTurnClosed: next.agentTurnClosed,
+      claimingSession: next.claimingSession,
+    });
+    return () => (claimState = prior);
+  }
+  const workClaimState = () => ({
+    claimsHeld: claimState.claimsHeld,
+    agentTurnClosed: claimState.agentTurnClosed,
+    claimingSession: claimState.claimingSession,
+  });
 
   // The fold answers where reader state stands; this answers how it got there. A widget
   // receives its own absolute actions in log order, bounded by the version being viewed.
@@ -114,7 +134,7 @@ export function createUpdates(runtime, dependencies) {
       });
     }
     const threads = new Map(threadList().map((thread) => [thread.root.id, thread]));
-    for (const source of claimUpdateSources) {
+    for (const source of claimState.sources) {
       if (key !== null && updateTargetKey(source.target) !== key) continue;
       let effective = false;
       if (source.target.kind === "thread") {
@@ -245,13 +265,13 @@ export function createUpdates(runtime, dependencies) {
 
   return {
     actionSequence,
-    claimUpdateSources: () => claimUpdateSources,
     publishedAt,
+    replaceClaimState,
     saidAt,
-    setClaimUpdateSources: (sources) => (claimUpdateSources = sources),
     updateSequence,
     watchActions,
     watchHistory,
     watchUpdates,
+    workClaimState,
   };
 }

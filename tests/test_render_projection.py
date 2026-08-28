@@ -816,7 +816,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     # Force the same timestamp: causality, rather than wall-clock tie-breaking, must
     # order the two source records.
     with monkeypatch.context() as patch:
-        patch.setattr(events_model, "now_iso", lambda: report_event["ts"])
+        patch.setattr(service_model, "now_iso", lambda: report_event["ts"])
         with service_model.PageTransaction(d) as transaction:
             transaction.set_status(
                 "working",

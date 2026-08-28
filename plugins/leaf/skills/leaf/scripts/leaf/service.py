@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from leaf.events import (
+from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     flocked,
@@ -19,8 +19,8 @@ from leaf.events import (
     read_cursor,
     read_events,
     require_cross_process_locking,
-    work_claim_revision,
 )
+from leaf.events import work_claim_revision
 from leaf.files import json_bytes, read_json, write_json
 from leaf.schema import ORPHAN_GRACE_SECS
 

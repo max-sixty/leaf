@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
-from leaf.events import flocked, read_events, retractions, thread_structure
+from leaf.event_log import flocked, read_events
+from leaf.events import retractions, thread_structure
 from leaf.files import list_revisions, revision_path
 from leaf.passages import spoken
 from leaf.projection import (

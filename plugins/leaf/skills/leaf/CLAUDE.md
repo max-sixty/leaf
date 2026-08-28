@@ -52,12 +52,15 @@ subscriptions;
 `runtime/presence.js` owns claim freshness and attendance judgment;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
+`runtime/state-application.js` owns stale-answer ordering, version preparation,
+state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
 overflow travel, and the banner's touch bridge to the document scroller;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
-`runtime/updates.js` owns canonical action, report, and work-claim feeds;
+`runtime/updates.js` owns the accepted claim snapshot and canonical action,
+report, and work-claim feeds;
 `runtime/version-diff.js` owns version-comparison state, marks, and chooser paint;
 `runtime/version-activation.js` owns version document loading, authored-root
 replacement, and activation serialization;

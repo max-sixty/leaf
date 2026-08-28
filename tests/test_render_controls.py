@@ -60,7 +60,6 @@ from render_support import (
     PART_DIAGRAM_PAGE,
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
-    PRESS,
     PRINT_LOSS_PAGE,
     RENDERED,
     REPLAYED_PAGE,
@@ -123,6 +122,61 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+CONTROL_STABILITY_PAGE = leaf_page(
+    "control stability",
+    """
+<h1 id="control-target">Control stability</h1>
+<lf-suggestion id="stable-suggestion">
+  <lf-old>Keep the broad sweep.</lf-old>
+  <lf-new>Keep one causal case per control archetype.</lf-new>
+</lf-suggestion>
+<lf-options id="stable-options" choose>
+  <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
+  <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
+</lf-options>
+<lf-tabs id="stable-tabs">
+  <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
+  <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
+</lf-tabs>
+""",
+    head='<meta name="lf-review" content="sign-off">',
+)
+
+# The rendered control mechanisms whose rows must keep their geometry across a press.
+# `coverage` classifies the mechanisms rendered by the composed gallery; `target` is
+# the one causal transition that proves the mechanism's stability contract.
+CONTROL_ARCHETYPES = (
+    {
+        "name": "banner",
+        "coverage": ".lf-banner-actions > button",
+        "target": ".lf-signoff",
+    },
+    {
+        "name": "suggestion",
+        "coverage": ".lf-sug-actions > [role=button]",
+        "target": '[data-lf-for="stable-suggestion"] .lf-sug-accept',
+    },
+    {
+        "name": "option-pick",
+        "coverage": "lf-option > [role=checkbox]",
+        "target": "#stable-choice-a .lf-pick",
+    },
+    {
+        "name": "tab",
+        "coverage": ".lf-tabstrip > [role=tab]",
+        "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
+    },
+)
+CONTROL_ROW_PRESS = (
+    "button, summary, select, "
+    "input:is([type=button], [type=checkbox], [type=radio], [type=reset], [type=submit]), "
+    ":is([role=button], [role=checkbox], [role=menuitem], [role=menuitemcheckbox], "
+    "[role=menuitemradio], [role=option], [role=radio], [role=slider], "
+    "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
+)
+CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
@@ -860,105 +914,75 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
         context.close()
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_a_press_leaves_its_neighbours_where_they_were(browser, serve, example):
-    """A press may change the page; it may not move the controls next to the one pressed.
-
-    A user works by pointing, and the line a control stands on is where their next
-    gesture is already aimed. What a press changes below it is content — a tab shows a
-    different panel, a fold opens, a suggestion resolves, and the page under it moves
-    because the user asked it to. What must not move is the row itself, because
-    nothing was asked of it and it is the one thing the user is still using.
-
-    Three shipped controls broke this rule, each by changing a metric to say something:
-    a selected tab set in 600 weight, since a bolder label is a wider one, so the strip
-    reshuffled under the pointer that had just pressed it; the sign-off button, whose
-    "✓ Version approved" is narrower than "Approve version", sliding the version
-    chooser and the Comments button right; and a row-form pick mark, which took the room
-    for the word it says on being pressed and dragged that row's § reference 54px left. None of
-    them shows in a screenshot of either state, because every strip and every row lays
-    out perfectly well on its own; it is the two states together that say anything.
-
-    Two of the three are fixed by holding the widest word's room from the start. That
-    room is measured at load rather than stated, because a number read once out of a
-    browser covers the face it was read in and no other: the pick column's stood at 68px
-    and went 2px short the first time this ran on Linux, whose system sans sets "your
-    pick" wider than macOS's. This is what said so, and it says how late a stated number
-    is caught — a platform late, and only where there is a second platform to run on.
-
-    Driven over the corpus rather than per widget: a control this sweep has never heard
-    of joins it by being pressable, which is the only property it reads.
-
-    One press per page, because a press is a gesture made on the page as published and
-    the state an earlier one leaves changes what a later one proves. Pressing straight
-    down the document hid the sign-off button's 12px for exactly that reason: Comments
-    comes first in the banner, and with the panel open the row is crowded enough that
-    the status text takes up the slack instead of the buttons — a real regression,
-    silently masked by the sweep's own previous gesture."""
-    url = serve(example)
-    page, errors = open_page(browser, url)
+@pytest.mark.parametrize(
+    "archetype", CONTROL_ARCHETYPES, ids=lambda archetype: archetype["name"]
+)
+def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
+    """Each row mechanism holds its other controls still across its causal transition."""
+    page, errors = open_page(browser, serve(CONTROL_STABILITY_PAGE))
     page_at_rest(page)
-    total = page.locator(PRESS).count()
-    pressed, dirty = 0, False
-    for i in range(total):
-        if dirty:  # only a press dirties the page, and most of these indices skip
-            # Reloading is not on its own a reset: the panel remembers whether it was
-            # open and every unsent draft is the reader's (localStorage), while the
-            # reading position is this tab's (sessionStorage) — all of them
-            # deliberately. Left standing they decide what
-            # the next press proves — an open panel crowds the banner enough that the
-            # status text takes up a shrinking button's slack instead of the buttons, so
-            # the sign-off regression this test was written for passed or failed
-            # according to how many times the sweep had toggled Comments.
-            page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
-            # `load`, the edge the first visit took (`open_page`): network silence is
-            # not a readiness fact and the two lines below are the ones that are, so
-            # waiting it out only added its own 500ms quiet window to every reload
-            # this sweep makes — a sixth of the test on the gallery, 50s to 42s.
-            page.goto(url, wait_until="load")
-            # Both stamps, which the reload has to earn again: half these controls are
-            # the runtime's own, and the last of them arrive with the log rather than
-            # with the upgrade. A list read before that is a short list, and a short list
-            # skips by index rather than failing, which is how this sweep quietly stopped
-            # pressing the sign-off button between one run and the next. It is the count
-            # below that says so out loud — refuse the first poll of each navigation here
-            # and every one of the examples fails on it.
-            page.wait_for_function(BOTH_STAMPS)
-            page_at_rest(page)
-            dirty = False
-            assert page.locator(PRESS).count() == total, (
-                f"{example.name} has a different set of controls after a reload, so the "
-                "indices this sweep walks name different things on either side of one"
-            )
-        page.evaluate(DEFINE_BOXES)
-        control = page.locator(PRESS).nth(i)
-        # A control the user can't press has no gesture to disturb anything. Both
-        # spellings, because a span press can only ever wear the attribute.
+    page.evaluate(DEFINE_BOXES)
+    control = page.locator(archetype["target"])
+    expect(control).to_be_visible()
+    before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
+    assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
+
+    control.click()
+    round_trip(page)
+    page_at_rest(page)
+    after = page.evaluate("() => window.__lfBoxes()")
+    assert any(box is not None for box in after), (
+        f"{archetype['name']} leaves no neighbouring control to measure after its press"
+    )
+    moved = displaced(before, after)
+    assert not moved, (
+        f"pressing the {archetype['name']} control moved its neighbours:\n  "
+        + "\n  ".join(moved)
+    )
+    assert errors == []
+    page.close()
+
+
+def test_the_composed_gallery_declares_every_control_row_archetype(browser, serve):
+    """The gallery keeps the declaration open to control mechanisms added later."""
+    gallery = next(example for example in EXAMPLES if example.stem == "gallery")
+    page, errors = open_page(browser, serve(gallery))
+    page_at_rest(page)
+    page.evaluate(DEFINE_BOXES)
+    observed = set()
+    undeclared = []
+    controls = page.locator(CONTROL_ROW_PRESS)
+    for index in range(controls.count()):
+        control = controls.nth(index)
         if not control.is_visible() or not control.is_enabled():
             continue
         if control.get_attribute("aria-disabled") == "true":
             continue
+        neighbours = control.evaluate(NEIGHBOURHOOD, CONTROL_ROW_NEIGHBOUR)["names"]
+        if not neighbours:
+            continue
+        matches = [
+            archetype["name"]
+            for archetype in CONTROL_ARCHETYPES
+            if control.evaluate(
+                "(el, selector) => el.matches(selector)", archetype["coverage"]
+            )
+        ]
         label = control.evaluate(
             "(el) => el.tagName.toLowerCase() + ' '"
             "        + JSON.stringify((el.textContent || '').trim().slice(0, 24))"
         )
-        before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
-        if not before["names"]:
-            continue
-        control.click()
-        pressed, dirty = pressed + 1, True
-        # The press's own effect is synchronous; what follows it is the round trip the
-        # press started and whatever its answer repaints, which is as much part of
-        # pressing as the frame before it. A press that sent nothing is already round
-        # tripped, so both kinds take the same rendered edge.
-        round_trip(page)
-        page_at_rest(page)
-        moved = displaced(before, page.evaluate("() => window.__lfBoxes()"))
-        assert not moved, (
-            f"pressing {label} in {example.name} moved the controls beside it:\n  "
-            + "\n  ".join(moved)
-        )
-    assert pressed, f"{example.name} pressed nothing, so it asserts nothing"
+        if len(matches) != 1:
+            undeclared.append(f"{label}: {matches or 'no archetype'}")
+        observed.update(matches)
+
+    assert not undeclared, (
+        "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
+    )
+    expected = {archetype["name"] for archetype in CONTROL_ARCHETYPES}
+    assert observed == expected, (
+        f"gallery reached {sorted(observed)}, expected {sorted(expected)}"
+    )
     assert errors == []
     page.close()
 

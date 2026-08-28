@@ -4,7 +4,8 @@ import json
 import sys
 from pathlib import Path
 
-from leaf.events import append_event, thread_roots
+from leaf.event_log import append_event
+from leaf.events import thread_roots
 from leaf.files import (
     latest_published,
     latest_revision,

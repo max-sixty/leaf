@@ -2,7 +2,8 @@
 
 import json
 
-from .events import awaits_agent, build_threads, read_events, seat_root, spoken_turns
+from .event_log import read_events
+from .events import awaits_agent, build_threads, seat_root, spoken_turns
 from .http import full_state
 from .passages import active_enclosing
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION

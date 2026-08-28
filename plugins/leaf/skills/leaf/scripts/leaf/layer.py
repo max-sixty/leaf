@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .data import data_contract_errors, page_data_bindings, read_data_store
-from .events import flocked, now_iso, read_events
+from .event_log import flocked, now_iso, read_events
 from .files import (
     _path_location,
     json_bytes,

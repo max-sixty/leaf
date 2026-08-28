@@ -10,7 +10,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from .events import flocked, require_cross_process_locking
+from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
 from .http import handler_for
 from .service import (

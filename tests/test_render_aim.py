@@ -7,7 +7,7 @@ import re
 import pytest
 from leaf import event_log as events_model
 from leaf import schema as schema_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
 from render_support import (
     AIM_CURSOR,

@@ -28,7 +28,7 @@ from .schema import (
     VENDORED_FILES,
 )
 from .styles import css_syntax_errors
-from .validation import incoming_registry
+from .validation.compatibility import incoming_registry
 
 
 def resolve_packages(selected: tuple[str, ...]) -> list[Path]:

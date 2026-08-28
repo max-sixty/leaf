@@ -37,7 +37,7 @@ from leaf import registry as registry_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):

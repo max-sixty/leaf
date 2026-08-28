@@ -28,24 +28,25 @@ from leaf.styles import (
     root_tokens,
 )
 from leaf.thread_context import thread_structure
-from leaf.validation import (
+from leaf.validation.instances import (
     addressable_instance_errors,
     ask_region_errors,
     declared_word_errors,
-    id_errors,
     language_class_errors,
     line_ref_errors,
-    media_errors,
-    page_boundary_errors,
     reference_errors,
-    report_errors,
-    restatement_errors,
-    structure_errors,
     suggestion_errors,
-    unpointable_blocks,
     visual_part_errors,
     widget_errors,
 )
+from leaf.validation.markup import (
+    id_errors,
+    media_errors,
+    page_boundary_errors,
+    structure_errors,
+    unpointable_blocks,
+)
+from leaf.validation.transitions import report_errors, restatement_errors
 
 
 class SourceCheck(NamedTuple):

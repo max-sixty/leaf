@@ -36,7 +36,7 @@ from .service import (
     lock_is_held,
     transition_lock,
 )
-from .validation import vocabulary_gaps
+from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_seats
 
 

@@ -924,7 +924,9 @@ ${MARK_RULES}
     .lf-thread:focus-within { outline: var(--here-ring); --lf-here-ring: thread;
       outline-offset: calc(-1 * var(--here-ring-w)); }
     .lf-quote { margin: 0 0 8px; padding: 2px 8px; border-left: 3px solid var(--mark-ink); color: var(--muted); font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-    .lf-quote:hover { color: var(--ink-2); }
+    .lf-quote:is(:hover, :focus-visible) { color: var(--ink-2); }
+    .lf-quote:focus-visible { outline: var(--here-ring); --lf-here-ring: quote;
+      outline-offset: 2px; }
     .lf-thread > .lf-quote:not(.detached)::after { content: "  ↗ page";
       color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
     /* A quote is the passage, and a passage is as long as the reader's selection — a
@@ -1127,8 +1129,13 @@ ${MARK_RULES}
       border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
       color: var(--ink); }
     .lf-help-search:focus-visible { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
-    .lf-help-meta { min-height: 1.2em; margin: 6px 0 0; color: var(--muted);
+    .lf-help-preference { display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin: 6px 0 0; }
+    .lf-help-meta { min-height: 1.2em; color: var(--muted);
       font-size: var(--t-6); }
+    .lf-help-shortcuts { flex: none; min-height: 26px; padding: 2px 8px;
+      color: var(--muted); font-size: var(--t-6); }
+    .lf-help-shortcuts span { color: var(--ink-2); }
     .lf-help-results { min-height: 0; overflow-y: auto; }
     .lf-help-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
     .lf-help h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;

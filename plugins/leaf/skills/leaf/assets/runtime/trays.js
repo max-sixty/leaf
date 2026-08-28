@@ -43,6 +43,7 @@ export function createTrays({
   openAsks,
   pagePresented,
   paintKeys,
+  PRESS,
   readerStore,
   renderAsks,
   stateStrip,
@@ -235,10 +236,6 @@ export function createTrays({
       line: "walk the asks",
       repeat: true,
       run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
-    },
-    {
-      keys: ["Enter"],
-      does: "Go to this ask and stand on the control that answers it",
     },
   ]);
 

@@ -410,7 +410,10 @@ export function createVersionNavigation({
       runtime.active.revision !== runtime.currentRevision;
     const sourceFailed = liveRoot && Boolean(state.source_error);
     latestChip.disabled = sourceFailed;
-    latestChip.title = sourceFailed ? state.source_error : "Open the current page";
+    latestChip.dataset.lfKeyTitle = sourceFailed
+      ? state.source_error
+      : "Open the current page";
+    latestChip.title = latestChip.dataset.lfKeyTitle;
     showNews(latestChip, sourceFailed || behind);
     if (sourceFailed) latestChip.textContent = "Latest edit couldn't be shown";
     else if (behind)

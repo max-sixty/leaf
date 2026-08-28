@@ -58,7 +58,25 @@ export const spell = (binding) => {
 // of the page. That is what lets a key whose meaning moves say the meaning it has: the
 // surfaces render this press rather than the set of presses the key could be.
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
-export const bindings = (row) => word(row.keys) ?? [];
+// Readers who use speech input or are prone to stray presses must be able to turn off
+// character-only shortcuts. Keep that preference inside the binding vocabulary so the
+// dispatcher and every projection lose the same keys together. Shift still produces a
+// character and does not exempt a shortcut; Mod and Alt make it a modified command.
+let characterShortcuts = () => true;
+export const configureBindings = ({ characterShortcuts: enabled }) => {
+  characterShortcuts = enabled;
+};
+export const characterBinding = (binding) => {
+  const { key, mods } = parsed(binding);
+  // Space activates native and offered buttons; it is not the letter/number/punctuation
+  // shortcut the preference promises to silence.
+  return key !== " " && [...key].length === 1 && mods.every((mod) => mod === "Shift");
+};
+export const declaredBindings = (row) => word(row.keys) ?? [];
+export const bindings = (row) =>
+  declaredBindings(row).filter(
+    (binding) => characterShortcuts() || !characterBinding(binding),
+  );
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
 // invisible on both surfaces and reachable only through a sibling's hand-typed "d / u" —
@@ -68,6 +86,54 @@ export const labelOf = (row) => word(row.label) ?? bindings(row).map(spell).join
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
 export const live = (row) => !row.when || row.when();
+
+// One canonical spelling for one press. Modifier order and the case of an alphabetic key
+// do not change what `answers` accepts, so allowing either to vary would let the same press
+// enter the register twice under two Map keys. Declarations are required to use this form;
+// the identity remains here too so every defensive conflict check compares meanings rather
+// than source spelling.
+export const canonicalBinding = (binding) => {
+  const { key, mods } = parsed(binding);
+  const letter = key.length === 1 && key.toLowerCase() !== key.toUpperCase();
+  const canonicalKey = letter ? key.toLowerCase() : key;
+  // Punctuation already names the produced glyph (`?`, not the physical `/` key), and
+  // `answers` deliberately leaves its Shift state to the keyboard layout. A Shift prefix
+  // on such a glyph is therefore neither portable nor a distinct command.
+  const canonicalMods = MODIFIERS.filter(
+    (mod) => mods.includes(mod) && (mod !== "Shift" || letter || key.length > 1),
+  );
+  return [...canonicalMods, canonicalKey].join("+");
+};
+
+function validateActive(active, where, bindingOf) {
+  const owners = new Map();
+  for (const row of active)
+    for (const binding of bindingOf(row)) {
+      const identity = canonicalBinding(binding);
+      const prior = owners.get(identity);
+      if (prior)
+        throw new Error(
+          `leaf: ${where} has two live meanings for ${binding}: ` +
+            `${word(prior.does)}; ${word(row.does)}`,
+        );
+      owners.set(identity, row);
+    }
+  return active;
+}
+
+// Declaration-time validation deliberately ignores the reader's character-shortcut
+// preference. A saved preference must not let an ambiguous register install successfully
+// and then fail halfway through turning the commands back on.
+export const validateRows = (rows, where = "a scope") =>
+  validateActive(rows.filter(live), where, declaredBindings);
+
+// A scope may reuse a key across mutually exclusive states, but never in the scene the
+// reader is in. Resolve liveness before any surface projects the rows, and refuse an
+// ambiguous scene instead of letting declaration order choose a meaning silently.
+export function activeRows(rows, where = "a scope") {
+  const active = rows.filter((row) => live(row) && bindings(row).length > 0);
+  return validateActive(active, where, bindings);
+}
 
 // The register's machine-readable spelling for assistive technology. `Mod` is the one
 // visual key the platform chooses, while the dispatcher deliberately accepts either
@@ -82,12 +148,12 @@ const ariaBindings = (binding) => {
       .join("+"),
   );
 };
-export const ariaShortcuts = (rows, current = true) =>
+export const ariaShortcuts = (rows, current = true, where) =>
   [
     ...new Set(
-      rows
-        .filter((row) => !current || live(row))
-        .flatMap((row) => bindings(row).flatMap(ariaBindings)),
+      (current ? activeRows(rows, where) : rows).flatMap((row) =>
+        bindings(row).flatMap(ariaBindings),
+      ),
     ),
   ].join(" ");
 
@@ -145,13 +211,19 @@ export function checked(rows, where) {
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,
       );
-    for (const binding of bindings(row))
+    for (const binding of declaredBindings(row)) {
       for (const mod of parsed(binding).mods)
         if (!MODIFIERS.includes(mod))
           throw new Error(
             `leaf: row ${i} of ${where} binds ${binding}, and ${mod} is no modifier ` +
               `this dispatcher answers (${MODIFIERS.join(", ")})`,
           );
+      const canonical = canonicalBinding(binding);
+      if (binding !== canonical)
+        throw new Error(
+          `leaf: row ${i} of ${where} binds ${binding}; write the canonical ${canonical}`,
+        );
+    }
   });
   return rows;
 }

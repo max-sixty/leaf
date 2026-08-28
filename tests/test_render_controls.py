@@ -194,8 +194,9 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
     expect(button).to_have_attribute(
-        "title", "Approve this work; the page stays open for follow-up"
+        "title", "Approve this work; the page stays open for follow-up (L)"
     )
+    expect(button).to_have_attribute("aria-keyshortcuts", "Shift+l")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2924,7 +2925,10 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     page, errors = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
     expect(page.locator(".lf-others-panel")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Enter"
+        "aria-keyshortcuts", "ArrowUp ArrowDown"
+    )
+    expect(page.locator("a.lf-others-row").first).to_have_attribute(
+        "aria-keyshortcuts", "Enter"
     )
     expect(btn).to_have_text("All leaves (3)")
     keyline = page.locator(".lf-keyline")

@@ -1354,7 +1354,11 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     controls = {"BUTTON", "INPUT"}
     dead = [s for s in stops if s["tag"] not in controls and not s["scrolls"]]
     assert dead == [], f"tab stops on boxes with nothing out of sight: {dead}"
-    assert [s["tag"] for s in stops if s["tag"] in controls] == ["BUTTON", "INPUT"]
+    assert [s["tag"] for s in stops if s["tag"] in controls] == [
+        "BUTTON",
+        "INPUT",
+        "BUTTON",
+    ]
 
     # And the box that does have something out of sight is one of those stops, which is
     # the whole point of the sweep. Its reachability is what is asserted here and not the
@@ -1440,6 +1444,15 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
         shortcuts
     )
+
+    page.keyboard.press("a")
+    expect(page.locator(".lf-asks-panel")).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown"
+    )
+    expect(page.locator(".lf-asks-row").first).to_have_attribute(
+        "aria-keyshortcuts", "Enter Space"
+    )
+    page.keyboard.press("Escape")
 
     page.keyboard.press("?")
     expect(
@@ -1906,6 +1919,337 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(line).to_contain_text("close comments")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-panel")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
+    """The pointer's return-to-passage action is a focusable, named control too."""
+    url = serve(NOTED_PAGE)
+    d = serve.page_dir
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Check this wording.",
+            "anchor": {"section": "p1", "quote": "first passage"},
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
+
+    page.keyboard.press("c")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("j")
+    expect(page.locator(".lf-thread")).to_be_focused()
+    page.keyboard.press("Tab")
+    quote = page.locator(".lf-thread .lf-quote")
+    expect(quote).to_be_focused()
+    expect(quote).to_have_attribute("role", "button")
+    expect(quote).to_have_attribute("aria-keyshortcuts", "Enter Space")
+    expect(page.locator(".lf-keyline")).to_contain_text("return to the passage")
+
+    quote.evaluate(
+        """node => node.addEventListener('click', () => {
+          node.dataset.keyboardActivations =
+            String(Number(node.dataset.keyboardActivations || 0) + 1);
+        })"""
+    )
+    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
+    expect(quote).to_have_attribute("data-keyboard-activations", "2")
+
+    # Resolved threads use the same projection. When a later version removes the passage,
+    # their folded quote becomes an informative disabled stop, not a promised no-op.
+    page.get_by_role("button", name="Resolve").click()
+    round_trip(page)
+    without_passage = re.sub(r'<p id="p1">.*?</p>', "", NOTED_PAGE, flags=re.DOTALL)
+    (d / "versions" / "v2.html").write_text(without_passage)
+    stamp_version_file(d, 2, "remove the quoted passage")
+    wait_for_revision(page, 2)
+    page.locator(".lf-details summary").click()
+    resolved_quote = page.locator(".lf-details .lf-quote")
+    expect(resolved_quote).to_have_attribute("aria-disabled", "true")
+    assert resolved_quote.get_attribute("aria-keyshortcuts") is None
+    resolved_quote.focus()
+    expect(page.locator(".lf-keyline")).not_to_contain_text("return to the passage")
+    assert errors == []
+    page.close()
+
+
+def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
+    """A widget scope may contain a text box, but its bare keys still type there.
+
+    The focused element's own rows remain nearer so a draft can keep its specific Escape
+    and a wired composer can send with Mod+Enter. The text-entry scope then claims the
+    characters and editing keys before an ancestor widget can see them."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          const host = document.createElement('section');
+          host.id = 'key-owning-widget';
+          const box = document.createElement('textarea');
+          host.append(box);
+          document.querySelector('main').append(host);
+          keys(host, 'Around a text box', [
+            {keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
+             does: 'Work the widget', line: 'work widget',
+             run: (binding) => host.dataset.fired = binding},
+          ]);
+          box.focus();
+        }"""
+    )
+
+    page.keyboard.press("a")
+    page.keyboard.press("Enter")
+    expect(page.locator("#key-owning-widget textarea")).to_have_value("a\n")
+    assert page.locator("#key-owning-widget").get_attribute("data-fired") is None
+    page.keyboard.press("Shift+ArrowLeft")
+    page.keyboard.press("Control+z")
+    assert page.locator("#key-owning-widget").get_attribute("data-fired") is None
+
+    # An unrelated core layer may stand at the same time. The widget ancestor remains
+    # nearer for keys the text-entry shield does not claim; only editing stays native.
+    page.locator(".lf-version").click()
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    page.locator("#key-owning-widget textarea").focus()
+    page.keyboard.press("Escape")
+    expect(page.locator("#key-owning-widget")).to_have_attribute("data-fired", "Escape")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
+    """An ambiguous row set is refused at the register boundary.
+
+    Reusing a key in mutually exclusive states remains valid; a card grip relies on that
+    to make Enter and Space mean grab before the move and drop during it."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    answers = page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          const { activeRows } = await import('/runtime/keyboard/bindings.js');
+          const { paintKeys } = await import('/runtime/keyboard/scopes.js');
+          const declare = (id, rows) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            try {
+              keys(button, id, rows);
+              return 'declared';
+            } catch (error) {
+              return error.message;
+            } finally {
+              button.remove();
+            }
+          };
+          const conflicts = (rows) => {
+            try {
+              activeRows(rows, 'Alias meanings');
+              return 'accepted';
+            } catch (error) {
+              return error.message;
+            }
+          };
+          const keptInvalid = (id, when) => {
+            const button = document.createElement('button');
+            button.id = id;
+            document.querySelector('main').append(button);
+            let declaration = 'declared';
+            try {
+              keys(button, id, [
+                {keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
+                {keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
+              ], when);
+            } catch (error) {
+              declaration = error.message;
+            }
+            const paints = [];
+            for (let i = 0; i < 2; i++) {
+              try {
+                paintKeys();
+                paints.push('painted');
+              } catch (error) {
+                paints.push(error.message);
+              }
+            }
+            return {declaration, paints};
+          };
+          return {
+            ambiguous: declare('ambiguous', [
+              {keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
+              {keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
+            ]),
+            exclusive: declare('exclusive', [
+              {keys: ['F2'], does: 'First state', line: 'first',
+               when: () => true, run: () => {}},
+              {keys: ['F2'], does: 'Second state', line: 'second',
+               when: () => false, run: () => {}},
+            ]),
+            modifierAlias: conflicts([
+              {keys: ['Mod+Shift+x'], does: 'First alias'},
+              {keys: ['Shift+Mod+x'], does: 'Second alias'},
+            ]),
+            caseAlias: conflicts([
+              {keys: ['a'], does: 'Lowercase alias'},
+              {keys: ['A'], does: 'Uppercase alias'},
+            ]),
+            punctuationAlias: conflicts([
+              {keys: ['?'], does: 'Layout-owned punctuation'},
+              {keys: ['Shift+?'], does: 'Shifted alias'},
+            ]),
+            noncanonical: declare('noncanonical', [
+              {keys: ['Shift+Mod+x'], does: 'Noncanonical binding',
+               line: 'work', run: () => {}},
+            ]),
+            immediateTransaction: keptInvalid('kept-immediate'),
+            gatedTransaction: keptInvalid('kept-gated', () => true),
+          };
+        }"""
+    )
+    assert "two live meanings for F2" in answers["ambiguous"], answers
+    assert answers["exclusive"] == "declared", answers
+    assert "two live meanings for Shift+Mod+x" in answers["modifierAlias"], answers
+    assert "two live meanings for A" in answers["caseAlias"], answers
+    assert "two live meanings for Shift+?" in answers["punctuationAlias"], answers
+    assert "write the canonical Mod+Shift+x" in answers["noncanonical"], answers
+    assert "two live meanings for F4" in answers["immediateTransaction"]["declaration"]
+    assert answers["immediateTransaction"]["paints"] == ["painted", "painted"]
+    assert answers["gatedTransaction"]["declaration"] == "declared"
+    assert "two live meanings for F4" in answers["gatedTransaction"]["paints"][0]
+    assert answers["gatedTransaction"]["paints"][1] == "painted"
+
+    # Help merges instances with the same title for presentation. Repeated keys there
+    # belong to separate focus locations, so they are not a conflict in either scope.
+    page.evaluate(
+        """async () => {
+          const { keys } = await import('/runtime/widget-api.js');
+          for (const label of ['First', 'Second']) {
+            const button = document.createElement('button');
+            button.textContent = label;
+            document.querySelector('main').append(button);
+            keys(button, 'Repeated controls', [
+              {keys: ['F3'], does: () => `Work ${label}`, line: 'work', run: () => {}},
+            ]);
+          }
+          document.querySelector('main button').focus();
+        }"""
+    )
+    page.keyboard.press("?")
+    expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
+    page.keyboard.press("Escape")
+    assert errors == []
+    page.close()
+
+
+def test_the_signoff_key_approves_the_version(browser, serve):
+    """The page-level decision has a direct, intentional key from its visible label."""
+    html = NOTED_PAGE.replace(
+        '<script type="module" src="/leaf.js"></script>',
+        '<meta name="lf-review" content="sign-off">\n'
+        '<script type="module" src="/leaf.js"></script>',
+    )
+    page, errors = open_page(browser, serve(html))
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_have_attribute("aria-keyshortcuts", "Shift+l")
+
+    page.keyboard.press("Shift+l")
+    round_trip(page)
+    expect(approve).to_have_text("✓ Version approved")
+    expect(approve).not_to_have_attribute("aria-keyshortcuts", "Shift+l")
+    assert "(L)" not in approve.get_attribute("title")
+    done = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "done"]
+    assert len(done) == 1, done
+    assert done[0]["text"] == "Looks good"
+    assert errors == []
+    page.close()
+
+
+def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
+    browser, serve
+):
+    """Speech-input and error-prone readers can disable every character command.
+
+    The visible More button remains a native keyboard route back to the preference;
+    Enter, Escape, and other non-character controls keep their ordinary meanings."""
+    url = serve(ASKS_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "A note."},
+    )
+    page, errors = open_page(browser, url)
+    more = page.locator(".lf-key-more")
+    expect(more).to_have_attribute("aria-label", "? more")
+    version = page.locator(".lf-version")
+    expect(version).to_have_attribute("aria-keyshortcuts", "v")
+    expect(version).to_have_attribute("title", re.compile(r"\(v\)$"))
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "placeholder", re.compile(r" · c$")
+    )
+    page.keyboard.press("c")
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
+    reply = page.locator(".lf-thread textarea")
+    expect(reply).to_have_attribute("placeholder", re.compile(r" · g c 1$"))
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("?")
+    toggle = page.get_by_role("button", name="Character shortcuts")
+    expect(toggle).to_have_attribute("aria-pressed", "true")
+    toggle.click()
+    expect(toggle).to_have_attribute("aria-pressed", "false")
+    expect(page.locator(".lf-help")).not_to_contain_text("Go to the comments")
+
+    page.keyboard.press("Escape")
+    expect(version).not_to_have_attribute("aria-keyshortcuts", "v")
+    expect(version).not_to_have_attribute("title", re.compile(r"\(v\)$"))
+    expect(page.locator(".lf-latest-chip")).not_to_have_attribute(
+        "title", re.compile(r"\(v v\)$")
+    )
+    expect(page.locator(".lf-general textarea")).not_to_have_attribute(
+        "placeholder", re.compile(r" · c$")
+    )
+    expect(reply).not_to_have_attribute("placeholder", re.compile(r" · g c 1$"))
+    # Space is control activation, not a character shortcut. Offered buttons retain
+    # both native-button keys and advertise both from the same register while letters,
+    # digits, and punctuation are off.
+    mark = page.locator("#live-question .lf-pick").first
+    mark.focus()
+    shortcuts = mark.get_attribute("aria-keyshortcuts").split()
+    assert {"Enter", "Space"} <= set(shortcuts), shortcuts
+    page.keyboard.press("Space")
+    expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
+
+    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
+    assert more.get_attribute("aria-keyshortcuts") is None
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_hidden()
+
+    # The preference survives a visit, and the non-character Enter path can reverse it.
+    page.reload()
+    page.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
+    more = page.locator(".lf-key-more")
+    expect(more).to_have_attribute("aria-label", "More keyboard shortcuts")
+    more.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-help")).to_be_visible()
+    toggle = page.get_by_role("button", name="Character shortcuts")
+    expect(toggle).to_have_attribute("aria-pressed", "false")
+    toggle.focus()
+    page.keyboard.press("Enter")
+    expect(toggle).to_have_attribute("aria-pressed", "true")
+    page.keyboard.press("Escape")
+    expect(version).to_have_attribute("aria-keyshortcuts", "v")
+    expect(page.locator(".lf-general textarea")).to_have_attribute(
+        "placeholder", re.compile(r" · c$")
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-panel")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -2536,14 +2880,14 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.close()
 
 
-def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
-    """x resolves the thread j/k landed on, through the button's own press, so
+def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
+    """x changes the resolution of the thread the reader is standing on.
+
+    It resolves the thread j/k landed on through the button's own press, so
     focus lands where the button already sends it — on the thread that takes the
-    resolved one's place. The promise is scoped the way it is worded: the key
-    line offers resolve only over an open focused thread, the overlay row
-    carries the scope in its words, and on a focused resolved thread the press
-    acts on nothing — a run that reached for "the first open thread" instead of
-    the focused one would resolve a thread the user never aimed at."""
+    resolved one's place. On a resolved thread the same state key reopens it, while
+    Enter performs that thread's available primary action: reply when open and reopen
+    when resolved."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
 
@@ -2558,12 +2902,23 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     line = page.locator(".lf-keyline")
 
+    def tab_to(target, limit=40):
+        for _ in range(limit):
+            page.keyboard.press("Tab")
+            if target.evaluate("node => node === document.activeElement"):
+                return
+        raise AssertionError("Tab did not reach the expected control")
+
     # At page scope nothing promises x — its target is the focused thread, and
     # none is — while the overlay teaches the capability, scope in its words.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("On a focused thread")
     expect(page.locator(".lf-help")).to_contain_text("Resolve it")
+    focused_section = page.locator(".lf-help-section").filter(
+        has=page.get_by_role("heading", name="On a focused thread", exact=True)
+    )
+    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 
     # j lands on the first thread and the line offers resolve; x takes it, and
@@ -2577,20 +2932,50 @@ def test_the_resolve_key_resolves_the_focused_thread(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
 
-    # A focused resolved thread promises nothing, and the press acts on nothing.
+    # The native disclosure and Reopen control put a resolved thread in the ordinary Tab
+    # journey. Enter is the primary route and the same x state key is available there.
     expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
-    page.locator(".lf-details summary").click()
+    summary = page.locator(".lf-details summary")
+    tab_to(summary)
+    page.keyboard.press("Enter")
     resolved = page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')
-    resolved.click()
-    expect(resolved).to_be_focused()
+    reopen_control = resolved.get_by_role("button", name="Reopen")
+    tab_to(reopen_control)
+    expect(reopen_control).to_be_focused()
+    expect(line).to_contain_text("reopen")
+    page.keyboard.press("Enter")
+    round_trip(page)
+    reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
+    expect(reopened).to_be_focused()
+    expect(line).to_contain_text("reply")
+
+    # The state key is reversible from either visible state control too: Tab to Resolve,
+    # resolve with x, then Tab to Reopen and use the same x to reverse it.
+    resolve_control = reopened.get_by_role("button", name="Resolve")
+    tab_to(resolve_control)
+    expect(resolve_control).to_be_focused()
+    expect(line).to_contain_text("resolve")
+    resolve_control.evaluate("button => button.disabled = true")
+    page.evaluate(
+        "async () => (await import('/runtime/keyboard/scopes.js')).paintKeys()"
+    )
+    assert resolve_control.get_attribute("aria-keyshortcuts") is None
     expect(line).not_to_contain_text("resolve")
+    resolve_control.evaluate("button => button.disabled = false")
+    page.evaluate(
+        "async () => (await import('/runtime/keyboard/scopes.js')).paintKeys()"
+    )
+    resolve_control.focus()
     page.keyboard.press("x")
-    # The absence is read after a poll the test forces, so a resolve the press
-    # had wrongly posted would have landed by now.
-    comment("Third thought.")
-    told(page)
+    round_trip(page)
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{c2}"]')).to_have_count(1)
+    resolved = page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')
+    reopen_control = resolved.get_by_role("button", name="Reopen")
+    tab_to(reopen_control)
+    expect(reopen_control).to_be_focused()
+    page.keyboard.press("x")
+    round_trip(page)
+    expect(page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')).to_be_focused()
     assert errors == []
     page.close()
 

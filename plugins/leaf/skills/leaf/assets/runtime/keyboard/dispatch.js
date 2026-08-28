@@ -1,4 +1,4 @@
-import { MODIFIER_KEYS, answers, bindings, live } from "./bindings.js";
+import { MODIFIER_KEYS, answers, bindings, live, word } from "./bindings.js";
 
 export function createDispatch({
   claimsEsc,
@@ -15,6 +15,7 @@ export function createDispatch({
   setChord,
   setReact,
   takesLetters,
+  TYPING,
 }) {
   // The two questions a scope answers, named apart because the surfaces ask them apart: the
   // reference lists a scope the page *has* and filters its rows by liveness only where the reader
@@ -38,9 +39,19 @@ export function createDispatch({
   // the list here instead was the same statement made where only one of the two shadowings
   // could be seen.
   function stack() {
-    return SCOPES.flatMap((scope) =>
-      scope === ELEMENTS ? scopesFor(focused()) : scope,
-    ).filter(standing);
+    const active = focused();
+    const elementStack = scopesFor(active);
+    const typing = takesLetters(active);
+    return SCOPES.flatMap((scope) => {
+      if (scope === ELEMENTS) {
+        if (!typing) return elementStack;
+        const own = elementStack.filter(({ el }) => el === active);
+        const ancestors = elementStack.filter(({ el }) => el !== active);
+        return [...own, TYPING, ...ancestors];
+      }
+      if (scope === TYPING && typing) return [];
+      return scope;
+    }).filter(standing);
   }
   // The claims of every scope nearer the reader than this one, accumulated as either walk
   // steps outward. A scope's own claim is pushed after its rows, because what it takes from
@@ -80,6 +91,7 @@ export function createDispatch({
   function run(ev) {
     const nearer = shadow();
     for (const scope of stack()) {
+      let matched = null;
       for (const row of scope.rows) {
         // The key first, then the claim, then the liveness: a `when` may be the whole event
         // log folded (`a` asks what the page is still waiting on), and asking it of every row
@@ -89,6 +101,14 @@ export function createDispatch({
         if (!row.run) continue;
         const binding = bindings(row).find((b) => answers(b, ev));
         if (!binding || nearer.takes(binding) || !live(row)) continue;
+        if (matched)
+          throw new Error(
+            `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
+              `${word(matched.row.does)}; ${word(row.does)}`,
+          );
+        matched = { row, binding };
+      }
+      if (matched) {
         // A held key repeats keydown where a real button fires once, so a row says whether
         // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
         // per repeat, where a walk wants the repeat and is the reason the flag exists. The
@@ -100,9 +120,9 @@ export function createDispatch({
         // for example, and the browser then carries focus forward from its stable door. It
         // remains a registered press — and therefore visible, scoped and shadowed like every
         // other one — but does not claim the platform's half of it.
-        if (!row.native) ev.preventDefault();
-        if (ev.repeat && !row.repeat) return true;
-        row.run(binding);
+        if (!matched.row.native) ev.preventDefault();
+        if (ev.repeat && !matched.row.repeat) return true;
+        matched.row.run(matched.binding);
         return true;
       }
       nearer.past(scope);

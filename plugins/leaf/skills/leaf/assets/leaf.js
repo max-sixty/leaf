@@ -202,6 +202,7 @@ import {
   ariaShortcuts,
   bindings,
   checked,
+  configureBindings,
   labelOf,
   live,
   parsed,
@@ -326,6 +327,13 @@ import {
   TRAY_KEY,
   TRAY_PROP,
 } from "./runtime/trays.js";
+
+// A reader preference, not page state: speech input and a stray key should not turn into
+// commands unless this reader wants the Vim-like layer. It follows them across Leaf pages,
+// while the visible More button keeps the setting reachable when its own `?` shortcut is off.
+const CHARACTER_SHORTCUTS_KEY = "lf-character-shortcuts";
+let characterShortcutsOn = readerStore.get(CHARACTER_SHORTCUTS_KEY) !== "0";
+configureBindings({ characterShortcuts: () => characterShortcutsOn });
 
 // ---------- widget layer ----------
 
@@ -593,6 +601,7 @@ function paintHere() {
     // have: a poll that retires an ask moves the list under an armed window, and only the
     // panel's own render was calling the chip pass.
     paintAddresses();
+    paintCoreControls();
     renderLine();
   });
 }
@@ -864,7 +873,8 @@ const latestChip = el(
 // The keyboard reaches this through the chooser rather than past it: v opens the menu, and
 // the letter again takes the current page. The chip names that motion, spelled from the
 // two rows that make it rather than typed out beside them.
-latestChip.title = "Open the current page";
+latestChip.dataset.lfKeyTitle = "Open the current page";
+latestChip.title = latestChip.dataset.lfKeyTitle;
 if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
@@ -897,6 +907,7 @@ const {
   openAsks,
   pagePresented,
   paintKeys,
+  PRESS,
   readerStore,
   renderAsks: () => renderAsks(openAsks()),
   stateStrip,
@@ -1741,6 +1752,7 @@ function paintApproval() {
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
     approved;
   approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
+  paintHere();
 }
 approveBtn.onclick = async () => {
   if (approving) return;
@@ -1790,8 +1802,8 @@ const pageParts = (sel) =>
 const hasThreads = () => openThreads().length > 0;
 // The focused thread, one predicate: the row the line paints and the press the dispatcher
 // takes ask the same question, so they cannot disagree about which thread this is. Not a
-// control inside it, whose own press is its own; nor a resolved thread, which has no reply
-// box for Enter to reach and no Resolve for x to press.
+// control inside it, whose own press is its own. Open and resolved threads both qualify:
+// each has a primary Enter action and x changes the same resolution state in either direction.
 const focusedThread = () => {
   const active = document.activeElement;
   return active?.classList?.contains("lf-thread") ? active : null;
@@ -2065,14 +2077,26 @@ const BACK_OUT = {
 // widened: a select's typeahead takes the letters and leaves the page's Escape standing,
 // and a radio, which types nothing, claims nothing and keeps the whole keyboard.
 const EVERYTHING = () => true;
-// A press that puts a character in the box: one character, and Shift is the only modifier
-// that still types one — Shift+a is an A, so the page's answer-all must not fire behind it.
-// Mod and Alt compose shortcuts a box has no use for, which is how the send key reaches its
-// own row.
-const PRINTABLE = (binding) => {
-  const { key, mods } = parsed(binding);
-  return [...key].length === 1 && mods.every((m) => m === "Shift");
-};
+// A character key belongs to the box with any modifier: Shift changes its case, Alt may
+// compose it, and Mod chords copy, select, or undo. The editing keys below stay the box's
+// with modifiers too, so Shift+Arrow can extend a selection and Mod+Backspace can delete a
+// word without an ancestor widget turning either into its own action. An exact element
+// scope still stands nearer and can specialise a chord such as Mod+Enter for send.
+const CHARACTER = (binding) => [...parsed(binding).key].length === 1;
+const EDITING = new Set([
+  "Enter",
+  "Backspace",
+  "Delete",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
+const TEXT_ENTRY = (binding) => CHARACTER(binding) || EDITING.has(parsed(binding).key);
 // What a mode standing over the page takes: the page's keys, and every scope between, minus
 // the one key that says what this mode's own keys are. The reference is the exemption for the
 // same reason the line draws its chip last whatever the room — a reader who has just opened
@@ -2148,11 +2172,13 @@ const {
   inChrome: (node) => inChrome(node),
   itemSays,
   itemWord,
+  keys,
   openAsks,
   openTray,
   paintAnchors,
   paintHere,
   paintKeys,
+  PRESS,
   panelIsOpen: () => panelOpen,
   registry,
   reserve,
@@ -2342,9 +2368,10 @@ const backFromBox = () => {
   const route = backFromConversation(focused());
   return route?.target?.isConnected ? route : null;
 };
-// A box words are typed into takes the keys that put a character in it, and only those:
-// the page's bare letters are keystrokes here, while Escape and Enter are the box's to
-// declare or to pass on. What it declares is the way back out — to the thread a reply
+// A box words are typed into takes character keys and the keys that edit it: Enter,
+// deletion, caret movement, Home/End, and page movement, including their modified forms.
+// Escape remains the box's to declare or pass on. What it declares is the way back out —
+// to the thread a reply
 // belongs to, so Esc then Enter round-trips, or to the list, so j/k walk on from where the
 // backing-out started. Drafts are kept at every rung.
 //
@@ -2360,10 +2387,10 @@ const backFromBox = () => {
 // rather than merely leaving the box, and Enter walks into the list the words just found.
 // Nearer than TYPING in the stack, which is the whole of how it shadows that scope's own
 // Escape — no listener of its own, no preventDefault written by hand.
-const FINDING = {
-  title: "In the find box",
-  at: () => focused() === findInput,
-  rows: [
+keys(
+  findInput,
+  "In the find box",
+  [
     {
       keys: ["Escape"],
       does: () =>
@@ -2387,12 +2414,13 @@ const FINDING = {
       run: () => stepThread(1),
     },
   ],
-};
+  pagePresented,
+);
 
 const TYPING = {
   title: "In a text box",
   at: () => takesLetters(focused()),
-  claims: PRINTABLE,
+  claims: TEXT_ENTRY,
   rows: [
     {
       keys: ["Escape"],
@@ -2500,18 +2528,30 @@ const PANEL = {
 // A focused thread: the reply and the resolve are this scope's, not the page's. They said
 // "On a focused thread" in their own sentences and were live over the whole page, so a
 // reader who had focused nothing was offered a press that no-opped — d/u's bug from the
-// other side. The compose row is what tells an open thread from a resolved one, which has
-// neither a box for Enter to reach nor a Resolve for x to press.
+// other side. The reopen button tells the two states apart; absent a focused thread, the
+// reference describes the open state readers first meet rather than inventing a third one.
 const THREAD = {
   title: "On a focused thread",
-  when: hasThreads,
+  when: () => conversationRuntime.threadList.length > 0,
   at: () => Boolean(focusedThread()),
   rows: [
     {
       keys: ["Enter"],
-      does: "Write a reply",
-      line: "reply",
-      when: () => Boolean(focusedThread()?.querySelector(":scope > .lf-compose")),
+      does: () =>
+        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+          ? "Reopen it"
+          : "Write a reply",
+      line: () =>
+        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+          ? "reopen"
+          : "reply",
+      when: () =>
+        Boolean(focusedThread()?.querySelector(":scope > .lf-compose")) ||
+        Boolean(
+          focusedThread()?.querySelector(
+            ":scope > .lf-thread-actions > .lf-reopen:not(:disabled)",
+          ),
+        ),
       // The address's own arrival, so the two presses that reach a thread's reply box
       // reach the same one. This took the first textarea in the thread, which is not the
       // reply box when a message carries a widget holding one of its own — a draft's open
@@ -2519,7 +2559,12 @@ const THREAD = {
       // box by its place (COMMENTS.go) and not by being first. Two readings of "the reply
       // box" is two answers the day a message carries an editor, and `c` standing in a
       // thread now reaches it too, so there would have been three.
-      run: () => COMMENTS.go(focusedThread()),
+      run: () => {
+        const thread = focusedThread();
+        const reopen = thread.querySelector(":scope > .lf-thread-actions > .lf-reopen");
+        if (reopen) reopen.click();
+        else COMMENTS.go(thread);
+      },
     },
     {
       // `x` and not `r`, though resolve is the word it does: the press beside it in this
@@ -2528,16 +2573,29 @@ const THREAD = {
       // neighbouring press owns the word it would be read as. `x` is the letter a thing
       // closes under, and no other scope had claimed it.
       keys: ["x"],
-      does: "Resolve it",
-      line: "resolve",
+      does: () =>
+        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+          ? "Reopen it"
+          : "Resolve it",
+      line: () =>
+        focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
+          ? "reopen"
+          : "resolve",
       // Through the thread's own button, so keyboard and mouse are one behaviour — the
-      // focus landing included — and a resolved thread offers no button to find, which is
-      // the row's own liveness rather than a silent no-op inside the press.
-      when: () => Boolean(focusedThread()?.querySelector(":scope > .lf-compose")),
+      // focus landing included. Both states offer exactly one resolution button, and the
+      // row's liveness names that reachable capability instead of hiding a no-op in run.
+      when: () =>
+        Boolean(
+          focusedThread()?.querySelector(
+            ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen):not(:disabled)",
+          ),
+        ),
       run: () =>
         focusedThread()
-          .querySelector(":scope > .lf-thread-actions > .lf-resolve")
-          ?.click(),
+          .querySelector(
+            ":scope > .lf-thread-actions > :is(.lf-resolve, .lf-reopen):not(:disabled)",
+          )
+          .click(),
     },
   ],
 };
@@ -2711,6 +2769,7 @@ const CHOOSER = {
   keys: ["v"],
   does: "The versions, and what each one changed",
   line: "versions",
+  also: versionBtn,
   // The same predicate the menu's Escape stands on, so the key cannot open a layer the
   // way out is not live over. The walk being empty is the menu's business, not this key's.
   when: versionsOffered,
@@ -2854,6 +2913,14 @@ const PAGE = {
       },
     },
     {
+      keys: ["Shift+l"],
+      does: "Approve this version",
+      line: "looks good",
+      also: approveBtn,
+      when: () => signoff && !approveBtn.disabled,
+      run: () => approveBtn.click(),
+    },
+    {
       // The last thing the reader did to this page, put back. Its own key rather
       // than the platform's ⌘Z, which belongs to the box a reader is typing in and
       // is taken by the browser everywhere else: this is a page-level press like
@@ -2924,7 +2991,6 @@ const SCOPES = [
   ELEMENTS,
   VERSIONS,
   COMPOSER,
-  FINDING,
   TYPING,
   THREAD,
   PANEL,
@@ -2942,15 +3008,34 @@ for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own key
 // A control the keyboard also reaches names its key, and names it off the row. Three
 // tooltips spelled theirs in prose — "(a)", "(o)", "(v v)" — which is the field the key
 // line's word used to be, a fact about a binding written somewhere the binding cannot
-// correct. `also` is where a row says which control it duplicates; the chip's is the one
-// motion no single row makes, so it is composed of the two rows that make it.
-for (const scope of CORE)
-  for (const row of scope.rows)
-    if (row.also) {
-      row.also.title += ` (${labelOf(row)})`;
-      row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
-    }
-latestChip.title += ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})`;
+// correct. `also` is where a row says which control it duplicates; its projection follows
+// liveness too, so a disabled decision does not advertise a shortcut the dispatcher has
+// withdrawn. The chip's is the one motion no single row makes, so it remains composed of
+// the two rows that make it.
+function paintCoreControls() {
+  for (const scope of CORE)
+    for (const row of scope.rows)
+      if (row.also) {
+        if (!("lfKeyTitle" in row.also.dataset))
+          row.also.dataset.lfKeyTitle = row.also.title;
+        const active = live(row) && bindings(row).length > 0;
+        row.also.title =
+          row.also.dataset.lfKeyTitle + (active ? ` (${labelOf(row)})` : "");
+        if (active)
+          row.also.setAttribute("aria-keyshortcuts", ariaShortcuts([row], false));
+        else row.also.removeAttribute("aria-keyshortcuts");
+      }
+  const referenceBound = bindings(REFERENCE).length > 0;
+  keylineMoreKey.hidden = !referenceBound;
+  keylineMore.setAttribute(
+    "aria-label",
+    referenceBound ? "? more" : "More keyboard shortcuts",
+  );
+  const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;
+  latestChip.title =
+    latestChip.dataset.lfKeyTitle +
+    (latestBound ? ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})` : "");
+}
 
 const { readerIn, shadow, stack } = createDispatch({
   claimsEsc,
@@ -2967,9 +3052,11 @@ const { readerIn, shadow, stack } = createDispatch({
   setChord,
   setReact,
   takesLetters,
+  TYPING,
 });
 const reference = createReference({
   bySentence,
+  characterShortcutsOn: () => characterShortcutsOn,
   el,
   elementScopes,
   ELEMENTS,
@@ -2985,6 +3072,24 @@ const reference = createReference({
   readerIn,
   scopeRefs,
   SCOPES,
+  setCharacterShortcuts: (on) => {
+    const before = characterShortcutsOn;
+    characterShortcutsOn = on;
+    setChord(false);
+    setReact(false);
+    try {
+      paintKeys();
+      syncGeneral();
+      conversationRuntime.syncReplyAddresses();
+    } catch (error) {
+      characterShortcutsOn = before;
+      paintKeys();
+      syncGeneral();
+      conversationRuntime.syncReplyAddresses();
+      throw error;
+    }
+    readerStore.set(CHARACTER_SHORTCUTS_KEY, on ? null : "0");
+  },
   scopesFor,
 });
 // A disclosure opening or closing changes what the next press does, and no writer in this
@@ -3411,6 +3516,7 @@ conversationRuntime = createConversation({
   isMarked: (id) => marked.has(id),
   itemSays,
   itemWord,
+  keys,
   landTyping,
   layerPart,
   loadDraft,
@@ -3424,11 +3530,13 @@ conversationRuntime = createConversation({
   pageQueryAll,
   paintAnchors,
   paintHere,
+  paintKeys,
   panelIsOpen: () => panelOpen,
   panelCovers,
   panelTitle,
   placedAt: (id) => placed.get(id),
   post,
+  PRESS,
   quietSince,
   reachScrollers,
   reachedForWords,
@@ -3643,6 +3751,7 @@ if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
 // a finding has to name is the restore that broke, and the geometry the combinations
 // would add is measured on the first visit already.
 createArrangements({
+  CHARACTER_SHORTCUTS_KEY,
   DESIGN_KEY,
   PANEL_KEY,
   TRAY_KEY,

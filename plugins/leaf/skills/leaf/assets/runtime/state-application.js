@@ -171,6 +171,19 @@ export function createStateApplication(dependencies) {
       (!midComposition() || activationIsForced()) &&
       !versionMenuIsOpen() &&
       targetRevision === state.active.revision;
+    // The last coordinate the commit boundary judges, beside sequence and active
+    // revision: the answer holds a view of the revision the page named when it asked and
+    // of the one it may activate into, and of no others. A forced activation between the
+    // ask and the answer leaves the page on neither — it is showing a revision this
+    // answer says nothing about, so there is no view here to install and no version to
+    // move to. Stale like the gates above rather than a fault: the reading it carries
+    // still differs from the page's, so the stream asks again with the revision the page
+    // holds now, and that answer projects it.
+    const showing = willActivate ? targetRevision : runtime.currentRevision;
+    if (!nextBrowser.views?.[String(showing)]) {
+      notifyChangedData();
+      return;
+    }
     const priorEvents = runtime.events;
     const priorBrowser = runtime.browser;
     const priorStatePhase = runtime.statePhase;

@@ -55,6 +55,7 @@ from render_support import (
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     WRAP_TOP,
+    _traffic,
     _until,
     actions,
     author_test_widget,
@@ -251,6 +252,75 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         "el => el.style.getPropertyValue('--lf-head').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
+    assert errors == []
+    page.close()
+
+
+def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_broken(
+    browser, serve
+):
+    """A read can outlive the revision it named and come back to a page that has moved.
+
+    An answer carries the view of the revision its request named and of the active one
+    the page may activate into, and of no other. A press that activates while such a read
+    is in the air therefore leaves the page standing on a revision the answer says nothing
+    about, and composition holds it from taking the newer one instead. That is a stale
+    answer rather than a broken page: nothing is applied, nothing is reported, and the
+    next read — asked on the revision the page now stands on — carries it forward.
+    """
+    version_url = serve(LIVE_V1)
+    page, errors = open_page(browser, live_url(version_url))
+    page.locator(".lf-comments").click()
+    general = page.locator(".lf-general textarea")
+    general.fill("Do not replace the page under these words.")
+
+    # One read, held open while it still names the first revision. Releasing it below is
+    # what sends it, so the server answers it against the log and versions of that
+    # moment while the request still asks for the revision the page has since left.
+    held = []
+
+    def hold_the_first_read(route):
+        if held:
+            route.continue_()
+        else:
+            held.append(route)
+
+    page.route("**/api/state*", hold_the_first_read)
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
+
+    # The chip's press moves the page to the second revision under that held read, and
+    # the reader goes on composing, so the third revision arrives as news the page holds.
+    told(page)
+    page.locator(".lf-latest-chip").click()
+    expect(page).to_have_title("Live second")
+    general.focus()
+    expect(general).to_be_focused()
+    (serve.page_dir / "index.html").write_text(LIVE_V3)
+    told(page)
+    expect(page).to_have_title("Live second")
+
+    assert held, "the positive control did not hold a read taken on the first revision"
+    heard = _traffic(page).heard
+    held.pop(0).continue_()
+    _until(page, lambda t: t.heard > heard, "heard the answer it asked for on r1")
+    # That delivery carries the application to its end: the one thing it waits for is the
+    # incoming document, which the polls under the hold have already fetched and kept. So
+    # the page's next pass is after it, and this waits for one.
+    ticked(page)
+    expect(page).to_have_title("Live second")
+    assert errors == []
+    assert [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ] == [], "the page reported a stale answer as a fault"
+
+    # Nothing about the drop cost the page the version it was holding.
+    general.fill("")
+    page.locator("#live-reading").click()
+    told(page)
+    expect(page).to_have_title("Live third")
+    assert "/versions/" not in page.url
     assert errors == []
     page.close()
 

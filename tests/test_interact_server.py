@@ -42,6 +42,7 @@ from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
+from leaf import server as server_model
 from leaf import service as service_model
 
 
@@ -1444,7 +1445,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
             "lifetime": "standing",
         },
     )
-    access = service_model.page_access(page_dir, "box.tailnet.example")
+    access = server_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
     assert access["port"] == 41234
     assert access["lifetime"] == "standing"
@@ -1817,13 +1818,13 @@ def test_a_page_is_reached_where_the_ssh_session_reached_this_machine(
     already used rather than a hostname guessed from this end. The server binds that
     address alone: the open port faces only the network the session crossed."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    access = service_model.page_access(page_dir)
+    access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("10.20.30.40", "10.20.30.40")
 
 
 def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
-    access = service_model.page_access(page_dir)
+    access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
 
 
@@ -1836,7 +1837,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     families and goes in the URL as given. Derivation stays in memory until the
     server-lease winner records it."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    stated = service_model.page_access(page_dir, host="devbox.corp.example")
+    stated = server_model.page_access(page_dir, host="devbox.corp.example")
     assert (stated["host"], stated["bind"]) == ("devbox.corp.example", "::")
     service = {
         **stated,
@@ -1845,7 +1846,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         "lifetime": "standing",
     }
     files_model.write_json(page_dir / "service.json", service)
-    assert service_model.page_access(page_dir) == service
+    assert server_model.page_access(page_dir) == service
 
 
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
@@ -1856,10 +1857,10 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     host:port."""
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
         with pytest.raises(SystemExit):
-            service_model.page_access(page_dir, host=junk)
+            server_model.page_access(page_dir, host=junk)
     assert not (page_dir / "service.json").exists()
 
-    assert service_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
+    assert server_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
 
 def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
@@ -1918,8 +1919,8 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     user's browser has been polling one URL since it died, so a fresh address or
     key there would leave the page it reopens talking to nothing."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    recorded = service_model.page_access(page_dir)
-    minted = service_model.host_key()
+    recorded = server_model.page_access(page_dir)
+    minted = server_model.host_key()
     service = {
         **recorded,
         "port": 41234,
@@ -1929,8 +1930,8 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     files_model.write_json(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
-    assert service_model.page_access(page_dir) == service
-    assert service_model.host_key() == minted
+    assert server_model.page_access(page_dir) == service
+    assert server_model.host_key() == minted
 
 
 def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
@@ -2090,7 +2091,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
     )
-    key = service_model.host_key()
+    key = server_model.host_key()
 
     servers = [
         hosting_model.LeafHTTPServer(
@@ -2303,11 +2304,9 @@ def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
 def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     """A v6 address is colons all the way down, and the authority separates its port
     with one too."""
+    assert server_model.page_url("fd00::1", 41999, "k") == "http://[fd00::1]:41999/?t=k"
     assert (
-        service_model.page_url("fd00::1", 41999, "k") == "http://[fd00::1]:41999/?t=k"
-    )
-    assert (
-        service_model.page_url("10.20.30.40", 41999, "k")
+        server_model.page_url("10.20.30.40", 41999, "k")
         == "http://10.20.30.40:41999/?t=k"
     )
 

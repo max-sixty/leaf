@@ -13,11 +13,11 @@ from .hosting import start_server
 from .passages import active_enclosing
 from .registry import RegistryError, described, load_registry
 from .revisioning import activate_source
+from .server import running_server
 from .service import (
     PageTransaction,
     claim_page,
     owned_pages,
-    running_server,
     take_waiter_lease,
     unacknowledged,
     waiter_lease_path,

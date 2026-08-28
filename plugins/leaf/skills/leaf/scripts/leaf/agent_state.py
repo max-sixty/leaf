@@ -30,7 +30,8 @@ from .projection import (
 from .registry import described, require_registry
 from .revisioning import activate_source
 from .served_state import presence
-from .service import PageTransaction, running_server, unacknowledged
+from .server import running_server
+from .service import PageTransaction, unacknowledged
 from .validation import thread_state
 
 

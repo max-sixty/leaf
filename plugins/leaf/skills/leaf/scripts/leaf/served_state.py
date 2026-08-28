@@ -18,13 +18,13 @@ from .files import (
 )
 from .host import state_home
 from .registry import layer_generation
+from .server import running_server
 from .service import (
     claim_is_active,
     claim_path,
     claim_records,
     claim_update_sources,
     page_claim,
-    running_server,
     unacknowledged,
     wait_is_live,
 )

@@ -15,8 +15,9 @@ The main owners are:
   and their standing readings;
 - `asks`: declaration-driven page and thread request projections;
 - `host`: local paths, process readings, host identity, and session lifetime;
-- `session`, `service`, `hosting`, and `hooks`: page ownership, server lifetime,
-  and leases;
+- `service`: page claims, serialized transactions, and leases;
+- `server` and `hosting`: server address and lifetime state, and the HTTP process;
+- `session` and `hooks`: wait delivery and host lifecycle;
 - `served_state` and `http`: browser-facing state readings and HTTP transport;
 - `registry` and `layer`: registry storage, layer composition, and package commands;
 - `vendoring`: page initialization, layer transitions, and atomic installation;

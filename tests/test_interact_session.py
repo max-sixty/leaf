@@ -51,6 +51,7 @@ from leaf import layer as layer_model
 from leaf import registry as registry_model
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import validation as validation_model
@@ -1300,7 +1301,7 @@ def test_wait_restarts_a_server_that_died_under_it(
     )
     comment_once_served(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
-    info = service_model.running_server(page_dir)
+    info = server_model.running_server(page_dir)
     # The revived server has to answer on the URL it published, key included:
     # the user's browser has been polling that address since it died.
     assert info
@@ -1364,7 +1365,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     assert "the leaf ended" not in first_err
     session = service_model.page_claim(page)
     assert session["id"] == "replacement"
-    assert service_model.running_server(page) is None
+    assert server_model.running_server(page) is None
 
 
 def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
@@ -1403,7 +1404,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
 
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
     assert files_model.read_json(page / "service.json")["enabled"] is True
-    assert service_model.running_server(page) is None
+    assert server_model.running_server(page) is None
 
     os.write(
         writer,
@@ -1421,7 +1422,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
     assert waiter.returncode == 2, f"{out}{err}"
     assert "this session no longer owns it" in err
     assert service_model.page_claim(page)["released"] is not None
-    assert service_model.running_server(page) is None
+    assert server_model.running_server(page) is None
     # SessionEnd releases ownership only. The FIFO remains the same status path;
     # lifecycle code did not replace it with an authored idle state.
     assert status_path.is_fifo()
@@ -1465,14 +1466,14 @@ def test_wait_ends_when_the_leaf_does(page_dir):
     serving(page_dir, 1)
     session_model.cmd_status(page_dir, "idle", "the page is done")
     assert session_model.cmd_wait(page_dir) == 2
-    assert service_model.running_server(page_dir)
+    assert server_model.running_server(page_dir)
 
     # And where SessionEnd idled the page and stopped its server both, a watcher
     # still winding down must not put it straight back up. Dropping the lease is
     # what makes the server read as dead.
     HELD_LEASES.pop().close()
     assert session_model.cmd_wait(page_dir) == 2
-    assert service_model.running_server(page_dir) is None
+    assert server_model.running_server(page_dir) is None
 
 
 def test_one_wait_watches_every_page_the_session_holds(
@@ -2958,7 +2959,7 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     session_model.cmd_status(claimed, "waiting", "")
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "s1"})
     deadline = time.time() + 5
-    while service_model.running_server(claimed):
+    while server_model.running_server(claimed):
         assert time.time() < deadline, "the unclaimed session server stayed up"
         time.sleep(0.05)
     assert files_model.read_json(claimed / "status.json")["state"] == "waiting"
@@ -2989,13 +2990,13 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     # Longer than the reaper's grace, so a server that was going to retire on the
     # dead pid has had the chance.
     time.sleep(schema_model.ORPHAN_GRACE_SECS + 0.5)
-    assert service_model.running_server(page_dir)
+    assert server_model.running_server(page_dir)
     assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
     assert served_state_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
     deadline = time.time() + 5
-    while service_model.running_server(page_dir):
+    while server_model.running_server(page_dir):
         assert time.time() < deadline, "the deleted job's server stayed up"
         time.sleep(0.05)
     assert service_model.owned_pages("bg-job") == []
@@ -3067,7 +3068,7 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     url = started.stdout.strip()
     assert url.startswith("http://127.0.0.1:")
     assert "session server" in started.stderr
-    info = service_model.running_server(page_dir)
+    info = server_model.running_server(page_dir)
     assert info and info["url"] == url
     # The child claims only after its refusal and bind checks, which is what lets
     # the loop's hooks find the session's pages without a failed start taking one.
@@ -3240,7 +3241,7 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(
     assert files_model.read_json(page_dir / "status.json")["detail"] == (
         "successor is reviewing"
     )
-    assert service_model.running_server(page_dir)
+    assert server_model.running_server(page_dir)
 
 
 def test_server_stop_waits_for_the_live_server_to_release_its_lease(
@@ -3280,14 +3281,14 @@ def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_s
     server = standing_server(page_dir)
     service = files_model.read_json(page_dir / "service.json")
     connection = http.client.HTTPConnection(service["host"], service["port"])
-    connection.request("GET", f"/api/state?t={service_model.host_key()}")
+    connection.request("GET", f"/api/state?t={server_model.host_key()}")
     response = connection.getresponse()
     assert response.status == 200
     response.read()
     accepted = connection.sock
     accepted.sendall(
         (
-            f"GET /api/state?t={service_model.host_key()} HTTP/1.1\r\n"
+            f"GET /api/state?t={server_model.host_key()} HTTP/1.1\r\n"
             f"Host: {service['host']}\r\n"
         ).encode()
     )
@@ -3364,7 +3365,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     watch obligation and nothing else, so the session's end must take down neither the
     process it didn't start nor a leaf that outlives it."""
     server = standing_server(page_dir)
-    launched = service_model.running_server(page_dir)
+    launched = server_model.running_server(page_dir)
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
 
     # A session picks the page up, the way `leaf wait` does.
@@ -3386,7 +3387,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     hooks_model.cmd_hook({"hook_event_name": "SessionEnd", "session_id": "later"})
 
     # The synchronous hook left the standing service enabled and live.
-    assert service_model.running_server(page_dir) == launched
+    assert server_model.running_server(page_dir) == launched
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
     assert service_model.page_claim(page_dir)["released"] is not None
     assert page_dir not in service_model.owned_pages("later")

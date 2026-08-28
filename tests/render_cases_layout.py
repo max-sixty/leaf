@@ -1607,7 +1607,7 @@ RINGS_DRAWN = f"""async () => {{
             `its ${{side}} edge is ${{Math.round(by * 10) / 10}}px outside ` + who
             + ` (ring ${{at(ring)}} vs band ${{at(band)}})`;
     }};
-    // `clipped` in anchors.js is this walk, and this is its shape: from the box itself
+    // `clipped` in runtime/geometry.js is this walk, and this is its shape: from the box itself
     // rather than its parent, skipping the box's own band because an element is not clipped
     // by its own overflow, and stopping at the first fixed box. Its comment records what
     // starting at the parent cost — "the question of every ancestor of a fixed box and

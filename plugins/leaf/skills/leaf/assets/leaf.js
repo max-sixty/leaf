@@ -267,6 +267,7 @@ import {
   uiInside,
   wrote,
 } from "./runtime/passages.js";
+import { createViewContinuity, VIEW_KEY } from "./runtime/view-continuity.js";
 import { textUnits } from "./runtime/text-alignment.js";
 import {
   ago,
@@ -3181,6 +3182,7 @@ latestChip.onclick = () => goActive();
 // (restatement_errors), not something inferred here from silence.
 let conversationRuntime;
 let anchorRuntime;
+let viewRuntime;
 
 function buildThreads(...args) {
   return conversationRuntime.buildThreads(...args);
@@ -3226,13 +3228,13 @@ function showThread(...args) {
 }
 
 function blocksOnScreen(...args) {
-  return anchorRuntime.blocksOnScreen(...args);
+  return viewRuntime.blocksOnScreen(...args);
 }
 function captureView(...args) {
-  return anchorRuntime.captureView(...args);
+  return viewRuntime.captureView(...args);
 }
 function restoreView(...args) {
-  return anchorRuntime.restoreView(...args);
+  return viewRuntime.restoreView(...args);
 }
 function sectionOf(...args) {
   return anchorRuntime.sectionOf(...args);
@@ -3526,7 +3528,6 @@ updateRuntime = createUpdates(runtime, {
 anchorRuntime = createAnchors({
   DATUM,
   SCROLL,
-  TEXT_BLOCK,
   actionAnchor: fabAnchorAt,
   activateVisual,
   aimBox,
@@ -3556,7 +3557,6 @@ anchorRuntime = createAnchors({
   inChrome,
   inUi,
   inspectEl,
-  landedAt,
   offer,
   pageQueryAll,
   pageScroller,
@@ -3571,9 +3571,7 @@ anchorRuntime = createAnchors({
   refreshAction: refreshFab,
   registry,
   reveal,
-  runtime,
   scrollerFor,
-  setLanded,
   setPanel,
   settledAway,
   tagsDeclaring,
@@ -3583,7 +3581,23 @@ anchorRuntime = createAnchors({
   withdraw,
   worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE } = anchorRuntime;
+const { ITEM, NOTE } = anchorRuntime;
+
+viewRuntime = createViewContinuity({
+  TEXT_BLOCK,
+  cut,
+  inChrome,
+  landedAt,
+  pageScroller,
+  pageText,
+  quoteFrom,
+  rangeOf,
+  resolveAnchor,
+  reveal,
+  runtime,
+  setLanded,
+  textNodesUnder,
+});
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });

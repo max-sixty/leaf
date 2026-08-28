@@ -120,7 +120,8 @@ export function createNavigation({
   // scrollTo's smooth takes three times as long over the same distance and has no dial,
   // which is what read as gradual when the step rode it. So the runtime drives the step
   // itself: PAGE_MS of easing out, each write `instant` rather than `auto` since a page is
-  // free to set `scroll-behavior: smooth` on the box it scrolls (jumpBy says the same) and
+  // free to set `scroll-behavior: smooth` on the box it scrolls (moveScrollerBy says the
+  // same) and
   // a glide built from smooth writes would never land. A press mid-flight retargets from
   // the goal, so two quick presses move exactly a page; the goal is clamped, so pressing on
   // at the foot banks no debt for u to press back through; and the step stands down the

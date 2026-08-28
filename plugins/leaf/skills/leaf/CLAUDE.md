@@ -73,8 +73,8 @@ rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
 guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
-`runtime/scrolling.js` owns the document scroller identity and the gutter its bar
-takes;
+`runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
+and the gutter its bar takes;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
@@ -86,6 +86,8 @@ dynamic widget imports, and initial settlement;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
 `runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
+`runtime/view-continuity.js` owns semantic reading landmarks across authored-document
+replacement and supplies the page-block reading used to start directional walks;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping;
 `runtime/navigation.js` owns reader travel and scroller selection;
@@ -1069,7 +1071,7 @@ without closing the thread.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
-sideways scroller, then `jumpBy` glides the exact mark to its final position in
+sideways scroller, then `moveScrollerBy` glides the exact mark to its final position in
 the region that holds it. The travel owns no standing or arrival state. Focus
 already supplies the durable answer through `paintStanding`, and a transient
 page effect does not observe, restart, or reconcile across the browser's

@@ -12,6 +12,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    COMMAND_SUBJECTS,
     PAGE,
     ROOT,
     _report,
@@ -37,7 +38,9 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.registry import storage as registry_storage
+from leaf.structure import parse_structure
 from leaf.validation import compatibility as validation_model
+from leaf.validation.instances import reference_errors
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -172,6 +175,19 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
         )
         == []
     )
+    request = (
+        '<lf-operations id="host-request" target="goal" worker="worker" '
+        'worktree="tree" label="Restart?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert (
+        fragment_errors(
+            f'<lf-ask id="ask-request"><h2>Recover it</h2>{request}</lf-ask>',
+            registry,
+        )
+        == []
+    )
 
     # Evidence can quote another request-shaped widget without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
@@ -186,7 +202,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     empty = fragment_errors(
         '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
     )
-    assert "an Ask must frame exactly one x-awaits widget, found none" in " ".join(
+    assert "an Ask must frame exactly one declared ask source, found none" in " ".join(
         empty
     )
 
@@ -194,8 +210,54 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
         f'<lf-ask id="ask-crowded">{first}{second}</lf-ask>', registry
     )
     message = " ".join(crowded)
-    assert "an Ask must frame exactly one x-awaits widget" in message
+    assert "an Ask must frame exactly one declared ask source" in message
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
+
+
+def test_a_request_holder_offers_at_least_one_command(page_dir):
+    """A ready request seat cannot be an Ask the reader has no way to answer."""
+    registry = registry_storage.load_registry(page_dir)
+    empty = (
+        '<lf-operations id="host-request" target="goal" worker="worker" '
+        'worktree="tree" label="Restart?"></lf-operations>'
+    )
+
+    assert "an x-request holder must offer at least one declared verb" in " ".join(
+        fragment_errors(empty, registry)
+    )
+    duplicate = (
+        '<lf-operations id="host-request" target="goal" worker="worker" '
+        'worktree="tree" label="Restart?">'
+        '<lf-operation verb="restart"><strong>Restart cleanly</strong></lf-operation>'
+        '<lf-operation verb="restart"><strong>Restart in place</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert "must offer each verb once; repeated ['restart']" in " ".join(
+        fragment_errors(duplicate, registry)
+    )
+
+
+def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
+    """Existing ids are insufficient when a typed host command swaps its subjects."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = parse_structure(
+        '<lf-command id="hub">'
+        '<lf-task id="goal" status="active"><strong>Goal</strong>'
+        '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+        '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
+        "</lf-agent>"
+        '<lf-operations id="commands" target="worker" worker="tree" '
+        'worktree="goal" label="Do it">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert len(errors) == 3
+    assert "$command.widgets widget where role='goal'" in errors[0]
+    assert "$command.widgets widget where role='worker'" in errors[1]
+    assert "$command.widgets widget where role='evidence'" in errors[2]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -519,6 +581,53 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["author"] == "claude"
     assert event["text"] == "See:"
     assert event["markup"].startswith("<lf-diagram")
+
+
+def test_reply_validates_typed_references_against_the_page(page_dir):
+    """A frozen request must not enter the log already unable to pass POST."""
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
+    publish(page_dir, version=2)
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
+    )
+
+    def reply(markup):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c1",
+                "--text",
+                "Choose:",
+                "--markup",
+                markup,
+            ],
+        )
+
+    swapped = reply(
+        '<lf-operations id="commands" target="worker" worker="tree" '
+        'worktree="goal" label="Next">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert swapped.exit_code != 0
+    assert "where role='goal'" in swapped.output
+
+    valid = reply(
+        '<lf-operations id="commands" target="goal" worker="worker" '
+        'worktree="tree" label="Next">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert valid.exit_code == 0, valid.output
 
 
 def test_a_version_response_cannot_take_an_agent_reply(page_dir):

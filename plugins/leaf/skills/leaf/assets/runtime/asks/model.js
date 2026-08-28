@@ -15,7 +15,13 @@ export function createAskModel({
   tagsDeclaring,
 }) {
   const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
-  const askTags = () => tagsDeclaring((entry) => entry["x-awaits"]);
+  const requestAskEntry = (el) => {
+    const request = registry[el.tagName.toLowerCase()]?.["x-request"];
+    return request?.ask ? request : null;
+  };
+  const askSourceEntry = (el) => askEntry(el) ?? requestAskEntry(el);
+  const askTags = () =>
+    tagsDeclaring((entry) => entry["x-awaits"] || entry["x-request"]?.ask);
   const askSurfaceTags = () => tagsDeclaring((entry) => entry["x-ask"]);
 
   function askSurface(el) {
@@ -24,7 +30,7 @@ export function createAskModel({
   }
 
   function askSource(el) {
-    if (askEntry(el)) return el;
+    if (askSourceEntry(el)) return el;
     const tags = askTags();
     if (!tags.length || !registry[el.localName]?.["x-ask"]) return el;
     return (

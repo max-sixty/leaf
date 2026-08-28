@@ -31,10 +31,11 @@ from .projection import (
 )
 from .registry.reactions import described
 from .registry.storage import require_registry
+from .requests import request_lifecycles, request_lifecycles_for, request_phases
 from .revisioning import activate_source
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .thread_context import thread_digest
+from .thread_context import thread_digest, thread_structure
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -122,6 +123,7 @@ def _base_state(
         "elements": [],
         "state": [],
         "updates": [],
+        "requests": request_lifecycles(page_dir, events),
         "data": stored_data,
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
@@ -167,6 +169,8 @@ def _base_state(
 def _apply_document_state(
     state: dict,
     document: _DocumentReading,
+    events: list,
+    revision: int,
     threads: dict,
     stored_data: dict,
     registry: dict,
@@ -194,6 +198,12 @@ def _apply_document_state(
     passages = page_passages(
         document.html, registry, decisions(projection.actions, registry)
     )
+    lifecycles = request_lifecycles_for(
+        events,
+        parser.lf_elements,
+        registry,
+        {"kind": "page", "revision": revision},
+    )
     state["asks"] = page_asks(
         parser,
         projection,
@@ -205,6 +215,7 @@ def _apply_document_state(
         # whose own seat conversation is with this agent is not on it: the next
         # word there is owed by the agent, and the stop hook says so.
         seats_with_agent(threads),
+        request_phases=request_phases(lifecycles),
     )
     state["lag"] = record_lag_entries(projection, byid, document.spoken, registry)
     state["measurement_lag"] = measurement_lag_entries(
@@ -287,11 +298,26 @@ def _write_page_state(
         registry,
     )
     if document is not None:
-        _apply_document_state(state, document, threads, stored_data, registry)
+        _apply_document_state(
+            state, document, events, revision, threads, stored_data, registry
+        )
+    structure = thread_structure(events)
+    thread_elements = [
+        record
+        for fragment in structure.fragments.values()
+        for record in fragment.lf_elements
+    ]
+    thread_requests = request_lifecycles_for(
+        events,
+        thread_elements,
+        registry,
+        {"kind": "thread"},
+    )
     state["asks"] += thread_asks(
         events,
         registry,
         {root for root, thread in threads.items() if thread["resolved"]},
+        request_phases=request_phases(thread_requests),
     )
     state["updates"] = canonical_updates(
         document.projection if document is not None else None,

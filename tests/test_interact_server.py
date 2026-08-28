@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import INTERACT_SCRIPT
 from interact_support import (
+    COMMAND_SUBJECTS,
     PAGE,
     TOKEN,
     check,
@@ -1166,6 +1167,397 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
 
+def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
+    """A package verb reaches the host as typed intent, never as prose the
+    coordinator has to interpret. The browser door resolves the widget against the
+    revision the reader used and validates its complete detail there."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    invalid = [
+        (
+            {
+                "target": "goal",
+                "worker": "worker",
+                "worktree": "tree",
+                "extra": "guess",
+            },
+            "detail is invalid",
+        ),
+        ({}, "detail is invalid"),
+        (
+            {"target": "other-goal", "worker": "worker", "worktree": "tree"},
+            "must match its authored `target`",
+        ),
+    ]
+    for detail, message in invalid:
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": 1,
+                    "widget": "commands",
+                    "action": "restart",
+                    "detail": detail,
+                }
+            ).encode(),
+        )
+        assert status == 400, body
+        assert message in json.loads(body)["error"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+
+    assert status == 200, body
+    request = event_model.read_events(page_dir)[-1]
+    assert request["kind"] == "request" and request["author"] == "user"
+    assert (request["widget"], request["action"], request["detail"]) == (
+        "commands",
+        "restart",
+        {"target": "goal", "worker": "worker", "worktree": "tree"},
+    )
+
+
+def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, page_dir):
+    """The package declaration names every verb the widget family can speak, while
+    the authored children name the commands this particular target offers. A crafted
+    POST must not turn a restart-only surface into a request to land the target."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "land",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+
+    assert status == 400, body
+    assert "not offered" in json.loads(body)["error"]
+    assert not [
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request"
+    ]
+
+
+def test_server_refuses_a_second_request_while_the_first_is_pending(server, page_dir):
+    """The operation holder is one atomic choice surface. Its browser lock is only
+    presentation: a stale second tab can still POST before seeing the first request,
+    so the append boundary must serialize the pending lifecycle."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    first_status, first_body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+    assert first_status == 200, first_body
+    second_status, second_body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "drop",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+
+    assert second_status == 400, second_body
+    assert "pending request" in json.loads(second_body)["error"]
+    requests = [
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request"
+    ]
+    assert [(event["action"], event["detail"]) for event in requests] == [
+        ("restart", {"target": "goal", "worker": "worker", "worktree": "tree"})
+    ]
+
+
+def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
+    server, page_dir
+):
+    """Failure makes another attempt meaningful, success closes the instruction, and
+    a later authored revision is a new surface. These are protocol facts at POST, not
+    assumptions made only by the package's current browser module."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    def ask(revision, action):
+        return fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": revision,
+                    "widget": "commands",
+                    "action": action,
+                    "detail": {
+                        "target": "goal",
+                        "worker": "worker",
+                        "worktree": "tree",
+                    },
+                }
+            ).encode(),
+        )
+
+    first_status, first_body = ask(1, "restart")
+    assert first_status == 200, first_body
+    first = event_model.read_events(page_dir)[-1]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": first["id"],
+            "status": "failed",
+            "text": "Worker lease disappeared",
+        },
+    )
+
+    retry_status, retry_body = ask(1, "drop")
+    assert retry_status == 200, retry_body
+    retry = event_model.read_events(page_dir)[-1]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": retry["id"],
+            "status": "succeeded",
+            "text": "Archived the branch",
+        },
+    )
+
+    closed_status, closed_body = ask(1, "restart")
+    assert closed_status == 400, closed_body
+    assert "already completed request" in json.loads(closed_body)["error"]
+
+    (page_dir / "versions" / "v2.html").write_text(
+        version.read_text().replace("What next?", "What next now?")
+    )
+    publish(page_dir, 2)
+    next_status, next_body = ask(2, "restart")
+    assert next_status == 200, next_body
+
+
+def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
+    server, page_dir
+):
+    """Thread markup is a frozen second document, not part of each page revision. Its
+    one-shot operation therefore remains pending when the authored page advances."""
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
+    publish(page_dir)
+    root = event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "What should happen to this branch?",
+        },
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Choose the host operation.",
+            "markup": (
+                '<lf-operations id="thread-commands" target="goal" worker="worker" '
+                'worktree="tree" label="Next">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations>"
+            ),
+        },
+    )
+
+    def ask(revision):
+        return fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": revision,
+                    "widget": "thread-commands",
+                    "action": "restart",
+                    "detail": {
+                        "target": "goal",
+                        "worker": "worker",
+                        "worktree": "tree",
+                    },
+                }
+            ).encode(),
+        )
+
+    first_status, first_body = ask(1)
+    assert first_status == 200, first_body
+    (page_dir / "versions" / "v2.html").write_text(
+        (page_dir / "versions" / "v1.html")
+        .read_text()
+        .replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    )
+    publish(page_dir, 2)
+
+    repeated_status, repeated_body = ask(2)
+    assert repeated_status == 400, repeated_body
+    assert "pending request" in json.loads(repeated_body)["error"]
+
+
+def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
+    server, page_dir
+):
+    """Frozen thread markup may point into the page, so POST checks the combined
+    document after the fragment-only door has verified its local structure."""
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
+    publish(page_dir)
+    root = event_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Act?"},
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Choose.",
+            "markup": (
+                '<lf-operations id="thread-commands" target="worker" worker="tree" '
+                'worktree="goal" label="Next">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations>"
+            ),
+        },
+    )
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "thread-commands",
+                "action": "restart",
+                "detail": {
+                    "target": "worker",
+                    "worker": "tree",
+                    "worktree": "goal",
+                },
+            }
+        ).encode(),
+    )
+
+    assert status == 400, body
+    assert "where role='goal'" in json.loads(body)["error"]
+
+
 @pytest.mark.parametrize(
     ("corrupt", "message"),
     [
@@ -1432,7 +1824,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
 def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     server, page_dir
 ):
-    """A custom scalar reads the declared roll-up, not ask containment."""
+    """A custom scalar reads the declared roll-up, including request phases."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-awaits"]["rollup"] = True
     scalar = {"type": "string", "pattern": "^[0-9]+$"}
@@ -1500,11 +1892,18 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="active">'
+            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="blocked">'
             "<strong>Task</strong>"
+            '<lf-agent id="quota-worker" state="waiting" on="quota-task">'
+            '<strong>Worker</strong><lf-worktree id="quota-tree" '
+            'source="project-worktrees"></lf-worktree></lf-agent>'
             '<lf-quota id="quota" slots="1"></lf-quota>'
             '<lf-options id="quota-intervention" choose label="Proceed?">'
             '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+            '<lf-operations id="quota-operations" target="quota-task" '
+            'worker="quota-worker" worktree="quota-tree" label="Restart?">'
+            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+            "</lf-operations>"
             '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'
@@ -1522,6 +1921,25 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "action": "increase",
         "detail": {"slots": "2"},
     }
+    # The policy choice is answered, but the ready host operation is still the
+    # reader's turn and therefore closes an action requiring the parent not to ask.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 400
+    assert "still awaiting the reader" in json.loads(body)["error"]
+
+    requested = {
+        "kind": "request",
+        "revision": revision,
+        "widget": "quota-operations",
+        "action": "restart",
+        "detail": {
+            "target": "quota-task",
+            "worker": "quota-worker",
+            "worktree": "quota-tree",
+        },
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(requested).encode())[0] == 200
+
     event_model.append_event(
         page_dir,
         {
@@ -1534,7 +1952,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         },
     )
     # The answered direct intervention takes precedence over the nested task, so the
-    # stopped parent is available while that answer stands.
+    # stopped parent is available while that answer and pending request stand.
     assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
 
     event_model.append_event(
@@ -1673,6 +2091,46 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
     events = [e for e in event_model.read_events(page_dir) if e["kind"] == "comment"]
     assert {e["text"].split()[0] for e in events} == {f"c{i}" for i in range(20)}
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
+
+
+def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monkeypatch):
+    """A request id is also an external recovery key. Mint enough entropy for
+    that job, retry an extraordinary local collision, and refuse a caller-supplied
+    duplicate rather than letting one receipt settle two events."""
+    minted = iter(["a" * 32, "a" * 32, "b" * 32])
+    widths = []
+
+    def token_hex(width):
+        widths.append(width)
+        return next(minted)
+
+    monkeypatch.setattr(event_model.secrets, "token_hex", token_hex)
+    first = event_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "first"}
+    )
+    second = event_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "second"}
+    )
+
+    assert widths == [16, 16, 16]
+    assert (first["id"], second["id"]) == ("a" * 32, "b" * 32)
+    with pytest.raises(ValueError, match="event id .* already exists"):
+        event_model.append_event(
+            page_dir,
+            {
+                "id": first["id"],
+                "kind": "request",
+                "author": "user",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            },
+        )
 
 
 def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):

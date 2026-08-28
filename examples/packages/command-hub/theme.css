@@ -89,7 +89,7 @@ lf-command > .lf-command-head { display: grid; grid-template-columns: minmax(0, 
 .lf-command-outcome > strong { font-size: var(--t-3); }
 .lf-command-outcome > span { color: var(--muted); font-size: var(--t-6); }
 .lf-command-facts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
-.lf-command-facts > a, .lf-command-facts > span,
+.lf-command-facts > a, .lf-command-facts > [role="button"], .lf-command-facts > span,
 .lf-stopped-view a, .lf-fleet-view a { border: 0; border-radius: 999px;
   padding: 3px 8px; background: var(--chip); color: var(--ink-2); font: inherit;
   font-size: var(--t-6); cursor: pointer; text-decoration: none; }
@@ -128,6 +128,26 @@ lf-command [data-lf-command-goal][data-lf-open] > [data-lf-command-worker] { dis
 lf-command [data-lf-command-goal][data-lf-held] {
   background: linear-gradient(90deg, var(--warn-tint), transparent 72%); }
 html.lf-copy lf-command [data-lf-command-goal] > [data-lf-command-worker] { display: block; }
+
+/* Host operations are a compact command set, distinct from lf-options' replayable
+ * document decisions. The prose stays authored and selectable; the trailing press is
+ * apparatus, and a linked receipt replaces its availability with a terminal account. */
+lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--sp-2); margin: var(--sp-3) 0; }
+lf-operations > [data-lf-said="label"] { grid-column: 1 / -1; color: var(--muted);
+  font: var(--t-6) var(--sans); letter-spacing: .035em; }
+lf-operation { position: relative; display: block; padding: var(--sp-3) 5.5rem var(--sp-3) var(--sp-3);
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
+  --lf-frame: 1; }
+lf-operation[recommended] { border-color: color-mix(in srgb, var(--accent) 52%, var(--rule)); }
+lf-operation[data-lf-requested] { background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
+.lf-operation-press { position: absolute; top: var(--sp-3); right: var(--sp-3); padding: 3px 8px;
+  border: 1px solid var(--rule); border-radius: 999px; color: var(--accent);
+  white-space: nowrap; }
+.lf-operation-press[aria-disabled="true"] { color: var(--muted); cursor: default; }
+.lf-operation-status { grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }
+.lf-operation-status[data-status="failed"] { color: var(--danger-ink); }
+.lf-operation-status[data-status="succeeded"] { color: var(--ok-ink); }
 
 lf-worktree { display: block; margin: var(--sp-2) 0; padding-left: var(--sp-3);
   border-left: 2px solid var(--rule); }

@@ -126,6 +126,90 @@ choice the reference does not have, such as the partly entered digits of an addr
 optional `reach` on a row or scope supplies the short place phrase shown when a command is
 not available (for example, `in an open draft editor`).
 
+## External requests and receipts
+
+Use `x-request` when a reader asks the host to perform a consequential one-shot
+operation. Leaf records and validates the instruction; it never interprets the verb or
+calls a provider. The package owns the verbs, controls, presentation, and guidance that
+tells the host how to execute and recover them.
+
+`offers` maps each direct child widget to the string-enum attribute that names its verb.
+Every live request holder must contain at least one matching direct child and may offer
+each verb only once; two differently worded controls that send the same instruction
+cannot produce distinguishable requests. When a later revision has carried out the
+instruction, remove the holder rather than leaving an empty Ask with no possible answer.
+`verbs` gives each operation a closed detail schema. Optional `bind` entries require a
+detail field to equal an authored string attribute on the holder, so a crafted event
+cannot retarget the operation. Every bound detail field and holder attribute is required,
+string-valued, and immutable through `x-state` or `x-report`; every offer attribute is a
+required string enum on its child. These constraints make the same declaration usable at
+authoring, browser, and server boundaries rather than leaving a partial bind to runtime
+guesswork.
+
+Use `x-refers` when those authored attributes point at other page objects. Its value is
+a map from attribute names to target contracts. `{}` accepts any existing element id.
+A typed contract uses `via` to name a package-owned shared registry map and `where` to
+match a declaration there:
+
+```json
+{
+  "x-refers": {
+    "target": { "via": "$command.widgets", "where": { "role": "goal" } },
+    "worker": { "via": "$command.widgets", "where": { "role": "worker" } }
+  }
+}
+```
+
+Leaf validates the generic relation; the package owns the map, roles, and participating
+widget tags. A later package can therefore add another goal or worker widget by merging
+its entry into `$command.widgets`, without changing core.
+
+Set `ask: true` when the ready operation is a question the reader must answer. Leaf then
+puts that holder in the canonical Asks projection only while its lifecycle is `ready`.
+Acceptance hands the turn to the host, so `pending` and `completed` holders leave the
+reader's list; a failed receipt returns the lifecycle to `ready` and reopens the ask. A
+parent `x-awaits.rollup` reads that same lifecycle, so nested task and header projections
+do not need package-specific request bookkeeping.
+
+```json
+{
+  "x-request": {
+    "ask": true,
+    "offers": { "lf-operation": "verb" },
+    "verbs": {
+      "restart": {
+        "detail": {
+          "type": "object",
+          "properties": { "target": { "type": "string" } },
+          "required": ["target"],
+          "additionalProperties": false
+        },
+        "bind": { "target": "target" }
+      }
+    }
+  }
+}
+```
+
+The module imports `sendRequest`, `requestAvailable`, and
+`watchRequestLifecycle` from `/runtime/widget-api.js`. The watcher receives the
+server-projected seat, ordered `{request, receipt}` attempts, latest attempt, and
+`ready`, `pending`, or `completed` phase. A failed receipt makes the seat ready again;
+a successful receipt completes it. A page holder gets a new seat in a new authored
+revision, while a holder in frozen thread markup keeps one seat for that document's
+whole lifetime.
+
+```js
+const stop = watchRequestLifecycle(this, (lifecycle) => render(lifecycle));
+if (requestAvailable(this, "restart"))
+  await sendRequest(this, "restart", { target: this.getAttribute("target") });
+```
+
+The host uses the durable request id as its idempotency and recovery key, then records
+exactly one outcome with `leaf receipt`. External evidence produced by the operation
+belongs in typed page data; the authored page changes only when the author saves the
+resulting plan revision.
+
 ## External or derived data
 
 Authored markup says what a version begins with; the event log says what readers and

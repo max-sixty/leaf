@@ -10,6 +10,7 @@ from ..events import (
 )
 from ..passages import enclosing_of, page_passages
 from ..projection import StateProjection, decisions, page_projection
+from ..requests import request_lifecycles_for, request_phases
 from .wire import _browser_projection
 
 
@@ -27,6 +28,13 @@ def _browser_document(
     )
     passages = page_passages(html, registry, decisions(projection.actions, registry))
     dropped = set(passages.retired) | set(passages.gone)
+    requests = request_lifecycles_for(
+        events,
+        parser.lf_elements,
+        registry,
+        {"kind": "page", "revision": revision},
+    )
+    phases = request_phases(requests)
     reader_asks, reader_awaiting = page_ask_projection(
         parser,
         projection,
@@ -35,6 +43,7 @@ def _browser_document(
         registry,
         dropped,
         seats_with_agent(threads),
+        request_phases=phases,
     )
     unanswered_asks, unanswered_awaiting = page_ask_projection(
         parser,
@@ -44,6 +53,7 @@ def _browser_document(
         registry,
         dropped,
         set(),
+        request_phases=phases,
     )
     within = enclosing_of(spk)
     floors = retractions(events, revision)
@@ -62,6 +72,7 @@ def _browser_document(
                 "awaiting": reader_awaiting,
                 "unanswered_awaiting": unanswered_awaiting,
             },
+            "requests": requests,
         },
         projection,
         within,

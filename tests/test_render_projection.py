@@ -3185,6 +3185,304 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
     page.close()
 
 
+def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
+    """A typed host request locks its siblings until its exact receipt arrives."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    operations = page.locator("#dedupe-operations")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
+    available = operations.evaluate(
+        """async holder => {
+          const leaf = await import('/runtime/widget-api.js');
+          return [
+            leaf.requestAvailable(holder, 'restart'),
+            leaf.requestAvailable(holder, 'land')
+          ];
+        }"""
+    )
+    assert available == [True, False]
+
+    operations.get_by_role("button", name="Restart with a fresh worker").click()
+    round_trip(page)
+    requests = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request"
+    ]
+    assert len(requests) == 1
+    request = requests[0]
+    assert (request["revision"], request["action"], request["detail"]) == (
+        1,
+        "restart",
+        {
+            "target": "parser-dedupe",
+            "worker": "w-5",
+            "worktree": "tree-w-5",
+        },
+    )
+    expect(operations).to_contain_text("restart requested · waiting for the host")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (4)")
+    expect(operations.get_by_role("button")).to_have_count(3)
+    assert operations.get_by_role("button").evaluate_all(
+        "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'true')"
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Started w-9 on the preserved branch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    expect(operations).to_contain_text(
+        "restart succeeded · Started w-9 on the preserved branch"
+    )
+    expect(page.locator(".lf-asks")).to_have_text("Asks (4)")
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "restart succeeded · Deduplicate the corpus snapshot"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
+    """A page holder's completed lifecycle does not cross a document revision,
+    and its broader x-ask region follows that same ready/pending reading."""
+    first = leaf_page(
+        "Page request scope",
+        """<lf-command id="hub"><lf-task id="goal" status="active">
+<strong>Goal</strong>
+<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
+  <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
+</lf-agent>
+<lf-ask id="command-ask"><h2>Recover this work</h2>
+  <lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="First instruction">
+    <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
+  </lf-operations>
+</lf-ask></lf-task></lf-command>""",
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    operations = page.locator("#commands")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
+    operations.get_by_role("button", name="Restart").click()
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (0)")
+    request = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request"
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Restarted",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    expect(operations).to_contain_text("restart succeeded")
+
+    stamp_page(
+        serve.page_dir,
+        first.replace("First instruction", "Second instruction"),
+        "new instruction",
+    )
+    wait_for_revision(page, 2)
+    expect(operations).to_contain_text("Second instruction")
+    expect(operations).not_to_contain_text("restart succeeded")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
+    expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
+        "aria-disabled", "false"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serve):
+    """The panel is a second document. Its operation asks while ready, hands the
+    turn to the host while pending, and keeps its completed receipt across page
+    revisions without borrowing the page holder's lifecycle."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Can you recover the dedupe branch?",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Choose the host operation.",
+            "markup": (
+                '<lf-operations id="thread-commands" target="parser-dedupe" '
+                'worker="w-5" worktree="tree-w-5" '
+                'label="What should the host do?">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations>"
+            ),
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (6)")
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    operations = page.locator("#thread-commands")
+    operations.get_by_role("button", name="Restart").click()
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
+    request = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "thread-commands"
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Restarted from the preserved branch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    expect(operations).to_contain_text("restart succeeded")
+
+    stamp_page(
+        serve.page_dir,
+        COMMAND_HUB_PAGE.replace("week 3 of 6", "week 4 of 6"),
+        "advance the authored plan",
+    )
+    wait_for_revision(page, 2)
+    expect(operations).to_contain_text("restart succeeded")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
+    assert errors == []
+    page.close()
+
+
+def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, serve):
+    """A receipt records the host outcome; it does not rewrite the page's plan."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    page.locator("#dedupe-operations").get_by_role(
+        "button", name="Park it for tomorrow"
+    ).click()
+    round_trip(page)
+    request = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
+    )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Parked the preserved branch",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    stopped = page.locator("#hub-plan > .lf-stopped-view")
+    expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
+    expect(page.locator("#atlas-record")).to_contain_text(
+        "park succeeded · Deduplicate the corpus snapshot"
+    )
+
+    parked = re.sub(
+        r'(<lf-task\s+id="parser-dedupe"\s+)status="blocked"\s+'
+        r'stopped-at="[^"]+"',
+        r'\1status="planned"',
+        COMMAND_HUB_PAGE,
+        count=1,
+    )
+    parked = re.sub(
+        r'<lf-operations\s+id="dedupe-operations".*?</lf-operations>',
+        "",
+        parked,
+        count=1,
+        flags=re.DOTALL,
+    )
+    assert parked != COMMAND_HUB_PAGE
+    stamp_page(serve.page_dir, parked, "parked branch")
+    wait_for_revision(page, 2)
+    expect(stopped).not_to_contain_text("Deduplicate the corpus snapshot")
+    expect(page.locator("#dedupe-operations")).to_have_count(0)
+    expect(page.locator("#parser-dedupe")).to_have_attribute("status", "planned")
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_host_request_reopens_its_commands_without_changing_the_plan(
+    browser, serve
+):
+    """Failure makes another attempt available and leaves authored state alone."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    operations = page.locator("#dedupe-operations")
+    operations.get_by_role("button", name="Park it for tomorrow").click()
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (4)")
+    request = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
+    )
+
+    page.keyboard.press("z")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "undo"
+    ]
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "failed",
+            "--text",
+            "Branch is protected by another review",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    expect(operations).to_contain_text(
+        "park failed · Branch is protected by another review"
+    )
+    expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
+    expect(operations.get_by_role("button")).to_have_count(3)
+    assert operations.get_by_role("button").evaluate_all(
+        "buttons => buttons.every(button => button.getAttribute('aria-disabled') === 'false')"
+    )
+    expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text(
+        "Deduplicate the corpus snapshot"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     """An input action discharges the request live; the honoring version removes its
     authored `needed` condition, so clearing record debt cannot turn the input back into
@@ -3219,38 +3517,6 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     page.close()
 
 
-def test_command_hub_an_absorbed_intervention_does_not_stop_again(browser, serve):
-    """Pending paint is record debt, not whether an intervention is answered. Once a
-    version carries the standing choice, the goal stays dispositioned even though its
-    provisional mark correctly leaves."""
-    url = serve(COMMAND_HUB_EXAMPLE)
-    d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
-    page.locator("#dedupe-snooze").get_by_role(
-        "checkbox", name=re.compile("choose one: Park it for tomorrow")
-    ).click()
-    round_trip(page)
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
-
-    recorded = COMMAND_HUB_PAGE.replace(
-        '<lf-option id="dedupe-snooze" for="parser-dedupe">',
-        '<lf-option id="dedupe-snooze" for="parser-dedupe" chosen>',
-    )
-    stamp_page(d, recorded, "recorded snooze")
-    wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
-    expect(page.locator("#hub-plan > .lf-stopped-view")).not_to_contain_text(
-        "Deduplicate the corpus snapshot"
-    )
-    expect(page.locator("#dedupe-snooze")).not_to_have_attribute("data-lf-pending")
-    expect(page.locator("#parser-dedupe > .lf-task-meta")).not_to_contain_text(
-        "decision"
-    )
-    assert errors == []
-    page.close()
-
-
 def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):
     """G's primary contract: one plan supplies progress, stopped work, live
     workers, and worktree evidence. A worker report moves that reading rather than
@@ -3260,8 +3526,8 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     stale_report(d, "w-2", "stalled without a new commit", 3)
     page, errors = open_page(browser, url)
     head = page.locator("#hub-plan > .lf-command-head")
-    expect(head).to_contain_text("7/18 leaves")
-    expect(head).to_contain_text("4 running")
+    expect(head).to_contain_text("6/18 leaves")
+    expect(head).to_contain_text("2 running")
     expect(head).to_contain_text("5 workers")
     expect(head).to_contain_text("1 quiet")
     expect(head).to_contain_text("5 stopped")
@@ -3271,10 +3537,25 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     )
     expect(page.locator("#hub-plan > .lf-fleet-view li")).to_have_count(5)
     expect(page.locator("#hub-plan > .lf-fleet-view")).not_to_contain_text("w-5")
-    expect(page.locator("#hub-plan > .lf-command-head a")).to_have_count(4)
+    stopped = page.locator("#hub-plan > .lf-stopped-view li")
+    expect(stopped).to_have_count(5)
+    assert stopped.evaluate_all("rows => rows.map(row => row.dataset.lfGoal)") == [
+        "schema-choice",
+        "parser-dedupe",
+        "parser-zero",
+        "ledger-fixture",
+        "api-shape",
+    ]
+    expect(page.locator("#hub-plan > .lf-stopped-view")).not_to_contain_text(
+        "age unknown"
+    )
+    expect(page.locator('#hub-plan > .lf-command-head [role="button"]')).to_have_count(
+        4
+    )
     expect(
         page.locator(
-            "#hub-plan > .lf-command-head a:not([data-lf-offer][data-lf-said])"
+            '#hub-plan > .lf-command-head [role="button"]'
+            ":not([data-lf-offer][data-lf-said])"
         )
     ).to_have_count(0)
     expect(
@@ -3286,7 +3567,25 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
 
     coordinator = page.locator("#atlas-lead")
     expect(coordinator).to_be_visible()
-    head.get_by_role("link", name="4 running").click()
+    head.get_by_role("button", name="2 running").click()
+    fleet = page.locator("#hub-plan > .lf-fleet-view")
+    expect(fleet).to_have_attribute("open", "")
+    expect(fleet.locator("summary")).to_be_in_viewport()
+    expect(fleet).to_contain_text("Running · 2 workers")
+    expect(fleet.locator("li")).to_have_count(2)
+    expect(fleet).to_contain_text("atlas-lead")
+    expect(fleet).to_contain_text("w-1")
+    head.get_by_role("button", name="5 workers").click()
+    expect(fleet).to_contain_text("Fleet · 5 live workers")
+    expect(fleet.locator("li")).to_have_count(5)
+    head.get_by_role("button", name="1 quiet").click()
+    expect(fleet).to_contain_text("Quiet · 1 worker")
+    expect(fleet.locator("li")).to_have_count(1)
+    expect(fleet).to_contain_text("w-2")
+    head.get_by_role("button", name="5 stopped").click()
+    stopped_view = page.locator("#hub-plan > .lf-stopped-view")
+    expect(stopped_view).to_have_attribute("open", "")
+    expect(stopped_view.locator("summary")).to_be_in_viewport()
     expect(coordinator).to_be_visible()
     workers = page.locator("#goal-parser > lf-agent")
     expect(workers.first).to_be_hidden()
@@ -3314,7 +3613,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     )
     assert sent.exit_code == 0, sent.output
     told(page)
-    expect(head).to_contain_text("8/18 leaves")
+    expect(head).to_contain_text("7/18 leaves")
     expect(page.locator("#goal-api > .lf-task-meta")).to_contain_text("1/3")
 
     page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
@@ -3329,43 +3628,6 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    assert errors == []
-    page.close()
-
-
-def test_command_hub_disposition_refolds_stopped_work(browser, serve):
-    """The stopped reading is derived, not a second list to maintain. Recording a stall
-    disposition removes that goal from the oldest-first reading; undo restores the
-    same goal, order, and blast-radius evidence from the standing log."""
-    url = serve(COMMAND_HUB_EXAMPLE)
-    page, errors = open_page(browser, url)
-    stopped = page.locator("#hub-plan > .lf-stopped-view")
-    stopped.locator("summary").click()
-    page.evaluate("""() => {
-      for (const goal of document.querySelectorAll('[stopped-at]'))
-        goal.setAttribute('stopped-at', '2030-01-01T00:00:00Z');
-      document.getElementById('schema-choice')
-        .setAttribute('stopped-at', '2026-08-21T08:00:00+02:00');
-      document.getElementById('api-shape')
-        .setAttribute('stopped-at', '2026-08-21T07:00:00-07:00');
-    }""")
-    expect(stopped.locator("li").first).to_contain_text("Choose the additive schema")
-    expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
-
-    page.locator("#dedupe-snooze").get_by_role(
-        "checkbox", name=re.compile("choose one: Park it for tomorrow")
-    ).click()
-    round_trip(page)
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("4 stopped")
-    expect(stopped).not_to_contain_text("Deduplicate the corpus snapshot")
-    expect(page.locator("#atlas-record")).to_contain_text(
-        "Selected: Park it for tomorrow"
-    )
-
-    page.keyboard.press("z")
-    round_trip(page)
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("5 stopped")
-    expect(stopped).to_contain_text("Deduplicate the corpus snapshot")
     assert errors == []
     page.close()
 
@@ -3445,6 +3707,39 @@ def test_command_hub_keeps_a_real_goal_ask_outside_a_quoted_decision(browser, se
     expect(page.get_by_role("button", name="Asks (1)")).to_be_visible()
     expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("1 stopped")
     expect(page.locator("#hub-plan > .lf-stopped-view")).to_contain_text("Blocked goal")
+    assert errors == []
+    page.close()
+
+
+def test_command_hub_quotes_host_operations_without_offering_a_request(browser, serve):
+    command = """<lf-command id="hub-plan" label="Quoted operation">
+      <lf-task id="goal" status="active"><strong>Active goal</strong>
+        <lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>
+          <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
+        </lf-agent>
+        <lf-specimen id="sample"><lf-operations id="example-commands" target="goal"
+          worker="worker" worktree="tree"
+          label="Example host operation">
+          <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
+        </lf-operations></lf-specimen>
+      </lf-task>
+    </lf-command>"""
+    html = re.sub(
+        r"<lf-command\b.*?</lf-command>",
+        command,
+        COMMAND_HUB_PAGE,
+        count=1,
+        flags=re.DOTALL,
+    )
+    page, errors = open_page(browser, serve(html))
+
+    expect(page.locator("#example-commands .lf-operation-press")).to_have_count(0)
+    expect(page.locator(".lf-asks")).to_be_hidden()
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request"
+    ]
     assert errors == []
     page.close()
 
@@ -3545,9 +3840,9 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
                 "anchor": {"section": target},
             },
         )["id"]
-        for target in ("schema-land", "w-1", "lf-tree-w-1-diff")
+        for target in ("schema-operations", "w-1", "lf-tree-w-1-diff")
     }
-    page, errors = open_page(browser, f"{url}#schema-land")
+    page, errors = open_page(browser, f"{url}#schema-operations")
     page.emulate_media(reduced_motion="reduce")
     # Initial anchor painting already reveals its evidence. Close both disclosures
     # again so the quote gesture, rather than page startup, is the single changed
@@ -3563,26 +3858,28 @@ def test_command_hub_reveals_collapsed_worker_evidence_from_threads(browser, ser
     expect(page.locator("#w-1")).to_be_hidden()
     page.locator(".lf-comments").click()
 
-    # This option is already readable and is a sibling of the goal's worker. Returning
-    # to it neither needs the worker nor a new reading position.
-    schema = page.locator("#schema-land")
+    # This operation surface is already readable and is a sibling of the goal's worker.
+    # Returning to it neither needs the worker nor a new reading position.
+    schema = page.locator("#schema-operations")
     schema.scroll_into_view_if_needed()
     before = page.evaluate(
         """() => ({
           scroll: document.body.scrollTop,
-          top: document.querySelector('#schema-land').getBoundingClientRect().top,
-          bottom: document.querySelector('#schema-land').getBoundingClientRect().bottom,
+          top: document.querySelector('#schema-operations').getBoundingClientRect().top,
+          bottom: document.querySelector('#schema-operations').getBoundingClientRect().bottom,
           banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
           height: innerHeight,
         })"""
     )
     assert before["top"] > before["banner"]
     assert before["bottom"] < before["height"]
-    page.locator(f'.lf-thread[data-id="{threads["schema-land"]}"] .lf-quote').click()
+    page.locator(
+        f'.lf-thread[data-id="{threads["schema-operations"]}"] .lf-quote'
+    ).click()
     after = page.evaluate(
         """() => ({
           scroll: document.body.scrollTop,
-          top: document.querySelector('#schema-land').getBoundingClientRect().top,
+          top: document.querySelector('#schema-operations').getBoundingClientRect().top,
         })"""
     )
     assert after["scroll"] == pytest.approx(before["scroll"], abs=0.5)
@@ -3624,7 +3921,6 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     round_trip(page)
     expect(goal).to_have_attribute("data-lf-held")
     expect(goal.locator(":scope > .lf-task-meta")).to_contain_text("paused by you")
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("6 stopped")
     expect(page.locator("#atlas-record")).to_contain_text(
         "sent and paused · Replace the XML parser (goal-parser)"
     )
@@ -3654,7 +3950,6 @@ def test_command_hub_send_and_pause_is_one_thread_fold(browser, serve):
     ).click()
     round_trip(page)
     expect(goal).not_to_have_attribute("data-lf-held")
-    expect(page.locator("#hub-plan > .lf-command-head")).to_contain_text("5 stopped")
 
     page.keyboard.press("z")
     round_trip(page)
@@ -3687,13 +3982,19 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(browser, s
             "ts": (datetime.now().astimezone() - timedelta(hours=3)).isoformat(),
         },
     )
-    stamp_page(d, COMMAND_HUB_PAGE, "absorbed stop")
+    stalled = re.sub(
+        r'(<lf-task\s+id="parser-dedupe"\s+)status="blocked"',
+        r'\1status="stalled"',
+        COMMAND_HUB_PAGE,
+    )
+    assert stalled != COMMAND_HUB_PAGE
+    stamp_page(d, stalled, "absorbed stop")
     active = re.sub(
         r'(<lf-task\s+id="parser-dedupe"\s+)status="stalled"',
         r'\1status="active"',
-        COMMAND_HUB_PAGE,
+        stalled,
     )
-    assert active != COMMAND_HUB_PAGE
+    assert active != stalled
     stamp_page(d, active, "work resumed")
     events_model.append_event(
         d,

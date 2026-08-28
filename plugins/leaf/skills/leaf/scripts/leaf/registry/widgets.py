@@ -12,6 +12,7 @@ from .contract import (
     RegistryError,
     declares_string,
     json_validator,
+    registry_path,
     state_specs,
     visual_part_attribute,
 )
@@ -52,7 +53,19 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
             raise RegistryError(
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
-        for channel, verb, spec in state_specs(entry):
+        declared_verbs = [
+            *state_specs(entry),
+            *(
+                ("x-request", verb, spec)
+                for verb, spec in entry.get("x-request", {}).get("verbs", {}).items()
+            ),
+        ]
+        recorded_attributes = {
+            record["attr"]
+            for _channel, _verb, spec in state_specs(entry)
+            if (record := spec.get("record")) and "attr" in record
+        }
+        for channel, verb, spec in declared_verbs:
             try:
                 Draft202012Validator.check_schema(spec["detail"])
             except SchemaError as error:
@@ -92,6 +105,38 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
                     "required and additionalProperties and nothing else, so the "
                     "keys a verb can carry are the ones it names"
                 )
+            if channel == "x-request":
+                detail_properties = spec["detail"].get("properties", {})
+                required = set(spec["detail"].get("required", []))
+                widget_properties = entry.get("properties", {})
+                for field, attribute in spec.get("bind", {}).items():
+                    if field not in detail_properties or field not in required:
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request verb `{verb}` binds detail "
+                            f"field `{field}`, but that field is not declared and "
+                            "required"
+                        )
+                    if not declares_string(detail_properties[field]):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request verb `{verb}` binds detail "
+                            f"field `{field}`, which must be a string"
+                        )
+                    attribute_schema = widget_properties.get(attribute, {})
+                    if attribute_schema.get("type") != "string":
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
+                            f"to `{attribute}`, which is not a declared string attribute"
+                        )
+                    if attribute not in entry.get("required", []):
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
+                            f"to `{attribute}`, which is not a required authored attribute"
+                        )
+                    if attribute in recorded_attributes:
+                        raise RegistryError(
+                            f"{path}: <{tag}> x-request verb `{verb}` binds `{field}` "
+                            f"to `{attribute}`, which is written by x-state or x-report"
+                        )
             if update := spec.get("update"):
                 detail = spec["detail"]
                 field = detail.get("properties", {}).get(update)
@@ -118,9 +163,13 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
                     )
 
 
-def _validate_widget_relations(widgets: dict, data: dict, slots: dict, path) -> None:
+def _validate_widget_relations(
+    registry: dict, widgets: dict, data: dict, slots: dict, path
+) -> None:
     for tag, entry in widgets.items():
-        properties, said = _validate_widget_structure(tag, entry, widgets, data, path)
+        properties, said = _validate_widget_structure(
+            tag, entry, registry, widgets, data, path
+        )
         awaits, response = _validate_widget_predicates(tag, entry, properties, path)
         _validate_widget_interactions(tag, entry, properties, awaits, response, path)
         _validate_widget_state_relations(tag, entry, widgets, path)
@@ -129,11 +178,62 @@ def _validate_widget_relations(widgets: dict, data: dict, slots: dict, path) -> 
 
 
 def _validate_widget_structure(
-    tag: str, entry: dict, widgets: dict, data: dict, path
+    tag: str, entry: dict, registry: dict, widgets: dict, data: dict, path
 ) -> tuple[dict, set]:
     if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
         raise RegistryError(f"{path}: <{tag}> x-parent names unknown widgets {unknown}")
     properties = entry.get("properties", {})
+    request = entry.get("x-request")
+    if request:
+        if "id" not in entry.get("required", []):
+            raise RegistryError(
+                f"{path}: <{tag}> x-request instances are addressable, so the "
+                "entry must require an id"
+            )
+        verbs = set(request["verbs"])
+        offered = set()
+        for member, attribute in request["offers"].items():
+            member_entry = widgets.get(member)
+            if member_entry is None:
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offers unknown widget <{member}>"
+                )
+            if tag not in member_entry.get("x-parent", []):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offers <{member}>, but that "
+                    "widget does not name it in x-parent"
+                )
+            attribute_schema = member_entry.get("properties", {}).get(attribute)
+            values = (
+                attribute_schema.get("enum")
+                if isinstance(attribute_schema, dict)
+                else None
+            )
+            if (
+                not isinstance(values, list)
+                or not values
+                or any(not isinstance(value, str) or not value for value in values)
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offer <{member}> `{attribute}` "
+                    "must be a non-empty string enum"
+                )
+            if attribute not in member_entry.get("required", []):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offer <{member}> attribute "
+                    f"`{attribute}` must be required"
+                )
+            if unknown := sorted(set(values) - verbs):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offer <{member}> `{attribute}` "
+                    f"names undeclared verbs {unknown}"
+                )
+            offered.update(values)
+        if missing := sorted(verbs - offered):
+            raise RegistryError(
+                f"{path}: <{tag}> x-request verbs {missing} cannot be offered "
+                "by any declared child widget"
+            )
     for input_name, spec in entry.get("x-data", {}).items():
         contract = spec["contract"]
         source_attr = spec["source"]
@@ -178,7 +278,7 @@ def _validate_widget_structure(
                 "must be required and declare a date-time string"
             )
     said = set(entry.get("x-says", {}))
-    for role in ("x-awaits", "x-conversation"):
+    for role in ("x-awaits", "x-conversation", "x-request"):
         if entry.get(role) is not None and (
             not isinstance(properties.get("id"), dict)
             or properties["id"].get("type") != "string"
@@ -193,6 +293,30 @@ def _validate_widget_structure(
         if unknown := sorted(named - set(properties)):
             raise RegistryError(
                 f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
+            )
+    for attribute, reference in entry.get("x-refers", {}).items():
+        via = reference.get("via")
+        if via is None:
+            continue
+        relation = registry_path(registry, via)
+        if not isinstance(relation, dict):
+            raise RegistryError(
+                f"{path}: <{tag}> x-refers `{attribute}` names unknown registry "
+                f"map {via!r}"
+            )
+        predicate = reference["where"]
+        matches = [
+            target
+            for target, declaration in relation.items()
+            if target in widgets
+            and isinstance(declaration, dict)
+            and all(declaration.get(key) == value for key, value in predicate.items())
+        ]
+        if not matches:
+            expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+            raise RegistryError(
+                f"{path}: <{tag}> x-refers `{attribute}` requires {via} "
+                f"where {expected}, but no declared widget matches"
             )
     if part_attribute := visual_part_attribute(entry):
         if not (
@@ -256,6 +380,11 @@ def _validate_widget_predicates(
             raise RegistryError(
                 f"{path}: <{tag}> declares both x-ask and x-awaits — the broader "
                 "Ask frames one nested request; the nested widget owns its state"
+            )
+        if entry.get("x-request", {}).get("ask") is True:
+            raise RegistryError(
+                f"{path}: <{tag}> declares both x-ask and x-request.ask — the broader "
+                "Ask frames one nested request; the nested widget owns its lifecycle"
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
@@ -408,6 +537,7 @@ def _validate_widget_interactions(
         for key in (
             "x-state",
             "x-report",
+            "x-request",
             "x-language",
             "x-verbatim",
             "x-shadow",

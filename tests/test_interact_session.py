@@ -23,6 +23,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, INTERACT_SCRIPT
 from interact_support import (
+    COMMAND_SUBJECTS,
     HELD_LEASES,
     PAGE,
     PLUGIN_ROOT,
@@ -583,7 +584,13 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     chose means anything without the message that asked, so the envelope
     resolves the widget to its conversation and brings the markup along. An undo
     belongs to the conversation holding the gesture it takes back."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
     publish(page_dir)
     serving(page_dir, 1)
     # A second conversation carrying a widget of its own, so resolving the acted
@@ -665,6 +672,71 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     [withdrawn] = json.loads(capsys.readouterr().out.splitlines()[0])["threads"]
     assert withdrawn["id"] == asked["id"]
     assert withdrawn["actions"] == []
+
+
+def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
+    page_dir, capsys
+):
+    """A host request is meaningful only beside the message that declared its
+    package widget. Keep that message even when a long conversation would normally
+    elide it from the delivery envelope."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    serving(page_dir, 1)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "How should I recover this branch?",
+        },
+    )
+    parent = root["id"]
+    request_message = None
+    for index in range(11):
+        message = {
+            "kind": "reply",
+            "author": "claude",
+            "parent": parent,
+            "text": f"Recovery context {index}.",
+        }
+        if index == 2:
+            message["markup"] = (
+                '<lf-operations id="thread-commands" target="goal" worker="worker" '
+                'worktree="tree" label="Next">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations>"
+            )
+        sent = events_model.append_event(page_dir, message)
+        parent = sent["id"]
+        if index == 2:
+            request_message = sent
+    requested = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header, *shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    assert [event["id"] for event in shown] == [requested["id"]]
+    [thread] = header["threads"]
+    assert thread["id"] == root["id"]
+    carried = next(
+        message
+        for message in thread["messages"]
+        if message["id"] == request_message["id"]
+    )
+    assert 'id="thread-commands"' in carried["markup"]
 
 
 # A page whose suggestion answers c1, which is the one shipped shape where the

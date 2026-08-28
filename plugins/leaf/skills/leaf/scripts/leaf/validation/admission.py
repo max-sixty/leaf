@@ -10,7 +10,7 @@ from leaf.registry.storage import require_registry
 from leaf.structure import _StructParser, parse_revision, parse_structure
 from leaf.thread_context import thread_structure
 
-from .instances import thread_markup_contract_errors
+from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
     fragment_style_errors,
     media_errors,
@@ -75,9 +75,22 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> _Struc
         sys.exit(f"{kind} widget markup takes " + reserved_ids_error(frag.reserved_ids))
     if marker_errors := reserved_marker_errors(frag):
         sys.exit(f"{kind} widget markup: " + "; ".join(marker_errors))
-    clash = sorted(frag.ids & (version_ids(page_dir) | thread_structure(events).ids))
+    thread = thread_structure(events)
+    clash = sorted(frag.ids & (version_ids(page_dir) | thread.ids))
     if clash:
         sys.exit(
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
+        )
+    revisions = list_revisions(page_dir)
+    page = parse_revision(page_dir, revisions[-1]) if revisions else parse_structure("")
+    if reference_errs := reference_errors(
+        frag.lf_elements,
+        registry,
+        page.ids | thread.ids | frag.ids,
+        {**page.by_id, **thread.by_id, **frag.by_id},
+    ):
+        sys.exit(
+            f"{kind} markup doesn't validate:\n"
+            + "\n".join(f"  - {error}" for error in reference_errs)
         )
     return frag

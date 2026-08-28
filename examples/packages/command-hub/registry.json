@@ -181,9 +181,14 @@
       "lf-task"
     ],
     "x-content": "prose",
-    "x-refers": [
-      "on"
-    ],
+    "x-refers": {
+      "on": {
+        "via": "$command.widgets",
+        "where": {
+          "role": "goal"
+        }
+      }
+    },
     "x-upgrade": true,
     "x-report": {
       "state": {
@@ -326,6 +331,7 @@
       "hold": "Send & pause"
     },
     "x-awaits": {
+      "rollup": true,
       "when": {
         "status": [
           "review",
@@ -399,8 +405,322 @@
     "x-wide": "box",
     "x-example": "<lf-command id=\"project-command\">\n  <lf-agent id=\"wren\" state=\"working\">\n    <strong>wren</strong> Owns the feed rebuild.\n    <lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n  </lf-agent>\n</lf-command>"
   },
+  "lf-operations": {
+    "description": "A set of consequential host operations offered for one goal and its exact disposable worker and worktree. Each lf-operation child supplies the reader-facing argument while this holder sends one typed x-request carrying those three stable ids. The ready holder is one of the reader's asks; an accepted request hands the turn to the host and locks the set while it works. `leaf receipt` links one succeeded or failed outcome. Failure returns the ask and reopens the controls, while success leaves the completed instruction visible until a later authored revision updates the plan. Use this for effects such as starting a worker, landing a branch, or archiving work. Use lf-options instead for a policy or authored-state decision that Leaf itself can replay.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "target": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "worker": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "worktree": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "id",
+      "target",
+      "worker",
+      "worktree",
+      "label"
+    ],
+    "additionalProperties": false,
+    "x-content": "items",
+    "x-guidance": {
+      "author": "Use `<lf-operations>` when pressing a choice should ask the host to do something irreversible or externally observable. Set `target`, `worker`, and `worktree` to the stable page ids for the goal and exact disposable host objects the operation acts on, then place one `<lf-operation verb=\"…\">` per offered command inside it. The package owns the allowed verbs; do not encode a command in an lf-option id or prose and ask the coordinator to guess it.",
+      "coordinator": "A `request` event from this widget is an instruction to act, not replayable page state. Dispatch on its declared `action` and typed `detail.target`, `detail.worker`, and `detail.worktree`; verify those exact objects and current host state, and use the request id as the operation's idempotency and reconciliation key. On first delivery, perform the operation once using the host's native task/worktree tools. When recovering a pending request after interruption, inspect the host for that key and the requested result before acting; resume or record the existing outcome instead of starting, merging, or removing twice. Then always append the one terminal outcome:\n\n```bash\nleaf receipt \"$PAGE\" <request-id> succeeded --text \"Started w-9 on the preserved branch\"\n# or\nleaf receipt \"$PAGE\" <request-id> failed --text \"Branch no longer exists\"\n```\n\nNever acknowledge the wait batch until the request has reached the durable executor that owns the host task handle. `restart` preserves the named worktree, reaps the named worker, and launches a fresh worker for `target`; `park` removes the target from the active plan without discarding the named worktree; `drop` reaps the named worker and archives its worktree; `land` merges the named worktree; `hold` keeps it unmerged; `request-changes` retains the review request and starts a fresh revision worker from that worktree; `land-as-is` lands the named worktree and retires the named reviser. After success, refresh bound external data and save the plan revision the operation produced; stamp it when the result is a useful checkpoint. Leaf validates and records this protocol but does not call host APIs itself."
+    },
+    "x-refers": {
+      "target": {
+        "via": "$command.widgets",
+        "where": {
+          "role": "goal"
+        }
+      },
+      "worker": {
+        "via": "$command.widgets",
+        "where": {
+          "role": "worker"
+        }
+      },
+      "worktree": {
+        "via": "$command.widgets",
+        "where": {
+          "role": "evidence"
+        }
+      }
+    },
+    "x-request": {
+      "ask": true,
+      "offers": {
+        "lf-operation": "verb"
+      },
+      "verbs": {
+        "restart": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "park": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "drop": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "land": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "hold": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "request-changes": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+        }
+      },
+        "land-as-is": {
+        "bind": {
+          "target": "target",
+          "worker": "worker",
+          "worktree": "worktree"
+        },
+        "detail": {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worker": {
+              "type": "string",
+              "minLength": 1
+            },
+            "worktree": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "target",
+            "worker",
+            "worktree"
+          ],
+          "additionalProperties": false
+          }
+        }
+      }
+    },
+    "x-says": {
+      "label": "before"
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-command id=\"project-command\">\n  <lf-task id=\"goal-review\" status=\"blocked\">\n    <strong>Review the branch</strong>\n    <lf-agent id=\"review-worker\" state=\"waiting\"><strong>review-worker</strong> Owns the reviewed branch.<lf-worktree id=\"review-tree\" source=\"project-worktrees\"></lf-worktree></lf-agent>\n    <lf-operations id=\"review-commands\" target=\"goal-review\" worker=\"review-worker\" worktree=\"review-tree\" label=\"What should the host do?\">\n      <lf-operation verb=\"land\" recommended><strong>Land it</strong> Tests are green.</lf-operation>\n      <lf-operation verb=\"request-changes\"><strong>Request changes</strong> Start a fresh reviser.</lf-operation>\n    </lf-operations>\n  </lf-task>\n</lf-command>"
+  },
+  "lf-operation": {
+    "description": "One reader-facing command inside lf-operations. `verb` chooses a request declaration on the holder; the child prose explains the consequence and remains selectable. `recommended` is emphasis only. The holder owns the gesture and the target so sibling commands are one atomic choice surface.",
+    "type": "object",
+    "properties": {
+      "verb": {
+        "enum": [
+          "restart",
+          "park",
+          "drop",
+          "land",
+          "hold",
+          "request-changes",
+          "land-as-is"
+        ]
+      },
+      "recommended": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "verb"
+    ],
+    "additionalProperties": false,
+    "x-parent": [
+      "lf-operations"
+    ],
+    "x-content": "prose",
+    "x-paints": [
+      "recommended"
+    ],
+    "x-upgrade": false
+  },
   "lf-record": {
-    "description": "The page's consequential action receipts, projected in log order. It renders reader actions, held comments, resolutions, reports, and publications with their targets and payload summaries. Folds and read-only disclosures do not enter because the log never recorded them. This is evidence, not another state store.",
+    "description": "The page's consequential action receipts, projected in log order. It renders reader actions, external requests and their linked receipts, held comments, resolutions, reports, and publications with their targets and payload summaries. Folds and read-only disclosures do not enter because the log never recorded them. This is evidence, not another state store.",
     "type": "object",
     "properties": {
       "id": {

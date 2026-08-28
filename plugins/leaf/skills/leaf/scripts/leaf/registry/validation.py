@@ -28,7 +28,7 @@ def validate_registry(registry: dict, source) -> dict:
     widgets = _widget_entries(registry, path)
     _validate_widget_schemas(widgets, path)
     slots = retirement_slots(registry)
-    _validate_widget_relations(widgets, data, slots, path)
+    _validate_widget_relations(registry, widgets, data, slots, path)
     _validate_retirement_facets(slots, widgets, path)
     _validate_awaiting_units(widgets, path)
     return registry

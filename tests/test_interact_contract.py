@@ -13,6 +13,7 @@ from interact_support import (
     ACCEPT,
     ADOPTED,
     COMMAND_HUB_PACKAGE,
+    COMMAND_SUBJECTS,
     COMMENT,
     PAGE,
     PILOT_PURGE,
@@ -359,6 +360,107 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "decide" in result.output
+
+
+def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
+    """A recorded request must remain interpretable for the life of the log."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["lf-operations"]["x-request"]["verbs"]["restart"]
+    registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-operations": registry["lf-operations"],
+                "lf-operation": registry["lf-operation"],
+            }
+        )
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "request contract" in result.output and "restart" in result.output
+
+
+@pytest.mark.parametrize("receipt_requests", [["missing"], ["request-1", "request-1"]])
+def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
+    page_dir, receipt_requests
+):
+    """Re-vendoring rejects orphan and duplicate terminal outcomes in log order."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    if receipt_requests[0] != "missing":
+        events_model.append_event(
+            page_dir,
+            {
+                "id": "request-1",
+                "kind": "request",
+                "author": "user",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            },
+        )
+    for index, request in enumerate(receipt_requests, 1):
+        events_model.append_event(
+            page_dir,
+            {
+                "id": f"receipt-{index}",
+                "kind": "receipt",
+                "author": "claude",
+                "request": request,
+                "status": "succeeded",
+                "text": "Host operation completed",
+            },
+        )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "receipt contract" in result.output, result.output
 
 
 def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
@@ -1339,8 +1441,8 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-content", "words"),
         ("x-parent", []),
         # Each of these names attributes, so an empty one declares nothing while
-        # reading as a declaration. x-refers was the one without the floor.
-        ("x-refers", []),
+        # reading as a declaration.
+        ("x-refers", {}),
         ("x-lines", []),
         ("x-paints", []),
         ("x-says", []),
@@ -1498,6 +1600,110 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "detail schema must declare an object" in result.output
+
+
+def test_request_detail_schemas_match_the_post_object_contract(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-operations"]["x-request"]["verbs"]["restart"]["detail"] = {
+        "type": "string"
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "<lf-operations> x-request verb `restart` detail schema" in result.output
+    assert "must declare an object" in result.output
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            "optional-field",
+            "field `target`, but that field is not declared and required",
+        ),
+        (
+            "non-string-bound-field",
+            "binds detail field `target`, which must be a string",
+        ),
+        ("unknown-attribute", "to `missing`, which is not a declared string attribute"),
+        (
+            "optional-bound-attribute",
+            "to `target`, which is not a required authored attribute",
+        ),
+        (
+            "mutable-bound-attribute",
+            "to `target`, which is written by x-state or x-report",
+        ),
+        ("optional-id", "x-request instances are addressable"),
+        ("no-upgrade", "declares x-request"),
+        ("unknown-offer", "x-request offers unknown widget <lf-unknown>"),
+        ("wrong-parent", "does not name it in x-parent"),
+        ("freeform-offer", "must be a non-empty string enum"),
+        (
+            "optional-offer-attribute",
+            "offer <lf-operation> attribute `verb` must be required",
+        ),
+        ("unknown-offered-verb", "names undeclared verbs ['explode']"),
+        ("unoffered-verb", "verbs ['restart'] cannot be offered"),
+        ("self-framing-ask", "declares both x-ask and x-request.ask"),
+    ],
+)
+def test_an_x_request_declaration_closes_its_widget_boundary(
+    page_dir, mutation, message
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    operations = registry["lf-operations"]
+    restart = operations["x-request"]["verbs"]["restart"]
+    if mutation == "optional-field":
+        restart["detail"]["required"] = []
+    elif mutation == "non-string-bound-field":
+        restart["detail"]["properties"]["target"] = {"type": "integer"}
+    elif mutation == "unknown-attribute":
+        restart["bind"]["target"] = "missing"
+    elif mutation == "optional-bound-attribute":
+        operations["required"].remove("target")
+    elif mutation == "mutable-bound-attribute":
+        operations["properties"]["overruled"] = {"type": "boolean"}
+        operations["x-report"] = {
+            "retarget": {
+                "detail": {
+                    "type": "object",
+                    "properties": {"target": {"type": "string"}},
+                    "required": ["target"],
+                    "additionalProperties": False,
+                },
+                "facet": "target",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "target", "value": "target"},
+            }
+        }
+    elif mutation == "optional-id":
+        operations["required"].remove("id")
+    elif mutation == "no-upgrade":
+        operations["x-upgrade"] = False
+    elif mutation == "unknown-offer":
+        operations["x-request"]["offers"] = {"lf-unknown": "verb"}
+    elif mutation == "wrong-parent":
+        registry["lf-operation"]["x-parent"] = ["lf-command"]
+    elif mutation == "freeform-offer":
+        registry["lf-operation"]["properties"]["verb"] = {"type": "string"}
+    elif mutation == "optional-offer-attribute":
+        registry["lf-operation"]["required"].remove("verb")
+    elif mutation == "unknown-offered-verb":
+        registry["lf-operation"]["properties"]["verb"]["enum"].append("explode")
+    elif mutation == "unoffered-verb":
+        registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
+    elif mutation == "self-framing-ask":
+        operations["x-ask"] = True
+        operations["x-content"] = "prose"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
 
 
 @pytest.mark.parametrize("subschema", [True, False])
@@ -2160,7 +2366,7 @@ def test_a_self_position_record_stays_within_the_declared_parent_relation(page_d
     ("tag", "key", "value", "missing"),
     [
         ("lf-event", "x-says", {"at": "before", "colour": "after"}, "colour"),
-        ("lf-option", "x-refers", ["for", "about"], "about"),
+        ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
@@ -2189,6 +2395,28 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     result = check(page_dir)
     assert result.exit_code != 0
     assert f"<{tag}> {key} names undeclared attributes ['{missing}']" in result.output
+
+
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        (
+            {"via": "$missing.widgets", "where": {"role": "goal"}},
+            "names unknown registry map '$missing.widgets'",
+        ),
+        (
+            {"via": "$command.widgets", "where": {"role": "imaginary"}},
+            "but no declared widget matches",
+        ),
+    ],
+)
+def test_a_typed_reference_names_a_reachable_package_role(page_dir, reference, message):
+    """A bad package relation fails at the registry door, not on every instance."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-option"]["x-refers"]["for"] = reference
+
+    with pytest.raises(registry_contract.RegistryError, match=re.escape(message)):
+        registry_validation.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])

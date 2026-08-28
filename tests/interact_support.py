@@ -56,6 +56,11 @@ PLUGIN_ROOT = ROOT / "plugins" / "leaf"
 # nothing and reports nothing.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_SUBJECTS = (
+    '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+    '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
+    "</lf-agent>"
+)
 
 PROBE_BOOTSTRAP = """\
 import contextlib

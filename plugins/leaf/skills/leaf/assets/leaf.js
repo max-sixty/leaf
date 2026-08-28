@@ -242,6 +242,7 @@ import {
   outbox,
   sendAction,
 } from "./runtime/outbox.js";
+import { createRequests } from "./runtime/requests.js";
 import { createDataProjection } from "./runtime/projection/data.js";
 import { createProjection, shallowSigs, standingState } from "./runtime/projection.js";
 import { createAnchors, itemWord } from "./runtime/anchors.js";
@@ -3105,6 +3106,13 @@ outboxRuntime = createOutbox(runtime, {
   stateCoordinate,
   stateProjection,
   unitOf,
+});
+
+createRequests(runtime, {
+  inChrome,
+  post: outboxRuntime.post,
+  quoted,
+  registry,
 });
 
 conversationRuntime = createConversation({

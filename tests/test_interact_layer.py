@@ -53,6 +53,7 @@ Commands:
   events      Print the event log as JSON lines.
   package     Create and check packages.
   page        Create pages and add media.
+  receipt     Record the terminal outcome of a reader request.
   reply       Reply to a thread as the agent.
   report      Report a state change onto a page widget, as a worker.
   resolve     Close a thread as the agent.

@@ -30,6 +30,8 @@ their direct readers;
 first presentation boundary;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event POST,
 and page-error channel;
+`runtime/requests.js` owns typed one-shot request availability, sending, and the
+server-projected request lifecycle watcher;
 `runtime/asks/model.js` owns request discovery and folding;
 `runtime/asks/view.js` owns ask chrome, marking, and the ask walk;
 `runtime/composing/capture.js` owns selection capture and snapping;
@@ -661,6 +663,8 @@ The extension keys describe general behavior:
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
+| `x-request` | direct-child command offers, typed one-shot external-operation verbs, and whether a ready lifecycle is an ask |
+| `x-refers` | element-id attributes and optional package-owned map predicates that type their targets |
 | `x-parent` | the child widgets whose decisions belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
@@ -698,6 +702,10 @@ behavior, the layer implements it once. Current examples are:
 - `renderRetired` marks slots retired by the declared holder relation.
 - `rowPresence` reads `x-awaits`, while the ask tray projects a declared `x-ask`
   region around that source where one exists; neither names a tag.
+- A holder declaring `x-request.ask` joins that same ask projection only while its
+  canonical request lifecycle is `ready`. Pending and completed requests are the host's
+  turn; a failed receipt returns the holder to the reader without a package-maintained
+  pending flag.
 - `standingState` exposes replay winners to the render gate without naming a
   widget, the panel's own folds included: a widget an agent sent folds the way a
   page widget does and the poll replays it the same way, so the premise that
@@ -747,6 +755,21 @@ minimum obligations:
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
   browser schema.
+- Call `sendRequest` for a one-shot external operation. Its detail must match the
+  widget's `x-request` verb and the verb must be offered by one of this instance's
+  declared direct children; an authored holder has at least one such child and offers
+  each verb once. Requests are not replayable state and are not undoable;
+  project it with `watchRequestLifecycle` instead of joining raw history or inventing
+  a pending store. Core supplies the request seat, its ordered `{request, receipt}`
+  attempts, the latest attempt, and the lifecycle phase (`ready`, `pending`, or
+  `completed`) under the right document boundary: page holders read only the current
+  revision, while holders in frozen thread markup read their whole lifetime. Python
+  places this lifecycle in the browser view; modules do not join raw event history.
+  When `x-request.ask` is true, that same lifecycle is also the ask projection's source:
+  ready means the reader owes the choice, pending and completed do not, and a failure
+  reopens it. Browser and POST eligibility consume that shared projection.
+  `watchHistory` remains the audit-log surface for widgets that intentionally render
+  events themselves.
 - For a verb with `requires`, use `actionAvailable(el, verb)` for both its
   visible control state and its gesture guard. `sendAction` and POST repeat that
   declared check at their respective doors.
@@ -1924,13 +1947,20 @@ retire Comments, then presents the remembered tray directly without replaying
 opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
 tray.
 
-Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
+Ask rows come from `x-awaits` and ready holders declaring `x-request.ask`, not from a
+list of ask tags. Where an `x-awaits` source is
 nested in an `x-ask` region, the row names the region: its heading, context, and
 evidence are the request the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
 tray row travels through the same ask-arrival function as `a` and `A`, so the
 panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
+
+A request ask is answered at acceptance rather than by replayable widget state. Its
+pending lifecycle therefore leaves the reader's list immediately and hands the next
+word to the host; a terminal failure returns it, while success keeps it closed. Page
+holders scope that reading to their authored revision and frozen thread holders scope it
+to the conversation document's lifetime, exactly as the request seat does.
 
 An ask is answered by a verb listed in `x-awaits.answers`; do not infer that every
 state change is an answer. Two things take a request off the reader's list, and only

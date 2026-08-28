@@ -106,6 +106,7 @@ function interventions(goal) {
   return elementsDeclaring(goal, "x-awaits").filter(
     (item) =>
       item !== goal &&
+      !commandRole(item, "goal") &&
       closestCommandRole(item, "command") === command &&
       closestCommandRole(item.parentElement, "goal") === goal &&
       !quoted(item) &&

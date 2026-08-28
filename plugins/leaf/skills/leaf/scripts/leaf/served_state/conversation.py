@@ -10,6 +10,7 @@ from ..events import (
 )
 from ..passages import spoken
 from ..projection import StateProjection, state_projection
+from ..requests import request_lifecycles_for, request_phases
 from ..thread_context import thread_roots, thread_structure
 from .wire import _browser_projection
 
@@ -67,7 +68,24 @@ def _browser_conversation(
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     prepared = _thread_projection(events, registry)
     projection, _byid, _spk, _roots, structure = prepared
-    asks, awaiting = thread_ask_projection(events, registry, settled, prepared=prepared)
+    elements = [
+        record
+        for fragment in structure.fragments.values()
+        for record in fragment.lf_elements
+    ]
+    requests = request_lifecycles_for(
+        events,
+        elements,
+        registry,
+        {"kind": "thread"},
+    )
+    asks, awaiting = thread_ask_projection(
+        events,
+        registry,
+        settled,
+        prepared=prepared,
+        request_phases=request_phases(requests),
+    )
     rendered_threads = [
         {
             **thread,
@@ -86,6 +104,7 @@ def _browser_conversation(
                 projection, scope="conversation", within={}, floors={}
             ),
             "asks": {"reader": asks, "unanswered": asks, "awaiting": awaiting},
+            "requests": requests,
             "threads": rendered_threads,
             "done": [event for event in events if event["kind"] == "done"],
         },

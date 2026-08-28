@@ -4,7 +4,7 @@ import re
 
 from leaf.asks import asking, quoted_in
 from leaf.projection import enclosing_widgets
-from leaf.registry.contract import json_validator, visual_parts
+from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
 from leaf.structure import _StructParser
 
@@ -107,20 +107,23 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
 
 
 def ask_region_errors(lf_elements: list, registry: dict) -> list:
-    """An x-ask region frames exactly one nested standing request.
+    """An x-ask region frames exactly one nested declared ask source.
 
-    The region owns the question's reading and arrival while the x-awaits widget owns
-    its answer. Requiring one structural source makes that split unambiguous for the
-    browser walk and for `page state`; liveness still comes from the ordinary projected
-    x-awaits value.
+    The region owns the question's reading and arrival while the x-awaits or request
+    widget owns its answer. Requiring one structural source makes that split
+    unambiguous for the browser walk and for `page state`; liveness still comes from
+    the source's canonical ask projection.
     """
 
     regions = [rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask")]
     sources = {id(region): [] for region in regions}
     for rec in lf_elements:
-        if registry.get(rec["tag"], {}).get("x-awaits") is None or quoted_in(
-            rec, registry
-        ):
+        entry = registry.get(rec["tag"], {})
+        declared = (
+            entry.get("x-awaits") is not None
+            or entry.get("x-request", {}).get("ask") is True
+        )
+        if not declared or quoted_in(rec, registry):
             continue
         holder = rec.get("holder")
         while holder and not registry.get(holder["tag"], {}).get("x-ask"):
@@ -136,25 +139,105 @@ def ask_region_errors(lf_elements: list, registry: dict) -> list:
                 f"<{rec['tag']}#{rec['attrs'].get('id') or '?'}>" for rec in nested
             ]
             errors.append(
-                f"{at(region)}: an Ask must frame exactly one x-awaits widget, "
+                f"{at(region)}: an Ask must frame exactly one declared ask source, "
                 f"found {found or 'none'}"
             )
     return errors
 
 
-def reference_errors(lf_elements: list, registry: dict, ids: set) -> list:
+def request_offer_errors(lf_elements: list, registry: dict) -> list:
+    """Every authored request seat presents at least one command it can send.
+
+    The registry declares a holder's complete verb vocabulary, while its direct
+    children choose which verbs this particular seat offers. An empty holder would
+    otherwise enter the Ask projection with no possible answer.
+    """
+    errors = []
+    for holder in lf_elements:
+        request = registry.get(holder["tag"], {}).get("x-request")
+        if request is None or quoted_in(holder, registry):
+            continue
+        offered = [
+            rec["attrs"][request["offers"][rec["tag"]]]
+            for rec in lf_elements
+            if rec.get("holder") is holder
+            and rec.get("parent") == holder["tag"]
+            and rec["tag"] in request["offers"]
+            and request["offers"][rec["tag"]] in rec["attrs"]
+        ]
+        if not offered:
+            errors.append(
+                f"{at(holder)}: an x-request holder must offer at least one "
+                "declared verb"
+            )
+            continue
+        duplicates = sorted({verb for verb in offered if offered.count(verb) > 1})
+        if duplicates:
+            errors.append(
+                f"{at(holder)}: an x-request holder must offer each verb once; "
+                f"repeated {duplicates}"
+            )
+    return errors
+
+
+def reference_contract_error(
+    record: dict, attribute: str, target_record: dict | None, registry: dict
+) -> str | None:
+    """Why one existing target fails its package-declared relation, if it does."""
+    reference = registry[record["tag"]]["x-refers"][attribute]
+    via = reference.get("via")
+    if via is None:
+        return None
+    relation = registry_path(registry, via)
+    declaration = (
+        relation.get(target_record["tag"])
+        if isinstance(relation, dict) and target_record is not None
+        else None
+    )
+    predicate = reference["where"]
+    if isinstance(declaration, dict) and all(
+        declaration.get(key) == value for key, value in predicate.items()
+    ):
+        return None
+    expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+    found = (
+        ", ".join(f"{key}={declaration.get(key)!r}" for key in predicate)
+        if isinstance(declaration, dict)
+        else "no declaration"
+    )
+    actual = (
+        f"<{target_record['tag']}> has {found}"
+        if target_record is not None
+        else "the target is not a registered widget"
+    )
+    return (
+        f'{at(record)}: {attribute}="{record["attrs"].get(attribute)}" must '
+        f"name a {via} widget where {expected}; {actual}"
+    )
+
+
+def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -> list:
     """An attribute the registry marks as naming another element (x-refers) that names
     nothing this version holds. The reader follows it, so a typo is a reference to
     nowhere and the markup around it is perfectly well-formed — visible to them and to
     nobody else. Asked of the version rather than of a fragment: a reply's markup
     carries no page to check against, and one of its widgets pointing at the version
     beside it is exactly right."""
-    return [
-        f'{at(rec)}: {attr}="{target}" names no element in this version'
-        for rec in lf_elements
-        for attr in registry.get(rec["tag"], {}).get("x-refers", [])
-        if (target := rec["attrs"].get(attr)) and target not in ids
-    ]
+    errors = []
+    for rec in lf_elements:
+        for attr in registry.get(rec["tag"], {}).get("x-refers", {}):
+            target = rec["attrs"].get(attr)
+            if not target:
+                continue
+            if target not in ids:
+                errors.append(
+                    f'{at(rec)}: {attr}="{target}" names no element in this version'
+                )
+            elif error := reference_contract_error(
+                rec, attr, by_id.get(target), registry
+            ):
+                errors.append(error)
+    return errors
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
@@ -339,6 +422,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
         + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
         + ask_region_errors(parser.lf_elements, registry)
+        + request_offer_errors(parser.lf_elements, registry)
         + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)
         + line_ref_errors(parser.lf_elements, registry)

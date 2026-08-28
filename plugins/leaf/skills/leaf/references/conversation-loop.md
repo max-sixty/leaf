@@ -156,6 +156,13 @@ event the wait printed while ack waits for the next batch:
   diagnostics, so do not reply unless the reader asked about it.
 - **Worker report:** carry the report into markup, or mark its element
   `overruled` and state why. A page must not end with unresolved report debt.
+- **Host request:** treat the request id as the host executor's idempotency and
+  recovery key. Inspect the host before acting after an interruption, perform the
+  package-declared operation at most once, and append exactly one terminal result
+  with `leaf receipt <page> <request-id> succeeded|failed --text "…"`. A receipt
+  records the external outcome; it does not rewrite the authored page. Refresh
+  any bound external data, save the source revision that reflects the result, and
+  stamp a checkpoint when it is worth naming.
 - **Thread-widget action:** reply in that same thread. A plain options pick
   answers immediately; a `multiple` group answers only when its `answer` action
   arrives, though every toggle is delivered.

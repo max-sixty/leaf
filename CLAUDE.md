@@ -68,6 +68,16 @@ for typed external data. A source id keeps one contract for the page's lifetime.
 `plugins/leaf/skills/leaf/references/internals/page-storage.md` defines the
 complete layout.
 
+A request is a durable, non-undoable one-shot instruction whose external effect
+may precede its receipt. The append door admits one pending request per declared
+seat atomically; failure reopens the seat and success completes it. Exactly one
+terminal receipt names each accepted request. Page seats are scoped to their
+authored revision, while a seat in frozen thread markup lasts for that document's
+whole lifetime. Packages own verbs, host meaning, guidance, and UI; Leaf owns only
+the typed transport and canonical lifecycle projection. A package may declare that a
+ready request is a reader ask; acceptance hands the turn to the host, success closes it,
+and failure returns it through that same projection.
+
 ### Validate once and share readings
 
 Validate each input at its boundary: browser events at `POST /api/event`,

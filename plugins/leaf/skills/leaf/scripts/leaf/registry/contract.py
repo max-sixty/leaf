@@ -80,6 +80,16 @@ def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
     return tuple(value.split()) if value else ()
 
 
+def registry_path(registry: dict, path: str):
+    """Resolve a dotted package declaration such as `$command.widgets`."""
+    value = registry
+    for part in path.split("."):
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
 def unresolved_schema_reference(schema: dict) -> str | None:
     """Return the first operative ref not supplied by this schema resource graph.
 

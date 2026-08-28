@@ -11,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     PHRASING_CONTENT,
@@ -1423,6 +1424,166 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert (event["agent"], event["session"]) == ("Indexer", "worker-1")
     assert event["widget"] == "t-parser" and event["action"] == "status"
     assert event["detail"] == {"status": "review"} and event["revision"] == 1
+
+
+def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
+    """The host's result names the exact request it executed. A second terminal
+    account would make one side effect have two outcomes, so the CLI door refuses it."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    request = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+    pending = state_json(page_dir)["requests"]
+    assert len(pending) == 1
+    lifecycle = pending[0]
+    assert lifecycle["seat"] == {
+        "document": {"kind": "page", "revision": 1},
+        "widget": "commands",
+    }
+    assert lifecycle["phase"] == "pending"
+    assert lifecycle["latest"]["request"]["id"] == request["id"]
+    assert lifecycle["latest"]["receipt"] is None
+    unknown = CliRunner().invoke(
+        cli_model.cli,
+        ["receipt", str(page_dir), "missing", "failed", "--text", "No request"],
+    )
+    assert unknown.exit_code == 1
+    assert "unknown request 'missing'" in unknown.output
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
+    monkeypatch.setenv("LEAF_AGENT", "Atlas lead")
+    accepted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Started w-9 on the preserved branch",
+        ],
+    )
+    assert accepted.exit_code == 0, accepted.output
+    receipt = events_model.read_events(page_dir)[-1]
+    assert (receipt["kind"], receipt["request"], receipt["status"]) == (
+        "receipt",
+        request["id"],
+        "succeeded",
+    )
+    assert receipt["text"] == "Started w-9 on the preserved branch"
+    assert (receipt["agent"], receipt["session"]) == (
+        "Atlas lead",
+        "coordinator-1",
+    )
+    projected = state_json(page_dir)["requests"][0]
+    assert projected["phase"] == "completed"
+    assert projected["latest"]["receipt"]["id"] == receipt["id"]
+    assert (
+        projected["latest"]["receipt"]["text"] == "Started w-9 on the preserved branch"
+    )
+
+    duplicate = CliRunner().invoke(
+        cli_model.cli,
+        ["receipt", str(page_dir), request["id"], "failed", "--text", "Again"],
+    )
+    assert duplicate.exit_code == 1
+    assert "already has receipt" in duplicate.output
+    assert (
+        len(
+            [
+                event
+                for event in events_model.read_events(page_dir)
+                if event["kind"] == "receipt"
+            ]
+        )
+        == 1
+    )
+
+
+def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
+    """Attempts belong to the seat that admits them. A failed attempt leaves that
+    lifecycle ready, and the retry becomes its latest attempt rather than a second
+    partly joined request record."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    ready_asks = {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands" in ready_asks
+    assert "goal" not in ready_asks
+    first = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+    assert "commands" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    failure = events_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": first["id"],
+            "status": "failed",
+            "text": "Worker lease disappeared",
+        },
+    )
+    assert "commands" in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    retry = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+
+    lifecycles = state_json(page_dir)["requests"]
+    assert len(lifecycles) == 1
+    lifecycle = lifecycles[0]
+    assert lifecycle["phase"] == "pending"
+    assert len(lifecycle["attempts"]) == 2
+    assert lifecycle["attempts"][0]["receipt"]["id"] == failure["id"]
+    assert lifecycle["latest"]["request"]["id"] == retry["id"]
+    assert lifecycle["latest"]["receipt"] is None
+    assert "commands" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
 
 
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):

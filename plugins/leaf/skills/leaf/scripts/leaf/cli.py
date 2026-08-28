@@ -18,6 +18,7 @@ from leaf.packages import cmd_package_check, cmd_package_init
 from leaf.page import cmd_catalog, cmd_guidance
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
+from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
@@ -519,6 +520,20 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
     cmd_report(resolve_dir(dir), widget, verb, fields)
+
+
+@cli.command(short_help="Record the terminal outcome of a reader request.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("request", metavar="REQUEST")
+@click.argument(
+    "status",
+    type=click.Choice(["succeeded", "failed"]),
+    metavar="succeeded|failed",
+)
+@click.option("--text", help="host outcome (default: stdin)")
+def receipt(dir: str, request: str, status: str, text: str) -> None:
+    """Record exactly one terminal host outcome for REQUEST."""
+    cmd_receipt(resolve_dir(dir), request, status, text)
 
 
 @cli.command(short_help="Print the event log as JSON lines.")

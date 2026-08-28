@@ -157,6 +157,7 @@ class _AskReducer:
         with_agent: set[str],
         *,
         thread: bool,
+        request_phases: dict[str, str] | None = None,
     ):
         self.projection = projection
         self.byid = byid
@@ -164,12 +165,9 @@ class _AskReducer:
         self.registry = registry
         self.with_agent = with_agent
         self.thread = thread
+        self.request_phases = request_phases or {}
         elements = source.lf_elements if hasattr(source, "lf_elements") else source
-        self.records = [
-            record
-            for record in elements
-            if (registry.get(record["tag"]) or {}).get("x-awaits") is not None
-        ]
+        self.records = [record for record in elements if self._is_declared(record)]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
         self.exists: dict[int, bool] = {}
@@ -179,10 +177,7 @@ class _AskReducer:
             self.exists[id(record)] = not (
                 (unit and unit in dropped) or quoted_in(record, registry)
             )
-            self.local[id(record)] = self.exists[id(record)] and asking(
-                replayed_attrs(record, projection),
-                self._entry(record)["x-awaits"].get("when"),
-            )
+            self.local[id(record)] = self.exists[id(record)] and self._local(record)
 
         self.direct: dict[int, list] = {}
         for record in self.records:
@@ -192,6 +187,27 @@ class _AskReducer:
 
     def _entry(self, record):
         return self.registry[record["tag"]]
+
+    def _is_request(self, record):
+        return self._entry(record).get("x-request", {}).get("ask") is True
+
+    def _is_declared(self, record):
+        entry = self.registry.get(record["tag"]) or {}
+        return (
+            entry.get("x-awaits") is not None
+            or entry.get("x-request", {}).get("ask") is True
+        )
+
+    def _declaration(self, record):
+        return self._entry(record).get("x-awaits", {})
+
+    def _local(self, record):
+        if self._is_request(record):
+            return self.request_phases.get(record["attrs"].get("id")) == "ready"
+        return asking(
+            replayed_attrs(record, self.projection),
+            self._declaration(record).get("when"),
+        )
 
     def _holder(self, record):
         unit = record["attrs"].get("id")
@@ -206,10 +222,12 @@ class _AskReducer:
 
     def _answered(self, record):
         entry = self._entry(record)
+        if self._is_request(record):
+            return not self.local[id(record)]
         if self.thread:
             if not entry.get("x-state"):
                 return True
-            until = entry["x-awaits"].get("until")
+            until = self._declaration(record).get("until")
             attrs = replayed_attrs(record, self.projection)
             if until and asking(attrs, until["when"]):
                 unit = record["attrs"].get("id")
@@ -234,11 +252,7 @@ class _AskReducer:
     def _rollup_owner(self, record):
         record = self._holder(record)
         while record:
-            if (
-                (self.registry.get(record["tag"]) or {})
-                .get("x-awaits", {})
-                .get("rollup")
-            ):
+            if self._declaration(record).get("rollup"):
                 return record
             record = self._holder(record)
         return None
@@ -253,7 +267,7 @@ class _AskReducer:
         if not self.local[key]:
             self.values[key] = False
             return False
-        declaration = self._entry(record)["x-awaits"]
+        declaration = self._declaration(record)
         if not declaration.get("rollup"):
             self.values[key] = not self._answered(record)
             return self.values[key]
@@ -261,8 +275,8 @@ class _AskReducer:
         interventions = [
             candidate
             for candidate in descendants
-            if not self._entry(candidate)["x-awaits"].get("rollup")
-            and self.local[id(candidate)]
+            if not self._declaration(candidate).get("rollup")
+            and (self.local[id(candidate)] or self._is_request(candidate))
         ]
         if interventions:
             self.values[key] = any(
@@ -272,7 +286,7 @@ class _AskReducer:
         children = [
             candidate
             for candidate in descendants
-            if self._entry(candidate)["x-awaits"].get("rollup")
+            if self._declaration(candidate).get("rollup")
         ]
         self.values[key] = (
             any(self._awaits(candidate) for candidate in children)
@@ -286,7 +300,7 @@ class _AskReducer:
         visible = [
             record
             for record in open_records
-            if not self._entry(record)["x-awaits"].get("rollup")
+            if not self._declaration(record).get("rollup")
             or not any(
                 inner is not record and self._contains(record, inner)
                 for inner in open_records
@@ -336,6 +350,7 @@ def page_ask_projection(
     with_agent: set[str],
     *,
     thread: bool = False,
+    request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict[str, bool]]:
     """The page's visible asks and exact awaiting value for every declared target.
 
@@ -343,6 +358,10 @@ def page_ask_projection(
     A roll-up projects the same fact through a nested plan: a false local condition
     stops; direct ordinary interventions take precedence;
     otherwise child roll-ups recurse; a matching leaf waits.
+
+    An x-request.ask instance is local exactly while its canonical lifecycle is ready.
+    Its pending and completed phases hand the turn away from the reader; failure
+    returns the lifecycle to ready and therefore reopens the ask.
 
     `with_agent` chooses which question this answers, and is the whole of the
     difference between the two. Given `seats_with_agent`, it is the reader's list: a
@@ -362,6 +381,7 @@ def page_ask_projection(
         dropped,
         with_agent,
         thread=thread,
+        request_phases=request_phases,
     ).result()
 
 
@@ -373,13 +393,28 @@ def page_asks(
     registry: dict,
     dropped: set,
     with_agent: set[str],
+    request_phases: dict[str, str] | None = None,
 ) -> list:
     return page_ask_projection(
-        parser, projection, byid, spk, registry, dropped, with_agent
+        parser,
+        projection,
+        byid,
+        spk,
+        registry,
+        dropped,
+        with_agent,
+        request_phases=request_phases,
     )[0]
 
 
-def page_awaiting_values(html, parser, projection, spk, registry: dict) -> dict:
+def page_awaiting_values(
+    html,
+    parser,
+    projection,
+    spk,
+    registry: dict,
+    request_phases: dict[str, str] | None = None,
+) -> dict:
     """Each current page request's declaration-driven awaiting value."""
     passages = page_passages(html, registry, decisions(projection.actions, registry))
     return page_ask_projection(
@@ -390,6 +425,7 @@ def page_awaiting_values(html, parser, projection, spk, registry: dict) -> dict:
         registry,
         set(passages.retired) | set(passages.gone),
         set(),
+        request_phases=request_phases,
     )[1]
 
 
@@ -399,12 +435,14 @@ def thread_ask_projection(
     settled: set,
     *,
     prepared: tuple | None = None,
+    request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict]:
     """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
     from the log. A fragment is frozen: no version answers it and no `restated`
     retracts it, so every action on its widgets stands (no floors, no window).
-    Only a widget with an action channel asks in a thread at all, and `until`
-    holds a matching ask open until the reader has posted the verb it names.
+    A widget with an action ask or request ask can stand in a thread. `until` holds a
+    matching action ask open until the reader has posted the verb it names, while a
+    request ask follows its frozen-document request lifecycle.
 
     `settled` is the root ids of the closed threads, whose asks went with them —
     the question was the thread's, and the panel's own reading takes a closed
@@ -446,10 +484,18 @@ def thread_ask_projection(
         # here.
         with_agent=set(),
         thread=True,
+        request_phases=request_phases,
     )
     thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}
     return ([{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks], values)
 
 
-def thread_asks(events: list, registry: dict, settled: set) -> list:
-    return thread_ask_projection(events, registry, settled)[0]
+def thread_asks(
+    events: list,
+    registry: dict,
+    settled: set,
+    request_phases: dict[str, str] | None = None,
+) -> list:
+    return thread_ask_projection(
+        events, registry, settled, request_phases=request_phases
+    )[0]

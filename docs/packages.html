@@ -281,15 +281,16 @@ lf-chip {
               <td><code>x-ask</code></td>
               <td>
                 What x-ask declares: an instance is the complete reading and arrival
-                region for exactly one non-quoted nested x-awaits widget. The region
-                carries the heading, context, and evidence the reader needs before the
-                control; the nested widget still owns the answer and its fold. The
-                banner, Asks tray, <code>a</code>/<code>A</code> walk, standing ring,
-                and <code>page state</code> name the region while action eligibility and
-                replay name the nested widget. An arrival focuses that widget's
-                answering control but scrolls to the region's start.
-                <code>version check</code> requires one non-quoted nested x-awaits
-                source so the two identities cannot be ambiguous.
+                region for exactly one non-quoted nested widget declaring x-awaits or
+                x-request.ask. The region carries the heading, context, and evidence the
+                reader needs before the control; the nested widget still owns the answer
+                and its fold or request lifecycle. The banner, Asks tray,
+                <code>a</code>/<code>A</code> walk, standing ring, and
+                <code>page state</code> name the region while action eligibility,
+                replay, and request projection name the nested widget. An arrival
+                focuses that widget's answering control but scrolls to the region's
+                start. <code>version check</code> requires one non-quoted nested
+                declared ask source so the two identities cannot be ambiguous.
               </td>
             </tr>
             <tr>
@@ -472,10 +473,15 @@ lf-chip {
             <tr>
               <td><code>x-refers</code></td>
               <td>
-                Attributes whose values name another element on the page (an option's
-                <code>for</code>), which <code>version check</code> holds to an id the
-                version carries and the runtime renders as a reference the reader can
-                follow.
+                A map from attributes whose values name another element to their target
+                contracts. An empty contract accepts any element id (an option's
+                <code>for</code>). A typed contract names a shared registry map with
+                <code>via</code> and an equality predicate with <code>where</code>;
+                <code>version check</code> then requires both an existing id and a
+                target tag whose declaration in that package-owned map matches the
+                predicate. This lets a package distinguish a goal, worker, or evidence
+                reference without Leaf knowing those roles or tags. The runtime renders
+                every valid value as a reference the reader can follow.
               </td>
             </tr>
             <tr>
@@ -498,6 +504,34 @@ lf-chip {
                 (data-lf-reported); it is provisional news, standing only until a
                 version answers it. How a version answers a standing report is
                 $report's.
+              </td>
+            </tr>
+            <tr>
+              <td><code>x-request</code></td>
+              <td>
+                One-shot operations the reader asks the external host to perform.
+                <code>offers</code> maps each direct child widget tag to its required
+                string-enum verb attribute, deriving the commands a particular holder
+                presents; every live holder must carry at least one such direct offer
+                and may offer each verb only once. <code>verbs</code> declares every
+                command's complete detail schema. Optional <code>bind</code> maps
+                required string detail fields to required immutable string attributes on
+                this widget, so a crafted request cannot retarget the operation.
+                <code>ask: true</code> makes the ready lifecycle a reader ask:
+                acceptance hands the turn to the host, pending and completed leave the
+                reader's list, and failure returns it. A page holder has one lifecycle
+                per revision; a holder in frozen thread markup has one for that
+                document's whole lifetime. Pending excludes another request, failure
+                reopens it, and success completes it. Each request is durable and not
+                undoable because the host may already have acted.
+                <code>leaf receipt</code> appends exactly one linked
+                <code>succeeded</code> or <code>failed</code> outcome, and
+                <code>watchRequestLifecycle</code> supplies the holder's
+                server-projected request seat, exact request/receipt attempts, latest
+                attempt, and ready/pending/completed phase to its package module. Leaf
+                transports and validates the protocol but does not interpret verbs or
+                execute them; package-owned guidance tells the host what each verb
+                means, and external data carries replaceable evidence produced by it.
               </td>
             </tr>
             <tr>

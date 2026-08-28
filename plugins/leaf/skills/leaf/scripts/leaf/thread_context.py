@@ -70,13 +70,13 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     of that relation, so a delivery and a projection cannot put the same event
     in different conversations.
 
-    An action is in the conversation it was sent in, where an agent sent its
-    widget, and in the conversation it settles, which `detail.resolves` names —
-    the same key `build_threads` folds on to close one. Those are usually
-    different threads and often only the second exists: the shipped settling
-    verb is `lf-suggestion`'s accept, whose widget stands on the page and in no
-    conversation at all. Reading the widget alone left the gesture that closes a
-    thread as the one gesture arriving with nothing behind it.
+    An action or request on a sent widget belongs to the conversation that supplied
+    its frozen contract. An action also belongs to the conversation it settles,
+    which `detail.resolves` names — the same key `build_threads` folds on to close
+    one. Those are usually different threads and often only the second exists: the
+    shipped settling verb is `lf-suggestion`'s accept, whose widget stands on the
+    page and in no conversation at all. Reading the widget alone left the gesture
+    that closes a thread as the one gesture arriving with nothing behind it.
 
     A `report` carries a widget too and belongs to no conversation: `cmd_report`
     validates its target against the active revision's own elements, so one
@@ -88,8 +88,11 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
         named = [roots.get(event["message"])]
     elif kind in {"resolve", "unresolve"}:
         named = [roots.get(event["parent"])]
-    elif kind == "action":
-        named = [widgets.get(event["widget"]), event["detail"].get("resolves")]
+    elif kind in {"action", "request"}:
+        named = [
+            widgets.get(event["widget"]),
+            event["detail"].get("resolves") if kind == "action" else None,
+        ]
     else:
         return []
     return [thread for thread in dict.fromkeys(named) if thread]
@@ -252,7 +255,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         spoken_for |= {
             e["widget"]
             for e in batch
-            if e["kind"] == "action" and widgets.get(e["widget"]) == t
+            if e["kind"] in {"action", "request"} and widgets.get(e["widget"]) == t
         }
         pin = frozenset(
             sent

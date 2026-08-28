@@ -23,6 +23,7 @@ from .passages import active_enclosing
 from .registry.contract import RegistryError
 from .registry.reactions import reaction_tokens
 from .registry.storage import load_registry
+from .requests import request_contract_error
 from .schema import MESSAGE_KINDS
 from .service import PageTransaction
 from .structure import parse_revision, revision_review_mode
@@ -121,6 +122,21 @@ class _TransactionValidation:
             return event_rejection(self.event, error)
         return None
 
+    def request_rejection(self) -> EventAnswer | None:
+        if self.event["kind"] != "request":
+            return None
+        registry, rejection = self.registry_or_rejection()
+        if rejection:
+            return rejection
+        if error := request_contract_error(
+            self.page_dir,
+            self.event,
+            self.events,
+            registry,
+        ):
+            return event_rejection(self.event, error)
+        return None
+
     def reaction_rejection(self) -> EventAnswer | None:
         if not self.event.get("token"):
             return None
@@ -183,6 +199,7 @@ class _TransactionValidation:
             self.revision_rejection,
             self.approval_rejection,
             self.action_rejection,
+            self.request_rejection,
             self.reaction_rejection,
             self.anchored_comment_rejection,
             self.parent_rejection,

@@ -217,6 +217,11 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
     if not requirement:
         return None
 
+    # Imported here because request admission uses this module's schema helper.
+    # The transaction still has one canonical lifecycle reading; the local import
+    # only keeps that dependency from becoming an import cycle.
+    from leaf.requests import request_lifecycles_for, request_phases
+
     if page_rec:
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         projection, parser, spk = page_projection(html, events, registry, revision)
@@ -226,7 +231,21 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         # reader's to deal with: a conversation standing in the widget's seat
         # takes it off their list without answering it, and refusing their pick
         # over their own remark would refuse them the answer they were asked for.
-        awaiting_values = page_awaiting_values(html, parser, projection, spk, registry)
+        awaiting_values = page_awaiting_values(
+            html,
+            parser,
+            projection,
+            spk,
+            registry,
+            request_phases=request_phases(
+                request_lifecycles_for(
+                    events,
+                    parser.lf_elements,
+                    registry,
+                    {"kind": "page", "revision": revision},
+                )
+            ),
+        )
     else:
         # Thread markup is frozen in the log: it has no version retraction floor
         # and its actions read the whole conversation window.
@@ -235,7 +254,19 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         page_html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         threads = build_threads(events, enclosing_ids(page_html))
         settled = {root for root, value in threads.items() if value["resolved"]}
-        _, awaiting_values = thread_ask_projection(events, registry, settled)
+        _, awaiting_values = thread_ask_projection(
+            events,
+            registry,
+            settled,
+            request_phases=request_phases(
+                request_lifecycles_for(
+                    events,
+                    list(thread_by_id.values()),
+                    registry,
+                    {"kind": "thread"},
+                )
+            ),
+        )
 
     holders = projected_action_holders(projection, byid, registry)
     target = (

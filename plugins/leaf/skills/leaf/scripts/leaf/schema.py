@@ -173,6 +173,49 @@ REPORT_SCHEMA = _verbs_schema(
     ["detail", "facet", "unit", "record"],
     updates=True,
 )
+# A request is a one-shot instruction for the host, not state the browser can replay.
+# Its declaration owns the authored offer relation and the typed payload, but no replay
+# form. The linked receipt carries the closed, layer-wide outcome envelope;
+# host-specific evidence belongs in external data.
+REQUEST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ask": {"type": "boolean"},
+        "offers": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{WIDGET_NAME}$"},
+            "additionalProperties": {
+                "type": "string",
+                "pattern": f"^{HTML_NAME}$",
+            },
+        },
+        "verbs": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "object"},
+                    "bind": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+                        "additionalProperties": {
+                            "type": "string",
+                            "pattern": f"^{HTML_NAME}$",
+                        },
+                    },
+                },
+                "required": ["detail"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["offers", "verbs"],
+    "additionalProperties": False,
+}
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -249,6 +292,32 @@ _ATTRIBUTE_LIST = {
     "minItems": 1,
 }
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
+REFERENCE_SCHEMA = {
+    "type": "object",
+    "minProperties": 1,
+    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+    "additionalProperties": {
+        "type": "object",
+        "properties": {
+            # A package-owned relation can constrain its target through any shared
+            # registry map. Leaf understands only the path and equality predicate;
+            # `$command.widgets` and its roles remain entirely package vocabulary.
+            "via": {
+                "type": "string",
+                "pattern": r"^\$[a-z][a-z0-9-]*(?:\.[a-z][A-Za-z0-9-]*)*$",
+            },
+            "where": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                    "type": ["string", "number", "boolean", "null"]
+                },
+            },
+        },
+        "dependentRequired": {"via": ["where"], "where": ["via"]},
+        "additionalProperties": False,
+    },
+}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -294,8 +363,9 @@ EXTENSION_SCHEMA = {
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "minItems": 1,
         },
-        "x-refers": _ATTRIBUTE_LIST,
+        "x-refers": REFERENCE_SCHEMA,
         "x-report": REPORT_SCHEMA,
+        "x-request": REQUEST_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
             "type": "object",

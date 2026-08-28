@@ -9,12 +9,8 @@ from typing import NamedTuple
 from .data import data_contract_errors, page_data_bindings, read_data_store
 from .event_log import flocked, now_iso, read_events
 from .files import (
-    _path_location,
     json_bytes,
     latest_revision,
-    located,
-    locations_overlap,
-    path_is_within,
     read_json,
     replace_files,
     revision_path,
@@ -27,6 +23,7 @@ from .layer import (
     input_paths,
     layer_inputs,
 )
+from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_projection
 from .schema import LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
 from .service import (
@@ -280,9 +277,9 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
             if parent == page_dir:
                 break
             directories.add(parent)
-    located_files = [(target, _path_location(target)) for target in file_targets]
+    located_files = [(target, path_location(target)) for target in file_targets]
     located_directories = [
-        (directory, _path_location(directory)) for directory in directories
+        (directory, path_location(directory)) for directory in directories
     ]
     if collision := next(
         (

@@ -4,16 +4,16 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .files import (
-    _path_location,
+from .files import replace_files
+from .host import config_home
+from .locations import (
     located,
     location_is_within,
     locations_overlap,
     path_is_within,
+    path_location,
     paths_same,
-    replace_files,
 )
-from .host import config_home
 from .schema import (
     BROWSER_DIRS,
     DEFAULT_PACKAGE,
@@ -308,7 +308,7 @@ def refuse_package_overlap(targets: list, protected: list) -> None:
 def initialized_page_owning(path: Path):
     """The initialized page that owns path, if there is one."""
     resolved = path.resolve()
-    at = _path_location(resolved)
+    at = path_location(resolved)
     for root in (resolved, *resolved.parents):
         # Runtime state is disposable and regenerated; it cannot identify the
         # page whose owned paths this gate protects.
@@ -319,10 +319,10 @@ def initialized_page_owning(path: Path):
         ):
             continue
         if (
-            at == _path_location(root)
-            or any(at == _path_location(root / name) for name in PAGE_OWNED_FILES)
+            at == path_location(root)
+            or any(at == path_location(root / name) for name in PAGE_OWNED_FILES)
             or any(
-                location_is_within(at, _path_location(root / name))
+                location_is_within(at, path_location(root / name))
                 for name in PAGE_OWNED_DIRS
             )
         ):

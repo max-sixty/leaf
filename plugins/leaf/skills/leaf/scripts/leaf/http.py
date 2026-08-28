@@ -18,7 +18,6 @@ from .files import (
     latest_revision,
     list_revisions,
     list_versions,
-    path_is_within,
     published_versions,
     revision_num,
     revision_path,
@@ -27,6 +26,7 @@ from .files import (
     version_revisions,
     write_json,
 )
+from .locations import path_is_within
 from .registry import layer_generation
 from .render_checks import PROBE_SOURCES
 from .revisioning import activate_source

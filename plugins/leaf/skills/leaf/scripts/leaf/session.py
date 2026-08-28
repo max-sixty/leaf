@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .event_log import jsonl_line
-from .files import _path_location, paths_same, read_json, write_json
+from .files import read_json, write_json
 from .host import host_identity
 from .hosting import start_server
+from .locations import path_location, paths_same
 from .passages import active_enclosing
 from .registry import RegistryError, described, load_registry
 from .revisioning import activate_source
@@ -97,9 +98,9 @@ class Watch:
         session picks up a leaf it didn't serve. A bare shell has no implicit
         ownership set, so it watches only a page explicitly named."""
         watched = owned_pages(self.session_id) if self.identity is not None else []
-        named_at = None if self.named is None else _path_location(self.named)
+        named_at = None if self.named is None else path_location(self.named)
         if named_at is not None and not any(
-            _path_location(d) == named_at for d in watched
+            path_location(d) == named_at for d in watched
         ):
             watched.append(self.named)
         return watched

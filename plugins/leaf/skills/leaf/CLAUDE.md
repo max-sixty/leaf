@@ -98,6 +98,8 @@ replacement and supplies the page-block reading used to start directional walks;
 `runtime/conversation/inline.js` owns conversation seats rendered into the page;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
 `runtime/conversation/landing.js` owns conversation input discovery and focus travel;
+`runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
+filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;

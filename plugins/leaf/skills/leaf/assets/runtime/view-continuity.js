@@ -29,7 +29,7 @@ export function createViewContinuity(dependencies) {
   // rides across as one semantic view — and through tabStore on document travel, per-tab
   // because a place in a page shouldn't outlive it. Two things are recorded, because
   // askPosition reads two the runtime can write down: the passage they were reading, and
-  // the ask the n/p walk had stepped them to. The passage travels as a landmark rather
+  // the ask the a/A walk had stepped them to. The passage travels as a landmark rather
   // than a pixel offset, since content moves between versions: re-find it by its text
   // within its section, then the section alone, and only fall back to the raw offset when
   // neither survived the revision. The panel's own open state is restored separately

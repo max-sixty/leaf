@@ -370,7 +370,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the reader was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
-    the third of four asks when v2 landed, they pressed `n` and were handed the third
+    the third of four asks when v2 landed, they pressed `a` and were handed the third
     again — after looking slightly back above that Ask, the block at the top of the
     window is somewhere they had already walked past.
 
@@ -386,7 +386,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     resized(page, 900, 400)
 
     for ask in ASKS_IN_ORDER[:3]:
-        page.keyboard.press("n")
+        page.keyboard.press("a")
         expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
 
@@ -412,7 +412,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         return earlier.bottom > 42 && earlier.bottom <= ask.top;
     }"""), "the reader is at the top of the window, where either reading would do"
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
@@ -473,7 +473,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     from the focus, so every way into an ask paints it and leaving takes it off.
 
     The walk used to write it, and nothing ever took it off. So it said where the walk
-    had left them rather than where they were: press `n`, click away, work in the panel
+    had left them rather than where they were: press `a`, click away, work in the panel
     for ten minutes, and an ask nobody was standing in went on wearing "you are here" —
     while a reader who had reached the same ask by Tab or by clicking one of its
     controls got no ring at all. The same place, marked or not by how they arrived.
@@ -484,7 +484,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     accent, with nothing saying the two rectangles meant one thing."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question")
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(question).to_have_attribute("data-lf-ask", "1")
     ask_ring = question.evaluate(RING)
     assert ask_ring == [
@@ -499,7 +499,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     # comes from the runtime's own .lf-pill rule, which every press in that margin
     # wears: the suggestion family spelled its own once, which is a family stating a
     # fact about a shape the runtime owns.
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     accept = page.locator(".lf-sug-accept")
     expect(accept).to_be_focused()
     assert accept.evaluate(RING) == ask_ring, (
@@ -541,7 +541,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
 
 def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     """The ladder unwinds from where the reader is, and out on the page the innermost
-    thing they are in is the ask they are standing on. There was no rung for it: `n`
+    thing they are in is the ask they are standing on. There was no rung for it: `a`
     brought them to an ask, ringed it, and no key took them out again — the one place in
     the runtime where a press put the reader somewhere with nothing to undo it, and the
     line said nothing about Escape at all while they stood there.
@@ -556,7 +556,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     call did nothing and the reader stayed on the control the line had just promised to
     take them off."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
     expect(page.locator(".lf-keyline")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
@@ -577,7 +577,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     expect(page.locator(".lf-keyline")).not_to_contain_text("let go")
 
     # The worklist keeps its place through that.
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
 
     # A window tall enough to hold the whole page, so body is no scroll container and
@@ -678,7 +678,7 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in ["live-question", "t-baffles", "t-bath", "m-build", "m-install"]:
-        page.keyboard.press("n")
+        page.keyboard.press("a")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
@@ -2718,7 +2718,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
 
 def test_a_thread_question_asks_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — a request to the reader
-    wherever it stands — and `n` opens the panel to reach it. A single-answer group
+    wherever it stands — and `a` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     the ask stands until (x-awaits.until). The thread's own reply box is the words'
@@ -2744,7 +2744,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     asks = page.locator(".lf-asks")
     expect(asks).to_have_text("Asks (2)")
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
@@ -2865,7 +2865,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     done = page.locator("#tq-set .lf-done")
@@ -2904,7 +2904,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator(".lf-panel")).to_be_visible()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2939,7 +2939,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     page.locator("#tq-logs").click()
     round_trip(page)
     page.locator("#tq-set .lf-done").click()
@@ -2984,7 +2984,7 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -3048,7 +3048,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator(".lf-panel")).to_be_visible()
     done = page.locator("#tq-set .lf-done")
     held = []
@@ -3081,7 +3081,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the ask
     with it. The group is still there to read in the disclosure, and still holds no
     answer — what went is the page's claim on the reader, who would otherwise carry a
-    standing ask for the life of the page and have `n` step them into a closed
+    standing ask for the life of the page and have `a` step them into a closed
     disclosure to reach it."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[0])

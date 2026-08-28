@@ -103,7 +103,7 @@ An ask must name itself without context outside the ask. Give an options group a
 `<strong>` title. When the context begins above the actionable widget, wrap the
 heading, introduction, evidence, and that one widget in `lf-ask`. The inner
 widget still records the answer; the wrapper is what the Asks tray names and
-what `n` / `p` aligns below the banner, so the reader arrives at the premise
+what `a` / `A` aligns below the banner, so the reader arrives at the premise
 before the options.
 
 The question leads the group in every shape it takes, and opens at the same

@@ -20,7 +20,6 @@ from render_support import (
     GLYPH_OFFSETS,
     INLINE_PAGE,
     INSIDE_ITS_OPTION,
-    LONG_PAGE,
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
@@ -60,14 +59,14 @@ pytestmark = pytest.mark.nightly
 
 
 def test_keys_answer_a_question_from_its_marks(browser, serve):
-    """From a mark — where `n` lands — ↑/↓ walk the options clamping at the ends, a
+    """From a mark — where `a` lands — ↑/↓ walk the options clamping at the ends, a
     digit picks outright, and each option wears its digit only while a mark holds
     keyboard focus, so nothing appears on a page nobody is answering."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     nums = page.locator("#live-question .lf-address")
     expect(nums.first).to_be_hidden()
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     marks = page.locator("#live-question .lf-pick")
     expect(marks.first).to_be_focused()
     expect(nums.first).to_be_visible()
@@ -127,7 +126,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
         (["c-heater", "c-cable", "c-hand"], "in the corner"),
         (["r-now", "r-later"], "centred"),
     ]:
-        page.keyboard.press("n")
+        page.keyboard.press("a")
         for id_ in options:
             chip = page.locator(f"#{id_} > .lf-address")
             expect(chip).to_be_visible()
@@ -407,7 +406,7 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
         "elements": [],
     }, "a page nobody has opened a comment on is already saying the reader is in one"
 
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     wait_standing(page, "bold text")
 
     # The four readings of a marked passage have to stay in this order, or one of them
@@ -432,12 +431,12 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
         "the pointer resting on the standing mark took its own ink away"
     )
 
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     wait_standing(page, "neighbouring block")
 
     # A passage with no words to paint says the same thing with the outline it already
     # wears, so the two kinds of anchor answer one question and not two.
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     wait_standing(page, "", ["fig"])
 
     # Standing in a comment while writing back to it is still standing in it: the reply
@@ -749,7 +748,7 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     )
     note.press("Enter")
     expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
     # Once the first thread resolves, the same control enters the next one.
@@ -1235,10 +1234,10 @@ def test_the_g_chord_addresses_every_list_the_page_has(browser, serve):
     page.keyboard.press("g")
     page.wait_for_function("() => document.body.scrollTop === 0")
 
-    # A key naming no list disarms the chord and keeps its ordinary meaning: g j is a
+    # A key naming no list disarms the chord and keeps its ordinary meaning: g t is a
     # thread step, so a mistyped g costs nothing.
     page.keyboard.press("g")
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
 
     # Typing contexts are untouched: in a box, the whole chord is text.
@@ -1510,14 +1509,28 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
     assert page.locator(".lf-version-menu").get_attribute("aria-keyshortcuts") is None
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     mark = page.locator("#live-question .lf-pick").first
     shortcuts = mark.get_attribute("aria-keyshortcuts").split()
     assert {"1", "2", "Enter", "ArrowUp", "ArrowDown", "Space"} <= set(shortcuts), (
         shortcuts
     )
 
-    page.keyboard.press("a")
+    page.keyboard.press("?")
+    expect(
+        page.locator(
+            ".lf-help tr", has_text="Next thing this page is waiting on you for"
+        ).locator("kbd")
+    ).to_have_text("a")
+    expect(
+        page.locator(
+            ".lf-help tr", has_text="Previous thing this page is waiting on you for"
+        ).locator("kbd")
+    ).to_have_text("A")
+    page.keyboard.press("Escape")
+
+    assert page.locator(".lf-asks").get_attribute("aria-keyshortcuts") is None
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown"
     )
@@ -2018,9 +2031,9 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # Focus doesn't fall to body: it lands on the control that reopens the panel.
     expect(page.locator(".lf-comments")).to_be_focused()
 
-    # The fast rung: j reopens onto a thread, and Esc from it is one press out.
+    # The fast rung: t reopens onto a thread, and Esc from it is one press out.
     # Every rung earns a press here because Esc is the only keyboard collapse.
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(".lf-thread")).to_be_focused()
     expect(line).to_contain_text("close comments")
     page.keyboard.press("Escape")
@@ -2054,7 +2067,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
 
     page.keyboard.press("c")
     expect(page.locator(".lf-threads")).to_be_focused()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(".lf-thread")).to_be_focused()
     page.keyboard.press("Tab")
     quote = page.locator(".lf-thread .lf-quote")
@@ -2662,8 +2675,8 @@ def test_the_reference_names_the_space_that_works_a_control(browser, serve):
 def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     browser, serve, live_leaf
 ):
-    """A held key repeats keydown where a real button fires once. A walk wants that — j
-    down a list of threads, arrows down the tray — and a press that toggles or navigates
+    """A held key repeats keydown where a real button fires once. A walk wants that — t
+    down threads, a down asks, arrows down the tray — and a press that toggles or navigates
     does not: a held `]` was a page navigation per repeat, and a held pick a `choose` per
     repeat, each of them one decision the reader made once. So a row says whether it
     repeats and the default is no, where before only `offer`'s own listener had thought
@@ -2674,14 +2687,19 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page installed; the tap below it, dispatched the same way and answered, is what says
     so rather than leaving the held press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
+    page, errors = open_page(browser, serve(ASKS_PAGE, comments=3))
     press = """([key, repeat]) => document.dispatchEvent(
         new KeyboardEvent('keydown', {key, repeat, bubbles: true, cancelable: true}))"""
 
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(".lf-thread").first).to_be_focused()
-    page.evaluate(press, ["j", True])  # a walk repeats
+    page.evaluate(press, ["t", True])  # a walk repeats
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
+
+    page.keyboard.press("a")
+    expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
+    page.evaluate(press, ["a", True])  # the same grammar repeats for asks
+    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
 
     tray = page.locator(".lf-others-panel")
     page.keyboard.press("l")
@@ -3272,10 +3290,10 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
 
-    # The dispatcher asks the same declaration: k used to open an empty panel
-    # while j, when-gated, did nothing.
-    page.keyboard.press("j")
-    page.keyboard.press("k")
+    # The dispatcher asks the same declaration: neither half of the pair runs while
+    # there is no thread to walk.
+    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-panel")).to_be_hidden()
     line = page.locator(".lf-keyline")
     expect(line).not_to_contain_text("threads")
@@ -3300,6 +3318,12 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")
+    expect(
+        help_el.locator("tr", has_text="Next open thread").locator("kbd")
+    ).to_have_text("t")
+    expect(
+        help_el.locator("tr", has_text="Previous open thread").locator("kbd")
+    ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
     # Still one version, so the menu's section holds its way out and not its walk.
     expect(help_el).to_contain_text("Close the versions menu")
@@ -3324,7 +3348,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.keyboard.press("Escape")
 
     # A resolved thread stays focusable after the last open one is gone, and the
-    # scene branch that restates the j/k row over it asks the same liveness.
+    # scene branch that restates the t/T row over it asks the same liveness.
     page.keyboard.press("c")
     for n in [1, 2]:
         page.locator(".lf-threads > .lf-thread").first.get_by_role(
@@ -3356,7 +3380,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
 def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     """x changes the resolution of the thread the reader is standing on.
 
-    It resolves the thread j/k landed on through the button's own press, so
+    It resolves the thread t/T landed on through the button's own press, so
     focus lands where the button already sends it — on the thread that takes the
     resolved one's place. On a resolved thread the same state key reopens it, while
     Enter performs that thread's available primary action: reply when open and reopen
@@ -3394,10 +3418,10 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 
-    # j lands on the first thread and the line offers resolve; x takes it, and
-    # focus lands on the thread now holding the resolved one's place, so j/k
+    # t lands on the first thread and the line offers resolve; x takes it, and
+    # focus lands on the thread now holding the resolved one's place, so t/T
     # and a second x walk on from there.
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{c1}"]')).to_be_focused()
     expect(line).to_contain_text("resolve")
     page.keyboard.press("x")
@@ -3798,9 +3822,9 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-threads")).to_be_focused()
 
-    # Standing in the open thread, it means that thread's reply box. `j` walks on from
+    # Standing in the open thread, it means that thread's reply box. `t` walks on from
     # where the press above left the reader, no backing out of a box first.
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{live}"]')).to_be_focused()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")

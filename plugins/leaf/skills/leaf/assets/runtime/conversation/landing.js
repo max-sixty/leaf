@@ -170,7 +170,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
     if (!listNode(id)) widen();
     // Showing a thread is an arrival in the panel, not a glimpse from the page. Focus is
     // the standing fact shared by the card and its mark, so the route that begins on a
-    // painted passage has to end on the same focus target as j/k and the address chord.
+    // painted passage has to end on the same focus target as t/T and the address chord.
     // preventScroll keeps this call out of the scroll: the list lands a thread that takes
     // the focus, and the reveal below is the deliberate placement that follows and wins.
     listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });

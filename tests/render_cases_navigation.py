@@ -98,7 +98,7 @@ OVER_WORDS = """(el, id) => {
 #
 # Two `bounding_box()` calls are two instants, and the page moves between them: a viewport
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
-# straight into the answer. `n` scrolls to the ask it steps to, the body is the scroller,
+# straight into the answer. `a` scrolls to the ask it steps to, the body is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
 # so the chip's offset came back a pixel out on about half of the runs, on whichever row
 # the frame happened to fall between. Nothing had moved by then except the window, which is

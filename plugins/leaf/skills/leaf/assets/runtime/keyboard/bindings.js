@@ -273,7 +273,7 @@ export const PRESS = ["Enter", " "];
 // A clamped walk over a list of focusable rows: the row `dir` steps to from wherever
 // focus stands, or the end it is already on. Clamped rather than wrapping, because ↓ on
 // the last row must land where it already stands — the press stays the panel's, so the
-// list doesn't scroll out from under a walk that reached its end, which is also how j/k
+// list doesn't scroll out from under a walk that reached its end, which is also how t/T
 // walks threads. A walk that wraps is a fact about that walk (lf-tabs, per the ARIA tabs
 // pattern) and states its own; this is the one two panels share. It hands back the row it
 // landed on, for a walk that does more than move — the versions menu states a comparison

@@ -132,7 +132,7 @@ export function createAddress({
       key: "a",
       word: "asks",
       does: "Go to the nth thing this page is waiting on you for",
-      // The list n/p walk, addressed rather than stepped: one reading, so the number and the
+      // The list a/A walk, addressed rather than stepped: one reading, so the number and the
       // walk cannot disagree about which ask is the third one. The arrival is handed the
       // whole list, so it announces the ask's place among everything the page is waiting on.
       list: openAsks,

@@ -2145,9 +2145,10 @@ def test_a_walk_down_the_asks_tray_stops_clear_of_the_key_line(browser, serve):
     goes without, and the second tray is the one nobody looks at."""
     page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 900, 420)
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(12)
+    rows.first.focus()
     for _ in range(12):
         page.keyboard.press("ArrowDown")
     expect(rows.last).to_be_focused()
@@ -3343,12 +3344,12 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
 # reaching each. Scopes rather than rooms because this layer spends "room" on space —
 # `--here-ring-room` is the band a scroller reserves — and these are places the reader
 # stands. A tray, the versions menu and the reference hold controls that do not exist
-# until a key opens them, so the Tab order alone never reaches one: twelve of the
+# until their entry control opens them, so the Tab order alone never reaches one: twelve of the
 # layer's ring rules stood in that position when this was written.
 RING_WALKS = (
     ("the page", (), ("gallery", "design-decision", "ship-review")),
     ("the comments", ("c",), ("ship-review",)),
-    ("the asks tray", ("a",), ("ship-review",)),
+    ("the asks tray", (), ("ship-review",)),
     ("the leaves tray", ("l",), ("gallery",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the last row, and the comparison press beside a row is a Tab forward
@@ -3367,8 +3368,8 @@ RING_WALK_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, corpus in RING_WALKS for name in corpus)
 )
 # What each scope has to have opened before its walk means anything, and what the page
-# shows while the key that opens it is live. A key with nothing to show is dead by
-# declaration — `a` on a page waiting on nobody, `l` where the machine has one leaf — so
+# shows while its entry is available. A control with nothing to show is absent by
+# declaration — Asks on a page waiting on nobody, `l` where the machine has one leaf — so
 # the surface is asked for only where the page is offering it, and the corpus answers for
 # the rest. Without this a key that stops working leaves the walk re-walking the page and
 # contributing nothing, which the coverage floor catches only where that scope is a
@@ -3381,6 +3382,7 @@ RING_SCOPE_SURFACE = {
     "the reference": (".lf-help.open", None),
     "design mode": ("body.lf-design", None),
 }
+RING_SCOPE_CONTROL = {"the asks tray": (".lf-asks", ".lf-asks-row")}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -3635,13 +3637,19 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page.locator(".lf-comments").click()
                 panel_settled(page)
                 page.evaluate(RING_WALK_START)
-            for key in keys:
-                page.keyboard.press(key)
+            if control := RING_SCOPE_CONTROL.get(scope):
+                opener, arrival = control
+                page.locator(opener).click()
+                page.locator(arrival).first.focus()
+            else:
+                for key in keys:
+                    page.keyboard.press(key)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or page.locator(offers).is_visible()):
                 assert page.locator(surface).count() == 1, (
-                    f"{' '.join(keys)} did not open {scope} on {example.stem}, which "
+                    f"{RING_SCOPE_CONTROL.get(scope, (' '.join(keys),))[0]} did not open "
+                    f"{scope} on {example.stem}, which "
                     "offers it, so this walk is the page's over again"
                 )
                 opened.add(scope)

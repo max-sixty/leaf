@@ -988,7 +988,7 @@ panel's focus paints its own passage apart from every other mark, as
 parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the ask ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
-it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
+it: the quote's press, the `t`/`T` walk, a `g c` digit, a click on the card, a
 reply box. A press on a page mark reaches `showThread`, which focuses the thread
 with `preventScroll` before its deliberate reveal; the page and card therefore
 both say which comment that press opened, and the next key belongs to the thread
@@ -1485,7 +1485,7 @@ so its ordinary Escape rung remains the route back.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
-panel's list and the thread `j` walks to are the same rung, which is why `c` from
+panel's list and the thread `t` walks to are the same rung, which is why `c` from
 either of them is the box — the box being the layer below. So the click that
 opened the panel is the press one Escape gives back, whichever of its contents
 the reader walked to first.
@@ -1501,10 +1501,11 @@ the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
 that adds the capability.
 
-The letter comes from a word the surface says. `l` opens the leaves, `a` the
-asks, `w` the comments waiting on the reader — each spelling what the reader can
-read off the control it presses. Where the letter a control's word wants is
-already taken, change the word or take a different capability's: a key spelling
+Directional walks use the category's letter, with case stating direction: lowercase
+advances and Shift goes back. `t`/`T` walks open threads and `a`/`A` walks open
+asks. Keep these as single-key presses rather than prefix sequences; a walk is
+often repeated or held. Other letters come from words the surface says: `l`
+opens leaves and `w` narrows to comments waiting on the reader. A key spelling
 something nothing on screen says is a key nobody reaches for twice.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
@@ -1513,8 +1514,9 @@ way this press will go, and Escape takes the mode off through the rung ladder
 rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `c` comments on it, `a` and `l` open what
-is about it. A surface holds the presses whose subject is that surface's own
+the presses whose subject is the page: `c` comments on it, `t`/`T` and `a`/`A`
+walk its open sets, and `l` opens its leaves. A surface holds the presses whose
+subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
 on: `w` narrows the comment panel's list and `/` searches it, and both live in
 `PANEL`. The page's alphabet is small and every letter spent there is spent on
@@ -1758,7 +1760,7 @@ back, with nothing the reader did moving either. An answered ask parts from neit
 list, so a picked group gains no ring, and a press from one of its picks names the
 option under the focus rather than the question.
 
-The ring is therefore paintable on an ask the `n`/`p` walk will not step to and the
+The ring is therefore paintable on an ask the `a`/`A` walk will not step to and the
 tray does not list, which is the accepted cost: the walk and the tray are the reader's
 list and this is not. Nothing strands the reader there — `markHere` looks its tray row
 up by id and finds none, the same as on every page with the tray shut, and the Escape
@@ -1924,7 +1926,7 @@ Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
 nested in an `x-ask` region, the row names the region: its heading, context, and
 evidence are the request the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-row travels through the same ask-arrival function as `n` and `p`, so numbered
+row travels through the same ask-arrival function as `a` and `A`, so numbered
 and directional navigation agree about focus, reveal, start-aligned scroll, and
 `landed`.
 
@@ -1949,7 +1951,7 @@ resolve the original thread. Comments owns the reader-facing clarification; the
 page's Ask remains the proposal with the agent rather than counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
-banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
+banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
 Three readings ask the other question — whether the request is *answered* — and all
@@ -2092,7 +2094,7 @@ thread's box rather than a particular scroll offset.
 
 The list is the page's order, not the log's. `inPageOrder` sorts by where the
 anchor pass placed each thread and breaks ties by log order, so the panel, the
-marks down the page, the j/k walk and the `g c` digits are one order. A thread
+marks down the page, the t/T walk and the `g c` digits are one order. A thread
 whose passage this version rewrote falls back to the element its anchor names,
 because an id survives a rewrite that takes a quote down with it. A thread that
 resolves nowhere — a comment about the page as a whole, or one whose element is

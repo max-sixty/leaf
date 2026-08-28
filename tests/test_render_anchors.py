@@ -598,9 +598,9 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # `n` opens the panel on the first ask and lands on its mark, which is what paints
+    # `a` reaches the first ask and lands on its mark, which is what paints
     # that group's digits; g c then aims the chord at the comments, which paints theirs.
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
@@ -2853,7 +2853,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     Which presses are asserted is decided by what a suspended one leaves to read. A key
     the mode swallows moves nothing, and nothing is what an assertion made too early reads
     on a key that worked — so the presses here are the two whose effect is a class and a
-    focus move in the same task as the keydown (`j` and `c`, both of which would raise the
+    focus move in the same task as the keydown (`t` and `c`, both of which would raise the
     panel and one of which would take the focus out of the menu). `d` lands a glide later,
     where "not yet" and "never" read alike; the line is where it is held, off the same
     claim the dispatcher reads."""
@@ -2899,7 +2899,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
 
-    page.keyboard.press("j")  # would raise the panel and walk focus out of the menu
+    page.keyboard.press("t")  # would raise the panel and walk focus out of the menu
     page.keyboard.press("c")  # would raise it and put focus in its box
     expect(panel).to_be_hidden()
     expect(row).to_be_focused()
@@ -2909,7 +2909,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # standing over the page rather than the key being broken.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-thread").first).to_be_focused()
     assert errors == []

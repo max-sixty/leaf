@@ -159,7 +159,7 @@ export function createConversation(dependencies) {
   });
   const { paintPageStrip, paintReactStrips } = reactionStrips;
 
-  // The open threads, in the order j/k walk and `g c` addresses. The list is the panel's own
+  // The open threads, in the order t/T walk and `g c` addresses. The list is the panel's own
   // children rather than a record kept beside them: a thread the log settles is renamed out
   // of them in that frame (foldOut), which takes it out of the walk, out of the addresses and
   // out of x's press in one stroke. A map of id → address stood here once, written by

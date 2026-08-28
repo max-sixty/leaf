@@ -59,7 +59,7 @@ export function createThreadCards(dependencies) {
     }
 
     const div = el("div", "lf-thread");
-    div.tabIndex = -1; // j/k focus target; the thread scope's Enter drops into its reply box
+    div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
     div.dataset.id = t.root.id;
     if (grow) div.classList.add("grow");
     const label = anchorLabel(t.root.anchor, t.root.about);
@@ -114,7 +114,7 @@ export function createThreadCards(dependencies) {
       const actions = el("div", "lf-thread-actions");
       const resolve = el("button", "lf-btn lf-resolve", "Resolve");
       // Resolving takes this node out of the open list and focus with it — the blind
-      // drive fell to body here. Land where j would have gone: the thread that now
+      // drive fell to body here. Land where t would have gone: the thread that now
       // holds this one's place, else the previous, else the list. Which is read after
       // the trip, off the list the fold has already left (foldOut renames the node the
       // frame the log settles it), so the landing is a thread rather than the room the

@@ -682,7 +682,6 @@ latestChip.title = latestChip.dataset.lfKeyTitle;
 if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
-  askRows,
   asksBtn,
   asksList,
   asksOffered,
@@ -867,7 +866,7 @@ needsBtn.setAttribute("aria-pressed", "false");
 findRow.append(findInput, needsBtn);
 const threadsBox = el("div", "lf-threads");
 // An Escape rung: backing out of the general box lands on the list (visible ring,
-// j/k walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
+// t/T walk on from it) rather than on nothing. -1 keeps it out of the Tab order.
 threadsBox.tabIndex = -1;
 // And a name, because `c` now lands a reader here rather than in the general box, whose
 // own label spoke for it. A page key's arrival has to say where it arrived — the two
@@ -1295,7 +1294,7 @@ const PANEL_SAY = {
   keys: ["c"],
   does: () => generalHint(),
   line: "comment",
-  // Dead while the reader has a passage or an item in hand. `j` is a page key that
+  // Dead while the reader has a passage or an item in hand. `t` is a page key that
   // lands focus in the panel, so a reader who selected a paragraph and then walked
   // the threads is standing in this scope with their selection still live — and this
   // row, being the innermost, would have taken the press and spent it on the general
@@ -1516,7 +1515,7 @@ const commentDestination = () => {
   const here = standingItem();
   if (here) return { ...commenting(itemWord(here)), go: () => commentOnItem(here) };
   // Standing nowhere the press can name, so it means "take me to the conversation" and
-  // lands on the list rather than in a box: the ring is visible, j/k walk on from it, and
+  // lands on the list rather than in a box: the ring is visible, t/T walk on from it, and
   // w and / are live, because the scope the reader is now standing in is the panel's
   // rather than a text box's. Landing in the general box put them in the one place in the
   // panel where the panel's own keys are all shadowed — TYPING claims a letter before
@@ -1757,7 +1756,6 @@ const {
   renderAsks,
   setLanded,
   standOn,
-  standingAnswers,
   standingIn,
   stepAsk,
   syncAsks,
@@ -2016,7 +2014,7 @@ const backFromBox = () => {
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
 // Escape remains the box's to declare or pass on. What it declares is the way back out —
 // to the thread a reply
-// belongs to, so Esc then Enter round-trips, or to the list, so j/k walk on from where the
+// belongs to, so Esc then Enter round-trips, or to the list, so t/T walk on from where the
 // backing-out started. Drafts are kept at every rung.
 //
 // A control the reader is standing on rather than writing in keeps that rung without this
@@ -2087,8 +2085,8 @@ const TYPING = {
 };
 
 // The panel's own keys. What a press acts on is whose scope it belongs to: the page holds
-// the presses whose subject is the page — `a` and `l` open what is about it — and a
-// surface holds the presses whose subject is its own contents. `w` narrows this list and
+// the presses whose subject is the page — `t`/`T` and `a`/`A` walk its open sets, and
+// `l` opens its leaves — while a surface holds presses for its own contents. `w` narrows this list and
 // `/` searches it, and a list the reader is not looking at is neither a thing to narrow
 // nor a thing to search. At page scope they were two bare letters spent on a panel that
 // might be shut, promised by the key line over prose the presses said nothing about.
@@ -2100,7 +2098,7 @@ const TYPING = {
 // the page's answer is the one that runs wherever the page has a nearer one.
 //
 // Standing in the panel is where its focus is, not merely that it is open: the Comments
-// button is the banner's, so opening by pointer leaves the reader outside, and `c`, `j`,
+// button is the banner's, so opening by pointer leaves the reader outside, and `c`, `t`,
 // Tab or a click on a thread is what puts them in. The same line `THREAD` draws one step
 // further in, which is why that scope sits before this one and its rows shadow these.
 // Whether the page has this scope at all is not a question the log answers: every page
@@ -2118,12 +2116,10 @@ const PANEL = {
   rows: [
     {
       id: "comment.waiting.toggle",
-      // `w` for the words the control says, the way `l` spells the leaves and `a` the
-      // asks. It is the phrase the page already uses for the same question asked of its
-      // widgets (n/p), asked here of the conversation — so the reader learns one idea and
-      // reaches it two ways rather than learning "needs you" beside it. The control was
-      // renamed to earn the letter: `n` belongs to the asks walk, and a key spelling a
-      // word nothing on screen says is a key nobody reaches for twice.
+      // `w` for the words the control says. It is the phrase the page already uses for
+      // the same question asked of its widgets (a/A), asked here of the conversation —
+      // so the reader learns one idea and reaches it two ways rather than learning
+      // "needs you" beside it.
       //
       // A narrowing is a mode, so the row states it as one: the sentence and the line
       // both turn on whether it stands, and Escape takes it off through the rung ladder
@@ -2486,63 +2482,39 @@ const PAGE = {
     },
     {
       id: "thread.walk",
-      keys: ["j", "k"],
+      // A walk's letter names its category; Shift reverses it. The two existing
+      // page categories therefore use the same compact, repeatable grammar.
+      keys: ["t", "Shift+t"],
       routes: [
-        { id: "thread.next", binding: "j", does: "Next open thread" },
-        { id: "thread.previous", binding: "k", does: "Previous open thread" },
+        { id: "thread.next", binding: "t", does: "Next open thread" },
+        { id: "thread.previous", binding: "Shift+t", does: "Previous open thread" },
       ],
       does: "Next / previous open thread",
       line: "threads",
       when: hasThreads,
       repeat: true,
-      run: (binding) => stepThread(binding === "j" ? 1 : -1),
+      run: (binding) => stepThread(binding === "t" ? 1 : -1),
     },
     {
-      // A borrowed pair, like the walks either side of it: j/k is vim's list, d/u is
-      // less's half page, and n/p is next and previous wherever a keyboard walks a list
-      // of things. The walk held `a` alone and then `a`/`p`, and
-      // both were the same mistake in different sizes — a letter naming what is walked
-      // rather than which way, so the second half had nowhere to come from and ended up
-      // a pair only its author knew. Naming the direction is also what leaves the noun's
-      // shifted letter to the answer that acts on all of them at once (A, below).
       id: "ask.walk",
-      keys: ["n", "p"],
+      keys: ["a", "Shift+a"],
       routes: [
         {
           id: "ask.next",
-          binding: "n",
+          binding: "a",
           does: "Next thing this page is waiting on you for",
         },
         {
           id: "ask.previous",
-          binding: "p",
+          binding: "Shift+a",
           does: "Previous thing this page is waiting on you for",
         },
       ],
       does: "Next / previous thing this page is waiting on you for",
       line: "asks",
       when: () => openAsks().length > 0,
-      run: (binding) => stepAsk(binding === "n" ? 1 : -1),
-    },
-    {
-      // `a` for the asks — the letter the walk gave up when it moved to naming directions
-      // (n/p above), and the noun every surface names this tray by. What it opens is the
-      // list those keys walk, which until now the reader could only reach by walking it:
-      // there was no way to see what was waiting without visiting each one in turn.
-      id: "ask.tray.toggle",
-      keys: ["a"],
-      does: () =>
-        `${openTray("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
-      line: () => `${openTray("asks") ? "hide" : "show"} asks`,
-      also: asksBtn, // the banner count opens the same tray, which then names this key
-      when: asksOffered,
-      run: () => {
-        showTray(openTray("asks") ? null : "asks");
-        // Opening lands on the first row, so the tray's own keys are the next press
-        // rather than a Tab-hunt across the banner — the move `l` makes into the leaves.
-        // Closing hands focus back, which showTray owns.
-        if (openTray("asks")) askRows()[0]?.focus();
-      },
+      repeat: true,
+      run: (binding) => stepAsk(binding === "a" ? 1 : -1),
     },
     {
       id: "page.half-scroll",
@@ -2574,28 +2546,6 @@ const PAGE = {
         // panel's box. Closing hands focus back, which showTray owns. The key is dead
         // with nothing to show, so an open always has a row to land on.
         if (openTray("leaves")) othersLinks()[0].focus();
-      },
-    },
-    {
-      // The same list n/p walk, answered at large: every blanket answer the page offers,
-      // given through the banner's own presses, so a decision taken by key is a decision
-      // taken by the control and the log records each one separately. Its words are the
-      // registry's rather than a sentence written here — "accept" is one widget's verb,
-      // and a key that said it in core would be the sentence the banner's count used to
-      // be. `a` names the asks it answers and stands for nothing on its own: an
-      // unshifted letter that ends the matter for every one of them is a press too
-      // cheap for what it does. The walk is spelled in directions (n/p), so the noun was
-      // free for the tray above, which is what it now opens.
-      id: "ask.answer-all",
-      keys: ["Shift+a"],
-      does: () =>
-        standingAnswers()
-          .map(({ label, n }) => `${label} all ${n}`)
-          .join(", ") + " waiting on you",
-      line: "answer all",
-      when: () => standingAnswers().length > 0,
-      run: () => {
-        for (const { btn } of standingAnswers()) btn.click();
       },
     },
     {

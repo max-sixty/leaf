@@ -84,10 +84,8 @@ export function createAskView({
   }
 
   // Each blanket answer with the asks it would take, from the list above. The banner
-  // writes its controls from this and the A key reads the same call, so the count on the
-  // row, the count the "?" reference promises, and the presses the key makes are one
-  // reading rather than three — and neither surface names a verb, since which verbs there
-  // are is the registry's answer.
+  // writes its controls and counts from this one reading, without naming a verb in core;
+  // which verbs exist is the registry's answer.
   function blanketAnswers(asks) {
     return [...bulkButtons].map(([verb, { btn, label }]) => ({
       btn,
@@ -95,13 +93,6 @@ export function createAskView({
       n: asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length,
     }));
   }
-  // The ones with something to answer right now. Declared rather than assigned, like
-  // openAsks above it: the key table is written further up the file, so a const would put
-  // this in its own dead zone for anything asked of that table before the module ends.
-  function standingAnswers() {
-    return blanketAnswers(openAsks()).filter((a) => a.n);
-  }
-
   // The banner's reading of that one list. Refreshed from every signal that can change
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
   // page's own words change), and every poll, which is where the fold moves and where a
@@ -121,7 +112,7 @@ export function createAskView({
       showNews(btn, Boolean(n));
       btn.textContent = `✓ ${label} all (${n})`;
     }
-    // The n/p and A rows stand on this list, so the surfaces reading them are repainted
+    // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = asksOffered();
@@ -347,9 +338,9 @@ export function createAskView({
   const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
-  // this key started at the top of the page — select a paragraph and press `n` and you were
+  // this key started at the top of the page — select a paragraph and press `a` and you were
   // taken back past everything you had read, and so was anyone scrolled halfway down
-  // pressing it for the first time. d/u measure from the scroll position and j/k from the
+  // pressing it for the first time. d/u measure from the scroll position and t/T from the
   // focused thread; this measured from its own memory, which is the one place the reader
   // isn't.
   //
@@ -405,7 +396,7 @@ export function createAskView({
     (control ?? source).focus({ preventScroll: true });
   }
 
-  // Standing on one ask: what n and p do once they have decided which, what a press on a
+  // Standing on one ask: what a and A do once they have decided which, what a press on a
   // tray row does having been told outright, and where `g a` lands a digit. One function
   // because it is one act — a second would be a second answer to "how do I put the reader on
   // an ask", and the two would drift the first time either the reveal or the focus rule
@@ -457,7 +448,6 @@ export function createAskView({
     renderAsks,
     setLanded,
     standOn,
-    standingAnswers,
     standingIn,
     stepAsk,
     syncAsks,

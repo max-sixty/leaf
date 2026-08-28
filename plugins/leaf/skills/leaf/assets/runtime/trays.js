@@ -83,7 +83,7 @@ export function createTrays({
   });
 
   // What the page is still waiting on the reader for, and the way to the next one — the
-  // same list n/p step and the "?" overlay names, counted here so a reader who
+  // same list a/A step and the "?" overlay names, counted here so a reader who
   // has not scrolled that far still knows there is something to answer.
   const asksBtn = el("button", "lf-btn lf-asks", "");
   asksBtn.title = "Show or hide what this page needs your input on";
@@ -219,10 +219,8 @@ export function createTrays({
     if (pagePresented()) restoreTray();
   }
 
-  // Each tray's one offer: something to show, or the tray already standing — the key that
-  // opened it must still close it, and its button must still be pressable. The button's
-  // visibility and the key both ask the tray's own predicate, so the two surfaces cannot
-  // disagree about whether there is a tray to open. An asks tray of none is the same.
+  // Each tray's one offer: something to show, or the tray already standing so its button
+  // can still close it. An asks tray of none is the same.
   const asksOffered = () =>
     pagePresented() && (openAsks().length > 0 || openTray("asks"));
   const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
@@ -248,7 +246,6 @@ export function createTrays({
     STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;
 
   return {
-    askRows,
     asksBtn,
     asksList,
     asksOffered,

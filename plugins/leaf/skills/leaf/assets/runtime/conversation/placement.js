@@ -7,7 +7,7 @@ export function createThreadPlacement(dependencies) {
   // The list reads in the page's order, not the log's. A page is a document with a
   // beginning and an end, and the reader walks the conversation the way they walk the
   // prose it is about: the thread on the lede is the first one, the thread on the punch
-  // list is the last, and j/k, the g c digits, the marks out on the page and the panel's
+  // list is the last, and t/T, the g c digits, the marks out on the page and the panel's
   // own scroll all say the same order. Log order answered a different question — when a
   // thread was opened — which is a question about one thread rather than about a list, and
   // the message clocks already answer it.

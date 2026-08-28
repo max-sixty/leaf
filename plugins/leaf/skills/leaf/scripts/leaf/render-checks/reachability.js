@@ -142,7 +142,7 @@ export function tinyBoxes(widgets) {
 // empty one every rect starts as — zero-sized, at the document's origin, a real-looking
 // answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
 // aimed at it lands at the top of the page: a page whose open asks were all suggestions
-// answered `n` by appearing to do nothing at all, and that reached its reader rather than
+// answered `a` by appearing to do nothing at all, and that reached its reader rather than
 // this gate. The runtime answers it by hanging a mark on the boxes an element shows
 // through (shownParts) — which leaves one case that answer cannot reach, an element whose
 // words are in no child element at all, where there is nothing to hang anything on.

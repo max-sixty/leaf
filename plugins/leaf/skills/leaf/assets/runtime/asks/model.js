@@ -92,6 +92,8 @@ export function createAskModel({
     });
   }
 
+  // TODO(2026-08-28): Consider whether Decision is the clearer reader-facing name
+  // for Ask. Rename this one category if so; do not add a parallel Decision category.
   const openAsks = () => asks("reader");
   const unansweredAsks = () => asks("unanswered");
 

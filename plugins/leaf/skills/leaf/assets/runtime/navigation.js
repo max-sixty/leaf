@@ -69,7 +69,7 @@ export function createNavigation({
     const [left, top] = beside(shownBox(item));
     openOnItem(item, { left, top });
   }
-  // j/k walk the open threads: panel focus and the page highlight move as a pair — they are
+  // t/T walk the open threads: panel focus and the page highlight move as a pair — they are
   // two views of the same thread. Clamped at the ends, not wrapped; never empty, because the
   // keys are live only while open threads exist, and hasThreads counts what renderThreads
   // wrote here in the same synchronous pass.
@@ -99,7 +99,7 @@ export function createNavigation({
   // placement inside the panel, not travel to the passage the comment is about, so it
   // moves only the thread scroller and keeps the card's focus. Native scroll placement
   // reads the list's declared scroll-padding, including its sticky heading and focus-ring
-  // room, from the same authority the j/k walk uses.
+  // room, from the same authority the t/T walk uses.
   function placeThreadEdge(thread, edge) {
     thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }

@@ -390,7 +390,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
@@ -1104,7 +1104,7 @@ def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
     empty one every rect starts as — zero-sized at the document's origin — and the runtime
     hangs the mark on the boxes the element shows through instead. `#veiled` has one and
     is fine. `#ghost` has none, and there the paint has nowhere to land: this is the fault
-    that reached a reader as `n` appearing to do nothing at all, on a page whose remaining
+    that reached a reader as `a` appearing to do nothing at all, on a page whose remaining
     asks were all suggestions, while the gate rendered it green.
 
     TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
@@ -1584,11 +1584,11 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
     cramped = "() => document.body.hasAttribute('data-lf-cramped')"
     room = page.evaluate(cramped)
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     edge_settled(page, EDGES[1])
     standing = page.evaluate(cramped)
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     page.wait_for_function("() => document.body.getAnimations().length === 0")
     given_back = page.evaluate(cramped)
@@ -1623,7 +1623,7 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     page.evaluate(ROOM_EVERY_FRAME, 60)
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     edge_settled(page, EDGES[1])
     page.wait_for_function("() => window.__room.length >= 60")
     trace = page.evaluate("() => window.__room")

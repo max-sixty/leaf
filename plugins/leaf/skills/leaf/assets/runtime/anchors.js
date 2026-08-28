@@ -1131,7 +1131,7 @@ export function createAnchors(dependencies) {
   // answered it on its own surface — the thread holds the focus, and a press on a mark
   // flashes the thread it opens — while the page answered nothing back: every posted mark
   // wears one wash, so a reader sent from a comment to its passage arrived among a dozen
-  // identical marks with no way to tell which one they had asked to see. The j/k walk's
+  // identical marks with no way to tell which one they had asked to see. The t/T walk's
   // comment already called the panel and the page "two views of the same thread"; this is
   // the view that was missing.
   //
@@ -1139,7 +1139,7 @@ export function createAnchors(dependencies) {
   // reason markHere gives about the ask ring: a mark written at the arrival says where the
   // reader was *sent*, and goes on saying it after they have clicked away, read on down the
   // page and come back tomorrow. Every way into a thread then paints it — the quote's press,
-  // j/k, `g c 2`, a plain click on the card — because they all end in the same focus, and no
+  // t/T, `g c 2`, a plain click on the card — because they all end in the same focus, and no
   // way in has to be taught to paint.
   //
   // Read through `closest` rather than off the thread itself, so a reader typing a reply is

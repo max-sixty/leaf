@@ -143,10 +143,10 @@ export function createConversationThreadList(dependencies) {
     else if (!shown.length) wanted.push(noMatchNote());
     // Walked in the page's order rather than the log's (inPageOrder), because that is the
     // order every other reading of these threads is in: the marks down the page, the walk
-    // j/k makes, the digits g c spells. A thread on its way out still stands between its
+    // t/T makes, the digits g c spells. A thread on its way out still stands between its
     // neighbours while it folds (foldOut), which is why the walk is over the whole list
     // with the resolved ones taken at their own place. The first nine open threads are
-    // addressable (g c 1–9), in the order j/k walk; past nine, digits stop and j/k still
+    // addressable (g c 1–9), in the order t/T walk; past nine, digits stop and t/T still
     // reach everything. A folding thread takes no address and is walked by nothing: the log
     // has already settled it, and only its room is still here.
     //
@@ -193,7 +193,7 @@ export function createConversationThreadList(dependencies) {
     // A narrowing can take the thread the reader is standing in out of the list —
     // answering the last one waiting on the reader is exactly that — and a removed node drops
     // focus to body, which hands the next Space to the page behind the panel. Land them on
-    // the list, where Escape lands them and j/k can walk on from.
+    // the list, where Escape lands them and t/T can walk on from.
     const standingIn = threadsBox.contains(focused());
     setChildren(threadsBox, wanted);
     if (standingIn && !threadsBox.contains(focused()))
@@ -227,7 +227,7 @@ export function createConversationThreadList(dependencies) {
     // built the nodes that wear it. Both passes therefore repaint it: the one that changes
     // the record, and the one that changes what the record is painted on.
     paintThreadQuotes();
-    paintHere(); // the j/k and g rows, and an armed window's chips, stand on this list
+    paintHere(); // the t/T and g rows, and an armed window's chips, stand on this list
     // Narrowing and reconciliation can move another card under a pointer that did not
     // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
     refreshHover();

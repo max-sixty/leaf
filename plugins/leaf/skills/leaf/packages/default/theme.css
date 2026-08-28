@@ -701,7 +701,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      visibility: hidden; }
     /* The group is one control, so it is focused as one: the ring keyboard focus earns
      * is the group's, in the ask mark's own band — both read the --here-ring pair
-     * (theme.css) — because the two facts coincide whenever `n` lands here, and
+     * (theme.css) — because the two facts coincide whenever `a` lands here, and
      * they must draw one ring. They drew two: the focused cell wore an inset accent
      * ring of its own, so stepping to a group framed its first option twice over — the
      * mark outside the border, the cell's ring inside it — and the first option read as

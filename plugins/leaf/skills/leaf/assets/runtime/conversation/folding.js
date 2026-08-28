@@ -13,7 +13,7 @@ export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }
   // motion more: nothing in this tab moved, so the fold is the only thing saying so.
   //
   // Everything that walks the list asks for .lf-thread, so the one rename takes the
-  // node out of j/k, out of the g addresses, out of x's press and out of what the panel
+  // node out of t/T, out of the g addresses, out of x's press and out of what the panel
   // repaints, in a stroke: what stands there is room, not a thread. `inert` says the
   // same to the pointer and the tab order, so the fold can't be pressed a second time
   // or typed into on its way out.

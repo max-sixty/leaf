@@ -791,7 +791,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     """One row of offers per thread at rest: the strip under the latest agent message,
     which is the one `r` arms. Every other reply shows the tokens standing on it and
     takes no room with none. The rest of the rows are there for a reader who is in the
-    thread — the pointer over the card or the focus j/k puts on it — so a mark taken
+    thread — the pointer over the card or the focus t/T puts on it — so a mark taken
     back can be put back, by hand or by keyboard, and the press that empties a row
     keeps both the row and its own focus. A token at rest is a muted glyph whose box
     arrives as paint under the pointer, the pill's own box unmoved."""

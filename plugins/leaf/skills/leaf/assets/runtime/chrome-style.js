@@ -116,7 +116,7 @@ export function chromeStyle({
      the panel's edge rather than under it. Under a covering sheet one wheel gesture still
      moves one region, and the region is the thread list; the page holds its place for
      when the sheet closes — a hidden-overflow scroller keeps its position, and still
-     moves for a j/k walk or a version switch restoring where the user was, so the passage
+     moves for a t/T walk or a version switch restoring where the user was, so the passage
      behind the sheet is the one the panel is talking about.
 
      The cascade's, though syncLayout is the layout's one writer, because body's box is
@@ -492,7 +492,7 @@ ${MARK_RULES}
   /* The one runtime word living inside the page's own elements, so its hiding cannot
      come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
      once above for both. It becomes a skip-link-style control on focus: a reader who
-     hears the count can enter its first thread, then j/k through the rest. The rule
+     hears the count can enter its first thread, then t/T through the rest. The rule
      below states its whole visible form, so the resting one adds nothing to the clip —
      the padding and border reset that stood here were a real button's, and the note has
      been a span since offer() built it. */
@@ -1060,7 +1060,7 @@ ${MARK_RULES}
     .lf-page-strip { padding: 8px 14px 0; }
     /* Quiet in the panel, and open where the reader is. Every token is offered under
        the latest agent message and on the page row (.lf-open), and in a thread the
-       reader is standing in — the pointer anywhere over the card, or the focus j/k puts
+       reader is standing in — the pointer anywhere over the card, or the focus t/T puts
        on it. A thread they are not in shows only the tokens standing on it, and a reply
        with none takes no room. Reached by the whole card rather than by each message,
        because the room a row takes has to arrive once on the way in: per message it

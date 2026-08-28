@@ -319,7 +319,7 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
 def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
     """The list is the page's order, not the log's. A reader walking a long
     conversation walks it the way they walk the prose it is about, and every other
-    reading of these threads already does: the marks down the page, the j/k walk, the
+    reading of these threads already does: the marks down the page, the t/T walk, the
     g c digits. So the threads are written here in the reverse of the page's order and
     the panel is asked for its own, which is only the page's if something sorted it.
 
@@ -352,9 +352,9 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
         "placeholder", "Reply · g c 1"
     )
     page.locator("body").click()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_be_focused()
     assert errors == []
     page.close()
@@ -872,7 +872,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
 
     What the log says is true from that first frame regardless — Comments counts down
     and Resolved counts up while the pixels catch up — and a thread on its way out is
-    out of the keys' reach from the same frame, so j/k and the g addresses walk what
+    out of the keys' reach from the same frame, so t/T and the g addresses walk what
     is left rather than a corpse that is about to go. Its own reply box gives up the
     address with them: the box under it has just taken that digit, and two boxes
     offering g c 1 is a key line promising a press that lands on one of them.
@@ -916,7 +916,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         f"the list stood as {held['standing']} with the fold still to play"
     )
     assert held["walkable"] == [c2, c3], (
-        "a thread on its way out is still walkable by j/k and addressable by g, so a "
+        "a thread on its way out is still walkable by t/T and addressable by g, so a "
         f"key can land on room that is about to go: the list offered {held['walkable']}"
     )
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
@@ -1895,7 +1895,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
             " return l.scrollHeight > l.clientHeight; }"
         ), "the list does not scroll, so nothing here can be cut by its edge"
 
-        # The walk keys, not Tab: a thread is tabindex -1 and j/k are how a reader
+        # The walk keys, not Tab: a thread is tabindex -1 and t/T are how a reader
         # reaches one. Every landing on the way down and again on the way up, because
         # the two directions align opposite edges of the box with the scrollport and
         # only one of them was ever wrong at a time.
@@ -1909,7 +1909,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         page.keyboard.press("c")
         expect(page.locator(".lf-threads")).to_be_focused()
         walked, faults = 0, []
-        for key in ("j",) * threads + ("k",) * threads:
+        for key in ("t",) * threads + ("Shift+t",) * threads:
             page.keyboard.press(key)
             page.evaluate(RENDERED)
             walked += 1
@@ -1933,7 +1933,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
             "the walk ends outside a scroll region, so the cut half proved nothing"
         )
 
-        # The list's own controls, which j and k never reach: Reply and Resolve inside a
+        # The list's own controls, which t and T never reach: Reply and Resolve inside a
         # card draw their rings outside themselves, as does a run heading, which is a
         # button. They are what the room reserved at this list's edges is for — the
         # threads' own rings being inset, nothing else spends it — so without this pass
@@ -2138,7 +2138,7 @@ BURY = """(want) => {
 def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     browser, serve
 ):
-    """The walk above never sees this, and that is the point of having it twice: j/k
+    """The walk above never sees this, and that is the point of having it twice: t/T
     scroll their landing into the band the list declares unlandable, so the keyboard
     cannot put a thread anywhere its ring is cut. A click scrolls nothing. The reader
     nudges the list a dozen pixels, the run heading pins over the first card of its run,
@@ -2242,7 +2242,7 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
     focus event hears nothing and the reader presses at a card that will not come.
 
     Which is why the press asks where the gesture left the reader rather than which
-    thread the focus moved to. The keyboard half of this was already answered — `k` at
+    thread the focus moved to. The keyboard half of this was already answered — `T` at
     the top of the walk lands the thread it is already on — and this is the same shape
     one scope out."""
     url = serve(PANEL_PAGE)
@@ -2582,7 +2582,7 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         page.keyboard.press("c")
         expect(page.locator(".lf-threads")).to_be_focused()
         faults = []
-        for key in ("j",) * 8 + ("k",) * 8:
+        for key in ("t",) * 8 + ("Shift+t",) * 8:
             page.keyboard.press(key)
             page.evaluate(RENDERED)
             under = page.evaluate(COVERED_TOP)

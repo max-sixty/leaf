@@ -579,7 +579,6 @@ ${MARK_RULES}
       background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
     .lf-banner-status, .lf-banner-actions { display: flex; align-items: center; gap: 10px; }
     .lf-banner-status { min-width: 0; }
-    .lf-spacer { display: none; }
     /* The actions are their own shelf whenever the status and available destinations no
        longer share the row. Primary controls stay at its beginning; keyboard focus and a
        horizontal gesture can bring every later address wholly on screen without widening
@@ -606,9 +605,9 @@ ${MARK_RULES}
     .lf-dot.offline { background: var(--danger); }
     .lf-status-text { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
     .lf-status-text .lf-age { color: var(--muted); }
-    .lf-spacer { flex: 1; min-width: 0; }
-    /* This row is packed to the right against the spacer, and that decides who pays for
-       a control changing size: it moves itself and everything to its left, while
+    /* The banner grid's max-content action column and this shelf's end alignment pack the
+       row to the right. That decides who pays for a control changing size: it moves
+       itself and everything to its left, while
        everything to its right keeps its place. Three of these rewrite their own words —
        "✓ Version approved" is narrower than "Approve version", and two of them count something
        that gains a digit — so each holds room for the widest it may say, taken from the

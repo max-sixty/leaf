@@ -53,6 +53,8 @@ subscriptions;
 `runtime/state-feed.js` owns state reads, offline handling, heartbeat replay,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
+`runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
+overflow travel, and the banner's touch bridge to the document scroller;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
 `runtime/updates.js` owns canonical action, report, and work-claim feeds;

@@ -243,6 +243,7 @@ import {
   shownParts,
 } from "./runtime/anchors.js";
 import { createBanner } from "./runtime/banner.js";
+import { createBannerShelf } from "./runtime/banner-shelf.js";
 import { createConversationBox } from "./runtime/conversation/box.js";
 import {
   backFromConversation,
@@ -842,172 +843,11 @@ const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
 const bannerStatus = el("div", "lf-banner-status");
 bannerStatus.append(dot, statusText);
-const bannerActions = el("div", "lf-banner-actions");
-// Overflow is useful only when the destination a reader reaches is fully visible. Native
-// focus scrolling is inconsistent for the last few pixels of an overflow row, and it
-// does not account for an outset ring. Spend the shelf's reserved ring room explicitly.
-const revealBannerFocus = (control) => {
-  if (!bannerActions.contains(control) || !control.getClientRects().length) return;
-  const shelf = bannerActions.getBoundingClientRect();
-  const box = control.getBoundingClientRect();
-  const style = getComputedStyle(control);
-  const outset =
-    (Number.parseFloat(style.outlineWidth) || 0) +
-    (Number.parseFloat(style.outlineOffset) || 0);
-  if (box.left - outset < shelf.left)
-    bannerActions.scrollLeft -= shelf.left - box.left + outset;
-  else if (box.right + outset > shelf.right)
-    bannerActions.scrollLeft += box.right + outset - shelf.right;
-};
-bannerActions.addEventListener("focusin", (event) => revealBannerFocus(event.target));
-// The controls the banner's news arrives as, each present only while it has something to
-// say. Room a control has once taken is room it keeps for the rest of the page's life. A
-// live root pays nothing for news it may never get. A pinned version is different:
-// falling behind is part of its contract, so it reserves the future chip before
-// publication can move Comments or approval under a reaching pointer. Once any news has
-// stood, the rest of the row cannot close ranks over its place when it goes quiet again.
-//
-// One setter stating the whole outcome, per showComposer and showFab, so no caller has
-// to know which of the two ways of being absent this control is currently in.
-const showNews = (control, on) => {
-  // News can arrive while a deferred activation leaves the reader working in this live
-  // banner. Keep a focused later address at the same screen coordinate as a control is
-  // added or removed before it; focus remaining on an element nobody can see is not
-  // preservation. The shelf gains exactly the new room, so this adjustment has the same
-  // range as the displacement it answers.
-  const focused = bannerActions.contains(document.activeElement)
-    ? document.activeElement
-    : null;
-  const focusedLeft = focused?.getBoundingClientRect().left;
-  const siblings = [...bannerActions.children];
-  const focusedIndex = siblings.indexOf(control);
-  const focusTransfer =
-    focused === control && !on
-      ? [
-          ...siblings.slice(focusedIndex + 1),
-          ...siblings.slice(0, focusedIndex).reverse(),
-        ].find((candidate) => {
-          const style = getComputedStyle(candidate);
-          return (
-            candidate.getClientRects().length &&
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            !candidate.matches(":disabled, [aria-disabled='true']")
-          );
-        })
-      : null;
-  if (on) control.dataset.lfReserved = "1";
-  control.classList.toggle("lf-news-shown", on);
-  control.style.display = on || control.dataset.lfReserved ? "" : "none";
-  control.style.visibility = on ? "" : "hidden";
-  if (focusTransfer) {
-    focusTransfer.focus({ preventScroll: true });
-    revealBannerFocus(focusTransfer);
-  } else if (focused && focused !== control && focused.getClientRects().length) {
-    bannerActions.scrollLeft += focused.getBoundingClientRect().left - focusedLeft;
-    revealBannerFocus(focused);
-  }
-};
-// A hidden scrollbar keeps the banner calm, but it must not turn overflow into a
-// trackpad-only route. A vertical wheel first travels along a shelf that can still move;
-// any remainder goes to the page's body scroller explicitly, because Chromium keeps an
-// ordinary uncancelled wheel captured by the overflow box even at its boundary.
-bannerActions.addEventListener(
-  "wheel",
-  (event) => {
-    // Chromium reports pinch-to-zoom as Ctrl+wheel. Leave browser zoom, modified mouse
-    // gestures, and gestures already carrying a horizontal intention to the platform.
-    if (
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
-      Math.abs(event.deltaY) <= Math.abs(event.deltaX)
-    )
-      return;
-    const shelfUnit =
-      event.deltaMode === 1
-        ? 16
-        : event.deltaMode === 2
-          ? bannerActions.clientWidth
-          : 1;
-    const pageUnit =
-      event.deltaMode === 1
-        ? 16
-        : event.deltaMode === 2
-          ? document.body.clientHeight
-          : 1;
-    const shelfDelta = event.deltaY * shelfUnit;
-    const before = bannerActions.scrollLeft;
-    const limit = Math.max(0, bannerActions.scrollWidth - bannerActions.clientWidth);
-    bannerActions.scrollLeft = Math.max(0, Math.min(limit, before + shelfDelta));
-    const consumed = bannerActions.scrollLeft - before;
-    const remainder = shelfDelta ? 1 - Math.min(1, Math.abs(consumed / shelfDelta)) : 0;
-    const pageBefore = document.body.scrollTop;
-    const pageLocked = getComputedStyle(document.body).overflowY === "hidden";
-    if (remainder && !pageLocked)
-      document.body.scrollTop += event.deltaY * pageUnit * remainder;
-    if (bannerActions.scrollLeft !== before || document.body.scrollTop !== pageBefore)
-      event.preventDefault();
-  },
-  { passive: false },
-);
-// The document deliberately scrolls in body so its bar sits beside a standing panel.
-// Native touch that begins in fixed chrome never retargets to that non-root scroller,
-// leaving a dead strip across the top of touch laptops and phones. Lock a one-finger
-// gesture after a small intentional move: vertical travel follows the page under the
-// finger, while horizontal travel in the shelf and every multi-touch gesture remain the
-// browser's, preserving its native horizontal pan and pinch zoom.
-let bannerTouch = null;
-banner.addEventListener(
-  "touchstart",
-  (event) => {
-    if (event.touches.length !== 1) {
-      bannerTouch = null;
-      return;
-    }
-    const touch = event.touches[0];
-    bannerTouch = {
-      id: touch.identifier,
-      x: touch.clientX,
-      y: touch.clientY,
-      lastY: touch.clientY,
-      axis: null,
-    };
-  },
-  { passive: true },
-);
-banner.addEventListener(
-  "touchmove",
-  (event) => {
-    if (!bannerTouch || event.touches.length !== 1) {
-      bannerTouch = null;
-      return;
-    }
-    const touch = [...event.touches].find(
-      (candidate) => candidate.identifier === bannerTouch.id,
-    );
-    if (!touch) {
-      bannerTouch = null;
-      return;
-    }
-    if (!bannerTouch.axis) {
-      const dx = touch.clientX - bannerTouch.x;
-      const dy = touch.clientY - bannerTouch.y;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < 4) return;
-      bannerTouch.axis = Math.abs(dy) > Math.abs(dx) ? "page" : "horizontal";
-    }
-    if (bannerTouch.axis !== "page") return;
-    const before = document.body.scrollTop;
-    const delta = bannerTouch.lastY - touch.clientY;
-    bannerTouch.lastY = touch.clientY;
-    if (getComputedStyle(document.body).overflowY !== "hidden")
-      document.body.scrollTop += delta;
-    if (document.body.scrollTop !== before) event.preventDefault();
-  },
-  { passive: false },
-);
-for (const event of ["touchend", "touchcancel"])
-  banner.addEventListener(event, () => (bannerTouch = null), { passive: true });
+const { bannerActions, reserveNewsSlot, showNews } = createBannerShelf({
+  banner,
+  el,
+  pageScroller,
+});
 // The hidden pinned slot carries representative words as well as a measured width: an
 // empty button is shorter, so its first real label would still move vertically.
 const latestChip = el(
@@ -1019,7 +859,7 @@ const latestChip = el(
 // the letter again takes the current page. The chip names that motion, spelled from the
 // two rows that make it rather than typed out beside them.
 latestChip.title = "Open the current page";
-if (!LIVE_ROOT) latestChip.dataset.lfReserved = "1";
+if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const pagePresented = () => document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 const {
   askRows,
@@ -1115,7 +955,7 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 approveBtn.disabled = true;
 bannerActions.append(toggleBtn, latestChip, asksBtn, versionBtn, othersBtn);
 if (signoff) toggleBtn.after(approveBtn);
-banner.append(bannerStatus, el("span", "lf-spacer"), bannerActions);
+banner.append(bannerStatus, bannerActions);
 
 // Sign-off belongs to the authored version, while the control belongs to the live
 // chrome that survives one. A soft activation can therefore add or remove the same

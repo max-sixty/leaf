@@ -2424,8 +2424,7 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     # Out of room, witnessed independently of the controls whose widths are the subject.
     page.wait_for_function(
         "() => { const actions = document.querySelector('.lf-banner-actions');"
-        "        return document.querySelector('.lf-spacer').offsetWidth === 0"
-        "               && actions.scrollWidth > actions.clientWidth; }"
+        "        return actions.scrollWidth > actions.clientWidth; }"
     )
     assert page.evaluate(holds_its_width) == wide, (
         "a banner with no room left took it out of a control instead of giving the "

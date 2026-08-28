@@ -457,6 +457,28 @@ def test_a_static_demo_decision_resets_on_reload(site, hosted, browser):
         page.close()
 
 
+def test_the_static_demo_answers_the_exact_projection_path(site, hosted, browser):
+    page, errors = open_page(browser, example_url(hosted, "design-decision"))
+    try:
+        answer = page.evaluate(
+            """async () => {
+              const state = await fetch('/api/state').then(response => response.json());
+              const revision = state.active.revision;
+              const through = state.browser.basis.through_seq;
+              const response = await fetch(
+                `/api/view?revision=${revision}&through_seq=${through}`,
+              );
+              return {status: response.status, through, body: await response.json()};
+            }"""
+        )
+        assert answer["status"] == 200
+        assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+        assert set(answer["body"]["browser"]["views"]) == {"1"}
+        assert not errors, errors[:3]
+    finally:
+        page.close()
+
+
 def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
     """One origin serves every example here, where a server serves one page — so both
     stores keyed by nothing but the browser's own carry from one example to the next.

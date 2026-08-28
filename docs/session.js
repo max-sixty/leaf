@@ -2,10 +2,11 @@
  *
  * A page directory is files plus a process. The files a static host serves perfectly —
  * the vendored layer sits at this site's root, and every example under /examples is the
- * file in the tree — and the process answers three paths: GET /api/state, which hands
- * the page the log and who is behind it, POST /api/event, which appends, and GET
- * /api/news, a stream on which the page hears that the log has moved. So that is what
- * this is: those three paths, answered in the tab.
+ * file in the tree — and the process answers four paths: GET /api/state, which hands
+ * the page the log and who is behind it, GET /api/view, which projects one exact read,
+ * POST /api/event, which appends, and GET /api/news, a stream on which the page hears
+ * that the log has moved. So that is what this is: those four paths, answered in the
+ * tab.
  *
  * Which makes the pages on this site live rather than pictures of live ones. Every
  * control is the shipped runtime's own — the banner and its counts, the comment panel,
@@ -135,7 +136,7 @@ const valueOf = (event) => {
   return value ?? null;
 };
 
-function demoProjection() {
+function demoProjection(without = null) {
   const withdrawn = new Set(
     events.filter((event) => event.undoes).map((event) => event.undoes),
   );
@@ -155,7 +156,7 @@ function demoProjection() {
       restated: [],
     });
     if (event.kind === "action") {
-      if (!withdrawn.has(event.id)) actions.set(key, event.id);
+      if (!withdrawn.has(event.id) && event.id !== without) actions.set(key, event.id);
     } else {
       const standing = reports.get(key) ?? [];
       standing.push(event.id);
@@ -314,6 +315,18 @@ function demoBrowser() {
     .map((event) => ({
       event,
       ...(coordinateOf(event) && { coordinate: coordinateOf(event) }),
+      ...(event.kind === "action" && {
+        restores_desired: (() => {
+          const coordinate = JSON.stringify(coordinateOf(event));
+          const projection = demoProjection(event.id);
+          const desired = new Set(projection.desired);
+          return projection.entries.some(
+            (entry) =>
+              desired.has(entry.event.id) &&
+              JSON.stringify(entry.coordinate) === coordinate,
+          );
+        })(),
+      }),
     }));
   return {
     basis: { through_seq: throughSeq },
@@ -430,11 +443,21 @@ window.fetch = (input, init) => {
     input instanceof Request ? input.url : String(input),
     location.href,
   );
-  // Only this page's two doors. Everything else — the theme, the registry, the widget
+  // Only this page's three request doors. Everything else — the theme, the registry, the widget
   // modules, another version's markup — is a file the host serves, and the runtime
   // reaches for it exactly as it would anywhere else.
   if (url.origin !== location.origin) return realFetch(input, init);
   if (url.pathname === "/api/state") return Promise.resolve(json(state()));
+  if (url.pathname === "/api/view") {
+    const browser = demoBrowser();
+    const revision = Number(url.searchParams.get("revision"));
+    const throughSeq = Number(url.searchParams.get("through_seq"));
+    if (revision !== REVISION || throughSeq !== browser.basis.through_seq)
+      return Promise.resolve(
+        json({ error: "the static exhibit holds no such projection" }, 400),
+      );
+    return Promise.resolve(json({ browser }));
+  }
   if (url.pathname === "/api/event") {
     const event = JSON.parse(init.body);
     // The execution record the door keeps per attempt, which is the whole of what a
@@ -471,7 +494,7 @@ window.fetch = (input, init) => {
   return realFetch(input, init);
 };
 
-// The third door. A served page holds GET /api/news open and hears the page's reading
+// The fourth door. A served page holds GET /api/news open and hears the page's reading
 // named each time it moves, then asks for state. Nothing here looks at a file: `append`
 // speaks to every open stream, and what it says is the reading `state` carries. No
 // `error` is ever dispatched, there being no server to lose, and no `alive`: the

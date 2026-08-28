@@ -10,6 +10,7 @@ from .data import read_data
 from .event_log import now_iso, read_cursor, read_events
 from .events import (
     action_rests_on,
+    action_retracted,
     awaits_agent,
     bare_reaction,
     build_threads,
@@ -301,7 +302,7 @@ def _browser_document(
     threads: dict,
     *,
     prepared: tuple | None = None,
-) -> tuple[dict, StateProjection]:
+) -> tuple[dict, StateProjection, dict, dict]:
     projection, parser, spk = prepared or page_projection(
         html, events, registry, revision
     )
@@ -344,12 +345,39 @@ def _browser_document(
             },
         },
         projection,
+        within,
+        floors,
+    )
+
+
+def _restores_desired(
+    event: dict,
+    coordinate: tuple,
+    projection: StateProjection,
+    withdrawn: set,
+    within: dict,
+    floors: dict,
+) -> bool:
+    """Whether withdrawing one action exposes another durable value there."""
+    desired = projection.desired.get(coordinate)
+    if desired and desired[0]["id"] != event["id"]:
+        return True
+    if projection.reports.get(coordinate):
+        return True
+    return any(
+        candidate_coordinate == coordinate
+        and candidate["kind"] == "action"
+        and candidate["id"] != event["id"]
+        and candidate["id"] not in withdrawn
+        and not action_retracted(candidate, floors, within)
+        for candidate_coordinate, (candidate, _spec) in projection.classified.values()
     )
 
 
 def _browser_undo_candidates(
     events: list,
     within: dict,
+    document_floors: dict,
     document_projection: StateProjection,
     conversation_projection: StateProjection,
 ) -> list[dict]:
@@ -372,6 +400,22 @@ def _browser_undo_candidates(
         if event["kind"] == "action" and event["id"] in classified:
             coordinate, _entry = classified[event["id"]]
             item["coordinate"] = list(coordinate)
+            if event["id"] in document_projection.classified:
+                projection = document_projection
+                action_within = within
+                floors = document_floors
+            else:
+                projection = conversation_projection
+                action_within = {}
+                floors = {}
+            item["restores_desired"] = _restores_desired(
+                event,
+                coordinate,
+                projection,
+                withdrawn,
+                action_within,
+                floors,
+            )
         candidates.append(item)
     return candidates
 
@@ -405,7 +449,7 @@ def browser_state(
     views = {}
     for revision in sorted(view_revisions):
         html = documents[revision]
-        document, projection = _browser_document(
+        document, projection, within, floors = _browser_document(
             html,
             events,
             registry,
@@ -448,7 +492,11 @@ def browser_state(
             "document": document,
             "updates": canonical_updates(projection, claims, threads, events),
             "undo": _browser_undo_candidates(
-                events, active_within, projection, conversation_projection
+                events,
+                within,
+                floors,
+                projection,
+                conversation_projection,
             ),
             "coverage": coverage,
             "published_at": published_at,

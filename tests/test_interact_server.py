@@ -743,9 +743,61 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
+    assert view["undo"][0]["restores_desired"] is False
     assert view["coverage"] == [
         {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
     ]
+
+
+def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
+    """The DOM need not re-fold the log to know a prior action will reappear."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+
+    for option, attempt in (
+        ("delivery-now", "attempt-prior-winner-1"),
+        ("delivery-later", "attempt-prior-winner-2"),
+    ):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": 1,
+                    "widget": "delivery",
+                    "action": "choose",
+                    "detail": {"options": [option]},
+                    "attempt": attempt,
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+
+    latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    assert latest["event"]["detail"] == {"options": ["delivery-later"]}
+    assert latest["restores_desired"] is True
+
+
+def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
+    for path in (page_dir / "revisions").glob("*.html"):
+        path.unlink()
+    (page_dir / "index.html").unlink()
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq=0")
+
+    assert status == 400
+    assert json.loads(body) == {
+        "error": f"no active revision; write {page_dir / 'index.html'} first"
+    }
 
 
 def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):

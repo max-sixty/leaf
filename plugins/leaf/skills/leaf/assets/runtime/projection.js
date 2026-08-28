@@ -302,7 +302,8 @@ export function createProjection(runtime, dependencies) {
   // Whether removing one action leaves the reconciler a state it can paint. The actual
   // transition belongs to reconciliation; this is only the keyboard offer, bounded to
   // the version where the gesture was made.
-  function canUndoAction(e) {
+  function canUndoAction(candidate) {
+    const e = candidate.event;
     const el = elementById(e.widget);
     if (!el || !el.applyAction) return false;
     const spec = registry[el.tagName.toLowerCase()]?.["x-state"]?.[e.action];
@@ -310,7 +311,11 @@ export function createProjection(runtime, dependencies) {
     if (!spec.record) return authoredMarkup.has(e.widget);
     const unit = unitOf(e, spec);
     const coordinate = stateCoordinate(e.widget, unit, spec);
-    return authoredDetails.has(coordinate) || authoredMarkup.has(e.widget);
+    return (
+      candidate.restores_desired ||
+      authoredDetails.has(coordinate) ||
+      authoredMarkup.has(e.widget)
+    );
   }
 
   // The newest gesture of the reader's own that still stands and can still be taken off
@@ -336,7 +341,7 @@ export function createProjection(runtime, dependencies) {
       if (
         widget &&
         (inChrome(widget) || e.revision === runtime.currentRevision) &&
-        canUndoAction(e)
+        canUndoAction(candidate)
       )
         return e;
     }

@@ -174,7 +174,10 @@ class Handler(BaseHTTPRequestHandler):
         with PageTransaction(self.page_dir) as page:
             if self.preview_source is None:
                 activate_source(self.page_dir, page.events)
-                active = active_descriptor(self.page_dir, page.events)
+                try:
+                    active = active_descriptor(self.page_dir, page.events)
+                except SystemExit as error:
+                    raise ValueError(str(error)) from error
                 source_overrides = None
             else:
                 active = self.preview_source["active"]

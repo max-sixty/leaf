@@ -7,6 +7,7 @@ from pathlib import Path
 from .event_log import read_cursor, read_events
 from .files import latest_revision, list_revisions, read_json
 from .host import state_home
+from .leases import wait_is_live
 from .server import running_server
 from .service import (
     claim_is_active,
@@ -14,7 +15,6 @@ from .service import (
     claim_update_sources,
     page_claim,
     unacknowledged,
-    wait_is_live,
 )
 from .structure import parse_revision
 

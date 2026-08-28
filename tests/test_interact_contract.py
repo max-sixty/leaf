@@ -54,11 +54,11 @@ from leaf import data as data_model
 from leaf import event_endpoint as event_endpoint_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
+from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
@@ -628,7 +628,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
-    transition = service_model.transition_lock(page_dir)
+    transition = leases_model.transition_lock(page_dir)
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
@@ -687,7 +687,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_model.layer_generation(page_dir)
-    transition = service_model.transition_lock(page_dir)
+    transition = leases_model.transition_lock(page_dir)
     init_waiting = threading.Event()
     real_flocked = vendoring_model.flocked
 

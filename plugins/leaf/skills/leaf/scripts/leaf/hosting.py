@@ -14,6 +14,7 @@ from .event_log import flocked, require_cross_process_locking
 from .files import read_json, write_json
 from .host import host_identity
 from .http import handler_for
+from .leases import lock_is_held, transition_lock
 from .server import (
     host_key,
     lifetime_note,
@@ -22,11 +23,7 @@ from .server import (
     running_server,
     stop_when_service_ends,
 )
-from .service import (
-    PageTransaction,
-    lock_is_held,
-    transition_lock,
-)
+from .service import PageTransaction
 
 try:
     import fcntl

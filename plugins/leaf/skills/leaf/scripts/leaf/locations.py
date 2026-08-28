@@ -1,6 +1,7 @@
 """Filesystem path identity, containment, and overlap."""
 
 import ctypes
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -27,6 +28,11 @@ class PathLocation(NamedTuple):
 
     lineage: tuple
     tail: tuple
+
+
+def page_key(page_dir: Path) -> str:
+    """A filesystem-safe identity for state held outside one page directory."""
+    return hashlib.sha256(str(page_dir.resolve()).encode()).hexdigest()
 
 
 def path_location(path: Path) -> PathLocation:

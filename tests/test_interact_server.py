@@ -37,6 +37,7 @@ from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import publishing as publishing_model
 from leaf import registry as registry_model
@@ -964,13 +965,13 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     original = http_model.Handler._page_state
 
     def own_state(handler, events, source_error=None, view_revision=None):
-        assert service_model.lock_is_held(page_dir / "comments.jsonl")
+        assert leases_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
         return original(handler, events, source_error, view_revision)
 
     def neighbours(directory):
         assert directory == page_dir
-        assert not service_model.lock_is_held(page_dir / "comments.jsonl")
+        assert not leases_model.lock_is_held(page_dir / "comments.jsonl")
         scanned.set()
         return []
 
@@ -1092,13 +1093,13 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
 ):
     """Standing startup must fail before it opens a socket or records a URL."""
     monkeypatch.setattr(event_model, "fcntl", None)
-    monkeypatch.setattr(service_model, "fcntl", None)
+    monkeypatch.setattr(leases_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.cmd_serve(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.start_server(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        service_model.lock_is_held(page_dir / "server.lock")
+        leases_model.lock_is_held(page_dir / "server.lock")
     assert not (page_dir / "server.lock").exists()
     assert not (page_dir / "service.json").exists()
 
@@ -2320,7 +2321,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
     (left,) = nested.rglob("left/service.json")
     assert not files_model.read_json(left)["enabled"]
-    assert not service_model.lock_is_held(left.parent / "server.lock")
+    assert not leases_model.lock_is_held(left.parent / "server.lock")
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
@@ -2513,7 +2514,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     writer = threading.Thread(target=resolve_then_claim)
     writer.start()
     assert writer_entered.wait(5)
-    assert service_model.lock_is_held(page_dir / "comments.jsonl")
+    assert leases_model.lock_is_held(page_dir / "comments.jsonl")
     release.set()
     reader.join(5)
     writer.join(5)

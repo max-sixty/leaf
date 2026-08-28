@@ -24,16 +24,11 @@ from .layer import (
     input_paths,
     layer_inputs,
 )
+from .leases import init_lock_path, lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_projection
 from .schema import LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
-from .service import (
-    PageTransaction,
-    claim_path,
-    init_lock_path,
-    lock_is_held,
-    transition_lock,
-)
+from .service import PageTransaction, claim_path
 from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_seats
 

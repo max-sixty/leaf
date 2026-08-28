@@ -8,10 +8,10 @@ from leaf.data import empty_data, read_data_store
 from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.event_log import flocked, read_events
 from leaf.files import list_revisions, revision_path
+from leaf.leases import transition_lock
 from leaf.projection import record_lag, state_projection
 from leaf.registry import RegistryError, load_registry
 from leaf.schema import VENDORED_FILES
-from leaf.service import transition_lock
 from leaf.structure import LF_META, PAGE_CSP, parse_structure
 from leaf.styles import (
     _column_width,

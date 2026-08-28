@@ -19,7 +19,8 @@ The main owners are:
 - `work`: transient work claims and widget work seats;
 - `asks`: declaration-driven page and thread request projections;
 - `host`: local paths, process readings, host identity, and session lifetime;
-- `service`: page claims, serialized transactions, and leases;
+- `leases`: process-backed page, transition, and waiter leases;
+- `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, and the HTTP process;
 - `session` and `hooks`: wait delivery and host lifecycle;
 - `presence`: page, claim, and neighboring-leaf presence readings;

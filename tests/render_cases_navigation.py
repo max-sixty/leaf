@@ -8,6 +8,7 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import leases as leases_model
 from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -935,8 +936,8 @@ SUGGEST_BLOCK = (
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
     session = service_model.page_claim(page_dir)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(page_dir, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, session)
     )
     assert lease
     told(page)

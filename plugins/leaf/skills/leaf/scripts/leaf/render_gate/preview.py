@@ -9,7 +9,7 @@ from leaf.event_log import flocked, now_iso, read_events
 from leaf.files import revision_label, version_name
 from leaf.hosting import LeafHTTPServer
 from leaf.http import handler_for
-from leaf.service import transition_lock
+from leaf.leases import transition_lock
 
 
 @contextlib.contextmanager

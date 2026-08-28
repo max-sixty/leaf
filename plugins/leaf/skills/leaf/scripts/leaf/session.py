@@ -9,6 +9,7 @@ from .event_log import jsonl_line
 from .files import read_json, write_json
 from .host import host_identity
 from .hosting import start_server
+from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .passages import active_enclosing
 from .registry import RegistryError, described, load_registry
@@ -18,9 +19,7 @@ from .service import (
     PageTransaction,
     claim_page,
     owned_pages,
-    take_waiter_lease,
     unacknowledged,
-    waiter_lease_path,
 )
 from .thread_context import batch_threads
 from .work import work_subject

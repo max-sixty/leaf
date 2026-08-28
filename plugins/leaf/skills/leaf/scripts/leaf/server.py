@@ -10,8 +10,9 @@ from pathlib import Path
 
 from .files import json_bytes, read_json
 from .host import state_home
+from .leases import lock_is_held
 from .schema import ORPHAN_GRACE_SECS
-from .service import PageTransaction, claim_is_active, lock_is_held, page_claim
+from .service import PageTransaction, claim_is_active, page_claim
 
 
 def running_server(page_dir: Path):

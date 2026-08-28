@@ -41,12 +41,12 @@ from leaf import data_contracts as data_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.validation import compatibility as validation_model
 
@@ -1549,7 +1549,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
-        serialized = service_model.lock_is_held(page_dir / "comments.jsonl")
+        serialized = leases_model.lock_is_held(page_dir / "comments.jsonl")
         reporting = executor.submit(
             conversation_model.cmd_report,
             page_dir,

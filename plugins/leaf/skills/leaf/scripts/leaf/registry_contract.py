@@ -174,8 +174,23 @@ def state_specs(entry: dict):
 
 
 def validate_registry(registry: dict, source) -> dict:
-    """Validate one complete vocabulary after its top-level overlays are merged."""
+    """Validate one complete vocabulary in its stable rejection order."""
     path = source
+    kinds, names, paths, tones, data, tokens = _required_layer_declarations(
+        registry, path
+    )
+    _validate_event_contracts(kinds, path)
+    _validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
+    widgets = _widget_entries(registry, path)
+    _validate_widget_schemas(widgets, path)
+    slots = retirement_slots(registry)
+    _validate_widget_relations(widgets, data, slots, path)
+    _validate_retirement_facets(slots, widgets, path)
+    _validate_awaiting_units(widgets, path)
+    return registry
+
+
+def _required_layer_declarations(registry: dict, path):
     try:
         kinds = registry["$events"]["kinds"]
         names = registry["$languages"]["names"]
@@ -188,6 +203,10 @@ def validate_registry(registry: dict, source) -> dict:
             f"{path}: registry must declare $events.kinds, $languages.names/paths, "
             "$tones.names, $data, and $reactions.tokens"
         )
+    return kinds, names, paths, tones, data, tokens
+
+
+def _validate_event_contracts(kinds: dict, path) -> None:
     if not isinstance(kinds, dict):
         raise RegistryError(f"{path}: $events.kinds must map names to event contracts")
     envelope = {"id", "ts", "author", "kind", "seq"}
@@ -278,6 +297,11 @@ def validate_registry(registry: dict, source) -> dict:
             f"{path}: $events.kinds omits or changes contracts the current layer "
             "writes: " + ", ".join(incompatible)
         )
+
+
+def _validate_layer_declarations(
+    registry: dict, path, names, paths, tones, data, tokens
+) -> None:
     # $keys documents exactly the x- keys the lint admits, one string per key: the
     # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
     # declared is documentation of nothing, and a key with no member is one an author
@@ -394,6 +418,9 @@ def validate_registry(registry: dict, source) -> dict:
             "with a `glyph` of one or two characters, a non-empty `means`, and "
             "optionally a boolean `settles`"
         )
+
+
+def _widget_entries(registry: dict, path) -> dict:
     invalid_names = [
         tag
         for tag in registry
@@ -402,6 +429,10 @@ def validate_registry(registry: dict, source) -> dict:
     if invalid_names:
         raise RegistryError(f"{path}: invalid registry entry names: {invalid_names}")
     widgets = {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
+    return widgets
+
+
+def _validate_widget_schemas(widgets: dict, path) -> None:
     # First validate every entry in isolation. Cross-entry checks run only after this
     # pass, so their result cannot depend on which widget happened to be written first.
     for tag, entry in widgets.items():
@@ -484,7 +515,8 @@ def validate_registry(registry: dict, source) -> dict:
                         f"`{update}` must set minLength to at least 1"
                     )
 
-    slots = retirement_slots(registry)
+
+def _validate_widget_relations(widgets: dict, data: dict, slots: dict, path) -> None:
     for tag, entry in widgets.items():
         if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
             raise RegistryError(
@@ -1138,6 +1170,9 @@ def validate_registry(registry: dict, source) -> dict:
                 raise RegistryError(
                     f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
                 )
+
+
+def _validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
     # A holder's retired slots are halves of one decision; outcomes on different
     # facets could stand at once, leaving no single settlement to render.
     for holder, outcomes in slots.items():
@@ -1152,6 +1187,9 @@ def validate_registry(registry: dict, source) -> dict:
                 f"({mapping}); every retirement outcome for one holder must "
                 "share one facet"
             )
+
+
+def _validate_awaiting_units(widgets: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
     # more fundamental structural errors. An answer closes the whole ask, so its
     # fold coordinate must be the widget rather than one detail-named child.
@@ -1170,7 +1208,6 @@ def validate_registry(registry: dict, source) -> dict:
                 f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
                 "on the widget"
             )
-    return registry
 
 
 # The record keys that constrain declared fields rather than list them.

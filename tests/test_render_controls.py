@@ -129,6 +129,29 @@ CONTROL_ROW_PRESS = (
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
 
 
+def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
+    """Send the touch stream a device produces, through Chromium's input boundary."""
+    x, y = round(x), round(y)
+    cdp.send(
+        "Input.dispatchTouchEvent",
+        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+    )
+    for step in range(1, steps + 1):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": "touchMove",
+                "touchPoints": [
+                    {
+                        "x": x + dx * step // steps,
+                        "y": y + dy * step // steps,
+                    }
+                ],
+            },
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     """The declared ask puts the button there, and the press posts `done`.
 
@@ -840,17 +863,14 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         )
         assert actions.evaluate("el => el.scrollWidth > el.clientWidth")
         point = actions.bounding_box()
-        gesture = {
-            "x": round(point["x"] + point["width"] / 2),
-            "y": round(point["y"] + point["height"] / 2),
-            "speed": 800,
-            "gestureSourceType": "touch",
-        }
+        x = point["x"] + point["width"] / 2
+        y = point["y"] + point["height"] / 2
         page.evaluate(
             "() => { const shelf = document.querySelector('.lf-banner-actions');"
             " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"
         )
-        cdp.send("Input.synthesizeScrollGesture", {**gesture, "yDistance": -160})
+        _touch_drag(cdp, x, y, dy=-160)
+        page.wait_for_function("() => document.body.scrollTop > 200")
         vertical = page.evaluate(
             "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
             " page: document.body.scrollTop,"
@@ -865,7 +885,10 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
             "() => { const shelf = document.querySelector('.lf-banner-actions');"
             " shelf.scrollLeft = 0; document.body.scrollTop = 200; }"
         )
-        cdp.send("Input.synthesizeScrollGesture", {**gesture, "xDistance": -160})
+        _touch_drag(cdp, x, y, dx=-160)
+        page.wait_for_function(
+            "() => document.querySelector('.lf-banner-actions').scrollLeft > 0"
+        )
         horizontal = page.evaluate(
             "() => ({shelf: document.querySelector('.lf-banner-actions').scrollLeft,"
             " page: document.body.scrollTop})"
@@ -877,15 +900,13 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         resized(page, 1200, 700)
         status = page.locator(".lf-banner-status").bounding_box()
         page.evaluate("() => { document.body.scrollTop = 200; }")
-        cdp.send(
-            "Input.synthesizeScrollGesture",
-            {
-                **gesture,
-                "x": round(status["x"] + status["width"] / 2),
-                "y": round(status["y"] + status["height"] / 2),
-                "yDistance": -160,
-            },
+        _touch_drag(
+            cdp,
+            status["x"] + status["width"] / 2,
+            status["y"] + status["height"] / 2,
+            dy=-160,
         )
+        page.wait_for_function("() => document.body.scrollTop > 200")
         assert page.evaluate("() => document.body.scrollTop") > 200, (
             "the status half of the fixed banner remained a dead touch-scroll strip"
         )
@@ -943,35 +964,12 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             )
 
         def swipe(x, y, *, dx=0, dy=-140):
-            cdp.send(
-                "Input.synthesizeScrollGesture",
-                {
-                    "x": round(x),
-                    "y": round(y),
-                    "xDistance": dx,
-                    "yDistance": dy,
-                    "speed": 800,
-                    "gestureSourceType": "touch",
-                },
-            )
+            _touch_drag(cdp, x, y, dx=dx, dy=dy)
 
         def drag(edge, dx):
             x = round((edge["left"] + edge["right"]) / 2)
             y = round((edge["top"] + edge["bottom"]) / 2)
-            cdp.send(
-                "Input.dispatchTouchEvent",
-                {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
-            )
-            cdp.send(
-                "Input.dispatchTouchEvent",
-                {
-                    "type": "touchMove",
-                    "touchPoints": [{"x": x + dx, "y": y}],
-                },
-            )
-            cdp.send(
-                "Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}
-            )
+            _touch_drag(cdp, x, y, dx=dx, steps=1)
             page.wait_for_function(
                 "() => !document.body.hasAttribute('data-lf-sizing')"
             )

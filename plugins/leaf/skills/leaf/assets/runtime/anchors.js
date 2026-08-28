@@ -1,4 +1,4 @@
-import { shownBox, shownParts, shownRect } from "./geometry.js";
+import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
@@ -952,7 +952,7 @@ export function createAnchors(dependencies) {
       where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
     const seen =
       where instanceof Range
-        ? clipped(destination, holder, new Map())
+        ? clippedRect(destination, holder, new Map())
         : shownRect(where, new Map());
     if (!seen) return false;
     const box = scrollerFor(holder);

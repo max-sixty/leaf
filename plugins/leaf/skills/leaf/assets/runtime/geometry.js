@@ -107,7 +107,7 @@ export function shownParts(el) {
 // on the page in one breath, and the items share their scrollers, so what a pass spends
 // on the walk is two style reads per ancestor rather than two per item per ancestor.
 export function shownRect(item, clips) {
-  return clipped(shownBox(item), item, clips);
+  return clippedRect(shownBox(item), item, clips);
 }
 // Where a member begins, as the reader sees it: the first of the boxes it paints that
 // survives the clips, rather than the bounds of all of them. They are the same box for
@@ -121,12 +121,12 @@ export function shownRect(item, clips) {
 export const startsAt = (item, clips) => {
   const fragments = item.getClientRects();
   return (fragments.length ? [...fragments] : [shownBox(item)])
-    .map((box) => clipped(box, item, clips))
+    .map((box) => clippedRect(box, item, clips))
     .find(Boolean);
 };
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
-// readings above want the same walk over different boxes.
-function clipped(box, item, clips) {
+// readings above and a painted Range want the same walk over different boxes.
+export function clippedRect(box, item, clips) {
   let left = Math.max(box.left, 0),
     top = Math.max(box.top, 0),
     right = Math.min(box.right, innerWidth),

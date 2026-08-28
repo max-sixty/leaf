@@ -1082,11 +1082,14 @@ outside selection, quote capture, widget word readings, and clipboard output.
 `display: contents` descendants paint. `shownParts` returns the visible elements
 on which an outline can be drawn. `shownRect` clips the result through scrolling
 ancestors and the viewport, stopping ancestor clipping at a fixed-position box.
+`clippedRect` applies that same clipping walk to a box already measured from a
+Range, using the element that owns the Range as the start of the walk.
 Use:
 
 - `shownBox` for travel, bounds, and reading-position landmarks;
 - `shownParts` for ask rings and element-anchor outlines;
-- `shownRect` for visible placement of floating chrome and address chips.
+- `shownRect` for visible placement of floating chrome and address chips;
+- `clippedRect` only when the subject has no element box of its own.
 
 Do not read `getBoundingClientRect()` directly when the target may generate no
 box. A `display: contents` element reports an origin-like zero rectangle that

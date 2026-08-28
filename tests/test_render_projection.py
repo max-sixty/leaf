@@ -301,12 +301,15 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
 
     assert held, "the positive control did not hold a read taken on the first revision"
     heard = _traffic(page).heard
-    held.pop(0).continue_()
+    # Released, not popped: the list is the record and the armed flag both, so emptying
+    # it would arm the route again and hold the page's next read for good.
+    held[0].continue_()
     _until(page, lambda t: t.heard > heard, "heard the answer it asked for on r1")
-    # That delivery carries the application to its end: the one thing it waits for is the
-    # incoming document, which the polls under the hold have already fetched and kept. So
-    # the page's next pass is after it, and this waits for one.
-    ticked(page)
+    # Not `ticked`: the heartbeat dispatches `lf-actions` on its own cadence, so the
+    # page's next pass can be one this delivery had no part in. Wait instead until the
+    # page has taken in the reading the server holds, which it reaches only by judging
+    # the answer just released.
+    told(page)
     expect(page).to_have_title("Live second")
     assert errors == []
     assert [

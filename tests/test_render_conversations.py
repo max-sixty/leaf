@@ -1213,6 +1213,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-mark",
         "lf-react",
         "lf-docked",  # a seat's measured fallback, the word a suggestion row docks under
+        # Visual reactions add a quiet keyboard proxy beside the authored target and
+        # an outline on the target while its shared action bar is standing.
+        "lf-visual-actions",
+        "lf-visual-action",
+        "lf-action-target",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )

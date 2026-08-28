@@ -296,7 +296,7 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
     ]
     # Every reading below is of a page at rest, and the upgrade stamp above is
-    # one third of that. The stamp is written without awaiting the first read, so
+    # one part of that. The stamp is written without awaiting the first read, so
     # a gate reading there reads the authored board, the unanswered question and
     # the body the reader has since rewritten — a page nobody is shown. The
     # caught-up stamp is the log's answer to that, and the frame it lands in is
@@ -328,6 +328,14 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
                 f"the runtime never finished replaying the log ({applied} action(s))"
             )
             unsettled = [stalled]
+    if replayed:
+        try:
+            wait_for_probe(page, "presented")
+        except PlaywrightTimeout:
+            replayed = False
+            unsettled = [
+                "the runtime never presented the page after applying its current state"
+            ]
     if replayed:
         try:
             wait_for_probe(page, "pageSettled")

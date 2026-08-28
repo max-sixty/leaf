@@ -744,8 +744,10 @@ def _until(page, fact, wanted):
     runs its timeout out and says so rather than passing.
 
     A wait that runs out names the caller's wanted fact and prints its starting and final
-    counters. No response preserves Playwright's timeout as the cause; a busy response
-    stream reaches the same explicit deadline instead of waking this loop forever."""
+    counters. The final reading comes after the timeout because the response listener may
+    settle the fact as the timeout is delivered. No response preserves Playwright's
+    timeout as the cause; a busy response stream reaches the same explicit deadline
+    instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
@@ -758,9 +760,11 @@ def _until(page, fact, wanted):
             response = page.wait_for_event("response", timeout=remaining)
             page.lf_traffic.settle_response(response)
     except PlaywrightTimeout as ran_out:
+        ended = _traffic(page)
+        if fact(ended):
+            return
         raise AssertionError(
-            f"the page never {wanted}: the wait began on {began} and gave up on "
-            f"{_traffic(page)}"
+            f"the page never {wanted}: the wait began on {began} and gave up on {ended}"
         ) from ran_out
 
 

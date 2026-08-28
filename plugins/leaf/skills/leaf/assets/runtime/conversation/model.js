@@ -1,4 +1,6 @@
 /* Conversation structure and turn-taking projected by the server. */
+import { sameAnchor } from "../anchors.js";
+
 export function createThreadModel({ registry, runtime }) {
   const isReaction = (message) => Boolean(message.token);
   const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
@@ -16,9 +18,9 @@ export function createThreadModel({ registry, runtime }) {
     return lastThreads;
   }
 
-  const sameAnchor = (left, right) =>
-    JSON.stringify(left, Object.keys(left ?? {}).sort()) ===
-    JSON.stringify(right, Object.keys(right ?? {}).sort());
+  // The bare reactions standing on exactly this anchor — the bar's own question, asked
+  // so its pills can say which tokens are already there. Anchors are compared as
+  // records, the way the file compares them.
   const reactionsOn = (anchor) =>
     lastThreads
       .filter(

@@ -3,12 +3,27 @@ import { shownBox, shownParts, shownRect } from "./geometry.js";
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
+// Anchors are shallow records of primitive coordinates. Compare the complete records:
+// reading only the left operand's keys made a whole-visual anchor equal the part anchor
+// that extended it, but not the other way around.
+export const sameAnchor = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const left = Object.keys(a).sort();
+  const right = Object.keys(b).sort();
+  return (
+    left.length === right.length &&
+    left.every((key, index) => key === right[index] && a[key] === b[key])
+  );
+};
 
 export function createAnchors(dependencies) {
   const {
     DATUM,
     SCROLL,
     TEXT_BLOCK,
+    actionAnchor,
+    activateVisual,
     aimBox,
     aimIsOn,
     aimedItem,
@@ -47,6 +62,7 @@ export function createAnchors(dependencies) {
     quoteFrom,
     queueLegend,
     rangeOf,
+    refreshAction,
     registry,
     reveal,
     runtime,
@@ -59,6 +75,7 @@ export function createAnchors(dependencies) {
     threadsBox,
     under,
     withdraw,
+    worksSelector,
   } = dependencies;
 
   // ---------- view continuity ----------
@@ -222,16 +239,163 @@ export function createAnchors(dependencies) {
     return typeof part === "string" ? visualPart(visual, part) : null;
   }
   const visualPartLabel = (visual, part) => visualPart(visual, part)?.label ?? null;
+  const declaredVisualSelector = () =>
+    [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
+  const genericVisualSelector = "svg, img, figure";
+  const visualSelector = () =>
+    [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
+  const interactiveSelector = `${worksSelector},[data-lf-offer]`;
+  const parentAcross = (element) =>
+    element?.parentElement ?? element?.getRootNode()?.host ?? null;
+  const outermostAcross = (element, selector) => {
+    for (let parent = parentAcross(element); parent;) {
+      const outer = closestAcross(parent, selector);
+      if (!outer) break;
+      element = outer;
+      parent = parentAcross(element);
+    }
+    return element;
+  };
+  const unclaimedVisualGesture = (target) =>
+    !inChrome(target) && !inUi(target) && !closestAcross(target, interactiveSelector);
+  // A declared provider owns every hit inside it, including an inner svg wrapped by a
+  // generic figure. Without one, the outermost ordinary picture is the target. Generated
+  // ids remain implementation details; the nearest authored id is the durable seat.
+  function visualAt(target, { unclaimed = true } = {}) {
+    if (unclaimed && !unclaimedVisualGesture(target)) return null;
+    const declared = declaredVisualSelector();
+    let element = declared ? closestAcross(target, declared) : null;
+    if (element) element = outermostAcross(element, declared);
+    else {
+      element = closestAcross(target, genericVisualSelector);
+      if (element) element = outermostAcross(element, genericVisualSelector);
+      const providers =
+        element && declared ? [...element.querySelectorAll(declared)] : [];
+      // A figure holding one declared visual is its semantic caption/frame. Delegating
+      // the wrapper to that provider gives its padding, caption, drawing, and keyboard
+      // proxy one target. A figure holding several visuals remains a target of its own.
+      if (providers.length === 1 && unclaimedVisualGesture(providers[0]))
+        element = providers[0];
+    }
+    if (!element) return null;
+    const seat = closestAcross(element, '[id]:not(.lf-ui):not([id^="lf-"])');
+    return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
+  }
+
+  // Pointer activation may use the picture itself. Keyboard activation uses controls the
+  // runtime owns beside it, so generated provider markup keeps its own roles and remains
+  // clean when the live layer is removed from an exported copy. Each visual exposes its
+  // whole target and, when declared, each stable part.
+  const visualActionHolders = new WeakMap();
+  const visualActionAnchor = (anchor) =>
+    pageQueryAll(".lf-visual-action").find((control) =>
+      sameAnchor(control.lfAnchor, anchor),
+    ) ?? null;
+  // A proxy stands after the thing whose visibility controls the picture. In particular,
+  // putting it inside a closed details makes the control impossible to focus, so the
+  // disclosure is the stable seat and focusing the proxy can reveal the target inside it.
+  // Shadow renderers share their host as a seat; one holder there avoids moving several
+  // sibling holders past one another on every paint.
+  function visualActionSeat(candidate) {
+    let seat =
+      candidate.getRootNode() instanceof ShadowRoot
+        ? candidate.getRootNode().host
+        : candidate;
+    for (let current = seat; current; current = parentAcross(current))
+      if (current.matches?.("details")) seat = current;
+    return seat;
+  }
+  function prepareVisualActions() {
+    const groups = new Map();
+    const claimed = [];
+    const kept = new Set();
+    for (const candidate of pageQueryAll(visualSelector())) {
+      const found = visualAt(candidate);
+      if (!found || found.element !== candidate) continue;
+      const targets = [
+        {
+          anchor: { section: found.id },
+          label: anchorLabel({ section: found.id }).replace(/^§\s*/, "") || found.id,
+        },
+        ...[...declaredVisualParts(candidate)].flatMap((token) => {
+          const part = visualPart(candidate, token);
+          return part && unclaimedVisualGesture(part.element)
+            ? [
+                {
+                  anchor: { section: found.id, visual: token },
+                  label: part.label,
+                },
+              ]
+            : [];
+        }),
+      ];
+      const seat = visualActionSeat(candidate);
+      let group = groups.get(seat);
+      if (!group) {
+        group = [];
+        groups.set(seat, group);
+      }
+      for (const target of targets)
+        if (!claimed.some((anchor) => sameAnchor(anchor, target.anchor))) {
+          claimed.push(target.anchor);
+          group.push(target);
+        }
+    }
+    for (const [seat, targets] of groups) {
+      if (!targets.length) continue;
+      let record = visualActionHolders.get(seat);
+      if (!record?.holder.isConnected) {
+        record = { holder: offer("span", "lf-visual-actions") };
+        visualActionHolders.set(seat, record);
+      }
+      const { holder } = record;
+      const unused = new Set(holder.children);
+      const controls = targets.map(({ anchor, label }) => {
+        let control = [...unused].find((child) => sameAnchor(child.lfAnchor, anchor));
+        if (!control) {
+          control = offer("button", "lf-visual-action lf-quiet");
+          control.onfocus = () => {
+            let current = resolveAnchor(control.lfAnchor, pageText());
+            let element = current?.marks?.[0] ?? current?.element;
+            if (!element) return;
+            reveal(element);
+            current = resolveAnchor(control.lfAnchor, pageText());
+            element = current?.marks?.[0] ?? current?.element;
+            element?.scrollIntoView({
+              behavior: "instant",
+              block: "nearest",
+              inline: "nearest",
+            });
+          };
+          control.onclick = () => activateVisual(control.lfAnchor, control);
+        }
+        unused.delete(control);
+        control.lfAnchor = anchor;
+        const name = `React or comment on ${label}`;
+        if (control.textContent !== name) control.textContent = name;
+        return control;
+      });
+      for (const control of unused) control.remove();
+      controls.forEach((control, index) => {
+        if (holder.children[index] !== control)
+          holder.insertBefore(control, holder.children[index] ?? null);
+      });
+      if (seat.nextSibling !== holder) seat.after(holder);
+      kept.add(holder);
+    }
+    for (const holder of pageQueryAll(".lf-visual-actions"))
+      if (!kept.has(holder)) holder.remove();
+  }
 
   // ---------- pointing at an item ----------
   // One gesture reaches any item: ⌥-click — direct aim, no selection, no chrome, and the
-  // only route to an item whose words are all inside controls. A plain click reaches the
-  // visuals, which have no text to select. Two more routes were tried and cut: a rule in
-  // the margin raised by hovering, too strong for what it offered and placed at the
-  // item's own left edge, which is the page's margin only for an item the page happens
-  // to have left-aligned; and a row of chips beside the 💬 offering the selection's
-  // enclosing chain ("⬚ paragraph", "⬚ section") — a correction nobody had asked for,
-  // paid in chrome beside every selection a user made.
+  // only route to an item whose words are all inside controls. A plain click reaches a
+  // visual when it did not finish a passage selection. Two more routes were tried and
+  // cut. A margin rule raised by hovering was too strong for what it offered and sat at
+  // the item's own left edge, which is the page's margin only when that item happens to
+  // be left-aligned. A row of chips beside the 💬 offered the selection's enclosing chain
+  // ("⬚ paragraph", "⬚ section") — a correction nobody had asked for, paid in chrome
+  // beside every selection a user made.
   //
   // A whole item writes {section: <id>} with no quote. A declared picture part adds its
   // authored `visual` token; the section remains the durable seat. Both coordinates come
@@ -427,6 +591,7 @@ export function createAnchors(dependencies) {
   const placed = new Map();
   let pendingMarks = []; // the same record for the open composer's own passage
   let pendingOutline = []; // the elements the open draft outlines, owned by nobody else
+  let actionOutline = []; // the visual target whose action bar is standing
   // What the pointer would take, in whichever arming stands — the ⌥ aim's item, or design
   // mode's target: the element, and the control's word where the pointer is on one — and
   // null when neither is armed. One answer for the box, the cursor and the name.
@@ -539,15 +704,18 @@ export function createAnchors(dependencies) {
 
   function paintAnchors(threads = buildThreads()) {
     if (!anchorsReady()) return;
+    prepareVisualActions();
     for (const where of allMarks())
       if (where instanceof Element) where.classList.remove("lf-mark-el");
     for (const where of [...reacted.values()].flat())
       if (where instanceof Element) where.classList.remove("lf-react-el");
     for (const el of pendingOutline) el.classList.remove("lf-mark-el", PENDING);
+    for (const el of actionOutline) el.classList.remove("lf-action-target");
     marked.clear();
     reacted.clear();
     placed.clear();
     pendingOutline = [];
+    actionOutline = [];
 
     const text = pageText(); // read once, for every anchor this pass places
     const posted = [];
@@ -665,6 +833,11 @@ export function createAnchors(dependencies) {
         }
     }
     if (draft?.segments) pending.push(...pendingMarks);
+
+    const active = actionAnchor();
+    const action = active && !active.quote ? resolveAnchor(active, text) : null;
+    actionOutline = action?.element ? (action.marks ?? shownParts(action.element)) : [];
+    for (const part of actionOutline) part.classList.add("lf-action-target");
 
     // The composer's echo of its own passage, decided here because here is where it is known
     // whether the page is showing that passage. Usually it is — the box opens beside the words
@@ -1130,12 +1303,21 @@ export function createAnchors(dependencies) {
   // that says so — a scroll, a window resize, a replay's marks landing (paintAnchors),
   // a widget's FLIP settling, and the reflows only the legend's observers hear, the
   // panel opening re-centring the column among them.
+  let actionFrame = 0;
+  function queueActionPlacement() {
+    if (actionFrame) return;
+    actionFrame = requestAnimationFrame(() => {
+      actionFrame = 0;
+      refreshAction();
+    });
+  }
   function pageShifted() {
     refreshHover();
     refreshAim();
     // A board scrolled sideways carries its cards out from under their boxes, and the
     // page scrolled brings items into view that had no box yet (shownRect).
     queueLegend();
+    if (actionAnchor()) queueActionPlacement();
   }
   // At the document and at capture, because scroll does not bubble and body is not the
   // page's only scroller: a board scrolls its columns sideways, and a card carried under
@@ -1154,6 +1336,8 @@ export function createAnchors(dependencies) {
     itemAt,
     itemWord,
     itemSays,
+    visualAt,
+    visualActionAnchor,
     visualPartAt,
     visualPartLabel,
     resolveAnchor,

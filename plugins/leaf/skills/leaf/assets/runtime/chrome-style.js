@@ -468,6 +468,11 @@ ${MARK_RULES}
      and not the mark's own "open this thread". */
   body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
   body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
+  /* Keyboard access to a picture is runtime chrome beside the provider's drawing rather
+     than a role written onto that drawing. Resting it is a conventional clipped control;
+     focus gives it a skip-link-style face under the banner. */
+  .lf-visual-actions { display: contents; }
+  .lf-visual-action { pointer-events: none; }
   /* The one runtime word living inside the page's own elements, so its hiding cannot
      come from the chrome's scoped .lf-unseen: it wears the clip .lf-quiet wears, stated
      once above for both. It becomes a skip-link-style control on focus: a reader who
@@ -480,6 +485,14 @@ ${MARK_RULES}
     width: auto; height: auto; padding: 6px 10px; overflow: visible; clip-path: none;
     border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
     color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+  .lf-visual-action:focus-visible { position: fixed; z-index: 9050;
+    top: calc(var(--lf-banner-h) + 6px); left: 8px;
+    width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
+    overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
+    border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
+    color: var(--ink); box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    outline: var(--here-ring); --lf-here-ring: visual-target;
+    outline-offset: calc(-1 * var(--here-ring-w)); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
   /* The unanswered ask the reader is standing in (markHere), worn by the ask rather than
      by whichever of its controls holds the focus — they are standing in the whole thing,

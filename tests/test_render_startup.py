@@ -14,11 +14,11 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import events as events_model
+from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
 from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -2249,7 +2249,7 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
 
     monkeypatch.setattr(http_model.Handler, "page_state", delayed_page_state)
     out = tmp_path / "data-copy.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page()
     errors = watched(page)

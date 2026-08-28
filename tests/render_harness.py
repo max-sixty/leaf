@@ -47,7 +47,7 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
+from leaf import render_gate as render_gate_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import structure as structure_model
@@ -547,7 +547,7 @@ def page_registry(page):
     the page's own server, not this repo's tree, since what a vendored page holds is
     the whole question those readings answer.
     """
-    return rendering_model.served(page, page.url, "/registry.json").json()
+    return render_gate_model.served(page, page.url, "/registry.json").json()
 
 
 def post_event(page, url, **kwargs):
@@ -1085,10 +1085,12 @@ def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
         fresh = errors[start:]
         del errors[start:]
         notices = [
-            error for error in fresh if rendering_model.resize_observer_error(error)
+            error for error in fresh if render_gate_model.resize_observer_error(error)
         ]
         errors.extend(
-            error for error in fresh if not rendering_model.resize_observer_error(error)
+            error
+            for error in fresh
+            if not render_gate_model.resize_observer_error(error)
         )
         return notices
 
@@ -1101,7 +1103,7 @@ def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(rendering_model.recurring_resize_observer_error("navigation"))
+        errors.append(render_gate_model.recurring_resize_observer_error("navigation"))
 
 
 def key_line(page):

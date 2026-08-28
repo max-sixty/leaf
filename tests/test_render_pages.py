@@ -7,9 +7,10 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import events as events_model
+from leaf import exporting as exporting_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
+from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -955,7 +956,7 @@ def test_a_copy_keeps_the_rail_a_decided_change_left(browser, serve, tmp_path):
         },
     )
     out = tmp_path / "decided.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     errors = watched(page)
@@ -1215,7 +1216,7 @@ def test_a_copy_keeps_a_board_off_the_row_its_decided_change_left(
         },
     )
     out = tmp_path / "banded.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     errors = []
     copy = browser.new_page(viewport={"width": 1600, "height": 900})
@@ -1287,7 +1288,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         '<h1 id="t">Flow</h1>',
         '<style>#flow { max-width: 640px }</style>\n<h1 id="t">Flow</h1>',
     )
-    failures = rendering_model.render_version(browser, serve(capped))
+    failures = render_gate_model.render_version(browser, serve(capped))
     assert [f for f in failures if "<lf-diagram id=flow> scrolls" in f], (
         f"a drawing held under its own graph beside an empty margin must be named at "
         f"handover, and the gate said: {failures or 'nothing'}"
@@ -1308,7 +1309,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     and nothing has to be declared to it. That is what keeps the two theme rules honest:
     the next claimant that forgets one is a refusal with a name on it rather than a page
     somebody eventually notices is drawn over its own controls."""
-    failures = rendering_model.render_version(browser, serve(OWN_MARGIN_FURNITURE))
+    failures = render_gate_model.render_version(browser, serve(OWN_MARGIN_FURNITURE))
 
     assert [
         f
@@ -1595,7 +1596,7 @@ def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
 
     The frame here is the page's own, because a project's box is what no theme rule can
     reach — the same place the margin-furniture gate above stands."""
-    failures = rendering_model.render_version(browser, serve(FRAMED_SCROLLER_PAGE))
+    failures = render_gate_model.render_version(browser, serve(FRAMED_SCROLLER_PAGE))
 
     assert [
         f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
@@ -1684,7 +1685,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     what says the floor is still there."""
     url = serve(WIDE_AND_NARROW_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     errors = watched(page)
@@ -1740,7 +1741,7 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     answer in both, being layout rather than measurement."""
     url = serve(NOTE_AND_WIDE_PAGE)
     out = tmp_path / "standalone.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     page, errors = open_page(browser, url)
     resized(page, NOTE_BAND, 900)
@@ -1962,7 +1963,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     )
     url = serve(source)
     out = tmp_path / "margin-residents.html"
-    out.write_text(rendering_model.export_page(browser, url, serve.page_dir))
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);

@@ -16,7 +16,8 @@ The main owners are:
 - `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
   merged vocabulary contract and authored-page gates;
 - `passages`: the file-side text reading and anchor capture;
-- `render_checks` and `rendering`: browser validation and export;
+- `render_checks`, `render_gate`, and `exporting`: browser probes, validation,
+  and standalone export;
 - `data`, `media`, and `publishing`: page-bound inputs and deployment outputs.
 
 Do not put domain logic back into `interact.py` or branch across these owners in

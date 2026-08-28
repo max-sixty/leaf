@@ -12,7 +12,7 @@ from leaf import cli as cli_model
 from leaf import events as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
-from leaf import rendering as rendering_model
+from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from playwright.sync_api import expect
 from render_support import (
@@ -459,7 +459,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     base version unupgraded, where no mark exists at all, and must not read this
     one as a change nobody wrote."""
     url = serve(CARRIED_PAGE)
-    assert rendering_model.render_version(browser, url) == []
+    assert render_gate_model.render_version(browser, url) == []
 
     page, errors = open_page(browser, live_url(url))
     mark = page.locator("#c-lax .lf-pick")

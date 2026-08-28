@@ -889,10 +889,10 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     scanned = threading.Event()
     original = http_model.Handler._page_state
 
-    def own_state(handler, events, source_error=None):
+    def own_state(handler, events, source_error=None, view_revision=None):
         assert service_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
-        return original(handler, events, source_error)
+        return original(handler, events, source_error, view_revision)
 
     def neighbours(directory):
         assert directory == page_dir

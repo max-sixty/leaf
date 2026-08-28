@@ -4,7 +4,7 @@ import re
 
 import pytest
 from leaf import conversation as conversation_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (

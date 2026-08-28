@@ -7,7 +7,7 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect

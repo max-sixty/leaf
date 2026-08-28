@@ -1,21 +1,6 @@
 """Pure folds over the append-only event model."""
 
-from leaf import event_log as _event_log
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
-
-AttemptConflict = _event_log.AttemptConflict
-AttemptExecution = _event_log.AttemptExecution
-EventAppender = _event_log.EventAppender
-_append_event_unlocked = _event_log._append_event_unlocked
-_attempt_payload = _event_log._attempt_payload
-_matching_attempt = _event_log._matching_attempt
-append_event = _event_log.append_event
-flocked = _event_log.flocked
-jsonl_line = _event_log.jsonl_line
-now_iso = _event_log.now_iso
-read_cursor = _event_log.read_cursor
-read_events = _event_log.read_events
-require_cross_process_locking = _event_log.require_cross_process_locking
 
 
 def taken_back(events: list) -> set:

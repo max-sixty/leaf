@@ -30,7 +30,8 @@ from conftest import INTERACT_SCRIPT
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_endpoint as event_endpoint_model
-from leaf import events as events_model
+from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -562,7 +563,7 @@ def logged(page_dir, *events):
     `append_event` stamps an id onto what it is handed and these are constants."""
     for event in events:
         events_model.append_event(page_dir, dict(event))
-    return events_model.build_threads(
+    return event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(
             (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")

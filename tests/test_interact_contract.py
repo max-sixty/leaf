@@ -52,7 +52,8 @@ from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_endpoint as event_endpoint_model
-from leaf import events as events_model
+from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import media as media_model
 from leaf import passages as passages_model
 from leaf import registry as registry_model
@@ -106,7 +107,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
         (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
         registry_model.require_registry(page_dir),
     )
-    threads = events_model.build_threads(
+    threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
     assert threads["c1"]["resolved"]["id"] == "a1"
@@ -114,7 +115,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
     )
-    threads = events_model.build_threads(
+    threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
     assert threads["c1"]["resolved"] is None
@@ -1222,7 +1223,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     events = events_model.read_events(page_dir)
     for within in folds:
         assert (
-            events_model.build_threads(events, within)["c1"]["resolved"]["action"]
+            event_folds_model.build_threads(events, within)["c1"]["resolved"]["action"]
             == "accept"
         )
 
@@ -1239,7 +1240,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     )
     events = events_model.read_events(page_dir)
     for within in folds:
-        assert events_model.build_threads(events, within)["c1"]["resolved"] is None
+        assert event_folds_model.build_threads(events, within)["c1"]["resolved"] is None
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):

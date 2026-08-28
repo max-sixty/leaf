@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import host as host_model
 from playwright.sync_api import sync_playwright

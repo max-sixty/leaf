@@ -22,7 +22,7 @@ from interact_support import (
     widget_entry,
 )
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
 from leaf import host as host_model

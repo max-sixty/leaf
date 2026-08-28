@@ -31,8 +31,8 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_endpoint as event_endpoint_model
-from leaf import event_log as event_log_model
-from leaf import events as event_model
+from leaf import event_log as event_model
+from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import host as host_model
 from leaf import hosting as hosting_model
@@ -1005,10 +1005,10 @@ def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """A no-op lock cannot honestly promise one append for one attempt."""
-    monkeypatch.setattr(event_log_model, "fcntl", None)
+    monkeypatch.setattr(event_model, "fcntl", None)
     with (
         pytest.raises(RuntimeError, match="cross-process file locking"),
-        event_log_model.flocked(page_dir / ".lock"),
+        event_model.flocked(page_dir / ".lock"),
     ):
         pass
 
@@ -1017,7 +1017,7 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """Standing startup must fail before it opens a socket or records a URL."""
-    monkeypatch.setattr(event_log_model, "fcntl", None)
+    monkeypatch.setattr(event_model, "fcntl", None)
     monkeypatch.setattr(service_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.cmd_serve(page_dir, standing=True)
@@ -2692,7 +2692,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "the tear took the reply with it, so nothing below is being read"
     )
     assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
-    threads = event_model.build_threads(events, {})  # nothing published to sit on
+    threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
         f"the two readings put the reply in different conversations: {list(threads)}"
     )

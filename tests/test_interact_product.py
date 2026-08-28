@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 
+import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
 from interact_support import (
@@ -26,17 +27,16 @@ from interact_support import (
     published,
     state_json,
 )
-import leaf.validation.command as checking_command
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
-from leaf.registry import storage as registry_storage
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.registry import storage as registry_storage
 from leaf.validation import compatibility as validation_model
 
 

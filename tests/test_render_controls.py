@@ -11,8 +11,8 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
-from leaf.registry import storage as registry_storage
 from leaf import schema as schema_model
+from leaf.registry import storage as registry_storage
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (

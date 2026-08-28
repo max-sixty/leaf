@@ -57,14 +57,14 @@ from leaf import events as event_folds_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import layer as registry_layer
-from leaf.registry import storage as registry_storage
-from leaf.registry import validation as registry_validation
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
+from leaf.registry import layer as registry_layer
+from leaf.registry import storage as registry_storage
+from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
 
 

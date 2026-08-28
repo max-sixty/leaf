@@ -41,14 +41,14 @@ from leaf import leases as leases_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
-from leaf.registry import storage as registry_storage
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf.served_state import document as served_document
-from leaf.served_state import page as served_page
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import thread_context as thread_context_model
+from leaf.registry import storage as registry_storage
+from leaf.served_state import document as served_document
+from leaf.served_state import page as served_page
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):

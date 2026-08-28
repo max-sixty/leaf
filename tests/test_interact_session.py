@@ -51,15 +51,15 @@ from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
 from leaf import schema as schema_model
-from leaf.served_state import page as served_page
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
+from leaf.registry import storage as registry_storage
+from leaf.served_state import page as served_page
 
 
 def test_a_work_line_says_which_thread_the_agent_is_on(page_dir, capsys, monkeypatch):

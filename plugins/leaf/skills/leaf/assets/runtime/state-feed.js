@@ -26,7 +26,12 @@ export function createStateFeed({
   async function readState() {
     let res;
     try {
-      res = await fetch("/api/state");
+      const revision = runtime.currentRevision;
+      res = await fetch("/api/state", {
+        headers: Number.isInteger(revision)
+          ? { "Leaf-View-Revision": String(revision) }
+          : {},
+      });
     } catch {
       // Network absence is a completed answer: there is no log to replay, so the offline
       // authored page is honest. A successful but malformed response is different — let

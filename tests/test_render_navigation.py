@@ -2872,6 +2872,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     # It reads the same logical focus while the press moves toward the label's control.
     page.evaluate("() => getSelection().removeAllRanges()")
     page.locator(".lf-comments").click()
+    panel_settled(page)
     thread = page.locator(".lf-threads > .lf-thread")
     thread.focus()
     thread_standing = key_line(page)

@@ -248,12 +248,10 @@ def _apply_thread_state(state: dict, events: list, registry: dict) -> None:
 def _write_page_state(
     page_dir: Path, events: list, source_error: str | None = None
 ) -> None:
-    """Where the page stands, as one JSON object — the agent-side twin of the
-    browser's /api/state, folded rather than raw. /api/state ships the log and
-    lets the runtime replay it; a session picking a page up owes the same
-    reading, and doing it in-head over `leaf events` is how a standing decision
-    gets missed. So this prints the readings the runtime derives, from the same
-    constructions it derives them with: the active revision's elements, the
+    """Where the page stands, as one JSON object — the agent-facing projection
+    beside the browser projection in /api/state. A session picking a page up needs
+    the same reading; doing it in-head over `leaf events` is how a standing decision
+    gets missed. So this prints the active revision's elements, the
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), authored
     measurements whose live source has run again (`measurement_lag_entries`), the

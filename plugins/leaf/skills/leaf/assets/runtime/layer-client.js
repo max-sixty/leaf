@@ -24,6 +24,9 @@ export function createLayerClient({ currentRevision, layerGeneration }) {
       headers: {
         "Content-Type": "application/json",
         "Leaf-Layer": layerGeneration,
+        ...(currentRevision() && {
+          "Leaf-View-Revision": String(currentRevision()),
+        }),
       },
       body: JSON.stringify(event),
     });

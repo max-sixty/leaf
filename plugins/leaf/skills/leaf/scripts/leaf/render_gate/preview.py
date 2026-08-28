@@ -49,6 +49,7 @@ def preview_server(
         finally:
             httpd.shutdown()
 
+
 @contextlib.contextmanager
 def preview_source_server(
     page_dir: Path,

@@ -6,6 +6,13 @@
 // SortableJS walks up from the dragged card and, on reaching body, hands back
 // document.scrollingElement, so lf-board passes this in rather than letting it guess.
 export const pageScroller = document.body;
+
+// Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
+// lets document reading continuity and anchor travel share the operation without either
+// owning the other's default destination.
+export const moveScrollerBy = (box, top, behavior = "instant") =>
+  box.scrollBy({ top, behavior });
+
 // The room the scroller's own bar takes out of the page, which is a fact about the
 // scroller and so belongs beside it: every geometry reading that starts from the window
 // owes it, and each of them differs in what the gutter is coming off rather than in how it

@@ -258,7 +258,6 @@ import {
   startsAt,
 } from "./runtime/geometry.js";
 import {
-  alignText,
   createPassages,
   inChrome,
   inUi,
@@ -268,6 +267,8 @@ import {
   uiInside,
   wrote,
 } from "./runtime/passages.js";
+import { createViewContinuity, VIEW_KEY } from "./runtime/view-continuity.js";
+import { textUnits } from "./runtime/text-alignment.js";
 import {
   ago,
   createPresence,
@@ -1580,7 +1581,7 @@ mirrorDraft(generalInput, syncGeneral, "general");
 
 let approving = false;
 function paintApproval() {
-  const approved = runtime.events.some(
+  const approved = (runtime.browser?.conversation?.done ?? []).some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&
@@ -1967,27 +1968,16 @@ function allButTheReference(binding) {
 // page stands down under them — and each declares what it keeps, which is how the
 // reference's own key goes on working while every other one is suspended.
 
-const { askEntry, isAwaiting, projectedParent, threadMarkupAwaiting, unansweredAsks } =
-  createAskModel({
-    authoredParentOf: (node) => authoredParents.get(node),
-    awaitsAgent,
-    buildThreads,
-    closestAcross: (...args) => closestAcross(...args),
-    elementById: (...args) => elementById(...args),
-    inChrome: (node) => inChrome(node),
-    matchesProjectedWhen: (...args) => matchesProjectedWhen(...args),
-    matchesWhen,
-    pagePresented,
-    projectedFacet: (...args) => projectedFacet(...args),
-    quoted,
-    registry,
-    runtime,
-    seatRoot,
-    settledAway: (...args) => settledAway(...args),
-    stateCoordinate: (...args) => stateCoordinate(...args),
-    stateProjection: (...args) => stateProjection(...args),
-    tagsDeclaring,
-  });
+const { askEntry, isAwaiting, projectedParent, unansweredAsks } = createAskModel({
+  authoredParentOf: (node) => authoredParents.get(node),
+  closestAcross: (...args) => closestAcross(...args),
+  elementById: (...args) => elementById(...args),
+  pagePresented,
+  registry,
+  runtime,
+  stateProjection: (...args) => stateProjection(...args),
+  tagsDeclaring,
+});
 
 const {
   ASK_CONTROL,
@@ -3064,12 +3054,12 @@ const {
   chooserLabel: () => labelOf(CHOOSER),
   domFacet: (...args) => domFacet(...args),
   elementById: (...args) => elementById(...args),
-  foldedFacet: (...args) => foldedFacet(...args),
   inChrome: (...args) => inChrome(...args),
   quoted,
+  projectionFromView: (...args) => projectionFromView(...args),
+  sameLayer,
   showToast,
   stateCoordinate: (...args) => stateCoordinate(...args),
-  stateProjection: (...args) => stateProjection(...args),
   stateSpecs: (...args) => stateSpecs(...args),
   textBlockSelector: () => TEXT_BLOCK,
   versionBtn,
@@ -3181,6 +3171,7 @@ latestChip.onclick = () => goActive();
 // (restatement_errors), not something inferred here from silence.
 let conversationRuntime;
 let anchorRuntime;
+let viewRuntime;
 
 function buildThreads(...args) {
   return conversationRuntime.buildThreads(...args);
@@ -3226,13 +3217,13 @@ function showThread(...args) {
 }
 
 function blocksOnScreen(...args) {
-  return anchorRuntime.blocksOnScreen(...args);
+  return viewRuntime.blocksOnScreen(...args);
 }
 function captureView(...args) {
-  return anchorRuntime.captureView(...args);
+  return viewRuntime.captureView(...args);
 }
 function restoreView(...args) {
-  return anchorRuntime.restoreView(...args);
+  return viewRuntime.restoreView(...args);
 }
 function sectionOf(...args) {
   return anchorRuntime.sectionOf(...args);
@@ -3329,7 +3320,6 @@ const {
   COLLAPSE,
   quoteFrom,
   cut,
-  textUnits,
   rangeOf,
   holds,
   neighbourhood,
@@ -3367,9 +3357,6 @@ const runtimeProjection = createProjection(runtime, {
   projectedParent,
   quoteFrom,
   reachScrollers,
-  // Whether a reaction still paints, off the conversation's last fold — built after this
-  // module, so asked lazily.
-  reactionStanding: (e) => conversationRuntime.reactionStanding(e),
   rememberPassageParts,
   removeOutbox,
   renderQuiet,
@@ -3393,11 +3380,11 @@ const {
   committedProjection,
   coordinateProjectionCommitted,
   domFacet,
-  foldedFacet,
   markSettled,
   matchesProjectedWhen,
   paintPending,
   projectedFacet,
+  projectionFromView,
   projectionCommitted,
   rebuild,
   reconcileKnownState,
@@ -3406,13 +3393,10 @@ const {
   rememberAuthoredMarkup,
   resetAuthoredPage,
   requirementMatches,
-  retractedIds,
-  retractionFloors,
   stageOutboxAction,
   stateCoordinate,
   stateProjection,
   stateSpecs,
-  takenBack,
   undoable,
   unitOf,
   withdraw,
@@ -3494,8 +3478,6 @@ conversationRuntime = createConversation({
   renderQuiet,
   renderSaid,
   reportPageError,
-  retractedIds,
-  retractionFloors,
   runtime,
   saveDraft,
   scrollToElement,
@@ -3504,10 +3486,8 @@ conversationRuntime = createConversation({
   sendDraft,
   setPanel,
   settling,
-  takenBack,
   tellDraft,
   threadsBox,
-  threadMarkupAwaiting,
   toggleBtn,
   updateSequence,
   visualPartLabel,
@@ -3518,16 +3498,13 @@ conversationRuntime = createConversation({
 updateRuntime = createUpdates(runtime, {
   closestAcross,
   coordinateProjectionCommitted,
-  inChrome,
   projectionCommitted,
   stateProjection,
-  threadList: () => conversationRuntime.threadList,
 });
 
 anchorRuntime = createAnchors({
   DATUM,
   SCROLL,
-  TEXT_BLOCK,
   actionAnchor: fabAnchorAt,
   activateVisual,
   aimBox,
@@ -3557,7 +3534,6 @@ anchorRuntime = createAnchors({
   inChrome,
   inUi,
   inspectEl,
-  landedAt,
   offer,
   pageQueryAll,
   pageScroller,
@@ -3572,9 +3548,7 @@ anchorRuntime = createAnchors({
   refreshAction: refreshFab,
   registry,
   reveal,
-  runtime,
   scrollerFor,
-  setLanded,
   setPanel,
   settledAway,
   tagsDeclaring,
@@ -3584,7 +3558,23 @@ anchorRuntime = createAnchors({
   withdraw,
   worksSelector: WORKS,
 });
-const { VIEW_KEY, ITEM, NOTE } = anchorRuntime;
+const { ITEM, NOTE } = anchorRuntime;
+
+viewRuntime = createViewContinuity({
+  TEXT_BLOCK,
+  cut,
+  inChrome,
+  landedAt,
+  pageScroller,
+  pageText,
+  quoteFrom,
+  rangeOf,
+  resolveAnchor,
+  reveal,
+  runtime,
+  setLanded,
+  textNodesUnder,
+});
 
 createConversationLanding({ scrollToThread });
 createConversationBox({ post, renderPanel, showToast, wireInput });

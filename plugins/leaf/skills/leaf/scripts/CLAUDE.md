@@ -22,10 +22,11 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, and the HTTP process;
 - `session` and `hooks`: wait delivery and host lifecycle;
 - `served_state` and `http`: browser-facing state readings and HTTP transport;
-- `registry` and `layer`: registry storage, layer composition, and package commands;
+- `registry/`: registry storage plus shared, layer-wide, widget, and state
+  vocabulary contracts;
+- `layer`: package discovery, composition, and commands;
 - `vendoring`: page initialization, layer transitions, and atomic installation;
-- `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
-  merged vocabulary contract and authored-page gates;
+- `schema`, `structure`, `styles`, and `validation`: authored-page gates;
 - `passages`: the file-side text reading and anchor capture;
 - `render_checks`, `render_gate`, and `exporting`: browser probes, validation,
   and standalone export;

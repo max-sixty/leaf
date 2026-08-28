@@ -1,4 +1,10 @@
 import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
+import {
+  registerMarginRow,
+  scheduleMarginLayout,
+  unregisterMarginRow,
+  updateMarginRow,
+} from "./margin-layout.js";
 import { moveScrollerBy } from "./scrolling.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
@@ -824,17 +830,14 @@ export function createAnchors(dependencies) {
   // rather than known, the way a suggestion's row decides whether it fits: hung, then
   // docked wherever it did not reach the column's own margin. Undocked first, so a
   // seat docked once is asked again when the room comes back.
-  function dockSeat(seat) {
-    seat.classList.remove("lf-docked");
-    const column = document.querySelector("main")?.getBoundingClientRect();
-    const box = seat.getBoundingClientRect();
-    const hangs =
-      getComputedStyle(seat).position === "absolute" &&
-      column &&
+  const registeredSeats = new WeakSet();
+  const seatOptions = (seat) => ({
+    anchor: () => seat.parentElement,
+    hangs: (row, box, column, room) =>
+      getComputedStyle(row).position === "absolute" &&
       box.left >= column.right - 1 &&
-      box.right <= document.documentElement.clientWidth;
-    if (!hangs) seat.classList.add("lf-docked");
-  }
+      box.right <= room,
+  });
   function seatReactions(seats) {
     const kept = new Set();
     const placements = [...seats].flatMap(([at, held]) =>
@@ -876,13 +879,24 @@ export function createAnchors(dependencies) {
           seat.insertBefore(mark, seat.children[i] ?? null);
       });
     }
-    for (const seat of pageQueryAll(`.${SEAT}`)) if (!kept.has(seat)) seat.remove();
+    for (const seat of pageQueryAll(`.${SEAT}`))
+      if (!kept.has(seat)) {
+        unregisterMarginRow(seat);
+        seat.remove();
+      }
     dockSeats();
   }
   // Asked again whenever the room changes under the seats — the panel opening or
   // closing, the window resizing (syncLayout) — as well as at every paint.
   function dockSeats() {
-    for (const seat of pageQueryAll(`.${SEAT}`)) dockSeat(seat);
+    for (const seat of pageQueryAll(`.${SEAT}`)) {
+      if (registeredSeats.has(seat)) updateMarginRow(seat, seatOptions(seat));
+      else {
+        registeredSeats.add(seat);
+        registerMarginRow(seat, seatOptions(seat));
+      }
+    }
+    scheduleMarginLayout();
   }
 
   // Re-resolve marks after a package replaces derived passage nodes during replay.

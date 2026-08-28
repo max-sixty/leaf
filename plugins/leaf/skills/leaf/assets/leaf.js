@@ -232,6 +232,7 @@ import { createDispatch } from "./runtime/keyboard/dispatch.js";
 import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
+import { createLivingMargin } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
@@ -2733,6 +2734,7 @@ const { renderLine } = createKeyline({
 const {
   comparable,
   comparisonBase,
+  comparisonChanges,
   paintDiff,
   pressComparison,
   setDiff,
@@ -3250,6 +3252,38 @@ anchorRuntime = createAnchors({
   worksSelector: WORKS,
 });
 const { ITEM, NOTE } = anchorRuntime;
+
+createLivingMargin({
+  anchorLabel,
+  announce,
+  approveBtn,
+  banner,
+  chromeRoot,
+  claimState: workClaimState,
+  comparisonBase,
+  comparisonChanges,
+  compact: commentsEdge.over,
+  el,
+  elementById,
+  goToAsk,
+  inChrome,
+  itemSays,
+  itemWord,
+  keys,
+  offer,
+  openAsks,
+  pageScroller,
+  paintKeys,
+  placedAt,
+  scrollBehavior,
+  scrollToElement,
+  showThread,
+  stateProjection,
+  threads: () => conversationRuntime.threadList,
+  toggleBtn,
+  updateSequence,
+  versionBtn,
+});
 
 viewRuntime = createViewContinuity({
   TEXT_BLOCK,

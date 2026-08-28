@@ -1173,6 +1173,52 @@ ${MARK_RULES}
     .lf-help-command:focus-visible { outline: var(--here-ring);
       --lf-here-ring: help-command; outline-offset: 1px; }
     .lf-help-command[data-lf-available="false"] { color: var(--muted); }
+    .lf-page-map-toggle { display: none; }
+    .lf-margin-preview { position: fixed; z-index: 9150; width: min(320px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px); box-sizing: border-box; overflow: auto;
+      padding: 12px; border: 1px solid var(--border-2); border-radius: 10px;
+      background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px rgba(0,0,0,.18); }
+    .lf-margin-preview[hidden] { display: none; }
+    .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
+      justify-content: space-between; gap: 12px; }
+    .lf-margin-preview-title { font-size: var(--t-5); line-height: 1.35; }
+    .lf-margin-preview-close { flex: none; min-width: 30px; padding-inline: 7px; }
+    .lf-margin-preview-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .lf-margin-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px;
+      border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
+    .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
+    .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
+    .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
+      display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
+      align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
+      color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
+    .lf-margin-preview-action:is(:hover, :focus-visible),
+    .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+    .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+      outline: var(--here-ring); --lf-here-ring: page-map-action; outline-offset: 1px; }
+    .lf-margin-action-kind { font-size: var(--t-6); font-weight: 600; }
+    .lf-margin-action-text { color: var(--ink-2); overflow-wrap: anywhere; }
+    .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
+      max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
+      border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
+      color: var(--ink); box-shadow: 0 18px 54px rgba(0,0,0,.24); }
+    .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
+    .lf-page-map-list { margin-top: 10px; overflow: auto; max-height: calc(100vh - 110px); }
+    .lf-page-map-group { padding: 10px 0; border-top: 1px solid var(--rule); }
+    .lf-page-map-group:first-child { border-top: 0; }
+    .lf-page-map-group h3 { margin: 0 8px 4px; font-size: var(--t-5); line-height: 1.35; }
+    .lf-page-map-actions { display: grid; gap: 2px; }
+    @media (max-width: 899px) {
+      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+      .lf-page-map-sheet { inset: auto 8px 8px; width: calc(100vw - 16px);
+        max-height: min(82vh, 720px); margin: 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+      .lf-page-map-action { min-height: 44px; }
+    }
+    @media (forced-colors: active) {
+      .lf-margin-preview, .lf-page-map-sheet { border: 1px solid CanvasText; box-shadow: none; }
+      .lf-margin-preview-action:focus-visible, .lf-page-map-action:focus-visible {
+        outline: 2px solid Highlight; }
+    }
     /* The glyph states its own ink rather than taking the line's. A key chip is the
        one word on either surface the reader has to read to press anything, and on
        --chip the surrounding line's --muted came to 4.46:1 — under AA, and quietly,

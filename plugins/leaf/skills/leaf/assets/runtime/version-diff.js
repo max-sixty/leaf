@@ -188,8 +188,6 @@ export function createVersionDiff({
         }
       }
     }
-    // Container widgets surface marks their panels hide (lf-tabs badges each tab).
-    document.dispatchEvent(new CustomEvent("lf-comparison"));
     return diffMarked.length;
   }
   // Whether a stamped version can be compared with the revision being read: any stamp
@@ -257,9 +255,11 @@ export function createVersionDiff({
       diffRequest++; // a stop outranks a comparison still on its way
       for (const b of diffMarked) b.classList.remove("lf-ins-block");
       diffMarked.length = 0;
-      document.dispatchEvent(new CustomEvent("lf-comparison"));
     }
     paintDiff();
+    // Consumers read the settled comparison projection: on/off and its marks move
+    // together, rather than announcing an applied DOM diff before it is standing.
+    document.dispatchEvent(new CustomEvent("lf-comparison"));
   }
   // The one way a comparison starts, from a row's press or from the walk through the menu.
   // It states a base rather than toggling one — the toggle is a press's own reading of it,
@@ -311,9 +311,11 @@ export function createVersionDiff({
     diffOn && base === diffBase ? setDiff(false) : showComparison(base);
 
   const comparisonBase = () => (diffOn ? diffBase : null);
+  const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
   return {
     comparable,
     comparisonBase,
+    comparisonChanges,
     paintDiff,
     pressComparison,
     setDiff,

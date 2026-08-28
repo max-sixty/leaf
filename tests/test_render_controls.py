@@ -932,6 +932,194 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         context.close()
 
 
+def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
+    browser, serve
+):
+    """A touch edge is a reachable local grip, not a scroll-blocking invisible wall."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 800}, has_touch=True
+    )
+    try:
+        page, errors = open_page(
+            browser, serve(MANY_ASKS_PAGE, comments=12), context=context
+        )
+        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+        cdp = context.new_cdp_session(page)
+
+        def edge_geometry(region, edge):
+            return page.evaluate(
+                """([regionSelector, edgeSelector]) => {
+                  const regionEl = document.querySelector(regionSelector);
+                  const edgeEl = document.querySelector(edgeSelector);
+                  const region = regionEl.getBoundingClientRect();
+                  const edge = edgeEl.getBoundingClientRect();
+                  const before = getComputedStyle(edgeEl, '::before');
+                  const side = edgeEl.dataset.lfSide;
+                  const lineWidth = parseFloat(before.width);
+                  const lineCenter = side === 'right'
+                    ? edge.left + parseFloat(before.left) + lineWidth / 2
+                    : edge.right - parseFloat(before.right) - lineWidth / 2;
+                  const seamCenter = side === 'right'
+                    ? region.left + regionEl.clientLeft / 2
+                    : region.right - parseFloat(getComputedStyle(regionEl).borderRightWidth) / 2;
+                  const contentEdge = side === 'right'
+                    ? region.left + regionEl.clientLeft
+                    : region.right - parseFloat(getComputedStyle(regionEl).borderRightWidth);
+                  return {region: {left: region.left, right: region.right},
+                          edge: {left: edge.left, right: edge.right,
+                                 top: edge.top, bottom: edge.bottom,
+                                 width: edge.width, height: edge.height,
+                                 hidden: edgeEl.hidden,
+                                 min: Number(edgeEl.getAttribute('aria-valuemin')),
+                                 max: Number(edgeEl.getAttribute('aria-valuemax')),
+                                 now: Number(edgeEl.getAttribute('aria-valuenow'))},
+                          contentEdge, lineCenter, seamCenter,
+                          lineOpacity: Number(before.opacity),
+                          viewport: document.documentElement.clientWidth};
+                }""",
+                [region, edge],
+            )
+
+        def swipe(x, y, *, dx=0, dy=-140):
+            cdp.send(
+                "Input.synthesizeScrollGesture",
+                {
+                    "x": round(x),
+                    "y": round(y),
+                    "xDistance": dx,
+                    "yDistance": dy,
+                    "speed": 800,
+                    "gestureSourceType": "touch",
+                },
+            )
+
+        def drag(edge, dx):
+            x = round((edge["left"] + edge["right"]) / 2)
+            y = round((edge["top"] + edge["bottom"]) / 2)
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+            )
+            cdp.send(
+                "Input.dispatchTouchEvent",
+                {
+                    "type": "touchMove",
+                    "touchPoints": [{"x": x + dx, "y": y}],
+                },
+            )
+            cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+            page.wait_for_function("() => !document.body.hasAttribute('data-lf-sizing')")
+
+        # At the product's 320px floor the comment sheet has no possible width to move
+        # through, so it offers no inert separator. The narrower tray still does.
+        resized(page, 320, 800)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+        comments_edge = page.locator(".lf-panel > .lf-edge")
+        assert comments_edge.evaluate("edge => edge.hidden")
+        assert comments_edge.get_attribute("aria-valuemin") == comments_edge.get_attribute(
+            "aria-valuemax"
+        )
+        threads = page.locator(".lf-threads")
+        threads.evaluate("box => { box.scrollTop = 0; }")
+        width_before = page.evaluate(
+            "() => getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--lf-panel-w')"
+        )
+        swipe(12, 280)
+        page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+        assert page.evaluate(
+            "() => getComputedStyle(document.documentElement)"
+            ".getPropertyValue('--lf-panel-w')"
+        ) == width_before
+
+        # The tray still has range at 320px, and its grip finishes sliding on screen.
+        page.locator(".lf-asks").click()
+        panel_settled(page, open=False)
+        expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
+        page_at_rest(page)
+        narrow_asks = edge_geometry(
+            ".lf-asks-panel", ".lf-asks-panel > .lf-edge"
+        )
+        assert not narrow_asks["edge"]["hidden"]
+        assert narrow_asks["edge"]["left"] >= -0.1, narrow_asks
+        assert (
+            narrow_asks["edge"]["right"] <= narrow_asks["viewport"] + 0.1
+        ), narrow_asks
+
+        # Exercise both mirrored owners in different layout postures. A swipe beside the
+        # visible grip scrolls its list without moving the boundary; a horizontal drag on
+        # the grip does move it and releases the sizing posture.
+        for name, width, open_button, region_selector, edge_selector, list_selector, dx in (
+            (
+                "comments",
+                390,
+                ".lf-comments",
+                ".lf-panel",
+                ".lf-panel > .lf-edge",
+                ".lf-threads",
+                48,
+            ),
+            (
+                "asks",
+                900,
+                ".lf-asks",
+                ".lf-asks-panel",
+                ".lf-asks-panel > .lf-edge",
+                ".lf-asks-panel .lf-tray-list",
+                -36,
+            ),
+        ):
+            resized(page, width, 800)
+            page.locator(open_button).click()
+            if name == "comments":
+                panel_settled(page)
+            else:
+                panel_settled(page, open=False)
+                expect(page.locator(region_selector)).to_have_class(re.compile(r"\bopen\b"))
+                page_at_rest(page)
+            reading = edge_geometry(region_selector, edge_selector)
+            edge = reading["edge"]
+            assert edge["width"] >= 43.9 and edge["height"] >= 43.9, reading
+            assert edge["left"] >= -0.1
+            assert edge["right"] <= reading["viewport"] + 0.1
+            assert abs(reading["lineCenter"] - reading["seamCenter"]) <= 0.6, (
+                f"the {name} grip's line left the panel seam: {reading}"
+            )
+            assert reading["lineOpacity"] > 0, f"the {name} touch grip was invisible"
+            mid_x = (edge["left"] + edge["right"]) / 2
+            mid_y = (edge["top"] + edge["bottom"]) / 2
+            assert page.evaluate(
+                "([x, y]) => document.elementFromPoint(x, y)?.classList"
+                ".contains('lf-edge')",
+                [mid_x, mid_y],
+            )
+            assert not page.evaluate(
+                "([x, y]) => document.elementFromPoint(x, y)?.classList"
+                ".contains('lf-edge')",
+                [mid_x, edge["top"] - 24],
+            ), f"the {name} touch edge still trapped the whole sheet height"
+
+            scroll_box = page.locator(list_selector)
+            scroll_box.evaluate("box => { box.scrollTop = 0; }")
+            before = edge["now"]
+            swipe(mid_x, edge["top"] - 24)
+            page.wait_for_function(
+                "selector => document.querySelector(selector).scrollTop > 0",
+                arg=list_selector,
+            )
+            assert int(page.locator(edge_selector).get_attribute("aria-valuenow")) == before
+
+            drag(edge, dx)
+            after = int(page.locator(edge_selector).get_attribute("aria-valuenow"))
+            assert edge["min"] <= after <= edge["max"]
+            assert after < before, f"the {name} grip did not narrow its region: {before} → {after}"
+
+        assert errors == []
+    finally:
+        context.close()
+
+
 def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, serve):
     """High-contrast mode does not erase the only visible sign of textarea focus."""
     context = browser.new_context(

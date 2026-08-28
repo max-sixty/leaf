@@ -1294,7 +1294,15 @@ ${MARK_RULES}
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.
        Marginal pills and reaction tokens remain visually compact; their boxes, panel
-       controls, and the otherwise eight-pixel resize edge become comfortable aims. */
+       controls, and the otherwise eight-pixel resize edge become comfortable aims.
+
+       A mouse can follow a whole seam without preventing anything underneath it from
+       scrolling. A finger cannot: touch-action belongs to the hit box, so a full-height
+       wide edge turns that much of a sheet into a vertical scroll trap. The touch edge is
+       therefore one visible local grip, tall enough to take deliberately and short enough
+       to go around while reading. It stays inside its own region at every width instead of
+       changing sides when a covering sheet meets a phone, and its line remains on the seam
+       rather than following the middle of the hit box. */
     @media (pointer: coarse) {
       .lf-btn, .lf-pill:is(button, [role="button"]) { min-height: 44px; }
       .lf-banner-actions > .lf-btn { min-height: 44px; }
@@ -1302,9 +1310,17 @@ ${MARK_RULES}
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
       .lf-react { min-width: 44px; }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
-      .lf-edge { width: 32px; }
-      .lf-edge[data-lf-side="right"] { left: -16px; }
-      .lf-edge[data-lf-side="left"] { right: -16px; }
+      .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
+        transform: translateY(-50%); }
+      .lf-panel > .lf-edge[data-lf-side="right"] {
+        left: 0; }
+      .lf-panel > .lf-edge[data-lf-side="right"]::before {
+        left: -2px; }
+      .lf-tray-panel > .lf-edge[data-lf-side="left"] {
+        right: 0; }
+      .lf-tray-panel > .lf-edge[data-lf-side="left"]::before {
+        right: -2px; }
+      .lf-edge::before { top: 10px; bottom: 10px; border-radius: 1px; opacity: .35; }
     }
     /* Windows high-contrast mode suppresses the shadow used by text fields. Restore a
        platform-colour outline for every focused chrome control instead of freezing the

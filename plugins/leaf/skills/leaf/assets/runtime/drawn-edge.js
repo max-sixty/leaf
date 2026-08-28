@@ -57,6 +57,11 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
       for (const handle of handles) {
         handle.setAttribute("aria-valuenow", String(Math.round(width())));
         handle.setAttribute("aria-valuemax", String(Math.round(cap())));
+        // A boundary with no distance to travel is not a control. This happens to the
+        // comment sheet at the supported 320px floor: leaving its separator in the tab
+        // order promised a resize no pointer or arrow could make, and on touch exposed
+        // only the few pixels of its reach that happened to fall inside the viewport.
+        handle.hidden = cap() <= min;
       }
     }
     // The reader's answer, taken and kept. Held to the window on the way in, because a drag

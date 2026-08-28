@@ -2326,9 +2326,9 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         page.evaluate(BURY, 20)
         page.evaluate(RENDERED)
         before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
-        assert (
-            page.evaluate(UNDER_HEADING)["covered"] >= 20
-        ), "the setup did not put the first card under its heading"
+        assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
+            "the setup did not put the first card under its heading"
+        )
 
         page.evaluate(
             """() => {
@@ -2344,9 +2344,9 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
         page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
         first.evaluate("el => el.focus({preventScroll: true})")
         page.evaluate(RENDERED)
-        assert (
-            page.evaluate(COVERED_TOP) is not None
-        ), "an unrelated pointer cancellation released the active panel gesture"
+        assert page.evaluate(COVERED_TOP) is not None, (
+            "an unrelated pointer cancellation released the active panel gesture"
+        )
 
         page.evaluate(
             """() => dispatchEvent(new PointerEvent('pointercancel', {

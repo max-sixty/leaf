@@ -1358,6 +1358,7 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
         "BUTTON",
         "INPUT",
         "BUTTON",
+        "BUTTON",
     ]
 
     # And the box that does have something out of sight is one of those stops, which is
@@ -1422,6 +1423,76 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page.mouse.click(2, 2)
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
+    """The reference is the command register made usable, not a second list of prose.
+
+    Search narrows that register, arrows choose a result, and Enter runs it through the
+    same scoped command route as its key. A command outside the reader's current scope
+    stays selectable, but explains the scope it needs instead of closing and doing
+    nothing. Stable command IDs are exposed on the results so words can change without
+    breaking this route or tooling built on it."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
+    help_el = page.locator(".lf-help")
+    search = page.get_by_role("combobox", name="Search keyboard shortcuts")
+
+    page.keyboard.press("?")
+    search.fill("resolve it")
+    result = help_el.locator(
+        '.lf-help-command[data-lf-command="thread.resolution.toggle"]'
+    )
+    expect(result).to_have_count(1)
+    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
+    expect(search).to_have_attribute("aria-haspopup", "grid")
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    expect(result.locator("xpath=ancestor::tr")).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.keyboard.type("!")
+    expect(search).to_have_value("resolve it!")
+    expect(help_el.locator(".lf-help-empty")).to_be_visible()
+    page.keyboard.press("Backspace")
+    page.keyboard.press("ArrowDown")
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    expect(help_el).to_be_visible()
+    expect(help_el.locator(".lf-help-meta")).to_have_text(
+        "Available on a focused thread"
+    )
+    search.fill("put the reaction down")
+    cancel_reaction = help_el.locator(
+        '.lf-help-command[data-lf-command="reaction.cancel"]'
+    )
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(cancel_reaction).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    expect(help_el.locator(".lf-help-meta")).to_have_text("Available with r armed")
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("?")
+    search.fill("previous open thread")
+    previous = help_el.locator('.lf-help-command[data-lf-command="thread.previous"]')
+    expect(previous).to_have_count(1)
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(previous).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    thread = page.locator(".lf-thread").last
+    expect(thread).to_be_focused()
+    page.keyboard.press("?")
+    search.fill("resolve it")
+    page.keyboard.press("ArrowDown")
+    expect(search).to_be_focused()
+    expect(result).to_have_attribute("data-lf-selected", "true")
+    page.keyboard.press("Enter")
+    expect(help_el).to_be_hidden()
+    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     assert errors == []
     page.close()
 
@@ -2091,7 +2162,8 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
           host.append(box);
           document.querySelector('main').append(host);
           keys(host, 'Around a text box', [
-            {keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
+            {id: 'test.widget',
+             keys: ['a', 'Enter', 'Shift+ArrowLeft', 'Mod+z', 'Escape'],
              does: 'Work the widget', line: 'work widget',
              run: (binding) => host.dataset.fired = binding},
           ]);
@@ -2158,8 +2230,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             let declaration = 'declared';
             try {
               keys(button, id, [
-                {keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
-                {keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
+                {id: 'test.kept-first', keys: ['F4'], does: 'First kept meaning', line: 'first', run: () => {}},
+                {id: 'test.kept-second', keys: ['F4'], does: 'Second kept meaning', line: 'second', run: () => {}},
               ], when);
             } catch (error) {
               declaration = error.message;
@@ -2177,14 +2249,25 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           };
           return {
             ambiguous: declare('ambiguous', [
-              {keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
-              {keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
+              {id: 'test.first', keys: ['F2'], does: 'First meaning', line: 'first', run: () => {}},
+              {id: 'test.second', keys: ['F2'], does: 'Second meaning', line: 'second', run: () => {}},
             ]),
             exclusive: declare('exclusive', [
-              {keys: ['F2'], does: 'First state', line: 'first',
+              {id: 'test.first-state', keys: ['F2'], does: 'First state', line: 'first',
                when: () => true, run: () => {}},
-              {keys: ['F2'], does: 'Second state', line: 'second',
+              {id: 'test.second-state', keys: ['F2'], does: 'Second state', line: 'second',
                when: () => false, run: () => {}},
+            ]),
+            missingIdentity: declare('missing-identity', [
+              {keys: ['F5'], does: 'Anonymous command', line: 'anonymous', run: () => {}},
+            ]),
+            malformedIdentity: declare('malformed-identity', [
+              {id: 'Sentence shaped identity', keys: ['F5'], does: 'Named badly',
+               line: 'bad identity', run: () => {}},
+            ]),
+            duplicateIdentity: declare('duplicate-identity', [
+              {id: 'test.same', keys: ['F5'], does: 'First route', line: 'first', run: () => {}},
+              {id: 'test.same', keys: ['F6'], does: 'Second route', line: 'second', run: () => {}},
             ]),
             modifierAlias: conflicts([
               {keys: ['Mod+Shift+x'], does: 'First alias'},
@@ -2199,7 +2282,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {keys: ['Shift+?'], does: 'Shifted alias'},
             ]),
             noncanonical: declare('noncanonical', [
-              {keys: ['Shift+Mod+x'], does: 'Noncanonical binding',
+              {id: 'test.noncanonical', keys: ['Shift+Mod+x'], does: 'Noncanonical binding',
                line: 'work', run: () => {}},
             ]),
             immediateTransaction: keptInvalid('kept-immediate'),
@@ -2209,6 +2292,9 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     )
     assert "two live meanings for F2" in answers["ambiguous"], answers
     assert answers["exclusive"] == "declared", answers
+    assert "has no stable command id" in answers["missingIdentity"], answers
+    assert "is not a stable command id" in answers["malformedIdentity"], answers
+    assert "declares test.same twice" in answers["duplicateIdentity"], answers
     assert "two live meanings for Shift+Mod+x" in answers["modifierAlias"], answers
     assert "two live meanings for A" in answers["caseAlias"], answers
     assert "two live meanings for Shift+?" in answers["punctuationAlias"], answers
@@ -2224,20 +2310,43 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page.evaluate(
         """async () => {
           const { keys } = await import('/runtime/widget-api.js');
+          let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
             button.textContent = label;
             document.querySelector('main').append(button);
+            if (!first) first = button;
             keys(button, 'Repeated controls', [
-              {keys: ['F3'], does: () => `Work ${label}`, line: 'work', run: () => {}},
+              {id: 'test.repeated', keys: ['F3'], does: () => `Work ${label}`,
+               line: 'work', run: () => button.dataset.fired = '1'},
+              ...(label === 'Second' ? [{
+                id: 'test.second-only', keys: ['F6'], does: 'Work only the second',
+                line: 'second only', reach: 'on the second control',
+                run: () => button.dataset.secondFired = '1',
+              }] : []),
             ]);
           }
-          document.querySelector('main button').focus();
+          first.focus();
         }"""
     )
     page.keyboard.press("?")
     expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
-    page.keyboard.press("Escape")
+    search = page.get_by_role("combobox", name="Search keyboard shortcuts")
+    search.fill("work only the second")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-help-meta")).to_have_text(
+        "Available on the second control"
+    )
+    search.fill("work first")
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("button", name="First", exact=True)).to_have_attribute(
+        "data-fired", "1"
+    )
+    expect(page.get_by_role("button", name="Second", exact=True)).not_to_have_attribute(
+        "data-fired", "1"
+    )
     assert errors == []
     page.close()
 
@@ -2339,12 +2448,14 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     toggle.focus()
     page.keyboard.press("Enter")
     expect(toggle).to_have_attribute("aria-pressed", "true")
-    page.keyboard.press("Escape")
+    create = page.locator('.lf-help-command[data-lf-command="comment.create"]')
+    expect(create).to_have_attribute("data-lf-available", "true")
+    create.click()
+    expect(page.locator(".lf-help")).to_be_hidden()
     expect(version).to_have_attribute("aria-keyshortcuts", "v")
     expect(page.locator(".lf-general textarea")).to_have_attribute(
         "placeholder", re.compile(r" · c$")
     )
-    page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     assert errors == []
     page.close()
@@ -2366,7 +2477,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     expect(line).to_contain_text("d / u")
     expect(line).to_contain_text("half a page")
     page.keyboard.press("?")
-    expect(page.locator(".lf-help")).to_contain_text("Half a page down / up")
+    expect(page.locator(".lf-help")).to_contain_text("Half a page down")
+    expect(page.locator(".lf-help")).to_contain_text("Half a page up")
     expect(page.locator(".lf-help")).to_contain_text("Caret browsing")
     page.keyboard.press("Escape")
     expect(line).not_to_contain_text("F7")
@@ -2376,7 +2488,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
-              { keys: ['F2'], does: 'a press with nothing to say for itself',
+              { id: 'test.no-line', keys: ['F2'],
+                does: 'a press with nothing to say for itself',
                 run: () => {} },
             ]);
             return 'declared';
@@ -2398,7 +2511,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           const { keys } = await import('/runtime/widget-api.js');
           try {
             keys(document.body, 'A project scope', [
-              { keys: ['Ctrl+k'], does: 'a modifier the matcher never asks about',
+              { id: 'test.bad-modifier', keys: ['Ctrl+k'],
+                does: 'a modifier the matcher never asks about',
                 line: 'a key that is really just k', run: () => {} },
             ]);
             return 'declared';
@@ -2423,7 +2537,8 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
           owner.focus();
           let ran = 0;
           keys(owner, 'A native companion', [
-            { keys: ['F2'], does: 'Run before the browser', line: 'run first',
+            { id: 'test.native-companion', keys: ['F2'],
+              does: 'Run before the browser', line: 'run first',
               native: true, run: () => ran++ },
           ]);
           const event = new KeyboardEvent(
@@ -2589,13 +2704,16 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
     more = page.get_by_role("button", name="? more", exact=True)
     more.click()
     help_el = page.locator(".lf-help")
-    search = page.get_by_role("searchbox", name="Search keyboard shortcuts")
+    search = page.get_by_role("combobox", name="Search keyboard shortcuts")
     expect(help_el).to_be_visible()
     expect(search).to_be_focused()
 
     search.fill("d / u")
-    expect(help_el.locator("tr:not([hidden])")).to_have_count(1)
-    expect(help_el.locator("tr:not([hidden])")).to_contain_text("Half a page down / up")
+    expect(help_el.locator("tr:not([hidden])")).to_have_count(2)
+    expect(help_el.locator("tr:not([hidden])").nth(0)).to_contain_text(
+        "Half a page down"
+    )
+    expect(help_el.locator("tr:not([hidden])").nth(1)).to_contain_text("Half a page up")
 
     search.fill("comment panel")
     expect(
@@ -2875,14 +2993,18 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.get_by_role("heading", name="Go by address", exact=True)
     ).to_be_visible()
-    expect(help_el.locator("tr", has_text="top / bottom").locator("kbd")).to_have_text(
-        "g g / g G"
-    )
+    expect(
+        help_el.locator("tr", has_text="top of the page").locator("kbd")
+    ).to_have_text("g g")
+    expect(
+        help_el.locator("tr", has_text="bottom of the page").locator("kbd")
+    ).to_have_text("g G")
     expect(help_el).not_to_contain_text("open comment's reply box")
     # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.
     expect(help_el).not_to_contain_text("On a link")
-    expect(help_el).not_to_contain_text("Next / previous open thread")
+    expect(help_el).not_to_contain_text("Next open thread")
+    expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
     # The chooser is the one version key a first version has: its menu holds this
@@ -2894,7 +3016,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # it, leaving `v` opening a layer no key could close.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Walk the versions")
+    expect(help_el).not_to_contain_text("Previous version")
+    expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
 
@@ -2924,11 +3047,13 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     ).to_have_text("g c 1–2")
     expect(help_el).not_to_contain_text("link on screen")
     expect(help_el).not_to_contain_text("waiting on you for")
-    expect(help_el).to_contain_text("Next / previous open thread")
+    expect(help_el).to_contain_text("Next open thread")
+    expect(help_el).to_contain_text("Previous open thread")
     expect(help_el).to_contain_text("On a focused thread")
     # Still one version, so the menu's section holds its way out and not its walk.
     expect(help_el).to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Walk the versions")
+    expect(help_el).not_to_contain_text("Previous version")
+    expect(help_el).not_to_contain_text("Next version")
     page.keyboard.press("Escape")
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
@@ -2942,7 +3067,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     )
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
-    expect(help_el).to_contain_text("Walk the versions")
+    expect(help_el).to_contain_text("Previous version")
+    expect(help_el).to_contain_text("Next version")
     expect(help_el).to_contain_text("c 1–2")
     page.keyboard.press("Escape")
 

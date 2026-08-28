@@ -147,7 +147,20 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
         `On the ${noun}'s edge`,
         [
           {
+            id: "region.resize",
             keys: ["ArrowLeft", "ArrowRight"],
+            routes: [
+              {
+                id: "region.resize-left",
+                binding: "ArrowLeft",
+                does: `Move the ${noun}'s edge left`,
+              },
+              {
+                id: "region.resize-right",
+                binding: "ArrowRight",
+                does: `Move the ${noun}'s edge right`,
+              },
+            ],
             label: "arrows",
             does: `Resize the ${noun}`,
             line: `resize the ${noun}`,

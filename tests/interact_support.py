@@ -40,6 +40,7 @@ from leaf import publishing as publishing_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import served_state as served_state_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
@@ -896,7 +897,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
         HELD_LEASES.pop().close()
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
-            if service_model.running_server(lease.parent):
+            if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
 
 
@@ -936,7 +937,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         )
     else:
         serving(directory, record["port"])
-    return service_model.page_url("127.0.0.1", 59999, service_model.host_key())
+    return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
 
 
 @pytest.fixture
@@ -972,7 +973,7 @@ def comment_once_served():
 
         def post():
             while not stopped.wait(0.1):
-                if service_model.running_server(page_dir):
+                if server_model.running_server(page_dir):
                     events_model.append_event(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )

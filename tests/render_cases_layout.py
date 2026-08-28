@@ -15,12 +15,12 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import events as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
 from leaf import render_gate as render_gate_model
-from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1042,7 +1042,7 @@ def live_leaf(tmp_path, monkeypatch):
     held = []
 
     def go(name, title):
-        d = service_model.state_home() / "pages" / name
+        d = host_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         (d / "versions" / "v1.html").write_text(

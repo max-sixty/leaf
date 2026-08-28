@@ -156,6 +156,7 @@ export function createVersionNavigation({
   // reference's section is the two of them merged by title — on a first version, the way out
   // and nothing else.
   const NEWEST = {
+    id: "version.current",
     keys: ["v"],
     does: "Open the current page",
     line: "open the current page",
@@ -169,7 +170,12 @@ export function createVersionNavigation({
     "In the versions menu",
     [
       {
+        id: "version.walk",
         keys: ["ArrowUp", "ArrowDown"],
+        routes: [
+          { id: "version.previous", binding: "ArrowUp", does: "Previous version" },
+          { id: "version.next", binding: "ArrowDown", does: "Next version" },
+        ],
         // The walk marks as it goes, which is what the list is for: the note says in words
         // what a version changed and the page behind the menu then says it in the passages
         // themselves, without the reader having to leave the list to find out. A note is
@@ -201,7 +207,12 @@ export function createVersionNavigation({
       // same, and the keys are the shared fact rather than this row's reading of it:
       // spelled by hand, it said Enter and left Space unnamed on a control that answers
       // both.
-      { keys: PRESS, does: "Open that version", line: "open that version" },
+      {
+        id: "version.activate",
+        keys: PRESS,
+        does: "Open that version",
+        line: "open that version",
+      },
       NEWEST,
     ],
     versionsToWalk,
@@ -231,6 +242,7 @@ export function createVersionNavigation({
     claims: allButTheReference,
     rows: [
       {
+        id: "version.leave-forward",
         keys: ["Tab"],
         does: "Leave the versions menu forward",
         line: "leave versions",
@@ -243,6 +255,7 @@ export function createVersionNavigation({
         run: () => showVersionMenu(false),
       },
       {
+        id: "version.leave-backward",
         keys: ["Shift+Tab"],
         does: "Leave the versions menu backward",
         line: "leave versions",
@@ -252,6 +265,7 @@ export function createVersionNavigation({
         run: () => showVersionMenu(false),
       },
       {
+        id: "version.close",
         keys: ["Escape"],
         does: "Close the versions menu",
         line: "close versions",

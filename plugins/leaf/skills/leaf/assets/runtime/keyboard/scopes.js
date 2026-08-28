@@ -53,13 +53,12 @@ export function createScopes({ paintHere, upFrom }) {
     if (ref) scopeRefs.delete(ref);
     scopeRefFor.delete(el);
   }
-  const sentence = (row) => (typeof row.does === "string" ? row.does : row);
-  const bySentence = (rows) => rows.map((row) => [sentence(row), row]);
+  const byCommand = (rows) => rows.map((row) => [row.id, row]);
   // One section per title, gathered from every contributor. Written once because the gathering
   // happens twice and used to be spelled three times: here at declaration, where a widget's
   // contributors arrive an upgraded element at a time, and at each open of the reference, where
   // core's scopes and the widgets' are gathered into one list of sections. The rules above are
-  // this function — rows keyed by sentence, `when` and `at` joined by or — and a near-copy of a
+  // this function — rows keyed by command id, `when` and `at` joined by or — and a near-copy of a
   // merge is a merge that drifts on the day one of the three learns something.
   function merge(sections, { title, when, at, claims, rows }) {
     // A contributor the page hasn't got brings nothing. A section's `when` is the OR of its
@@ -235,7 +234,7 @@ export function createScopes({ paintHere, upFrom }) {
     );
 
   const scopes = {
-    bySentence,
+    byCommand,
     claimsEsc,
     elementScopes,
     focused,

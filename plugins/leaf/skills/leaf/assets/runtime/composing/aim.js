@@ -28,6 +28,7 @@ export function createAim({
   // is spelled from the modifier through the register's own table rather than written out
   // twice in two platforms' glyphs.
   const AIM = {
+    id: "aim.comment",
     modifier: "Alt",
     keys: [],
     label: `${spell("Alt")} click`,

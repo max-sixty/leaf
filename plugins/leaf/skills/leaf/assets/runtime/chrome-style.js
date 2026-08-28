@@ -1148,9 +1148,18 @@ ${MARK_RULES}
     .lf-help-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
     .lf-help h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
       text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-    .lf-help table { width: 100%; border-collapse: collapse; }
+    .lf-help table { display: table; width: 100%; table-layout: fixed;
+      border-collapse: collapse; }
     .lf-help td { padding: 3px 0; vertical-align: baseline; }
     .lf-help td:first-child { width: 84px; white-space: nowrap; }
+    .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
+      border: 0; border-radius: 4px; background: transparent; color: inherit;
+      font: inherit; text-align: left; cursor: pointer; }
+    .lf-help-command:is(:hover, :focus-visible),
+    .lf-help-command[data-lf-selected="true"] { background: var(--chip); }
+    .lf-help-command:focus-visible { outline: var(--here-ring);
+      --lf-here-ring: help-command; outline-offset: 1px; }
+    .lf-help-command[data-lf-available="false"] { color: var(--muted); }
     /* The glyph states its own ink rather than taking the line's. A key chip is the
        one word on either surface the reader has to read to press anything, and on
        --chip the surrounding line's --muted came to 4.46:1 — under AA, and quietly,

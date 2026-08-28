@@ -519,8 +519,12 @@ function receiveState(...args) {
 // below; what is here is the vocabulary they and the widget modules share.
 //
 // A row:
+//   id    — its stable dotted identity. Words and keys may change without changing the
+//           route used by the reference and other projections.
 //   keys  — the bindings it answers: "d", "Escape", "Mod+Enter", "Shift+a", " ".
 //           A function where the set is the page's (an option group's 1–N).
+//   routes— optional stable subcommands when those bindings mean different things. The
+//           keyline keeps the compact row; the reference presents each route separately.
 //   label — how it renders. Computed from `keys` unless the row is a chord whose second
 //           half is another scope's row, and then built from that row rather than typed.
 //   does  — the overlay's sentence.
@@ -563,7 +567,7 @@ const watchDisclosures = (root) =>
 createShadowStage(watchDisclosures);
 
 const {
-  bySentence,
+  byCommand,
   claimsEsc,
   elementScopes,
   focused,
@@ -1718,6 +1722,7 @@ const PANEL_SAY = {
   // of the register reads too — g names a list and then a member of it. The box says
   // the same key from its own placeholder, so the second press is discoverable from
   // the panel without the reference open.
+  id: "comment.write",
   keys: ["c"],
   does: () => generalHint(),
   line: "comment",
@@ -2090,6 +2095,7 @@ function rung() {
 // being true the day the first rung became letting go of an ask, which is no layer at
 // all — the line saying "let go" while the reference said "layer" about the same press.
 const BACK_OUT = {
+  id: "navigation.back",
   keys: ["Escape"],
   does: () => rung()?.does,
   line: () => rung()?.says,
@@ -2340,17 +2346,55 @@ const HELP = {
   claims: EVERYTHING,
   rows: [
     {
+      id: "reference.focus.walk",
       keys: ["Tab", "Shift+Tab"],
       does: "Move through this reference",
       line: "move",
       repeat: true,
+      runFromReference: false,
       run: (binding) => reference.move(binding === "Tab" ? 1 : -1),
     },
     {
+      id: "reference.command.next",
+      keys: ["ArrowDown"],
+      does: "Choose the next command",
+      line: "next command",
+      repeat: true,
+      runFromReference: false,
+      // The list is built before search receives focus, so physical liveness is false at
+      // that instant even though this is one of the reference's standing instructions.
+      referenceWhen: () => true,
+      when: () => reference.onCommandRail,
+      run: () => reference.moveCommand(1),
+    },
+    {
+      id: "reference.command.previous",
+      keys: ["ArrowUp"],
+      does: "Choose the previous command",
+      line: "previous command",
+      repeat: true,
+      runFromReference: false,
+      referenceWhen: () => true,
+      when: () => reference.onCommandRail,
+      run: () => reference.moveCommand(-1),
+    },
+    {
+      id: "reference.command.run",
+      keys: ["Enter"],
+      does: "Run the chosen command",
+      line: "run command",
+      runFromReference: false,
+      referenceWhen: () => true,
+      when: () => reference.onCommandRail,
+      run: () => reference.runSelected(),
+    },
+    {
+      id: "reference.close",
       keys: ["Escape"],
       does: "Close this reference",
       line: "close help",
       also: helpClose,
+      runFromReference: false,
       run: () => reference.show(false),
     },
   ],
@@ -2364,6 +2408,7 @@ const COMPOSER = {
   at: () => composerOpen,
   rows: [
     {
+      id: "composer.close",
       keys: ["Escape"],
       does: "Close the composer, keeping the draft",
       line: "close — draft kept",
@@ -2429,6 +2474,7 @@ keys(
   "In the find box",
   [
     {
+      id: "comment.find.close",
       keys: ["Escape"],
       does: () =>
         narrowed()
@@ -2444,6 +2490,7 @@ keys(
       },
     },
     {
+      id: "comment.find.first",
       keys: ["Enter"],
       does: "Go to the first comment found",
       line: "first found",
@@ -2460,6 +2507,7 @@ const TYPING = {
   claims: TEXT_ENTRY,
   rows: [
     {
+      id: "text.leave",
       keys: ["Escape"],
       does: "Leave the box, keeping what is typed",
       line: () => backFromBox()?.line ?? "back to list",
@@ -2507,6 +2555,7 @@ const PANEL = {
   at: inPanel,
   rows: [
     {
+      id: "comment.waiting.toggle",
       // `w` for the words the control says, the way `l` spells the leaves and `a` the
       // asks. It is the phrase the page already uses for the same question asked of its
       // widgets (n/p), asked here of the conversation — so the reader learns one idea and
@@ -2536,6 +2585,7 @@ const PANEL = {
       run: () => needsBtn.click(),
     },
     {
+      id: "comment.find",
       // `/` is what every list with a search field takes it with, and the one letter a
       // text box does not shadow: the typing scope claims what types a character, so the
       // press only ever reaches here from the list rather than from a box in it.
@@ -2573,6 +2623,7 @@ const THREAD = {
   at: () => Boolean(focusedThread()),
   rows: [
     {
+      id: "thread.primary",
       keys: ["Enter"],
       does: () =>
         focusedThread()?.querySelector(":scope > .lf-thread-actions > .lf-reopen")
@@ -2604,6 +2655,7 @@ const THREAD = {
       },
     },
     {
+      id: "thread.resolution.toggle",
       // `x` and not `r`, though resolve is the word it does: the press beside it in this
       // same scope is the reply, and a reader meeting `r` on the line reads "reply" before
       // they read "resolve". A key spelling its own word is the wrong key when the
@@ -2670,7 +2722,7 @@ const standingOn = (title, sel, rows) => ({
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
 const LINK = standingOn("On a link", "a[href]", [
-  { keys: ["Enter"], does: "Follow it", line: "follow" },
+  { id: "link.follow", keys: ["Enter"], does: "Follow it", line: "follow" },
 ]);
 
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps
@@ -2720,6 +2772,7 @@ const disclosed = (el) =>
 createDisclosure({ disclosed, inChrome });
 const DISCLOSURE = standingOn("On a disclosure", DISCLOSURE_SELECTOR, [
   {
+    id: "disclosure.toggle",
     keys: () => DISCLOSE(focused()),
     does: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
@@ -2758,6 +2811,7 @@ const CONTROL = {
   when: () => Boolean(document.querySelector(CONTROL_SELECTOR)),
   rows: [
     {
+      id: "control.activate",
       keys: PRESS,
       does: "Work the focused control",
       line: "press it",
@@ -2778,6 +2832,7 @@ const DESIGN = {
   at: () => designOn,
   rows: [
     {
+      id: "design.comment",
       keys: [],
       label: "click",
       does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
@@ -2785,6 +2840,7 @@ const DESIGN = {
     {
       // Both keys, on one row: i is the toggle and Escape the mode's own rung, and two
       // chips reading "leave design" said one thing twice on the line.
+      id: "design.leave",
       keys: ["Escape", "i"],
       does: "Leave design mode",
       line: "leave design",
@@ -2803,6 +2859,7 @@ const DESIGN = {
 // this page is behind. Named, because the chip that jumps straight to the current page
 // spells that motion in its tooltip.
 const CHOOSER = {
+  id: "version.open",
   keys: ["v"],
   does: "The versions, and what each one changed",
   line: "versions",
@@ -2818,6 +2875,8 @@ const CHOOSER = {
 // cannot correct it is the register's own oldest bug. Its place in the table is nominal:
 // renderLine gives it the permanent More control instead of spending a hint slot on it.
 const REFERENCE = {
+  id: "reference.open",
+  runFromReference: false,
   keys: ["?"],
   does: "This key reference",
   line: "more",
@@ -2827,6 +2886,7 @@ const REFERENCE = {
 const PAGE = {
   rows: [
     {
+      id: "comment.create",
       keys: ["c"],
       // One key, four destinations, and the surfaces name the one in front of the reader:
       // a live selection, the item a click raised the 💬 on, the box belonging to whatever
@@ -2851,6 +2911,7 @@ const PAGE = {
       // the bar the pointer sees, digits on: the same tokens in the same order, so a
       // reader who has seen the bar once knows the keys. Nine at most, the digits being
       // the addresses.
+      id: "reaction.open",
       keys: ["r"],
       does: () =>
         `React — ${reactionTokens()
@@ -2862,7 +2923,12 @@ const PAGE = {
       run: () => setReact(true),
     },
     {
+      id: "thread.walk",
       keys: ["j", "k"],
+      routes: [
+        { id: "thread.next", binding: "j", does: "Next open thread" },
+        { id: "thread.previous", binding: "k", does: "Previous open thread" },
+      ],
       does: "Next / previous open thread",
       line: "threads",
       when: hasThreads,
@@ -2877,7 +2943,20 @@ const PAGE = {
       // rather than which way, so the second half had nowhere to come from and ended up
       // a pair only its author knew. Naming the direction is also what leaves the noun's
       // shifted letter to the answer that acts on all of them at once (A, below).
+      id: "ask.walk",
       keys: ["n", "p"],
+      routes: [
+        {
+          id: "ask.next",
+          binding: "n",
+          does: "Next thing this page is waiting on you for",
+        },
+        {
+          id: "ask.previous",
+          binding: "p",
+          does: "Previous thing this page is waiting on you for",
+        },
+      ],
       does: "Next / previous thing this page is waiting on you for",
       line: "asks",
       when: () => openAsks().length > 0,
@@ -2888,6 +2967,7 @@ const PAGE = {
       // (n/p above), and the noun every surface names this tray by. What it opens is the
       // list those keys walk, which until now the reader could only reach by walking it:
       // there was no way to see what was waiting without visiting each one in turn.
+      id: "ask.tray.toggle",
       keys: ["a"],
       does: () =>
         `${openTray("asks") ? "Hide" : "Show"} what this page is waiting on you for`,
@@ -2903,7 +2983,12 @@ const PAGE = {
       },
     },
     {
+      id: "page.half-scroll",
       keys: ["d", "u"],
+      routes: [
+        { id: "page.half-down", binding: "d", does: "Half a page down" },
+        { id: "page.half-up", binding: "u", does: "Half a page up" },
+      ],
       does: "Half a page down / up",
       line: "half a page",
       repeat: true,
@@ -2914,6 +2999,7 @@ const PAGE = {
       // for the "Other leaves" the button said before the count was one off the list
       // it promised — so the key went on spelling a word nothing on screen said, and
       // a mnemonic nobody can reconstruct is a key nobody reaches for twice.
+      id: "leaf.tray.toggle",
       keys: ["l"],
       does: () => `${openTray("leaves") ? "Hide" : "Show"} the machine's leaves`,
       line: () => `${openTray("leaves") ? "hide" : "show"} leaves`,
@@ -2938,6 +3024,7 @@ const PAGE = {
       // unshifted letter that ends the matter for every one of them is a press too
       // cheap for what it does. The walk is spelled in directions (n/p), so the noun was
       // free for the tray above, which is what it now opens.
+      id: "ask.answer-all",
       keys: ["Shift+a"],
       does: () =>
         standingAnswers()
@@ -2950,6 +3037,7 @@ const PAGE = {
       },
     },
     {
+      id: "version.approve",
       keys: ["Shift+l"],
       does: "Approve this version",
       line: "looks good",
@@ -2965,6 +3053,7 @@ const PAGE = {
       // words by claiming its letters. The word is "undo" and never the verb it is
       // about to state — `move` is one widget's word, and a line that said it would
       // be naming a member where the mechanism is what holds.
+      id: "history.undo",
       keys: ["z"],
       does: () => undoSentence(),
       line: "undo",
@@ -2992,6 +3081,7 @@ const PAGE = {
     {
       // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
       // than this row, so while it stands this one is shadowed off the line.
+      id: "design.enter",
       keys: ["i"],
       does: "Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
       line: "design mode",
@@ -3002,6 +3092,7 @@ const PAGE = {
     // Neither says a word for the line, so neither is ever promised as the next press —
     // one rule where the three exemptions this replaced were three.
     {
+      id: "browser.caret",
       keys: ["F7"],
       does: "Caret browsing (the browser's): select text by keyboard, then c",
     },
@@ -3074,7 +3165,7 @@ function paintCoreControls() {
     (latestBound ? ` (${labelOf(CHOOSER)} ${labelOf(NEWEST)})` : "");
 }
 
-const { readerIn, shadow, stack } = createDispatch({
+const { availableCommands, executeCommand, readerIn, shadow, stack } = createDispatch({
   claimsEsc,
   containsAcross: (container, node) => containsAcross(container, node),
   ELEMENTS,
@@ -3092,12 +3183,14 @@ const { readerIn, shadow, stack } = createDispatch({
   TYPING,
 });
 const reference = createReference({
-  bySentence,
+  byCommand,
   characterShortcutsOn: () => characterShortcutsOn,
+  availableCommands,
   el,
   elementScopes,
   ELEMENTS,
   EVERYTHING,
+  executeCommand,
   focused,
   helpClose,
   helpEl,

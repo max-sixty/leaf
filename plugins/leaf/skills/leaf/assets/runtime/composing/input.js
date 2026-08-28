@@ -89,6 +89,7 @@ export function createInput({ keys, showToast, spell }) {
     // binding doing two things.
     keys(ta, "In a text box", [
       {
+        id: "text.send",
         keys: [SEND],
         does: "Send what you have typed",
         line: sends,

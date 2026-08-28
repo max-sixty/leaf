@@ -1,12 +1,22 @@
-import { bindings, declaredBindings, labelOf, live, spell, word } from "./bindings.js";
+import {
+  bindings,
+  commandRoutes,
+  declaredBindings,
+  labelOf,
+  live,
+  spell,
+  word,
+} from "./bindings.js";
 
 export function createReference({
-  bySentence,
+  byCommand,
   characterShortcutsOn,
+  availableCommands,
   el,
   elementScopes,
   ELEMENTS,
   EVERYTHING,
+  executeCommand,
   focused,
   helpClose,
   helpEl,
@@ -35,18 +45,21 @@ export function createReference({
   // The stack backwards, so a reader learning the keyboard starts from the page in front of them
   // and reads inward, and the widgets' sections land where their scopes stand in it rather than
   // wherever a second list happened to put them.
-  function declaredStack() {
+  function declaredStack(origin) {
     pruneScopedElements();
     const sections = new Map();
-    const named = (section) =>
-      scopesFor(focused()).some((s) => s.title === section.title);
+    // Capture this before the overlay takes focus. Repeated widgets share command ids, but
+    // their words can name the particular thing in front of the reader; the active
+    // contributors therefore get the last word in their section.
+    const activeScopes = scopesFor(origin);
+    const named = (section) => activeScopes.some((s) => s.title === section.title);
     // Carry a scope's chord down to each of its rows before sections with the same title
     // merge. The prefix belongs only to the rows that scope contributed; putting it on the
     // merged section would also put it in front of an unrelated widget that chose the same
     // heading.
     const referenceRows = (scope) =>
-      bySentence(scope.rows).map(([sentence, row]) => [
-        sentence,
+      byCommand(scope.rows).map(([id, row]) => [
+        id,
         scope.chord ? { ...row, chord: scope.chord } : row,
       ]);
     for (const scope of SCOPES.toReversed()) {
@@ -74,6 +87,12 @@ export function createReference({
         const section = elementScopes.get(el);
         merge(declared, { ...section, rows: referenceRows(section) });
       }
+      // DOM order makes the reference stable. Re-applying the active path from outside in
+      // keeps that stability while letting the innermost live instance supply dynamic
+      // labels and actions for command ids shared by several instances.
+      for (const section of activeScopes.toReversed())
+        if (section.title)
+          merge(declared, { ...section, rows: referenceRows(section) });
       for (const section of declared.values())
         merge(sections, { ...section, at: () => named(section) });
     }
@@ -94,6 +113,7 @@ export function createReference({
   // the overlay claims the keyboard and the page stands down beneath it, and a key going live under it
   // is merely unlisted until the next open, one press away.
   let helpOpen = false;
+  let commandsAtOpen = new Set();
   // Where the reference was opened from, so closing it hands the reader back. Any dialog that
   // takes focus owes that; what makes it structural here is that a scope is *where focus is*,
   // so the overlay explaining a walk was also the way out of it — open the reference from a
@@ -135,18 +155,25 @@ export function createReference({
     const preserveSelection = open && Boolean(pageSelection());
     const restore =
       !open && restoreFocus && helpEl.contains(focused()) ? helpFrom : null;
-    if (open && !helpOpen) helpFrom = focused();
+    if (open && !helpOpen) {
+      helpFrom = focused();
+      commandsAtOpen = availableCommands();
+    }
     helpOpen = open;
     if (open) {
       helpEl.textContent = "";
       const head = el("div", "lf-help-head");
-      head.append(el("div", "lf-help-title", "Keyboard reference"), helpClose);
+      head.append(el("div", "lf-help-title", "Keyboard commands"), helpClose);
       helpEl.append(head);
       const search = document.createElement("input");
       search.type = "search";
       search.className = "lf-help-search";
       search.placeholder = "Find a key or action";
       search.setAttribute("aria-label", "Search keyboard shortcuts");
+      search.setAttribute("role", "combobox");
+      search.setAttribute("aria-autocomplete", "list");
+      search.setAttribute("aria-expanded", "true");
+      search.setAttribute("aria-haspopup", "grid");
       search.autocomplete = "off";
       search.spellcheck = false;
       const meta = el("div", "lf-help-meta");
@@ -167,24 +194,34 @@ export function createReference({
       paintCharacterToggle();
       characterToggle.onclick = () => {
         setCharacterShortcuts(!characterShortcutsOn());
-        // Rebuild the reference from the newly available bindings. Keep focus on the
-        // preference that caused the change instead of returning to search and making
-        // the toggle feel like a navigation command.
+        // Re-enter through the page so the dispatch snapshot sees the newly available
+        // bindings before this modal scope shadows them. Keep focus on the preference that
+        // caused the change instead of returning to search.
+        showHelp(false);
         showHelp(true);
         helpEl.querySelector(".lf-help-shortcuts").focus({ preventScroll: true });
       };
       preference.append(meta, characterToggle);
       const results = el("div", "lf-help-results");
-      const empty = el("div", "lf-help-empty", "No matching shortcuts");
-      empty.hidden = true;
+      results.id = "lf-help-results";
+      results.setAttribute("role", "grid");
+      results.setAttribute("aria-label", "Keyboard commands");
+      search.setAttribute("aria-controls", results.id);
+      const emptyRow = document.createElement("div");
+      emptyRow.setAttribute("role", "row");
+      const empty = el("div", "lf-help-empty", "No matching commands");
+      empty.setAttribute("role", "gridcell");
+      emptyRow.append(empty);
+      emptyRow.hidden = true;
       const sections = [];
       let total = 0;
       // A chord row is reached from the standing page, so its cell shows every press. A
       // custom label already groups the row's remaining bindings (for example `c 1–2`);
       // an ordinary row is expanded binding by binding so `g / G` becomes the unambiguous
       // `g g / g G` rather than `g g / G`.
-      const referenceLabel = (row) => {
+      const referenceLabel = (row, route) => {
         const chord = word(row.chord);
+        if (route) return [chord, spell(route.binding)].filter(Boolean).join(" ");
         if (!chord) return labelOf(row);
         const label = word(row.label);
         return label == null
@@ -193,29 +230,82 @@ export function createReference({
               .join(" / ")
           : `${chord} ${label}`;
       };
-      const table = (rows, scopeTitle) => {
+      const commandButtons = [];
+      const availableWhere = (row, scopeTitle, scopeReach) => {
+        const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
+        return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
+      };
+      const table = (rows, scopeTitle, scopeReach) => {
         const t = document.createElement("table");
+        t.setAttribute("role", "presentation");
         const entries = [];
         for (const row of rows) {
-          const tr = document.createElement("tr");
-          const kbd = document.createElement("kbd");
-          const label = referenceLabel(row);
-          kbd.textContent = label;
-          const keyCell = document.createElement("td");
-          keyCell.append(kbd);
-          tr.append(keyCell, el("td", "", word(row.does)));
-          t.append(tr);
-          entries.push({
-            el: tr,
-            words: helpWords(
-              `${scopeTitle} ${label} ${word(row.does)} ${word(row.line)}`,
-            ),
-          });
+          const routes =
+            row.runFromReference === false || !commandRoutes(row).length
+              ? [null]
+              : commandRoutes(row).filter((route) =>
+                  bindings(row).includes(route.binding),
+                );
+          for (const route of routes) {
+            const id = route?.id ?? row.id;
+            const does = route?.does ?? word(row.does);
+            const tr = document.createElement("tr");
+            tr.dataset.lfCommand = id;
+            tr.id = `lf-help-row-${total + entries.length}`;
+            tr.setAttribute("role", "row");
+            const kbd = document.createElement("kbd");
+            const label = referenceLabel(row, route);
+            kbd.textContent = label;
+            kbd.id = `lf-help-key-${total + entries.length}`;
+            const keyCell = document.createElement("td");
+            keyCell.setAttribute("role", "gridcell");
+            keyCell.append(kbd);
+            const actionCell = document.createElement("td");
+            actionCell.setAttribute("role", "gridcell");
+            const available = commandsAtOpen.has(id);
+            if (row.run && row.runFromReference !== false) {
+              const command = el("button", "lf-help-command", word(does));
+              command.type = "button";
+              command.tabIndex = -1;
+              command.dataset.lfCommand = id;
+              command.dataset.lfAvailable = String(available);
+              command.dataset.lfSelected = "false";
+              command.setAttribute("aria-describedby", kbd.id);
+              command.title = available
+                ? "Run command"
+                : availableWhere(row, scopeTitle, scopeReach);
+              command.onclick = () => {
+                if (!available) {
+                  meta.textContent = availableWhere(row, scopeTitle, scopeReach);
+                  return;
+                }
+                showHelp(false);
+                if (!executeCommand(id)) {
+                  showHelp(true);
+                  helpEl.querySelector(".lf-help-meta").textContent =
+                    "That command is no longer available";
+                }
+              };
+              actionCell.append(command);
+              commandButtons.push(command);
+            } else actionCell.textContent = word(does);
+            tr.append(keyCell, actionCell);
+            t.append(tr);
+            entries.push({
+              el: tr,
+              directWords: helpWords(
+                `${id} ${scopeTitle} ${label} ${word(does)} ${word(row.line)}`,
+              ),
+              familyWords: helpWords(
+                `${row.id} ${referenceLabel(row)} ${word(row.does)}`,
+              ),
+            });
+          }
         }
         total += entries.length;
         return { el: t, entries };
       };
-      for (const scope of declaredStack()) {
+      for (const scope of declaredStack(helpFrom)) {
         // A scope the reader is standing in is filtered by each row's own liveness, because
         // they can see which state they are in and a row that would refuse the press must
         // not be on screen. A scope they are merely near is listed whole: a row's `when`
@@ -241,15 +331,24 @@ export function createReference({
             // those in the complete reference; only hide a row whose declared character
             // binding the reader has turned off.
             (bindings(row).length > 0 || declaredBindings(row).length === 0) &&
-            (!inIt || live(row)),
+            (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
         );
         if (!rows.length) continue;
         const title = scope.title ?? "On this page";
         const section = document.createElement("section");
         section.className = "lf-help-section";
+        section.setAttribute("role", "rowgroup");
         const heading = el("h3", "", title);
-        const body = table(rows, title);
-        section.append(heading, body.el);
+        heading.id = `lf-help-section-${sections.length}`;
+        section.setAttribute("aria-labelledby", heading.id);
+        const headingRow = document.createElement("div");
+        headingRow.setAttribute("role", "row");
+        const headingCell = document.createElement("div");
+        headingCell.setAttribute("role", "gridcell");
+        headingCell.append(heading);
+        headingRow.append(headingCell);
+        const body = table(rows, title, scope.reach);
+        section.append(headingRow, body.el);
         results.append(section);
         sections.push({
           el: section,
@@ -259,15 +358,44 @@ export function createReference({
           entries: body.entries,
         });
       }
-      results.append(empty);
+      results.append(emptyRow);
+      const visibleCommands = () =>
+        commandButtons.filter(
+          (button) => !button.closest("tr").hidden && !button.closest("section").hidden,
+        );
+      const keepOneCommandReachable = () => {
+        const visible = visibleCommands();
+        const selected = visible.find(
+          (command) => command.dataset.lfSelected === "true",
+        );
+        const tabStop = selected ?? visible[0];
+        for (const command of commandButtons) {
+          const on = command === selected;
+          command.tabIndex = command === tabStop ? 0 : -1;
+          command.dataset.lfSelected = String(on);
+          command.closest("tr").setAttribute("aria-selected", String(on));
+        }
+        if (selected)
+          search.setAttribute("aria-activedescendant", selected.closest("tr").id);
+        else search.removeAttribute("aria-activedescendant");
+      };
       const filter = () => {
         const query = helpWords(search.value);
+        const directMatch =
+          query &&
+          sections.some((section) =>
+            section.entries.some((entry) => entry.directWords.includes(query)),
+          );
         let shown = 0;
         for (const section of sections) {
           const sectionMatch = query && section.words.includes(query);
           let sectionShown = 0;
           for (const entry of section.entries) {
-            const match = !query || sectionMatch || entry.words.includes(query);
+            const match =
+              !query ||
+              sectionMatch ||
+              entry.directWords.includes(query) ||
+              (!directMatch && entry.familyWords.includes(query));
             entry.el.hidden = !match;
             if (match) sectionShown++;
           }
@@ -276,10 +404,11 @@ export function createReference({
           section.table.hidden = sectionShown === 0;
           shown += sectionShown;
         }
-        empty.hidden = shown !== 0;
+        emptyRow.hidden = shown !== 0;
         meta.textContent = query
-          ? `${shown} of ${total} shortcuts`
-          : `${total} shortcuts`;
+          ? `${shown} of ${total} commands · ↑↓ choose · Enter run`
+          : `${total} commands · ↑↓ choose · Enter run`;
+        keepOneCommandReachable();
       };
       search.addEventListener("input", filter);
       filter();
@@ -315,7 +444,7 @@ export function createReference({
   const helpStops = () =>
     [
       ...helpEl.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])'),
-    ].filter((node) => node.checkVisibility());
+    ].filter((node) => node.tabIndex >= 0 && node.checkVisibility());
   function move(dir) {
     const stops = helpStops();
     if (!stops.length) return helpEl.focus({ preventScroll: true });
@@ -328,13 +457,62 @@ export function createReference({
         : stops[(at + dir + stops.length) % stops.length];
     next.focus({ preventScroll: true });
   }
+  const commandStops = () =>
+    [...helpEl.querySelectorAll(".lf-help-command")].filter((node) =>
+      node.checkVisibility(),
+    );
+  const onCommandRail = () =>
+    commandStops().length > 0 &&
+    (focused()?.matches?.(".lf-help-search, .lf-help-command") ?? false);
+  function moveCommand(dir) {
+    const stops = commandStops();
+    if (!stops.length) return;
+    const focusedCommand = focused()?.matches?.(".lf-help-command") ? focused() : null;
+    const selected =
+      focusedCommand ?? stops.find((stop) => stop.dataset.lfSelected === "true");
+    const at = stops.indexOf(selected);
+    const next =
+      at < 0
+        ? dir > 0
+          ? stops[0]
+          : stops.at(-1)
+        : stops[(at + dir + stops.length) % stops.length];
+    for (const stop of stops) {
+      const on = stop === next;
+      stop.tabIndex = on ? 0 : -1;
+      stop.dataset.lfSelected = String(on);
+      stop.closest("tr").setAttribute("aria-selected", String(on));
+    }
+    const search = helpEl.querySelector(".lf-help-search");
+    search.setAttribute("aria-activedescendant", next.closest("tr").id);
+    if (focusedCommand) next.focus({ preventScroll: true });
+    next.closest("tr").scrollIntoView({ block: "nearest" });
+    const key = next.closest("tr").querySelector("kbd").textContent;
+    helpEl.querySelector(".lf-help-meta").textContent =
+      `${next.textContent} · ${key} · Enter run`;
+  }
+  function runSelected() {
+    if (!onCommandRail()) return false;
+    const command = focused().matches(".lf-help-command")
+      ? focused()
+      : (commandStops().find((stop) => stop.dataset.lfSelected === "true") ??
+        commandStops()[0]);
+    if (!command) return false;
+    command.click();
+    return true;
+  }
   helpClose.onclick = () => showHelp(false);
 
   return {
     get open() {
       return helpOpen;
     },
+    get onCommandRail() {
+      return onCommandRail();
+    },
     move,
+    moveCommand,
+    runSelected,
     show: showHelp,
   };
 }

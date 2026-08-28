@@ -178,7 +178,12 @@ customElements.define(
       // Declared on the element the reader stands on before the box exists, so opening a
       // draft is in the reference from the moment the page has one.
       keys(this, "On a draft", [
-        { keys: [], label: "dblclick or ✎", does: "Edit the text in place" },
+        {
+          id: "draft.edit",
+          keys: [],
+          label: "dblclick or ✎",
+          does: "Edit the text in place",
+        },
       ]);
 
       this.#pencil = this.#button("✎", () => this.#open());
@@ -334,6 +339,7 @@ customElements.define(
       // keys it takes is the scope's own answer for where this box is standing.
       keys(summary, "On a draft", [
         {
+          id: "draft.history.toggle",
           keys: () => DISCLOSE(summary),
           does: () => `${history.open ? "Hide" : "Show"} the edit history`,
           line: () => `${history.open ? "hide" : "show"} the history`,
@@ -384,12 +390,16 @@ customElements.define(
       // prevent by consuming the press.
       keys(ta, "On a draft", [
         {
+          id: "draft.save",
+          reach: "in an open draft editor",
           keys: ["Mod+Enter"],
           does: "Save the edit",
           line: "save",
           run: () => this.#commit(),
         },
         {
+          id: "draft.close",
+          reach: "in an open draft editor",
           keys: ["Escape"],
           does: "Close the editor, keeping the edit",
           line: "close — edit kept",

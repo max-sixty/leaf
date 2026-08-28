@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 from leaf.data import data_binding_errors, empty_data, measurement_lag, read_data_store
 from leaf.event_log import flocked, read_events
-from leaf.events import retractions, thread_structure
+from leaf.events import retractions
 from leaf.files import list_revisions, revision_path
 from leaf.passages import spoken
 from leaf.projection import (
@@ -27,6 +27,7 @@ from leaf.styles import (
     inline_presentation_override_errors,
     root_tokens,
 )
+from leaf.thread_context import thread_structure
 from leaf.validation import (
     addressable_instance_errors,
     ask_region_errors,

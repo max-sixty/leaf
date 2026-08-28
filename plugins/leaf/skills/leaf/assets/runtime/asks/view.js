@@ -176,6 +176,7 @@ export function createAskView({
         };
         keys(row, "In the asks tray", [
           {
+            id: "ask.open",
             keys: PRESS,
             does: "Go to this ask and stand on the control that answers it",
             line: "go to this ask",

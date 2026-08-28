@@ -1149,7 +1149,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 if edge_control.evaluate("edge => document.activeElement === edge"):
                     break
             else:
-                raise AssertionError(f"the keyboard never reached the {name} touch grip")
+                raise AssertionError(
+                    f"the keyboard never reached the {name} touch grip"
+                )
             standing = standing_ring(page)
             assert standing and not standing["cuts"] and not standing["covers"], (
                 f"the {name} touch grip drew a clipped focus ring: {standing}"
@@ -3111,7 +3113,8 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     page.keyboard.press("?")
     help_el = page.locator(".lf-help")
     expect(help_el).to_contain_text("In the leaves tray")
-    expect(help_el).to_contain_text("Walk the leaves")
+    expect(help_el).to_contain_text("Previous leaf")
+    expect(help_el).to_contain_text("Next leaf")
     assert errors == []
     page.close()
 

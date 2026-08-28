@@ -5,18 +5,22 @@ import sys
 from pathlib import Path
 
 from leaf.event_log import append_event
-from leaf.events import standing_work_claims, work_claim_revision
 from leaf.files import (
     replace_files,
     revision_path,
     stamped_version,
     version_path,
 )
+from leaf.host import message_identity
 from leaf.projection import folded_facet, markup_facet, page_projection
 from leaf.revisioning import activate_source
-from leaf.service import PageTransaction, contract_writer, message_identity
+from leaf.service import PageTransaction, contract_writer
 from leaf.validation import read_text_arg
-from leaf.work import widget_work_without_seats
+from leaf.work import (
+    standing_work_claims,
+    widget_work_without_seats,
+    work_claim_revision,
+)
 
 
 def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -> dict:

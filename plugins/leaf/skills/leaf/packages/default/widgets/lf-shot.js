@@ -90,6 +90,7 @@ customElements.define(
       // form's submit, and there is no form on a leaf page.
       keys(box, "On a screenshot", [
         {
+          id: "screenshot.toggle",
           keys: [" "],
           does: () => `Show the ${box.checked ? "before" : "after"} frame`,
           line: () => `show ${box.checked ? "before" : "after"}`,

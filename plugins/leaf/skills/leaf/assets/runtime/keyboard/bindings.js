@@ -73,6 +73,7 @@ export const characterBinding = (binding) => {
   return key !== " " && [...key].length === 1 && mods.every((mod) => mod === "Shift");
 };
 export const declaredBindings = (row) => word(row.keys) ?? [];
+export const commandRoutes = (row) => word(row.routes) ?? [];
 export const bindings = (row) =>
   declaredBindings(row).filter(
     (binding) => characterShortcuts() || !characterBinding(binding),
@@ -86,6 +87,12 @@ export const labelOf = (row) => word(row.label) ?? bindings(row).map(spell).join
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see.
 export const live = (row) => !row.when || row.when();
+
+// Prose is allowed to change; a command's identity is not. The register uses this name
+// to merge repeated widget instances and to route an action chosen in the reference back
+// through the scope that owns it. Dotted, lowercase names keep the namespace visible and
+// rule out accidentally using the current sentence as an identifier.
+const COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
 
 // One canonical spelling for one press. Modifier order and the case of an alphabetic key
 // do not change what `answers` accepts, so allowing either to vary would let the same press
@@ -202,11 +209,34 @@ export function answers(binding, ev) {
 // `k`, and refuses the press the chip is naming. A key on screen is a key that works, and
 // nothing was reading the half of a binding that decides which key it is.
 export function checked(rows, where) {
+  const ids = new Set();
   rows.forEach((row, i) => {
     if (row.native && !row.run)
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
+    if (!row.id) throw new Error(`leaf: row ${i} of ${where} has no stable command id`);
+    if (typeof row.id !== "string" || !COMMAND_ID.test(row.id))
+      throw new Error(
+        `leaf: row ${i} of ${where} names ${String(row.id)}, which is not a stable command id`,
+      );
+    if (ids.has(row.id)) throw new Error(`leaf: ${where} declares ${row.id} twice`);
+    ids.add(row.id);
+    for (const route of commandRoutes(row)) {
+      if (!route?.id || typeof route.id !== "string" || !COMMAND_ID.test(route.id))
+        throw new Error(
+          `leaf: route of ${row.id} names ${String(route?.id)}, which is not a stable command id`,
+        );
+      if (ids.has(route.id))
+        throw new Error(`leaf: ${where} declares ${route.id} twice`);
+      ids.add(route.id);
+      if (!declaredBindings(row).includes(route.binding))
+        throw new Error(
+          `leaf: route ${route.id} uses ${String(route.binding)}, which ${row.id} does not bind`,
+        );
+      if (!route.does)
+        throw new Error(`leaf: route ${route.id} has no action sentence`);
+    }
     if (row.run && !row.line)
       throw new Error(
         `leaf: row ${i} of ${where} presses with no word for the key line`,

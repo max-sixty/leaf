@@ -342,8 +342,7 @@ def page_ask_projection(
     An ordinary x-awaits instance is its local condition minus an explicit answer.
     A roll-up projects the same fact through a nested plan: a false local condition
     stops; direct ordinary interventions take precedence;
-    otherwise child roll-ups recurse; a matching leaf waits. The browser implements
-    this reducer over the DOM and the same standing fold.
+    otherwise child roll-ups recurse; a matching leaf waits.
 
     `with_agent` chooses which question this answers, and is the whole of the
     difference between the two. Given `seats_with_agent`, it is the reader's list: a

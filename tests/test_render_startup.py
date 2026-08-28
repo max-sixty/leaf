@@ -2321,6 +2321,7 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
     unrelated comment arriving first.
     """
     page, errors = open_page(browser, data_projection_page(serve))
+    older = page.evaluate("async () => await (await fetch('/api/state')).json()")
     events_model.append_event(
         serve.page_dir,
         {
@@ -2344,7 +2345,8 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
         if state["data"]["revision"] < 2:
             route.fulfill(status=response.status, json=state)
             return
-        state["events"] = state["events"][:-1]
+        state["events"] = older["events"]
+        state["browser"] = older["browser"]
         crossed.append(True)
         route.fulfill(status=response.status, json=state)
 

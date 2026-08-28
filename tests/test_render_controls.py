@@ -1008,8 +1008,12 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                     "touchPoints": [{"x": x + dx, "y": y}],
                 },
             )
-            cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-            page.wait_for_function("() => !document.body.hasAttribute('data-lf-sizing')")
+            cdp.send(
+                "Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []}
+            )
+            page.wait_for_function(
+                "() => !document.body.hasAttribute('data-lf-sizing')"
+            )
 
         # At the product's 320px floor the comment sheet has no possible width to move
         # through, so it offers no inert separator. The narrower tray still does.
@@ -1018,9 +1022,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         panel_settled(page)
         comments_edge = page.locator(".lf-panel > .lf-edge")
         assert comments_edge.evaluate("edge => edge.hidden")
-        assert comments_edge.get_attribute("aria-valuemin") == comments_edge.get_attribute(
-            "aria-valuemax"
-        )
+        assert comments_edge.get_attribute(
+            "aria-valuemin"
+        ) == comments_edge.get_attribute("aria-valuemax")
         threads = page.locator(".lf-threads")
         threads.evaluate("box => { box.scrollTop = 0; }")
         width_before = page.evaluate(
@@ -1028,30 +1032,41 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             ".getPropertyValue('--lf-panel-w')"
         )
         swipe(12, 280)
-        page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-        assert page.evaluate(
-            "() => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-panel-w')"
-        ) == width_before
+        page.wait_for_function(
+            "() => document.querySelector('.lf-threads').scrollTop > 0"
+        )
+        assert (
+            page.evaluate(
+                "() => getComputedStyle(document.documentElement)"
+                ".getPropertyValue('--lf-panel-w')"
+            )
+            == width_before
+        )
 
         # The tray still has range at 320px, and its grip finishes sliding on screen.
         page.locator(".lf-asks").click()
         panel_settled(page, open=False)
         expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
         page_at_rest(page)
-        narrow_asks = edge_geometry(
-            ".lf-asks-panel", ".lf-asks-panel > .lf-edge"
-        )
+        narrow_asks = edge_geometry(".lf-asks-panel", ".lf-asks-panel > .lf-edge")
         assert not narrow_asks["edge"]["hidden"]
         assert narrow_asks["edge"]["left"] >= -0.1, narrow_asks
-        assert (
-            narrow_asks["edge"]["right"] <= narrow_asks["viewport"] + 0.1
-        ), narrow_asks
+        assert narrow_asks["edge"]["right"] <= narrow_asks["viewport"] + 0.1, (
+            narrow_asks
+        )
 
         # Exercise both mirrored owners in different layout postures. A swipe beside the
         # visible grip scrolls its list without moving the boundary; a horizontal drag on
         # the grip does move it and releases the sizing posture.
-        for name, width, open_button, region_selector, edge_selector, list_selector, dx in (
+        for (
+            name,
+            width,
+            open_button,
+            region_selector,
+            edge_selector,
+            list_selector,
+            dx,
+        ) in (
             (
                 "comments",
                 390,
@@ -1077,7 +1092,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 panel_settled(page)
             else:
                 panel_settled(page, open=False)
-                expect(page.locator(region_selector)).to_have_class(re.compile(r"\bopen\b"))
+                expect(page.locator(region_selector)).to_have_class(
+                    re.compile(r"\bopen\b")
+                )
                 page_at_rest(page)
             reading = edge_geometry(region_selector, edge_selector)
             edge = reading["edge"]
@@ -1109,12 +1126,17 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 "selector => document.querySelector(selector).scrollTop > 0",
                 arg=list_selector,
             )
-            assert int(page.locator(edge_selector).get_attribute("aria-valuenow")) == before
+            assert (
+                int(page.locator(edge_selector).get_attribute("aria-valuenow"))
+                == before
+            )
 
             drag(edge, dx)
             after = int(page.locator(edge_selector).get_attribute("aria-valuenow"))
             assert edge["min"] <= after <= edge["max"]
-            assert after < before, f"the {name} grip did not narrow its region: {before} → {after}"
+            assert after < before, (
+                f"the {name} grip did not narrow its region: {before} → {after}"
+            )
 
         assert errors == []
     finally:

@@ -199,6 +199,7 @@ def full_state(
 # told yes, by its own listener.
 UNWATCHED = frozenset({"viewed.json"})
 
+
 def page_reading(page_dir: Path) -> str:
     """A short token naming this reading of the page.
 

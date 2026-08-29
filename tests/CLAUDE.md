@@ -287,10 +287,11 @@ once per worker for the ordinary layer, clones that initialized page for each te
 writes the document as v1, copies the example media that document names, adds
 the publishing note and any requested comments, then serves the directory with the
 real HTTP handler and page key. Handed an example's path rather than its markup it
-also lays in the log that example ships, and sets the cursor past it: a page is
-what its markup and its standing log make together, and a thread — or a widget a
-message carries — exists nowhere else. Pass the markup where the log would be
-noise for the subject, and say which in a comment. Reach its page directory through `serve.page_dir`
+also lays in the external data and event log the example ships, and sets the cursor
+past the log. Use `serve(example, seed_log=False)` when only the shipped conversation
+would be noise; the external data still belongs to the example. A page is what its
+markup and standing log make together, and a thread — or a widget a message carries —
+exists nowhere else. Reach its page directory through `serve.page_dir`
 when a test needs to publish v2 or inspect the log; do not construct a parallel
 directory whose relationship to the served URL is implicit. `page_dir` in
 `interact_support.py` owns command-level files without starting a browser and clones

@@ -184,7 +184,7 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
+        primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=3000
     )
 
     assert failures
@@ -215,12 +215,12 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     failures = render_gate_model.render_version(
         primed(browser, stop_presenting_frames),
         serve(LONG_PAGE),
-        served_timeout_ms=500,
+        served_timeout_ms=3000,
     )
 
     assert failures
     assert all("wait probe framePresented" in failure for failure in failures)
-    assert all("within 500ms" in failure for failure in failures)
+    assert all("within 3000ms" in failure for failure in failures)
 
 
 def test_the_render_gate_waits_for_the_page_to_be_presented(browser, serve):

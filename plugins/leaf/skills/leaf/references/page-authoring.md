@@ -219,8 +219,8 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 ## Interactivity and evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task awaits a decision. Do not
-copy the connective sentence from another page.
+drag, an options group takes a click, or an `<lf-task status="review" ask>` awaits
+the reader's review. Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for what mermaid draws — a flow, a sequence, a state machine —
 and `lf-chart` for quantities: a comparison across a few categories, a run over

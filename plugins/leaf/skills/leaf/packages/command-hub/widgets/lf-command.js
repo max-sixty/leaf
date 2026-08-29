@@ -194,15 +194,16 @@ function renderGoal(goal) {
   meta.dataset.lfGen = "1";
   if (goal.leaves.length > 1)
     meta.append(chip(`${goal.finished}/${goal.leaves.length}`, "lf-task-progress"));
-  const asks = [];
+  const signals = [];
   if (goal.stopped && goal.role.stalled?.includes(goal.state))
-    asks.push("stalled work");
-  else if (goal.stopped && goal.role.review?.includes(goal.state)) asks.push("review");
-  for (const ask of goal.openInterventions) {
-    const word = itemWord(ask);
-    if (word && !asks.includes(word)) asks.push(word);
+    signals.push("stalled work");
+  else if (goal.stopped && goal.role.review?.includes(goal.state))
+    signals.push("review");
+  for (const intervention of goal.openInterventions) {
+    const word = itemWord(intervention);
+    if (word && !signals.includes(word)) signals.push(word);
   }
-  for (const ask of asks) meta.append(chip(ask, "lf-task-ask"));
+  for (const signal of signals) meta.append(chip(signal, "lf-task-signal"));
   for (const label of [
     goal.element.getAttribute("when"),
     ...(goal.element.getAttribute("tags")?.split(",") ?? []),

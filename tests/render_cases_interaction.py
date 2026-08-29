@@ -480,8 +480,8 @@ ASKS_PAGE = leaf_page(
 </lf-suggestion>
 <lf-tasks id="plan">
   <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-  <lf-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong></lf-task>
-  <lf-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong></lf-task>
+  <lf-task id="t-baffles" status="review" owner="finch" ask><strong>Fit squirrel baffles</strong></lf-task>
+  <lf-task id="t-bath" status="blocked" ask><strong>Heat the bird bath</strong></lf-task>
   <lf-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-task>
 </lf-tasks>
 <lf-ask id="honored-ask"><h2>Which gate design?</h2>
@@ -777,7 +777,7 @@ REPORT_PAGE = leaf_page(
 <lf-tasks id="plan">
   <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
     <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-    <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
+    <lf-task id="t-parser" status="active" ask><strong>Fit squirrel baffles</strong></lf-task>
   </lf-task>
 </lf-tasks>
 """,

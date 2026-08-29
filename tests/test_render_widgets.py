@@ -2152,8 +2152,8 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     page.locator("button.lf-asks-row[data-lf-at='t-bath']").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
-    # A blocked task has no control of its own to answer it, so the ask itself takes the
-    # focus — the landing is a place to stand either way.
+    # This blocked task explicitly asks the reader in its own prose. It has no control
+    # of its own, so the task itself takes focus — the landing is a place to stand.
     expect(page.locator("#t-bath")).to_be_focused()
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
     # The covering tray has gone, so its projected rows go with it. The page carries the

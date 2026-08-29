@@ -19,6 +19,8 @@ The main owners are:
   delivery context, and conversation writes;
 - `work`: transient work claims and widget work seats;
 - `decisions`: declaration-driven page and thread decision projections;
+- `requests`: declared request seats, their canonical lifecycle, and the
+  terminal host receipts that close one;
 - `host`: local paths, process readings, host identity, and session lifetime;
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;

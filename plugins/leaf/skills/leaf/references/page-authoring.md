@@ -260,9 +260,7 @@ contract:
 <lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
 ```
 
-Then capture the whole file or an inclusive line range. Capture accepts one regular
-UTF-8 file up to 1 MiB, rejects U+0000, and normalizes CRLF or CR line endings to LF so
-live rendering, comments, and export share one text:
+Then capture the whole UTF-8 text file or an inclusive line range:
 
 ```bash
 leaf data capture <page> leaf-skill --text-file SKILL.md --label SKILL.md

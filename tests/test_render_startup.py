@@ -2357,20 +2357,6 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     assert copy.locator("script").count() == 0
     assert copy_errors == []
     copy.close()
-    assert (
-        page.evaluate(
-            """async () => {
-          const {acceptData} = await import('/runtime/data.js');
-          try {
-            acceptData({revision: Number.MAX_SAFE_INTEGER + 1, sources: {}});
-          } catch (error) {
-            return error.message;
-          }
-          return null;
-        }"""
-        )
-        == "state data must carry a JavaScript-safe non-negative revision and sources"
-    )
     assert errors == []
     page.close()
 

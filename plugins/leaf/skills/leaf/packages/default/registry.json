@@ -8,7 +8,7 @@
         }
       },
       "text-document": {
-        "description": "LF-normalized UTF-8 text without U+0000, captured from a regular file or a selected line range.",
+        "description": "UTF-8 text captured from a file or a selected line range.",
         "schema": {
           "type": "string"
         }

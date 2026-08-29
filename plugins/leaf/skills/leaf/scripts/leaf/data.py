@@ -1,9 +1,7 @@
 """Page-bound current data and immutable capture storage."""
 
 import json
-import os
 import re
-import stat
 from pathlib import Path
 
 import click
@@ -13,37 +11,18 @@ from .data_contracts import (
     page_data_bindings,
     page_data_snapshot_references,
     payload_error,
-    valid_snapshot_id,
 )
 from .event_log import now_iso
 from .files import write_json
 from .registry.contract import is_aware_datetime
 from .registry.storage import require_registry
-from .schema import (
-    DATA_CONTRACT_NAME,
-    DATA_FILE,
-    DATA_SOURCE_NAME,
-    MAX_CAPTURE_BYTES,
-    MAX_SAFE_INTEGER,
-)
+from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 from .structure import parse_structure
 
 
 def empty_data() -> dict:
     return {"revision": 0, "sources": {}}
-
-
-def _safe_positive_integer(value: str, what: str) -> int:
-    if not valid_snapshot_id(value):
-        raise DataError(f"{what} must be a JavaScript-safe positive integer")
-    return int(value)
-
-
-def _next_revision(stored: dict) -> int:
-    if stored["revision"] >= MAX_SAFE_INTEGER:
-        raise DataError("data revision exhausted the JavaScript-safe integer range")
-    return stored["revision"] + 1
 
 
 def _validate_stored_snapshot(
@@ -70,8 +49,8 @@ def _validate_stored_snapshot(
         raise DataError(f"{path}: source {source!r}{identity} lines must be START:END")
     if "lines" in snapshot:
         start_text, end_text = snapshot["lines"].split(":")
-        start = _safe_positive_integer(start_text, "line range start")
-        end = _safe_positive_integer(end_text, "line range end")
+        start = int(start_text)
+        end = int(end_text)
         if end < start:
             raise DataError(
                 f"{path}: source {source!r}{identity} lines must end at or after "
@@ -109,14 +88,8 @@ def read_data_store(page_dir: Path) -> dict:
         )
     revision = stored["revision"]
     sources = stored["sources"]
-    if (
-        isinstance(revision, bool)
-        or not isinstance(revision, int)
-        or not 0 <= revision <= MAX_SAFE_INTEGER
-    ):
-        raise DataError(
-            f"{path}: revision must be a JavaScript-safe non-negative integer"
-        )
+    if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0:
+        raise DataError(f"{path}: revision must be a non-negative integer")
     if not isinstance(sources, dict):
         raise DataError(f"{path}: sources must be an object")
     for source, source_store in sources.items():
@@ -156,16 +129,10 @@ def read_data_store(page_dir: Path) -> dict:
                 raise DataError(
                     f"{path}: source {source!r} has invalid snapshot id {snapshot_id!r}"
                 )
-            try:
-                parsed_snapshot_id = _safe_positive_integer(
-                    snapshot_id, f"{path}: source {source!r} snapshot id"
-                )
-            except DataError as error:
-                raise DataError(
-                    f"{path}: source {source!r} has invalid snapshot id "
-                    f"{snapshot_id!r}: {error.format_message()}"
-                ) from error
-            if parsed_snapshot_id > revision:
+            if (
+                re.fullmatch(r"[1-9][0-9]*", snapshot_id) is None
+                or int(snapshot_id) > revision
+            ):
                 raise DataError(
                     f"{path}: source {source!r} has invalid snapshot id {snapshot_id!r}"
                 )
@@ -241,7 +208,7 @@ def _write_source(
             )
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
-        revision = _next_revision(stored)
+        revision = stored["revision"] + 1
         current = {"updated": now_iso(), "value": value, **(capture or {})}
         source_store = {"contract": contract, **current}
         snapshots = (standing or {}).get("snapshots", {})
@@ -272,43 +239,15 @@ def cmd_data_capture(
 ) -> None:
     """Capture UTF-8 text as both the current value and an immutable snapshot."""
     try:
-        descriptor = os.open(text_file, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
-        with os.fdopen(descriptor, "rb") as handle:
-            before = os.fstat(handle.fileno())
-            if not stat.S_ISREG(before.st_mode):
-                raise DataError(f"{text_file} is not a regular file")
-            if before.st_size > MAX_CAPTURE_BYTES:
-                raise DataError(
-                    f"{text_file} exceeds the {MAX_CAPTURE_BYTES}-byte capture limit"
-                )
-            raw = handle.read(MAX_CAPTURE_BYTES + 1)
-            after = os.fstat(handle.fileno())
-    except OSError as error:
+        value = text_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
         raise DataError(f"could not read {text_file}: {error}") from error
-    if len(raw) > MAX_CAPTURE_BYTES:
-        raise DataError(
-            f"{text_file} exceeds the {MAX_CAPTURE_BYTES}-byte capture limit"
-        )
-    before_identity = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-    after_identity = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
-    if before_identity != after_identity or len(raw) != after.st_size:
-        raise DataError(f"{text_file} changed while it was read; try again")
-    try:
-        value = raw.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise DataError(f"{text_file} is not UTF-8: {error}") from error
-    if "\0" in value:
-        raise DataError(f"{text_file} contains U+0000, which HTML cannot preserve")
-    # HTML parsing and serialization normalize carriage-return line endings. Normalize
-    # once at admission so live rendering, comments, and standalone export share the
-    # exact same string.
-    value = value.replace("\r\n", "\n").replace("\r", "\n")
     if lines is not None:
         match = re.fullmatch(r"([1-9][0-9]*):([1-9][0-9]*)", lines)
         if match is None:
             raise DataError("lines must be a one-based inclusive START:END range")
-        start = _safe_positive_integer(match.group(1), "line range start")
-        end = _safe_positive_integer(match.group(2), "line range end")
+        start = int(match.group(1))
+        end = int(match.group(2))
         available = value.splitlines(keepends=True)
         if end < start or end > len(available):
             raise DataError(
@@ -360,7 +299,7 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
         if sources == stored["sources"]:
             click.echo(f"data source {source!r} is already clear")
             return
-        revision = _next_revision(stored)
+        revision = stored["revision"] + 1
         write_json(
             page_dir / DATA_FILE,
             {"revision": revision, "sources": sources},

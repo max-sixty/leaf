@@ -2,7 +2,6 @@
 
 import re
 
-from leaf.data_contracts import valid_snapshot_id
 from leaf.decisions import asking, local_decision_entry, quoted_in
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
@@ -58,16 +57,6 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(f"{where}: {err.message}")
-        for spec in entry.get("x-data", {}).values():
-            snapshot_attr = spec.get("snapshot")
-            if snapshot_attr in rec["attrs"] and not valid_snapshot_id(
-                rec["attrs"][snapshot_attr]
-            ):
-                errors.append(
-                    f"{where}: `{snapshot_attr}` must be a JavaScript-safe positive "
-                    "integer"
-                )
-
         want_parents = entry.get("x-parent", [])
         if want_parents and rec["parent"] not in want_parents:
             actual = f", found <{rec['parent']}>" if rec["parent"] else ""

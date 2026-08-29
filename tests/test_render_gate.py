@@ -97,7 +97,12 @@ def test_a_traffic_wait_stops_when_responses_outlive_its_deadline(monkeypatch):
 
 
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
-    """A missing public export names the browser boundary instead of raising a traceback."""
+    """A missing public export names the browser boundary instead of raising a traceback.
+
+    The neighboring stalled-module test owns the short deadline. This test uses the
+    gate's default so the module rejection, rather than the driver's timeout, supplies
+    the finding.
+    """
 
     def break_probe(page):
         page.route(
@@ -110,7 +115,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, break_probe), serve(LONG_PAGE), served_timeout_ms=500
+        primed(browser, break_probe), serve(LONG_PAGE)
     )
 
     assert failures

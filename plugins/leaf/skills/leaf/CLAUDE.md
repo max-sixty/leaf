@@ -882,9 +882,9 @@ page-owned store with a replaceable current value and retained immutable capture
 `$data.contracts` declares reusable meanings and schemas. A widget's `x-data` names the
 contract, the attribute carrying this page's concrete source id, and optionally an
 attribute selecting one capture by data revision. `leaf data set` validates and
-atomically replaces the current value. `leaf data capture` reads a regular UTF-8 file
-up to 1 MiB, rejects U+0000, normalizes CRLF or CR line endings to LF, may slice an
-inclusive line range, and both replaces current and retains the value under the new data revision.
+atomically replaces the current value. `leaf data capture` reads a UTF-8 text file,
+may slice an inclusive line range, and both replaces current and retains the value
+under the new data revision.
 Neither command appends an event or runs package code, and capture stores no source
 path. Each stored source retains its contract even after clear, so re-vendoring never has
 to infer meaning from a source's spelling.

@@ -322,10 +322,9 @@ the prior revision untouched. Source revisions and event sequences are independe
 an old poll may contain new data, and a new event response may contain old data, so
 neither orders the other.
 
-`data capture` reads one regular UTF-8 file of at most 1 MiB without making the author
-copy it into markup. It rejects U+0000, normalizes CRLF and CR line endings to LF, can
-select an inclusive `START:END` line range, and attaches a display label. Capture both
-replaces the source's current value and retains that value under the reported data
+`data capture` reads a UTF-8 text file without making the author copy it into markup.
+It can select an inclusive `START:END` line range and attach a display label. A capture
+both replaces the source's current value and retains that value under the reported data
 revision. A widget without its snapshot attribute follows the current value; a widget with
 `snapshot="REVISION"` keeps reading that immutable capture. The captured source path is
 never stored or sent to readers.

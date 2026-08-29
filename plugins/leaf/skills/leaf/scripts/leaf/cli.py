@@ -211,7 +211,7 @@ def data_set(dir: str, source: str, input_file) -> None:
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
     metavar="PATH",
-    help="regular UTF-8 file up to 1 MiB without U+0000 to capture",
+    help="UTF-8 text file to capture",
 )
 @click.option(
     "--lines",

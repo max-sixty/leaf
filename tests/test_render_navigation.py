@@ -2214,7 +2214,7 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
         }"""
     )
 
-    page.keyboard.press("d")
+    page.keyboard.press("a")
     page.keyboard.press("Enter")
     expect(page.locator("#key-owning-widget textarea")).to_have_value("a\n")
     assert page.locator("#key-owning-widget").get_attribute("data-fired") is None

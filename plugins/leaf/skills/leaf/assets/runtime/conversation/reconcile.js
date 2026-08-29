@@ -53,6 +53,7 @@ export function createConversation(dependencies) {
     panelIsOpen,
     panelTitle,
     placedAt,
+    pointerAt,
     post,
     PRESS,
     quietSince,
@@ -179,7 +180,7 @@ export function createConversation(dependencies) {
     placedAt,
     sectionOf,
   });
-  const { paintWorkLines } = createWorkLines({
+  const { paintWorkLines: paintWorkLinesUnheld } = createWorkLines({
     agentName,
     ago,
     claimState,
@@ -196,6 +197,10 @@ export function createConversation(dependencies) {
     threadsBox,
     updateSequence,
   });
+  function paintWorkLines(...args) {
+    if (!threadListRuntime) return paintWorkLinesUnheld(...args);
+    return threadListRuntime.holdScrollPosition(() => paintWorkLinesUnheld(...args));
+  }
 
   const narrowing = createConversationNarrowing({
     anchorLabel,
@@ -244,7 +249,6 @@ export function createConversation(dependencies) {
   const folding = createThreadFolding({
     FOLD_MS,
     motion,
-    removeNode,
     renderPanel,
     threadsBox,
   });
@@ -297,6 +301,7 @@ export function createConversation(dependencies) {
     paintHere,
     panelIsOpen,
     placement,
+    pointerAt,
     reachScrollers,
     refreshHover,
     runtime,

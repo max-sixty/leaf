@@ -72,41 +72,16 @@
   it wants a look rather than a measurement: fold plus density is 5.8 screens and four
   whole cards per screen, against the current 6.7 and three.
 
-- **The panel cannot hold the reader's spot across a reflow.** Every writer of the thread
-  list's geometry can move content between the browser's scroll anchor and the spot the
-  reader is aiming at, and the browser's own anchoring provably declines to cover it:
-  measured, it contributes 0px for a change *inside* the viewport at every scroll
-  position, compensating only for changes above the anchor node it picks at the top of
-  the visible region. So the constraint is where in the viewport a change lands, not how
-  much scroll remains — a claim this repo got wrong once already.
-
-  Two consequences are live today, both older than any of this:
-  - A reply arriving between a press's mousedown and its mouseup moves the list 108px and
-    the mouseup's target becomes `.lf-threads`. A `Resolve` pressed at that moment never
-    happens, silently.
-  - `foldOut` animates a resolving card's removal over ~1s, and the pointer's coordinate
-    is wrong for the whole of it — a card top measured running 691 → 439 → 399, ending
-    three cards away from what was under the pointer.
-
-  The fix is one primitive rather than a rule per writer: `renderThreads` is already the
-  single writer of the list, so every mutation can pick a reference (the card under the
-  pointer when the pointer is over `.lf-threads`, else the focused card, else the topmost
-  visible card), record its `top`, mutate, and add the delta back to `scrollTop`. Two
-  honest limits: it cannot absorb shrinkage above a reference already at `scrollTop 0`,
-  and `foldOut`'s animated reflow needs the correction per frame or should become a
-  discrete removal under the same hold.
-
-- **Folding the panel's reply boxes, if the spot-hold primitive lands.** Tried on this
+- **Folding the panel's reply boxes.** Tried on this
   branch and taken back out. Measured on a 24-thread page: folding every box but the one
   being written on takes the list from 5,723px to 4,612px — 8.3 screens to 6.7, and two
   whole cards per screen to three — but nothing closes a box again, so the saving decays
   with use: 4,751px after opening three, 4,890px after six, 5,029px after nine, i.e. 19%
   down to 12%. Against that, the panel's narrowings already take the same list to 4.5
   screens (waiting-on-you) or 2.2 (a find) without it. It also introduced three of the
-  five ways the list can move under a gesture, which is what sent this to the note above.
-  Worth revisiting only once that primitive exists, and then it is a plain length
-  question with no defect attached. The removed work is on this branch's history at
-  `54246d51`, `63664054`, `c98914ac`, `a1db012f`.
+  five ways the list can move under a gesture. With panel reflow now held in place, this
+  is a plain length question with no defect attached. The removed work is on this
+  branch's history at `54246d51`, `63664054`, `c98914ac`, `a1db012f`.
 
 - **Focus lost from a reply box someone else settles.** Tab 1 is typing in thread A's
   reply box; tab 2, or the agent, resolves A. Tab 1's `document.activeElement` ends as

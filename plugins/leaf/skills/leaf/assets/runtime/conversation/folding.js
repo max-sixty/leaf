@@ -1,11 +1,5 @@
 /* Resolution-fold state and motion for comment-panel threads. */
-export function createThreadFolding({
-  FOLD_MS,
-  motion,
-  removeNode,
-  renderPanel,
-  threadsBox,
-}) {
+export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }) {
   // A thread the log has resolved and the open list is still holding. Its place is not
   // given up in the frame the log settles it: the node stays where it stood, says what
   // was done to it on the control that was pressed, and folds, so the threads under it
@@ -74,9 +68,10 @@ export function createThreadFolding({
     node.inert = true;
     folding.set(t.root.id, node);
     // Straight off the promise, and nothing between: motion() holds the last keyframe
-    // while this direct reaction makes that frame true by removing the node, then its
-    // shared reaction releases the effect. Deferring this cleanup past that contract
-    // would put the whole thread back before it goes. What holds the line is
+    // while this direct reaction reconciles the node away, then its shared reaction
+    // releases the effect. `renderPanel` remains the list's one writer, so it can hold
+    // a surviving card through the final removal. Deferring this cleanup past that
+    // contract would put the whole thread back before it goes. What holds the line is
     // test_the_fold_never_paints_a_frame_that_undoes_the_last, since no held frame can
     // see it.
     played.finished.then(() => {
@@ -84,7 +79,6 @@ export function createThreadFolding({
       // line above superseded is still running, and the older one finishing must not
       // take the live one's record with it.
       if (folding.get(t.root.id) === node) folding.delete(t.root.id);
-      removeNode(node);
       renderPanel();
     });
     return node;
@@ -92,6 +86,7 @@ export function createThreadFolding({
 
   return {
     foldOut,
+    hasFolding: () => [...folding.values()].some((node) => node.isConnected),
     isFolding: (id) => folding.has(id),
   };
 }

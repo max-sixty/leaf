@@ -3,6 +3,8 @@
 import re
 
 import pytest
+from click.testing import CliRunner
+from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
@@ -119,6 +121,132 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
     assert after["connected"], "the held thread was replaced, so its box says nothing"
     assert abs(after["top"] - held["top"]) < 1, (
         f"the arriving reply moved the thread the reader was on: {held} -> {after}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, serve):
+    """A state read between the two halves of a mouse press must keep its target put.
+
+    The reply grows the preceding card after the reader has pressed Resolve on the next
+    one. If reconciliation lets that next card move, mouseup lands on the list instead
+    of the button and the browser emits no click at all. Drive the two halves separately
+    so the ordering is the test's arrangement rather than a scheduling accident."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=6))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[2:4]
+    page.locator(f'.lf-thread[data-id="{target}"]').evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    scroll = page.locator(".lf-threads").evaluate(
+        "el => ({at: el.scrollTop, max: el.scrollHeight - el.clientHeight})"
+    )
+    assert 0 < scroll["at"] < scroll["max"], (
+        f"the pressed card is at a scroll limit, so the list cannot hold it: {scroll}"
+    )
+    resolve = page.locator(f'.lf-thread[data-id="{target}"] .lf-resolve')
+    box = resolve.bounding_box()
+    point = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
+    reading = """([x, y, id]) => {
+      const button = document.querySelector(
+        `.lf-thread[data-id="${id}"] .lf-resolve`
+      );
+      const hit = document.elementFromPoint(x, y);
+      const list = document.querySelector('.lf-threads');
+      return {
+        same: hit === button,
+        hit: hit && `${hit.tagName.toLowerCase()}.${hit.className}`,
+        button: button.getBoundingClientRect().toJSON(),
+        card: button.closest('.lf-thread').getBoundingClientRect().toJSON(),
+        scrollTop: list.scrollTop,
+      };
+    }"""
+    page.mouse.move(*point)
+    page.mouse.down()
+    began = page.evaluate(reading, [*point, target])
+    assert began["same"], f"the press did not begin on Resolve: {began}"
+
+    reply = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Claude",
+            "revision": 1,
+            "parent": source,
+            "text": "This arrived while Resolve was held down.",
+        },
+    )
+    told(page)
+    expect(page.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+    arrived = page.evaluate(reading, [*point, target])
+    assert arrived["same"], (
+        f"the arriving reply moved Resolve out from under the pointer: "
+        f"{began} -> {arrived}"
+    )
+
+    with page.expect_request("**/api/event"):
+        page.mouse.up()
+    round_trip(page)
+    assert any(
+        event["kind"] == "resolve" and event["parent"] == target
+        for event in events_model.read_events(serve.page_dir)
+    ), "mouseup did not complete the Resolve press"
+    assert errors == []
+    page.close()
+
+
+def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, serve):
+    """A claim-only poll grows one card without reconciling the thread list itself.
+
+    The work-line writer shares the list's hold so provisional news arriving above a
+    control cannot move that control out from under a reader who is aiming at it."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=6))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[2:4]
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    target_box = target_card.bounding_box()
+    page.mouse.move(
+        target_box["x"] + target_box["width"] / 2,
+        target_box["y"] + target_box["height"] / 2,
+    )
+    before = target_card.evaluate("el => el.getBoundingClientRect().top")
+
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "reading the traces",
+            "--on",
+            source,
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    expect(page.locator(f'.lf-thread[data-id="{source}"] .lf-work-line')).to_have_count(
+        1
+    )
+    after = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=1), (
+        f"the work claim moved the later card from {before:.1f}px to {after:.1f}px"
     )
     assert errors == []
     page.close()
@@ -963,6 +1091,299 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         f"the thread below rose {stood['y'] - risen['y']:.1f}px where the resolved "
         f"thread held {room:.1f}px"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
+    """A remote resolution may fold above a card while the reader aims inside it.
+
+    Hold the fold so its midpoint and completion are stable states the test can inspect.
+    The target card must keep the same viewport position through both; otherwise the
+    animation carries new controls under a stationary pointer for its whole duration."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=6), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[2:4]
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    setup = page.evaluate(
+        "([source, target]) => {"
+        " const list = document.querySelector('.lf-threads');"
+        ' const a = document.querySelector(`.lf-thread[data-id="${source}"]`)'
+        "   .getBoundingClientRect();"
+        ' const b = document.querySelector(`.lf-thread[data-id="${target}"]`)'
+        "   .getBoundingClientRect();"
+        " const view = list.getBoundingClientRect();"
+        " return {scrollTop: list.scrollTop, source: a.toJSON(), target: b.toJSON(),"
+        "   sourceVisible: a.bottom > view.top && a.top < view.bottom};"
+        "}",
+        [source, target],
+    )
+    assert setup["sourceVisible"], "the folding card is outside the visible reflow"
+    assert setup["scrollTop"] > setup["source"]["height"], (
+        "the list cannot compensate for the fold before reaching its top edge"
+    )
+    point = [
+        setup["target"]["x"] + setup["target"]["width"] / 2,
+        setup["target"]["y"] + setup["target"]["height"] / 2,
+    ]
+    page.mouse.move(*point)
+    assert page.evaluate(
+        "([x, y, id]) => document.elementFromPoint(x, y)"
+        "?.closest('.lf-thread')?.dataset.id === id",
+        [*point, target],
+    ), "the pointer did not begin over the target card"
+
+    before = page.evaluate("() => window.__lfHeld.length")
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
+    assert page.evaluate("() => window.__lfHeld.length") == before + 1, (
+        "the remote resolution did not start a fold"
+    )
+    assert (
+        page.locator(".lf-threads").evaluate(
+            "el => getComputedStyle(el).overflowAnchor"
+        )
+        == "none"
+    ), "native anchoring still has a second claim on the held fold"
+    started = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert started == pytest.approx(setup["target"]["top"], abs=1)
+
+    page.evaluate(
+        "i => { window.__lfHeld[i].currentTime = "
+        "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
+        before,
+    )
+    page.evaluate(RENDERED)
+    halfway = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert halfway == pytest.approx(setup["target"]["top"], abs=1), (
+        f"the fold carried the target card from {setup['target']['top']:.1f}px "
+        f"to {halfway:.1f}px under a stationary pointer"
+    )
+
+    # The hold owns reflow, not scrolling. A wheel gesture during the held animation
+    # must move the reader by the distance the browser accepts and stay there on the
+    # next animation frame instead of being mistaken for another fold delta.
+    threads = page.locator(".lf-threads")
+    scroll_before = threads.evaluate("el => el.scrollTop")
+    page.mouse.wheel(0, 40)
+    page.evaluate(RENDERED)
+    scroll_after = threads.evaluate("el => el.scrollTop")
+    assert scroll_after > scroll_before, "the fold undid the reader's wheel scroll"
+    scrolled_top = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert scrolled_top == pytest.approx(
+        halfway - (scroll_after - scroll_before), abs=1
+    ), "the scroll hold changed the distance the reader deliberately travelled"
+    threads.evaluate("(el, top) => { el.scrollTop = top; }", scroll_before)
+    page.evaluate(RENDERED)
+    restored = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert restored == pytest.approx(setup["target"]["top"], abs=1)
+
+    page.evaluate("i => window.__lfHeld[i].finish()", before)
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{source}"]')).to_have_count(1)
+    page.evaluate(RENDERED)
+    finished = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert finished == pytest.approx(setup["target"]["top"], abs=1), (
+        f"removing the folded card moved the target from "
+        f"{setup['target']['top']:.1f}px to {finished:.1f}px"
+    )
+    assert page.evaluate(
+        "([x, y, id]) => document.elementFromPoint(x, y)"
+        "?.closest('.lf-thread')?.dataset.id === id",
+        [*point, target],
+    ), "the fold left another card under the stationary pointer"
+    assert (
+        page.locator(".lf-threads").evaluate(
+            "el => getComputedStyle(el).overflowAnchor"
+        )
+        == "auto"
+    ), "the manual hold disabled native anchoring after its mutation ended"
+    assert errors == []
+    page.close()
+
+
+def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
+    """When the aimed-at card is itself leaving, its successor inherits the hold.
+
+    A folding node remains connected until the end of its animation, so connectedness
+    alone cannot identify a usable reference. The next live card must stay put from the
+    first shrinking frame through the final reconciliation."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=6), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[2:4]
+    source_card = page.locator(f'.lf-thread[data-id="{source}"]')
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    source_box = source_card.bounding_box()
+    target_top = target_card.evaluate("el => el.getBoundingClientRect().top")
+    scroll_top = page.locator(".lf-threads").evaluate("el => el.scrollTop")
+    assert scroll_top > source_box["height"], (
+        "the list cannot compensate for the fold before reaching its top edge"
+    )
+    point = [
+        source_box["x"] + source_box["width"] / 2,
+        source_box["y"] + source_box["height"] / 2,
+    ]
+    page.mouse.move(*point)
+    assert page.evaluate(
+        "([x, y, id]) => document.elementFromPoint(x, y)"
+        "?.closest('.lf-thread')?.dataset.id === id",
+        [*point, source],
+    ), "the pointer did not begin over the card that will fold"
+
+    before = page.evaluate("() => window.__lfHeld.length")
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    assert page.evaluate("() => window.__lfHeld.length") == before + 1
+    page.evaluate(
+        "i => { window.__lfHeld[i].currentTime = "
+        "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
+        before,
+    )
+    page.evaluate(RENDERED)
+    halfway = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert halfway == pytest.approx(target_top, abs=1), (
+        f"the disappearing reference moved its successor from {target_top:.1f}px "
+        f"to {halfway:.1f}px"
+    )
+
+    page.evaluate("i => window.__lfHeld[i].finish()", before)
+    expect(page.locator(f'.lf-details .lf-thread[data-id="{source}"]')).to_have_count(1)
+    page.evaluate(RENDERED)
+    finished = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert finished == pytest.approx(target_top, abs=1)
+    assert errors == []
+    page.close()
+
+
+def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serve):
+    """A fallback inherits the latest corrected coordinate, not its capture-time one.
+
+    The pointer starts on a resolved card while an open card above it folds. After the
+    fold has moved once, closing the resolved disclosure makes that reference zero-size
+    without another render. A live open card must take over without paying the fold's
+    already-compensated movement a second time."""
+    page_url = serve(LONG_PAGE, comments=6)
+    page_dir = serve.page_dir
+    roots = [
+        event["id"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, successor, resolved = roots[0], roots[3], roots[5]
+    events_model.append_event(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": resolved},
+    )
+    page, errors = open_page(browser, page_url, init_script=HOLD_MOTION)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    details = page.locator(".lf-details")
+    details.locator("summary").click()
+    resolved_card = details.locator(f'.lf-thread[data-id="{resolved}"]')
+    resolved_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    setup = page.evaluate(
+        "([source, successor]) => {"
+        " const view = document.querySelector('.lf-threads').getBoundingClientRect();"
+        ' const a = document.querySelector(`.lf-thread[data-id="${source}"]`)'
+        "   .getBoundingClientRect();"
+        ' const b = document.querySelector(`.lf-thread[data-id="${successor}"]`)'
+        "   .getBoundingClientRect();"
+        " return {sourceAbove: a.bottom <= view.top,"
+        "   successorVisible: b.bottom > view.top && b.top < view.bottom};"
+        "}",
+        [source, successor],
+    )
+    assert setup == {"sourceAbove": True, "successorVisible": True}, (
+        f"the fold is not above every visible fallback: {setup}"
+    )
+    resolved_box = resolved_card.bounding_box()
+    page.mouse.move(
+        resolved_box["x"] + resolved_box["width"] / 2,
+        resolved_box["y"] + resolved_box["height"] / 2,
+    )
+    assert page.evaluate(
+        "([x, y, id]) => document.elementFromPoint(x, y)"
+        "?.closest('.lf-thread')?.dataset.id === id",
+        [
+            resolved_box["x"] + resolved_box["width"] / 2,
+            resolved_box["y"] + resolved_box["height"] / 2,
+            resolved,
+        ],
+    )
+
+    before = page.evaluate("() => window.__lfHeld.length")
+    events_model.append_event(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    assert page.evaluate("() => window.__lfHeld.length") == before + 1
+    content_top = (
+        "id => { const list = document.querySelector('.lf-threads');"
+        ' const card = document.querySelector(`.lf-thread[data-id="${id}"]`);'
+        " return card.getBoundingClientRect().top + list.scrollTop; }"
+    )
+    started_content_top = page.evaluate(content_top, successor)
+    page.evaluate(
+        "i => { window.__lfHeld[i].currentTime = "
+        "window.__lfHeld[i].effect.getComputedTiming().duration / 2; }",
+        before,
+    )
+    page.evaluate(RENDERED)
+    reading = """id => {
+      const list = document.querySelector('.lf-threads');
+      const card = document.querySelector(`.lf-thread[data-id="${id}"]`);
+      const box = card.getBoundingClientRect();
+      return {top: box.top, contentTop: box.top + list.scrollTop,
+        scrollTop: list.scrollTop, anchor: getComputedStyle(list).overflowAnchor};
+    }"""
+    inherited = page.evaluate(reading, successor)
+    assert inherited["contentTop"] < started_content_top - 20, (
+        f"the first fold frame did not move the fallback: "
+        f"{started_content_top} -> {inherited}"
+    )
+
+    details.locator("summary").evaluate("el => el.click()")
+    expect(resolved_card).to_be_hidden()
+    assert not resolved_card.evaluate("el => el.checkVisibility()")
+    page.evaluate(RENDERED)
+    handed_off = page.evaluate(reading, successor)
+    assert handed_off["top"] == pytest.approx(inherited["top"], abs=1), (
+        f"the fallback paid for an old fold delta twice: {inherited} -> {handed_off}"
+    )
+
+    page.evaluate("i => window.__lfHeld[i].finish()", before)
+    page.evaluate(RENDERED)
     assert errors == []
     page.close()
 

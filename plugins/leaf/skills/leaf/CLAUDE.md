@@ -155,6 +155,7 @@ Each mutable fact has one writer:
 | panel visibility | `panelOpen` | `setPanel` |
 | the narrowing on the thread list | the reader's find words and waiting-on-you press | `renarrow` and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
+| the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintWorkLines` call preserve it through reconciliation, provisional work, and resolution folds |
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `revealThread` for a deliberate centring |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
@@ -2144,9 +2145,22 @@ across state applications so an unchanged claim is not re-announced.
 The thread list reconciles nodes rather than rebuilding them. `setChildren`
 preserves existing message, reply, and textarea nodes when the same event still
 stands. Applying a state must not discard a reader's caret, focus, reply text,
-disclosure state, or scroll anchor. The browser's scroll anchoring keeps the
-visible thread steady when a message is inserted above it; tests pin the
-thread's box rather than a particular scroll offset.
+or disclosure state. Reconciliation preserves node identity; the list's own
+hold, rather than the browser's scroll anchoring, preserves viewport position.
+Tests pin the thread's box rather than a particular scroll offset.
+
+`renderThreads` holds one live card through every list mutation. It chooses the
+card under the pointer while the pointer is in the list, then the card containing
+focus, then the topmost visible card. It records later visible cards before the
+mutation and refreshes their baselines after each correction, so a live successor can
+take over if the first leaves or becomes hidden. The held `paintWorkLines` call covers
+claim-only mutations too. The list follows changes in the card's content position,
+keeping reflow out from under the pointer without fighting an intentional scroll.
+Browser scroll anchoring is disabled only for the life of a hold so those two
+authorities cannot compensate the same change; outside a held mutation the browser
+keeps its native safety net. The correction runs after each mutation and on every
+frame of a resolution fold; fold completion removes its node through `renderThreads`,
+under the same hold.
 
 ### The order the list reads in
 

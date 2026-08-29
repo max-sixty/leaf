@@ -13,6 +13,7 @@ export function createConversationThreadList(dependencies) {
     paintHere,
     panelIsOpen,
     placement,
+    pointerAt,
     reachScrollers,
     refreshHover,
     runtime,
@@ -23,7 +24,7 @@ export function createConversationThreadList(dependencies) {
     toggleBtn,
   } = dependencies;
   const { paintThreadQuotes, threadNode } = cards;
-  const { foldOut, isFolding } = folding;
+  const { foldOut, hasFolding, isFolding } = folding;
   const { inFilter, noMatchNote, paintNarrowing } = narrowing;
   const { groupFor, inPageOrder, pageOutline } = placement;
 
@@ -108,6 +109,144 @@ export function createConversationThreadList(dependencies) {
   }
   new ResizeObserver(paintHeadRoom).observe(threadsBox);
 
+  // Keep one card at the same viewport position while this list changes around it.
+  // The pointer is the most recent place the reader named; focus is the standing place
+  // when the hand is elsewhere, and the first visible card is the list's own fallback.
+  // Capture the later visible cards too, so removing the first choice can hand the hold
+  // to the next card without trying to recover its old position after the mutation.
+  let activeHold = null;
+  const contentTop = (card) => card.getBoundingClientRect().top + threadsBox.scrollTop;
+  function takeScrollHold() {
+    if (activeHold) correctScrollHold(activeHold);
+    activeHold = null;
+    if (!panelIsOpen()) {
+      threadsBox.style.removeProperty("overflow-anchor");
+      return null;
+    }
+    const view = threadsBox.getBoundingClientRect();
+    if (!view.width || !view.height) {
+      threadsBox.style.removeProperty("overflow-anchor");
+      return null;
+    }
+    const cards = [...threadsBox.querySelectorAll(".lf-thread")];
+    const boxes = new Map(cards.map((card) => [card, card.getBoundingClientRect()]));
+    const { x, y } = pointerAt();
+    const overList =
+      x >= view.left && x <= view.right && y >= view.top && y <= view.bottom;
+    const underPointer = overList
+      ? document.elementFromPoint(x, y)?.closest?.(".lf-thread")
+      : null;
+    const standing = focused()?.closest?.(".lf-thread");
+    const visible = cards
+      .filter((card) => {
+        const box = boxes.get(card);
+        return (
+          card.checkVisibility() &&
+          box.width &&
+          box.height &&
+          box.bottom > view.top &&
+          box.top < view.bottom
+        );
+      })
+      .sort((a, b) => boxes.get(a).top - boxes.get(b).top);
+    const lead = underPointer || standing || visible[0];
+    const leadAt = visible.indexOf(lead);
+    const fallbacks =
+      leadAt < 0
+        ? visible
+        : [...visible.slice(leadAt + 1), ...visible.slice(0, leadAt + 1)];
+    const seen = new Set();
+    const references = [underPointer, standing, ...fallbacks]
+      .filter((card) => {
+        if (!card || !threadsBox.contains(card) || seen.has(card)) return false;
+        seen.add(card);
+        return true;
+      })
+      .map((card) => ({
+        card,
+        contentTop: contentTop(card),
+      }));
+    if (!references.length) {
+      threadsBox.style.removeProperty("overflow-anchor");
+      return null;
+    }
+    activeHold = { references };
+    // This hold is the sole scroll-anchor authority for its mutation. Leaving the
+    // browser's independent anchor enabled can compensate the same reflow twice.
+    threadsBox.style.setProperty("overflow-anchor", "none");
+    return activeHold;
+  }
+
+  function releaseScrollHold(hold) {
+    if (activeHold !== hold) return;
+    activeHold = null;
+    threadsBox.style.removeProperty("overflow-anchor");
+  }
+
+  function correctScrollHold(hold) {
+    if (activeHold !== hold || !panelIsOpen()) return false;
+    let box = null;
+    const reference = hold.references.find(({ card }) => {
+      if (
+        !card.isConnected ||
+        !threadsBox.contains(card) ||
+        !card.matches(".lf-thread") ||
+        !card.checkVisibility()
+      )
+        return false;
+      box = card.getBoundingClientRect();
+      return box.width && box.height;
+    });
+    if (!reference) return false;
+    // A card's viewport top moves both when content before it reflows and when the reader
+    // scrolls. Adding scrollTop removes the second term, so this follows only reflow and
+    // never fights a wheel, keyboard landing, narrowing reset, or scrollIntoView.
+    const nextContentTop = box.top + threadsBox.scrollTop;
+    const delta = nextContentTop - reference.contentTop;
+    if (delta) threadsBox.scrollTop += delta;
+    // Every fallback observed this frame's reflow too. Refresh all live baselines after
+    // the correction, or handing off later would apply movement already paid for while
+    // the primary stood.
+    for (const candidate of hold.references) {
+      if (
+        !candidate.card.isConnected ||
+        !threadsBox.contains(candidate.card) ||
+        !candidate.card.matches(".lf-thread") ||
+        !candidate.card.checkVisibility()
+      )
+        continue;
+      const candidateBox = candidate.card.getBoundingClientRect();
+      if (candidateBox.width && candidateBox.height)
+        candidate.contentTop = candidateBox.top + threadsBox.scrollTop;
+    }
+    return true;
+  }
+
+  function followScrollHold(hold) {
+    if (!correctScrollHold(hold)) {
+      releaseScrollHold(hold);
+      return;
+    }
+    if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold));
+    else releaseScrollHold(hold);
+  }
+
+  function finishScrollHold(hold) {
+    if (!hold) return;
+    correctScrollHold(hold);
+    if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold));
+    else releaseScrollHold(hold);
+  }
+
+  function holdScrollPosition(mutate) {
+    const hold = takeScrollHold();
+    try {
+      return mutate();
+    } finally {
+      finishScrollHold(hold);
+    }
+  }
+
   // The DOM is the one record of what's rendered, reconciled against the log: nodes the
   // list already holds are kept, and only what the log changed is added, moved, or
   // dropped. The rebuild this replaced destroyed every node on every render and then
@@ -116,6 +255,10 @@ export function createConversationThreadList(dependencies) {
   // focus and the other dropped it, and a user's own comment landed below the fold
   // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
   function renderThreads(all) {
+    return holdScrollPosition(() => reconcileThreads(all));
+  }
+
+  function reconcileThreads(all) {
     // The conversations. A bare reaction is paint on the page and a pill on the page
     // row, and counts for nothing here: no card, no address, no place in the walk.
     const threads = all.filter(conversational);
@@ -227,5 +370,5 @@ export function createConversationThreadList(dependencies) {
     refreshHover();
   }
 
-  return { renderThreads };
+  return { holdScrollPosition, renderThreads };
 }

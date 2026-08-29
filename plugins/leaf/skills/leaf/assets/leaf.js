@@ -3231,6 +3231,7 @@ conversationRuntime = createConversation({
   panelCovers,
   panelTitle,
   placedAt,
+  pointerAt,
   post,
   PRESS,
   quietSince,

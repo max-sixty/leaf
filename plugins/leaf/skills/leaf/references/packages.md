@@ -108,10 +108,10 @@ The registry entry is JSON Schema over the element's attributes, plus the `x-` k
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
 stands as one of the page's decisions. The merged registry's `$keys` entry defines each key,
-and the shipped widget entries are the worked examples. Set the JSON Schema `title` to a
-short purpose an author can use during compact discovery; an entry without one falls
-back to its full `description`. An entry's `x-example` must validate and is the markup an
-author queries with that entry.
+and the shipped widget entries are the worked examples. Every widget entry carries a
+non-empty `description`. Its first plain sentence identifies the widget's purpose; the
+rest explains its detailed contract. An entry's `x-example` must validate and is the
+markup an author queries with that entry.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:

@@ -3227,6 +3227,7 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-idless-decision"] = {
+        "description": "A decision without an address.",
         "type": "object",
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,

@@ -4,57 +4,26 @@ Read this before writing or revising a version.
 
 ## Read the registry
 
-`<page>/registry.json` is the page's complete vendored vocabulary. Start with a
-compact index that lists every widget's purpose and authored attributes, plus
-every layer fact except runtime event schemas and vendoring records, without
-printing their full contracts:
+`<page>/registry.json` is the page's complete vendored vocabulary. List its keys
+without printing the entries:
 
 ```bash
 registry="<page>/registry.json"
-jq '{
-  widgets: [
-    to_entries[]
-    | select(.key | startswith("lf-"))
-    | {
-        tag: .key,
-        purpose: (.value.title // .value.description // ""),
-        attributes: (
-          (.value.properties // {})
-          | with_entries(
-              .value |= (
-                if type == "object" then
-                  {type, enum, const}
-                  | with_entries(select(.value != null))
-                else
-                  {schema: .}
-                end
-              )
-            )
-        ),
-        required: (.value.required // []),
-        content: .value["x-content"]
-      }
-  ],
-  facts: [
-    keys[]
-    | select(startswith("$") and . != "$events" and . != "$layer")
-  ]
-}' "$registry"
+jq 'keys' "$registry"
 ```
 
-Then read the complete entries only for the widgets and facts the page will use:
+Then read the complete entries for the widgets and `$` facts the page will use:
 
 ```bash
 registry="<page>/registry.json"
 jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
 ```
 
-The compact purpose is the entry's JSON Schema `title`, falling back to its full
-description for an entry that has no title. The selected entries own the complete
-descriptions, examples, content and parent rules, and behavioral contracts.
-Package-defined tags and `$` facts join the same file, so discovery never depends
-on a shipped tag list. `leaf page guidance <page>` lists the composed guidance
-audiences; read `author` when it is present.
+Each selected entry owns its purpose and instructions in `description`, along with
+its example, attributes, content and parent rules, and behavioral contracts.
+Package-defined tags and `$` facts join the same key list.
+`leaf page guidance <page>` lists the composed guidance audiences; read `author`
+when it is present.
 
 ## Document scaffold
 

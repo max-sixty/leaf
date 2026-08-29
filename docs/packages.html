@@ -265,13 +265,13 @@ lf-chip {
 &lt;/lf-callout&gt;</code></pre>
         <p>
           Edit the package's <code>registry.json</code> to declare attributes, child
-          relationships, or a different content model. Set its JSON Schema
-          <code>title</code> to a short purpose an author can use during compact
-          discovery; an entry without one falls back to its full
-          <code>description</code>. The entry is JSON Schema over the element's
-          attributes. Leaf's <code>x-*</code> keys connect that schema to the rest of
-          the page — the registry documents each under <code>$keys</code>, which agents
-          can query directly and this table is written from:
+          relationships, or a different content model. Every widget entry carries a
+          non-empty <code>description</code>. Its first plain sentence identifies the
+          widget's purpose; the rest explains its detailed contract. The entry is JSON
+          Schema over the element's attributes. Leaf's <code>x-*</code> keys connect
+          that schema to the rest of the page — the registry documents each under
+          <code>$keys</code>, which agents can query directly and this table is written
+          from:
         </p>
         <table>
           <thead>

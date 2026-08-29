@@ -45,6 +45,9 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
             raise RegistryError(
                 f"{path}: <{tag}> is not a valid JSON Schema: {error.message}"
             )
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise RegistryError(f"{path}: <{tag}> must carry a non-empty description")
         extensions = {
             key: value for key, value in entry.items() if key.startswith("x-")
         }

@@ -461,6 +461,22 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     )
 
 
+def test_shipped_widget_purposes_live_in_their_descriptions():
+    registry = validation_model.incoming_registry(
+        [
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
+    titled = [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and "title" in entry
+    ]
+    assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
+
+
 def test_gallery_is_generated_from_the_examples():
     """examples/gallery.html is derived; a commit that lets it drift fails here."""
     spec = importlib.util.spec_from_file_location(

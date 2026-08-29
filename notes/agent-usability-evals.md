@@ -43,34 +43,22 @@ the transcript before answering a question that depends on it.
 
 The page's vendored `registry.json` is the one vocabulary source. There is no
 second author index and no command that reformats the whole registry into prose.
-The authoring reference gives agents one `jq` discovery query that:
-
-- lists every `lf-*` widget, its short JSON Schema title (or full description as
-  a fallback), author-writable attributes, required attributes, enum values, and
-  content kind;
-- lists every non-internal package `$` fact by name;
-- omits full descriptions when a concise title is present, plus examples, event
-  schemas, and layer bookkeeping.
-
-An agent then asks the same file for the complete entries it needs, for example:
+The authoring reference has agents list the registry's keys, then ask the same file
+for the complete entries they need:
 
 ```sh
 registry="PAGE/registry.json"
+jq 'keys' "$registry"
 jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
 ```
 
-That exact lookup carries the widget's author description, constraints, example,
-and relevant contracts without loading unrelated entries. Custom package tags and
-`$` facts join the same flat namespace and therefore appear without Leaf knowing
-their names in advance. `leaf page guidance` remains separate because it composes
-instructions for a named operating audience rather than declaring the vocabulary.
-
-The discovery query against the current default registry is about 9.9 KB, or
-roughly 2,600 tokens. That puts the skill, authoring reference, and discovery
-reading near 7,400 tokens instead of 27,000; exact entry lookups add only what the
-page actually uses. More important than the byte reduction, this avoids putting
-runtime event contracts and internal layer metadata into ordinary authoring
-context.
+The key list against a page with the current default registry is 671 bytes. An exact
+lookup carries the widget's purpose and instructions in its `description`, plus its
+constraints, example, and relevant contracts without loading unrelated entries.
+Custom package tags and `$` facts join the same flat namespace and therefore appear
+without Leaf knowing their names in advance. `leaf page guidance` remains separate
+because it composes instructions for a named operating audience rather than
+declaring the vocabulary.
 
 ## What the evals should measure
 

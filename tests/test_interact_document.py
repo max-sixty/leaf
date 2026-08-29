@@ -2873,6 +2873,13 @@ def test_task_status_and_reader_ownership_are_independent(page_dir):
       <lf-task id="release" status="review" ask><strong>Release review</strong>
         <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
       </lf-task>
+      <lf-task id="handoff" status="review" ask><strong>Release handoff</strong>
+        <lf-ask id="handoff-ask"><h2>Release now?</h2>
+          <lf-options id="handoff-choice" choose>
+            <lf-option id="handoff-now"><strong>Release now</strong></lf-option>
+          </lf-options>
+        </lf-ask>
+      </lf-task>
     </lf-tasks>"""
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
@@ -2883,6 +2890,25 @@ def test_task_status_and_reader_ownership_are_independent(page_dir):
         {"id": "decision", "tag": "lf-task", "thread": None},
         {"id": "read", "tag": "lf-task", "thread": None},
         {"id": "release", "tag": "lf-task", "thread": None},
+        {"id": "handoff-ask", "tag": "lf-ask", "thread": None},
+    ]
+
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "handoff-choice",
+            "action": "choose",
+            "detail": {"options": ["handoff-now"]},
+        },
+    )
+    assert state_json(page_dir)["asks"] == [
+        {"id": "decision", "tag": "lf-task", "thread": None},
+        {"id": "read", "tag": "lf-task", "thread": None},
+        {"id": "release", "tag": "lf-task", "thread": None},
+        {"id": "handoff", "tag": "lf-task", "thread": None},
     ]
 
 

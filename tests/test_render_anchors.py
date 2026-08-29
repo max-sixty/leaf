@@ -494,13 +494,15 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     the sibling test below already does, and it is the assertion that caught the same
     staleness rather than sleeping through it.
 
-    Read that precondition as a tripwire and not as the coverage claim restored. The
-    compact bar reaches the row's left edge and stops well short of the Accept centre both
-    readings ask about, at every width where the row still hangs in the margin, so on this
-    fixture the two assertions below cannot presently fail. What the precondition holds is
-    that the arrangement is still a collision; when it goes, this says so instead of the
-    file going quiet again. Restoring the readings themselves needs a fixture whose control
-    the bar can actually cover, which is a different change.
+    Read at the control's corners as well as its centre, because a press lands where the
+    reader aimed and the top of a pill is as much of it as the middle. The centre alone
+    could not fail here: the bar hangs 6px above the line it stands beside and is the row's
+    own height, so a bar that never stepped reaches the row's top edge and stops 1.25px
+    short of its centre — at every width where the row still hangs in the margin, not just
+    this one. The walk could have been removed outright and the centre stayed clear. The
+    corners are on the part the bar does reach, so the coverage claim is falsifiable again
+    without trading the hit test for rectangles; the press below still lands at the centre,
+    which is why the hit test is what carries the claim and the press confirms it.
 
     Narrowed to where the bar and the row genuinely overlap rather than left at a desk's
     width, because at 1200 the bar clears the row outright and steps only through
@@ -529,9 +531,11 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => !c.closest(".lf-chrome"))
         .filter(c => { const b = c.getBoundingClientRect();
-                       const top = document.elementFromPoint((b.left + b.right) / 2,
-                                                            (b.top + b.bottom) / 2);
-                       return top && !c.contains(top) && top.closest(".lf-chrome"); })
+                       const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
+                       const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
+                       return xs.some(x => ys.some(y => {
+                         const top = document.elementFromPoint(x, y);
+                         return top && !c.contains(top) && top.closest(".lf-chrome"); })); })
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 

@@ -1,5 +1,11 @@
 /* Resolution-fold state and motion for comment-panel threads. */
-export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }) {
+export function createThreadFolding({
+  FOLD_MS,
+  motion,
+  removeNode,
+  renderPanel,
+  threadsBox,
+}) {
   // A thread the log has resolved and the open list is still holding. Its place is not
   // given up in the frame the log settles it: the node stays where it stood, says what
   // was done to it on the control that was pressed, and folds, so the threads under it
@@ -78,7 +84,7 @@ export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }
       // line above superseded is still running, and the older one finishing must not
       // take the live one's record with it.
       if (folding.get(t.root.id) === node) folding.delete(t.root.id);
-      node.remove();
+      removeNode(node);
       renderPanel();
     });
     return node;

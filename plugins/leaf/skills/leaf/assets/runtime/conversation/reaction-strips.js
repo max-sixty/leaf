@@ -4,29 +4,24 @@ import { paintReactionStanding } from "../reactions.js";
 export function createConversationReactionStrips(dependencies) {
   const {
     bareReaction,
+    buildReactSurface,
     designIsOn,
     el,
     generalRow,
     isReaction,
     reactDone,
-    reactPills,
+    removeNode,
     registry,
     runtime,
     sendReaction,
     withdraw,
   } = dependencies;
 
-  // The strip under each of the agent's messages: every token the layer declares, the
-  // ones the reader has put on that message reading pressed and wearing their word.
-  // Press one to put it there — a reply carrying the token, on that message — and press it
-  // again to take it back, an ordinary undo naming the reply. Rebuilt from the thread on
-  // each reconcile rather than from the press, so a reaction arriving from another tab,
-  // and an undo, land the same way. A resolved thread offers none: resolve is the floor
-  // after which a reaction stops painting, on the page and here alike.
-  // Open — every token offered — on the latest agent message, which is the one `r`
-  // arms and the one a `settles` token answers. The rest of the thread keeps the tokens
-  // standing on it and offers its own row only while the reader is standing in the
-  // thread (the stylesheet), so a thread at rest wears one row rather than one a turn.
+  // The strip under each agent message keeps the reader's standing marks visible and
+  // offers one ellipsis. The latest reply offers it at rest; older replies reveal theirs
+  // while the reader is in the thread. A list opens only on the surface the reader chose.
+  // Rebuilt from the thread on each reconcile rather than from the press, so a reaction
+  // arriving from another tab and an undo land the same way. A resolved thread offers none.
   function paintReactStrips(node, t) {
     const latest = t.msgs.findLast((x) => x.author === "claude")?.id ?? null;
     for (const msg of node.querySelectorAll(":scope > .lf-msg")) {
@@ -34,15 +29,17 @@ export function createConversationReactionStrips(dependencies) {
       if (!m || m.author !== "claude") continue;
       let strip = msg.querySelector(":scope > .lf-react-strip");
       if (t.resolved) {
-        strip?.remove();
+        if (strip) removeNode(strip);
         continue;
       }
       if (!strip) {
         strip = el("div", "lf-react-strip");
         strip.setAttribute("role", "group");
         strip.setAttribute("aria-label", "React to this reply");
-        for (const pill of reactPills((name, pill) => pressStrip(m, name, pill)))
-          strip.append(pill);
+        buildReactSurface(strip, (name, pill) => pressStrip(m, name, pill), {
+          label: "Reactions for this reply",
+          target: "the reply",
+        });
         msg.append(strip);
       }
       strip.classList.toggle("lf-open", m.id === latest);
@@ -71,10 +68,13 @@ export function createConversationReactionStrips(dependencies) {
   function paintPageStrip(threads) {
     if (!Object.keys(registry.$reactions.tokens).length) return;
     if (!pageStrip) {
-      pageStrip = el("div", "lf-react-strip lf-page-strip lf-open");
+      pageStrip = el("div", "lf-react-strip lf-page-strip");
       pageStrip.setAttribute("role", "group");
       pageStrip.setAttribute("aria-label", "React to the page");
-      for (const pill of reactPills(pressPage)) pageStrip.append(pill);
+      buildReactSurface(pageStrip, pressPage, {
+        label: "Reactions for the page",
+        target: "the page",
+      });
       generalRow.before(pageStrip);
     }
     paintReactionStanding(

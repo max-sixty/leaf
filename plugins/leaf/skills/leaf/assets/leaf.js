@@ -892,20 +892,19 @@ const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
 panel.append(panelHead, findRow, threadsBox, generalRow);
 
-// The floating control a selection raises, grown from one press into a bar: the
-// reaction tokens the layer declares ($reactions) and then Comment, so the cheapest
-// answer to a passage stands beside the composed one. `.lf-fab` stays the Comment press
-// — every route into the composer still goes through it — and the bar is what is
-// placed and shown (showFab), the pills being built once the registry has said what
-// they are (buildReactBar). One affordance, raised only where the reader has already
-// pointed: a selection, a visual's click, the ⌥-click on an item, or `r`.
+// The floating control a selection raises: the comment glyph, then an ellipsis that
+// becomes the layer's reaction buttons. `.lf-fab` stays the Comment route into the
+// composer; the bar is placed and shown by showFab, and buildReactBar fills the list
+// once the registry has supplied its vocabulary. One affordance, raised only where the
+// reader has already pointed: a selection, a visual's click, the ⌥-click on an item, or
+// `r`.
 const fabBar = el("div", "lf-ui lf-fab-bar");
 fabBar.setAttribute("role", "group");
-fabBar.setAttribute("aria-label", "React or comment");
-const fab = el("button", "lf-ui lf-pill lf-fab", "💬 Comment");
-const fabSep = el("span", "lf-ui lf-fab-sep");
-fabSep.setAttribute("aria-hidden", "true");
-fabBar.append(fabSep, fab);
+fabBar.setAttribute("aria-label", "Comment or react");
+const fab = el("button", "lf-ui lf-pill lf-fab", "💬");
+fab.setAttribute("aria-label", "Comment");
+fab.title = "Comment";
+fabBar.append(fab);
 // The aim's box (see its rule above). Empty and pointer-inert, so it says nothing to a
 // screen reader and takes nothing from the press it promises; refreshAim is its one
 // writer, and data-for is the aimed id stated where a test can read the promise.
@@ -1097,6 +1096,7 @@ const workClaimState = () => updateRuntime.workClaimState();
 chromeLayout = createChromeLayout({
   banner,
   chromeRoot,
+  closeReactions: () => setReact(false),
   commentsEdge,
   composer,
   composerIsOpen: () => composerOpen,
@@ -1117,6 +1117,7 @@ chromeLayout = createChromeLayout({
   reserveListClearance,
   scrollerGutter,
   showTray,
+  syncReactLayout: (...args) => syncReactLayout(...args),
   syncGeneral: (...args) => syncGeneral(...args),
   toastEl,
   toggleBtn,
@@ -1179,10 +1180,10 @@ const {
   designTarget,
   fab,
   fabBar,
-  fabSep,
   hideComposer: () => hideComposer(),
   hideReference: () => reference.show(false, false),
   inChrome: (node) => inChrome(node),
+  isReactArmed: () => isReactArmed(),
   keylineEl,
   leavePageControl: () => letGo(),
   markAt,
@@ -1201,7 +1202,6 @@ const {
   panelCovers,
   pendingMarkParts,
   pointerAt,
-  reactionTokens: () => reactionTokens(),
   reactionsOn: (anchor) => conversationRuntime.reactionsOn(anchor),
   referenceIsOpen: () => reference.open,
   resolveAnchor: (...args) => resolveAnchor(...args),
@@ -1846,11 +1846,6 @@ const { commentOnItem, glideTo, placeThreadEdge, seenScroller, stepPage, stepThr
     threadsBox,
   });
 
-const revealComments = () => {
-  if (panelIsOpen()) return null;
-  setPanel(true);
-  return () => setPanel(false);
-};
 const landInThreadReply = (thread) =>
   landIn({ held: thread, box: thread.querySelector(SAY_BOX) });
 
@@ -1925,36 +1920,36 @@ const { SELECT, isSelecting, paintTargets, startSelecting } = createTargetSelect
 const {
   REACT,
   buildReactBar,
+  buildReactSurface,
   isReactArmed,
-  reactPills,
   reactionTokens,
   sendReaction,
   setReact,
+  syncReactLayout,
   undoSentence,
 } = createReactions({
+  BANNER_CLEAR,
   CONTROL_WORD_CAP,
   EVERYTHING,
   anchorLabel: (...args) => anchorLabel(...args),
   announce,
   claimsEsc,
-  commentsReveal: revealComments,
   currentRevision: () => runtime.currentRevision,
   cut: (...args) => cut(...args),
   designIsOn: () => designOn,
   el,
   elementById: (...args) => elementById(...args),
-  fab,
   fabAnchorAt,
   fabBar,
   focused,
   itemWord,
   offer,
-  pageStrip: () => conversationRuntime.pageStrip,
   paintHere,
   post,
   reactionVocabulary: () => registry.$reactions?.tokens,
   saying,
   showFab,
+  showToast,
   standingConversation,
   standingItem,
   undoable: (...args) => undoable(...args),
@@ -2530,17 +2525,18 @@ const PAGE = {
       run: commentKey,
     },
     {
-      // `r` from the bar's own word (its name is "React or comment"). What it arms is
-      // the bar the pointer sees, digits on: the same tokens in the same order, so a
-      // reader who has seen the bar once knows the keys. Nine at most, the digits being
-      // the addresses.
+      // `r` opens the list on the target the reader has already named: the current
+      // selection, item, or agent reply. Digits are optional accelerators in the
+      // registry's declared order.
       id: "reaction.open",
       keys: ["r"],
       does: () =>
-        `React — ${reactionTokens()
+        `Open reactions — ${reactionTokens()
           .slice(0, 9)
           .map(([name, entry]) => `${entry.glyph} ${name}`)
-          .join(", ")} — on the selection, the item you are standing on, or the page`,
+          .join(
+            ", ",
+          )} — for the selection, the item you are standing on, or the reply you are reading`,
       line: "react",
       when: () => reactionTokens().length > 0 && (anchoringReady || !pageSelection()),
       run: () => setReact(true),
@@ -3240,8 +3236,8 @@ conversationRuntime = createConversation({
   quietSince,
   reachScrollers,
   reachedForWords,
-  reactDone: () => setReact(false, { spent: true }),
-  reactPills,
+  reactDone: () => setReact(false),
+  buildReactSurface,
   sendReaction,
   refreshHover,
   registry,

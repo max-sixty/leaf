@@ -78,7 +78,22 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
         "() => [...document.querySelectorAll('.lf-fab-bar .lf-react')].map(p => p.dataset.token)"
     )
     assert tokens == ["ok", "no", "lost", "cut", "more", "this"], tokens
-    expect(page.locator(".lf-fab-bar .lf-fab")).to_be_visible()  # Comment stands last
+    assert bar.locator(
+        ":scope > .lf-fab, :scope > .lf-react-trigger"
+    ).all_text_contents() == [
+        "💬",
+        "…",
+    ]
+    expect(bar.locator(".lf-fab")).to_have_attribute("aria-label", "Comment")
+    expect(bar.locator(".lf-react-trigger")).to_have_attribute(
+        "aria-label", "Show reactions"
+    )
+    expect(bar.locator(".lf-react:visible")).to_have_count(0)
+    bar.locator(".lf-react-trigger").click()
+    expect(bar).to_have_class(re.compile("lf-react-open"))
+    expect(bar.locator(".lf-react-trigger:visible")).to_have_count(0)
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+    expect(bar.locator('.lf-react[data-token="ok"]')).to_be_focused()
 
     page.locator('.lf-fab-bar .lf-react[data-token="cut"]').click()
     round_trip(page)
@@ -122,6 +137,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(page.locator(".lf-reacts")).not_to_have_class(re.compile("lf-docked"))
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
+    bar.locator(".lf-react-trigger").click()
     expect(bar.locator('.lf-react[data-token="cut"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -139,26 +155,38 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.close()
 
 
-def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_back(
+def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     browser, serve
 ):
-    """`r` arms the same bar the pointer sees, each token wearing its digit in declared
-    order, so the press survives any layer's vocabulary; a digit sends and disarms, and
-    Escape or a stray key lets go. The target is the selection when one stands; with
-    nothing standing it is the page whole, whose strip is the panel's, so the press
-    opens the panel and arms that strip. Afterwards the undo row's sentence names its
-    target rather than promising a generic take-back."""
+    """`r` turns the ellipsis into the inline reaction buttons while the comment icon
+    stays put. Digits remain optional accelerators in declaration order. With no
+    selection, focused item, or agent reply, the key names the missing target and does
+    not borrow the page-wide strip by opening Comments."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    comment_before = bar.locator(".lf-fab").evaluate(
+        "el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }"
+    )
     page.keyboard.press("r")
     line = key_line(page)
     assert "1–6" in line and "react" in line, line
-    chips = page.evaluate(
-        "() => [...document.querySelectorAll('.lf-fab-bar.lf-armed .lf-react > .lf-address')]"
-        "  .filter(c => c.checkVisibility()).map(c => c.textContent)"
+    expect(bar).to_have_class(re.compile("lf-react-open"))
+    expect(bar.locator(".lf-react-trigger:visible")).to_have_count(0)
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+    comment_after = bar.locator(".lf-fab").evaluate(
+        "el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }"
     )
-    assert chips == ["1", "2", "3", "4", "5", "6"], chips
+    assert comment_after == comment_before, (comment_before, comment_after)
+    assert bar.evaluate("el => !el.classList.contains('lf-react-stacked')")
+    assert (
+        bar.locator(".lf-fab, .lf-react:visible").evaluate_all(
+            "els => new Set(els.map(el => el.getBoundingClientRect().y)).size"
+        )
+        == 1
+    )
+    expect(bar.locator(".lf-address")).to_have_count(0)
     page.keyboard.press("4")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -178,24 +206,26 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).to_be_hidden()
 
-    # Nothing selected: r aims at the page whole — the panel's page strip, digits on —
-    # and Escape gives the panel the arming opened back.
+    # Nothing selected: r opens no surface and explains what target is missing.
     page.keyboard.press("Escape")
     page.evaluate("() => getSelection().removeAllRanges()")
     page.keyboard.press("r")
-    panel_settled(page)
-    expect(page.locator(".lf-page-strip.lf-armed")).to_be_visible()
+    expect(page.locator(".lf-toast")).to_have_text("Select something to react to")
+    expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    page.keyboard.press("Escape")
-    panel_settled(page, open=False)
-    page.keyboard.press("r")
+
+    # Page-wide reactions remain explicit inside Comments instead of being r's fallback.
+    page.locator(".lf-comments").click()
     panel_settled(page)
-    expect(page.locator(".lf-page-strip.lf-armed")).to_be_visible()
-    page.keyboard.press("5")
+    page_strip = page.locator(".lf-page-strip")
+    expect(page_strip.locator(".lf-react:visible")).to_have_count(0)
+    page_strip.locator(".lf-react-trigger").click()
+    expect(page_strip.locator(".lf-react:visible")).to_have_count(6)
+    page_strip.locator('.lf-react[data-token="more"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "more" and "anchor" not in sent, sent
-    expect(page.locator(".lf-panel")).to_be_visible()  # spent, the panel stays
+    expect(page.locator(".lf-panel")).to_be_visible()
     expect(
         page.locator('.lf-page-strip .lf-react[data-token="more"]')
     ).to_have_attribute("aria-pressed", "true")
@@ -209,9 +239,9 @@ def test_the_keyboard_arms_the_bar_with_digits_and_the_line_names_what_z_takes_b
 
 def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, serve):
     """A whole element goes through the gesture that already names one: ⌥-click. The
-    bar comes up on the item — tokens, then Comment — and a token puts an element
-    anchor in the log, which paints as a dashed hairline on the item's boxes and a glyph
-    seated at its first line."""
+    bar comes up on the item with Comment first and a compact reaction trigger. Opening
+    it and choosing a token puts an element anchor in the log, which paints as a dashed
+    hairline on the item's boxes and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.keyboard.down("Alt")
     page.locator("#how-patch").click()
@@ -219,12 +249,48 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
+    bar.locator(".lf-react-trigger").click()
     page.locator('.lf-fab-bar .lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
     shown = painted(page, [["how-patch", "this"]])
     assert shown["outlined"] and shown["washed"] == "", shown
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("opener", ["click", "keyboard"])
+def test_the_reaction_list_stacks_at_a_narrow_edge_without_moving_comment(
+    browser, serve, opener
+):
+    """A narrow viewport keeps the comment icon fixed and puts the reaction list on
+    the adjacent row, wholly inside the viewport, when it cannot expand to the right."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 390, 900)
+    select_paragraph(page, "#how-cap")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    comment_before = bar.locator(".lf-fab").bounding_box()
+
+    if opener == "click":
+        bar.locator(".lf-react-trigger").click()
+    else:
+        page.keyboard.press("r")
+    expect(bar).to_have_class(re.compile("lf-react-stacked"))
+    comment_after = bar.locator(".lf-fab").bounding_box()
+    palette = bar.locator(".lf-react-palette").bounding_box()
+
+    assert comment_after == comment_before, (comment_before, comment_after)
+    assert 8 <= palette["x"] and palette["x"] + palette["width"] <= 382, palette
+    assert (
+        palette["y"] >= comment_after["y"] + comment_after["height"] + 6
+        or palette["y"] + palette["height"] + 6 <= comment_after["y"]
+    ), (comment_after, palette)
+
+    resized(page, 1280, 900)
+    expect(bar).not_to_have_class(re.compile("lf-react-open"))
+    expect(bar.locator(".lf-react-trigger")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -240,7 +306,9 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
     page.keyboard.press("r")
-    page.keyboard.press("6")
+    page.keyboard.press("ArrowLeft")
+    expect(page.locator('.lf-fab-bar .lf-react[data-token="this"]')).to_be_focused()
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-live")).to_contain_text("this on Start request")
 
@@ -726,7 +794,9 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
         "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
     )
 
-    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-bar .lf-fab")).to_be_focused()
+    page.keyboard.press("r")
+    page.keyboard.press("1")
     round_trip(page)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(control).to_be_focused()
@@ -788,13 +858,10 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
-    """One row of offers per thread at rest: the strip under the latest agent message,
-    which is the one `r` arms. Every other reply shows the tokens standing on it and
-    takes no room with none. The rest of the rows are there for a reader who is in the
-    thread — the pointer over the card or the focus t/T puts on it — so a mark taken
-    back can be put back, by hand or by keyboard, and the press that empties a row
-    keeps both the row and its own focus. A token at rest is a muted glyph whose box
-    arrives as paint under the pointer, the pill's own box unmoved."""
+    """A thread at rest shows one ellipsis on its latest agent reply and any marks
+    already standing on earlier replies. Entering by pointer or t/T focus reveals older
+    ellipses, but the reaction buttons appear only on the one surface the reader opens.
+    Taking back the last mark closes the list and returns focus to its ellipsis."""
     url = serve(PANEL_PAGE)
     root, first = _thread(serve.page_dir)
     events_model.append_event(
@@ -836,59 +903,58 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     def card(mid):
         return page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mid}"])')
 
-    # At rest: the offers under the latest reply of each thread, the marks elsewhere.
-    expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
-    expect(strip(quiet_latest).locator(".lf-react:visible")).to_have_count(6)
+    # At rest: one trigger under the latest reply of each thread, the marks elsewhere.
+    expect(strip(latest).locator(".lf-react-trigger:visible")).to_have_count(1)
+    expect(strip(quiet_latest).locator(".lf-react-trigger:visible")).to_have_count(1)
+    expect(strip(latest).locator(".lf-react:visible")).to_have_count(0)
+    expect(strip(quiet_latest).locator(".lf-react:visible")).to_have_count(0)
     expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
     expect(strip(first).locator(".lf-react:visible")).to_have_attribute(
         "data-token", "lost"
     )
-    # The row is built either way — what a thread at rest withholds is the offer.
+    # The row is built either way; an older empty one takes no room at rest.
     expect(strip(quiet_first).locator(".lf-react")).to_have_count(6)
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
+    expect(strip(quiet_first).locator(".lf-react-trigger:visible")).to_have_count(0)
     assert strip(quiet_first).evaluate("(s) => s.getBoundingClientRect().height") == 0
 
-    # The pointer over the card opens every row in it, and leaving closes them again.
+    # The pointer over the card offers each reply's ellipsis without opening its list.
     card(quiet_latest).hover()
-    expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(6)
-    page.mouse.move(4, 4)
+    expect(strip(quiet_first).locator(".lf-react-trigger:visible")).to_have_count(1)
     expect(strip(quiet_first).locator(".lf-react:visible")).to_have_count(0)
+    page.mouse.move(4, 4)
+    expect(strip(quiet_first).locator(".lf-react-trigger:visible")).to_have_count(0)
 
-    # The keyboard's route in is the focus the walk puts on the card.
+    # The keyboard's route in is the focus the walk puts on the card; r opens the latest
+    # agent reply in that thread without disturbing the standing mark on an older reply.
     card(first).focus()
+    page.keyboard.press("r")
+    expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
+    expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
+    expect(strip(first).locator(".lf-react:visible")).to_have_count(1)
+    page.keyboard.press("Escape")
+
+    # An older reply remains available through its explicit trigger while in the thread.
+    expect(strip(first).locator(".lf-react-trigger:visible")).to_have_count(1)
+    strip(first).locator(".lf-react-trigger").click()
     expect(strip(first).locator(".lf-react:visible")).to_have_count(6)
 
-    # Taking the last mark off a reply leaves the row standing under the press, and the
-    # press keeps its focus: what emptied the row is still there to fill it again.
+    # Taking the last mark off a reply closes the list and returns focus to its ellipsis.
+    # Reopening offers the same action again without leaving the token wall out.
     mark = strip(first).locator('.lf-react[data-token="lost"]')
     mark.press("Enter")
     round_trip(page)
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo", withdrawn
     expect(mark).to_have_attribute("aria-pressed", "false")
-    expect(mark).to_be_visible()
-    assert page.evaluate(
-        "() => Boolean(document.activeElement?.closest('.lf-react-strip'))"
-    )
+    expect(mark).to_be_hidden()
+    expect(strip(first).locator(".lf-react-trigger")).to_be_focused()
+    strip(first).locator(".lf-react-trigger").click()
     mark.press("Enter")
     round_trip(page)
     again = events_model.read_events(serve.page_dir)[-1]
     assert (again["kind"], again["token"], again["parent"]) == ("reply", "lost", first)
 
-    # The box is paint: it arrives under the pointer and the pill does not move for it.
-    pill = strip(latest).locator('.lf-react[data-token="cut"]')
-    box = lambda: pill.evaluate(
-        """(p) => {
-          const r = p.getBoundingClientRect();
-          return [r.width, r.height, getComputedStyle(p).borderColor];
-        }"""
-    )
-    at_rest = box()
-    assert at_rest[2] == "rgba(0, 0, 0, 0)", at_rest
-    pill.hover()
-    hovered = box()
-    assert hovered[2] != "rgba(0, 0, 0, 0)", hovered
-    assert hovered[:2] == at_rest[:2], (at_rest, hovered)
     assert errors == []
     page.close()
 
@@ -926,12 +992,15 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     expect(strip).to_be_visible()
     expect(strip.locator(".lf-react")).to_have_count(6)
+    expect(strip.locator(".lf-react:visible")).to_have_count(0)
     # The reader's own message wears no strip: a reaction is on what the agent said.
     expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
     page.locator(".lf-needs").click()  # the waiting-on-you narrowing
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-thread")).to_have_count(1)
 
+    strip.locator(".lf-react-trigger").click()
+    expect(strip.locator(".lf-react:visible")).to_have_count(6)
     strip.locator('.lf-react[data-token="no"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -941,6 +1010,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     )
     expect(page.locator(".lf-thread")).to_have_count(1)  # `no` settles nothing
 
+    strip.locator(".lf-react-trigger").click()
     strip.locator('.lf-react[data-token="ok"]').click()
     round_trip(page)
     ok = events_model.read_events(serve.page_dir)[-1]
@@ -958,6 +1028,43 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(strip.locator('.lf-react[data-token="ok"]')).to_have_attribute(
         "aria-pressed", "false"
     )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("removal", ["resolve", "filter"], ids=["fold", "filter"])
+def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, removal):
+    """A remote resolve or settlement can remove the reply whose list is open without
+    a pointer or focus gesture in this tab. The detached list stops owning digits, so
+    a later key cannot react to a message that is no longer on screen."""
+    url = serve(PANEL_PAGE)
+    root, reply = _thread(serve.page_dir)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    if removal == "filter":
+        page.locator(".lf-needs").click()
+        expect(page.locator(".lf-thread")).to_have_count(1)
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
+    strip.locator(".lf-react-trigger").click()
+    expect(strip).to_have_class(re.compile("lf-react-open"))
+
+    if removal == "resolve":
+        conversation_model.cmd_resolve(serve.page_dir, root)
+    else:
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "reply", "author": "user", "parent": reply, "token": "ok"},
+        )
+    told(page)
+    expect(page.locator(".lf-react-open")).to_have_count(0)
+    if removal == "filter":
+        expect(page.locator(".lf-thread")).to_have_count(0)
+    count = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("1")
+    page.wait_for_timeout(100)
+    assert len(events_model.read_events(serve.page_dir)) == count
+    assert "1–6" not in key_line(page)
     assert errors == []
     page.close()
 

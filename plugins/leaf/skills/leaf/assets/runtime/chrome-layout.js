@@ -43,6 +43,7 @@ export function createChromeLayout({
   commentsEdge,
   composer,
   composerIsOpen,
+  closeReactions,
   containsAcross,
   currentTray,
   dockSeats,
@@ -60,6 +61,7 @@ export function createChromeLayout({
   reserveListClearance,
   scrollerGutter,
   showTray,
+  syncReactLayout,
   syncGeneral,
   toastEl,
   toggleBtn,
@@ -307,6 +309,7 @@ export function createChromeLayout({
       const box = composer.getBoundingClientRect();
       placeComposer(box.left, box.top);
     }
+    if (syncReactLayout()) return;
     refreshFab();
   }
   function setPanel(open) {
@@ -346,7 +349,10 @@ export function createChromeLayout({
     refreshHover();
   }
   toggleBtn.onclick = () => setPanel(!panelOpen);
-  addEventListener("resize", pageShifted);
+  addEventListener("resize", () => {
+    closeReactions();
+    pageShifted();
+  });
   // field-sizing and every other rendered-size change feed the one geometry writer —
   // the key line included, whose height is the room the chrome reserves under it.
   const layoutSizes = new ResizeObserver(syncLayout);

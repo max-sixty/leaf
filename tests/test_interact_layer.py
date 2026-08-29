@@ -2372,8 +2372,8 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     """The shipped tokens are the default layer's statement, not core's. A project's
     entry under a token's name replaces that token whole, a new name joins after
     the shipped ones, and `null` removes one — which is the only way a layer can take
-    a token off the bar without restating the whole set. The order the page numbers
-    the armed digits by is the merged map's."""
+    a token off the bar without restating the whole set. The order used by the optional
+    digit accelerators is the merged map's."""
     project = tmp_path / "proj"
     layer = project / ".leaf"
     layer.mkdir(parents=True)

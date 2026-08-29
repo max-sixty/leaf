@@ -18,6 +18,7 @@ export function createConversation(dependencies) {
     MARKED_ANYWHERE,
     agentName,
     ago,
+    buildReactSurface,
     captureAuthoredFacets,
     claimState,
     designIsOn,
@@ -58,7 +59,6 @@ export function createConversation(dependencies) {
     reachScrollers,
     reachedForWords,
     reactDone,
-    reactPills,
     refreshHover,
     registry,
     rememberAuthoredMarkup,
@@ -82,6 +82,14 @@ export function createConversation(dependencies) {
     wireInput,
     withdraw,
   } = dependencies;
+  // A reaction list owns the keyboard until it closes. Reconciliation can remove its
+  // surface without a local gesture, so every removal path disarms it before detaching
+  // the node; otherwise digits would keep acting on a reply no longer on screen.
+  function removeNode(node) {
+    if (node.matches?.(".lf-react-open") || node.querySelector?.(".lf-react-open"))
+      reactDone();
+    node.remove();
+  }
   let threadList = [];
   let threadListRuntime;
   function renderThreads(...args) {
@@ -143,12 +151,13 @@ export function createConversation(dependencies) {
   });
   const reactionStrips = createConversationReactionStrips({
     bareReaction,
+    buildReactSurface,
     designIsOn,
     el,
     generalRow,
     isReaction,
     reactDone,
-    reactPills,
+    removeNode,
     registry,
     runtime,
     sendReaction,
@@ -235,6 +244,7 @@ export function createConversation(dependencies) {
   const folding = createThreadFolding({
     FOLD_MS,
     motion,
+    removeNode,
     renderPanel,
     threadsBox,
   });
@@ -248,7 +258,7 @@ export function createConversation(dependencies) {
   // forward, so the walk keeps those where they stand instead of reinserting each.
   function setChildren(parent, nodes) {
     const keep = new Set(nodes);
-    for (const child of [...parent.children]) if (!keep.has(child)) child.remove();
+    for (const child of [...parent.children]) if (!keep.has(child)) removeNode(child);
     let cursor = parent.firstChild;
     for (const node of nodes) {
       if (node === cursor) cursor = cursor.nextSibling;

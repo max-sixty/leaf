@@ -93,8 +93,8 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     note.click()
     page.keyboard.up("Alt")
 
-    # The press raises the bar on the note — the tokens, then Comment — and Comment is
-    # the composer, on the whole note.
+    # The press raises the compact bar on the note — the comment icon, then the reaction
+    # ellipsis — and the comment icon opens the composer on the whole note.
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.locator(".lf-fab").click()
     expect(page.locator(".lf-composer")).to_be_visible()

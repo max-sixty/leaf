@@ -1033,60 +1033,59 @@ ${MARK_RULES}
        whatever it happens to be over. */
     .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
-    /* Every press on the bar is the margin's pill — the token pills and the Comment
-       alike wear .lf-pill unchanged, so the bar is the same idiom as the ✓ Accept it can
-       stand level with — and each carries the shadow the floating press earns, the bar
-       itself drawing nothing. A hairline between the tokens and Comment says which
-       half is the cheap answer. */
+    /* The comment glyph and ellipsis are the bar's two stable presses. Both use the
+       margin pill and carry the shadow the floating surface earns. The ellipsis gives
+       its place to the reaction buttons without moving Comment. */
     .lf-fab-bar > .lf-pill { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
-    .lf-fab-sep { width: 1px; height: 14px; margin: 0 2px; background: var(--border-2); }
-    /* A token as a press, wherever it stands: the bar, a message's strip, the page row.
-       The glyph is the whole label at rest; the word joins it once the token stands on
-       its target (aria-pressed), so a strip reads "✓ ok" where the reader pressed and a
-       bare glyph everywhere else; the digit joins it while the react press is armed
-       (.lf-armed), in the address chip the rest of the page's bindings wear. State is
-       paint — ink, border, fill — and the word arrives as a change of box, which is the
-       one exception a standing mark earns: it is the reader's own press growing into
-       its receipt, not news moving chrome under them. */
+    /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;
+       a standing token remains visible in a closed message or page strip as the reader's
+       receipt and eraser. */
+    .lf-react-trigger { color: var(--muted); }
+    .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
+      color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
+    .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+    .lf-react-open > .lf-react-trigger { display: none; }
+    .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
+      display: none; }
+    .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
+      display: none; }
+    .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
+    /* The floating bar expands in place when there is room. Near an edge or an open
+       Comments panel, the same list sits below the stable comment control and clamps to
+       the viewport. */
+    .lf-fab-bar.lf-react-stacked > .lf-react-palette {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      width: max-content; max-width: calc(100vw - 16px); padding: 4px;
+      border: 1px solid var(--border-2); border-radius: 8px; background: var(--paper);
+      box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+    .lf-fab-bar.lf-react-above > .lf-react-palette {
+      top: auto; bottom: calc(100% + 6px); }
+    /* The glyph is the whole label until the token stands on its target; then the word
+       joins it. State is paint — ink, border, fill — and the word's extra width is the
+       reader's own receipt, not incoming chrome moving under their press. */
     .lf-react { display: inline-flex; align-items: center; gap: 4px; min-width: 26px;
       justify-content: center; }
-    .lf-armed .lf-react > .lf-address { display: inline-block; }
     .lf-react > .lf-react-word { display: none; }
     .lf-react[aria-pressed="true"] > .lf-react-word { display: inline; }
     .lf-react[aria-pressed="true"] { border-color: var(--mark-ink); color: var(--mark-ink);
       background: var(--mark); }
     .lf-react[aria-busy="true"] { opacity: .55; }
-    .lf-react-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+      margin-top: 6px; }
     .lf-page-strip { padding: 8px 14px 0; }
-    /* Quiet in the panel, and open where the reader is. Every token is offered under
-       the latest agent message and on the page row (.lf-open), and in a thread the
-       reader is standing in — the pointer anywhere over the card, or the focus t/T puts
-       on it. A thread they are not in shows only the tokens standing on it, and a reply
-       with none takes no room. Reached by the whole card rather than by each message,
-       because the room a row takes has to arrive once on the way in: per message it
-       would move the next message out from under a pointer already travelling to it.
-
-       That is also what keeps the gestures reachable. A row that hid outright would be
-       a one-way door — taking back the last mark on an older reply would leave nothing
-       to press to put it back, and nothing for a keyboard to reach at all — and the
-       press that emptied it would go on to lose its own focus to the body. Standing in
-       the thread is exactly when the reader is doing either.
-
-       A token at rest is a muted glyph with no box; the box arrives under the pointer,
-       under focus, while the react press is armed, and for as long as a press of it is
-       in flight. The border is there all along, transparent, so the box is paint and
-       nothing moves. A standing token keeps its own fill under the pointer, which the
-       shared pill's hover would otherwise take for the mark coming off. */
-    .lf-thread:not(:hover, :focus-within, .lf-focus-within) .lf-react-strip:not(.lf-open)
-      > .lf-react:not([aria-pressed="true"]) { display: none; }
+    /* The latest agent reply keeps one ellipsis visible. Older replies expose theirs
+       while the reader is in the thread; a standing mark remains visible at rest. */
     .lf-thread:not(:hover, :focus-within, .lf-focus-within)
-      .lf-react-strip:not(.lf-open):not(:has(> [aria-pressed="true"])) { margin-top: 0; }
-    .lf-react-strip > .lf-react:not([aria-pressed="true"]) { border-color: transparent;
+      .lf-react-strip:not(.lf-open, .lf-react-open) > .lf-react-trigger { display: none; }
+    .lf-thread:not(:hover, :focus-within, .lf-focus-within)
+      .lf-react-strip:not(.lf-open, .lf-react-open):not(:has([aria-pressed="true"])) {
+        margin-top: 0; }
+    .lf-react-palette > .lf-react:not([aria-pressed="true"]) { border-color: transparent;
       background: transparent; color: var(--muted); }
-    .lf-react-strip > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
-    .lf-react-strip.lf-armed > .lf-react:not([aria-pressed="true"]) {
+    .lf-react-palette > .lf-react:not([aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]),
+    .lf-react-open .lf-react-palette > .lf-react:not([aria-pressed="true"]) {
       border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
-    .lf-react-strip > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
+    .lf-react-palette > .lf-react[aria-pressed="true"]:hover { background: var(--mark); }
     /* A thread whose root is a mark: the glyph and its word where the comment's words
        would stand, in the chrome's face. */
     .lf-react-said { font-family: var(--sans); color: var(--mark-ink); }

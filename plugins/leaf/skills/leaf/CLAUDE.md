@@ -45,8 +45,8 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/reactions.js` owns reaction vocabulary, pills and their standing paint,
-sending, the armed mode, and reaction-specific undo wording;
+`runtime/reactions.js` owns reaction vocabulary, lists and their standing paint,
+sending, keyboard mode, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
@@ -1087,33 +1087,32 @@ to a card and has no hover. Export keeps the glyph with its press taken off and
 writes the wash into the words as a `<mark>` (BAKE), the highlight registry
 being script state no file can hold.
 
-The bar the selection raises is `.lf-fab-bar`: the layer's tokens in declared
-order, then `.lf-fab`, the Comment press every route into the composer still
-goes through. `showFab` shows and places the bar; `raiseOnItem` raises it on an
-element from the ⌥ press; `PAGE_WHOLE` is its target for the page itself, with
-Comment hidden because the page's comment box is the panel's general one. `r`
-arms it (`setReact`): a digit on each token in the address-chip style, the
-surface being the bar — raised on the standing item, or the page, where none
-stood — or the strip under the latest agent message when the reader is standing
-in a thread. `REACT` is the armed scope and claims everything, as the address
-chord does; a stray key disarms and keeps its meaning, and a bar the arming
-raised goes down with it.
+The bar the selection raises is `.lf-fab-bar`: the `.lf-fab` comment glyph every
+route into the composer still goes through, followed by one reaction ellipsis.
+The ellipsis becomes the layer's token buttons in declared order without moving
+the comment glyph. Near an edge, the list opens below it. `showFab` shows and
+places the bar; `raiseOnItem` raises it on an element from the ⌥ press. `r` opens
+the same list on the selection, the standing item, or the latest agent message
+in the thread the reader is in. With none of those targets, it shows “Select
+something to react to” and opens nothing. Page-wide reactions remain an explicit
+ellipsis above the panel's general comment box. `REACT` claims the keyboard while
+a list is open: arrows move among tokens, Enter or Space presses the focused one,
+digits remain optional accelerators in declaration order, and a stray key closes
+the list before keeping its ordinary meaning.
 
 `conversation/model.js` reads the log by `isReaction`, `spoken`, `turns`, and
 `bareReaction`, the names `events.py` reads it by, and answers `reactionsOn` and
 `reactionStanding` from the fold it last built. The panel lists `conversational`
 threads only; a card shows its turns and its root, so a thread that grew out of a
 reaction opens on the mark, whose body `conversation/messages.js` writes as the
-glyph and its word. `paintReactStrips` puts the token strip under each agent
-message of an open thread and marks the latest one `lf-open`; `paintPageStrip`
-is the same strip, open, above the general box for the page whole. Which of them
-offer their tokens is the stylesheet's: the open ones always, and every strip in
-a thread the reader is standing in, so a thread at rest shows only the tokens
-standing on it, pressed and wearing their word. Standing in the thread is when
-the reader presses, so nothing they can reach by pointer is out of the keyboard's
-reach either, and a row cannot empty itself out from under the press that emptied
-it. At rest an offered token is a muted glyph with no box; the box is paint that
-arrives under the pointer, under focus, armed, or while a press is in flight.
+glyph and its word. `paintReactStrips` puts one reaction surface under each agent
+message and marks the latest one `lf-open`, which keeps its ellipsis visible and
+makes it the thread's `r` target. Older ellipses appear while the reader is in the
+thread. A closed surface shows only standing tokens, pressed and wearing their
+word; opening it replaces the ellipsis with the complete list. `paintPageStrip`
+builds the explicit page-wide surface above the general box. A token press closes
+the list and returns focus to the ellipsis; any standing mark remains visible as
+its own eraser.
 `awaitsReader` reads an agent comment as a question, an agent reply's explicit
 `awaits` field for prose, or the standing `x-awaits` projection of a request carried
 in that reply's markup. A `settles` token standing on that latest request answers it

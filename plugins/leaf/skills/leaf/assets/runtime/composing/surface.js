@@ -10,10 +10,10 @@ export function createSelectionSurface({
   designTarget,
   fab,
   fabBar,
-  fabSep,
   hideComposer,
   hideReference,
   inChrome,
+  isReactArmed,
   keylineEl,
   leavePageControl,
   markAt,
@@ -32,7 +32,6 @@ export function createSelectionSurface({
   paintStanding,
   pendingMarkParts,
   pointerAt,
-  reactionTokens,
   reactionsOn,
   referenceIsOpen,
   resolveAnchor,
@@ -265,12 +264,11 @@ export function createSelectionSurface({
     // Comment's own display is stated beside the bar's, being what the passage sweeps
     // read to know a passage raised the button.
     fab.style.display = fabAnchor ? "block" : "none";
-    fabSep.style.display = reactionTokens().length ? "" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
       fabBar.setAttribute(
         "aria-label",
-        label ? `React or comment on ${label}` : "React or comment",
+        label ? `Comment or react on ${label}` : "Comment or react",
       );
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
@@ -423,6 +421,7 @@ export function createSelectionSurface({
     scheduleSelectionUpdate();
   });
   document.addEventListener("mouseup", (ev) => {
+    if (actionPress) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
     clearTimeout(selectionUpdate);
     selectionUpdate = setTimeout(() => {
@@ -438,6 +437,7 @@ export function createSelectionSurface({
       dismissedSelectionKeyup = false;
       if (ev.key === "Escape") return;
     }
+    if (isReactArmed()) return;
     if (takesLetters(ev.target) || inChrome(ev.target)) return;
     if (!pageWords(ev.target) && !pageSelection()) return;
     scheduleSelectionUpdate();

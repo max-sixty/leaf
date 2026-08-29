@@ -3,7 +3,7 @@
 // a map beside it, so a reconcile that keeps the node keeps the fact with it.
 export function paintReactionStanding(strip, standing) {
   const by = new Map(standing.map((x) => [x.token, x]));
-  for (const pill of strip.querySelectorAll(":scope > .lf-react")) {
+  for (const pill of strip.querySelectorAll(":scope > .lf-react-palette > .lf-react")) {
     const on = by.get(pill.dataset.token) ?? null;
     pill.setAttribute("aria-pressed", on ? "true" : "false");
     pill.lfReaction = on;
@@ -11,83 +11,96 @@ export function paintReactionStanding(strip, standing) {
 }
 
 export function createReactions({
+  BANNER_CLEAR,
   CONTROL_WORD_CAP,
   EVERYTHING,
   anchorLabel,
   announce,
   claimsEsc,
-  commentsReveal,
   currentRevision,
   cut,
   designIsOn,
   el,
   elementById,
-  fab,
   fabAnchorAt,
   fabBar,
   focused,
   itemWord,
   offer,
-  pageStrip,
   paintHere,
   post,
   reactionVocabulary,
   saying,
   showFab,
+  showToast,
   standingConversation,
   standingItem,
   undoable,
   visualPartLabel,
   withdraw,
 }) {
-  // The layer's reaction vocabulary, in declared order. The bar, a thread's strip, the
-  // page row and the armed digits all read this one list, so a layer that renames, adds
-  // or removes a token moves every surface at once, and core never learns a token's name:
-  // what a press means is the entry's `means`, printed to the agent by `leaf wait`, and
-  // what it does structurally is the entry's own flag (`settles`, read by the panel).
-  // Empty until the registry has arrived: the register checks every core row's bindings
-  // as the module evaluates, which is before the vocabulary is known.
+  // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
+  // page row and the keyboard accelerators all read this one list, so a layer that
+  // renames, adds or removes a token moves every surface at once, and core never learns
+  // a token's name. Empty until the registry has arrived: the register checks every core
+  // row's bindings as the module evaluates, before the vocabulary is known.
   const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
-  // One token as a press, built the same way wherever it stands — the bar beside a
-  // selection, the strip under a message, the panel's page row. The digit is the address
-  // the armed mode paints (the chip an option wears while its mark holds focus) and shows
-  // only while armed; the word shows only while the token stands on its target, so a strip
-  // reads "✓ ok" where the reader pressed and a bare glyph everywhere else. The chip is
-  // aria-hidden the way the key line's are: the announcement made on arming says the keys.
-  function reactPill(name, entry, ordinal, pressed) {
+
+  // One token as a press, built the same way wherever it stands. The word shows only
+  // while the token stands on its target, so a closed surface keeps the reader's marks
+  // without offering the whole vocabulary. Digits remain keyboard accelerators without
+  // changing the shape of every pill.
+  function reactPill(name, entry, pressed) {
     const pill = offer("button", "lf-pill lf-react");
     pill.dataset.token = name;
     pill.title = `${name} — ${entry.means}`;
     pill.setAttribute("aria-label", name);
-    const digit = el("span", "lf-address", String(ordinal));
-    digit.setAttribute("aria-hidden", "true");
     pill.append(
-      digit,
       el("span", "lf-react-glyph", entry.glyph),
       el("span", "lf-react-word", name),
     );
     pill.onclick = () => pressed(name, pill);
     return pill;
   }
-  const reactPills = (pressed) =>
-    reactionTokens().map(([name, entry], i) => reactPill(name, entry, i + 1, pressed));
-  function buildReactBar() {
-    for (const pill of reactPills(reactHere)) fabBar.insertBefore(pill, fab);
+
+  const surfaces = new WeakMap();
+  let surfaceOrdinal = 0;
+  function buildReactSurface(surface, pressed, { label, target }) {
+    if (!reactionTokens().length) return surface;
+    surface.classList.add("lf-react-surface");
+    const trigger = offer("button", "lf-pill lf-react-trigger", "…");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-label", "Show reactions");
+    trigger.title = "Show reactions";
+    const palette = el("span", "lf-react-palette");
+    palette.id = `lf-reactions-${++surfaceOrdinal}`;
+    palette.setAttribute("role", "group");
+    palette.setAttribute("aria-label", label);
+    trigger.setAttribute("aria-controls", palette.id);
+    for (const [name, entry] of reactionTokens())
+      palette.append(reactPill(name, entry, pressed));
+    surface.append(trigger, palette);
+    surfaces.set(surface, { palette, target, trigger });
+    trigger.onclick = () =>
+      setReact(!(reactArmed && reactSurface === surface), { surface });
+    return surface;
   }
-  // What the bar's target is called, for the line, the reference and the announcement:
-  // the selection, a declared visual part by its own label, or the item by its own word.
+
+  function buildReactBar() {
+    buildReactSurface(fabBar, reactHere, {
+      label: "Reactions for this selection or item",
+      target: () => anchorWord(fabAnchorAt()),
+    });
+  }
+
   const anchorWord = (anchor) => {
+    if (!anchor) return "the target";
     if (anchor.quote) return "the selection";
     const item = elementById(anchor.section);
     if (anchor.visual) return visualPartLabel(item, anchor.visual) ?? anchor.visual;
     return itemWord(item) || "the item";
   };
-  // A reaction aimed where the bar is: a comment carrying a token in place of words, on
-  // the same anchor a comment from here would carry — the passage a selection named or
-  // the item the bar was raised on — so the file meets it the way it meets a comment.
-  // Design mode makes it about the layer, as it does a comment. Sent, the bar and the
-  // selection stand down: the mark on the passage is the receipt, and a selection left
-  // standing would cover it.
+
   async function reactHere(name, pill) {
     const anchor = fabAnchorAt();
     if (!anchor) return;
@@ -110,9 +123,7 @@ export function createReactions({
     setReact(false);
     getSelection()?.removeAllRanges();
   }
-  // One send for every reaction surface. A press whose result has not changed the DOM
-  // waits for the log — the outbox's rule — so the pill says busy for the round trip and
-  // the paint arrives with the accepted state. Announced, because the paint is silent.
+
   async function sendReaction(event, pill, where) {
     pill.setAttribute("aria-busy", "true");
     try {
@@ -124,69 +135,135 @@ export function createReactions({
     }
   }
 
-  // The armed react press: `r` puts a digit on every token of one surface, and the digit
-  // sends. Digits rather than letters because the vocabulary is configuration — a letter
-  // spelled from a token's word breaks the day a layer replaces it, where position
-  // survives any set. The surface is whichever strip of pills the reader's place names:
-  // the strip under the latest agent message where they are standing in a thread; the bar,
-  // where one stands or can be raised on the item they are standing on; and the panel's
-  // page strip where nothing stands, the page whole being what an anchorless reaction is
-  // aimed at. Armed, the mode owns the keys (REACT claims everything, as the address chord
-  // does); Escape or a stray key lets it go, and what the arming raised — the bar, or the
-  // panel — goes down with it, unless a digit spent it.
+  // The react press opens one surface's list. `r` uses the latest agent reply in the
+  // thread the reader is standing in, an already raised bar, or the item holding focus.
+  // A page with none of those has no reaction target: it says what is missing and leaves
+  // Comments alone. Page-wide reactions remain an explicit surface inside that panel.
   let reactArmed = false;
   let reactRaised = false;
-  let reactRevealed = null;
+  let reactFrom = null;
   let reactSurface = null;
-  // The strip the panel has open — the latest agent message's — asked of the class the
-  // list paints it with rather than of DOM order, so arming and offering cannot disagree
-  // about which message is the latest one.
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
-  function setReact(on, { spent = false } = {}) {
-    if (on === reactArmed) return;
-    // Armed over a control that has claimed Escape, one press would have two owners, so
-    // the mode refuses to arm there — the chord's own rule.
+  const pickerFor = (surface) => surfaces.get(surface);
+
+  function closeSurface(surface) {
+    surface?.classList.remove("lf-react-open");
+    pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
+  }
+
+  function placePalette(surface) {
+    if (surface !== fabBar) return;
+    const palette = pickerFor(surface)?.palette;
+    if (!palette) return;
+    surface.classList.remove("lf-react-above", "lf-react-stacked");
+    palette.style.transform = "";
+    let bar = fabBar.getBoundingClientRect();
+    if (
+      !document.body.hasAttribute("data-lf-panel") &&
+      bar.left >= 8 &&
+      bar.right <= innerWidth - 8
+    )
+      return;
+    surface.classList.add("lf-react-stacked");
+    let box = palette.getBoundingClientRect();
+    const shift = Math.max(8 - box.left, Math.min(0, innerWidth - 8 - box.right));
+    if (shift) palette.style.transform = `translateX(${shift}px)`;
+    box = palette.getBoundingClientRect();
+    bar = fabBar.getBoundingClientRect();
+    if (box.bottom > innerHeight - 8 && bar.top - box.height - 6 >= BANNER_CLEAR)
+      surface.classList.add("lf-react-above");
+  }
+
+  // Growing the compact surface is not a new target, so keep Comment fixed while only
+  // placing the list. Layout calls this before it would reanchor the bar.
+  function syncReactLayout() {
+    if (!reactArmed || reactSurface !== fabBar) return false;
+    placePalette(fabBar);
+    return true;
+  }
+
+  function setReact(on, { surface = null } = {}) {
+    if (on === reactArmed && (!on || surface === reactSurface || !surface)) return;
     if (on && claimsEsc(focused())) return;
-    reactSurface?.classList.remove("lf-armed");
+    closeSurface(reactSurface);
     if (on) {
-      const said = standingConversation();
-      const strip = said && latestAgentStrip(said.held);
-      const here = !strip && !fabAnchorAt() && standingItem();
-      if (strip) reactSurface = strip;
-      else if (fabAnchorAt() || here) {
-        if (here) {
-          showFab({ section: here.id });
-          reactRaised = true;
+      reactFrom = focused();
+      if (surface) reactSurface = surface;
+      else {
+        const said = standingConversation();
+        const strip = said && latestAgentStrip(said.held);
+        const here = !strip && !fabAnchorAt() && standingItem();
+        if (strip) reactSurface = strip;
+        else if (fabAnchorAt() || here) {
+          if (here) {
+            showFab({ section: here.id });
+            reactRaised = true;
+          }
+          reactSurface = fabBar;
+        } else {
+          reactSurface = null;
+          reactFrom = null;
+          showToast("Select something to react to");
+          return;
         }
-        reactSurface = fabBar;
-      } else {
-        reactSurface = pageStrip();
-        if (!reactSurface) return;
-        reactRevealed = commentsReveal();
+      }
+      if (!pickerFor(reactSurface)) {
+        reactSurface = null;
+        reactFrom = null;
+        return;
       }
       reactArmed = true;
-      reactSurface.classList.add("lf-armed");
+      reactSurface.classList.add("lf-react-open");
+      pickerFor(reactSurface).trigger.setAttribute("aria-expanded", "true");
+      placePalette(reactSurface);
+      if (surface && reactFrom === pickerFor(reactSurface).trigger)
+        pickerFor(reactSurface).palette.querySelector(".lf-react")?.focus({
+          preventScroll: true,
+        });
       announce(`React — ${saying(REACT.rows)}`);
     } else {
+      const from = reactFrom;
+      const trigger = pickerFor(reactSurface)?.trigger;
       reactArmed = false;
       reactSurface = null;
+      reactFrom = null;
       if (reactRaised) showFab(null);
-      if (!spent) reactRevealed?.();
       reactRaised = false;
-      reactRevealed = null;
+      const active = focused();
+      if (active?.closest?.(".lf-react-palette")) {
+        const destination =
+          from?.isConnected && from.checkVisibility?.()
+            ? from
+            : trigger?.checkVisibility?.()
+              ? trigger
+              : document.body;
+        destination?.focus?.({ preventScroll: true });
+      }
     }
     paintHere();
   }
+
+  function stepReaction(binding) {
+    const pills = [
+      ...(pickerFor(reactSurface)?.palette.querySelectorAll(".lf-react") ?? []),
+    ];
+    if (!pills.length) return;
+    const at = pills.indexOf(focused());
+    const backward = binding === "ArrowLeft" || binding === "ArrowUp";
+    const next =
+      at < 0
+        ? backward
+          ? pills.length - 1
+          : 0
+        : (at + (backward ? -1 : 1) + pills.length) % pills.length;
+    pills[next].focus({ preventScroll: true });
+  }
+
   const reactTargetWord = () =>
-    reactSurface === fabBar
-      ? anchorWord(fabAnchorAt())
-      : reactSurface === pageStrip()
-        ? "the page"
-        : "the reply";
-  // The armed react press's own scope: the digits, and the way out. It claims everything
-  // for the reason the chord does — a digit pressed while it stands belongs to it wherever
-  // focus sits — and, as with the chord, any key it does not bind disarms it and keeps its
-  // ordinary meaning (the dispatcher).
+    typeof pickerFor(reactSurface)?.target === "function"
+      ? pickerFor(reactSurface).target()
+      : (pickerFor(reactSurface)?.target ?? "the target");
+
   const REACT = {
     title: "With r armed",
     at: () => reactArmed,
@@ -210,11 +287,28 @@ export function createReactions({
             .join(", ")}`,
         line: "react",
         run: (binding) => {
-          // The surface's own pill, pressed: keyboard and pointer are one behaviour,
-          // the busy paint and the announcement included.
-          reactSurface?.querySelectorAll(".lf-react")[+binding - 1]?.click();
-          setReact(false, { spent: true });
+          pickerFor(reactSurface)
+            ?.palette.querySelectorAll(".lf-react")
+            [+binding - 1]?.click();
         },
+      },
+      {
+        id: "reaction.move",
+        runFromReference: false,
+        keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+        does: "Move through reactions",
+        line: "move",
+        repeat: true,
+        run: stepReaction,
+      },
+      {
+        id: "reaction.activate",
+        runFromReference: false,
+        keys: ["Enter", "Space"],
+        does: "Use the focused reaction",
+        line: "choose",
+        when: () => Boolean(focused()?.closest?.(".lf-react-palette .lf-react")),
+        run: () => focused()?.click(),
       },
       {
         id: "reaction.cancel",
@@ -226,8 +320,6 @@ export function createReactions({
     ],
   };
 
-  // The z row's sentence for a reaction: the token and where it stands, so the line is
-  // the receipt after the press and the promise before the next.
   function reactionPlace(event) {
     if (event.kind === "reply") return "the reply";
     if (!event.anchor) return "the page";
@@ -246,11 +338,12 @@ export function createReactions({
   return {
     REACT,
     buildReactBar,
+    buildReactSurface,
     isReactArmed: () => reactArmed,
-    reactPills,
     reactionTokens,
     sendReaction,
     setReact,
+    syncReactLayout,
     undoSentence,
   };
 }

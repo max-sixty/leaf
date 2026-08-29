@@ -234,7 +234,9 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     on one; the assertion is Traffic's books balancing, and then `round_trip`
     returning on a page whose only unfinished trip ended at the reload."""
     gallery = next(p for p in EXAMPLES if p.stem == "gallery")
-    url = serve(gallery.read_text())
+    # The example itself, so the data its markup selects is laid in beside it; its
+    # conversation is not, because the asks the cascade answers are the markup's.
+    url = serve(gallery, seed_log=False)
     # The console is not the subject here: a reload mid-post leaves Chrome's own
     # "Failed to load resource" behind, which is the navigation working.
     page, _ = open_page(browser, url)

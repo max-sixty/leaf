@@ -2480,11 +2480,11 @@ def test_the_specimen_gutter_is_painted_in_both_schemes(browser, serve):
 
 
 @pytest.mark.parametrize(
-    "html",
-    [SPECIMEN_PAGE, *(p.read_text() for p in SPECIMEN_EXAMPLES)],
+    "source",
+    [SPECIMEN_PAGE, *SPECIMEN_EXAMPLES],
     ids=["fixture", *(p.stem for p in SPECIMEN_EXAMPLES)],
 )
-def test_the_gutter_runs_beside_the_exhibit_and_no_further(html, browser, serve):
+def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serve):
     """The gutter marks what is quoted and nothing else, at both ends, and two separate
     things had to be true for that. The "quoted ·" note over the bar is the theme's word
     *about* the region rather than a word in it, and the bar opened at the note, drawing
@@ -2508,7 +2508,9 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(html, browser, serve)
     where the next one gets caught."""
     from PIL import Image  # a dev dependency already, for the demo recorder
 
-    page, errors = open_page(browser, serve(html))
+    # The examples by path, so each is served with the data its markup selects; their
+    # conversations are left off, since the bar is drawn around what the markup exhibits.
+    page, errors = open_page(browser, serve(source, seed_log=False))
     assert errors == []
     scale = page.evaluate("() => devicePixelRatio")
     # Rendered, not merely present. A specimen inside a tab panel the page is not

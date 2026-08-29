@@ -216,28 +216,61 @@ def test_the_python_instructions_name_every_module_they_own():
     until they were counted, and `requests` arrived with the request lifecycle and
     was not added beside `asks`.
 
-    Any backticked span counts as naming, because the list is not the only place a
-    module is legitimately introduced: `cli` is named in the opening prose as
-    `leaf/cli.py`, and the `registry/`, `served_state/`, `render_gate/`, and
-    `validation/` members are named in their own Boundaries paragraphs rather than
-    in the top list. A package initializer is a marker rather than an owner, which
-    the instructions say outright, so it is not asked for.
+    Each module is asked of the scope that owns it, because the instructions keep
+    two kinds of list and a bare stem is not unique across them: a package member is
+    named in its own `Within `pkg/`,` paragraph, and everything else in the top list
+    or the prose around it. Asked flat, `registry/layer` would be answered by the
+    top-level `layer` and a new member of any package would inherit whichever
+    top-level name it happened to share.
+
+    Any backticked span counts within a scope, because the top list is not the only
+    place a module is legitimately introduced there — `cli` is named in the opening
+    prose as `leaf/cli.py`. A package initializer is a marker rather than an owner,
+    which the instructions say outright, so it is not asked for.
+
+    A tend PR session reads a base-branch copy of every CLAUDE.md — the harness
+    restores them before the session starts — so this test can fail there against a
+    doc the branch has already fixed. Read the branch's own copy with
+    `git show HEAD:plugins/leaf/skills/leaf/scripts/CLAUDE.md` before believing it.
+    CI is unaffected: the restore is tend's, not the suite's.
     """
     scripts = SKILL_ROOT / "scripts"
     instructions = (scripts / "CLAUDE.md").read_text(encoding="utf-8")
-    named = {
-        part.removesuffix(".py")
-        for span in re.findall(r"`([^`]+)`", instructions)
-        for part in span.split("/")
+    paragraphs = instructions.split("\n\n")
+    within = {
+        match.group(1): paragraph
+        for paragraph in paragraphs
+        if (match := re.match(r"Within `([^`/]+)/`", paragraph))
     }
+    outside = "\n\n".join(p for p in paragraphs if not p.startswith("Within `"))
 
+    def names(scope):
+        return {
+            part.removesuffix(".py")
+            for span in re.findall(r"`([^`]+)`", scope)
+            for part in span.split("/")
+        }
+
+    package_root = scripts / "leaf"
     modules = sorted(
-        path.relative_to(scripts / "leaf").as_posix()
-        for path in (scripts / "leaf").rglob("*.py")
+        path.relative_to(package_root)
+        for path in package_root.rglob("*.py")
         if path.name != "__init__.py"
     )
     assert modules, "no modules read — an empty set names itself"
-    unnamed = [m for m in modules if Path(m).stem not in named]
+    packages = sorted({m.parent.as_posix() for m in modules} - {"."})
+    assert not set(packages) - set(within), (
+        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
+    )
+
+    unnamed = [
+        module.as_posix()
+        for module in modules
+        if module.stem
+        not in names(
+            outside if module.parent.as_posix() == "." else within[module.parent.name]
+        )
+    ]
     assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
 
 

@@ -1602,6 +1602,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         }"""
     )
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(1)
     expect(

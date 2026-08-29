@@ -1,5 +1,6 @@
 """Keyboard semantic-selection browser journeys."""
 
+import json
 import re
 
 import pytest
@@ -24,7 +25,8 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
 
     The label is read from the chip beside the paragraph rather than assumed from its
     document position. That is the contract this mode adds: the page says what a key will
-    choose before the reader presses it."""
+    choose before the reader presses it. Once chosen, the two visible hints say what the
+    reader can do with it: comment or react."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
 
@@ -35,6 +37,12 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: Targets")
     page.keyboard.press("?")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-live")).to_contain_text(
+        "More keyboard shortcuts shown. Press question mark again for all shortcuts"
+    )
+    page.keyboard.press("?")
     expect(
         page.locator(".lf-help").get_by_role(
             "heading", name="Selecting a passage", exact=True
@@ -42,6 +50,10 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
     ).to_be_visible()
     page.keyboard.press("Escape")
     expect(hints).to_have_count(3)  # help was a layer over the chooser, not its end
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "false")
+    expect(hints).to_have_count(3)
     prose_code = page.evaluate(
         """() => {
           const top = document.querySelector('#prose').getBoundingClientRect().top;
@@ -61,8 +73,40 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
     )
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab")).to_be_visible()
-    expect(page.locator(".lf-keyline")).to_contain_text("comment on the selection")
+    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(0)).to_contain_text("comment on the selection")
+    expect(shown.nth(1).locator("kbd")).to_have_text("r")
+    expect(shown.nth(1)).to_contain_text("react")
 
+    # Hiding s from the compact projection must not disable it. It can immediately
+    # reopen the chooser to replace the captured passage, and cancelling leaves the
+    # prior target in hand.
+    page.keyboard.press("s")
+    expect(hints).to_have_count(3)
+    page.keyboard.press("Escape")
+    assert " ".join(page.evaluate("() => getSelection().toString()").split()) == passage
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(1).locator("kbd")).to_have_text("r")
+
+    # Both help layers leave the captured passage in hand. The first Escape returns
+    # from the reference to the shelf and the second folds the shelf; only the third
+    # reaches the selection's own way out.
+    page.keyboard.press("?")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    assert " ".join(page.evaluate("() => getSelection().toString()").split()) == passage
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    expect(
+        page.locator(".lf-help tr", has_text="Select a visible passage by hint")
+    ).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+    assert " ".join(page.evaluate("() => getSelection().toString()").split()) == passage
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "false")
+    assert " ".join(page.evaluate("() => getSelection().toString()").split()) == passage
     page.keyboard.press("Escape")
     assert page.evaluate("() => getSelection().toString()") == ""
     expect(page.locator(".lf-fab")).to_be_hidden()
@@ -72,6 +116,35 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     assert pending_text(page) == passage
+    assert errors == []
+    page.close()
+
+
+def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
+    """A layer may remove the complete reaction vocabulary. Then c is the only action
+    on the captured target, so the second short-line slot keeps its ordinary way out."""
+    registry = json.loads(
+        (ROOT / "plugins/leaf/skills/leaf/packages/default/registry.json").read_text()
+    )
+    tokens = {name: None for name in registry["$reactions"]["tokens"]}
+    page, errors = open_page(
+        browser,
+        serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+    )
+    page.keyboard.press("s")
+    code = page.locator(".lf-target-hint").first.get_attribute("data-lf-target")
+    page.keyboard.type(code)
+
+    expect(page.locator(".lf-fab")).to_be_visible()
+    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(0)).to_contain_text("comment on the selection")
+    expect(shown.nth(1).locator("kbd")).to_have_text("esc")
+    expect(shown.nth(1)).to_contain_text("unselect")
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab")).to_be_hidden()
     assert errors == []
     page.close()
 

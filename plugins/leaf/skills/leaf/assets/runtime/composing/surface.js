@@ -6,6 +6,7 @@ export function createSelectionSurface({
   composer,
   composerInput,
   composerIsOpen,
+  collapseKeyline,
   designIsOn,
   designTarget,
   fab,
@@ -474,6 +475,7 @@ export function createSelectionSurface({
       if (composerIsOpen() && !composerInput.value) hideComposer();
     }
     if (referenceIsOpen() && !target.closest?.(".lf-help")) hideReference();
+    if (!target.closest?.(".lf-help, .lf-keyline")) collapseKeyline();
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))

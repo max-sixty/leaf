@@ -144,10 +144,12 @@
  *
  * What a key would do right now is state the user can read, not recall. The key line (one
  * quiet fixed line, bottom left) shows two hints: the first live row of the innermost
- * scope, then an available Escape or the next row. `? more` always opens the complete
- * reference, grouped by scope and searchable by key, action, or scope. The two hint chips
- * are aria-hidden: they are the eye's copy of facts spoken through placeholders and live
- * announcements; More is the accessible control leading to the full reference.
+ * scope, then a promotable Escape or the next row. Escape normally takes that second slot;
+ * a captured target keeps it for comment and reaction while Escape remains available in
+ * the complete reference. `? more` unfolds up to two rows of current commands; `? all
+ * shortcuts` then opens the complete reference, grouped by scope and searchable by key,
+ * action, or scope. The hint chips are aria-hidden: they are the eye's copy of facts spoken
+ * through placeholders and live announcements; More is the accessible disclosure control.
  *
  * A message arrives as logged and renders here, in the same vendored layer that owns
  * the panel's styles — the two version together, and no wire vocabulary exists beyond
@@ -431,6 +433,11 @@ function receiveState(...args) {
 //           the row is a link. What carries no word is reference, named in the "?"
 //           overlay and never promised as the next press — F7, ⌥ click, a draft's
 //           double-click.
+//   lineWhen — optional projection-only visibility on the key line. Unlike `when`, it
+//           never changes whether the command dispatches or appears in the reference.
+//   promoteEscape — whether an Escape row takes the line's second visible slot. On by
+//           default; a local action that happens to clear state can leave the slot to the
+//           next action on that state.
 //   when  — its liveness. The one predicate every surface asks.
 //   run   — the press, taking the binding that fired.
 //   native— whether the platform completes its default after `run`. Off by default: a
@@ -956,8 +963,10 @@ keylineMore.title = "More keyboard shortcuts";
 keylineMore.setAttribute("aria-label", "? more");
 const keylineMoreKey = document.createElement("kbd");
 keylineMoreKey.textContent = "?";
-keylineMore.append(keylineMoreKey, document.createTextNode("more"));
-keylineMore.onclick = () => reference.show(true);
+const keylineMoreText = el("span", "", "more");
+keylineMore.append(keylineMoreKey, keylineMoreText);
+let keyline;
+keylineMore.onclick = () => keyline.more();
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -1178,6 +1187,7 @@ const {
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
+  collapseKeyline: () => keyline?.less(),
   designIsOn: () => designOn,
   designTarget,
   fab,
@@ -1561,6 +1571,7 @@ const commentDestination = () => {
     },
   };
 };
+const hasCapturedTarget = () => Boolean(fabAnchorAt());
 // c goes where commenting happens: a live selection gets the composer (what the floating
 // button does), an element click's pending 💬 gets that, an open thread the reader is
 // standing in gets its own reply box, the item they are standing in gets the box belonging
@@ -1703,6 +1714,10 @@ const BACK_OUT = {
   keys: ["Escape"],
   does: () => rung()?.does,
   line: () => rung()?.says,
+  // Clearing a captured target is still available, but c and r are the two actions on the
+  // thing the reader just chose. Keep both on the short line and leave this row in the full
+  // reference until the target is gone.
+  promoteEscape: () => !hasCapturedTarget() || reactionTokens().length === 0,
   when: () => Boolean(rung()),
   run: () => rung().out(),
 };
@@ -2011,13 +2026,28 @@ const HELP = {
     {
       id: "reference.close",
       keys: ["Escape"],
-      does: "Close this reference",
-      line: "close help",
+      does: () =>
+        keyline?.expanded ? "Back to more keyboard shortcuts" : "Close this reference",
+      line: () => (keyline?.expanded ? "back to more shortcuts" : "close help"),
       also: helpClose,
       runFromReference: false,
       run: () => reference.show(false),
     },
   ],
+};
+const LESS_SHORTCUTS = {
+  id: "keyline.less",
+  keys: ["Escape"],
+  does: "Show fewer keyboard shortcuts",
+  line: "less",
+  referenceWhen: () => false,
+  runFromReference: false,
+  run: () => keyline.less(),
+};
+const SHORTCUT_SHELF = {
+  title: "With more keyboard shortcuts",
+  at: () => Boolean(keyline?.expanded),
+  rows: [LESS_SHORTCUTS],
 };
 
 // Below the element scopes: the page's own modes, then the page. The composer's rung is
@@ -2465,8 +2495,9 @@ const DESIGN = {
 
 // The page itself. Table order is the line's priority order — a total order every row has
 // already, rather than a field one can forget — so the first live rows are the short hints.
-// Escape is the one promotion over this order, because the way out of a current scene must
-// survive beside its way in.
+// Escape is the default promotion over this order, because the way out of a current scene
+// must survive beside its way in. A row can waive only that promotion when two local actions
+// on the current state belong together; the binding remains live and stays in the reference.
 // v names the chooser, the control wearing the version number, and the menu it opens
 // takes the letter again for the current page — one motion whose second half is a key of
 // the scope the first half stood up, so it costs the table no row and holds whether or not
@@ -2492,10 +2523,11 @@ const REFERENCE = {
   id: "reference.open",
   runFromReference: false,
   keys: ["?"],
-  does: "This key reference",
-  line: "more",
+  does: () =>
+    keyline?.expanded ? "The complete keyboard reference" : "More keyboard shortcuts",
+  line: () => (keyline?.expanded ? "all shortcuts" : "more"),
   also: keylineMore,
-  run: () => reference.show(true),
+  run: () => keyline.more(),
 };
 const PAGE = {
   rows: [
@@ -2504,6 +2536,10 @@ const PAGE = {
       keys: ["s"],
       does: "Select a visible passage by hint, or search all page text",
       line: "select passage",
+      // Once a target is in hand, its actions own the two short-line slots. Escape clears
+      // it, while this projection-only gate leaves s live to replace the target and keeps
+      // that capability in the complete reference.
+      lineWhen: () => !hasCapturedTarget(),
       when: () => anchoringReady,
       run: startSelecting,
     },
@@ -2670,9 +2706,10 @@ const PAGE = {
 // same bug waiting on the next mode.
 const ELEMENTS = Symbol("the scopes of the focused element");
 const SCOPES = [
+  HELP,
+  SHORTCUT_SHELF,
   GO,
   REACT,
-  HELP,
   SELECT,
   ELEMENTS,
   VERSIONS,
@@ -2699,6 +2736,15 @@ for (const scope of CORE) checked(scope.rows, scope.title ?? "the page's own key
 // withdrawn. The chip's is the one motion no single row makes, so it remains composed of
 // the two rows that make it.
 function paintCoreControls() {
+  const returningToMore = Boolean(keyline?.expanded);
+  helpClose.textContent = returningToMore ? "Back to more shortcuts" : "Close";
+  helpClose.dataset.lfKeyTitle = returningToMore
+    ? "Back to more shortcuts"
+    : "Close keyboard reference";
+  helpClose.setAttribute(
+    "aria-label",
+    returningToMore ? "Back to more shortcuts" : "Close keyboard reference",
+  );
   for (const scope of CORE)
     for (const row of scope.rows)
       if (row.also) {
@@ -2713,9 +2759,13 @@ function paintCoreControls() {
       }
   const referenceBound = bindings(REFERENCE).length > 0;
   keylineMoreKey.hidden = !referenceBound;
+  const shelf = referenceBound && Boolean(keyline?.expanded) && !reference.open;
+  keylineMoreText.textContent = shelf ? "all shortcuts" : "more";
+  keylineMore.title = shelf ? "All keyboard shortcuts" : "More keyboard shortcuts";
+  keylineMore.setAttribute("aria-expanded", String(shelf));
   keylineMore.setAttribute(
     "aria-label",
-    referenceBound ? "? more" : "More keyboard shortcuts",
+    referenceBound ? (shelf ? "? all shortcuts" : "? more") : "More keyboard shortcuts",
   );
   const latestBound = bindings(CHOOSER).length && bindings(NEWEST).length;
   latestChip.title =
@@ -2724,6 +2774,15 @@ function paintCoreControls() {
 }
 
 const { availableCommands, executeCommand, readerIn, shadow, stack } = createDispatch({
+  beforeCommand: (row) => {
+    if (
+      keyline?.expanded &&
+      !reference.open &&
+      row !== REFERENCE &&
+      row !== LESS_SHORTCUTS
+    )
+      keyline.less({ silent: true });
+  },
   claimsEsc,
   ELEMENTS,
   focused,
@@ -2794,15 +2853,19 @@ const reference = createReference({
 // can hold.
 watchDisclosures(document);
 
-const { renderLine } = createKeyline({
+keyline = createKeyline({
+  announce,
+  backRow: LESS_SHORTCUTS,
   el,
   keylineEl,
   keylineMore,
   paintHere,
   reference,
+  referenceRow: REFERENCE,
   shadow,
   stack,
 });
+const { renderLine } = keyline;
 const {
   comparable,
   comparisonBase,

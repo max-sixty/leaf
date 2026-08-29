@@ -8,6 +8,7 @@ import {
 } from "./bindings.js";
 
 export function createDispatch({
+  beforeCommand,
   claimsEsc,
   ELEMENTS,
   focused,
@@ -128,6 +129,7 @@ export function createDispatch({
         // other one — but does not claim the platform's half of it.
         if (!matched.row.native) ev.preventDefault();
         if (ev.repeat && !matched.row.repeat) return true;
+        beforeCommand?.(matched.row);
         if (matched.row.run) matched.row.run(matched.binding);
         else recovered.click();
         return true;
@@ -193,6 +195,7 @@ export function createDispatch({
   function executeCommand(id) {
     const command = commandFor(id);
     if (!command) return false;
+    beforeCommand?.(command.row);
     command.row.run(command.binding);
     return true;
   }

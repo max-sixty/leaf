@@ -719,6 +719,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     door = page.locator(".lf-comments")
     door.focus()
     page.keyboard.press("?")
+    page.keyboard.press("?")
     reference = page.locator(".lf-help")
     expect(reference).to_be_visible()
     assert reference.evaluate("el => el.matches(':modal')"), (
@@ -1971,6 +1972,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf):
     # the one control that reopens what just closed.
     expect(btn).to_be_focused()
     page.keyboard.press("?")
+    page.keyboard.press("?")
     help_el = page.locator(".lf-help")
     expect(help_el).to_contain_text("In the leaves tray")
     expect(help_el).to_contain_text("Previous leaf")
@@ -2422,6 +2424,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     expect(page.locator(".lf-version-menu")).not_to_be_visible()
 
     # The keyboard reference, which is a dialog and owes the most of any of them.
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     sweep("in the keyboard reference")

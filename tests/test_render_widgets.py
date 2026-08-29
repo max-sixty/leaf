@@ -1432,6 +1432,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
 
     # The overlay and the key line offer it because there is something to reach.
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-keyline")).to_contain_text("asks")

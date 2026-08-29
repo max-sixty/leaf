@@ -2761,6 +2761,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # The keys are one declaration, so the "?" reference names them too — a page with
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
     expect(page.locator(".lf-help")).to_contain_text("Previous version")
     expect(page.locator(".lf-help")).to_contain_text("Next version")
@@ -2887,12 +2888,12 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     for word in ["comment", "threads", "half a page", "design mode"]:
         expect(line).not_to_contain_text(word)
 
-    # The exemption: still one press to the reference, which still lists the mode standing
-    # over the page, and Escape there leaves the menu where it was — with the reader on the
-    # row they left, since a scope is where focus is and the overlay takes the focus. Landing
-    # on the body instead put the walk it had just described out of reach, which is a poor
-    # thing for the one key a mode keeps to do.
+    # The exemption: the progressive help route still lists the mode standing over the
+    # page, and Escape there returns through the shelf with the menu where it was — with the
+    # reader on the row they left, since a scope is where focus is and the overlay takes the
+    # focus. Landing on the body instead put the walk it had just described out of reach.
     expect(line).to_contain_text("more")
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
@@ -2910,6 +2911,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
 
     # And with the mode down the same key reaches the page, so what stopped it was the menu
     # standing over the page rather than the key being broken.
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     page.keyboard.press("t")
@@ -2945,6 +2947,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(comparison).to_be_focused()
     expect(compared.locator(".lf-version-menu")).to_be_visible()
     expect(compared.locator(".lf-keyline")).not_to_contain_text("leave versions")
+    compared.keyboard.press("?")
     compared.keyboard.press("?")
     expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")
     compared.keyboard.press("Escape")
@@ -2984,6 +2987,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(page.locator(".lf-version-menu")).to_be_visible()
     # Both keys on both surfaces, off the one declaration.
     expect(page.locator(".lf-keyline")).to_contain_text("⏎ / space")
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("⏎ / space")
     expect(page.locator(".lf-help")).to_contain_text("Open that version")
@@ -3051,6 +3055,7 @@ def test_the_current_page_is_the_chooser_key_twice(browser, serve):
     # The menu's keys are one declaration, so the reference names this one beside the
     # walk it saves.
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(help_el).to_contain_text("Open the current page")
     page.keyboard.press("Escape")
 
@@ -3076,6 +3081,7 @@ def test_the_current_page_is_the_chooser_key_twice(browser, serve):
 
     # And it is still offered here, with the chip gone: opening the current page is
     # what the press does on the page already reading it, so no surface stands it down.
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
     expect(help_el).to_contain_text("Open the current page")

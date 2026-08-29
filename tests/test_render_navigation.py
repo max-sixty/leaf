@@ -1308,6 +1308,7 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     offers or a box that really scrolls."""
     page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
 
     stops = page.evaluate(
@@ -1359,8 +1360,10 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
     opener = page.get_by_role("button", name="? more", exact=True)
     opener.click()
+    opener = page.get_by_role("button", name="? all shortcuts", exact=True)
+    opener.click()
     help_el = page.locator(".lf-help")
-    close = page.get_by_role("button", name="Close keyboard reference")
+    close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
 
     seen = set()
@@ -1375,7 +1378,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         )
         assert active["inside"], f"Tab left the keyboard reference for {active['name']}"
         seen.add(active["name"])
-    assert "Close keyboard reference" in seen, seen
+    assert "Back to more shortcuts" in seen, seen
 
     page.keyboard.press("Shift+Tab")
     assert page.evaluate(
@@ -1408,6 +1411,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     help_el = page.locator(".lf-help")
     search = page.get_by_role("combobox", name="Search keyboard shortcuts")
 
+    page.keyboard.press("?")
     page.keyboard.press("?")
     search.fill("resolve it")
     result = help_el.locator(
@@ -1455,6 +1459,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     thread = page.locator(".lf-thread").last
     expect(thread).to_be_focused()
     page.keyboard.press("?")
+    page.keyboard.press("?")
     search.fill("resolve it")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
@@ -1486,6 +1491,7 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     )
 
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(
         page.locator(
             ".lf-help tr", has_text="Next thing this page is waiting on you for"
@@ -1509,9 +1515,10 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     page.keyboard.press("Escape")
 
     page.keyboard.press("?")
-    expect(
-        page.get_by_role("button", name="Close keyboard reference")
-    ).to_have_attribute("aria-keyshortcuts", "Escape")
+    page.keyboard.press("?")
+    expect(page.get_by_role("button", name="Back to more shortcuts")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
     page.keyboard.press("Escape")
     assert errors == []
     page.close()
@@ -1533,6 +1540,7 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
     seen = []
     for _ in range(2):
         page, errors = open_page(browser, url)
+        page.keyboard.press("?")
         page.keyboard.press("?")
         expect(page.locator(".lf-help")).to_be_visible()
         seen.append(
@@ -2280,6 +2288,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         }"""
     )
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.get_by_role("dialog", name="Keyboard reference")).to_be_visible()
     search = page.get_by_role("combobox", name="Search keyboard shortcuts")
     search.fill("work only the second")
@@ -2351,6 +2360,7 @@ def test_character_shortcuts_can_be_turned_off_without_losing_the_keyboard(
     expect(reply).to_have_attribute("placeholder", "Reply")
     page.keyboard.press("Escape")
 
+    page.keyboard.press("?")
     page.keyboard.press("?")
     toggle = page.get_by_role("button", name="Character shortcuts")
     expect(toggle).to_have_attribute("aria-pressed", "true")
@@ -2426,6 +2436,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     line = page.locator(".lf-keyline")
     expect(line).to_contain_text("d / u")
     expect(line).to_contain_text("half a page")
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("Half a page down")
     expect(page.locator(".lf-help")).to_contain_text("Half a page up")
@@ -2547,6 +2558,7 @@ def test_the_reference_names_the_space_that_works_a_control(browser, serve):
     answered Space in both its states while both its declarations said Enter."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     page.keyboard.press("?")
+    page.keyboard.press("?")
     help_el = page.locator(".lf-help")
     expect(help_el).to_contain_text("On a control")
     expect(help_el.locator("tr", has_text="Work the focused control")).to_contain_text(
@@ -2606,11 +2618,13 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.close()
 
 
-def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve):
+def test_the_key_line_keeps_two_local_hints_and_progressively_reveals_the_rest(
+    browser, serve
+):
     """The short line is a glance, not the keyboard reference. It keeps two bindings:
-    first the innermost live action, then the way out when the current scene has one. The
-    complete register remains one `? more` away and can be searched by key, action, or
-    scope.
+    first the innermost live action, then the way out when the current scene has one. One
+    `? more` unfolds a bounded shelf of current commands; `? all shortcuts` then opens
+    the complete searchable register.
 
     The panel's general box is the causal contrast for the cap. A full page row crosses
     into the panel and paints over the box; two hints end before it. The overlap is tested
@@ -2656,11 +2670,52 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
     expect(visible_hints.nth(1)).to_contain_text("back to list")
 
     more = page.get_by_role("button", name="? more", exact=True)
+    expect(more).to_have_attribute("aria-expanded", "false")
     more.click()
     help_el = page.locator(".lf-help")
     search = page.get_by_role("combobox", name="Search keyboard shortcuts")
+    expect(help_el).to_be_hidden()
+    expect(line).to_have_attribute("data-lf-expanded", "true")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "More keyboard shortcuts shown. Press question mark again for all shortcuts"
+    )
+    assert visible_hints.count() > 2
+    expect(line).to_contain_text("less")
+    for width in (1200, 420):
+        page.set_viewport_size({"width": width, "height": 800})
+        page.evaluate(RENDERED)
+        geometry = line.evaluate(
+            """node => {
+              const visible = [...node.children].filter(el => el.checkVisibility());
+              const boxes = visible.map(el => el.getBoundingClientRect());
+              const tolerance = Math.min(...visible.map(el => el.offsetHeight)) / 2;
+              const rows = [];
+              for (const el of visible)
+                if (rows.every(top => Math.abs(top - el.offsetTop) > tolerance))
+                  rows.push(el.offsetTop);
+              return {
+                rows: rows.length,
+                clientWidth: node.clientWidth,
+                scrollWidth: node.scrollWidth,
+                clientHeight: node.clientHeight,
+                scrollHeight: node.scrollHeight,
+                bandHeight: Math.max(...boxes.map(box => box.bottom))
+                          - Math.min(...boxes.map(box => box.top)),
+                maxItemHeight: Math.max(...boxes.map(box => box.height)),
+              };
+            }"""
+        )
+        assert geometry["rows"] <= 2, geometry
+        assert geometry["scrollWidth"] <= geometry["clientWidth"], geometry
+        assert geometry["scrollHeight"] <= geometry["clientHeight"], geometry
+        assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
+    more = page.get_by_role("button", name="? all shortcuts", exact=True)
+    expect(more).to_have_attribute("aria-expanded", "true")
+    more.click()
     expect(help_el).to_be_visible()
     expect(search).to_be_focused()
+    expect(page.get_by_role("button", name="Back to more shortcuts")).to_be_visible()
+    expect(help_el).not_to_contain_text("With more keyboard shortcuts")
 
     search.fill("d / u")
     expect(help_el.locator("tr:not([hidden])")).to_have_count(2)
@@ -2680,6 +2735,40 @@ def test_the_key_line_keeps_two_local_hints_and_searches_the_rest(browser, serve
     expect(help_el.locator("tr:not([hidden])")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
+    expect(line).to_have_attribute("data-lf-expanded", "true")
+    expect(
+        page.get_by_role("button", name="? all shortcuts", exact=True)
+    ).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(line).to_have_attribute("data-lf-expanded", "false")
+    expect(page.locator(".lf-live")).to_contain_text("Fewer keyboard shortcuts shown")
+    expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(visible_hints).to_have_count(2)
+    assert errors == []
+    page.close()
+
+
+def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
+    browser, serve
+):
+    """The shelf is transient help, so either kind of onward motion folds it. The
+    page-click owner handles presses outside the line, while the dispatcher folds it
+    before a registered command runs."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    line = page.locator(".lf-keyline")
+
+    page.keyboard.press("?")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
+    page.locator("#t").click()
+    expect(line).to_have_attribute("data-lf-expanded", "false")
+
+    page.keyboard.press("?")
+    expect(line).to_have_attribute("data-lf-expanded", "true")
+    page.keyboard.press("g")
+    expect(line).to_have_attribute("data-lf-expanded", "false")
+    expect(line.locator("kbd.armed")).to_have_text("g")
     assert errors == []
     page.close()
 
@@ -3070,6 +3159,7 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     # Nothing in hand: there is no box to name, so the word is the room c goes to.
     expect(line).to_contain_text("comments")
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(help_el).to_contain_text("Go to the comments")
     page.keyboard.press("Escape")
 
@@ -3087,6 +3177,7 @@ def test_the_key_line_names_what_this_press_will_comment_on(browser, serve, othe
     )
     expect(page.locator(".lf-fab")).to_be_visible()
     expect(line).to_contain_text("comment on the selection")
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_contain_text("Comment on the selection")
     page.keyboard.press("Escape")
@@ -3127,6 +3218,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     help_el = page.locator(".lf-help")
 
     # No open threads, one version: the reference names only what a press would do.
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
     # Nothing is selected and the reader is standing nowhere, so c's own row says where
@@ -3244,6 +3336,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # large, the scope arrives on every page that has ever had a comment resolved.
     expect(page.locator(".lf-details[open]")).to_have_count(1)
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(help_el).to_be_visible()
     expect(help_el).not_to_contain_text("On a disclosure")
     page.keyboard.press("Escape")
@@ -3283,6 +3376,7 @@ def test_the_resolve_key_changes_the_focused_threads_resolution(browser, serve):
     # At page scope nothing promises x — its target is the focused thread, and
     # none is — while the overlay teaches the capability, scope in its words.
     expect(line).not_to_contain_text("resolve")
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("On a focused thread")
     expect(page.locator(".lf-help")).to_contain_text("Resolve it")

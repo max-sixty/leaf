@@ -128,7 +128,7 @@ Every row passed to `keys()` has a stable dotted `id`, such as `draft.save`. Kee
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
-key line stays compact, while the `?` command browser lists and runs each route on its own.
+key line stays compact, while the complete reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
 choice the reference does not have, such as the partly entered digits of an address. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command is

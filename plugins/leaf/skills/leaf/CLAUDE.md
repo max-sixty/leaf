@@ -1900,12 +1900,22 @@ upgrade.
 
 The key line is short help, not the keyboard reference. It walks outward from the
 reader's innermost scope, drops duplicate bindings shadowed there, and paints at
-most two hints: the first live row, then an available Escape or the next row.
-This makes locality the ordinary priority and promotes only the way out of the
-current scene. Its hint chips are `aria-hidden` because placeholders and live
-announcements carry the same facts for assistive technology. The accessible
-The accessible More control always opens the complete reference. Its `?` binding
-does too while character shortcuts are enabled.
+most two hints: the first live row, then a promotable Escape or the next row.
+This makes locality the ordinary priority and promotes the way out by default. A
+captured target with both comment and reaction actions is the deliberate exception:
+`c` and `r` take the two visible slots while Escape remains live and listed in the
+complete reference. Projection-only `lineWhen` may hide a hint without changing the
+command's liveness or its place in that reference. Its hint chips are `aria-hidden`
+because placeholders and live announcements carry the same facts for assistive
+technology.
+
+The accessible More control and its `?` binding share one progressive route. The
+first activation unfolds additional current-scene rows into a shelf capped at two
+lines; the second opens the complete reference. Escape returns through those layers,
+and another command folds the shelf before it runs. Expansion and contraction are
+announced because the revealed hint chips themselves remain visual. When there is no
+additional current row, the first activation opens the reference directly. The native
+control also opens it directly when character shortcuts are off.
 
 The reference lists every live capability the page has, grouped by scope, and
 filters those rows by normalized key, action, line word, and scope text. Search
@@ -1917,8 +1927,9 @@ a scope the current page cannot enter.
 The reference is a complete keyboard layer. Its registered Tab row cycles
 through the close control, search field, and actual overflow regions without
 letting focus enter the page behind it. Escape and the close control share one
-registered row. Closing restores the element that opened it; restoration waits
-one frame only when that element is the temporarily removed More control.
+registered row. Closing restores the element that opened it and keeps an already
+expanded shortcut shelf open. Restoration waits one frame only when that element is
+the temporarily removed More control.
 
 The reference also owns the persistent character-shortcut preference. Turning
 it off removes unmodified and Shift-only letter, number, and punctuation bindings

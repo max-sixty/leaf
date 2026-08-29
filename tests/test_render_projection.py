@@ -657,6 +657,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     # the page: standing on an ask is the reader holding something, with no layer over
     # the page at all, so the two surfaces named one press two ways.
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text(
         "Let go of what you are standing on"
     )
@@ -664,6 +665,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
     expect(page.locator("#live-question-ask[data-lf-ask]")).to_have_count(1)
 
+    page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     assert page.evaluate("() => document.activeElement === document.body")

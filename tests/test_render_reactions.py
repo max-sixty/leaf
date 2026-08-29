@@ -200,6 +200,7 @@ def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     # The sentence behind the chip, off the register: the reference's z row names the
     # token and the passage it stands on, where it promised a generic take-back before.
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     rows = page.locator(".lf-help").inner_text()
     assert "Take back: cut on “The store is capped" in rows, rows

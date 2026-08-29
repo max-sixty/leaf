@@ -26,7 +26,7 @@ import { inChrome } from "/runtime/widget-api.js";
 // pick mark is not the thing under its last paragraph.
 //
 // Deduped per tag and edge, because one mistake is on every instance of that widget.
-export async function trappedMargins() {
+export function trappedMargins() {
   // Which document each box is in, imported rather than restated, for the same
   // reason UNMARKABLE_ITEMS imports its two: the runtime's layer holds shadow roots
   // of its own, and a `closest` written out here stops at the first of them and

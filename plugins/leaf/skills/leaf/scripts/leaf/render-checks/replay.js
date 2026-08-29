@@ -17,7 +17,7 @@ import { shallowSigs, standingState } from "/runtime/widget-api.js";
 // The two files are handed in rather than fetched: which pair to compare is a
 // question about the log and the URL, both of which the caller holds, and a read
 // it makes is a read it can put a deadline on (see `served` in render_version).
-export async function replayOverrides({ curHtml, prevHtml }) {
+export function replayOverrides({ curHtml, prevHtml }) {
   const ids = (document.body.dataset.lfReplayWrote ?? "").split(" ").filter(Boolean);
   if (!ids.length) return [];
   const sigs = (html) =>
@@ -83,7 +83,7 @@ export async function replayOverrides({ curHtml, prevHtml }) {
 // not that. Each moved id is then laid at the door of the widget whose applyAction writes
 // it — its nearest ancestor with the method, as a replayed override already is — since
 // across a batch no single verb owns the difference.
-export async function relativeReplays() {
+export function relativeReplays() {
   const at = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
   // A fold reads the registry, so a decided widget whose module never loaded is in it
   // and has no method to converge. That failure is reported on its own — the console,

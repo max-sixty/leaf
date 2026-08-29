@@ -6,7 +6,7 @@ from leaf.event_contracts import thread_universe
 from leaf.passages import EMPTY, spoken
 from leaf.projection import decisions, page_projection, retirement_holders
 from leaf.registry.state import retirement_slots
-from leaf.render_checks import evaluate_probe
+from leaf.render_checks import evaluate_probe, wait_for_probe
 
 from .models import _SchemeContext, _SchemeReadings
 
@@ -184,8 +184,11 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
         relative = evaluate_probe(page, "relativeReplays")
     # The print reset and replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
-    # would call an attempt complete before its last error channel had spoken.
-    evaluate_probe(page, "nextFrame")
+    # would call an attempt complete before its last error channel had spoken. Ask
+    # synchronously and poll the presented-frame fact from the driver: a compositor
+    # that never draws cannot strand page.evaluate on its unresolved Promise.
+    requested_frame = evaluate_probe(page, "requestFrame")
+    wait_for_probe(page, "framePresented", requested_frame)
     return _SchemeReadings(
         failsoft=failsoft,
         missing_upgrades=missing_upgrades,

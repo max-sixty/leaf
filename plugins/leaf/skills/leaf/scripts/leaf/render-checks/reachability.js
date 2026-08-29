@@ -152,7 +152,7 @@ export function tinyBoxes(widgets) {
 // imported rather than restated, so what the gate refuses a handover for and what the page
 // actually paints cannot come apart — the whole point of the pair being that there is one
 // answer to where an element is.
-export async function unmarkableItems() {
+export function unmarkableItems() {
   const HTML = "http://www.w3.org/1999/xhtml";
   const found = [];
   for (const el of document.querySelectorAll("[id]")) {

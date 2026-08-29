@@ -124,12 +124,17 @@ def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
 
 
 def wait_for_revision(page, revision: int) -> None:
-    """Wait until a live tab has installed one complete immutable revision."""
+    """Wait until a live tab has installed and applied one immutable revision."""
     page.wait_for_function(
         "revision => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === String(revision)",
         arg=revision,
     )
+    # activateRevision writes the marker while it is replacing the authored document,
+    # before the encompassing state transaction replays and publishes its reading.
+    # The marker answers which source is installed; the reading answers whether that
+    # source and the server state that selected it became one complete browser view.
+    told(page)
 
 
 # A long page, so the document scrolls, and nothing else — the panel is the subject.

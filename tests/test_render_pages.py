@@ -219,7 +219,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # had rendered one here. It needs the panel open: shut, the fragment is in
         # the DOM with no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         for carried in [e for e in events if e.get("markup")]:
@@ -324,11 +324,11 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # replay never reached, and every assertion above it would still pass —
         # a drawn widget and a built control say nothing about whose state is on it.
         if decided_here:
-            plain = serve(example.read_text())
+            plain = serve(example, seed_log=False)
             for event in [e for e in events if e["kind"] != "action"]:
                 events_model.append_event(serve.page_dir, event)
             undecided, errors = open_page(browser, plain)
-            undecided.locator(".lf-comments").click()
+            undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
                 shown = undecided.locator(f"#{wid}")
                 expect(shown).to_be_visible()
@@ -360,14 +360,14 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     reading and nothing in the other. The generated gallery derives its tab bodies from
     these sources; its generation check owns that composition, while this sweep keeps
     one file reading for every page an author can change."""
-    # The markup rather than the example, so a shipped log stays out. This sweep
+    # Suppress the shipped log while retaining companion data. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and
     # every example that ever ships one would read as painting text it does not
     # name. The seeded anchor has its own reader in
     # test_a_shipped_log_opens_its_example_on_a_live_thread.
     html = example.read_text()
-    url = serve(html)
+    url = serve(example, seed_log=False)
     d = serve.page_dir
     anchors = written_anchors(d, html)
     assert len(anchors) >= 10, (
@@ -477,10 +477,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    toggle = page.locator(".lf-comments")
-    expect(toggle).to_have_text(
-        "Comments (1)"
-    )  # counted as open, like any other thread
+    toggle = page.locator(".lf-threads-toggle")
+    expect(toggle).to_have_text("Threads (1)")  # counted as open, like any other thread
     toggle.click()
     thread = page.locator(".lf-thread").first
     expect(thread.locator(".lf-msg.claude .lf-msg-head b")).to_have_text("Codex")
@@ -518,7 +516,7 @@ def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serv
         },
     )
     page, errors = open_page(browser, url)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
 
     broken = []
 
@@ -579,7 +577,7 @@ def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serv
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    expect(toast).to_have_text("Codex replied — open Comments")
+    expect(toast).to_have_text("Codex replied — open Threads")
     expect(toast).to_have_class(re.compile(r"\bshow\b"))
     assert errors == []
     page.close()
@@ -1470,7 +1468,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator("#fallback-flow svg")).to_be_visible()
 
@@ -1497,7 +1495,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
     """Whether a widget stands in an inline run is true of it wherever it renders, which
     is what separates that mark from the width model beside it: the room a wide widget
     spends is the document's and stays behind, while a chip quoted into a reply is as much
-    a word there as on the page. The lists that ask whether a slot or a variant holds block
+    a word there as on the page. The lists that decision whether a slot or a variant holds block
     content invert HTML's phrasing content, and every custom element falls outside a
     platform set — so with the mark withheld here, an exhibition the agent quotes to
     compare two stores would stack into rows in the panel and nowhere else.
@@ -1529,7 +1527,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
         },
     )
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator("#rp-terse")).to_be_visible()
 
@@ -1718,7 +1716,7 @@ def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
 
 
 def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
-    """The comment panel takes 420px of the window, and nothing in CSS can see that — so
+    """The thread panel takes 420px of the window, and nothing in CSS can see that — so
     the room a wide widget spends is measured, and this is the measurement's hard case.
     The strip is handed over as motion, so at the moment the layout is written body still
     has the width it is leaving: a room read off the box in front of us states one 420px
@@ -1736,7 +1734,7 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
         "the board must start wider than the column, or the shrink proves nothing"
     )
 
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     opened = page.evaluate(ROOM_GEOMETRY)
 
@@ -1759,7 +1757,7 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
     # and an exhibit that took it before the page had it scrolls the document sideways
     # for exactly as long. Read before the transition settles, because that is the whole
     # of the window in which it is wrong.
-    page.get_by_role("button", name="Close comments").click()
+    page.get_by_role("button", name="Close threads").click()
     assert page.evaluate(
         "() => document.body.scrollWidth <= document.body.clientWidth"
     ), "the page scrolled sideways while the panel's strip was still coming back"
@@ -1780,7 +1778,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     on the live page and stated inline on the root, which outranks any rule, so a copy
     carrying it would hold the exporter's headless window forever and lay a file out for
     a window nobody is reading it in. BAKE takes it off and the theme states the copy's
-    own, from a viewport that is honest there: a file has no comment panel to yield a
+    own, from a viewport that is honest there: a file has no thread panel to yield a
     strip to.
 
     The width that panel stands at is stated on the root by the same hand, and goes the
@@ -1962,7 +1960,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     wide exhibit in the control: it may use the other margins but not the one the sticky
     sidebar can occupy at any scroll position.
 
-    Opening the comment panel narrows the page without changing the viewport, which a
+    Opening the thread panel narrows the page without changing the viewport, which a
     media query cannot see. The shared cramped veto must return the aside to the flow and
     give its strip back. A narrow viewport proves the same fallback comes from CSS alone,
     and print proves paper reserves no blank margin for a posture it cannot use."""
@@ -2016,7 +2014,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
 
     page.evaluate("document.body.scrollTo(0, 0)")
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
     assert cramped["cramped"]
@@ -2163,7 +2161,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert roomy["sideways"] == 0
 
     resized(page, 1700, 800)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panelled = page.evaluate(reading)
     assert page.locator("body").get_attribute("data-lf-cramped") == ""

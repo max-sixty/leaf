@@ -28,8 +28,8 @@ export function createViewContinuity(dependencies) {
   // at the top mid-session, standing nowhere in the walk they were making. Where they are
   // rides across as one semantic view — and through tabStore on document travel, per-tab
   // because a place in a page shouldn't outlive it. Two things are recorded, because
-  // askPosition reads two the runtime can write down: the passage they were reading, and
-  // the ask the a/A walk had stepped them to. The passage travels as a landmark rather
+  // decisionPosition reads two the runtime can write down: the passage they were reading, and
+  // the decision the d/D walk had stepped them to. The passage travels as a landmark rather
   // than a pixel offset, since content moves between versions: re-find it by its text
   // within its section, then the section alone, and only fall back to the raw offset when
   // neither survived the revision. The panel's own open state is restored separately
@@ -39,7 +39,7 @@ export function createViewContinuity(dependencies) {
   // The page's own text blocks the reader can see, in document order, with the rect of each
   // one's first line — one reading of what is in front of them, for the two questions that
   // ask it: which passage a version change should land them back on (below), and where a
-  // walk over the page's asks starts when they have pointed at nothing (askPosition).
+  // walk over the page's decisions starts when they have pointed at nothing (decisionPosition).
   // A block's landmark is the top of its first line (a range), not its border box; restore
   // measures the matched text the same way, so the line box's leading cancels out.
   function* blocksOnScreen() {
@@ -63,12 +63,12 @@ export function createViewContinuity(dependencies) {
   // to the section, which doesn't absorb content added above the reader inside it.
   function captureView() {
     const view = { revision: runtime.currentRevision, y: pageScroller.scrollTop };
-    // Where the ask walk left off, which is the reader's place stated more exactly than
+    // Where the decision walk left off, which is the reader's place stated more exactly than
     // any block can state it — the walk put them there on purpose. Its element identity
     // does not survive an authored-main replacement, and the module variable does not
     // survive document travel, so the id is the one form both can restore. The ring is not
     // recorded beside it: it is painted from focus, and another document starts on the page.
-    view.ask = landedAt()?.id;
+    view.decision = landedAt()?.id;
     for (const [block, rect] of blocksOnScreen()) {
       const section = block.closest("[id]");
       if (!view.section && section) {
@@ -100,14 +100,14 @@ export function createViewContinuity(dependencies) {
   function restoreView(view) {
     // Where the walk left off, put back before the scroll below restores the coarser
     // reading of the same fact — and put back whether or not this version answered that
-    // ask, since an ask the reader has not stepped off is still the one they would step
-    // from. The document's own lookup rather than elementById: the ask list is the
-    // document's (openAsks), and a landing inside a shadow tree is one askStep could never
-    // measure against. A thread's ask is not here yet — the panel is rebuilt from the log
-    // on the first poll, which is behind this — so the record answers for the page's asks
+    // decision, since a decision the reader has not stepped off is still the one they would step
+    // from. The document's own lookup rather than elementById: the decision list is the
+    // document's (openDecisions), and a landing inside a shadow tree is one decisionStep could never
+    // measure against. A thread's decision is not here yet — the panel is rebuilt from the log
+    // on the first poll, which is behind this — so the record answers for the page's decisions
     // and says nothing about the panel's, rather than restoring a second time later over a
     // walk the reader has made since.
-    setLanded((view.ask && document.getElementById(view.ask)) || null);
+    setLanded((view.decision && document.getElementById(view.decision)) || null);
     const text = pageText();
     const found = view.quote && resolveAnchor(view, text);
     if (found?.segments) {

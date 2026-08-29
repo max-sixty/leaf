@@ -6,8 +6,9 @@ environment pinned by the root `pyproject.toml` and `uv.lock`.
 ## Examples and previews
 
 `preview.py [example]` freshly vendors and serves one shipped example. It copies
-the example's companion log, data, and media, then sets the event cursor past
-seeded history. `examples/CLAUDE.md` owns those fixture rules.
+the example's companion log, applies current values and file captures from its data
+manifest, copies media, then sets the event cursor past seeded history.
+`examples/CLAUDE.md` owns those fixture rules.
 
 `gallery.py` generates `examples/gallery.html` and its companion data from the
 individual examples. Edit the source examples, then regenerate the gallery.

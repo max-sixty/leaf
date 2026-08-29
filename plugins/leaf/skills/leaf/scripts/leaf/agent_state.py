@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
-from .asks import page_asks, thread_asks
 from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
+from .decisions import page_decisions, thread_decisions
 from .event_contracts import thread_state
 from .events import (
     bare_reaction,
@@ -25,9 +25,9 @@ from .presence import presence
 from .projection import (
     StateProjection,
     canonical_updates,
-    decisions,
     page_projection,
     record_lag_entries,
+    retirement_outcomes,
 )
 from .registry.reactions import described
 from .registry.storage import require_registry
@@ -127,7 +127,7 @@ def _base_state(
         "data": stored_data,
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
-        "asks": [],
+        "decisions": [],
         # Whole, through the same digest a delivery carries: a session picking
         # the page up is in the position this reading exists for, and a count of
         # messages it cannot read tells it a conversation happened without
@@ -192,11 +192,11 @@ def _apply_document_state(
         standing_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
-    # An ask standing in a slot the log has retired — a group inside the lf-new
+    # A decision standing in a slot the log has retired — a group inside the lf-new
     # of a rejected suggestion — left the page with the slot, so it is nobody's
     # to answer; the passage reading already knows which ids a decision dropped.
     passages = page_passages(
-        document.html, registry, decisions(projection.actions, registry)
+        document.html, registry, retirement_outcomes(projection.actions, registry)
     )
     lifecycles = request_lifecycles_for(
         events,
@@ -204,7 +204,7 @@ def _apply_document_state(
         registry,
         {"kind": "page", "revision": revision},
     )
-    state["asks"] = page_asks(
+    state["decisions"] = page_decisions(
         parser,
         projection,
         byid,
@@ -229,7 +229,7 @@ def _apply_thread_state(state: dict, events: list, registry: dict) -> None:
     # answering one is answering the page. The projection above is of the published
     # version's elements alone, so a press on an AskUserQuestion resolved no
     # declaration and stood nowhere — a session picking the page up read the reader's
-    # answer to its own question as an answer nobody had given, with `asks` reporting
+    # answer to its own question as an answer nobody had given, with `decisions` reporting
     # the same question answered.
     #
     # `thread` is the one key that separates them, present on every entry so a reader
@@ -268,7 +268,7 @@ def _write_page_state(
     projection of the user's standing state and the reports standing on the agent
     channel, where the record lags either (`record_lag_entries`), authored
     measurements whose live source has run again (`measurement_lag_entries`), the
-    open asks on the page and in threads (the banner's own count), each comment
+    open decisions on the page and in threads (the banner's own count), each comment
     thread's exchange,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
@@ -313,7 +313,7 @@ def _write_page_state(
         registry,
         {"kind": "thread"},
     )
-    state["asks"] += thread_asks(
+    state["decisions"] += thread_decisions(
         events,
         registry,
         {root for root, thread in threads.items() if thread["resolved"]},

@@ -270,9 +270,9 @@ export function createConversation(dependencies) {
     }
   }
 
-  const waitingNote = el("div", "lf-empty", "Loading current comments…");
+  const waitingNote = el("div", "lf-empty", "Loading current threads…");
 
-  const { renderConversations } = createInlineConversations({
+  const { renderConversations, renderMarginThread } = createInlineConversations({
     ago,
     el,
     elementById,
@@ -330,10 +330,10 @@ export function createConversation(dependencies) {
     if (runtime.statePhase !== "ready") {
       waitingNote.textContent =
         runtime.statePhase === "offline"
-          ? "Current comments are unavailable while the server is offline."
-          : "Loading current comments…";
+          ? "Current threads are unavailable while the server is offline."
+          : "Loading current threads…";
       setChildren(threadsBox, [waitingNote]);
-      toggleBtn.textContent = "Comments";
+      toggleBtn.textContent = "Threads";
       // Nothing read yet, so nothing to count and nothing to narrow. The same writer, so
       // the button says exactly what it will say the moment the log arrives empty.
       paintNarrowing([], []);
@@ -371,6 +371,7 @@ export function createConversation(dependencies) {
     paintWorkLines,
     widen,
     paintThreadQuotes: cards.paintThreadQuotes,
+    renderMarginThread,
     renderPanel,
     showThread,
     get threadList() {

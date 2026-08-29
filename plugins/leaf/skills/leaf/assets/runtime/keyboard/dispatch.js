@@ -8,6 +8,7 @@ import {
 } from "./bindings.js";
 
 export function createDispatch({
+  beforeCommand,
   claimsEsc,
   ELEMENTS,
   focused,
@@ -35,7 +36,7 @@ export function createDispatch({
   // keeps and the control scope's own comment already claims ("`at` is asked first and answers
   // false wherever this could be in doubt, so a paint never reaches it"), and the scope walk
   // was the one place it was not true. The chord is what made it bite: its `when` reaches the
-  // asks fold and then every link on the page, once per keydown, from the first keystroke of
+  // decisions fold and then every link on the page, once per keydown, from the first keystroke of
   // the first comment.
   const standing = (scope) => readerIn(scope) && pageHas(scope);
   // Every scope the reader is standing in, innermost first. The whole list: what a nearer
@@ -100,7 +101,7 @@ export function createDispatch({
       let matched = null;
       for (const row of scope.rows) {
         // The key first, then the claim, then the liveness: a `when` may be the whole event
-        // log folded (`a` asks what the page is still waiting on), and asking it of every row
+        // log folded (`d` asks what the page is still waiting on), and asking it of every row
         // the press is not for makes the cost of a keystroke the size of the table rather
         // than the size of the match. A row that matches and is dead still falls through to
         // the scope behind it, which is what `continue` says either way round.
@@ -128,6 +129,7 @@ export function createDispatch({
         // other one — but does not claim the platform's half of it.
         if (!matched.row.native) ev.preventDefault();
         if (ev.repeat && !matched.row.repeat) return true;
+        beforeCommand?.(matched.row);
         if (matched.row.run) matched.row.run(matched.binding);
         else recovered.click();
         return true;
@@ -193,6 +195,7 @@ export function createDispatch({
   function executeCommand(id) {
     const command = commandFor(id);
     if (!command) return false;
+    beforeCommand?.(command.row);
     command.row.run(command.binding);
     return true;
   }

@@ -1,4 +1,10 @@
 {
+  "$captures": {
+    "offline-review-policy": {
+      "text-file": "ship-review-source.md",
+      "label": "merge-review.md"
+    }
+  },
   "heat-weather-gap": 38,
   "atlas-worktrees": {
     "tree-w-1": {

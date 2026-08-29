@@ -560,7 +560,7 @@ def parse_version(page_dir: Path, version: int) -> _StructParser:
 
 
 def version_review_mode(page_dir: Path, version: int):
-    """The review ask declared by an immutable revision, or None for comments only."""
+    """The review decision declared by an immutable revision, or None for threads only."""
     parser = parse_version(page_dir, version)
     return next(
         (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
@@ -569,7 +569,7 @@ def version_review_mode(page_dir: Path, version: int):
 
 
 def revision_review_mode(page_dir: Path, revision: int):
-    """The review ask declared by an exact working revision, or None."""
+    """The review decision declared by an exact working revision, or None."""
     parser = parse_revision(page_dir, revision)
     return next(
         (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),

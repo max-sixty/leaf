@@ -58,6 +58,7 @@ from leaf import events as event_folds_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
+from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
@@ -323,7 +324,7 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again(page_dir
 
 
 def test_another_widget_s_answer_holds_a_thread_two_widgets_answered(page_dir):
-    """Superseding is per widget, because the ask is. Two suggestions can answer one
+    """Superseding is per widget, because the decision is. Two suggestions can answer one
     question, and deciding against the second says nothing about the first — a fold
     keyed on the thread instead of the widget would have let it."""
     threads = logged(page_dir, COMMENT, {**ACCEPT, "widget": "sug-b"}, ACCEPT, REJECT)
@@ -368,10 +369,10 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -419,10 +420,10 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -611,10 +612,10 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
     """
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
-        '<lf-ask id="run-status-ask"><h2>Which run status?</h2>'
+        '<lf-decision id="run-status-decision"><h2>Which run status?</h2>'
         '<lf-options id="run-status" choose>'
         '<lf-option id="rs-column">Column</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-decision>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -917,10 +918,10 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<lf-ask id="thread-choice-ask"><h3>Which option?</h3>'
+        '<lf-decision id="thread-choice-decision"><h3>Which option?</h3>'
         '<lf-options id="thread-choice" choose>'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-decision>"
     )
     conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
 
@@ -1061,6 +1062,19 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
+def test_a_data_snapshot_selector_is_a_positive_decimal_authored_binding(page_dir):
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, snapshot=True)
+    registry = json.loads((page_dir / "registry.json").read_text())
+
+    assert registry_validation.validate_registry(registry, "test registry") is registry
+
+    registry["lf-test-data"]["properties"]["snapshot"]["pattern"] = "^[0-9]+$"
+    with pytest.raises(
+        registry_contract.RegistryError, match="must be a positive decimal string"
+    ):
+        registry_validation.validate_registry(registry, "test registry")
+
+
 @pytest.mark.parametrize(
     ("change", "message"),
     [
@@ -1147,7 +1161,7 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
 
     with pytest.raises(
         registry_contract.RegistryError,
-        match="x-data source attributes are authored bindings",
+        match="x-data binding attributes are authored",
     ):
         registry_validation.validate_registry(registry, "test registry")
 
@@ -1169,7 +1183,7 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     assert refused.exit_code != 0
     assert "immutable documents" in refused.output
     assert "source 'builds' loses its contract 'builds'" in refused.output
-    assert "use a new source id" in refused.output
+    assert "preserve those bindings" in refused.output
     cleared = CliRunner().invoke(
         cli_model.cli, ["data", "clear", str(page_dir), "builds"]
     )
@@ -1177,6 +1191,160 @@ def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
     still_refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert still_refused.exit_code != 0
     assert "source 'builds' loses its contract 'builds'" in still_refused.output
+
+
+def test_revendoring_cannot_forget_an_immutable_data_selection(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_text("captured")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
+        )
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None
+    incoming = json.loads((page_dir / "registry.json").read_text())
+    del incoming["lf-test-data"]["x-data"]["data"]["snapshot"]
+
+    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
+        vendoring_model._refuse_data_contract_drift(
+            page_dir, events_model.read_events(page_dir), incoming
+        )
+
+    outgoing = json.loads((page_dir / "registry.json").read_text())
+    del outgoing["lf-test-data"]["x-data"]["data"]["snapshot"]
+    (page_dir / "registry.json").write_text(json.dumps(outgoing))
+    incoming = json.loads(json.dumps(outgoing))
+    incoming["lf-test-data"]["x-data"]["data"]["snapshot"] = "snapshot"
+    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
+        vendoring_model._refuse_data_contract_drift(
+            page_dir, events_model.read_events(page_dir), incoming
+        )
+
+
+def test_revendoring_cannot_swap_immutable_selections_between_inputs(
+    page_dir, tmp_path
+):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_text("first")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+    text_file.write_text("second")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+
+    registry_path = page_dir / "registry.json"
+    outgoing = json.loads(registry_path.read_text())
+    widget = outgoing["lf-test-data"]
+    del widget["properties"]["snapshot"]
+    widget["properties"].update(
+        {
+            "left-snapshot": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$",
+            },
+            "right-snapshot": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]*$",
+            },
+        }
+    )
+    widget["x-data"] = {
+        "left": {
+            "contract": "text-document",
+            "source": "source",
+            "snapshot": "left-snapshot",
+        },
+        "right": {
+            "contract": "text-document",
+            "source": "source",
+            "snapshot": "right-snapshot",
+        },
+    }
+    registry_path.write_text(json.dumps(outgoing))
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            'source="leaf-skill"',
+            'source="leaf-skill" left-snapshot="1" right-snapshot="2"',
+        )
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None
+
+    incoming = json.loads(json.dumps(outgoing))
+    incoming["lf-test-data"]["x-data"]["left"]["snapshot"] = "right-snapshot"
+    incoming["lf-test-data"]["x-data"]["right"]["snapshot"] = "left-snapshot"
+
+    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
+        vendoring_model._refuse_data_contract_drift(
+            page_dir, events_model.read_events(page_dir), incoming
+        )
+
+
+def test_revendoring_distinguishes_idless_snapshot_seats_on_one_line(
+    page_dir, tmp_path
+):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_text("first")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+    text_file.write_text("second")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+
+    registry_path = page_dir / "registry.json"
+    outgoing = json.loads(registry_path.read_text())
+    widget = outgoing["lf-test-data"]
+    widget["required"].remove("id")
+    widget["properties"]["alternate"] = {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$",
+    }
+    registry_path.write_text(json.dumps(outgoing))
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            '<lf-test-data id="test-data" source="leaf-skill"></lf-test-data>',
+            '<lf-test-data source="leaf-skill" snapshot="1" '
+            'alternate="2"></lf-test-data><lf-test-data source="leaf-skill" '
+            'snapshot="2" alternate="2"></lf-test-data>',
+        )
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None
+
+    incoming = json.loads(json.dumps(outgoing))
+    incoming["lf-test-data"]["x-data"]["data"]["snapshot"] = "alternate"
+    with pytest.raises(SystemExit, match="changes immutable snapshot selection"):
+        vendoring_model._refuse_data_contract_drift(
+            page_dir, events_model.read_events(page_dir), incoming
+        )
 
 
 @pytest.mark.parametrize(
@@ -1512,10 +1680,12 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "version response but declares no x-awaits standing request" in result.output
+    assert (
+        "version response but declares no x-awaits standing decision" in result.output
+    )
 
     del registry["lf-diagram"]["x-conversation"]["response"]
-    registry["lf-diagram"]["x-awaits"] = {}
+    registry["lf-diagram"]["x-awaits"] = {"rollup": True}
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
@@ -1651,7 +1821,8 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         ("unknown-offered-verb", "names undeclared verbs ['explode']"),
         ("unoffered-verb", "verbs ['restart'] cannot be offered"),
-        ("self-framing-ask", "declares both x-ask and x-request.ask"),
+        ("self-framing-decision", "declares both x-decision and x-request.decision"),
+        ("dual-decision-source", "declares both x-request.decision and x-awaits"),
     ],
 )
 def test_an_x_request_declaration_closes_its_widget_boundary(
@@ -1699,9 +1870,11 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         registry["lf-operation"]["properties"]["verb"]["enum"].append("explode")
     elif mutation == "unoffered-verb":
         registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
-    elif mutation == "self-framing-ask":
-        operations["x-ask"] = True
+    elif mutation == "self-framing-decision":
+        operations["x-decision"] = True
         operations["x-content"] = "prose"
+    elif mutation == "dual-decision-source":
+        operations["x-awaits"] = {"rollup": True}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2203,13 +2376,16 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
         (
             "lf-suggestion",
             "x-awaits",
-            {"all": "approve"},
+            {"answers": ["accept"], "all": "approve"},
             "does not declare as an x-state verb",
         ),
         (
             "lf-options",
             "x-awaits",
-            {"until": {"verb": "submit", "when": {"multiple": [True]}}},
+            {
+                "answers": ["choose"],
+                "until": {"verb": "submit", "when": {"multiple": [True]}},
+            },
             "does not declare as an x-state verb",
         ),
         (
@@ -2241,7 +2417,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     never been wired up.
     Same for a blanket answer naming a verb the widget does not speak, whose button
     would call a method nothing implements — and for an until verb, which would
-    hold a thread ask open for a press no widget renders."""
+    hold a thread decision open for a press no widget renders."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2263,18 +2439,106 @@ def test_rollup_false_is_omitted_instead_of_becoming_a_second_form(page_dir):
     assert "True was expected" in result.output
 
 
-def test_an_unconditional_request_declaration_is_valid(page_dir):
+def test_an_aggregate_only_rollup_declaration_is_valid(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"] = {}
+    registry["lf-task"]["x-awaits"] = {"rollup": True}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     assert check(page_dir).exit_code == 0
 
 
+@pytest.mark.parametrize(
+    ("declaration", "message"),
+    [
+        ({}, "local decision declares no answer verbs"),
+        (
+            {"rollup": True, "when": {"status": ["review"]}},
+            "rollup also declares local decision fields ['when']",
+        ),
+    ],
+)
+def test_an_awaits_declaration_has_one_decision_role(page_dir, declaration, message):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-awaits"] = declaration
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
+
+
+@pytest.mark.parametrize("verb", ["choose", "answer"])
+def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"][verb]["requires"] = {
+        "target": "self",
+        "awaiting": False,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "completion verbs" in result.output
+    assert "require their own decision to be closed" in result.output
+
+
+def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    state = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "facet": "answer",
+        "unit": "widget",
+    }
+    registry["lf-request-parent"] = {
+        "description": "A parent request used to validate sequencing.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "items",
+        "x-upgrade": True,
+        "x-awaits": {"answers": ["answer"]},
+        "x-state": {"answer": state},
+    }
+    registry["lf-request-child"] = {
+        "description": "A child request sequenced after its parent.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-parent": ["lf-request-parent"],
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-awaits": {"answers": ["answer"]},
+        "x-state": {
+            "answer": {
+                **state,
+                "requires": {"target": "parent", "awaiting": False},
+            }
+        },
+    }
+
+    assert registry_validation.validate_registry(registry, "test registry") is registry
+
+    registry["lf-request-parent"]["x-awaits"] = {"rollup": True}
+    with pytest.raises(registry_contract.RegistryError) as raised:
+        registry_validation.validate_registry(registry, "test registry")
+    assert "aggregate parents ['lf-request-parent']" in str(raised.value)
+    assert "cannot complete it" in str(raised.value)
+
+
 def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-chip"]["x-awaits"] = {}
-    registry["lf-options"]["x-parent"] = ["lf-chip"]
+    registry["lf-suggestion"]["required"].remove("id")
+    registry["lf-options"]["x-parent"] = ["lf-suggestion"]
     registry["lf-options"]["x-state"]["choose"]["requires"] = {
         "target": "parent",
         "awaiting": True,
@@ -2284,7 +2548,7 @@ def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "['lf-chip'] do not require an id" in result.output
+    assert "['lf-suggestion'] do not require an id" in result.output
 
 
 @pytest.mark.parametrize(
@@ -2462,7 +2726,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
 def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
     """$keys documents each x- key an entry may declare, and exactly those: a member
     for a key the lint doesn't admit is documentation of nothing, and one missing is a
-    key the catalog then leaves unsaid. A project layer overrides a member (its own
+    key the registry then leaves unsaid. A project layer overrides a member (its own
     reading of a key) and adds none — the set is closed where the keys are checked."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
@@ -2481,8 +2745,6 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
     assert keys["x-wide"] == "wider, in this project"
     assert keys["x-says"]  # the rest of the shipped members stand
-    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    assert "wider, in this project" in catalog.output
 
 
 @pytest.mark.parametrize("field", ["restated", "session"])
@@ -2736,7 +2998,7 @@ def test_the_strip_floor_is_one_number():
     """The width a page's box needs before the theme takes a margin strip out of it is
     asked by two parties that cannot share a form: a media query, which asks it of the
     window and is right for a file with no runtime behind it, and syncLayout, which asks
-    it of the page's own box because only the runtime knows what the comment panel left
+    it of the page's own box because only the runtime knows what the thread panel left
     of it. A query cannot read a token and a token cannot see the panel, so the number
     is written twice — and the second table free to disagree with the first is the shape
     this codebase keeps getting wrong. Here it is a static fact about one file, so this
@@ -2964,12 +3226,20 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
 
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-idless-ask"] = {
+    registry["lf-idless-decision"] = {
+        "description": "A decision without an address.",
         "type": "object",
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
         "x-content": "prose",
-        "x-awaits": {"when": {"open": [True]}},
+        "x-awaits": {"when": {"open": [True]}, "answers": ["answer"]},
+        "x-state": {
+            "answer": {
+                "detail": {"type": "object", "additionalProperties": False},
+                "facet": "answer",
+                "unit": "widget",
+            }
+        },
         "x-upgrade": False,
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3222,6 +3492,19 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
     )
     assert status == 200, body
+    # And comes off once, however the second press gets here — the racing tab of the
+    # door's own docstring. A withdrawn reaction is gone from `build_threads`, so the
+    # kind's thread walk had nothing to find and raised out of the door instead: a 500
+    # the browser is told to retry, against a state that will never answer differently.
+    # The no-op costs a toast, which is what a final refusal is.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
+    )
+    assert status == 400, body
+    answer = json.loads(body)
+    assert answer["final"] is True, body
+    assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a conversation, and the withdrawal would orphan
     # the answer; the reader's move is in the thread it opened.
     conversation_model.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)

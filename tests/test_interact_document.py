@@ -1360,10 +1360,10 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1456,19 +1456,19 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         version.read_text().replace("</section>", operation + "</section>")
     )
     publish(page_dir)
-    ready_asks = {ask["id"] for ask in state_json(page_dir)["asks"]}
-    assert "commands-ask" in ready_asks
-    assert "goal" not in ready_asks
+    ready_decisions = {decision["id"] for decision in state_json(page_dir)["decisions"]}
+    assert "commands-decision" in ready_decisions
+    assert "goal" not in ready_decisions
     first = events_model.append_event(
         page_dir,
         {
@@ -1480,7 +1480,9 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
             "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
         },
     )
-    assert "commands-ask" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-decision" not in {
+        decision["id"] for decision in state_json(page_dir)["decisions"]
+    }
     failure = events_model.append_event(
         page_dir,
         {
@@ -1491,7 +1493,9 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
             "text": "Worker lease disappeared",
         },
     )
-    assert "commands-ask" in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-decision" in {
+        decision["id"] for decision in state_json(page_dir)["decisions"]
+    }
     retry = events_model.append_event(
         page_dir,
         {
@@ -1512,7 +1516,9 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     assert lifecycle["attempts"][0]["receipt"]["id"] == failure["id"]
     assert lifecycle["latest"]["request"]["id"] == retry["id"]
     assert lifecycle["latest"]["receipt"] is None
-    assert "commands-ask" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-decision" not in {
+        decision["id"] for decision in state_json(page_dir)["decisions"]
+    }
 
 
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
@@ -1936,7 +1942,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
     with the group's `restated` or not at all. After the retraction the state is
     the author's again: the next version moves the pick freely, because a unit
     with no surviving folded action is exempt — that exemption is what keeps
-    the retract-and-ask-again flow from deadlocking one version later."""
+    the retract-and-decision-again flow from deadlocking one version later."""
 
     def write(version, a="", b="", attrs="", shim="Fastest to ship."):
         opts = OPTIONS.format(a=a, b=b, chip="", shim=shim, stage="Table by table.")
@@ -2129,19 +2135,19 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
     """The file-side facet is the runtime's same ownership reading. An inner chosen
     option is not part of the outer group's record, so an outer log choice that matches
     its own authored option carries no phantom lag."""
-    nested = """<lf-ask id="outer-ask"><h3>Which outer choices?</h3>
+    nested = """<lf-decision id="outer-decision"><h3>Which outer choices?</h3>
   <lf-options id="outer" choose multiple>
     <lf-option id="outer-a" chosen><strong>Outer A</strong>
-      <lf-ask id="inner-ask"><h4>Which inner choice?</h4>
+      <lf-decision id="inner-decision"><h4>Which inner choice?</h4>
         <lf-options id="inner" choose>
           <lf-option id="inner-a" chosen>Inner A</lf-option>
           <lf-option id="inner-b">Inner B</lf-option>
         </lf-options>
-      </lf-ask>
+      </lf-decision>
     </lf-option>
     <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
   </lf-options>
-</lf-ask>"""
+</lf-decision>"""
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
     (page_dir / "versions" / "v1.html").write_text(html)
     publish(page_dir)
@@ -2163,7 +2169,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
 
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
-    """`page state` is /api/state folded for the agent: the banner's ask list,
+    """`page state` is /api/state folded for the agent: the banner's decision list,
     the standing state replay paints, and record_lag's advice, as one queryable
     object — the position a session picking up a standing page would otherwise
     re-derive from the raw log."""
@@ -2180,7 +2186,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
-    assert state["asks"] == [{"id": "g1-ask", "tag": "lf-ask", "thread": None}]
+    assert state["decisions"] == [
+        {"id": "g1-decision", "tag": "lf-decision", "thread": None}
+    ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == [] and state["lag"] == []
 
@@ -2196,7 +2204,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert state["decisions"] == []
     assert state["state"] == [
         {
             "widget": "g1",
@@ -2308,7 +2316,10 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
         cli_model.cli, ["data", "clear", str(page_dir), "deployments"]
     )
     assert cleared.exit_code == 0, cleared.output
-    assert state_json(page_dir)["data"] == {"revision": 2, "sources": {}}
+    assert state_json(page_dir)["data"] == {
+        "revision": 2,
+        "sources": {"deployments": {"contract": "deployment-rows"}},
+    }
 
     unbound = runner.invoke(
         cli_model.cli,
@@ -2316,7 +2327,106 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
         input="[]",
     )
     assert unbound.exit_code != 0
-    assert "not bound by any page or thread widget" in unbound.output
+    assert (
+        "not bound by the page source, a version, or a thread widget" in unbound.output
+    )
+
+
+def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared(
+    page_dir, tmp_path
+):
+    """Capture admits file text through the existing typed source boundary. The data
+    revision names the immutable selection, while clear drops the replaceable value and
+    any capture no immutable document selects."""
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_bytes(b"one\r\ntwo\r\nthree")
+    runner = CliRunner()
+
+    captured = runner.invoke(
+        cli_model.cli,
+        [
+            "data",
+            "capture",
+            str(page_dir),
+            "leaf-skill",
+            "--text-file",
+            str(text_file),
+            "--lines",
+            "2:3",
+            "--label",
+            "Leaf skill",
+        ],
+    )
+    assert captured.exit_code == 0, captured.output
+    assert "as snapshot 1" in captured.output
+    stored = data_model.read_data(page_dir)
+    source = stored["sources"]["leaf-skill"]
+    assert source["value"] == "two\nthree"
+    assert source["snapshots"] == {
+        "1": {
+            "updated": source["updated"],
+            "value": "two\nthree",
+            "label": "Leaf skill",
+            "lines": "2:3",
+        }
+    }
+
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
+        )
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None
+    consumers = state_json(page_dir)["data_bindings"]["leaf-skill"]["consumers"]
+    assert any(consumer.get("snapshot") == "1" for consumer in consumers)
+    text_file.write_text("unreferenced")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+    data_model.cmd_data_set(page_dir, "leaf-skill", "new current value")
+    data_model.cmd_data_clear(page_dir, "leaf-skill")
+
+    assert data_model.read_data(page_dir) == {
+        "revision": 4,
+        "sources": {
+            "leaf-skill": {
+                "contract": "text-document",
+                "snapshots": source["snapshots"],
+            }
+        },
+    }
+    assert check(page_dir).exit_code == 0
+
+
+def test_a_document_cannot_select_a_missing_data_snapshot(page_dir):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="17"'
+        )
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "selects snapshot '17'" in result.output
+    assert "data.json does not contain it" in result.output
 
 
 def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_dir):
@@ -2400,6 +2510,31 @@ def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir
     result = check(page_dir, 2)
     assert result.exit_code != 0
     assert "use a new source id for the new meaning" in result.output
+
+
+def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
+    """A mutable-only bootstrap can be cleared before its first reviewed version.
+    The data tombstone still prevents the page-owned source id changing meaning."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+    data_model.cmd_data_clear(page_dir, "project-feed")
+    for revision in files_model.list_revisions(page_dir):
+        files_model.revision_path(page_dir, revision).unlink()
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
+    registry_path.write_text(json.dumps(registry))
+
+    with pytest.raises(data_contracts_model.DataError, match="standing snapshot uses"):
+        data_model.cmd_data_set(page_dir, "project-feed", [])
+    assert data_model.read_data(page_dir)["sources"]["project-feed"] == {
+        "contract": "rows"
+    }
 
 
 def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
@@ -2551,7 +2686,7 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
                 '{"revision":1,"sources":{"builds":{"contract":"Bad Contract",'
                 '"updated":"2026-08-25T12:00:00-07:00","value":[]}}}'
             ),
-            "must contain only contract, updated, and value",
+            "must contain a contract and only current value or snapshot fields",
         ),
     ],
 )
@@ -2574,24 +2709,124 @@ def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
         data_model.read_data_store(page_dir)
 
 
+def test_data_revisions_and_selectors_stay_javascript_safe(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    maximum = schema_model.MAX_SAFE_INTEGER
+    (page_dir / "data.json").write_text('{"revision":' + "9" * 5000 + ',"sources":{}}')
+    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
+        data_model.read_data_store(page_dir)
+
+    (page_dir / "data.json").write_text(
+        json.dumps(
+            {
+                "revision": 1,
+                "sources": {
+                    "leaf-skill": {
+                        "contract": "text-document",
+                        "snapshots": {
+                            "9" * 5000: {
+                                "updated": "2026-08-29T12:00:00Z",
+                                "value": "text",
+                                "label": "SKILL.md",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+    )
+    with pytest.raises(data_contracts_model.DataError, match="JavaScript-safe"):
+        data_model.read_data_store(page_dir)
+
+    (page_dir / "data.json").write_text(
+        json.dumps(
+            {
+                "revision": maximum + 1,
+                "sources": {},
+            }
+        )
+    )
+    with pytest.raises(data_contracts_model.DataError, match="JavaScript-safe"):
+        data_model.read_data_store(page_dir)
+
+    (page_dir / "data.json").write_text(
+        json.dumps(
+            {
+                "revision": maximum,
+                "sources": {"leaf-skill": {"contract": "text-document"}},
+            }
+        )
+    )
+    with pytest.raises(data_contracts_model.DataError, match="exhausted"):
+        data_model.cmd_data_set(page_dir, "leaf-skill", "later")
+
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            'source="leaf-skill"',
+            f'source="leaf-skill" snapshot="{maximum + 1}"',
+        )
+    )
+    result = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    assert result.exit_code != 0
+    assert "JavaScript-safe positive integer" in result.output
+
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_text("one\n")
+    with pytest.raises(data_contracts_model.DataError, match="line range start"):
+        data_model.cmd_data_capture(
+            page_dir, "leaf-skill", text_file, f"{'9' * 5000}:1"
+        )
+
+
+def test_capture_requires_a_bounded_regular_file(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    with pytest.raises(data_contracts_model.DataError, match="not a regular file"):
+        data_model.cmd_data_capture(page_dir, "leaf-skill", Path("/dev/null"))
+
+    oversized = tmp_path / "too-large.md"
+    oversized.write_bytes(b"x" * (schema_model.MAX_CAPTURE_BYTES + 1))
+    with pytest.raises(data_contracts_model.DataError, match="capture limit"):
+        data_model.cmd_data_capture(page_dir, "leaf-skill", oversized)
+
+    nul = tmp_path / "nul.md"
+    nul.write_bytes(b"before\x00after")
+    with pytest.raises(data_contracts_model.DataError, match=r"U\+0000"):
+        data_model.cmd_data_capture(page_dir, "leaf-skill", nul)
+
+
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """The Ask list names the whole reading the reader arrives at. Its nested
-    request remains the action owner, so answering it closes the broader Ask without
+    """The Decision list names the whole reading the reader arrives at. Its nested
+    request remains the action owner, so answering it closes the broader Decision without
     moving the standing decision onto a wrapper that declares no state."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
     ask = (
-        '<lf-ask id="plan-ask"><h2>Plan</h2>'
+        '<lf-decision id="plan-decision"><h2>Plan</h2>'
         "<p>Choose after reading this framing.</p>"
-        f"{opts}</lf-ask>"
+        f"{opts}</lf-decision>"
     )
     (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<h2>Plan</h2>", ask))
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["asks"] == [{"id": "plan-ask", "tag": "lf-ask", "thread": None}]
+    assert state["decisions"] == [
+        {"id": "plan-decision", "tag": "lf-decision", "thread": None}
+    ]
 
     events_model.append_event(
         page_dir,
@@ -2605,7 +2840,7 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert state["decisions"] == []
     assert state["state"][0]["widget"] == "g1"
 
 
@@ -2674,7 +2909,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == []
+    assert state_json(page_dir)["decisions"] == []
 
 
 def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
@@ -2688,8 +2923,8 @@ def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    asking = [{"id": "g1-ask", "tag": "lf-ask", "thread": None}]
-    assert state_json(page_dir)["asks"] == asking
+    asking = [{"id": "g1-decision", "tag": "lf-decision", "thread": None}]
+    assert state_json(page_dir)["decisions"] == asking
     # A quote inside the group is a note about one of its words, not the reader
     # standing in the box it offers. Only the seat's own anchor reaches this.
     events_model.append_event(
@@ -2701,7 +2936,7 @@ def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
             "text": "shim how?",
         },
     )
-    assert state_json(page_dir)["asks"] == asking
+    assert state_json(page_dir)["decisions"] == asking
     root = events_model.append_event(
         page_dir,
         {
@@ -2711,7 +2946,7 @@ def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
             "text": "neither — cap the retries instead",
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert state_json(page_dir)["decisions"] == []
     events_model.append_event(
         page_dir,
         {
@@ -2721,7 +2956,7 @@ def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
             "text": "Capping it costs the backfill. Still worth it?",
         },
     )
-    assert state_json(page_dir)["asks"] == asking
+    assert state_json(page_dir)["decisions"] == asking
 
 
 def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir):
@@ -2742,12 +2977,12 @@ def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir)
             "text": "neither — cap the retries instead",
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert state_json(page_dir)["decisions"] == []
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c-another"}
     )
-    assert state_json(page_dir)["asks"] == [
-        {"id": "g1-ask", "tag": "lf-ask", "thread": None}
+    assert state_json(page_dir)["decisions"] == [
+        {"id": "g1-decision", "tag": "lf-decision", "thread": None}
     ]
 
 
@@ -2814,8 +3049,8 @@ def test_page_state_keeps_a_readers_suggestion_flag(page_dir):
     assert thread["messages"][0]["suggestion"] is True, json.dumps(thread)
 
 
-def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
-    """A widget in thread markup asks like one on the page, `until` holds a
+def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):
+    """A widget in thread markup presents a Decision like one on the page; `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
@@ -2826,14 +3061,15 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-options id="gm" choose multiple>'
+            "markup": '<lf-decision id="gm-decision"><h2>Which mitigations?</h2>'
+            '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
-            "</lf-options>",
+            "</lf-options></lf-decision>",
         },
     )
-    assert state_json(page_dir)["asks"] == [
-        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+    assert state_json(page_dir)["decisions"] == [
+        {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
     ]
     events_model.append_event(
         page_dir,
@@ -2846,8 +3082,8 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {"options": ["m-cap"]},
         },
     )
-    assert state_json(page_dir)["asks"] == [
-        {"id": "gm", "tag": "lf-options", "thread": root["id"]}
+    assert state_json(page_dir)["decisions"] == [
+        {"id": "gm-decision", "tag": "lf-decision", "thread": root["id"]}
     ]
     events_model.append_event(
         page_dir,
@@ -2860,13 +3096,46 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {},
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert state_json(page_dir)["decisions"] == []
+
+
+def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
+    tasks = """<lf-tasks id="work">
+      <lf-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-task>
+      <lf-task id="copy" status="review"><strong>Copy review</strong></lf-task>
+      <lf-task id="future" status="active"><strong>Future review</strong>
+        <lf-decision id="future-decision"><h3>Review it now?</h3>
+          <lf-options id="future-review" choose>
+            <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
+          </lf-options>
+        </lf-decision>
+      </lf-task>
+      <lf-task id="decision" status="blocked"><strong>Reader decision</strong>
+        <lf-decision id="decision-decision"><h3>Which way out?</h3>
+          <lf-options id="decision-options" choose>
+            <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
+          </lf-options>
+        </lf-decision>
+      </lf-task>
+      <lf-task id="release" status="review"><strong>Release review</strong>
+        <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
+      </lf-task>
+    </lf-tasks>"""
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
+    )
+    publish(page_dir)
+
+    assert state_json(page_dir)["decisions"] == [
+        {"id": "future-decision", "tag": "lf-decision", "thread": None},
+        {"id": "decision-decision", "tag": "lf-decision", "thread": None},
+    ]
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report closes the ask its status change resolves, stands in
-    the canonical update feed with the record lag beside it, and remains there as
-    settled history when a note absorbs it."""
+    """A standing report updates task status without creating reader work, stands in
+    the canonical update feed, and remains there as settled history when a note
+    absorbs it."""
     tasks = (
         '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
@@ -2875,9 +3144,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
-        {"id": "t-parser", "tag": "lf-task", "thread": None}
-    ]
+    assert state_json(page_dir)["decisions"] == []
     rep = events_model.append_event(
         page_dir,
         {
@@ -2891,7 +3158,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert state["decisions"] == []
     assert state["updates"] == [
         {
             "id": rep["id"],
@@ -2961,7 +3228,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert state["lag"] == [] and state["asks"] == []
+    assert state["lag"] == [] and state["decisions"] == []
 
 
 def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
@@ -3021,7 +3288,7 @@ def test_page_state_before_first_stamp(page_dir):
     assert state["active"]["revision"] == 1
     assert state["active"]["version"] is None
     assert state["active"]["label"] == "Draft"
-    assert state["elements"] and state["asks"] == []
+    assert state["elements"] and state["decisions"] == []
     assert state["title"] == "t"
 
 
@@ -3065,25 +3332,29 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     assert "unpointable" not in result.output
 
 
-def test_a_quoted_ask_does_not_hide_the_goal_that_contains_it(page_dir):
+def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
         '<lf-command id="hub">'
         '<lf-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-specimen id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
-        "</lf-options></lf-specimen></lf-task></lf-command>"
+        "</lf-options></lf-specimen>"
+        '<lf-decision id="real-decision"><h3>What next?</h3>'
+        '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
+        '<lf-option id="real-b">B</lf-option></lf-options></lf-decision>'
+        "</lf-task></lf-command>"
     )
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
-        {"id": "goal", "tag": "lf-task", "thread": None}
+    assert state_json(page_dir)["decisions"] == [
+        {"id": "real-decision", "tag": "lf-decision", "thread": None}
     ]
 
 
-def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
-    """A draft uses the ordinary x-awaits fold: its edit discharges the ask,
+def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
+    """A draft uses the ordinary x-awaits fold: its edit discharges the decision,
     and an honoring version can clear the authored condition without reviving it."""
 
     def command(status, needed, body):
@@ -3100,7 +3371,7 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
+    assert state_json(page_dir)["decisions"] == [
         {"id": "cargo", "tag": "lf-draft", "thread": None}
     ]
 
@@ -3115,7 +3386,7 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
             "detail": {"text": "ledger_id,amount\n7,42"},
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert state_json(page_dir)["decisions"] == []
 
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
@@ -3124,7 +3395,7 @@ def test_page_state_and_browser_share_a_conditional_edit_ask(page_dir):
         )
     )
     publish(page_dir, 2)
-    assert state_json(page_dir)["asks"] == []
+    assert state_json(page_dir)["decisions"] == []
 
 
 # The colour-vision maths the series palette is stepped against, written out here because

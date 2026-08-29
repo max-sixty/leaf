@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Write the x- key table in docs/packages.html from the registry's $keys.
 
-The table is derived content — the registry documents each key once ($keys), the
-catalog prints the same entry to an agent, and this writes it to the reader. Edit the
-registry and rerun this script (a test fails on a stale table). The rows land between
+The table is derived content — the registry documents each key once ($keys), agents
+query that same entry, and this writes it to the reader. Edit the registry and rerun
+this script (a test fails on a stale table). The rows land between
 the two marker comments in the page; everything else in the file is authored.
 Usage: keydocs.py  (no arguments; rewrites docs/packages.html in place)
 """

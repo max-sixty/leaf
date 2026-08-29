@@ -133,7 +133,7 @@ export function tinyBoxes(widgets) {
 }
 
 // An element the reader can see and no mark can be shown on. The gate presses no keys, so
-// it never watches the ask walk paint a ring or a comment paint an outline. It can still
+// it never watches the decision walk paint a ring or a comment paint an outline. It can still
 // read whether either would have had anywhere to land, which is the same fault one step
 // earlier, before it turns into a mark nobody can see.
 //
@@ -141,8 +141,8 @@ export function tinyBoxes(widgets) {
 // children out in its parent's flow and generates no box of its own, so its rect is the
 // empty one every rect starts as — zero-sized, at the document's origin, a real-looking
 // answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
-// aimed at it lands at the top of the page: a page whose open asks were all suggestions
-// answered `a` by appearing to do nothing at all, and that reached its reader rather than
+// aimed at it lands at the top of the page: a page whose open decisions were all suggestions
+// answered `d` by appearing to do nothing at all, and that reached its reader rather than
 // this gate. The runtime answers it by hanging a mark on the boxes an element shows
 // through (shownParts) — which leaves one case that answer cannot reach, an element whose
 // words are in no child element at all, where there is nothing to hang anything on.
@@ -198,7 +198,7 @@ export function unmarkableItems() {
 // page's, be a control's own label, or be the line the paint pass writes to say how
 // many comments a block carries: that one is about the document rather than of it,
 // which is the same reason it wears .lf-ui at all, and it lands inside a widget
-// whenever a comment does. The comment panel is out of scope: a widget in a reply is
+// whenever a comment does. The thread panel is out of scope: a widget in a reply is
 // markup frozen in the event log, not the document.
 //
 // And a declared label inside a form control is out of reach whatever it is marked:

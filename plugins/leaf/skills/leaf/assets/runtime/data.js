@@ -7,13 +7,15 @@ export function acceptData(candidate) {
     !candidate ||
     typeof candidate !== "object" ||
     Array.isArray(candidate) ||
-    !Number.isInteger(candidate.revision) ||
+    !Number.isSafeInteger(candidate.revision) ||
     candidate.revision < 0 ||
     !candidate.sources ||
     typeof candidate.sources !== "object" ||
     Array.isArray(candidate.sources)
   )
-    throw new TypeError("state data must carry a non-negative revision and sources");
+    throw new TypeError(
+      "state data must carry a JavaScript-safe non-negative revision and sources",
+    );
   if (candidate.revision <= runtime.data.revision) return false;
   runtime.data = structuredClone(candidate);
   return true;
@@ -53,10 +55,14 @@ export function watchData(element, input, callback) {
     throw new Error(
       `watchData(${element.localName}, ${input}) input is not declared by this widget`,
     );
-  // Markup owns the binding. Capture it at mount so module code cannot turn a live
-  // attribute mutation into an unvalidated rebind. Version activation mounts a new
-  // element and therefore establishes a new subscription when authored markup changes.
+  // Markup owns the binding and optional immutable selection. Capture both at mount so
+  // module code cannot turn a live attribute mutation into an unvalidated rebind.
+  // Version activation mounts a new element and therefore establishes a new
+  // subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
+  const selected = declaration.snapshot
+    ? element.getAttribute(declaration.snapshot)
+    : null;
   const update = () => {
     if (!source) {
       callback(null);
@@ -68,7 +74,38 @@ export function watchData(element, input, callback) {
         `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
           `but source ${source} carries ${runtime.data.sources[source].contract}`,
       );
-    callback(present ? structuredClone(runtime.data.sources[source]) : null);
+    if (!present) {
+      callback(null);
+      return;
+    }
+    const sourceStore = runtime.data.sources[source];
+    if (selected) {
+      const snapshot = sourceStore.snapshots?.[selected];
+      if (!snapshot)
+        throw new Error(
+          `watchData(${element.localName}, ${input}) source ${source} has no snapshot ${selected}`,
+        );
+      callback(
+        structuredClone({
+          contract: sourceStore.contract,
+          snapshot: selected,
+          ...snapshot,
+        }),
+      );
+      return;
+    }
+    if (!Object.hasOwn(sourceStore, "value")) {
+      callback(null);
+      return;
+    }
+    const snapshot = {
+      contract: sourceStore.contract,
+      updated: sourceStore.updated,
+      value: sourceStore.value,
+    };
+    if (Object.hasOwn(sourceStore, "label")) snapshot.label = sourceStore.label;
+    if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
+    callback(structuredClone(snapshot));
   };
   // Establish the subscription only after its first delivery succeeds. A package that
   // throws while mounting must not leave a listener behind to fail every later poll.

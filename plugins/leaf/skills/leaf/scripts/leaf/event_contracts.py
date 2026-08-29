@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from leaf.asks import (
+from leaf.decisions import (
     asking,
     page_awaiting_values,
     projected_action_holders,
     quoted_in,
-    thread_ask_projection,
+    thread_decision_projection,
 )
 from leaf.events import build_threads
 from leaf.files import revision_path
@@ -254,7 +254,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         page_html = revision_path(page_dir, revision).read_text(encoding="utf-8")
         threads = build_threads(events, enclosing_ids(page_html))
         settled = {root for root, value in threads.items() if value["resolved"]}
-        _, awaiting_values = thread_ask_projection(
+        _, awaiting_values = thread_decision_projection(
             events,
             registry,
             settled,

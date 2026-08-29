@@ -15,11 +15,11 @@ ORPHAN_GRACE_SECS = 1
 # it cheap. Nor is an undo itself, which would be a redo.
 UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 MESSAGE_KINDS = {"comment", "reply"}
-ANSWER_ASK_INSTRUCTION = (
+ANSWER_DECISION_INSTRUCTION = (
     "`leaf page state <page>` prints each thread's exchange, and "
     "`leaf transcript <page>` prints a long one whole. A thread with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
-    "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
+    "separate `leaf comment --section <decision-id>` on the same Decision if that revision "
     "needs an answer first. Reply to other threads with `leaf reply <page> --to "
     "<id> --text ...`, or close one the work has since answered with `leaf resolve "
     "<page> --to <id>`."
@@ -40,6 +40,12 @@ HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
+# Data revisions cross JSON into JavaScript, where larger integers are not distinct.
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
+MAX_SAFE_INTEGER_DIGITS = len(str(MAX_SAFE_INTEGER))
+# Every captured value is included in each state response. Bound the source file before
+# line selection so neither admission work nor the page's polling transfer is unbounded.
+MAX_CAPTURE_BYTES = 1_048_576
 # The record forms one vocabulary of declared state draws on ($state in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -92,9 +98,9 @@ _RECORD_VALUE = {
 
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves asks and conversations because they
+# present or absent). One condition shape serves Decisions and conversations because they
 # ask the same question of the same authored attributes.
-ASK_CONDITION = {
+AWAITING_CONDITION = {
     "type": "object",
     "minProperties": 1,
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
@@ -105,7 +111,7 @@ ASK_CONDITION = {
     },
 }
 
-# Current action eligibility reuses Leaf's standing-request projection. `self` is the
+# Current action eligibility reuses Leaf's standing-decision projection. `self` is the
 # sending widget; `parent` is the holder relation its x-parent already declares.
 ACTION_REQUIREMENT = {
     "type": "object",
@@ -180,9 +186,9 @@ REPORT_SCHEMA = _verbs_schema(
 REQUEST_SCHEMA = {
     "type": "object",
     "properties": {
-        "ask": {"type": "boolean"},
+        "decision": {"type": "boolean"},
         # This request supplies the commands but not its own question title.
-        # A matching holder therefore stands inside an x-ask region, whose direct
+        # A matching holder therefore stands inside an x-decision region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "offers": {
@@ -223,7 +229,7 @@ REQUEST_SCHEMA = {
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
-        "when": ASK_CONDITION,
+        "when": AWAITING_CONDITION,
         "answers": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -232,7 +238,7 @@ AWAITS_SCHEMA = {
         },
         "rollup": {"const": True},
         # This widget supplies the answer control but not its own question title.
-        # A matching instance therefore stands inside an x-ask region, whose direct
+        # A matching instance therefore stands inside an x-decision region, whose direct
         # heading owns the reading and arrival.
         "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
@@ -240,7 +246,7 @@ AWAITS_SCHEMA = {
             "type": "object",
             "properties": {
                 "verb": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "when": ASK_CONDITION,
+                "when": AWAITING_CONDITION,
             },
             "required": ["verb", "when"],
             "additionalProperties": False,
@@ -254,7 +260,7 @@ WORK_SCHEMA = {
     "type": "object",
     "properties": {
         "seat": {"enum": ["content", "conversation"]},
-        "when": ASK_CONDITION,
+        "when": AWAITING_CONDITION,
     },
     "required": ["seat"],
     "additionalProperties": False,
@@ -277,6 +283,7 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "snapshot": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "required": ["contract", "source"],
         "additionalProperties": False,
@@ -329,12 +336,12 @@ REFERENCE_SCHEMA = {
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-ask": {"const": True},
+        "x-decision": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-conversation": {
             "type": "object",
             "properties": {
-                "when": ASK_CONDITION,
+                "when": AWAITING_CONDITION,
                 "hold": {"type": "string", "minLength": 1},
                 "response": {
                     "type": "object",

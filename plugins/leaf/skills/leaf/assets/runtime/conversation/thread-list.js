@@ -31,7 +31,7 @@ export function createConversationThreadList(dependencies) {
   const emptyNote = el(
     "div",
     "lf-empty",
-    "No comments yet. Select any text on the page to comment on it, or use the box below.",
+    "No threads yet. Select any text on the page to comment on it, or use the box below.",
   );
 
   // The heading over a run of threads, kept across reconciles so a scroll position, a focus
@@ -358,7 +358,7 @@ export function createConversationThreadList(dependencies) {
     // joined: nothing about the page's own first anchor pass waits on a message.
     Promise.allSettled(settling).then(() => reachScrollers(threadsBox));
 
-    toggleBtn.textContent = `Comments (${open.length})`;
+    toggleBtn.textContent = `Threads (${open.length})`;
     paintNarrowing(open, shown);
     // The anchor pass wrote its record before this list existed, and this reconcile may have
     // built the nodes that wear it. Both passes therefore repaint it: the one that changes

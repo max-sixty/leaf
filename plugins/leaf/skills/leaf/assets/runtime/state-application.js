@@ -185,7 +185,7 @@ export function createStateApplication(dependencies) {
       targetRevision === state.active.revision;
     // The last coordinate the commit boundary judges, beside sequence and active
     // revision: the answer holds a view of the revision the page named when it asked and
-    // of the one it may activate into, and of no others. An activation between the ask
+    // of the one it may activate into, and of no others. An activation between the decision
     // and the answer leaves the page on neither — it is showing a revision this answer
     // says nothing about, so there is no view here to install and no version to move to.
     // Dropped like the gates above: the page's next read names the revision it holds
@@ -248,7 +248,7 @@ export function createStateApplication(dependencies) {
         );
         if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
           replyToast = {
-            message: `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
+            message: `${agentReplies.at(-1).agent || "Agent"} replied — open Threads`,
             onClick: () => setPanel(true),
           };
         nextAgentMsgCount = agentReplies.length;

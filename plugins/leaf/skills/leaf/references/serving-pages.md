@@ -5,8 +5,8 @@ page, re-vendoring, or a page previously owned by another session.
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, initialize, catalog, author, and stamp as
-usual, then run:
+When `$ARGUMENTS` asks for `--export`, initialize, query the page registry,
+author, and stamp as usual, then run:
 
 ```bash
 leaf version export <page> -o <file>
@@ -90,7 +90,7 @@ read grants exclusive ownership. The selected successor first runs:
 leaf page state <page>
 ```
 
-Read the active revision and its stamped version if any, standing decisions, open asks, each thread's
+Read the active revision and its stamped version if any, standing decisions, open decisions, each thread's
 exchange, record debt, and `measurement_lag` for pinned figures whose sources have run
 again. If the
 state reports a live watcher, the host ends that watcher before continuing. The

@@ -85,7 +85,7 @@
               commit; its branch and evidence remain inspectable.
               <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="dedupe-operations-ask">
+            <lf-decision id="dedupe-operations-decision">
               <h3>What should the host do with the stalled work?</h3>
               <lf-operations
                 id="dedupe-operations"
@@ -109,7 +109,7 @@
                   40 GB for this rewrite.
                 </lf-operation>
               </lf-operations>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task
             id="parser-zero"
@@ -118,9 +118,9 @@
           >
             <strong>Choose the zero-row behavior</strong> This policy is consequential
             enough to wait for an explicit choice.
-            <lf-ask id="ask-zero-region">
+            <lf-decision id="decision-zero-region">
               <h3>What should happen when a nightly imports zero rows?</h3>
-              <lf-options id="ask-zero" choose>
+              <lf-options id="decision-zero" choose>
                 <lf-option id="zero-alert" for="parser-zero">
                   <strong>Fail and page</strong> Preserve the export and stop the
                   downstream publish.
@@ -131,7 +131,7 @@
                   no data.
                 </lf-option>
               </lf-options>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
         </lf-task>
 
@@ -150,7 +150,7 @@
               reconciliation evidence.
               <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="schema-operations-ask">
+            <lf-decision id="schema-operations-decision">
               <h3>What should the host do with the schema branch?</h3>
               <lf-operations
                 id="schema-operations"
@@ -168,7 +168,7 @@
                   and take one larger review tomorrow.
                 </lf-operation>
               </lf-operations>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task id="schema-backfill" status="planned" needs="schema-choice">
             <strong>Backfill reconciliation fields</strong>
@@ -182,7 +182,7 @@
             <strong>Bring one replica-only ledger fixture</strong> Run the exact
             credentialed command, inspect the full cargo below, trim it, then save the
             draft. The edit receipt tells the orchestrator that w-8 can resume.
-            <lf-ask id="ask-ledger-fixture-region">
+            <lf-decision id="decision-ledger-fixture-region">
               <h3>Which replica-only ledger fixture should the worker use?</h3>
               <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
   where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
@@ -191,7 +191,7 @@
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.
 </pre>
               </lf-draft>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task
             id="ledger-variance"
@@ -218,7 +218,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               compatibility tests.
               <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="api-operations-ask">
+            <lf-decision id="api-operations-decision">
               <h3>What should the host do with atlas/public-api?</h3>
               <lf-operations
                 id="api-operations"
@@ -239,7 +239,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   standing change request and reap its reviser.
                 </lf-operation>
               </lf-operations>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task id="api-errors" status="planned" needs="api-shape">
             <strong>Map structured failures</strong>

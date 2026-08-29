@@ -47,6 +47,17 @@ export function createStateFeed({
     return res.json();
   }
 
+  // Start a read without leaving a rejection unobserved while widget startup continues.
+  // The result is still applied through readAndApply, at the boundary that has captured
+  // the upgraded authored state. A malformed answer therefore remains a startup fault;
+  // buffering changes when the network work runs, not what its answer means.
+  function beginRead() {
+    return readState().then(
+      (state) => ({ state }),
+      (error) => ({ error }),
+    );
+  }
+
   // Whether the page's last read ended in a whole reading applied. Two things turn on
   // it. The heartbeat is a re-application of the reading the page holds, and a page whose
   // reads are failing must not re-apply: its last complete reading is what replay and
@@ -92,8 +103,10 @@ export function createStateFeed({
   // A read and its application together, for the callers that want to be told when the
   // page has taken the answer in: the first read, which presentation waits on, and a
   // version activation, which asks for the state it is about to show.
-  async function readAndApply() {
-    const state = await readState();
+  async function readAndApply(read = beginRead()) {
+    const answer = await read;
+    if ("error" in answer) throw answer.error;
+    const { state } = answer;
     if (!state) {
       readNothing();
       return;
@@ -125,10 +138,10 @@ export function createStateFeed({
     });
   }
 
-  function start(present) {
+  function start(present, initialRead = beginRead()) {
     const readAndPresent = async () => {
       try {
-        await readAndApply();
+        await readAndApply(initialRead);
         await present();
       } catch (error) {
         readAnswered = false;
@@ -240,5 +253,5 @@ export function createStateFeed({
     });
   }
 
-  return { readAndApply, start };
+  return { beginRead, readAndApply, start };
 }

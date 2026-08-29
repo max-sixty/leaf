@@ -39,6 +39,16 @@ for the rows. Ignore it. A comment can record recovery, but the drain owns the
 close. This applies by title, not by the `tend-outage` label: `ci-fix` diagnosis
 trackers have no rows and are closed by `ci-fix` itself.
 
+## The browser the suite needs is already here
+
+`.config/tend.yaml`'s `sandbox_setup:` installs the Playwright headless shell
+into this sandbox's own cache before the session starts, so `uv run pytest tests
+--run-nightly` drives a real browser from here. Don't install it again, and
+don't read a browser test as unrunnable — if a launch does fail, that is a fact
+about the run worth reporting, not a step to work around. `playwright install
+--with-deps` is the one that cannot work: it escalates, and the sandbox user has
+no sudo.
+
 ## A red `ci` on main is the first signal, not the second
 
 Nothing lands here through a pull request, so no CI run ever gates a change

@@ -200,7 +200,7 @@ export function createPassages(dependencies) {
   // `inChrome` answers which document an element is in, and it was standing in for this
   // question too: a design comment on a question asked in a reply was filed under the
   // runtime's own buttons and named "ps ask", where the same widget on the page reads
-  // "lf-options · ps-ask".
+  // "lf-options · ps-decision".
   const layerPart = (el) => inChrome(el) && el.id.startsWith("lf-");
   const TEXT_BLOCK =
     "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
@@ -253,10 +253,10 @@ export function createPassages(dependencies) {
   // holds is the layer's, which is the whole of what the anchor pass and the version diff
   // need. Inside a widget it is a different sentence, and the widget is where it changes.
   //
-  // A widget riding a message stands inside the comment panel, so the panel is `.lf-ui`
+  // A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
   // over every word it says — and read straight, a question an agent asked in a reply says
   // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-  // group named its options by their ids in the accessibility tree, the asks tray named the
+  // group named its options by their ids in the accessibility tree, the decisions tray named the
   // question by its id, and every widget reading its own words in a message got "" and fell
   // back to something else.
   //
@@ -612,7 +612,7 @@ export function createPassages(dependencies) {
   // holding 23 characters — so the browser stored a prefix a character short of the one the
   // file's reading stores for that same passage, and the two captures wrote different
   // anchors for one passage. `holds` asks in the other unit (`want.length`, the stored
-  // string's own, which is what its endsWith compares in), and that is an over-ask this can
+  // string's own, which is what its endsWith compares in), and that is an over-decision this can
   // only over-satisfy: reaching N code points takes at least N code units, so its window is
   // never the one short of confirming that a repeated anchor would detach over.
   function neighbourhood(origin, fences, at, want, before) {

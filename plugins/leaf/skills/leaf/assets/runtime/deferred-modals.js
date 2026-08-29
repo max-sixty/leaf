@@ -1,7 +1,7 @@
 export function createDeferredModals({ presentedAttribute }) {
   // A modal is promoted into the top layer and makes the rest of the document inert. Both
   // facts escape an ancestor paint gate: hiding it with CSS alone would still disable the
-  // Comments chrome that deliberately remains usable while first replay waits. Custom
+  // Threads chrome that deliberately remains usable while first replay waits. Custom
   // widgets load after this module, so turn authored-main showModal() calls into measurable,
   // non-modal dialogs until replay has produced the page. A widget can still close one
   // while waiting; only a connected, still-open dialog whose post-replay place is visible

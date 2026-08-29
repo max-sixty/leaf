@@ -60,7 +60,7 @@
  * screen — one inside a collapsed container (a closed <details>, a tab that isn't
  * showing) has no line to hang on, and its row waits, hidden, for the reflow that
  * opens it; whether the page is wide enough to hold the row beside the column
- * (below the rail's breakpoint it keeps its whole width, and an open comment panel
+ * (below the rail's breakpoint it keeps its whole width, and an open thread panel
  * takes the rest), where it isn't the row docks into flow where it was hoisted to,
  * a control line under the block it follows; and whether two rows land on top of
  * each other, which a translate nudges apart without touching layout. */
@@ -241,7 +241,7 @@ customElements.define(
           parseFloat(getComputedStyle(this.#row).marginLeft);
         document.documentElement.style.setProperty("--rail", Math.ceil(width) + "px");
       });
-      // The body's box carries the horizontal question (viewport, comment panel);
+      // The body's box carries the horizontal question (viewport, thread panel);
       // the current main's carries the vertical one, since anything that moves content
       // down the page changes its height. A live version replaces that main, so the one
       // shared observer follows it rather than retaining the detached version.
@@ -533,7 +533,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the asks tray, the label on a comment anchored here. The slots are the
+    // a row on the decisions tray, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

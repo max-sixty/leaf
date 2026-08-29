@@ -203,7 +203,7 @@ function render(el) {
   // is right once the last row has rendered and right again whenever a report changes
   // one of the words in it.
   // Off the pills' own boxes, so it waits for one (`measure`): a roster quoted
-  // into a reply is built into the comment panel, which may not be open yet.
+  // into a reply is built into the thread panel, which may not be open yet.
   measure(el, () => gutter(el));
 }
 

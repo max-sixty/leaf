@@ -32,8 +32,8 @@
   guess at the end of another change.
 
 - **Let the Living Margin carry short anchored conversations.** Its current markers
-  answer “what is happening here?”, while the Asks tray answers “what still needs me?”
-  and the Comments panel holds complete conversation history. A marker could reveal a
+  answer “what is happening here?”, while the Decisions tray answers “what still needs me?”
+  and the Threads panel holds complete conversation history. A marker could reveal a
   short thread on hover or focus, pin it on click, and offer `Reply`, `Resolve`, and
   `Open conversation` from the pinned card. Longer threads could show the root and
   latest reply followed by `Open thread (N)`. This would make the margin the quick path
@@ -42,7 +42,7 @@
 
 - **Prototype a LessWrong-like left comment margin as an alternate presentation.** It
   would expose more comment text at a glance than the right-side semantic map, but it
-  also competes with the Leaves/Asks tray, privileges comments over changes and
+  also competes with the Leaves/Decisions tray, privileges comments over changes and
   decisions, and needs collision rules when several comments meet one passage. Try it
   only where the margin is wide and sparse, cluster overflow, and collapse it to the
   existing mobile Map sheet. Do not show left comment cards and right map markers as
@@ -54,7 +54,7 @@
   Preserve that one-for-one relationship if the margin gains conversations or another
   presentation, rather than accumulating width-only destinations in the header.
 
-- **Card density in the comment panel.** Halving the thread card's padding and margins
+- **Card density in the thread panel.** Halving the thread card's padding and margins
   frees 570px of a 4,612px list — half of what folding the reply box bought — while
   hiding nothing and overturning no contract. It is a change to how every card looks, so
   it wants a look rather than a measurement: fold plus density is 5.8 screens and four
@@ -75,7 +75,7 @@
   remains unmeasured.
 
 - **Escape in a reply box.** A report said Escape left the reply box and closed the
-  comments panel in one press. The behavior did not reproduce in either palette: the
+  threads panel in one press. The behavior did not reproduce in either palette: the
   key line said "back to thread," the panel stayed open, the draft survived, and focus
   returned to the thread. Revisit only with the exact page and text box where it occurs.
 

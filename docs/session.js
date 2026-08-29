@@ -9,7 +9,7 @@
  * tab.
  *
  * Which makes the pages on this site live rather than pictures of live ones. Every
- * control is the shipped runtime's own — the banner and its counts, the comment panel,
+ * control is the shipped runtime's own — the banner and its counts, the thread panel,
  * the quote marks in the margin, and a board that takes a drag for this tab's visit —
  * because the runtime is loaded unmodified beside this file and cannot tell the
  * difference. What it can't have is the other half of the loop: no agent reads this log,
@@ -249,7 +249,7 @@ const matchesWhen = (element, when = {}) =>
     );
   });
 
-function demoAsks(projection, threads) {
+function demoDecisions(projection, threads) {
   const standing = new Set(projection.actions);
   const withAgent = new Set(
     threads
@@ -279,7 +279,7 @@ function demoAsks(projection, threads) {
       if (!awaiting || withAgent.has(element.id)) continue;
       let surface = element;
       for (let parent = element.parentElement; parent; parent = parent.parentElement) {
-        if (REGISTRY[parent.localName]?.["x-ask"]) {
+        if (REGISTRY[parent.localName]?.["x-decision"]) {
           surface = parent;
           break;
         }
@@ -293,7 +293,7 @@ function demoAsks(projection, threads) {
 function demoBrowser() {
   const projection = demoProjection();
   const threads = demoThreads();
-  const asks = demoAsks(projection, threads);
+  const decisions = demoDecisions(projection, threads);
   const throughSeq = events.at(-1)?.seq ?? 0;
   const coverage = events
     .filter((event) => ["action", "report", "undo"].includes(event.kind))
@@ -336,11 +336,11 @@ function demoBrowser() {
         document: {
           revision: REVISION,
           projection,
-          asks: {
-            reader: asks.descriptors,
-            unanswered: asks.descriptors,
-            awaiting: asks.values,
-            unanswered_awaiting: asks.values,
+          decisions: {
+            reader: decisions.descriptors,
+            unanswered: decisions.descriptors,
+            awaiting: decisions.values,
+            unanswered_awaiting: decisions.values,
           },
         },
         updates: [],
@@ -351,7 +351,7 @@ function demoBrowser() {
     },
     conversation: {
       projection: { entries: [], actions: [], reports: [], desired: [] },
-      asks: { reader: [], unanswered: [], awaiting: {} },
+      decisions: { reader: [], unanswered: [], awaiting: {} },
       threads,
       done: events.filter((event) => event.kind === "done"),
     },

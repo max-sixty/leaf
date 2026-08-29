@@ -161,7 +161,7 @@ export function bake() {
   // A copy parts from paper on one thing: it is still a document the browser runs, so a
   // control the browser drives keeps working, and lf-shot flips its frames on a checkbox in
   // a file with no script behind it. The tab stop is what tells the two apart, being the
-  // runtime's own reading of a press it made (ASK_CONTROL): a checkbox, a label and a §
+  // runtime's own reading of a press it made (DECISION_CONTROL): a checkbox, a label and a §
   // link never had one, and lf-shot's checkbox keeps the role that says what it is.
   //
   // Asked of the marker rather than of the role, because `offer`'s role="button" is not
@@ -235,7 +235,7 @@ export function bake() {
     .forEach((el) => el.classList.remove("lf-mark-el"));
   // A tab stop still standing on a widget element is module paint — the registry's
   // schemas admit no authored tabindex on one — promising focus to chrome whose
-  // handler left with the scripts: a tabs panel's roving stop, an ask-lend. Asked
+  // handler left with the scripts: a tabs panel's roving stop, a decision-lend. Asked
   // of the tag's dash, the platform's own mark of a custom element, so no widget
   // is named and the author's own elements are untouched. Scroll stops go with
   // the rest and come back below, where every scrollable box is answered at once.

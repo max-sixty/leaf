@@ -79,7 +79,7 @@ export function createVersionNavigation({
   // stayed painted. A layer owes a way out over exactly the pages its way in is live on, and
   // the way to keep that true is to stop asking one question for both.
   //
-  // Named the way the trays name theirs (`leavesOffered`, `asksOffered`), so the next
+  // Named the way the trays name theirs (`leavesOffered`, `decisionsOffered`), so the next
   // surface to ask reads the fact rather than spelling a comparison of its own.
   const draftRevisions = () => {
     const revisions = new Set();

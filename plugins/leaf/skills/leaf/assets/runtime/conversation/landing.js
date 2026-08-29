@@ -155,7 +155,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
     setTimeout(() => thread.classList.remove("flash"), 1300);
   }
 
-  // The same ask, insisted on. Two callers mean the thread has to be on screen and cannot
+  // The same decision, insisted on. Two callers mean the thread has to be on screen and cannot
   // see the narrowing they would be asking past: a press out on the page or in a message,
   // which knows nothing of the panel at all, and a comment the reader has just written,
   // which cannot be allowed to vanish into a narrowing it does not match. So the narrowing

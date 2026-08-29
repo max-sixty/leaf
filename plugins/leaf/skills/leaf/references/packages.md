@@ -73,8 +73,7 @@ A widget attaches its own guidance through `x-guidance`, while a data contract m
 carry producer guidance beside its schema. Packages define audiences such as `author`,
 `reviewer`, or `worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists
 the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` composes all
-three sources. `page catalog` also prints the complete `author` reading after the merged
-vocabulary.
+three sources. The page author reads the `author` audience when the list includes it.
 
 Composition order is kernel, bundled default package, selected packages in command
 order, user package, then project package. Later packages win collisions. `page init`
@@ -100,17 +99,19 @@ Tokens change every surface that reads them: `--accent`, `--r`, the three faces
 `--mono` (evidence). Ordinary selectors tune one element or widget. A shape the project
 reuses across pages is an idiom — declare it under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
-`theme.css`; `page catalog` then lists it beside the shipped ones. Presentation unique to
-one page stays in that version's `<style>`.
+`theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
+Presentation unique to one page stays in that version's `<style>`.
 
 ## A widget
 
 The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
-stands as one of the page's asks. `page catalog` prints what each key means (`$keys`) and
-the shipped entries are the worked examples; the entry's `x-example` must validate, and
-is what the catalog shows.
+stands as one of the page's decisions. The merged registry's `$keys` entry defines each key,
+and the shipped widget entries are the worked examples. Every widget entry carries a
+non-empty `description`. Its first plain sentence identifies the widget's purpose; the
+rest explains its detailed contract. An entry's `x-example` must validate and is the
+markup an author queries with that entry.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:
@@ -128,7 +129,7 @@ Every row passed to `keys()` has a stable dotted `id`, such as `draft.save`. Kee
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
-key line stays compact, while the `?` command browser lists and runs each route on its own.
+key line stays compact, while the complete reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
 choice the reference does not have, such as the partly entered digits of an address. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command is
@@ -145,7 +146,7 @@ tells the host how to execute and recover them.
 Every live request holder must contain at least one matching direct child and may offer
 each verb only once; two differently worded controls that send the same instruction
 cannot produce distinguishable requests. When a later revision has carried out the
-instruction, remove the holder rather than leaving an empty Ask with no possible answer.
+instruction, remove the holder rather than leaving an empty Decision with no possible answer.
 `verbs` gives each operation a closed detail schema. Optional `bind` entries require a
 detail field to equal an authored string attribute on the holder, so a crafted event
 cannot retarget the operation. Every bound detail field and holder attribute is required,
@@ -172,17 +173,17 @@ Leaf validates the generic relation; the package owns the map, roles, and partic
 widget tags. A later package can therefore add another goal or worker widget by merging
 its entry into `$command.widgets`, without changing core.
 
-Set `ask: true` when the ready operation is a question the reader must answer. Leaf then
-puts that holder in the canonical Asks projection only while its lifecycle is `ready`.
+Set `decision: true` when the ready operation is a question the reader must answer. Leaf then
+puts that holder in the canonical Decisions projection only while its lifecycle is `ready`.
 Acceptance hands the turn to the host, so `pending` and `completed` holders leave the
-reader's list; a failed receipt returns the lifecycle to `ready` and reopens the ask. A
+reader's list; a failed receipt returns the lifecycle to `ready` and reopens the decision. A
 parent `x-awaits.rollup` reads that same lifecycle, so nested task and header projections
 do not need package-specific request bookkeeping.
 
 ```json
 {
   "x-request": {
-    "ask": true,
+    "decision": true,
     "offers": { "lf-operation": "verb" },
     "verbs": {
       "restart": {
@@ -259,13 +260,18 @@ that really apply to the package as a whole.
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "snapshot": { "type": "string", "pattern": "^[1-9][0-9]*$" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "none",
     "x-data": {
-      "builds": { "contract": "build-status", "source": "source" }
+      "builds": {
+        "contract": "build-status",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
     },
     "x-guidance": {
       "author": "Bind `source` to the build feed this page should show."
@@ -281,6 +287,7 @@ ids.
 
 ```html
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
+<lf-source id="release-notes-source" source="release-notes" language="markdown"></lf-source>
 ```
 
 The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
@@ -289,6 +296,7 @@ complete snapshot using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
+leaf data capture PAGE release-notes --text-file CHANGELOG.md --lines 20:44
 leaf data clear PAGE release-ci
 ```
 
@@ -297,11 +305,22 @@ the prior revision untouched. Source revisions and event sequences are independe
 an old poll may contain new data, and a new event response may contain old data, so
 neither orders the other.
 
-A source id keeps one contract for the lifetime of the page. Every immutable version
-and every widget frozen into a thread shares the page's current data store, so a later
-document cannot reuse an old id with a new meaning. `data clear` removes the current
-value, not that identity. Use a new source id for a new contract. Re-vendoring preserves
-this mapping as well as validating any standing values against the incoming schemas.
+`data capture` reads one regular UTF-8 file of at most 1 MiB without making the author
+copy it into markup. It rejects U+0000, normalizes CRLF and CR line endings to LF, can
+select an inclusive `START:END` line range, and attaches a display label. Capture both
+replaces the source's current value and retains that value under the reported data
+revision. A widget without its snapshot attribute follows the current value; a widget with
+`snapshot="REVISION"` keeps reading that immutable capture. The captured source path is
+never stored or sent to readers.
+
+A source id keeps one contract for the lifetime of the page. Documents without a
+snapshot selection share the page's current value; immutable versions and widgets
+frozen into threads may instead select a retained capture. `data clear` removes the
+current value and unreferenced captures, but keeps captures selected by those durable
+documents and a contract-only tombstone that never releases the source id for a new
+meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
+each standing widget selection while validating current values and captures against the
+incoming schemas.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every reader of the page, including fields a module does not
@@ -315,10 +334,12 @@ this.stopWatching = watchData(this, "builds", (snapshot) => {
 });
 ```
 
-The callback receives `null` before the host has supplied a value, otherwise a clone of
-`{contract, updated, value}`. It runs immediately and again when Leaf asks subscribers
-to restate their view. Return the cleanup function from the element's disconnect path.
-The callback must state the whole rendering and remain idempotent.
+The callback receives `null` before the host has supplied a current value, otherwise a
+clone of `{contract, updated, value}`. A selected capture additionally carries
+`snapshot`, `label`, and optional `lines`; a captured current value may carry its label
+and line range. It runs immediately and again when Leaf asks subscribers to restate its
+view. Return the cleanup function from the element's disconnect path. The callback must
+state the whole rendering and remain idempotent.
 
 Render the value with `projectData(root, records, keyOf, render)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable
@@ -351,10 +372,10 @@ subject, and the page it makes shows the widget in use.
 The reader's design mode (`i` in the browser) posts a comment about the layer rather
 than the page: `"about": "layer"`, anchored on the element they clicked or the words they
 selected. The anchor's `section` is a widget's id, or the id of a runtime part —
-`lf-banner`, `lf-comments` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
+`lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
 `lf-composer`, `lf-comment-button` (the margin's 💬), `lf-keyline`, `lf-help` — and
 `part` names the control the click landed on, where it landed on one (`✓ Accept`,
-`Comments (2)`).
+`Threads (2)`).
 
 ```json
 {"kind": "comment", "about": "layer", "version": 3, "anchor": {"section": "feeder-board"}, "text": "cards are cramped — give the column a floor"}

@@ -8,7 +8,7 @@ The main owners are:
 
 - `files` and `revisioning`: atomic page files and immutable revisions;
 - `locations`: filesystem path identity, containment, and overlap;
-- `page`: vendored page guidance and vocabulary catalog;
+- `page`: vendored page guidance;
 - `agent_state`: the agent-facing folded page-state reading;
 - `transcript`: the agent-facing raw event stream and Markdown transcript;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
@@ -18,7 +18,7 @@ The main owners are:
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;
 - `work`: transient work claims and widget work seats;
-- `asks`: declaration-driven page and thread ask projections;
+- `decisions`: declaration-driven page and thread decision projections;
 - `requests`: declared request seats, their canonical lifecycle, and the
   terminal host receipts that close one;
 - `host`: local paths, process readings, host identity, and session lifetime;
@@ -79,8 +79,8 @@ writes, immutable revision and version files, and the existing lock boundaries
 when adding a command.
 
 The registry is the common contract with the browser. Server-side event gates,
-state folds, catalog output, package checks, and markup validation must consume
-its declarations without a widget-name list.
+state folds, package checks, markup validation, and agent queries consume its
+declarations without a widget-name list.
 
 Within `registry/`, `contract` owns shared schema helpers and layer readings,
 `layer`, `widgets`, and `state` own their complete vocabulary contracts,

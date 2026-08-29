@@ -98,7 +98,10 @@ export function quoted(el) {
 // the body under it is prose the reader may point at like any other. Nothing embedded
 // (`iframe`, `embed`, `object`): a click inside one never crosses into this document, so
 // listing them would guard a gesture no listener out here can see.
-export const WORKS = [
+// Anchors distinguishes an authored tab stop from one reachScrollers added to expose
+// overflow. Both readings come from this one control vocabulary.
+const TAB_STOP = "[tabindex]:not([tabindex='-1'])";
+const WORK_SELECTORS = [
   "a",
   "audio[controls]",
   "button",
@@ -111,7 +114,7 @@ export const WORKS = [
   "video[controls]",
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
-  "[tabindex]:not([tabindex='-1'])",
+  TAB_STOP,
   "[role='application']",
   "[role='button']",
   "[role='checkbox']",
@@ -140,7 +143,11 @@ export const WORKS = [
   "[role='tree']",
   "[role='treegrid']",
   "[role='treeitem']",
-].join(",");
+];
+export const WORKS = WORK_SELECTORS.join(",");
+export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
+  (selector) => selector !== TAB_STOP,
+).join(",");
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from
 // one aimed at what it holds. This is the second: the nearest thing between `node` and
@@ -246,7 +253,7 @@ export function offer(tag, cls, label) {
 // largest hole a survey of this runtime found was that Space activates nine classes of
 // control across core and five widgets and only one of them ever said so. As a scope it is
 // named once in the reference, and named on the line exactly while the reader stands on
-// one — which is where the walk through the page's asks puts them.
+// one — which is where the walk through the page's decisions puts them.
 
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the

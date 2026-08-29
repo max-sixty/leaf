@@ -12,8 +12,8 @@ from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
-    ASK_PAGE,
     BOTH_STAMPS,
+    DECISION_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     JOURNEY_V1,
@@ -603,7 +603,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
     for page in (first, second):
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
     typed = "The page is missing the migration step."
@@ -653,7 +653,7 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_rea
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
     for page in (first, second):
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
     raw = "One general comment, however many tabs show its draft."
     first.locator(".lf-general textarea").fill(raw)
@@ -682,7 +682,7 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_rea
 def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     """An earlier response settles only the general generation it posted."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     box = page.locator(".lf-general textarea")
     old = "The general comment already in flight."
@@ -711,7 +711,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(browser, serve):
     """A reply box opened while another reply is in flight is the reader's later
     gesture. When the first send lands, it must not take focus back from that box."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads > .lf-thread")
     first_id = threads.nth(0).get_attribute("data-id")
@@ -754,7 +754,7 @@ def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
     page.get_by_role("button", name="Comment", exact=True).click()
     _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
 
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     later_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
     later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
@@ -777,7 +777,7 @@ def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
     """A sent comment clears a narrowing that hid its new thread, then leaves the
     reader in that thread's reply box just as an already-visible comment does."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator(".lf-find-box").fill("Comment 0")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
@@ -857,7 +857,7 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     shared, shared_errors = open_page(browser, url, context=one_reader)
     local, local_errors = open_page(browser, url, context=one_reader)
     for page in (shared, local):
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
     predecessor = "The durable predecessor that this local branch replaces."
     first = "The first nondurable comment on that branch."
@@ -927,7 +927,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     proves that readable absence is settlement rather than permission to trust the
     old in-memory value.
     """
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(
         browser,
@@ -980,7 +980,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_reader):
     """Both inline views may POST the shared reply; its attempt appends it once."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1028,7 +1028,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     browser, serve, one_reader
 ):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1041,7 +1041,7 @@ def test_a_held_conversation_send_cannot_clear_a_newer_raw_draft(
     )
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
-    first.locator(".lf-comments").click()
+    first.locator(".lf-threads-toggle").click()
     panel_settled(first)
     inline = first.locator(
         f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
@@ -1085,7 +1085,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
     first_say = first.locator("#jobs > .lf-conversation > .lf-say")
@@ -1119,7 +1119,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     """Persistence failure costs recovery, not the live textarea's Send action."""
     page, errors = open_page(
         browser,
-        serve(ASK_PAGE),
+        serve(DECISION_PAGE),
         init_script="""Storage.prototype.setItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -1159,7 +1159,7 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     replacement must not learn the attempt is in the log before it sends, or it would
     correctly decline to. Both go through `held_stale` rather than a live `page.route`,
     which reaches no poll already in the wire."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     first, _ = open_page(browser, url, context=held_stale(one_reader))
     second_held = held_stale(one_reader)
     second, second_errors = open_page(browser, url, context=second_held)
@@ -1203,7 +1203,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     browser, serve, one_reader
 ):
     """A nondurable local generation outranks storage news about its predecessor."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     other, other_errors = open_page(browser, url, context=one_reader)
     old = "The older persisted answer."
     other_say = other.locator("#jobs > .lf-conversation > .lf-say")
@@ -1245,7 +1245,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     browser, serve, one_reader
 ):
     """A held older send reconciles its base before writing settlement."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     older, older_errors = open_page(
         browser,
         url,
@@ -1298,7 +1298,7 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
     browser, serve, one_reader
 ):
     """Only news from a branch's base may be replaced by that local branch."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     local, local_errors = open_page(
         browser,
         url,
@@ -1339,7 +1339,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     browser, serve, one_reader
 ):
     """Send refreshes shared storage instead of trusting a stale durable cache."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     stale, stale_errors = open_page(
         browser,
         url,
@@ -1410,7 +1410,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     browser, serve, one_reader
 ):
     """Log reconciliation settles only the generation still shared by storage."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     # The hold costs the most here, where the poll released at the end is the subject
     # rather than an interruption: an earlier poll reconciling this tab onto the newer
     # generation leaves settlement nothing older to be tempted by, so the assertions
@@ -1467,7 +1467,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     """The document cache owns its generation even when getItem later refuses it."""
     page, errors = open_page(
         browser,
-        serve(ASK_PAGE),
+        serve(DECISION_PAGE),
         init_script="""Storage.prototype.getItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -1490,7 +1490,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
     browser, serve, one_reader
 ):
     """Settlement is a record and a log fact; draft cleanup never calls removeItem."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     first, first_errors = open_page(
         browser,
         url,
@@ -1518,7 +1518,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(
 
 def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serve):
     """Identity follows the edit generation, never content or a time window."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     root = events_model.append_event(
         serve.page_dir,
         {
@@ -1553,7 +1553,7 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_re
     one holding a half-written sentence is as likely to be shut as any other."""
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url, context=one_reader)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     typed = "Half a thought, and then the tab went."
     page.locator(".lf-general textarea").fill(typed)
@@ -1704,7 +1704,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
 
 
 def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
-    """One disclosure answers both deferred draft asks. It compares this version's
+    """One disclosure answers both deferred draft decisions. It compares this version's
     authored body with the standing body, retains every absolute edit in log order,
     and walks back by posting another ordinary edit. A second tab proves restore is
     durable replay rather than local history state; copy mode proves the generated
@@ -2008,10 +2008,11 @@ def test_registered_control_keys_activate_once(browser, serve):
     page.close()
 
 
-def test_global_shortcuts_leave_browser_navigation_keys_alone(browser, serve):
+def test_global_shortcuts_leave_other_browser_navigation_keys_alone(browser, serve):
     """The document-level dispatcher owns a few single-character shortcuts, not the
-    keyboard. In particular, Space, arrows, Home/End, and PageUp/PageDown must reach
-    the browser when focus is in the authored page rather than a widget control.
+    keyboard. Space is Leaf's overlapping reading step; arrows, Home/End, and
+    PageUp/PageDown must still reach the browser when focus is in the authored page
+    rather than a widget control.
 
     Observe `defaultPrevented` on real key events instead of asserting that Chrome
     happened to scroll: scrolling depends on viewport and focus geometry, while
@@ -2051,13 +2052,14 @@ def test_global_shortcuts_leave_browser_navigation_keys_alone(browser, serve):
         "the positive-control shortcut was not consumed, so the probe did not "
         "observe the runtime dispatcher"
     )
-    assert observed == dict.fromkeys(keys[:-1], False)
+    assert observed.pop(" ") is True
+    assert observed == dict.fromkeys(keys[1:-1], False)
     assert errors == []
     page.close()
 
 
-def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
-    """d and u move exactly half the visible page — clientHeight less what
+def test_the_reading_page_keys_step_with_overlap(browser, serve):
+    """Space and Shift+Space move 60% of the visible page — clientHeight less what
     scroll-padding-top declares covered by the fixed banner — at the pace of the
     browser's own paging keys, the runtime driving the motion itself (stepPage says
     why). The page sets scroll-behavior: smooth on the box, as an authored page may —
@@ -2076,12 +2078,12 @@ def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
     a number the assertion can hold — must stand the step down: the next press
     measures from where the reader left the box, not from the goal it dropped, and a
     glide that ignored the taking presses on to that goal and fails both reads.
-    Pressing on at the foot moves nothing and banks nothing, so u from there is one
-    half back."""
+    Pressing on at the foot moves nothing and banks nothing, so Shift+Space from there
+    is one step back."""
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE))
-    half = page.evaluate(
+    step = page.evaluate(
         "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
     )
     assert page.evaluate(
         "() => document.body.scrollHeight > document.body.clientHeight * 3"
@@ -2093,7 +2095,7 @@ def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
       const raf = requestAnimationFrame;
       let stale = false;
       addEventListener('keydown', event => {
-        if (event.key === 'd' || event.key === 'u') stale = true;
+        if (event.key === ' ') stale = true;
       }, {capture: true});
       window.requestAnimationFrame = callback => {
         const firstAfterPress = stale;
@@ -2117,31 +2119,31 @@ def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
             pass
         return page.evaluate("() => document.body.scrollTop")
 
-    assert rests_at(lambda: page.keyboard.press("d"), half) == pytest.approx(
-        half, abs=1
+    assert rests_at(lambda: page.keyboard.press("Space"), step) == pytest.approx(
+        step, abs=1
     )
 
     def twice():
-        page.keyboard.press("d")
-        page.keyboard.press("d")
+        page.keyboard.press("Space")
+        page.keyboard.press("Space")
 
-    assert rests_at(twice, half * 3) == pytest.approx(half * 3, abs=1), (
+    assert rests_at(twice, step * 3) == pytest.approx(step * 3, abs=1), (
         "the second press measured from the glide in flight, so the two together "
         "moved less than the page they promised"
     )
-    assert rests_at(lambda: page.keyboard.press("u"), half * 2) == pytest.approx(
-        half * 2, abs=1
-    )
+    assert rests_at(
+        lambda: page.keyboard.press("Shift+Space"), step * 2
+    ) == pytest.approx(step * 2, abs=1)
 
     def taken():
-        page.keyboard.press("d")
+        page.keyboard.press("Space")
         page.evaluate("() => document.body.scrollTo({top: 400, behavior: 'instant'})")
 
     assert rests_at(taken, 400) == pytest.approx(400, abs=1), (
         "the glide pressed on to its goal after the reader took the box"
     )
-    assert rests_at(lambda: page.keyboard.press("d"), 400 + half) == pytest.approx(
-        400 + half, abs=1
+    assert rests_at(lambda: page.keyboard.press("Space"), 400 + step) == pytest.approx(
+        400 + step, abs=1
     ), (
         "the press after the reader took the box measured from the goal the taking "
         "had cancelled rather than from where they left it"
@@ -2157,20 +2159,20 @@ def test_the_half_page_keys_step_half_the_visible_page(browser, serve):
         foot,
     ) == pytest.approx(foot, abs=1)
     for _ in range(4):
-        page.keyboard.press("d")  # nothing left to move, and nothing banked either
-    assert rests_at(lambda: page.keyboard.press("u"), foot - half) == pytest.approx(
-        foot - half, abs=1
-    ), (
-        "presses at the foot of the page ran the destination past it, and u spent "
+        page.keyboard.press("Space")  # nothing left to move, and nothing banked either
+    assert rests_at(
+        lambda: page.keyboard.press("Shift+Space"), foot - step
+    ) == pytest.approx(foot - step, abs=1), (
+        "presses at the foot of the page ran the destination past it, and Shift+Space spent "
         "itself paying that back"
     )
     assert errors == []
     page.close()
 
 
-def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve):
+def test_the_reading_page_step_never_paints_behind_where_it_started(browser, serve):
     """The step's own frames, read at real speed from the middle of the page where the
-    box clamps nothing: d may not paint the page above where the press found it. A rAF
+    box clamps nothing: Space may not paint the page above where the press found it. A rAF
     tick carries its frame's own start, so a press handled inside a frame already under
     way is stamped after the tick it schedules, and an ease reading that as elapsed time
     walks back out through its own start (stepPage says the rest). At the ends of the box
@@ -2189,11 +2191,11 @@ def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve)
     page.context.new_cdp_session(page).send(
         "Emulation.setCPUThrottlingRate", {"rate": 20}
     )
-    half = page.evaluate(
+    step = page.evaluate(
         "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
     )
-    start = round(half * 2)
+    start = round(step * 2)
     page.evaluate("""() => {
         window.lfFrames = [];
         const sample = () => {
@@ -2208,9 +2210,9 @@ def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve)
         )
         page.wait_for_function("at => document.body.scrollTop === at", arg=start)
         page.evaluate("() => (window.lfFrames = [])")
-        page.keyboard.press("d")
+        page.keyboard.press("Space")
         page.wait_for_function(
-            "e => Math.abs(document.body.scrollTop - e) < 1", arg=start + half
+            "e => Math.abs(document.body.scrollTop - e) < 1", arg=start + step
         )
         assert min(page.evaluate("() => window.lfFrames")) >= start - 1, (
             "the step painted the page above where the press found it"
@@ -2219,31 +2221,32 @@ def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve)
     page.close()
 
 
-def test_the_half_page_keys_jump_under_reduced_motion(browser, serve):
-    """Under reduced motion the step forgoes its glide and jumps, like every other
-    motion here (scrollBehavior()) — read straight after the press, since a jump leaves nothing
-    to wait for and a glide would read as wherever its first frame had got to."""
+def test_the_reading_page_keys_jump_under_reduced_motion(browser, serve):
+    """Space moves through a page with enough overlap to keep the prior lines in view;
+    Shift+Space makes the same step upward. Under reduced motion both jump."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
         color_scheme="light",
         reduced_motion="reduce",
     )
     page, errors = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
-    half = page.evaluate(
+    step = page.evaluate(
         "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
     )
-    page.keyboard.press("d")
+    page.keyboard.press("Space")
     assert page.evaluate("() => document.body.scrollTop") == pytest.approx(
-        half, abs=1
-    ), "d had not moved half a page by the time the press returned"
+        step, abs=1
+    ), "Space had not moved 60% of the visible page when the press returned"
+    page.keyboard.press("Shift+Space")
+    assert page.evaluate("() => document.body.scrollTop") == pytest.approx(0, abs=1)
     assert errors == []
     page.close()
     context.close()
 
 
-def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, serve):
-    """Two scroll regions, so d has to pick the one the reader is looking at. Beside the
+def test_the_reading_page_keys_move_the_region_the_reader_is_scrolling(browser, serve):
+    """Two scroll regions, so Space has to pick the one the reader is looking at. Beside the
     page the panel is a column of its own and the keys are the document's. Under the
     breakpoint the sheet covers the page and the page hands scrolling over with it — one
     gesture moves one region, and while the sheet is up that region is its thread list.
@@ -2251,8 +2254,11 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     the user nothing, so the key reads as dead, and the document is somewhere else
     when the sheet closes."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    # Space works the focused toggle, as it must for a native button. Put the reader back
+    # on the page before asking which reading region the page gesture chooses.
+    page.locator("body").focus()
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"
@@ -2264,7 +2270,7 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
             " document.querySelector('.lf-threads').scrollTop]"
         )
 
-    def press_d():
+    def press_space():
         """Both offsets once a region answers the press — the glide's first write is
         already the answer to which region moved, and movement is the fact waited on
         because movement is the question. Scrollend was the wait here while a press
@@ -2274,7 +2280,7 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
         Waiting on whichever region speaks makes the wrong one answering two numbers
         to compare rather than half a minute of silence and a timeout."""
         was = offsets()
-        page.keyboard.press("d")
+        page.keyboard.press("Space")
         page.wait_for_function(
             "w => { const t = document.querySelector('.lf-threads');"
             " return document.body.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
@@ -2282,13 +2288,13 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
         )
         return was, offsets()
 
-    (page_was, threads_was), (page_now, threads_now) = press_d()
+    (page_was, threads_was), (page_now, threads_now) = press_space()
     assert threads_now == threads_was, "the panel took a key aimed at the document"
     assert page_now > page_was, "the document did not move for a key of its own"
 
     resized(page, 500, 600)
     panel_settled(page)
-    (page_was, threads_was), (page_now, threads_now) = press_d()
+    (page_was, threads_was), (page_now, threads_now) = press_space()
     assert page_now == page_was, (
         "the page moved behind the covering sheet, where the user cannot see it"
     )
@@ -2297,24 +2303,25 @@ def test_the_half_page_keys_move_the_region_the_reader_is_scrolling(browser, ser
     page.close()
 
 
-def test_the_half_page_keys_follow_the_reader_into_the_panel(browser, serve):
+def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     """Which region the keys move is where the reader is standing, and covering is only
     one of the two ways they come to be standing in the list. Beside the page — the wide
     window, where the panel takes a strip of its own — a reader working down a long
-    conversation presses d and the page behind them steps instead, which is the same
+    conversation presses Space and the page behind them steps instead, which is the same
     nothing the covering case was written to prevent: the region they are reading does
     not move, and the document is somewhere else when they look back at it.
 
     One factor separates the two halves here. The window, the layout, the panel and the
     list are the same at both presses; only where the focus stands changes. So the first
-    press is the control that says the layout is beside — the banner's own button is
-    chrome the reader is standing on outside the panel, and the document is theirs to
-    step — and the second is the subject. The address chord then supplies the neighboring
-    contrast: focus changes which region d/u page through, but `g g` still names the
+    press is the control that says the layout is beside — the reader stands on the page,
+    outside the panel, and the document is theirs to step — and the second is the subject.
+    The address chord then supplies the neighboring
+    contrast: focus changes which region Space/Shift+Space page through, but `g g` still names the
     document's edge while both regions have somewhere observable to move."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator("body").focus()
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
         " return t.scrollHeight > t.clientHeight; }"
@@ -2328,15 +2335,15 @@ def test_the_half_page_keys_follow_the_reader_into_the_panel(browser, serve):
 
     # The control, and the wait that makes the subject's baseline a resting one: the
     # document's own step is a glide, and the position it is going to is the one place
-    # it does not pass through early (the half-page test says the rest).
-    half = page.evaluate(
+    # it does not pass through early (the reading-page test says the rest).
+    step = page.evaluate(
         "() => (document.body.clientHeight"
-        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) / 2"
+        " - parseFloat(getComputedStyle(document.body).scrollPaddingTop)) * 0.6"
     )
     page_was, threads_was = offsets()
-    page.keyboard.press("d")
+    page.keyboard.press("Space")
     page.wait_for_function(
-        "e => Math.abs(document.body.scrollTop - e) < 1", arg=half, timeout=5000
+        "e => Math.abs(document.body.scrollTop - e) < 1", arg=step, timeout=5000
     )
     page_now, threads_now = offsets()
     assert page_now > page_was, (
@@ -2351,20 +2358,20 @@ def test_the_half_page_keys_follow_the_reader_into_the_panel(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
 
     page_was, threads_was = offsets()
-    page.keyboard.press("d")
+    page.keyboard.press("Space")
     page.wait_for_function(
         "w => { const t = document.querySelector('.lf-threads');"
         " return document.body.scrollTop !== w[0] || t.scrollTop !== w[1]; }",
         arg=[page_was, threads_was],
     )
-    thread_half = page.locator(".lf-threads").evaluate(
-        "t => (t.clientHeight - parseFloat(getComputedStyle(t).scrollPaddingTop)) / 2"
+    thread_step = page.locator(".lf-threads").evaluate(
+        "t => (t.clientHeight - parseFloat(getComputedStyle(t).scrollPaddingTop)) * 0.6"
     )
     page.wait_for_function(
         "w => { const t = document.querySelector('.lf-threads');"
         " return Math.abs(t.scrollTop - w[0]) < 1"
         " || Math.abs(document.body.scrollTop - w[1]) >= 1; }",
-        arg=[thread_half, page_was],
+        arg=[thread_step, page_was],
         timeout=5000,
     )
     page_now, threads_now = offsets()

@@ -15,6 +15,28 @@ checks = "pre-commit run -a"
 [[pre-merge]]
 tests = "uv run pytest tests"
 
+# `marketplace upgrade` also refreshes installed plugins. Post-merge hooks run
+# concurrently, so wait for the landed commit to reach the remote before fetching it.
+[post-merge]
+refresh-codex-leaf = '''
+if command -v codex >/dev/null 2>&1 &&
+  codex plugin list --marketplace leaf --json |
+    jq -e 'any(.installed[]; .pluginId == "leaf@leaf")' >/dev/null
+then
+  attempts=0
+  while [ "$attempts" -lt 12 ]; do
+    remote_commit=$(git ls-remote {{ remote }} refs/heads/{{ target }} | cut -f1)
+    if [ "$remote_commit" = {{ commit }} ]; then
+      exec codex plugin marketplace upgrade leaf
+    fi
+    attempts=$((attempts + 1))
+    sleep 5
+  done
+  echo "Codex Leaf plugin refresh timed out waiting for the landed commit" >&2
+  exit 1
+fi
+'''
+
 [aliases]
 cloud = '''
 uv sync --frozen

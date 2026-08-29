@@ -10,6 +10,33 @@ agent. leaf's answers are authored HTML, a directory on your machine, and a
 host-specific wait inside the session: background completion in Claude Code, an exact
 unified-exec session kept inside the active turn in Codex.
 
+The note serves three ends: not building, worse, what already exists; keeping the ideas
+the neighbours have had; and finding the ground they leave open. Behind the third is a
+bet on the bitter lesson. Most of this landscape constrains the agent to what its
+authors trusted a model to do at design time, and those ceilings hold as models improve.
+leaf's side of each comparison should be primitives that get better as the agent does —
+the document, the log, the open vocabulary — rather than a library that caps it.
+
+## Explainer animation
+
+Read on 2026-08-29 from the projects' documentation, repositories and published
+packages. Remotion and Manim render video; Markdy and Elucim describe explanations
+that run in the browser. The second group is nearer to a leaf package, while the first
+is useful when the intended artifact is a marketing video.
+
+| Project | Authoring model | Relevance to leaf |
+| ------- | --------------- | ----------------- |
+| [Remotion](https://www.remotion.dev/) | React components evaluated by frame, with a Studio preview and a render pipeline. It has first-party [agent skills](https://www.remotion.dev/docs/ai/skills) and active releases. | The broadest production option for branded video, captions and mixed media. Its application and render stack is too heavy for an embedded leaf widget. |
+| [Manim Community](https://docs.manim.community/en/stable/) | Python scenes made from mathematical objects and transformations, rendered to video. | The strongest external option for mathematical and algorithmic explanations. Its scene code and rendered output do not supply a live browser explanation. |
+| [Markdy](https://markdy.com/docs/) | A browser DSL with semantic nodes, groups, flows and beats; the runtime handles layout, edge routing and motion. It can import Mermaid. | The closest match to animated diagrams as code. The project began in April 2026 and is still moving quickly. On 2026-08-29, `@markdy/cli@1.1.1` failed to install because its declared `@markdy/compat` dependency was absent from npm. It is a design reference to retest, rather than a dependency to adopt now. |
+| [Elucim](https://elucim.com/) | JSON or YAML scenes with SVG and mathematical primitives, explicit timelines and state machines, designed for agent generation. | The closest broad model for 3Blue1Brown-style concept explanations. The project began in March 2026 and still has a very small community, so it is also a design reference. |
+
+All four separate semantic states from the motion between them. A leaf experiment can
+keep its state vocabulary small and leave autoplay, controls and export as playback
+policy. Remotion or Manim can produce standalone marketing videos; an embedded package
+should remain closer to the Markdy and Elucim authoring models until one of them matures
+enough to vendor.
+
 ## Claude Code Artifacts
 
 Read on 2026-08-22, from Claude Code's own documentation.
@@ -457,7 +484,7 @@ past it costs a reconciliation design.
 
 The two route a person's attention at different scales. herdr answers which of your
 sessions needs you, and published plugins forward that signal to a phone when an agent
-goes `blocked`. leaf's banner counts the open asks inside one page and its keyboard walk
+goes `blocked`. leaf's banner counts the open decisions inside one page and its keyboard walk
 steps through them, for a reader who already has the page open. A leaf session is an agent
 at a terminal, so it is the kind of thing that sits in a herdr pane, and the page it
 serves is content herdr has no opinion about.
@@ -553,6 +580,19 @@ json-render's `$state` as doctrine, and the specification has no versions, no re
 no undo, and nothing that anchors a remark to a component or a passage. As an interface
 it standardizes the live tree, which leaf doesn't keep, and says nothing about the log.
 
+Against A2UI in particular, two of the differences are decisions rather than accidents.
+The catalog is a capability boundary: it exists so a model never ships executable
+content into the application it is drawn in, because the reader is someone else's user.
+leaf declines that boundary on purpose — the reader is the person whose session wrote
+the page, so the page gets the whole window, and the registry is a contract the gates
+read rather than a fence the agent is kept behind; leaf's CSP guards against a page
+phoning home, not against the agent. The tree is the second decision. An abstract tree
+can be forced valid at generation, by constrained decoding against the catalog's
+schema, and can land on toolkits HTML never reaches; leaf accepts checking after the
+markup exists, in `version check`, to keep the artifact a document. Both trades follow
+from who is reading, and both are the introduction's bet in miniature: a catalog's
+ceiling is fixed at design time, while fluency in HTML rises with every model.
+
 Open-JSON-UI is the remaining name this corner is described with, and it is a name
 with documentation and no specification. The documentation is real and easy to find: a
 page in CopilotKit's docs, a row in AG-UI's spec comparison, a paragraph in
@@ -607,7 +647,7 @@ travel is every key that makes the vocabulary leaf's: `x-state` names a verb, it
 form and its fold unit so replay and undo can work over a log a catalog has no counterpart
 for; `x-parent` and `x-retired-when` describe a settlement the log adjudicates; the passage
 keys bound what a file's reading may claim about a page; `x-awaits` feeds the banner's
-count and the walk through open asks. Strip those and what ships is twenty-eight tags of
+count and the walk through open decisions. Strip those and what ships is twenty-eight tags of
 styled HTML, which is a stylesheet. So the question settles: leaf is mostly the loop, and
 the vocabulary is what the loop is written in terms of rather than something that stands
 on its own.
@@ -691,7 +731,7 @@ reach, roughly in order of how badly the omission dates this one:
   replace the terminal, where leaf sits beside it.
 - **Human-in-the-loop inboxes** — LangChain's Agent Inbox and `humanInTheLoopMiddleware`,
   HumanLayer routing approvals to Slack or email. Approve, edit, reject or respond, on a
-  paused tool call. leaf's asks are the same act on a page instead of in a queue.
+  paused tool call. leaf's decisions are the same act on a page instead of in a queue.
 - **In-app annotators** — InstantCode, Agentation, pi-annotate, Vibe Annotations: click an
   element in your running app, leave a note, and the agent gets the DOM path back. The
   same gesture as a leaf comment, aimed at software rather than at a document.

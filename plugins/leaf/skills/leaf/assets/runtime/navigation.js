@@ -104,10 +104,9 @@ export function createNavigation({
     thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }
 
-  // d and u step the reader half a page down and up — less's pair, and half a page rather
-  // than a whole one so the lines they were reading are still on screen to read on from.
-  // The browser's own keys are left to the browser (Space, Home/End, PageUp/Down all reach
-  // it untouched, and a test pins that); these are the runtime's.
+  // Space and Shift+Space move the reader 60% of a page down and up, leaving enough of
+  // the lines they were reading on screen to read on from. Home/End and PageUp/Down stay
+  // the browser's own keys.
   //
   // They move the region the reader is reading, which is the thread list wherever the
   // reader stands in the panel or the panel covers the page. Scrolling a region the
@@ -124,16 +123,16 @@ export function createNavigation({
   // same) and
   // a glide built from smooth writes would never land. A press mid-flight retargets from
   // the goal, so two quick presses move exactly a page; the goal is clamped, so pressing on
-  // at the foot banks no debt for u to press back through; and the step stands down the
+  // at the foot banks no debt for Shift+Space to press back through; and the step stands down the
   // moment the box moves under another hand — a wheel, a centering — because the reader's
   // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
   // rest of the runtime's motion already gives (scrollBehavior()).
   //
-  // The page the step halves is the one the reader can see. The document's box lends its
+  // The page the step measures is the one the reader can see. The document's box lends its
   // top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
   // exactly so by scrollToElement — is where the box already says how much of itself stands
   // covered. The thread list says the same thing about itself: a stuck run heading covers
-  // its top, so a half-page step there is half of what is left rather than half of the
+  // its top, so a reading-page step there is 60% of what is left rather than 60% of the
   // box, which is the answer the reader wants — a step that landed them under the heading
   // would be a step onto words they cannot read.
   const PAGE_MS = 140;
@@ -147,7 +146,7 @@ export function createNavigation({
   // The visible box used by page-edge navigation. A covering panel replaces the page;
   // beside it, the document keeps its own top and bottom.
   const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
-  // Half-page keys follow the region the reader is working in. Focus can put them in a
+  // Reading-page keys follow the region the reader is working in. Focus can put them in a
   // panel beside the page; a covering panel remains the only visible region even when
   // focus is still on the banner control that opened it.
   const stepScroller = () => (inPanel() || panelCovers() ? threadsBox : pageScroller);
@@ -163,8 +162,8 @@ export function createNavigation({
     const from = holding(box) ? glide.goal : box.scrollTop;
     glideTo(box, from + fraction * (box.clientHeight - clear));
   }
-  // One eased travel to a goal, shared by the half-page step and the chord's edges. The
-  // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
+  // One eased travel to a goal, shared by the reading-page step and the chord's edges. The
+  // goal is clamped here, so a step pressed on at the foot banks no debt for Shift+Space to press
   // back through, and an edge may be asked for as the height it cannot exceed.
   function glideTo(box, goal) {
     goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));

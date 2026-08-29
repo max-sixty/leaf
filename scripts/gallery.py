@@ -114,17 +114,25 @@ def build() -> str:
 def build_data() -> dict:
     """Compose the package sources needed by the examples embedded in the gallery."""
     sources = {}
+    captures = {}
     for stem, _ in TABS:
         companion = EXAMPLES_DIR / f"{stem}.data.json"
         if not companion.exists():
             continue
-        for name, value in json.loads(companion.read_text(encoding="utf-8")).items():
+        document = json.loads(companion.read_text(encoding="utf-8"))
+        for name, spec in document.pop("$captures", {}).items():
+            if name in captures and captures[name] != spec:
+                sys.exit(
+                    f"gallery examples contribute conflicting data capture {name!r}"
+                )
+            captures[name] = spec
+        for name, value in document.items():
             if name in sources and sources[name] != value:
                 sys.exit(
                     f"gallery examples contribute conflicting data source {name!r}"
                 )
             sources[name] = value
-    return sources
+    return ({"$captures": captures} if captures else {}) | sources
 
 
 def main() -> None:

@@ -6,12 +6,12 @@ from .event_log import read_events
 from .events import awaits_agent, build_threads, seat_root, spoken_turns
 from .leases import adapter_is_live
 from .passages import active_enclosing
-from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
+from .schema import ACK_BATCH_INSTRUCTION, ANSWER_DECISION_INSTRUCTION
 from .served_state.page import full_state
 from .service import PageTransaction, owned_pages, unacknowledged
 
 
-def unanswered_asks(events: list, cursor: int, within: dict) -> list:
+def unanswered_decisions(events: list, cursor: int, within: dict) -> list:
     """The comments this session took delivery of and left with no answer under
     them.
 
@@ -22,12 +22,12 @@ def unanswered_asks(events: list, cursor: int, within: dict) -> list:
     believes the batch is dealt with.
 
     What it looks for is a thread whose last word is not the agent's (`awaits_agent`,
-    the reading the banner's ask count and the comment panel share). Not a thread
+    the reading the banner's decision count and the thread panel share). Not a thread
     nobody but the reader has ever spoken in: the browser posts the reader's
     follow-ups as `reply` events of their own, so under that reading one agent
     message anywhere in a thread answers it forever, and a follow-up — "but why
     not C?" — acknowledged and answered in the terminal is this very bug played
-    again one level down, with the gate reading green. The agent's own ask needs
+    again one level down, with the gate reading green. The agent's own question needs
     no case of its own either way round: the last word there is the agent's
     until the reader answers, and once they answer in-thread it is theirs.
 
@@ -111,13 +111,15 @@ def unattended_pages(session_id: str) -> list:
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
-        stale = unanswered_asks(events, state["cursor"], active_enclosing(page_dir))
+        stale = unanswered_decisions(
+            events, state["cursor"], active_enclosing(page_dir)
+        )
         if stale:
             ids = ", ".join(t["id"] for t in stale)
             page_reasons.append(
                 f"{page_dir}: {len(stale)} acknowledged "
                 f"comment{'s' if len(stale) != 1 else ''} with no answer "
-                f"({ids}). " + ANSWER_ASK_INSTRUCTION
+                f"({ids}). " + ANSWER_DECISION_INSTRUCTION
             )
         # A live Claude watcher is the watch: `leaf wait` before the first batch,
         # then the `leaf ack` that re-arms it. It prints what's pending on its own.

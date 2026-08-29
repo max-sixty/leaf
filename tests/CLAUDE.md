@@ -86,7 +86,7 @@ page cannot repair that behavior.
 The same line runs through the render gate's own readings, and what decides it is
 whether a reading needs a box.
 
-A reading of text or attributes may cross into the comment panel, and several do:
+A reading of text or attributes may cross into the thread panel, and several do:
 a widget an agent sent in a reply is a widget, and `unreachableWords`,
 `silentWords` and `undeclaredAttrs` answer for it. A reading of geometry may not,
 because the gate never opens the panel and a shut one has no boxes at all. Most
@@ -128,7 +128,7 @@ asserting anything about its shape.
 
 Which control wears the ring is a separate question from which one holds the focus,
 and four of the layer's rules answer it differently: a thread card wears the ring
-for anything focused inside it, an ask for whichever of its controls the reader
+for anything focused inside it, a decision for whichever of its controls the reader
 reached, a joined option group for the one its picks give up, and an element a
 focused thread is anchored to wears one with no focus of its own.
 `getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
@@ -340,14 +340,13 @@ before navigation, waits for the load event, and then waits on `BOTH_STAMPS`:
 
 - `data-lf-upgraded="1"` says widget upgrade and anchor preparation finished.
 - `data-lf-applied` says a replay pass applied the event log.
-- `data-lf-presented="1"` says any deliberately shown waiting surface completed its
-  minimum presentation.
+- `data-lf-presented="1"` says the authoritative projection or offline fallback is
+  visible and interactive.
 
-These are independent facts. The document can finish upgrading before its first
-state response arrives, and an applied state can still sit behind a waiting surface.
-Network quiet does not imply either one. A browser action sent before replay has
-landed may be ignored without a later assertion revealing that the keypress itself
-was lost.
+These are independent facts. The document and first state read run together, and the
+state answer remains unapplied until upgrade finishes. Network quiet does not imply
+either one. A browser action sent before replay has landed may be ignored without a
+later assertion revealing that the keypress itself was lost.
 
 Use the shared `BOTH_STAMPS` predicate for manual navigations as well. Do not copy a
 partial readiness expression into a test. The `upgraded=False` escape in `open_page`
@@ -444,6 +443,18 @@ reverted. It waits on the offer narrowing instead, which is what the press actua
 writes. So a test whose subject is what a press does *within* a surface waits on some
 other fact of that press, and its bug-back is run more than once: a wait that is
 sometimes real looks exactly like a wait that is.
+
+A retrying assertion that a paint has *not* happened is the same trap wearing the other
+sign, and it is worse, because retrying is what usually rescues a reader from it. A
+positive assertion polls until the frame arrives; a negative one is satisfied by the
+first poll, and the first poll is before the frame. So it passes on the state the press
+has not reached yet and goes on passing while the paint it denies lands a frame later.
+`not_to_have_attribute("data-lf-decision", …)` read straight after a `.focus()` is green
+whatever `markHere` is about to do. Wait on a positive fact the same frame writes — the
+key line's word, through `key_line` — and read the absence behind it. Bug-back with a
+probe that paints the mark the assertion denies, not by reverting the change: reverting
+usually stops the mark being painted at all, which is a red for the wrong reason and
+tells you nothing about whether the assertion could see it.
 
 The key line is the sharpest case of the rule above, because a second mechanism will
 supply its answer late. Every state application repaints it, the heartbeat's every

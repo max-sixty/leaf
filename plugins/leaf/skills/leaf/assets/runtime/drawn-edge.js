@@ -4,7 +4,7 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
   const EDGE_STEP = 24;
   /** A region held to one side of the window, and the boundary the reader draws it by.
    *
-   * The page has two — the comment panel on the right, the tray panel on the left — and
+   * The page has two — the thread panel on the right, the tray panel on the left — and
    * they are the same furniture reflected, so this is one function rather than two
    * near-copies. What differs is what it is handed: which side the region is held to, the
    * width it stands at until the reader says otherwise, how narrow they may draw it, the
@@ -93,7 +93,7 @@ export function createDrawnEdge({ el, keys, readerStore, stateStrip, syncLayout 
       const edge = el("div", "lf-ui lf-edge");
       // The owner names the control that survives when this edge has no range. Stored on
       // the handle because state walks all mirrored handles together, while the target is
-      // each region's own — the comment panel closes, each tray returns to its toggle.
+      // each region's own — the thread panel closes, each tray returns to its toggle.
       edge.lfFixedFocus = fixedFocus;
       edge.dataset.lfSide = side;
       edge.setAttribute("role", "separator");

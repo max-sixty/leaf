@@ -48,7 +48,7 @@ Commands:
   ack         Acknowledge one batch, then wait for the next.
   codex       Deliver page updates to later turns of this Codex task.
   comment     Open an agent thread — on a passage, or on the page whole.
-  data        Set or clear page-bound external data.
+  data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   package     Create and check packages.
@@ -83,14 +83,15 @@ Commands:
             ["data", "--help"],
             """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
 
-  Manage replaceable external or derived page data.
+  Manage current values and immutable text captures.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  clear  Remove one source snapshot.
-  set    Replace one bound source value.
+  capture  Capture a bound UTF-8 text source.
+  clear    Clear current and unreferenced captures.
+  set      Replace one bound source value.
 """,
             id="data",
         ),
@@ -119,7 +120,6 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  catalog   Print the widget and theme vocabulary.
   guidance  List or print composed guidance by audience.
   init      Create or re-vendor a page directory.
   media     Add images and print their page paths.
@@ -208,32 +208,7 @@ def test_the_skill_routes_every_reference_it_ships():
 
 
 def test_the_python_instructions_name_every_module_they_own():
-    """A module the ownership list never names is one no session is routed to.
-
-    The companion to the reference test above, and the same reason: the set comes
-    from the directory, so adding a module and forgetting to list it cannot stay
-    green. The list has drifted twice by hand already — four owners went unnamed
-    until they were counted, and `requests` arrived with the request lifecycle and
-    was not added beside `asks`.
-
-    Each module is asked of the scope that owns it, because the instructions keep
-    two kinds of list and a bare stem is not unique across them: a package member is
-    named in its own `Within `pkg/`,` paragraph, and everything else in the top list
-    or the prose around it. Asked flat, `registry/layer` would be answered by the
-    top-level `layer` and a new member of any package would inherit whichever
-    top-level name it happened to share.
-
-    Any backticked span counts within a scope, because the top list is not the only
-    place a module is legitimately introduced there — `cli` is named in the opening
-    prose as `leaf/cli.py`. A package initializer is a marker rather than an owner,
-    which the instructions say outright, so it is not asked for.
-
-    A tend PR session reads a base-branch copy of every CLAUDE.md — the harness
-    restores them before the session starts — so this test can fail there against a
-    doc the branch has already fixed. Read the branch's own copy with
-    `git show HEAD:plugins/leaf/skills/leaf/scripts/CLAUDE.md` before believing it.
-    CI is unaffected: the restore is tend's, not the suite's.
-    """
+    """Every Python owner is named in the instruction scope that routes it."""
     scripts = SKILL_ROOT / "scripts"
     instructions = (scripts / "CLAUDE.md").read_text(encoding="utf-8")
     paragraphs = instructions.split("\n\n")
@@ -244,6 +219,8 @@ def test_the_python_instructions_name_every_module_they_own():
     }
     outside = "\n\n".join(p for p in paragraphs if not p.startswith("Within `"))
 
+    # Keep package names scoped so `registry/layer` cannot be satisfied by the
+    # top-level `layer` owner.
     def names(scope):
         return {
             part.removesuffix(".py")
@@ -792,6 +769,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "x-upgrade": False,
     }
     project_only = {
+        "description": "project-only shape",
         "type": "object",
         "properties": {},
         "additionalProperties": False,
@@ -816,13 +794,12 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 
 
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
-    """A project idiom joins the shipped catalog; a restated one replaces its member.
+    """A project idiom joins the shipped registry; a restated one replaces its member.
 
     $ entries merge one level deep. Under replace-whole, the first project layer
     to declare an idiom vendored a $idioms holding only its own: the shipped
-    idioms' CSS kept styling (theme files concatenate), while `page catalog`
-    stopped documenting them — a silent wipe of everything the layer didn't
-    restate.
+    idioms' CSS kept styling (theme files concatenate), while the vendored registry
+    stopped declaring them — a silent wipe of everything the layer didn't restate.
     """
     project = tmp_path / "proj"
     layer = project / ".leaf"
@@ -1599,6 +1576,23 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
+
+
+def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-toned-note"]["description"] = "   "
+    registry_path.write_text(json.dumps(registry))
+
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+
+    assert result.exit_code != 0
+    assert "<lf-toned-note> must carry a non-empty description" in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -2435,25 +2429,8 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     plain_audiences = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
-    plain_catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(plain)])
-    packaged_catalog = CliRunner().invoke(
-        cli_model.cli, ["page", "catalog", str(command)]
-    )
     assert plain_audiences.exit_code == 0, plain_audiences.output
     assert plain_audiences.output == ""
-    assert plain_catalog.exit_code == 0, plain_catalog.output
-    assert packaged_catalog.exit_code == 0, packaged_catalog.output
-    assert '"lf-worktree"' not in plain_catalog.output
-    assert '"lf-worktree"' in packaged_catalog.output
-    assert "# Widget `<lf-worktree>`" in packaged_catalog.output
-    assert (
-        packaged_registry["lf-worktree"]["x-guidance"]["author"]
-        in packaged_catalog.output
-    )
-    assert "# Guidance for authors" not in plain_catalog.output
-    assert "# $command, declared by this layer." in packaged_catalog.output
-    assert "# Guidance for authors" in packaged_catalog.output
-    assert "# Command Hub package" in packaged_catalog.output
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(command), "coordinator"]

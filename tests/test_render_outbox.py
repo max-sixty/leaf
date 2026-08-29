@@ -1495,7 +1495,9 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.route("**/api/event", lambda route: held.append(route))
     draft = page.locator("#note-cli")
     with page.expect_request("**/api/event"):
-        draft.locator(".lf-draft-pencil").click()
+        page.locator(
+            ".lf-draft-controls[data-lf-for='note-cli'] .lf-draft-pencil"
+        ).click()
         draft.locator("textarea").fill("Local C")
         page.keyboard.press("Meta+Enter")
     page.wait_for_timeout(0)
@@ -1552,7 +1554,7 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     authored = body.inner_text()
     assert "\n\n" in authored
 
-    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator(".lf-draft-controls .lf-draft-pencil").click()
     page.locator("lf-draft textarea").fill("Rewritten.")
     page.keyboard.press("Meta+Enter")
     round_trip(page)
@@ -1711,14 +1713,14 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
     body = "lf-draft .lf-draft-body"
     authored = one.locator(body).inner_text()
 
-    one.locator("lf-draft .lf-draft-pencil").click()
+    one.locator(".lf-draft-controls .lf-draft-pencil").click()
     one.locator("lf-draft textarea").fill("Rewritten.")
     one.keyboard.press("Meta+Enter")
     round_trip(one)
     expect(two.locator(body)).to_have_text("Rewritten.")
 
     # The second tab is now holding words of its own, so the log may not write over it.
-    two.locator("lf-draft .lf-draft-pencil").click()
+    two.locator(".lf-draft-controls .lf-draft-pencil").click()
     expect(two.locator("lf-draft textarea")).to_be_focused()
     undo(one)
     expect(one.locator(body)).to_have_text(authored)

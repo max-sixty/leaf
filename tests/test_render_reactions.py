@@ -59,6 +59,38 @@ def painted(page, glyphs):
     return page.evaluate(PAINTED)
 
 
+def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, serve):
+    """Passive information may join the RHS after presentation without claiming space."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1440, 900)
+    column = page.locator("main").evaluate(
+        "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "ok",
+            "anchor": {"section": "how-store"},
+        },
+    )
+    told(page)
+    painted(page, [["how-store", "ok"]])
+    assert (
+        page.locator("main").evaluate(
+            "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+        )
+        == column
+    )
+    expect(page.locator(".lf-reacts").locator("xpath=..")).not_to_have_attribute(
+        "data-lf-claims-rail", ""
+    )
+    assert errors == []
+    page.close()
+
+
 def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     browser, serve
 ):
@@ -80,7 +112,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     assert tokens == ["ok", "no", "lost", "cut", "more", "this"], tokens
     assert bar.locator(
         ":scope > .lf-fab, :scope > .lf-react-trigger"
-    ).all_text_contents() == [
+    ).all_inner_texts() == [
         "💬",
         "…",
     ]
@@ -90,12 +122,13 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     bar.locator(".lf-react-trigger").click()
-    expect(bar).to_have_class(re.compile("lf-react-open"))
-    expect(bar.locator(".lf-react-trigger:visible")).to_have_count(0)
-    expect(bar.locator(".lf-react:visible")).to_have_count(6)
-    expect(bar.locator('.lf-react[data-token="ok"]')).to_be_focused()
+    surface = page.locator(".lf-margin-reactions")
+    expect(surface).to_have_class(re.compile("lf-react-open"))
+    expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
+    expect(surface.locator(".lf-react:visible")).to_have_count(6)
+    expect(surface.locator('.lf-react[data-token="ok"]')).to_be_focused()
 
-    page.locator('.lf-fab-bar .lf-react[data-token="cut"]').click()
+    surface.locator('.lf-react[data-token="cut"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "cut" and "text" not in sent
@@ -106,15 +139,24 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     shown = painted(page, [["how-store", "cut"]])
     assert "holdseveryedit" in shown["washed"], shown
     assert shown["outlined"] == []
-    # Level with its block: the glyph's top is the paragraph's first line, in the margin.
+    # The receipt contributes to the target's one complete RHS item, which stands level
+    # with the block's first line in the margin.
     level = page.evaluate(
         """() => {
           const p = document.querySelector('#how-store').getBoundingClientRect();
-          const g = document.querySelector('.lf-reacts').getBoundingClientRect();
-          return { dy: g.top - p.top, right: g.left - p.right };
+          const receipt = document.querySelector('.lf-reacts');
+          const item = receipt.closest('.lf-margin-item');
+          const g = item.getBoundingClientRect();
+          return { dy: g.top - p.top, right: g.left - p.right,
+                   target: item.dataset.lfMarginFor, parent: receipt.parentElement === item };
         }"""
     )
-    assert -2 <= level["dy"] <= 6 and level["right"] > 0, level
+    assert (
+        -2 <= level["dy"] <= 6
+        and level["right"] > 0
+        and level["target"] == "how-store"
+        and level["parent"]
+    ), level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     page.locator(".lf-threads-toggle").click()
@@ -134,14 +176,19 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     # paragraph's end would end on the glyph rather than on the words.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
-    expect(page.locator(".lf-reacts")).not_to_have_class(re.compile("lf-docked"))
+    receipt_item = page.locator('.lf-margin-item[data-lf-margin-for="how-store"]')
+    expect(receipt_item).not_to_have_class(re.compile("lf-docked"))
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
     bar.locator(".lf-react-trigger").click()
-    expect(bar.locator('.lf-react[data-token="cut"]')).to_have_attribute(
+    surface = page.locator(".lf-margin-reactions")
+    expect(receipt_item).to_have_count(1)
+    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
+    expect(receipt_item.locator(":scope > .lf-margin-reactions")).to_have_count(1)
+    expect(surface.locator('.lf-react[data-token="cut"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(bar.locator('.lf-react[data-token="ok"]')).to_have_attribute(
+    expect(surface.locator('.lf-react[data-token="ok"]')).to_have_attribute(
         "aria-pressed", "false"
     )
     page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
@@ -155,38 +202,36 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.close()
 
 
-def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
-    browser, serve
-):
-    """`r` turns the ellipsis into the inline reaction buttons while the comment icon
-    stays put. Digits remain optional accelerators in declaration order. With no
-    selection, focused item, or agent reply, the key names the missing target and does
-    not borrow the page-wide strip by opening Threads."""
+def test_r_extends_the_targets_margin_item_and_needs_a_target(browser, serve):
+    """`r` adds Comment and reaction buttons to the target's one RHS item.
+
+    Digits remain optional accelerators in declaration order. With no selection,
+    focused item, or agent reply, the key names the missing target and does not borrow
+    the page-wide strip by opening Threads.
+    """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    comment_before = bar.locator(".lf-fab").evaluate(
-        "el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }"
-    )
     page.keyboard.press("r")
     line = key_line(page)
     assert "1–6" in line and "react" in line, line
-    expect(bar).to_have_class(re.compile("lf-react-open"))
-    expect(bar.locator(".lf-react-trigger:visible")).to_have_count(0)
-    expect(bar.locator(".lf-react:visible")).to_have_count(6)
-    comment_after = bar.locator(".lf-fab").evaluate(
-        "el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }"
-    )
-    assert comment_after == comment_before, (comment_before, comment_after)
-    assert bar.evaluate("el => !el.classList.contains('lf-react-stacked')")
+    surface = page.locator(".lf-margin-reactions")
+    expect(surface).to_have_class(re.compile("lf-react-open"))
+    expect(surface.locator(".lf-react-trigger:visible")).to_have_count(0)
+    expect(surface.locator(".lf-react:visible")).to_have_count(6)
+    expect(bar).to_be_hidden()
+    expect(surface.locator(".lf-fab")).to_be_visible()
     assert (
-        bar.locator(".lf-fab, .lf-react:visible").evaluate_all(
-            "els => new Set(els.map(el => el.getBoundingClientRect().y)).size"
+        surface.locator(".lf-fab, .lf-react:visible").evaluate_all(
+            """els => new Set(els.map(el => {
+              const box = el.getBoundingClientRect();
+              return Math.round(box.y + box.height / 2);
+            })).size"""
         )
         == 1
     )
-    expect(bar.locator(".lf-address")).to_have_count(0)
+    expect(surface.locator(".lf-address")).to_have_count(0)
     page.keyboard.press("4")
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -251,7 +296,7 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
     expect(bar).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
     bar.locator(".lf-react-trigger").click()
-    page.locator('.lf-fab-bar .lf-react[data-token="this"]').click()
+    page.locator('.lf-margin-reactions .lf-react[data-token="this"]').click()
     round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["token"] == "this" and sent["anchor"] == {"section": "how-patch"}
@@ -262,35 +307,31 @@ def test_alt_click_raises_the_bar_on_an_item_and_a_token_outlines_it(browser, se
 
 
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
-def test_the_reaction_list_stacks_at_a_narrow_edge_without_moving_comment(
+def test_the_reaction_list_joins_a_docked_margin_item_on_a_narrow_screen(
     browser, serve, opener
 ):
-    """A narrow viewport keeps the comment icon fixed and puts the reaction list on
-    the adjacent row, wholly inside the viewport, when it cannot expand to the right."""
+    """With no RHS, the same item docks in flow instead of opening a floating box."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     resized(page, 390, 900)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    comment_before = bar.locator(".lf-fab").bounding_box()
-
     if opener == "click":
         bar.locator(".lf-react-trigger").click()
     else:
         page.keyboard.press("r")
-    expect(bar).to_have_class(re.compile("lf-react-stacked"))
-    comment_after = bar.locator(".lf-fab").bounding_box()
-    palette = bar.locator(".lf-react-palette").bounding_box()
-
-    assert comment_after == comment_before, (comment_before, comment_after)
+    item = page.locator(".lf-margin-item").filter(
+        has=page.locator(".lf-margin-reactions")
+    )
+    expect(item).to_have_class(re.compile("lf-docked"))
+    palette = item.locator(".lf-react-palette").bounding_box()
     assert 8 <= palette["x"] and palette["x"] + palette["width"] <= 382, palette
-    assert (
-        palette["y"] >= comment_after["y"] + comment_after["height"] + 6
-        or palette["y"] + palette["height"] + 6 <= comment_after["y"]
-    ), (comment_after, palette)
+    assert item.locator(".lf-react-palette").evaluate(
+        "el => getComputedStyle(el).position !== 'absolute'"
+    )
 
     resized(page, 1280, 900)
-    expect(bar).not_to_have_class(re.compile("lf-react-open"))
+    expect(page.locator(".lf-margin-reactions")).to_have_count(0)
     expect(bar.locator(".lf-react-trigger")).to_be_visible()
     assert errors == []
     page.close()
@@ -308,7 +349,9 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
 
     page.keyboard.press("r")
     page.keyboard.press("ArrowLeft")
-    expect(page.locator('.lf-fab-bar .lf-react[data-token="this"]')).to_be_focused()
+    expect(
+        page.locator('.lf-margin-reactions .lf-react[data-token="this"]')
+    ).to_be_focused()
     page.keyboard.press("Enter")
     round_trip(page)
     expect(page.locator(".lf-live")).to_contain_text("this on Start request")
@@ -1158,8 +1201,10 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     copy = page.evaluate(
         """() => ({
           washed: [...document.querySelectorAll('mark.lf-react')].map(m => m.textContent),
-          glyph: [...document.querySelectorAll('#how-store .lf-react-mark')]
-            .map(m => [m.textContent, m.getAttribute('role'), m.getAttribute('tabindex')]),
+          glyph: [...document.querySelectorAll(
+            '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
+          )]
+            .map(m => [m.innerText, m.getAttribute('role'), m.getAttribute('tabindex')]),
         })"""
     )
     assert copy == {"washed": ["every edit"], "glyph": [["−", None, None]]}, copy

@@ -45,6 +45,7 @@ from render_support import (
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TINTED_LINE_PAGE,
+    TYPED_PARTS_PAGE,
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
@@ -618,6 +619,18 @@ def test_the_render_gate_requires_a_visual_parts_provider(
         "lfVisualPart, lfVisualPartAt" in failure
         for failure in failures
     ), failures
+
+
+def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
+    browser, serve
+):
+    """The corpus is flowcharts, so the shapes `parts` reaches need a page of their own.
+
+    A state machine and an ER schema draw markup a flowchart never does — a cluster, a
+    box of attribute rows — and the whole-page contracts (both palettes, axe, print,
+    export, reachability) are what would say so. This is that page.
+    """
+    assert render_gate_model.render_version(browser, serve(TYPED_PARTS_PAGE)) == []
 
 
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(

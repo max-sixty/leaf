@@ -85,6 +85,63 @@ graph LR
 </pre></lf-diagram>
 """,
 )
+# The two shapes besides a flowchart whose written ids reach the drawing. The state
+# machine carries a composite state, which mermaid draws under the author's own id
+# rather than the one it mints for a plain node, and the entity carries attributes, so
+# the box holds a table of text the reader must not be handed as a label.
+TYPED_PARTS_PAGE = leaf_page(
+    "typed diagram parts",
+    """
+<h1 id="t">One runner</h1>
+<lf-diagram id="life" parts="node:Queued node:Working node:Build"><pre>
+stateDiagram-v2
+  [*] --&gt; Queued
+  Queued --&gt; Working
+  state Working {
+    Fetch --&gt; Build
+  }
+  Working --&gt; Done
+</pre></lf-diagram>
+<lf-diagram id="shape" parts="node:RUNNER"><pre>
+erDiagram
+  RUNNER {
+    string id PK
+    string name
+  }
+  RUNNER ||--o{ JOB : runs
+</pre></lf-diagram>
+<lf-diagram id="path" parts="node:A"><pre>
+graph LR
+  A["`**Bold** and _plain_`"] --&gt; B[after]
+</pre></lf-diagram>
+""",
+)
+# One state inserted above the anchored one, which moves the id mermaid mints for it
+# from `state-Queued-1` to `state-Queued-2`. The authored token does not move.
+TYPED_PARTS_V2 = leaf_page(
+    "typed diagram parts",
+    """
+<h1 id="t">One runner</h1>
+<lf-diagram id="life" parts="node:Queued node:Working node:Build"><pre>
+stateDiagram-v2
+  [*] --&gt; Fresh
+  Fresh --&gt; Queued
+  Queued --&gt; Working
+  state Working {
+    Fetch --&gt; Build
+  }
+  Working --&gt; Done
+</pre></lf-diagram>
+<lf-diagram id="shape" parts="node:RUNNER"><pre>
+erDiagram
+  RUNNER {
+    string id PK
+    string name
+  }
+  RUNNER ||--o{ JOB : runs
+</pre></lf-diagram>
+""",
+)
 PART_DIAGRAM_V2 = leaf_page(
     "diagram parts",
     """

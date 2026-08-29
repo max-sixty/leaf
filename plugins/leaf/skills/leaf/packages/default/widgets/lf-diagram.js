@@ -88,6 +88,46 @@ const loadMermaid = () =>
     document.head.append(s);
   }));
 
+/* Which boxes an author may name, per Mermaid type: the id written in the source and
+ * the id the renderer draws it under. A type belongs here when the author's id
+ * reaches the drawing inside an id of Mermaid's own making, because only then is
+ * `node:Queued` still the same box after a re-render, and after an edit that inserts
+ * three boxes above it.
+ *
+ * The absences are not a shortlist. A sequence diagram gives a message — the thing
+ * an author wants to point at in one — no coordinate at all, and journey, timeline,
+ * mindmap and pie carry none anywhere. Gantt tasks look addressable and are not:
+ * mermaid keeps one gantt db for the whole page, so a second gantt on it overwrites
+ * the first's reading before the first has drawn, and it mints `task1`, `task2` for
+ * the tasks an author left unnamed — a token that names the third bar today and the
+ * fourth after an insertion.
+ */
+// A box that holds other boxes — a flowchart subgraph, a composite state — is drawn
+// under the author's id itself, where a plain node is drawn under mermaid's. Its
+// `domId` is null or names a box the renderer never draws, so asking by node kind is
+// the whole of it. Mermaid draws the containers in a layer of their own rather than
+// around what they hold, so a container is pointed at where it paints — its frame and
+// its title — while the boxes inside it answer for themselves.
+const graphBoxes = (db) =>
+  db.getData().nodes.map((n) => [n.id, n.isGroup ? n.id : n.domId]);
+const PART_SOURCES = {
+  "flowchart-v2": { source: "flowchart", boxes: graphBoxes },
+  stateDiagram: { source: "stateDiagram-v2", boxes: graphBoxes },
+  er: {
+    // The third member is a label, and only a type whose box says more than its own
+    // name owes one: an entity's box is a table of attribute rows, where a node's box
+    // is its label and nothing else. The source's word for a node is the label before
+    // mermaid renders it, markdown, entities and all, so reading it back off the
+    // drawing is what keeps the thread quoting what the reader can see.
+    source: "erDiagram",
+    boxes: (db) =>
+      [...db.getEntities()].map(([name, e]) => [name, e.id, e.alias || name]),
+  },
+};
+const PART_TYPES = Object.values(PART_SOURCES)
+  .map((entry) => entry.source)
+  .join(", ");
+
 let seq = 0;
 customElements.define(
   "lf-diagram",
@@ -111,6 +151,8 @@ customElements.define(
         const parsed = declared.size
           ? await mermaid.mermaidAPI.getDiagramFromText(source)
           : null;
+        const addressable = parsed && PART_SOURCES[parsed.type];
+        const boxes = addressable ? addressable.boxes(parsed.db) : [];
         const { svg } = await mermaid.render(renderId, source);
         this.innerHTML = retheme(svg);
         // Mermaid sizes to fit: the svg is width 100%, capped at its natural size, so
@@ -126,20 +168,22 @@ customElements.define(
           drawn.style.maxWidth = "";
         }
         this.visualParts.clear();
-        if (parsed?.type === "flowchart-v2") {
-          for (const node of parsed.db.getData().nodes ?? []) {
-            const part = `node:${node.id}`;
-            if (!declared.has(part)) continue;
-            const element = drawn.querySelector(`#${CSS.escape(node.domId)}`);
-            if (!element) continue;
-            const label = element.textContent.replace(/\s+/g, " ").trim() || node.id;
-            this.visualParts.set(part, { element, label });
-          }
+        for (const [id, drawnId, name] of boxes) {
+          const part = `node:${id}`;
+          if (!declared.has(part)) continue;
+          const element = drawn.querySelector(`#${CSS.escape(drawnId)}`);
+          if (!element) continue;
+          const says = element.textContent.replace(/\s+/g, " ").trim();
+          this.visualParts.set(part, { element, label: name ?? (says || id) });
         }
         const missing = [...declared].filter((part) => !this.visualParts.has(part));
         if (missing.length)
           throw new Error(
-            `commentable flowchart nodes not found: ${missing.join(", ")}`,
+            addressable
+              ? `commentable ${addressable.source} boxes not found: ${missing.join(", ")}`
+              : `a ${parsed.type} diagram draws its boxes under ids Mermaid mints, ` +
+                  `so parts cannot name one. Only these types carry the ids you ` +
+                  `write: ${PART_TYPES}. Drop parts to comment on the whole drawing.`,
           );
         this.classList.add("lf-rendered");
       } catch (err) {

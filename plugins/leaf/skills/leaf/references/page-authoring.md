@@ -251,6 +251,11 @@ selectable literal source and `lf-code` for a line-numbered walkthrough. The
 registry's `$languages.names` lists accepted language names. Keep logs and
 transcripts plain when they are not source code.
 
+Which Mermaid type you pick also decides whether a reader can comment on one box or
+only on the whole drawing. The `lf-diagram` entry says which types carry `parts`; a
+sequence diagram does not, so its steps take one comment on the picture between
+them.
+
 Use `lf-source` when the literal text already lives in a UTF-8 file and should remain
 selectable and commentable without copying it into the authored HTML. First add a
 current-data binding to the page source so Leaf can give the source its page-lifetime

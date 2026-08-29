@@ -32,6 +32,8 @@ from render_support import (
     PICTURE_PAGE,
     REPLAYED_PAGE,
     SPECIMEN_PAGE,
+    TYPED_PARTS_PAGE,
+    TYPED_PARTS_V2,
     aim_targets,
     draw_edge,
     geometry,
@@ -979,7 +981,12 @@ def test_design_mode_keeps_its_control_label_on_a_part_visual(browser, serve):
 
 
 def test_visual_parts_refuse_a_mermaid_type_the_adapter_cannot_address(browser, serve):
-    """An unsupported promise is visible instead of producing detached anchors later."""
+    """An unsupported promise is visible instead of producing detached anchors later.
+
+    A sequence diagram is the case worth holding: its steps are the obvious thing to
+    want to comment on, and they are exactly what Mermaid draws under no id at all. The
+    error says which types do carry one rather than only that this one does not, because
+    the author's next move is to pick from them."""
     unsupported = leaf_page(
         "unsupported diagram parts",
         """
@@ -992,9 +999,94 @@ sequenceDiagram
     )
     page, _ = open_page(browser, serve(unsupported))
 
-    expect(page.locator("#exchange .lf-error")).to_contain_text(
-        "commentable flowchart nodes not found: node:A"
+    error = page.locator("#exchange .lf-error")
+    expect(error).to_contain_text("a sequence diagram draws its boxes under ids")
+    expect(error).to_contain_text("flowchart, stateDiagram-v2, erDiagram")
+    page.close()
+
+
+def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
+    browser, serve
+):
+    """`parts` follows the ids Mermaid carries, not one diagram type.
+
+    A state's name and an ER entity's name are written in the source the way a
+    flowchart node's is, so each addresses a box across a re-render. Three further
+    things this holds. A composite state is drawn under the author's own id rather than
+    the one Mermaid mints for a plain node, and a box inside it is drawn under Mermaid's
+    as usual, so each takes its own comment. An entity's box holds its whole attribute
+    table, so the thread's label is the source's word for it rather than what the box
+    says, while a node's label stays what the box says. And a later version that inserts
+    a state above the anchored one moves the id Mermaid mints while leaving the authored
+    token where it was.
+    """
+    page, errors = open_page(browser, live_url(serve(TYPED_PARTS_PAGE)))
+
+    def aim(target, **press):
+        target.click(modifiers=["Alt"], **press)
+        expect(page.locator(".lf-fab-bar")).to_be_visible()
+        page.locator(".lf-fab").click()
+
+    state = page.locator('#life g[id^="state-Queued-"]')
+    aim(state)
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
+    page.locator(".lf-composer textarea").fill("how long does it sit here")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+
+    # A box inside the composite state, declared in its own right.
+    aim(page.locator('#life g[id^="state-Build-"]'))
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Build")
+    page.get_by_role("button", name="Cancel").click()
+
+    aim(page.locator("#life g#Working"), position={"x": 6, "y": 6})
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Working")
+    page.get_by_role("button", name="Cancel").click()
+
+    entity = page.locator('#shape g[id^="entity-RUNNER-"]')
+    aim(entity)
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
+    page.get_by_role("button", name="Cancel").click()
+
+    # A node's label is the words the box shows. The source's own string is what
+    # Mermaid renders from — markdown, entities and all — so it is not what a thread
+    # quotes back to the reader.
+    aim(page.locator('#path g[id^="flowchart-A-"]'))
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "§ diagram · Bold and plain"
     )
+    page.get_by_role("button", name="Cancel").click()
+
+    aim(entity)
+    page.locator(".lf-composer textarea").fill("one runner or many")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+
+    posted = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["anchor"] for event in posted] == [
+        {"section": "life", "visual": "node:Queued"},
+        {"section": "shape", "visual": "node:RUNNER"},
+    ]
+    expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(entity).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(page.locator("#life")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
+
+    # v2 inserts a state above Queued, so Mermaid mints it a new id. The mark follows
+    # the authored token to whatever box that version draws for it.
+    assert 'id="state-Queued-1"' in page.locator("#life").inner_html()
+    (serve.page_dir / "versions" / "v2.html").write_text(TYPED_PARTS_V2)
+    stamp_version_file(serve.page_dir, 2, "one state earlier")
+    told(page)
+    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator("#life g#state-Queued-2")).to_have_class(
+        re.compile(r"\blf-mark-el\b")
+    )
+    expect(page.locator("#life g#state-Queued-1")).to_have_count(0)
+    assert errors == []
     page.close()
 
 

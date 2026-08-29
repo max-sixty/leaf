@@ -10,6 +10,13 @@ agent. leaf's answers are authored HTML, a directory on your machine, and a
 host-specific wait inside the session: background completion in Claude Code, an exact
 unified-exec session kept inside the active turn in Codex.
 
+The note serves three ends: not building, worse, what already exists; keeping the ideas
+the neighbours have had; and finding the ground they leave open. Behind the third is a
+bet on the bitter lesson. Most of this landscape constrains the agent to what its
+authors trusted a model to do at design time, and those ceilings hold as models improve.
+leaf's side of each comparison should be primitives that get better as the agent does —
+the document, the log, the open vocabulary — rather than a library that caps it.
+
 ## Claude Code Artifacts
 
 Read on 2026-08-22, from Claude Code's own documentation.
@@ -552,6 +559,19 @@ explicit that the surface's local data model is "the single source of truth", wh
 json-render's `$state` as doctrine, and the specification has no versions, no replay,
 no undo, and nothing that anchors a remark to a component or a passage. As an interface
 it standardizes the live tree, which leaf doesn't keep, and says nothing about the log.
+
+Against A2UI in particular, two of the differences are decisions rather than accidents.
+The catalog is a capability boundary: it exists so a model never ships executable
+content into the application it is drawn in, because the reader is someone else's user.
+leaf declines that boundary on purpose — the reader is the person whose session wrote
+the page, so the page gets the whole window, and the registry is a contract the gates
+read rather than a fence the agent is kept behind; leaf's CSP guards against a page
+phoning home, not against the agent. The tree is the second decision. An abstract tree
+can be forced valid at generation, by constrained decoding against the catalog's
+schema, and can land on toolkits HTML never reaches; leaf accepts checking after the
+markup exists, in `version check`, to keep the artifact a document. Both trades follow
+from who is reading, and both are the introduction's bet in miniature: a catalog's
+ceiling is fixed at design time, while fluency in HTML rises with every model.
 
 Open-JSON-UI is the remaining name this corner is described with, and it is a name
 with documentation and no specification. The documentation is real and easy to find: a

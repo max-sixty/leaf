@@ -28,16 +28,38 @@ unrelated declarations compete with the page's subject for attention.
 
 Understanding an existing page also requires a join. Authored words live in the
 active HTML revision, standing decisions live in the event projection, and
-replaceable inputs live in `data.json`. `leaf page state` exposes the latter two
-and points at element ids and source lines, but it does not present the page's
-current words with those facts applied. A successor has to discover and perform
-that join correctly. Invalid mutable source adds another distinction: the live
-page remains on the last valid revision while `index.html` contains the rejected
-candidate.
+replaceable inputs live in `data.json`. `leaf page state` exposes the semantic
+projection and points at the exact active revision and data-file revision, but it
+does not present the page's current words with those facts applied. A successor
+has to discover and perform that join correctly. Invalid mutable source adds
+another distinction: the live page remains on the last valid revision while
+`index.html` contains the rejected candidate.
 
 Long conversations add a smaller version of the same problem. A delivered batch
-may elide the middle of a thread, and the agent has to notice the marker and read
-the transcript before answering a question that depends on it.
+may elide the middle of a thread. The agent has to notice the marker, use the
+thread id from `page state`, and retrieve `leaf events --thread ID` before
+answering a question that depends on the missing records.
+
+## Canonical agent access
+
+Keep Leaf's agent-facing surface small and semantic:
+
+- `leaf page state PAGE` computes the current semantic index: active source and
+  data revisions, standing actions and reports, decisions, requests, reactions,
+  current thread state, and the event-log watermark folded into the snapshot;
+- `leaf page guidance PAGE [AUDIENCE]` composes explicit operating guidance;
+- `leaf events PAGE [--after SEQ] [--thread THREAD]` prints the append-only JSONL
+  history admitted at validated write boundaries; `--after` is a sequence cursor
+  and `--thread` is one exact semantic identity lookup;
+- `active.file` names the readable canonical HTML when a valid revision exists,
+  `source.file` names the mutable author target, `data.file` is always readable,
+  and `registry.json` remains the canonical vocabulary.
+
+Leaf should own joins whose meaning depends on event kind, authored structure,
+or the registry. Agents should use `jq`, `rg`, and normal file reads to select
+records and fields. Do not add general include/exclude fields, projections,
+profiles, or a Leaf-specific filtering language. Exact identity lookup and the
+sequence cursor are the useful low-cardinality exceptions.
 
 ## Selective registry reading
 
@@ -96,7 +118,7 @@ solved the agent experience.
 | Competing authorities | `index.html` conflicts with the last valid revision; a standing action also overrides authored state | The agent identifies what the person currently sees and does not report the rejected source or superseded authored state as current. |
 | Resume a foreign page | Several versions, open and resolved threads, record lag, and updated external data | The agent gives the current conclusion, open work, and next required action without treating the event log as a transcript to retell. |
 | Revise after feedback | A comment changes prose beside an already chosen option | The comment is answered; the prose changes; surviving ids and the choice remain; `restated` appears only if the agent deliberately replaces the decision. |
-| Elided conversation | The decisive premise is in the elided middle of a long thread | The agent reads the full transcript before replying and answers from the missing premise. |
+| Elided conversation | The decisive premise is in the elided middle of a long thread | The agent uses the thread id to select its raw events before replying and answers from the missing premise. |
 | Mixed event batch | A comment, action, reaction, undo, and page error arrive together | Each event receives its defined treatment; the withdrawn gesture is not carried; acknowledgement advances only after the complete batch is available. |
 
 ## First executable slice
@@ -127,6 +149,15 @@ Both authoring arms and the comprehension fixtures can establish a baseline now.
 Before automating the slice, choose the agent runner and host, model settings,
 fixture builder, trace format, arm isolation, answer normalization, and
 result-retention policy.
+
+## Near-term usability TODO
+
+Design a coherent set of optional authoring defaults that `version check` can
+offer as non-blocking advice rather than adding one-off hints. The first case is
+a page with two or more section headings and no `lf-toc`: recommend a table of
+contents while leaving an author free to omit it when the outline is already
+visible. Keep the advice structural and deterministic rather than attempting to
+judge prose quality.
 
 ## Possible supporting interface after the baseline
 

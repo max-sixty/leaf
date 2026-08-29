@@ -3262,12 +3262,21 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
 
-    # And the command a session picks the page up with, which carries the
-    # surviving words as the thread's own message rather than anywhere in its
-    # output — the reading that lets that session answer the reply it can see.
+    closed = event_model.append_event(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": "c-lost"},
+    )
+
+    # And both commands an agent uses: state reports the current fact, while the
+    # exact thread lookup recovers every surviving record that explains it.
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     [thread] = json.loads(state.output)["threads"]
-    assert [(m["id"], m["text"]) for m in thread["messages"]] == [
-        ("r-kept", "the answer that survived it")
-    ]
+    assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
+    history = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
+    )
+    assert history.exit_code == 0, history.output
+    records = [json.loads(line) for line in history.output.splitlines()]
+    assert [record["id"] for record in records] == ["r-kept", closed["id"]]
+    assert records[0]["text"] == "the answer that survived it"

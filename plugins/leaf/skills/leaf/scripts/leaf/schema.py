@@ -16,8 +16,8 @@ ORPHAN_GRACE_SECS = 1
 UNDOABLE_KINDS = {"resolve", "unresolve", "action"}
 MESSAGE_KINDS = {"comment", "reply"}
 ANSWER_DECISION_INSTRUCTION = (
-    "`leaf page state <page>` prints each thread's exchange, and "
-    "`leaf transcript <page>` prints a long one whole. A thread with "
+    "`leaf page state <page>` lists each thread's current state, and "
+    "`leaf events <page> --thread <id>` prints its exact records. A thread with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
     "separate `leaf comment --section <decision-id>` on the same Decision if that revision "
     "needs an answer first. Reply to other threads with `leaf reply <page> --to "

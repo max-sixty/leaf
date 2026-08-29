@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .data import read_data_store
+from .data import empty_data, read_data_store
 from .data_contracts import (
     data_contract_errors,
     page_data_bindings,
@@ -31,7 +31,7 @@ from .layer import (
 from .leases import init_lock_path, lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_projection
-from .schema import LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
+from .schema import DATA_FILE, LAYER_PLACEHOLDER, PACKAGE_DIRS, PACKAGE_FILES
 from .service import PageTransaction, claim_path
 from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_seats
@@ -387,6 +387,12 @@ def _commit_layer(
             page_dir / "status.json",
             {"state": "working", "detail": "Writing the page", "ts": now_iso()},
         )
+    # State names this as the canonical values file even before the page binds a
+    # source. Make the empty revision concrete so an agent can always follow the
+    # pointer with an ordinary JSON read; re-vendoring preserves any existing
+    # values exactly as it preserves the event log.
+    if not (page_dir / DATA_FILE).exists():
+        write_json(page_dir / DATA_FILE, empty_data())
     # The append-only log's stable inode is also the successful-init marker and
     # the page transaction lease. Publish it only after the layer and initial
     # status commit, so a failed first write still takes the fresh-init path.

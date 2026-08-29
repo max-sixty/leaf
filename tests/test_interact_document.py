@@ -2185,6 +2185,18 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         {"version": 1, "revision": 1, "url": "/versions/v1.html"}
     ]
     assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
+    assert state["active"]["file"].startswith("revisions/r1-")
+    assert state["source"] == {
+        "file": "index.html",
+        "live": True,
+        "error": None,
+    }
+    assert state["data"] == {"file": "data.json", "revision": 0}
+    assert files_model.read_json(page_dir / state["data"]["file"]) == {
+        "revision": 0,
+        "sources": {},
+    }
+    assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
     assert state["decisions"] == [
         {"id": "g1-decision", "tag": "lf-decision", "thread": None}
@@ -2254,10 +2266,10 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
 
 
-def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
+def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     """One CLI boundary writes complete source values. A rejected replacement leaves
-    the accepted revision untouched, while `page state` exposes the same envelope a
-    browser receives so a session never has to infer external facts from markup."""
+    the accepted revision untouched. `page state` identifies the canonical store and
+    its freshness without copying arbitrary package values into the semantic index."""
     declare_data_input(
         page_dir,
         "deployments",
@@ -2277,10 +2289,12 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
 
     assert written.exit_code == 0, written.output
     standing = state_json(page_dir)
-    first = standing["data"]
+    first = data_model.read_data(page_dir)
     assert first["revision"] == 1
     assert first["sources"]["deployments"]["contract"] == "deployment-rows"
     assert first["sources"]["deployments"]["value"] == ["api", "worker"]
+    assert standing["data"] == {"file": "data.json", "revision": 1}
+    assert "sources" not in standing["data"]
     assert standing["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
@@ -2301,7 +2315,8 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
     )
     assert rejected.exit_code != 0
     assert "source 'deployments' value is invalid" in rejected.output
-    assert state_json(page_dir)["data"] == first
+    assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 1}
+    assert data_model.read_data(page_dir) == first
 
     non_json = runner.invoke(
         cli_model.cli,
@@ -2310,13 +2325,15 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
     )
     assert non_json.exit_code != 0
     assert "value is not JSON" in non_json.output
-    assert state_json(page_dir)["data"] == first
+    assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 1}
+    assert data_model.read_data(page_dir) == first
 
     cleared = runner.invoke(
         cli_model.cli, ["data", "clear", str(page_dir), "deployments"]
     )
     assert cleared.exit_code == 0, cleared.output
-    assert state_json(page_dir)["data"] == {
+    assert state_json(page_dir)["data"] == {"file": "data.json", "revision": 2}
+    assert data_model.read_data(page_dir) == {
         "revision": 2,
         "sources": {"deployments": {"contract": "deployment-rows"}},
     }
@@ -2478,7 +2495,9 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     reading = json.loads(state.output)
-    assert "bound to both contract 'rows'" in reading["source_error"]
+    assert reading["source"]["file"] == "index.html"
+    assert reading["source"]["live"] is False
+    assert "bound to both contract 'rows'" in reading["source"]["error"]
     assert reading["active"]["revision"] == 2
 
 
@@ -2565,7 +2584,8 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
     standing = state_json(page_dir)
-    assert standing["data"]["sources"]["reply-feed"]["contract"] == "rows"
+    assert standing["data"] == {"file": "data.json", "revision": 1}
+    assert data_model.read_data(page_dir)["sources"]["reply-feed"]["contract"] == "rows"
     assert standing["data_bindings"]["reply-feed"]["consumers"] == [
         {
             "widget": "reply-data",
@@ -2897,12 +2917,9 @@ def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir)
     ]
 
 
-def test_page_state_gives_a_thread_its_exchange(page_dir):
-    """A session picking the page up is the reader this whole object exists for,
-    and answering a conversation is the first thing it owes. A count of messages
-    tells it one happened and leaves the words in a log it must fold itself,
-    which is where a standing answer gets missed. The digest is the wait
-    envelope's own, so the two readings of a thread stay one shape."""
+def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
+    """State stays flat as a conversation grows; the exact-id event lookup owns its
+    history while the append-only log remains the one copy of its prose."""
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
     opened = events_model.append_event(
@@ -2926,25 +2943,56 @@ def test_page_state_gives_a_thread_its_exchange(page_dir):
         },
     )
 
-    [thread] = state_json(page_dir)["threads"]
-    assert thread["id"] == opened["id"]
-    assert thread["anchor"] == {"section": "s-1", "quote": "Ship dark"}
-    assert thread["resolved"] is None
-    assert [(m["id"], m["author"], m["text"]) for m in thread["messages"]] == [
-        (opened["id"], "user", "cameras are flaky"),
-        (answered["id"], "claude", "two of them share a power rail"),
+    assert state_json(page_dir)["threads"] == [
+        {
+            "id": opened["id"],
+            "anchor": {"section": "s-1", "quote": "Ship dark"},
+            "resolved": None,
+        }
     ]
-    assert thread["messages"][1]["agent"] == "Indexer"
+    history = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", opened["id"]]
+    )
+    assert history.exit_code == 0, history.output
+    assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
+        opened["id"],
+        answered["id"],
+    ]
+    opening_seq = next(
+        event["seq"]
+        for event in events_model.read_events(page_dir)
+        if event["id"] == opened["id"]
+    )
+    continued = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "events",
+            str(page_dir),
+            "--thread",
+            opened["id"],
+            "--after",
+            str(opening_seq),
+        ],
+    )
+    assert continued.exit_code == 0, continued.output
+    assert [json.loads(line)["id"] for line in continued.output.splitlines()] == [
+        answered["id"]
+    ]
+    unknown = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", "not-a-thread"]
+    )
+    assert unknown.exit_code != 0
+    assert "unknown thread id 'not-a-thread'" in unknown.output
 
 
-def test_page_state_keeps_a_readers_suggestion_flag(page_dir):
+def test_page_state_points_to_a_readers_suggestion_record(page_dir):
     """`suggestion: true` is the reader proposing exact replacement words rather
     than describing a change, and the loop owes that a different answer — taken
-    verbatim, or declined with a reason. A digest that dropped the flag rendered
-    it as ordinary prose and lost the obligation with it."""
+    verbatim, or declined with a reason. State supplies the semantic membership and
+    `events` supplies that raw flag without maintaining a second message shape."""
     (page_dir / "versions" / "v1.html").write_text(PAGE)
     publish(page_dir)
-    events_model.append_event(
+    suggestion = events_model.append_event(
         page_dir,
         {
             "kind": "comment",
@@ -2957,7 +3005,13 @@ def test_page_state_keeps_a_readers_suggestion_flag(page_dir):
     )
 
     [thread] = state_json(page_dir)["threads"]
-    assert thread["messages"][0]["suggestion"] is True, json.dumps(thread)
+    history = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", thread["id"]]
+    )
+    assert history.exit_code == 0, history.output
+    records = [json.loads(line) for line in history.output.splitlines()]
+    assert [record["id"] for record in records] == [suggestion["id"]]
+    assert records[0]["suggestion"] is True
 
 
 def test_page_state_holds_a_thread_decision_open_until_its_verb(page_dir):

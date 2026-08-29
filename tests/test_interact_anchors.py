@@ -677,14 +677,24 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
             "text": "Still relevant?",
         },
     )
-    events_model.append_event(
+    resolved = events_model.append_event(
         page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
-    events_model.append_event(
+    reopened = events_model.append_event(
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
 
-    assert state_json(page_dir)["threads"][0]["resolved"] is None
+    thread = state_json(page_dir)["threads"][0]
+    assert thread["resolved"] is None
+    history = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", root["id"]]
+    )
+    assert history.exit_code == 0, history.output
+    assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
+        root["id"],
+        resolved["id"],
+        reopened["id"],
+    ]
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert "— resolved" not in transcript.output
 

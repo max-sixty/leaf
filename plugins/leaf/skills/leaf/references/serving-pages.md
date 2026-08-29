@@ -90,10 +90,11 @@ read grants exclusive ownership. The selected successor first runs:
 leaf page state <page>
 ```
 
-Read the active revision and its stamped version if any, standing decisions, open decisions, each thread's
-exchange, record debt, and `measurement_lag` for pinned figures whose sources have run
-again. If the
-state reports a live watcher, the host ends that watcher before continuing. The
+Read the active revision and its stamped version if any, standing decisions, open
+decisions, current thread state, record debt, and `measurement_lag` for pinned
+figures whose sources have run again. Use `leaf events <page> --thread <id>` when
+one thread's raw exchange matters. If the state reports a live watcher, the host
+ends that watcher before continuing. The
 successor then runs `leaf wait <page>`, whose named wait claims the page for that
 session. Starting a server when the standing one is already live prints its URL
 without changing its lifetime.

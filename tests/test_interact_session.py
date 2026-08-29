@@ -711,6 +711,79 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_conversation(
     assert withdrawn["actions"] == []
 
 
+def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
+    page_dir, capsys
+):
+    """A sent widget lives in one conversation and may answer another. The raw
+    event is stored once, while exact selection and wait expose both semantic
+    memberships without duplicating the event in a delivered batch."""
+    (page_dir / "versions" / "v1.html").write_text(PAGE)
+    publish(page_dir)
+    serving(page_dir, 1)
+    target = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "c-target",
+            "author": "user",
+            "revision": 1,
+            "text": "Should we replace this wording?",
+        },
+    )
+    origin = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "claude",
+            "revision": 1,
+            "text": "Here is the proposed answer.",
+            "markup": '<lf-suggestion id="thread-answer" resolves="c-target">'
+            "<lf-old><p>Old words.</p></lf-old>"
+            "<lf-new><p>New words.</p></lf-new>"
+            "</lf-suggestion>",
+        },
+    )
+    target_seq = next(
+        event["seq"]
+        for event in events_model.read_events(page_dir)
+        if event["id"] == target["id"]
+    )
+    session_model.cmd_ack(page_dir, target_seq)
+    capsys.readouterr()
+    accepted = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "thread-answer",
+            "action": "accept",
+            "detail": {"resolves": target["id"]},
+        },
+    )
+
+    assert session_model.cmd_wait(page_dir) == 0
+    header, *shown = [
+        json.loads(line) for line in capsys.readouterr().out.strip().splitlines()
+    ]
+    assert [event["id"] for event in shown] == [accepted["id"]]
+    assert [thread["id"] for thread in header["threads"]] == [
+        origin["id"],
+        target["id"],
+    ]
+    for thread, expected in (
+        (origin["id"], [origin["id"], accepted["id"]]),
+        (target["id"], [target["id"], accepted["id"]]),
+    ):
+        selected = CliRunner().invoke(
+            cli_model.cli, ["events", str(page_dir), "--thread", thread]
+        )
+        assert selected.exit_code == 0, selected.output
+        assert [
+            json.loads(line)["id"] for line in selected.output.splitlines()
+        ] == expected
+
+
 def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
     page_dir, capsys
 ):
@@ -774,6 +847,23 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
         if message["id"] == request_message["id"]
     )
     assert 'id="thread-commands"' in carried["markup"]
+
+    receipt = events_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": requested["id"],
+            "status": "succeeded",
+            "text": "restarted",
+        },
+    )
+    selected = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", root["id"]]
+    )
+    assert selected.exit_code == 0, selected.output
+    selected_ids = [json.loads(line)["id"] for line in selected.output.splitlines()]
+    assert selected_ids[-2:] == [requested["id"], receipt["id"]]
 
 
 # A page whose suggestion answers c1, which is the one shipped shape where the
@@ -854,6 +944,71 @@ def test_an_undo_of_a_page_decision_carries_the_thread_it_reopens(page_dir, caps
     header = json.loads(capsys.readouterr().out.splitlines()[0])
     assert [t["resolved"] for t in state_json(page_dir)["threads"]] == [None]
     assert [t["id"] for t in header["threads"]] == ["c1"], json.dumps(header)
+
+
+def test_exact_thread_history_and_wait_share_indirect_resolution_events(
+    page_dir, capsys
+):
+    """Rejecting an accepted answer, undoing that rejection, and later restating
+    what the answer rested on all change the same conversation without naming it
+    directly. Exact history and live delivery use one Leaf-owned membership join."""
+    _settling_page(page_dir)
+    accepted = events_model.append_event(page_dir, dict(SETTLING_ACCEPT))
+    session_model.cmd_ack(page_dir, events_model.read_events(page_dir)[-1]["seq"])
+    capsys.readouterr()
+
+    rejected = events_model.append_event(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-refill",
+            "action": "reject",
+            "detail": {},
+        },
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert [thread["id"] for thread in header["threads"]] == ["c1"]
+
+    rejected_seq = next(
+        event["seq"]
+        for event in events_model.read_events(page_dir)
+        if event["id"] == rejected["id"]
+    )
+    session_model.cmd_ack(page_dir, rejected_seq)
+    capsys.readouterr()
+    undone = events_model.append_event(
+        page_dir, {"kind": "undo", "author": "user", "undoes": rejected["id"]}
+    )
+    assert session_model.cmd_wait(page_dir) == 0
+    header = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert [thread["id"] for thread in header["threads"]] == ["c1"]
+
+    restated = events_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "revision": 2,
+            "text": "rewrote the suggestion",
+            "restated": ["sug-refill"],
+        },
+    )
+    selected = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", "c1"]
+    )
+    assert selected.exit_code == 0, selected.output
+    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
+        "c1",
+        accepted["id"],
+        rejected["id"],
+        undone["id"],
+        restated["id"],
+    ]
+    assert state_json(page_dir)["threads"][0]["resolved"] is None
 
 
 # One authored id for the group, so an action can name it. Its options already
@@ -969,6 +1124,7 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "y" * 188},
     )
+    initial_thread_state_size = len(json.dumps(state_json(page_dir)["threads"]))
     parent, headers = root["id"], []
     for turn in range(30):
         agent = events_model.append_event(
@@ -992,8 +1148,14 @@ def test_the_envelope_stops_growing_with_the_conversation(page_dir, capsys):
         capsys.readouterr()
 
     # Flat, not merely slower: twenty further exchanges add only the few
-    # characters a longer sequence number spends.
+    # characters a longer sequence number spends. Page state likewise keeps the
+    # conversation itself flat; its separate element inventory grows here because
+    # every reply deliberately adds a live widget contract.
     assert headers[-1] - headers[9] < 100, headers
+    assert (
+        len(json.dumps(state_json(page_dir)["threads"])) - initial_thread_state_size
+        < 100
+    )
     [thread] = json.loads(header)["threads"]
     assert len(thread["messages"]) == thread_context_model.SHOWN
     assert thread["elided"]["messages"] == 52

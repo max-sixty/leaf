@@ -117,8 +117,10 @@ anchor, who closed it if anyone has, what was said in it before this batch, and
 the reader's standing gestures on any widget sent in it. A reply event names
 only the message it answers, and an action only the widget it was made on; the
 exchange behind them is here. A long conversation arrives as its opening message
-and its most recent, with `elided` counting what was dropped between, and
-`leaf transcript <page>` prints one whole.
+and its most recent, with `elided` counting what was dropped between. When the
+missing records matter, use the thread id from `leaf page state <page>` with
+`leaf events <page> --thread <thread-id>` to print its exact JSONL records.
+`leaf transcript <page>` is the human-facing Markdown export of the exchange.
 
 Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer.

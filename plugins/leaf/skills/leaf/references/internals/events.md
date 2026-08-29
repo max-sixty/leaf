@@ -64,11 +64,13 @@ refuses a parallel `--awaits` flag on that markup.
 
 `leaf edit` may revise only a comment or reply whose recorded session matches the
 posting session. It appends rather than rewriting: the original message and every
-revision remain visible in `leaf events`, while the panel, `page state`, wait
-digests, and the transcript fold the latest text onto the original message and
-label it edited. The original id, timestamp, author, thread position, anchor, and
-markup remain its own. Markup is deliberately not editable because a reader action
-may already rest on a widget frozen into it.
+revision remain visible in `leaf events`, while the panel, wait digests, and the
+transcript fold the latest text onto the original message and label it edited.
+`leaf events --thread` selects both records as the conversation's authoritative
+history without adding another copy of its prose to page state. The
+original id, timestamp, author, thread position, anchor, and markup remain its own.
+Markup is deliberately not editable because a reader action may already rest on a
+widget frozen into it.
 
 A message body is Markdown, stored as typed and rendered by the page's own
 vendored runtime — the browser is where the page's other rendering already

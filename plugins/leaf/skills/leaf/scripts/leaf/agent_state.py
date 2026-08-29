@@ -8,12 +8,7 @@ from .data import read_data
 from .data_contracts import measurement_lag_entries, page_data_binding_inventory
 from .decisions import page_decisions, thread_decisions
 from .event_contracts import thread_state
-from .events import (
-    bare_reaction,
-    build_threads,
-    is_reaction,
-    seats_with_agent,
-)
+from .events import bare_reaction, build_threads, is_reaction, seats_with_agent
 from .files import (
     active_descriptor,
     latest_revision,
@@ -33,9 +28,10 @@ from .registry.reactions import described
 from .registry.storage import require_registry
 from .requests import request_lifecycles, request_lifecycles_for, request_phases
 from .revisioning import activate_source
+from .schema import DATA_FILE
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .thread_context import thread_digest, thread_structure
+from .thread_context import thread_structure
 
 
 def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
@@ -83,7 +79,12 @@ def _active_revision(page_dir: Path, events: list) -> tuple[int | None, dict | N
     # Every markup-derived reading is of the latest valid revision, because that
     # is the page the live root shows and the user acts on.
     try:
-        return latest_revision(page_dir), active_descriptor(page_dir, events)
+        revision = latest_revision(page_dir)
+        active = active_descriptor(page_dir, events)
+        active["file"] = (
+            revision_path(page_dir, revision).relative_to(page_dir).as_posix()
+        )
+        return revision, active
     except SystemExit:
         return None, None
 
@@ -114,29 +115,40 @@ def _base_state(
         "title": "",
         "active": active,
         "versions": versions,
-        "source_error": source_error,
+        "source": {
+            "file": "index.html",
+            "live": source_error is None and active is not None,
+            "error": source_error,
+        },
         **presence_reading,
         # The watcher's number where `pending` is the reader's: everything a
         # wait would still print, workers' reports included.
         "unacked": len(unacknowledged(events, presence_reading["cursor"])),
+        # The last physical log record folded into this transaction-consistent
+        # snapshot. This is the continuation boundary for `events --after`, not
+        # the watcher's acknowledgement cursor above.
+        "event_seq": events[-1]["seq"] if events else 0,
         "server": running_server(page_dir),
         "elements": [],
         "state": [],
         "updates": [],
         "requests": request_lifecycles(page_dir, events),
-        "data": stored_data,
+        "data": {"file": DATA_FILE, "revision": stored_data["revision"]},
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         "decisions": [],
-        # Whole, through the same digest a delivery carries: a session picking
-        # the page up is in the position this reading exists for, and a count of
-        # messages it cannot read tells it a conversation happened without
-        # letting it answer one.
-        # A reaction nobody has replied to opened no conversation: it is
-        # paint on the page, and stands under `reactions` below.
+        # Current semantic facts only. Exact raw history belongs to
+        # `events --thread`; keeping its sequence list here would make this
+        # default snapshot grow with every conversation turn. A reaction nobody
+        # has replied to opened no conversation: it is paint on the page and
+        # stands under `reactions` below.
         "threads": [
-            thread_digest(thread)
-            for thread in threads.values()
+            {
+                "id": root,
+                "anchor": thread["root"].get("anchor"),
+                "resolved": thread["resolved"] and thread["resolved"]["author"],
+            }
+            for root, thread in threads.items()
             if not bare_reaction(thread)
         ],
         # Every reaction still standing — the agent-side reading of the marks
@@ -269,14 +281,14 @@ def _write_page_state(
     channel, where the record lags either (`record_lag_entries`), authored
     measurements whose live source has run again (`measurement_lag_entries`), the
     open decisions on the page and in threads (the banner's own count), each comment
-    thread's exchange,
+    thread's current state,
     and presence beside what answers for it. Computed on demand from the log,
     revision, registry, and source store — no derived reading is stored, so there
     is no second copy of the truth to reconcile.
 
     Every markup-derived reading is of the latest valid revision, because that
     is the page the live root shows and the user acts on. An invalid source save
-    appears only as `source_error` while that revision remains active."""
+    appears under `source.error` while that revision remains active."""
     registry = require_registry(page_dir)
     versions = version_descriptors(page_dir, events)
     revision, active = _active_revision(page_dir, events)

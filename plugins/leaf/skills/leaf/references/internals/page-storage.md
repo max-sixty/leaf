@@ -51,7 +51,9 @@ A page directory holds:
     data.json            explicit authority for page-bound sources: each record keeps
                          its contract identity, may have a replaceable current value,
                          and may retain immutable text captures selected by document
-                         versions or frozen threads
+                         versions or frozen threads. Initialized as the empty revision
+                         0 store. Agent page state names this file and its revision but
+                         does not copy its values.
     status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it
@@ -93,3 +95,13 @@ A page directory holds:
                          rests on.
                          Keeping provenance outside the disposable page lets
                          ownership discovery survive a page moving between sessions
+
+`leaf page state` is an on-demand semantic index over these authorities. Its
+`source` names `index.html`, whether that candidate is live, and any validation
+error. Its `active.file` names the immutable revision the live root actually
+shows when one exists; `data.file` always names a readable JSON store. `event_seq`
+is the last event folded into the snapshot and can be passed to `leaf events
+--after`; it is distinct from the acknowledgement cursor. Agents read the active
+HTML and data files, `registry.json`, and exact thread selections from the event
+log when they need raw content; the state projection does not duplicate document
+bodies, data values, or thread messages.

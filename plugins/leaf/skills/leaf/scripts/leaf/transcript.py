@@ -6,15 +6,36 @@ from pathlib import Path
 from leaf.event_log import jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, revision_label, revision_path
-from leaf.passages import enclosing_of
+from leaf.passages import active_enclosing, enclosing_of
 from leaf.projection import page_projection, record_lag
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import load_registry
 from leaf.structure import parse_revision
+from leaf.thread_context import (
+    thread_memberships,
+    thread_roots,
+    thread_structure,
+    thread_widgets,
+)
 
 
-def cmd_events(page_dir: Path, after: int) -> None:
-    for event in read_events(page_dir):
+def cmd_events(page_dir: Path, after: int, thread: str | None = None) -> None:
+    events = read_events(page_dir)
+    if thread is not None:
+        within = active_enclosing(page_dir)
+        threads = build_threads(events, within)
+        if thread not in threads:
+            sys.exit(f"unknown thread id {thread!r}")
+        roots = thread_roots(events)
+        structure = thread_structure(events)
+        memberships = thread_memberships(
+            events,
+            roots,
+            thread_widgets(structure, roots),
+            within,
+        )
+        events = [event for event in events if thread in memberships[event["id"]]]
+    for event in events:
         if event["seq"] > after:
             print(jsonl_line(event))
 

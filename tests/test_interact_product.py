@@ -1248,9 +1248,10 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
 
     Roots and replies are both messages, and the posting session is their authoring
     identity. The raw log therefore keeps each original and the revision as separate
-    events, while every folded reading shows the latest words with an edited marker.
-    Another agent session — and an agent looking at the reader's words — cannot revise
-    speech that is not its own.
+    events, while reader-facing folded readings show the latest words with an edited
+    marker. Exact thread event selection returns the original and edit records without
+    copying either into page state. Another agent session — and an agent looking at the
+    reader's words — cannot revise speech that is not its own.
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1305,7 +1306,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     originals = {
         event["id"]: event for event in events if event["kind"] in {"comment", "reply"}
     }
-    revision_events = [event for event in events if event["kind"] == "edit"]
     assert originals[root["id"]]["text"] == "The index is still pending."
     assert originals[reply["id"]]["text"] == "The crawl is paused."
     assert [(event["message"], event["text"]) for event in revisions] == [
@@ -1317,18 +1317,19 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     state_result = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state_result.exit_code == 0, state_result.output
     state = json.loads(state_result.output)
-    folded = {
-        message["id"]: message
-        for thread in state["threads"]
-        for message in thread["messages"]
+    assert all(
+        set(thread) == {"id", "anchor", "resolved"} for thread in state["threads"]
+    )
+    expected = {
+        root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],
+        reader["id"]: [reader["id"], reply["id"], revisions[2]["id"]],
     }
-    latest_revision = {revision["message"]: revision for revision in revision_events}
-    for message in (root, reply):
-        revision = latest_revision[message["id"]]
-        assert folded[message["id"]]["text"] == revision["text"]
-        assert folded[message["id"]]["edited"] == {
-            key: revision[key] for key in ("id", "seq", "ts")
-        }
+    for thread, ids in expected.items():
+        selected = CliRunner().invoke(
+            cli_model.cli, ["events", str(page_dir), "--thread", thread]
+        )
+        assert selected.exit_code == 0, selected.output
+        assert [json.loads(line)["id"] for line in selected.output.splitlines()] == ids
 
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
     assert transcript.exit_code == 0, transcript.output
@@ -1744,14 +1745,17 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     answered = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "token": "no"}
     )
-    conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
+    reply = conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [answered["id"]]
-    # The thread opens on the mark that started it, which says its word where a
-    # comment says its text.
-    root = state["threads"][0]["messages"][0]
-    assert (root["id"], root["token"]) == (answered["id"], "no")
-    assert "text" not in root
+    selected = CliRunner().invoke(
+        cli_model.cli, ["events", str(page_dir), "--thread", answered["id"]]
+    )
+    assert selected.exit_code == 0, selected.output
+    assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
+        answered["id"],
+        reply["id"],
+    ]
     assert [(r["token"], r["means"], r["thread"]) for r in state["reactions"]] == [
         ("cut", "does not earn its length — shorten or drop", bare["id"]),
         ("no", "this is wrong; the passage is the referent", answered["id"]),

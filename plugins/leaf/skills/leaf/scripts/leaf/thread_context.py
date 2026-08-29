@@ -2,7 +2,7 @@
 
 from typing import NamedTuple
 
-from leaf.events import build_threads, taken_back
+from leaf.events import action_rests_on, build_threads, taken_back
 from leaf.structure import parse_structure
 
 
@@ -87,7 +87,8 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     elif kind == "edit":
         named = [roots.get(event["message"])]
     elif kind in {"resolve", "unresolve"}:
-        named = [roots.get(event["parent"])]
+        parent = event["parent"]
+        named = [roots.get(parent) or (parent if parent in roots.values() else None)]
     elif kind in {"action", "request"}:
         named = [
             widgets.get(event["widget"]),
@@ -98,7 +99,50 @@ def event_threads(event: dict, roots: dict, widgets: dict) -> list:
     return [thread for thread in dict.fromkeys(named) if thread]
 
 
-# What one message is, to a reader holding no page: who said it, what they said,
+def thread_memberships(
+    events: list, roots: dict, widgets: dict, within: dict
+) -> dict[str, list[str]]:
+    """Event id → every conversation whose history that event changes.
+
+    Leaf owns the relation because each event kind names its conversation in a
+    different way. Some name none directly: a later action on one widget
+    supersedes its earlier answer, an undo inherits the gesture's membership, and
+    a version note can retract what an answer rested on.
+
+    This is the shared join for exact event selection and wait delivery. Current
+    resolution still comes from `build_threads`; membership says which raw
+    records explain that fold rather than becoming another state projection.
+    """
+    memberships: dict[str, list[str]] = {}
+    settled_by_widget: dict[str, list[str]] = {}
+    settling_actions: list[tuple[dict, str]] = []
+    for event in events:
+        if event["kind"] == "undo":
+            named = memberships.get(event["undoes"], [])
+        elif event["kind"] == "receipt":
+            named = memberships.get(event["request"], [])
+        else:
+            named = event_threads(event, roots, widgets)
+        if event["kind"] == "action":
+            named = [*named, *settled_by_widget.get(event["widget"], [])]
+            if root := event["detail"].get("resolves"):
+                settled_by_widget.setdefault(event["widget"], []).append(root)
+                settling_actions.append((event, root))
+        elif event["kind"] == "note" and (restated := set(event.get("restated", []))):
+            named = [
+                *named,
+                *(
+                    root
+                    for action, root in settling_actions
+                    if event["revision"] > action["revision"]
+                    and restated.intersection(action_rests_on(action, within))
+                ),
+            ]
+        memberships[event["id"]] = list(dict.fromkeys(named))
+    return memberships
+
+
+# What one message is, to a wait consumer holding no page: who said it, what they said,
 # the widget they sent with it, and the id an answer names. `seq` is the log
 # position, which is also what marks a message as already delivered. A
 # `suggestion` is the reader proposing exact replacement words rather than
@@ -120,10 +164,10 @@ MESSAGE_FIELDS = (
     "edited",
 )
 
-# How much of one conversation a digest carries: the message that opened it,
+# How much of one conversation a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf transcript` prints the exchange whole for a
-# reader who needs the middle.
+# what a new one answers. `leaf events --thread` selects the exchange whole when
+# a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
 # because the agent it is for may hold none of it — so unbounded, the header
@@ -164,7 +208,7 @@ def thread_digest(
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
     reader can tell a short conversation from a shortened one and knows to
-    reach for `leaf transcript`."""
+    read the exact records with `leaf events --thread`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {
@@ -216,14 +260,10 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     roots = thread_roots(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, roots)
-    by_id = {e["id"]: e for e in events}
+    memberships = thread_memberships(events, roots, widgets, within)
     named = []
     for event in batch:
-        # An undo carries no thread of its own; it belongs to the one holding
-        # the gesture it takes back. A log torn between the two leaves nothing
-        # to resolve, and an undo of an undo is not a shape the door accepts.
-        subject = by_id.get(event["undoes"]) if event["kind"] == "undo" else event
-        for thread in event_threads(subject, roots, widgets) if subject else []:
+        for thread in memberships[event["id"]]:
             if thread not in named:
                 named.append(thread)
     threads = build_threads(events, within)

@@ -498,6 +498,31 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "mermaid.min.js").is_file()
     assert (page_dir / "vendor" / "plot.esm.js").is_file()
+    assert interact_files.read_json(page_dir / "data.json") == {
+        "revision": 0,
+        "sources": {},
+    }
+
+
+def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "page"
+    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "state", str(page)])
+    assert result.exit_code == 0, result.output
+    state = json.loads(result.output)
+    assert state["active"] is None
+    assert state["source"]["file"] == "index.html"
+    assert state["source"]["live"] is False
+    assert "write index.html first" in state["source"]["error"]
+    assert state["event_seq"] == 0
+    assert state["data"] == {"file": "data.json", "revision": 0}
+    assert interact_files.read_json(page / state["data"]["file"]) == {
+        "revision": 0,
+        "sources": {},
+    }
 
 
 def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
@@ -905,6 +930,7 @@ def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch
     (
         "comments.jsonl",
         "status.json",
+        "data.json",
         "waiter.lock",
         "cursor.json",
         "service.json",

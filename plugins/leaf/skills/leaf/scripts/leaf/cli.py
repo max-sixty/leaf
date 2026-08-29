@@ -173,7 +173,8 @@ def guidance(dir: str, audience: str | None) -> None:
 def state(dir: str) -> None:
     """Fold the log onto the active revision and print the result as one JSON
     object: elements, standing state and reports, record lag, open decisions,
-    threads, versions, presence, external data and its page bindings."""
+    current thread state, versions, presence, and external-data bindings plus the
+    canonical files holding source and values."""
     cmd_page_state(resolve_dir(dir))
 
 
@@ -587,12 +588,18 @@ def receipt(dir: str, request: str, status: str, text: str) -> None:
     metavar="SEQ",
     help="print events after this sequence",
 )
-def events(dir: str, after: int) -> None:
+@click.option(
+    "--thread",
+    metavar="THREAD",
+    help="print only events belonging to this exact thread id",
+)
+def events(dir: str, after: int, thread: str | None) -> None:
     """Print the event log as JSON lines.
 
-    This is read-only and does not acknowledge user events.
+    THREAD is an exact identity lookup, not a general event filter. This is
+    read-only and does not acknowledge user events.
     """
-    cmd_events(resolve_dir(dir), after)
+    cmd_events(resolve_dir(dir), after, thread)
 
 
 @cli.command(short_help="Print the page's exchange as Markdown.")

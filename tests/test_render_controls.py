@@ -3073,8 +3073,6 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     stop would pass the other three and prove nothing.
     """
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    # The example, not a copy of its markup, so whatever it ships beside it is laid in
-    # too; its conversation stays off, which is the page this reading was written for.
     url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
     page.locator(".lf-sug-accept").first.focus()
@@ -3137,8 +3135,6 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     The real ring goes last, as the control: without it a reading that claimed nothing at
     all would pass the three cases above and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    # The example, not a copy of its markup, so whatever it ships beside it is laid in
-    # too; its conversation stays off, which is the page this reading was written for.
     url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
     page.locator(".lf-sug-accept").first.focus()

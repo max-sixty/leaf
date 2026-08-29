@@ -1777,6 +1777,13 @@ document listener, and an `aria-expanded` control fires nothing anywhere. Both
 keep that state in an attribute, so one `MutationObserver` over `open` and
 `aria-expanded` repaints for both, and `shadowStage` hands it each root.
 
+State, and not the write that carries it: the watch compares each record against
+the attribute's current value and repaints only where the two differ. The paint
+restates both attributes on the controls it owns, so a watch reading every record
+as news repaints for its own writing, and the page runs at its refresh rate with
+nobody touching it. Nothing on screen says so — what said it was the suite, whose
+every browser test paid for it until the run went over its bound.
+
 ### Standing somewhere
 
 Focus is the reader's current place. `focused` follows it through declared

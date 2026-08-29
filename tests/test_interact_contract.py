@@ -2998,9 +2998,13 @@ def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
     """A hold is recorded against the declaration that admitted it."""
-    package = page_dir.parent / "examples" / "packages" / "command-hub"
-    package.unlink()
+    package = page_dir.parent / "mutable-command-hub"
     shutil.copytree(COMMAND_HUB_PACKAGE, package)
+    selected = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "./mutable-command-hub", str(page_dir)],
+    )
+    assert selected.exit_code == 0, selected.output
     version = page_dir / "versions" / "v1.html"
     version.write_text(
         PAGE.replace(

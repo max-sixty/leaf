@@ -707,6 +707,101 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     page.close()
 
 
+def test_a_held_reply_send_leaves_a_later_reply_box_focused(browser, serve):
+    """A reply box opened while another reply is in flight is the reader's later
+    gesture. When the first send lands, it must not take focus back from that box."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    threads = page.locator(".lf-threads > .lf-thread")
+    first_id = threads.nth(0).get_attribute("data-id")
+    later_id = threads.nth(1).get_attribute("data-id")
+    first = page.locator(f'.lf-thread[data-id="{first_id}"] textarea')
+    later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
+    first.fill("The first reply is in flight.")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator(f'.lf-thread[data-id="{first_id}"]').get_by_role(
+        "button", name="Send", exact=True
+    ).click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the first reply send")
+
+    later.click()
+    later.fill("The later reply keeps the reader here.")
+    expect(later).to_be_focused()
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(later).to_be_focused()
+    expect(later).to_have_value("The later reply keeps the reader here.")
+    assert errors == []
+    page.close()
+
+
+def test_a_held_comment_send_leaves_a_later_reply_box_focused(browser, serve):
+    """Opening a reply while a new comment is in flight is a later gesture. The
+    comment still appears, but its arrival must not move focus into its new thread."""
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
+    page.locator("#p3").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("The earlier comment in flight.")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.get_by_role("button", name="Comment", exact=True).click()
+    _until(page, lambda traffic: traffic.sends == 1, "held the comment send")
+
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    later_id = page.locator(".lf-threads > .lf-thread").first.get_attribute("data-id")
+    later = page.locator(f'.lf-thread[data-id="{later_id}"] textarea')
+    later.fill("The later reply keeps the reader here.")
+    later.evaluate("ta => ta.setSelectionRange(9, 9)")
+    expect(later).to_be_focused()
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
+    expect(later).to_be_focused()
+    expect(later).to_have_value("The later reply keeps the reader here.")
+    assert later.evaluate("ta => ta.selectionStart") == 9
+    assert errors == []
+    page.close()
+
+
+def test_a_comment_hidden_by_narrowing_lands_in_its_reply_box(browser, serve):
+    """A sent comment clears a narrowing that hid its new thread, then leaves the
+    reader in that thread's reply box just as an already-visible comment does."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=1))
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    page.locator(".lf-find-box").fill("Comment 0")
+    expect(page.locator(".lf-threads > .lf-thread")).to_have_count(1)
+
+    page.locator("#p1").click(click_count=3)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill(
+        "This comment starts outside the filter."
+    )
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+
+    sent = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("text") == "This comment starts outside the filter."
+    )
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    expect(page.locator(f'.lf-thread[data-id="{sent["id"]}"] textarea')).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(browser, serve):
     """The same reading of a later gesture, for the other gesture a reader can have
     standing. A comment's send ends by handing typing to the thread it became, and a

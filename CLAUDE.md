@@ -26,8 +26,8 @@ point at it. Its main parts are:
 - `skills/leaf/scripts/interact.py` and `scripts/leaf/`: the CLI, server, event
   model, validation, projection, vendoring, and export;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
-- `skills/leaf/packages/default/`: the bundled content vocabulary, widgets,
-  modules, and vendor files;
+- `skills/leaf/packages/`: the default and optional bundled content vocabularies,
+  widgets, modules, and vendor files;
 - `skills/leaf/references/`: page-authoring and internal protocol references;
 - `hooks/hooks.json`: the shared host hooks.
 

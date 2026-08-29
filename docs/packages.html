@@ -136,9 +136,12 @@ leaf package check packages/callout</code></pre>
           <code>page catalog</code>.
         </p>
         <p>
-          <code>--package</code> accepts a project-relative or <code>~</code> package
-          path. It says nothing about widget count. Leaf records explicit paths under
-          <code>$layer.packages</code>, so a plain re-init preserves their order.
+          <code>--package</code> accepts an optional bundled name or a project-relative
+          or <code>~</code> package path. A bare package name always selects a bundled
+          package; use <code>./name</code> for a same-shaped project directory. The
+          bundled default is already present and cannot be selected explicitly. A
+          selection says nothing about widget count. Leaf records package selections
+          under <code>$layer.packages</code>, so a plain re-init preserves their order.
           Absolute paths are refused because the vendored registry is public.
           <code>page init --no-packages</code> clears all explicit packages.
         </p>

@@ -74,7 +74,7 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         ):
             sys.exit(
                 f"{page_dir / 'registry.json'}: $layer.packages must be a unique "
-                "list of non-empty package paths"
+                "list of non-empty package selections"
             )
         selected = tuple(recorded)
     inputs = layer_inputs(selected)

@@ -55,7 +55,7 @@ PLUGIN_ROOT = ROOT / "plugins" / "leaf"
 # spelled by hand the two are one plausible typo apart — a glob a level short matches
 # nothing and reports nothing.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
-COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = SKILL_ROOT / "packages" / "command-hub"
 COMMAND_SUBJECTS = (
     '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
     '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
@@ -134,12 +134,12 @@ graph LR
 def page_dir(tmp_path, monkeypatch, clone_initialized_page):
     """A page with the default and Command Hub package vocabularies and a valid v1."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    package = link_command_hub_package(tmp_path)
     d = tmp_path / "page"
 
     def initialize(template):
         result = CliRunner().invoke(
-            cli_model.cli, ["page", "init", "--package", package, str(template)]
+            cli_model.cli,
+            ["page", "init", "--package", "command-hub", str(template)],
         )
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
@@ -1256,16 +1256,6 @@ def add_test_widget(package: Path, tag: str, upgrade: bool = False) -> dict:
             f'customElements.define("{tag}", class extends HTMLElement {{}});\n'
         )
     return entry
-
-
-def link_command_hub_package(root: Path) -> str:
-    """Expose the repository package at its recorded project-relative path."""
-    relative = Path("examples/packages/command-hub")
-    package = root / relative
-    package.parent.mkdir(parents=True, exist_ok=True)
-    if not package.exists():
-        package.symlink_to(COMMAND_HUB_PACKAGE, target_is_directory=True)
-    return str(relative)
 
 
 def widget_entry(tag: str, upgrade: bool = False) -> dict:

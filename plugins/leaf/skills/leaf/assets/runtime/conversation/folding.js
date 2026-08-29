@@ -65,6 +65,7 @@ export function createThreadFolding({ FOLD_MS, motion, renderPanel, threadsBox }
     node.querySelector(":scope > .lf-thread-actions > .lf-resolve").textContent =
       "✓ Resolved";
     node.className = "lf-going";
+    if (node.matches(":focus-within")) threadsBox.focus({ preventScroll: true });
     node.inert = true;
     folding.set(t.root.id, node);
     // Straight off the promise, and nothing between: motion() holds the last keyframe

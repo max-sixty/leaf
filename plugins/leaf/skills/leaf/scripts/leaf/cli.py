@@ -63,7 +63,7 @@ def page() -> None:
     "selected",
     multiple=True,
     metavar="PACKAGE",
-    help="include a project-relative or ~ package path; repeat for more",
+    help="include a bundled name or explicit project-relative/~ path; repeat for more",
 )
 @click.option(
     "--no-packages",
@@ -82,9 +82,9 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
     if any(not selection for selection in selected):
-        raise click.UsageError("--package paths cannot be empty")
+        raise click.UsageError("--package selections cannot be empty")
     if len(set(selected)) != len(selected):
-        raise click.UsageError("each --package path may appear only once")
+        raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
     cmd_init(resolve_dir(dir, must_exist=False), selections)
 

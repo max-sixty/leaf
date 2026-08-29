@@ -33,7 +33,9 @@ from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
 DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
-COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = (
+    ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "command-hub"
+)
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 

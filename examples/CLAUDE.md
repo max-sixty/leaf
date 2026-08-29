@@ -83,7 +83,7 @@ fixture can establish a cause, but it cannot stand in for the composed surface.
 
 ## An example is one stamped version, plus any log and data it ships beside it
 
-`examples/layer.json` names the package paths shared by the corpus. Preview,
+`examples/layer.json` names the package selections shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
 layer the website serves.
 

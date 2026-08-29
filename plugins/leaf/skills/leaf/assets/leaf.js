@@ -1136,7 +1136,7 @@ const { paint: paintInputs, wire: wireInput } = createInput({
 });
 paintInputHints = paintInputs;
 
-const { landTyping, pageSelection, selectionAnchor, snapSelection } =
+const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection } =
   createSelectionCapture({
     anchoringIsReady: () => anchoringReady,
     blockOf: (...args) => blockOf(...args),
@@ -1145,6 +1145,7 @@ const { landTyping, pageSelection, selectionAnchor, snapSelection } =
     cut: (...args) => cut(...args),
     datumSelector: () => DATUM,
     elementOver: (...args) => elementOver(...args),
+    focused,
     neighbourhood: (...args) => neighbourhood(...args),
     pageRange: (...args) => pageRange(...args),
     pageText: (...args) => pageText(...args),
@@ -1153,6 +1154,7 @@ const { landTyping, pageSelection, selectionAnchor, snapSelection } =
     segmentText: (...args) => textUnits.segment(...args),
     segmentsIn: (...args) => segmentsIn(...args),
     spanIn: (...args) => spanIn(...args),
+    takesLetters: (node) => takesLetters(node),
   });
 
 const {
@@ -1268,6 +1270,7 @@ selectionComposerRuntime = createSelectionComposer(runtime, {
   fabAnchor: fabAnchorAt,
   landTyping,
   loadDraft,
+  mayLandTyping,
   paintAnchors,
   paintHere,
   placeComposer,
@@ -1370,8 +1373,9 @@ const syncGeneral = wireInput(generalInput, {
       (attempt) => post({ ...event, attempt }),
     );
     if (!sent) return;
-    showThread(sent.id);
-    landTyping(generalInput); // both send routes end where typing was
+    const shouldLand = mayLandTyping(generalInput);
+    showThread(sent.id, { stand: shouldLand });
+    if (shouldLand) landTyping(generalInput); // both send routes end where typing was
   },
 });
 mirrorDraft(generalInput, syncGeneral, "general");

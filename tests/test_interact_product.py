@@ -21,7 +21,6 @@ from interact_support import (
     comment,
     fetch,
     fragment_errors,
-    link_command_hub_package,
     live_versions,
     page_state,
     publish,
@@ -388,7 +387,6 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    link_command_hub_package(tmp_path)
     examples = sorted(root.glob("*.html"))
     assert examples
     selection_args = [arg for package in packages for arg in ("--package", package)]
@@ -1559,14 +1557,16 @@ def test_note_refuses_a_version_that_fails_check(page_dir):
     assert live_versions(page_dir) == []
 
 
-def test_example_layer_names_repository_packages():
+def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     examples = ROOT / "examples"
     packages = json.loads((examples / "layer.json").read_text(encoding="utf-8"))
+    monkeypatch.chdir(tmp_path)
 
     assert packages
     assert all(not Path(name).is_absolute() for name in packages)
-    assert all((ROOT / name).is_dir() for name in packages)
-    assert layer_model.checked_inputs([ROOT / name for name in packages])
+    resolved = layer_model.resolve_packages(tuple(packages))
+    assert resolved == [COMMAND_HUB_PACKAGE]
+    assert layer_model.checked_inputs(resolved) == resolved
 
 
 def test_every_seeded_fragment_passes_the_door_it_never_came_through(
@@ -1597,7 +1597,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     ]
     assert seeded, "no example ships a log; this gate is reading nothing"
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
-    link_command_hub_package(tmp_path)
     selection_args = [arg for package in packages for arg in ("--package", package)]
     read = 0
     for example in seeded:

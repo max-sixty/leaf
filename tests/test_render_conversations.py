@@ -1388,6 +1388,45 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
     page.close()
 
 
+def test_an_external_resolution_leaves_the_reader_on_the_thread_list(browser, serve):
+    """A reply box becomes inert before its externally resolved card folds away. The
+    list takes focus in that first frame instead of letting the deferred blur reach body."""
+    page, errors = open_page(
+        browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION
+    )
+    page.locator(".lf-comments").click()
+    panel_settled(page)
+    root = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    reply = page.locator(f'.lf-thread[data-id="{root["id"]}"] textarea')
+    reply.fill("This draft survives the other actor settling its thread.")
+    reply.evaluate("ta => ta.setSelectionRange(8, 8)")
+    expect(reply).to_be_focused()
+
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "claude", "parent": root["id"]},
+    )
+    told(page)
+    going = page.locator(f'.lf-going[data-id="{root["id"]}"]')
+    expect(going).to_have_attribute("inert", "")
+    assert page.evaluate("() => window.__lfHeld.length") == 1, (
+        "the thread left without exercising the animated inert path"
+    )
+    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(going.locator("textarea")).to_have_value(
+        "This draft survives the other actor settling its thread."
+    )
+
+    page.evaluate("() => window.__lfHeld.forEach((motion) => motion.finish())")
+    expect(going).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
 def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
     """A fold is a sequence, and every other check here reads a state.
 

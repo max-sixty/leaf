@@ -58,7 +58,9 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
-COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = (
+    ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "command-hub"
+)
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -445,8 +447,9 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
-        packages = link_example_packages(tmp_path)
-        selection_args = [arg for name in packages for arg in ("--package", name)]
+        selection_args = [
+            arg for name in EXAMPLE_PACKAGES for arg in ("--package", name)
+        ]
         d = tmp_path / f"page{len(servers)}"
 
         def initialize(target):
@@ -949,17 +952,6 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
             ");\n"
         )
     return package
-
-
-def link_example_packages(root: Path) -> list[str]:
-    """Expose the corpus packages at their recorded project-relative paths."""
-    for name in EXAMPLE_PACKAGES:
-        relative = Path(name)
-        package = root / relative
-        package.parent.mkdir(parents=True, exist_ok=True)
-        if not package.exists():
-            package.symlink_to(ROOT / relative, target_is_directory=True)
-    return EXAMPLE_PACKAGES
 
 
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher

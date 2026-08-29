@@ -6,6 +6,7 @@ export function createSelectionCapture({
   cut,
   datumSelector,
   elementOver,
+  focused,
   neighbourhood,
   pageRange,
   pageText,
@@ -14,6 +15,7 @@ export function createSelectionCapture({
   segmentText,
   segmentsIn,
   spanIn,
+  takesLetters,
 }) {
   // How much of a passage's surroundings an anchor writes down. Only the capture decides
   // this; the search asks for whatever a given anchor happens to hold.
@@ -102,6 +104,8 @@ export function createSelectionCapture({
   // nothing re-decides the 💬 until the reader gestures again, so the words in front of
   // them stop being something to comment on, and no surface says why. Stated once, for
   // the three boxes a send can land in, because it is one fact about a send landing.
+  // Typing in another box after the send began is the same later gesture. sentFrom
+  // distinguishes the box that launched the send from a different live text control.
   //
   // A box is the whole of it, which is why this is named for typing rather than for
   // focus. The panel's other two landings — a resolve and a reopen, each behind a round
@@ -110,8 +114,15 @@ export function createSelectionCapture({
   // select leave it standing, and so does a `tabindex="-1"` div. Same
   // shape, then, and not the same steal: those two keep the standing place a control
   // that folds away with its thread owes the reader.
-  function landTyping(box) {
-    if (!pageSelection()) box?.focus({ preventScroll: true });
+  function mayLandTyping(box, sentFrom = box) {
+    const standing = focused();
+    return (
+      !pageSelection() &&
+      (standing === box || standing === sentFrom || !takesLetters(standing))
+    );
+  }
+  function landTyping(box, sentFrom = box) {
+    if (mayLandTyping(box, sentFrom)) box?.focus({ preventScroll: true });
   }
   // A drag stops where the hand stopped, not where the reader aimed: a release two glyphs
   // short of a word's end meant the word, and the capture would store the fragment as if
@@ -319,6 +330,7 @@ export function createSelectionCapture({
 
   return {
     landTyping,
+    mayLandTyping,
     pageSelection,
     selectionAnchor,
     snapSelection,

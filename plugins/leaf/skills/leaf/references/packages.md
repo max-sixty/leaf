@@ -12,7 +12,7 @@ when `/leaf` is invoked on a widget to build or a look to change.
 
 | Package | Reaches |
 | --- | --- |
-| a package selected with `--package` | pages that select its path |
+| a package selected with `--package` | pages that select its name or path |
 | the project's `.leaf/` | pages initialized from the project |
 | the user's `~/.config/leaf/` | pages initialized for that user |
 | Leaf's bundled default package | every page |
@@ -38,6 +38,12 @@ leaf page init --package packages/callout PAGE
 An explicit directory keeps a contribution separately owned and selectable. `.leaf`
 is the project package and `~/.config/leaf` is the user package. Inside a repository
 dedicated to one package, use `.` as the package path.
+
+Leaf also ships optional packages that select by bare name:
+
+```bash
+leaf page init --package command-hub PAGE
+```
 
 ## Package contract
 
@@ -70,14 +76,16 @@ the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` compo
 three sources. `page catalog` also prints the complete `author` reading after the merged
 vocabulary.
 
-Composition order is kernel, bundled default package, explicit packages in command
+Composition order is kernel, bundled default package, selected packages in command
 order, user package, then project package. Later packages win collisions. `page init`
-records explicit paths under `$layer.packages`; a plain re-init resolves those paths
-again in the same order. `page init --no-packages PAGE` clears the explicit list.
+records package selections under `$layer.packages`; a plain re-init resolves them again
+in the same order. `page init --no-packages PAGE` clears the explicit list.
 
-Explicit package paths are project-relative or start with `~`. Absolute paths are
-refused because the vendored registry is public. A package may contain zero, one, or
-many widgets. Those cardinalities do not change its contract.
+A bare package name selects an optional bundled package and never means a path; use
+`./name` for a same-shaped project directory. Other package paths are project-relative
+or start with `~`. Absolute paths are refused because the vendored registry is public.
+The always-present `default` package cannot be selected explicitly. A package may
+contain zero, one, or many widgets. Those cardinalities do not change its contract.
 
 A replacement `leaf.js` must retain the quoted
 `"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it

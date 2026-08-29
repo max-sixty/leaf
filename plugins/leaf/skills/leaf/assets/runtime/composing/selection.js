@@ -15,6 +15,7 @@ export function createSelectionComposer(runtime, dependencies) {
     fabAnchor,
     landTyping,
     loadDraft,
+    mayLandTyping,
     paintAnchors,
     paintHere,
     placeComposer,
@@ -114,10 +115,15 @@ export function createSelectionComposer(runtime, dependencies) {
       // A later edit is still the reader's standing gesture. The earlier comment may
       // render in the panel, but it may not close or move the composer holding that edit.
       if (loadDraft(ctx) !== null) return;
-      showThread(sent.id);
+      let reply = threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
+      const shouldLand = mayLandTyping(reply, composerInput);
+      showThread(sent.id, { stand: shouldLand });
       // The composer this was sent from is gone with the send; the thread it became
       // carries the same conversation, so its reply box is where typing continues.
-      landTyping(threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`));
+      if (shouldLand) {
+        reply ??= threadsBox.querySelector(`.lf-thread[data-id="${sent.id}"] textarea`);
+        landTyping(reply, composerInput);
+      }
     },
   });
   // The composer's suggest-mode rendering — the offer of it, the button label and the

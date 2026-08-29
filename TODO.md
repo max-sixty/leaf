@@ -5,18 +5,6 @@
   registry should declare them with an `x-` key. Existing groups already expose their
   options through focused digit bindings, so no change is needed yet.
 
-- **Contrast inside the comment panel.** A thread's `<time>` reads at 2.9:1 in light
-  and 3.29:1 in dark against the panel's card, both under AA's 4.5:1 at its 11.5px
-  size. `--muted-2` is a deliberate tier below `--muted`, worn by the banner's dot, a
-  detached quote, a detached link and the diff's gutter, so raising it is a decision
-  about that tier rather than about the clock. Nothing has ever measured it:
-  `test_examples_have_no_serious_wcag_a_or_aa_violations` reads every example with the
-  panel shut, so no chrome inside the panel has been through axe at all. Whichever way
-  the tier goes, that sweep wants an arm with the panel open. Run by hand over a page of
-  twenty-four threads in both schemes, the clock is the only serious finding the open
-  panel produces — the head, the find row, the run headings and the thread controls are
-  clean — so the arm can go in the moment the tier is decided.
-
 - **A focus indicator that is not an outline, and the control the fold never reaches.**
   Two halves of one gap, measured together and left because neither known mechanism
   closes it.
@@ -83,21 +71,6 @@
   is a plain length question with no defect attached. The removed work is on this
   branch's history at `54246d51`, `63664054`, `c98914ac`, `a1db012f`.
 
-- **Focus lost from a reply box someone else settles.** Tab 1 is typing in thread A's
-  reply box; tab 2, or the agent, resolves A. Tab 1's `document.activeElement` ends as
-  `<body>`, so the next Space scrolls the page behind the panel. The words survive in the
-  draft store. `renderThreads`' `standingIn` guard exists to prevent exactly this and
-  misses because `foldOut` blurs the box and sets `inert` before `standingIn` is read.
-  Pre-existing; a card standing open is where a reader now meets it.
-
-- **A send in flight steals the box the reader opened while waiting.** `landTyping` after
-  a composer send lands the reader in the new thread's reply box, and its only guard is
-  `pageSelection()`. Hold the POST and open a reply on another thread while it is in the
-  wire: when the send lands, focus jumps out of the box being typed in. A reply box the
-  reader opened during the flight is the same kind of later gesture a selection is, and
-  is not asked about. Pre-existing; the fold makes its consequence visible, since an
-  empty box left behind then folds away.
-
 - **Favicon pending count.** Whether a 16px tab icon can carry a readable pending count
   remains unmeasured.
 
@@ -112,19 +85,12 @@
   hand. If this recurs, evaluate carrying the comment anchor and page URL in the
   dispatch and allowing that page to re-vendor from a named checkout.
 
-- **Make optional packages one command to use.** Command Hub currently has to be
-  selected by its checkout-relative `examples/packages/command-hub` path. First, ship
-  it as an optional package in Leaf's installed payload and let
-  `leaf page init --package command-hub PAGE` resolve that bundled name through the
-  ordinary package composition path. This is enough for an agent to create and
-  dogfood a hub without asking the user to find a checkout, launcher, or package
-  directory; Command Hub remains a package rather than becoming core vocabulary.
-
-  Later, let `leaf package install SOURCE` place an outside package in a user-owned
-  store and make the same `--package NAME` form select it. Package names should resolve
-  to directories before composition, so bundled and installed packages keep one
-  contract. Let dogfooding determine what installation needs for source identity,
-  updates, pinning, and trust rather than adding those policies to the first shortcut.
+- **Install outside packages by name.** Let `leaf package install SOURCE` place an
+  outside package in a user-owned store and make the same `--package NAME` form select
+  it. Package names should resolve to directories before composition, so bundled and
+  installed packages keep one contract. Let dogfooding determine what installation
+  needs for source identity, updates, pinning, and trust rather than adding those
+  policies to the first shortcut.
 
 - **Deferred design-mode additions.** Each needs evidence before implementation:
 

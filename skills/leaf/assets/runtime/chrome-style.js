@@ -248,17 +248,26 @@ export function chromeStyle({
      shape and loses the gesture: BAKE takes the role and the tab stop off a standing
      reaction mark and leaves the mark itself, so a hand hung on the class alone
      promises a press no file can answer. It reads the two ways a press is spelled
-     here: the platform's element, and the attribute offer() writes on a span. */
+     here: the platform's element, and the attribute offer() writes on a span.
+
+     The lift under the pointer is the same promise in the other property, and the tones
+     below are that lift wearing a colour, so all of them are spelled the same way. The
+     hand is the only half a gate can see — the copy's offering reading takes the cursor and
+     nothing else — and aria-disabled is no guard in a file either: BAKE strips it with
+     the rest of the aria state, so a decided suggestion's record, which survives on
+     data-lf-said, would light its accept tint under a pointer that can decide nothing. */
   .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
-  .lf-margin-action:hover:not([aria-disabled="true"]) { background: var(--chip); }
+  .lf-margin-action:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+    background: var(--chip);
+  }
   .lf-margin-action:is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: margin-action; outline-offset: 1px;
   }
   .lf-margin-action[aria-disabled="true"] { cursor: default; }
-  .lf-margin-action[data-lf-tone="positive"]:hover:not([aria-disabled="true"]) {
+  .lf-margin-action[data-lf-tone="positive"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     border-color: var(--ok); color: var(--ok-ink); background: var(--ok-tint);
   }
-  .lf-margin-action[data-lf-tone="negative"]:hover:not([aria-disabled="true"]) {
+  .lf-margin-action[data-lf-tone="negative"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
   }
   .lf-margin-action[data-lf-tone="positive"][aria-disabled="true"] {
@@ -270,7 +279,7 @@ export function chromeStyle({
   .lf-margin-action[data-lf-tone="primary"] {
     border-color: var(--accent); background: var(--accent); color: var(--paper);
   }
-  .lf-margin-action[data-lf-tone="primary"]:hover:not([aria-disabled="true"]) {
+  .lf-margin-action[data-lf-tone="primary"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
     filter: brightness(.92); background: var(--accent);
   }
   .lf-margin-action.lf-react[aria-pressed="true"] {

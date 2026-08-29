@@ -159,11 +159,12 @@ class _StructParser(HTMLParser):
     """Tracks a tag stack to catch unclosed and mismatched tags, and collects what the
     rest of `version check` reads off a version: element ids and the widget each
     stands in, every <script src> tag, stylesheet links, each lf-* element
-    (attributes, direct parent, direct children, direct text) for registry
-    validation, the page's title, and everything it says about width. Structure
-    only — no tag here is known by name, so every question about what a widget
-    *means* is asked of the registry by whoever holds one. Foreign markup inside
-    <svg> is skipped (SVG has its own self-closing rules that don't matter here)."""
+    (attributes, direct parent, direct content order, direct children, direct text)
+    for registry validation, the page's title, and everything it says about width.
+    Structure only — no tag here is known by name, so every question about what a
+    widget *means* is asked of the registry by whoever holds one. Foreign markup
+    inside <svg> is skipped (SVG has its own self-closing rules that don't matter
+    here)."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -197,7 +198,7 @@ class _StructParser(HTMLParser):
         self.inline_styles = []  # each style="" declaration list
         self.attr_widths = []  # (tag, value) per width="" that counts as pixels
         self.title = ""  # what <title> says, for the transcript's heading
-        # {"tag", "line", "attrs", "parent", "children", "text"}
+        # {"tag", "line", "attrs", "parent", "direct", "children", "text"}
         self.lf_elements = []
         # id → the innermost lf-* element standing around it, an element's own id
         # standing in itself. Where an id lives is structure; which of those
@@ -415,9 +416,11 @@ class _StructParser(HTMLParser):
         if tag in VOID_TAGS:
             if self.stack and self.stack[-1][2] is not None:
                 self.stack[-1][2]["children"].append(tag)
+                self.stack[-1][2]["direct"].append(tag)
             return
         if self.stack and self.stack[-1][2] is not None:
             self.stack[-1][2]["children"].append(tag)
+            self.stack[-1][2]["direct"].append(tag)
         record = None
         if tag.startswith("lf-"):
             record = {
@@ -425,6 +428,7 @@ class _StructParser(HTMLParser):
                 "line": self.getpos()[0],
                 "attrs": attrs_d,
                 "parent": self.stack[-1][0] if self.stack else None,
+                "direct": [],
                 "children": [],
                 "text": False,
                 "body": "",  # a <pre> data body's text, for the x-lines gate
@@ -458,6 +462,7 @@ class _StructParser(HTMLParser):
             )
         elif self.stack and self.stack[-1][2] is not None:
             self.stack[-1][2]["children"].append(tag)
+            self.stack[-1][2]["direct"].append(tag)
 
     def handle_data(self, data):
         ancestors = {open_tag for open_tag, *_ in self.stack}
@@ -470,6 +475,7 @@ class _StructParser(HTMLParser):
             self.outside_main.append(f"text at line {self.getpos()[0]}")
         if self.stack and self.stack[-1][2] is not None and data.strip():
             self.stack[-1][2]["text"] = True
+            self.stack[-1][2]["direct"].append("#text")
         if holder == "style":
             self.css += data
         elif holder == "title":

@@ -1098,8 +1098,8 @@ ${MARK_RULES}
        wherever the widget's own border already is). A standing mark can live with the
        hairline that survives all that, because an annotation is something a reader
        can hunt for. A promise cannot: it answers a held key at a glance, and over a
-       card whose 1px border is already the accent — every recommended option — the
-       arm changed nothing a reader could see, which was reported as no box at all.
+       box whose border is already the accent the arm changed nothing a reader could
+       see, which was reported as no box at all.
        The layer over the page is the runtime's by construction, so the aim is stated
        there instead, from the aimed element's geometry: a veil that says how much a
        press takes and a ring that says where it stops, over everything the page can

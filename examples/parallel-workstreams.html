@@ -82,16 +82,12 @@
             </lf-column>
           </lf-board>
           <lf-ask id="feeder-extras-ask">
+            <h2>Which extras should join the bracket order?</h2>
             <p id="feeder-order">
               The bracket order goes in on Friday and there is room in it. These are the
               extras the south pair turned out to want.
             </p>
-            <lf-options
-              id="feeder-extras"
-              label="Which extras should join the bracket order?"
-              choose
-              multiple
-            >
+            <lf-options id="feeder-extras" choose multiple>
               <lf-option id="fx-tray"
                 ><lf-chip>£9 the pair</lf-chip
                 ><lf-chip tone="warn">more cleaning</lf-chip>
@@ -114,27 +110,24 @@
 
         <lf-tab id="tab-bath" label="Vision">
           <lf-ask id="bath-heat-ask">
+            <h2>How should the bird bath stay open through January?</h2>
             <p id="bath-status">
               The winter habitat keeps food, water, and a camera available without
               adding a daily round. The open question is how to keep the bird bath
               liquid through January. Click an option to decide.
             </p>
-            <lf-options
-              id="bath-heat"
-              label="How should the bird bath stay open through January?"
-              choose
-            >
+            <lf-options id="bath-heat" choose>
               <lf-option id="heat-immersion"
                 ><lf-chip>£18</lf-chip><lf-chip>a cord across the lawn</lf-chip
                 ><lf-chip tone="ok">liquid all winter</lf-chip>
                 <strong>Immersion heater</strong> Drops into the basin; needs a cord run
                 across the lawn.
               </lf-option>
-              <lf-option id="heat-solar" recommended
+              <lf-option id="heat-solar"
                 ><lf-chip>£70</lf-chip><lf-chip>swap the basin</lf-chip
                 ><lf-chip tone="ok">liquid but the hardest frosts</lf-chip>
                 <strong>Solar basin</strong> Replace the basin with the heated model; no
-                cord, reversible.
+                cord, reversible. <em>My take: this is the best fit for the site.</em>
               </lf-option>
               <lf-option id="heat-none"
                 ><lf-chip>£0</lf-chip><lf-chip>nothing to install</lf-chip

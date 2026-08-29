@@ -136,9 +136,8 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             # Never on the hairline the outer corner would have shared with the cells
             # around it, and never in either neighbour's room: the option's gutter opens
             # with the status rule, and its words open at the column the option pads to.
-            # `test_the_pointer_does_not_take_a_cells_status_with_it` asks that order of
-            # one recommended cell of the card form, with the pointer moved off it before
-            # the reading; the row form is asked here and nowhere else.
+            # Read the row form here as well as the cards above; both reserve status,
+            # address, then prose in the same leading gutter.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
             assert sits["afterStatus"] < sits["x"] < sits["ends"] < sits["opens"], (
                 f"{id_}'s digit runs {sits['x']}…{sits['ends']} in a gutter whose status "
@@ -1193,9 +1192,10 @@ def test_a_g_panel_destination_survives_an_empty_open_ask_tray(browser, serve):
         serve(
             leaf_page(
                 "One ask",
-                '<h1>One ask</h1><lf-options id="only" choose label="Pick one">'
+                '<h1>One ask</h1><lf-ask id="only-ask"><h2>Pick one</h2>'
+                '<lf-options id="only" choose>'
                 '<lf-option id="first">First</lf-option>'
-                '<lf-option id="second">Second</lf-option></lf-options>',
+                '<lf-option id="second">Second</lf-option></lf-options></lf-ask>',
             )
         ),
     )
@@ -2592,7 +2592,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator(".lf-thread").nth(1)).to_be_focused()
 
     page.keyboard.press("a")
-    expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-ask[data-lf-ask]")).to_have_count(1)
     page.evaluate(press, ["a", True])  # the same grammar repeats for asks
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
 
@@ -2858,20 +2858,22 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         "label focus",
         """
 <h1 id="frames">Choose a frame</h1>
+<lf-ask id="first-question-ask"><h2>Which first frame?</h2>
 <lf-options id="first-question" choose>
   <lf-option id="first-frame"><strong>First</strong>
     <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
   </lf-option>
   <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
-</lf-options>
+</lf-options></lf-ask>
+<lf-ask id="frame-question-ask"><h2>Which next frame?</h2>
 <lf-options id="frame-question" choose>
   <lf-option id="after-frame"><strong>After</strong>
     <label id="frame-label"><input id="frame" type="radio" name="frame">
       <span>after state</span></label>
   </lf-option>
   <lf-option id="before-frame"><strong>Before</strong></lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
     )
     page, errors = open_page(
@@ -2883,7 +2885,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     first.focus()
     standing = key_line(page)
     assert "let go" in standing
-    expect(page.locator("#first-question[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#first-question-ask[data-lf-ask]")).to_have_count(1)
 
     # A secondary contact does not drive native label activation, so it must not
     # start the logical transaction either.
@@ -2921,13 +2923,13 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert key_line(page) == standing
-    held_ask = page.locator("#first-question[data-lf-ask]")
+    held_ask = page.locator("#first-question-ask[data-lf-ask]")
     expect(held_ask).to_have_count(1)
     expect(held_ask).to_have_css("--lf-here-ring", "ask")
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
-    expect(page.locator("#frame-question[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#frame-question-ask[data-lf-ask]")).to_have_count(1)
 
     hold_selection(
         page,
@@ -3453,11 +3455,11 @@ def test_c_comments_on_what_the_reader_is_standing_in(browser, serve):
     # An ask: the composer opens on the question rather than on the option the
     # walk happens to stand the reader on, and rather than on the page.
     page.keyboard.press("a")
-    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the options")
+    expect(page.locator("#shape-ask")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("options")
+    expect(page.locator(".lf-composer")).to_contain_text("ask")
     drop()
 
     # A settled group: not an ask at all, and the conversation seat it still holds is
@@ -3534,14 +3536,16 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             "mid-sentence",
             """
 <h1 id="t">Mid-sentence</h1>
+<lf-ask id="shape-ask"><h2>Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
+<lf-ask id="picked-ask"><h2>Should we keep it?</h2>
 <lf-options id="picked" choose>
   <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
   <lf-old>Refill every feeder each morning.</lf-old>
@@ -3582,7 +3586,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # the ring alone, and the tray goes on listing what the reader owes rather than
     # gaining a row for where they happen to be standing.
     page.locator("#shape .lf-pick").first.focus()
-    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#shape-ask")).to_have_attribute("data-lf-ask", "1")
     expect(page.locator("button.lf-asks-row")).to_have_count(1)
     assert page.locator(".lf-asks-row[data-lf-ask]").count() == 0, (
         "the tray drew a here-ring on a row for an ask it does not list"
@@ -3592,40 +3596,16 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-pick").first.focus()
-    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the options")
-
-    # And the press means the seat, so the next line joins the conversation the first
-    # line opened rather than starting one on the option under the focus.
-    page.keyboard.press("c")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    page.locator(".lf-composer textarea").fill("Cedar, then, if it is not.")
-    page.get_by_role("button", name="Comment", exact=True).click()
-    expect(page.locator("#shape .lf-conversation-thread")).to_have_count(2)
-    # Both comments, not the last one: the fixture's own opening remark is anchored on the
-    # group, so reading the last anchor alone is satisfied by the setup whatever the press
-    # did. Two seat-anchored comments is the fact, and the thread count above is the
-    # rendering of it rather than a second reading.
-    made = [e for e in events_model.read_events(d) if e.get("kind") == "comment"]
-    assert (
-        len(made) == 2 and [e["anchor"] for e in made] == [{"section": "shape"}] * 2
-    ), f"the second line landed outside the seat: {[e['anchor'] for e in made]}"
-
-    # Back on the pick, and the ring with it. The composer's own Comment button took the
-    # focus on the way out, so this is the reader returning to the question they were
-    # working rather than a fresh arrival at it.
-    page.locator("#shape .lf-pick").first.focus()
-    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#shape-ask")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the ask")
 
     # Answering hands the question back, and the count moves while the ring does not.
     # Focus is not touched again from here, so the ring read below is the one painted
     # above: blurring and coming back would re-derive it and repeat the phase instead of
     # measuring that it stayed through the news.
     #
-    # Both threads, because a seat is the reader's again only when every conversation in
-    # it is: one unanswered remark there is still a word the agent owes, and the phase
-    # above left a second one. Replying to the first alone leaves the count at 1, which is
-    # the honest answer and not the one this phase is asking about.
+    # The source is the reader's again once the conversation in its answer control has
+    # been answered.
     for root in [
         e["id"] for e in events_model.read_events(d) if e.get("kind") == "comment"
     ]:
@@ -3642,8 +3622,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     told(page)
     expect(asks).to_have_text("Asks (2)")
     expect(page.locator("#shape .lf-pick").first).to_be_focused()
-    expect(page.locator("#shape")).to_have_attribute("data-lf-ask", "1")
-    expect(line).to_contain_text("comment on the options")
+    expect(page.locator("#shape-ask")).to_have_attribute("data-lf-ask", "1")
+    expect(line).to_contain_text("comment on the ask")
     page.evaluate("() => document.activeElement?.blur()")
 
     # The picked group is the control on the other side: answered, so off both readings,
@@ -3752,10 +3732,11 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
             "seated",
             """
 <h1 id="t">Seated</h1>
+<lf-ask id="shape-ask"><h2>Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
         )
     )
@@ -3791,7 +3772,7 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
 
     # The control: standing on the widget, not in either thread.
     page.locator("#shape .lf-pick").first.focus()
-    expect(line).to_contain_text("comment on the options")
+    expect(line).to_contain_text("comment on the ask")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")

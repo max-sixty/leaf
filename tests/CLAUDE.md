@@ -154,10 +154,9 @@ width and style also carries a name, so a name the cascade left on a box whose
 outline a later rule took away is not credited off it, and a ring painted with no
 name is a finding of its own — that half is the only one that can see a rule
 drawing the ring some other way, since what a declaration's text draws is not
-decidable and what a box paints is. Nothing reads `@media` or `@supports`: one
-rule is conditional (`options-joined`, under `@media screen`) and this reading is
-taken on screen, so evaluating them would change nothing, while a ring that painted
-only in some other medium is one the corpus never shows and should say so.
+decidable and what a box paints is. Nothing reads `@media` or `@supports`: the
+reading is taken on screen, while a ring that painted only in some other medium is
+one the corpus never shows and should say so.
 
 The walk also asks, at every stop, whether the reader can see where the keyboard
 is — which is the question the rings above were only ever half of, since a ring

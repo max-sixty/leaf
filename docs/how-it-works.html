@@ -408,16 +408,18 @@ $ leaf ack ./review 3</code></pre>
                 ><strong>Shim the old schema</strong> Fastest to ship; every future
                 field pays the translation tax.</lf-option
               >
-              <lf-option id="so-stage" recommended
+              <lf-option id="so-stage"
                 ><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip
                 ><strong>Migrate in stages</strong> New fields land on the new schema
-                while reads fall back, table by table.</lf-option
+                while reads fall back, table by table.
+                <em>My take: this keeps the rollback boundary small.</em></lf-option
               >
             </lf-options>
-            <lf-options
-              id="spec-jobs"
-              label="Whichever way that goes, which of the three jobs behind it are worth starting now?"
-            >
+            <h3>
+              Whichever way that goes, which of the three jobs behind it are worth
+              starting now?
+            </h3>
+            <lf-options id="spec-jobs">
               <lf-option id="sj-backfill">Backfill last month's rows</lf-option>
               <lf-option id="sj-contract"
                 >Contract tests against the old schema</lf-option

@@ -28,16 +28,18 @@ ADDRESS_PAGE = leaf_page(
     "addresses",
     """
 <h1 id="h">Two questions, two forms</h1>
+<lf-ask id="cards-ask"><h2>How should the bath be heated?</h2>
 <lf-options id="cards" choose>
   <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
   <lf-option id="c-cable"><strong>Heated cable</strong> A cord across the base.</lf-option>
   <lf-option id="c-hand"><strong>Break the ice</strong> Someone goes out each morning.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <p id="plan">The camera mount is the part nobody has costed.</p>
+<lf-ask id="rows-ask"><h2>When should it be costed?</h2>
 <lf-options id="rows" choose>
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
 )
 
@@ -223,12 +225,13 @@ enough that it runs past the end of one line and carries on onto the next</a>, a
 <details id="dsc"><summary id="dsc-head">What the store costs</summary>
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
+<lf-ask id="opts-ask"><h2>How should sessions work?</h2>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <p id="p2">A short second passage.</p>
 {tail}
 """,
@@ -456,10 +459,11 @@ First line of the note.
 
 Second paragraph of the note.
 </pre></lf-draft>
+<lf-ask id="picks-ask"><h2>Should we keep the mounts?</h2>
 <lf-options id="picks" choose>
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
 )
 
@@ -471,10 +475,11 @@ def actions(page_dir):
 NESTED_SUGGESTION = SUGGESTION_PAGE.replace(
     "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
     "<lf-new>Switch the north feeder to thistle in autumn."
+    '<lf-ask id="blend-ask"><h2>Which seed blend?</h2>'
     '<lf-options id="blend" choose>'
     '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
     '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
-    "</lf-options></lf-new>",
+    "</lf-options></lf-ask></lf-new>",
 )
 FENCED_CAPTURE_PAGE = leaf_page(
     "fenced capture",
@@ -855,20 +860,22 @@ DISCLOSED_PAGE = leaf_page(
 <details id="dsc"><summary id="dsc-head">What the store costs</summary>
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
+<lf-ask id="settled-ask"><h2>Should we keep it?</h2>
 <lf-options id="settled" choose settled>
   <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
 )
 KEYS_PAGE = leaf_page(
     "keys",
     """
 <h1 id="h">Session store</h1>
+<lf-ask id="opts-ask"><h2>How should sessions work?</h2>
 <lf-options id="opts" choose>
   <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
   <lf-option id="opt-token"><strong>Signed tokens</strong> No store at all.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <lf-draft id="draft-ops"><pre>
     Run the migration before deploying.
 </pre></lf-draft>

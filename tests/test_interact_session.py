@@ -742,11 +742,11 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a conversation is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
-    "<lf-options>",
+    '<lf-ask id="plan-choice-ask">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
     "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
     "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-    "</lf-suggestion>\n<lf-options>",
+    '</lf-suggestion>\n<lf-ask id="plan-choice-ask">',
 )
 SETTLING_ASK = {
     "kind": "comment",

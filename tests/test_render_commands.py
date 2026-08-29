@@ -559,7 +559,7 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
 def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, serve):
     """The x-paints half of the same gate, and the line it draws between two silences.
 
-    A widget may paint a fact — `recommended` is a corner mark and no text node —
+    A widget may paint a fact — `kind="failure"` is a visual state and no text node —
     and it owes a reader who is listening the same fact in words. The runtime
     writes that word, so what is left to check is whether anything drew it. Asking
     is asking for a box, and only an element that is being laid out has one to give:
@@ -590,7 +590,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     ]
     assert sorted(set(found)) == [
         (
-            '<lf-option id=p-seen> paints recommended="" and says nothing a reader '
+            '<lf-event id=p-seen> paints kind="failure" and says nothing a reader '
             "listening can hear"
         )
     ], found

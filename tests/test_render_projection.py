@@ -578,7 +578,7 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     ring there, in the browser's blue, a few inches from an ask ringed in the page's
     accent, with nothing saying the two rectangles meant one thing."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    question = page.locator("#live-question")
+    question = page.locator("#live-question-ask")
     page.keyboard.press("a")
     expect(question).to_have_attribute("data-lf-ask", "1")
     ask_ring = question.evaluate(RING)
@@ -652,7 +652,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     take them off."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     page.keyboard.press("a")
-    expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-ask[data-lf-ask]")).to_have_count(1)
     expect(page.locator(".lf-keyline")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
     # layer" for every rung, which was true while every rung took a layer of chrome off
@@ -664,7 +664,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
-    expect(page.locator("#live-question[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-ask[data-lf-ask]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
@@ -772,7 +772,13 @@ def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
-    for expected in ["live-question", "t-baffles", "t-bath", "m-build", "m-install"]:
+    for expected in [
+        "live-question-ask",
+        "t-baffles",
+        "t-bath",
+        "m-build",
+        "m-install",
+    ]:
         page.keyboard.press("a")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
@@ -2826,14 +2832,6 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
-        if event["id"] == "c-any":
-            event = {
-                **event,
-                "markup": event["markup"].replace(
-                    "choose multiple>",
-                    'choose multiple label="Pick any that apply.">',
-                ),
-            }
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     asks = page.locator(".lf-asks")
@@ -2932,9 +2930,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(asks).to_have_text("Asks (1)")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
-    expect(page.locator('#tq-set > [data-lf-said="label"]')).to_have_text(
-        "Pick any that apply."
-    )
+    expect(page.locator("#tq-set-ask > h3")).to_have_text("Which extras apply?")
 
     # The chord's promise holds from a mark: g c leaves the option's digit scope and
     # reaches Comments. A stray digit there neither travels nor picks; t then Enter makes
@@ -3356,7 +3352,7 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
   <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
 </lf-agent>
 <lf-ask id="command-ask"><h2>Recover this work</h2>
-  <lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="First instruction">
+  <lf-operations id="commands" target="goal" worker="worker" worktree="tree">
     <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
   </lf-operations>
 </lf-ask></lf-task></lf-command>""",
@@ -3389,11 +3385,11 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
 
     stamp_page(
         serve.page_dir,
-        first.replace("First instruction", "Second instruction"),
+        first.replace("Recover this work", "Second instruction"),
         "new instruction",
     )
     wait_for_revision(page, 2)
-    expect(operations).to_contain_text("Second instruction")
+    expect(page.locator("#command-ask")).to_contain_text("Second instruction")
     expect(operations).not_to_contain_text("restart succeeded")
     expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
     expect(operations.get_by_role("button", name="Restart")).to_have_attribute(
@@ -3506,14 +3502,13 @@ def test_a_succeeded_host_request_waits_for_an_authored_plan_revision(browser, s
     )
 
     parked = re.sub(
-        r'(<lf-task\s+id="parser-dedupe"\s+)status="blocked"\s+'
-        r'stopped-at="[^"]+"',
+        r'(<lf-task\s+id="parser-dedupe"\s+)status="blocked"\s+' r'stopped-at="[^"]+"',
         r'\1status="planned"',
         COMMAND_HUB_PAGE,
         count=1,
     )
     parked = re.sub(
-        r'<lf-operations\s+id="dedupe-operations".*?</lf-operations>',
+        r'<lf-ask\s+id="dedupe-operations-ask".*?</lf-ask>',
         "",
         parked,
         count=1,
@@ -3813,8 +3808,7 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
           <lf-worktree id="tree" source="project-worktrees"></lf-worktree>
         </lf-agent>
         <lf-specimen id="sample"><lf-operations id="example-commands" target="goal"
-          worker="worker" worktree="tree"
-          label="Example host operation">
+          worker="worker" worktree="tree">
           <lf-operation verb="restart"><strong>Restart</strong></lf-operation>
         </lf-operations></lf-specimen>
       </lf-task>

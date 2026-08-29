@@ -22,10 +22,10 @@ from interact_support import (
     _board,
     _decided,
     _marker_for,
-    _paint_names,
     _report,
     _status,
     _tasks_version,
+    before_choice,
     check,
     decide,
     declare_data_input,
@@ -429,12 +429,6 @@ def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
     the layer that ships an exhibit and the layer whose rules withhold the hand need
     not be the same one — the shape a tag list cannot have.
 
-    The joined group's own here-ring stands down inside the second, the standing ask
-    (data-lf-ask, markHere), and asks it the same way and for the same reason: what
-    counts as an ask is the registry's answer (x-ask), and a stylesheet cannot read
-    that either. Both markers are the runtime's paint, so both are held to the name
-    the runtime actually writes.
-
     Every ancestor exclusion in the rules of the composed theme is read, not the
     exhibit ones alone: a tag name in one is a closed vocabulary wherever it appears,
     and the failure it causes is a project's own widget silently outside the answer.
@@ -463,45 +457,16 @@ def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
         for found in re.finditer(r":not\(", theme)
         if (inside := _balanced(theme, found.end())).endswith(" *")
     }
-    assert excluded == {":where([data-lf-exhibit])", ":where([data-lf-ask])"}, (
-        f"the theme's ancestor exclusions are {excluded}, and the two things a rule "
-        "may ask to stand down inside are the painted exhibit and the painted "
-        "standing ask. A tag spelled here answers for the layer that ships it and for "
-        "no other; a third marker is a third question, and belongs to whichever test "
-        "owns that one; a missing one is rules that stopped standing down at all"
+    assert excluded == {":where([data-lf-exhibit])"}, (
+        f"the theme's ancestor exclusions are {excluded}, and the thing an affordance "
+        "may stand down inside is a painted exhibit. A tag spelled here answers for "
+        "the layer that ships it and no other; a second marker is a second question, "
+        "and belongs to the test that owns it"
     )
     assert _marker_for("x-exhibit") == "data-lf-exhibit", (
         "the theme excludes data-lf-exhibit and markDeclared paints "
         f"{_marker_for('x-exhibit')!r} for x-exhibit, so nothing puts that mark on a "
         "page and an exhibit keeps every affordance these rules meant to withhold"
-    )
-    assert _paint_names().get("ask") == "data-lf-ask", (
-        "the theme excludes data-lf-ask and PAGE_PAINT_ATTRIBUTE spells the standing "
-        f"ask's mark {_paint_names().get('ask')!r}, so nothing puts that mark on a "
-        "page and a group inside an open ask draws the reader's band a second time"
-    )
-    # Asked of the file that defines markHere rather than of a path: the runtime is
-    # composed from leaf.js and the modules beside it, and which one owns a function
-    # moves as those split — this read leaf.js, and the day the ask runtime moved out
-    # of it the reading went missing rather than red about the mark.
-    defines = [
-        f
-        for f in [
-            schema_model.ASSETS / "leaf.js",
-            *sorted((schema_model.ASSETS / "runtime").rglob("*.js")),
-        ]
-        if re.search(r"function markHere\(\)", f.read_text())
-    ]
-    assert len(defines) == 1, (
-        f"the runtime defines markHere in {[f.name for f in defines]}, and this asks "
-        "one file what it writes"
-    )
-    owner = defines[0].read_text()
-    body = _balanced(owner, owner.index("{", owner.index("function markHere()")) + 1)
-    assert "PAGE_PAINT_ATTRIBUTE.ask" in body, (
-        "markHere is what paints the standing ask, and it no longer writes "
-        "PAGE_PAINT_ATTRIBUTE.ask — the exclusion in the theme then answers for a "
-        "mark nothing leaves on the page"
     )
     registry = validation_model.incoming_registry(
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
@@ -511,57 +476,6 @@ def test_the_ancestor_exclusions_ask_for_a_marker_and_not_a_tag():
         for tag, entry in registry.items()
         if tag.startswith("lf-") and entry.get("x-exhibit")
     ], "no widget declares x-exhibit, so the marker in these rules stands for nothing"
-
-
-def test_the_group_stands_down_for_every_outline_the_log_paints():
-    """An element wears one outline, and two writers want the joined group's.
-
-    The log paints the news about a widget's content there — a version restated it, a
-    decision is not in the page's words yet, a worker reported something — and the
-    group draws the reader's band there when the keyboard is in it. The band has other
-    carriers and the news has none, so the band is what stands down, and it says so by
-    naming the states it defers to.
-
-    A name it does not know is a state buried again, silently: a keyboard pick hid its
-    own pending ring until the reader tabbed away, and nothing rendered wrong. So the
-    list is held to the whole of what the kernel paints as an outline against an
-    attribute of its own, which is where a fourth would be written."""
-    theme = re.sub(
-        r"/\*.*?\*/",
-        "",
-        layer_model.composed_theme([schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]),
-        flags=re.DOTALL,
-    )
-    painted = {
-        found.group(1)
-        for found in re.finditer(
-            r"(?m)^\[(data-lf-[a-z-]+)\]\s*\{([^}]*)\}", theme, re.DOTALL
-        )
-        if "outline:" in found.group(2)
-    }
-    assert painted, "the kernel paints no state outline at all, so this reads nothing"
-    rule = re.search(
-        r"&:has\(> lf-option > \.lf-pick:is\(:focus-visible, \.lf-focus-visible\)\)"
-        r"([^{]*)\{([^}]*)\}",
-        theme,
-        re.DOTALL,
-    )
-    assert rule and "--here-ring" in rule.group(2), (
-        "the joined group no longer draws the reader's band on itself, so the states it "
-        "was deferring to are nobody's question here"
-    )
-    deferred = set()
-    for found in re.finditer(r":not\(", rule.group(1)):
-        inside = _balanced(rule.group(1), found.end())
-        names = [part.strip() for part in inside.split(",")]
-        if names and all(re.fullmatch(r"\[data-lf-[a-z-]+\]", name) for name in names):
-            deferred |= {name[1:-1] for name in names}
-    assert deferred == painted, (
-        f"the group defers to {sorted(deferred)} and the kernel paints "
-        f"{sorted(painted)}: a state the group does not name draws nothing while the "
-        "keyboard is in the control, which is exactly when a reader has just made the "
-        "decision the ring is about"
-    )
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -690,15 +604,28 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "versions" / "v1.html").write_text(
-        PAGE.replace(" recommended>", ' recommended="">')
+        PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')
     )
     assert check(page_dir).exit_code == 0
     (page_dir / "versions" / "v1.html").write_text(
-        PAGE.replace(" recommended>", ' recommended="yes">')
+        PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="yes">')
     )
     result = check(page_dir)
     assert result.exit_code == 1
     assert "is not of type 'boolean'" in result.output
+
+
+def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options label="Which plan?">').replace(
+            'id="backfill-first">', 'id="backfill-first" recommended>'
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "Additional properties are not allowed" in result.output
+    assert "'label' was unexpected" in result.output
+    assert "'recommended' was unexpected" in result.output
 
 
 def test_milestones_compose(page_dir):
@@ -798,8 +725,8 @@ def test_suggestion_resolves_accepts_a_real_comment(page_dir):
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion><lf-options>'
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", markup))
+    markup = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>x</p></lf-new></lf-suggestion>'
+    (page_dir / "versions" / "v1.html").write_text(before_choice(PAGE, markup))
     assert check(page_dir, version=1).exit_code == 0
 
 
@@ -830,8 +757,8 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
     )
     publish(page_dir, 2)
     (page_dir / "versions" / "v3.html").write_text(
-        PAGE.replace("<title>t</title>", "<title>t · v3</title>").replace(
-            "<lf-options>", SUGGESTION
+        before_choice(
+            PAGE.replace("<title>t</title>", "<title>t · v3</title>"), SUGGESTION
         )
     )
     publish(page_dir, 3)
@@ -865,7 +792,7 @@ def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
     insert = """<lf-suggestion id="sug-thistle">
   <lf-new><p id="thistle-plan">Switch the north feeder to thistle in autumn.</p></lf-new>
 </lf-suggestion>
-<lf-options>"""
+"""
     suggest(page_dir, markup=insert)
     (page_dir / "versions" / "v2.html").write_text(
         PAGE.replace(
@@ -921,7 +848,7 @@ def test_an_unanswered_deletion_cant_delete(page_dir):
     delete = """<lf-suggestion id="sug-drop">
   <lf-old><p id="hand-log">The manual sightings log.</p></lf-old>
 </lf-suggestion>
-<lf-options>"""
+"""
     suggest(page_dir, markup=delete)
     (page_dir / "versions" / "v2.html").write_text(PAGE)
     result = check(page_dir, version=2)
@@ -1158,9 +1085,9 @@ def test_check_rejects_duplicate_ids(page_dir):
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     publish(page_dir)
     without_item = PAGE.replace(
-        '    <lf-option id="backfill-first" recommended><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>\n'
-        "      <strong>Backfill first</strong> Verify, then flip.\n"
-        "    </lf-option>\n",
+        '      <lf-option id="backfill-first"><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>\n'
+        "        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>\n"
+        "      </lf-option>\n",
         "",
     )
     (page_dir / "versions" / "v2.html").write_text(
@@ -1433,9 +1360,10 @@ def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1528,9 +1456,10 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1538,7 +1467,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     )
     publish(page_dir)
     ready_asks = {ask["id"] for ask in state_json(page_dir)["asks"]}
-    assert "commands" in ready_asks
+    assert "commands-ask" in ready_asks
     assert "goal" not in ready_asks
     first = events_model.append_event(
         page_dir,
@@ -1551,7 +1480,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
             "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
         },
     )
-    assert "commands" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-ask" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
     failure = events_model.append_event(
         page_dir,
         {
@@ -1562,7 +1491,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
             "text": "Worker lease disappeared",
         },
     )
-    assert "commands" in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-ask" in {ask["id"] for ask in state_json(page_dir)["asks"]}
     retry = events_model.append_event(
         page_dir,
         {
@@ -1583,7 +1512,7 @@ def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
     assert lifecycle["attempts"][0]["receipt"]["id"] == failure["id"]
     assert lifecycle["latest"]["request"]["id"] == retry["id"]
     assert lifecycle["latest"]["receipt"] is None
-    assert "commands" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands-ask" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
 
 
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
@@ -2200,15 +2129,19 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
     """The file-side facet is the runtime's same ownership reading. An inner chosen
     option is not part of the outer group's record, so an outer log choice that matches
     its own authored option carries no phantom lag."""
-    nested = """<lf-options id="outer" choose multiple>
-  <lf-option id="outer-a" chosen><strong>Outer A</strong>
-    <lf-options id="inner" choose>
-      <lf-option id="inner-a" chosen>Inner A</lf-option>
-      <lf-option id="inner-b">Inner B</lf-option>
-    </lf-options>
-  </lf-option>
-  <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
-</lf-options>"""
+    nested = """<lf-ask id="outer-ask"><h3>Which outer choices?</h3>
+  <lf-options id="outer" choose multiple>
+    <lf-option id="outer-a" chosen><strong>Outer A</strong>
+      <lf-ask id="inner-ask"><h4>Which inner choice?</h4>
+        <lf-options id="inner" choose>
+          <lf-option id="inner-a" chosen>Inner A</lf-option>
+          <lf-option id="inner-b">Inner B</lf-option>
+        </lf-options>
+      </lf-ask>
+    </lf-option>
+    <lf-option id="outer-b"><strong>Outer B</strong></lf-option>
+  </lf-options>
+</lf-ask>"""
     html = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + nested)
     (page_dir / "versions" / "v1.html").write_text(html)
     publish(page_dir)
@@ -2247,7 +2180,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     ]
     assert state["active"]["revision"] == 1 and state["active"]["version"] == 1
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
-    assert state["asks"] == [{"id": "g1", "tag": "lf-options", "thread": None}]
+    assert state["asks"] == [{"id": "g1-ask", "tag": "lf-ask", "thread": None}]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == [] and state["lag"] == []
 
@@ -2645,9 +2578,10 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     """The Ask list names the whole reading the reader arrives at. Its nested
     request remains the action owner, so answering it closes the broader Ask without
     moving the standing decision onto a wrapper that declares no state."""
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
+    opts = """<lf-options id="g1" choose>
+      <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
+      <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
+    </lf-options>"""
     ask = (
         '<lf-ask id="plan-ask"><h2>Plan</h2>'
         "<p>Choose after reading this framing.</p>"
@@ -2754,7 +2688,7 @@ def test_page_state_takes_a_seated_question_off_the_readers_list(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    asking = [{"id": "g1", "tag": "lf-options", "thread": None}]
+    asking = [{"id": "g1-ask", "tag": "lf-ask", "thread": None}]
     assert state_json(page_dir)["asks"] == asking
     # A quote inside the group is a note about one of its words, not the reader
     # standing in the box it offers. Only the seat's own anchor reaches this.
@@ -2813,7 +2747,7 @@ def test_page_state_asks_again_once_the_reader_closes_their_own_option(page_dir)
         page_dir, {"kind": "resolve", "author": "user", "parent": "c-another"}
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "g1", "tag": "lf-options", "thread": None}
+        {"id": "g1-ask", "tag": "lf-ask", "thread": None}
     ]
 
 

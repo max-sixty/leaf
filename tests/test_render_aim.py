@@ -1080,7 +1080,7 @@ def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
 
     The aim used to wear the mark's hairline, and the mark's band is one pixel at the
     border edge — the one band of an element nobody else paints in, and exactly where a
-    widget draws a border of its own. Over a recommended option, whose border is
+    widget draws a border of its own. Over an accented option, whose border is
     already the accent, arming changed nothing a reader could see, and what was
     reported was no box at all. So the aim paints in the layer above the page, which no
     widget can reach; the pixel diff here is armed against unarmed with the pointer

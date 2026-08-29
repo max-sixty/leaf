@@ -215,12 +215,8 @@ export function renderSaid(root) {
         // from where the file's reading of that same version has it.
         //
         // Before: the element's own start. Leading chrome is not something the words
-        // stand beside; a module puts one there to speak *for* the whole element — the
-        // disclosure a settled option group collapses to is the only one any x-says host
-        // has — so the same skip that keeps a chip beside its row put the group's own
-        // question underneath a summary of its answer. The file has the label first, the
-        // theme says the question leads, and a reader who opens the group finds it asked
-        // after it was settled.
+        // stand beside; a module puts it there to speak *for* the whole element, so an
+        // authored attribute declared at this edge must precede it.
         //
         // Each edge skips what the other keeps, which is the whole of the difference:
         // trailing chrome is passed over by looking for the last authored node, leading
@@ -244,17 +240,14 @@ export function renderSaid(root) {
 }
 
 // What a widget paints and never words. A task's status marker, a milestone's dot, an
-// event's kind band, the accent ring on the recommended option: each is a fact the eye
-// reads off paint alone, so a reader listening is handed every word around it and nothing
-// of the fact itself — done sounded like blocked, and the page's own recommendation was
-// invisible to the reader most in need of it. Same reasoning as renderSaid, one rung
-// quieter: the registry names the attributes (x-paints) and one pass speaks them, because
-// left to each module it is a thing to remember, and lf-event and lf-option, which have no
-// module at all, could never have remembered it.
+// event's kind band: each is a fact the eye reads off paint alone, so a reader listening
+// is handed every word around it and nothing of the fact itself — done sounded exactly
+// like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
+// attributes (x-paints) and one pass speaks them, because left to each module it is a
+// thing to remember, and lf-event, which has no module at all, could never remember it.
 //
 // The value is the word, or the attribute's own name where the value is empty: an enum
-// means what it says (`blocked`), and a flag attribute means what it is called
-// (`recommended`), which is the whole of what its ring says to the eye.
+// means what it says (`blocked`), and a flag attribute means what it is called.
 //
 // The runtime's own restatement paint is said here too — the same failure under a
 // different owner, and the one the code that paints it already calls a debt: a decision

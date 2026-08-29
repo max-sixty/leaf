@@ -1396,10 +1396,10 @@ style query, because half of what decides it — the medium, and a copy's class 
 the root — cannot go inside a `:not()`.
 
 A group joined into one control has cells, and its children arrive from every
-layer: the authored options are the author's, the option the reader writes is
-the module's, the question and the Done press are the runtime's. Each brings the
-spacing it wears standing alone, and the grid stretches all of them to the same
-column whatever they were written as.
+layer: the authored options are the author's, while the option the reader writes
+and the Done press are the runtime's. Each brings the spacing it wears standing
+alone, and the grid stretches all of them to the same column whatever they were
+written as.
 
 The reader's cell is an option and is dressed as one. It holds a conversation
 seat rather than a pick, but what it is for is the answer the menu hasn't got,

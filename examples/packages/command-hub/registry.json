@@ -406,7 +406,7 @@
     "x-example": "<lf-command id=\"project-command\">\n  <lf-agent id=\"wren\" state=\"working\">\n    <strong>wren</strong> Owns the feed rebuild.\n    <lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n  </lf-agent>\n</lf-command>"
   },
   "lf-operations": {
-    "description": "A set of consequential host operations offered for one goal and its exact disposable worker and worktree. Each lf-operation child supplies the reader-facing argument while this holder sends one typed x-request carrying those three stable ids. The ready holder is one of the reader's asks; an accepted request hands the turn to the host and locks the set while it works. `leaf receipt` links one succeeded or failed outcome. Failure returns the ask and reopens the controls, while success leaves the completed instruction visible until a later authored revision updates the plan. Use this for effects such as starting a worker, landing a branch, or archiving work. Use lf-options instead for a policy or authored-state decision that Leaf itself can replay.",
+    "description": "A set of consequential host operations offered for one goal and its exact disposable worker and worktree. Put a live set inside lf-ask, whose leading heading states the question; each lf-operation child supplies the reader-facing argument while this holder sends one typed x-request carrying those three stable ids. The ready holder is one of the reader's asks; an accepted request hands the turn to the host and locks the set while it works. `leaf receipt` links one succeeded or failed outcome. Failure returns the ask and reopens the controls, while success leaves the completed instruction visible until a later authored revision updates the plan. Use this for effects such as starting a worker, landing a branch, or archiving work. Use lf-options instead for a policy or authored-state decision that Leaf itself can replay.",
     "type": "object",
     "properties": {
       "id": {
@@ -424,18 +424,13 @@
       "worktree": {
         "type": "string",
         "pattern": "^[a-z0-9][a-z0-9-]*$"
-      },
-      "label": {
-        "type": "string",
-        "minLength": 1
       }
     },
     "required": [
       "id",
       "target",
       "worker",
-      "worktree",
-      "label"
+      "worktree"
     ],
     "additionalProperties": false,
     "x-content": "items",
@@ -465,6 +460,7 @@
     },
     "x-request": {
       "ask": true,
+      "region": true,
       "offers": {
         "lf-operation": "verb"
       },
@@ -681,14 +677,11 @@
         }
       }
     },
-    "x-says": {
-      "label": "before"
-    },
     "x-upgrade": true,
-    "x-example": "<lf-command id=\"project-command\">\n  <lf-task id=\"goal-review\" status=\"blocked\">\n    <strong>Review the branch</strong>\n    <lf-agent id=\"review-worker\" state=\"waiting\"><strong>review-worker</strong> Owns the reviewed branch.<lf-worktree id=\"review-tree\" source=\"project-worktrees\"></lf-worktree></lf-agent>\n    <lf-operations id=\"review-commands\" target=\"goal-review\" worker=\"review-worker\" worktree=\"review-tree\" label=\"What should the host do?\">\n      <lf-operation verb=\"land\" recommended><strong>Land it</strong> Tests are green.</lf-operation>\n      <lf-operation verb=\"request-changes\"><strong>Request changes</strong> Start a fresh reviser.</lf-operation>\n    </lf-operations>\n  </lf-task>\n</lf-command>"
+    "x-example": "<lf-command id=\"project-command\">\n  <lf-task id=\"goal-review\" status=\"blocked\">\n    <strong>Review the branch</strong>\n    <lf-agent id=\"review-worker\" state=\"waiting\"><strong>review-worker</strong> Owns the reviewed branch.<lf-worktree id=\"review-tree\" source=\"project-worktrees\"></lf-worktree></lf-agent>\n    <lf-ask id=\"review-commands-ask\">\n      <h3>What should the host do?</h3>\n      <lf-operations id=\"review-commands\" target=\"goal-review\" worker=\"review-worker\" worktree=\"review-tree\">\n        <lf-operation verb=\"land\"><strong>Land it</strong> Tests are green. <em>My take: land while the evidence is current.</em></lf-operation>\n        <lf-operation verb=\"request-changes\"><strong>Request changes</strong> Start a fresh reviser.</lf-operation>\n      </lf-operations>\n    </lf-ask>\n  </lf-task>\n</lf-command>"
   },
   "lf-operation": {
-    "description": "One reader-facing command inside lf-operations. `verb` chooses a request declaration on the holder; the child prose explains the consequence and remains selectable. `recommended` is emphasis only. The holder owns the gesture and the target so sibling commands are one atomic choice surface.",
+    "description": "One reader-facing command inside lf-operations. `verb` chooses a request declaration on the holder; the child prose explains the consequence and remains selectable. State the author's preference as ordinary prose in the operation itself, such as `<em>My take: land while the evidence is current.</em>`. The holder owns the gesture and the target so sibling commands are one atomic choice surface.",
     "type": "object",
     "properties": {
       "verb": {
@@ -701,9 +694,6 @@
           "request-changes",
           "land-as-is"
         ]
-      },
-      "recommended": {
-        "type": "boolean"
       }
     },
     "required": [
@@ -714,9 +704,6 @@
       "lf-operations"
     ],
     "x-content": "prose",
-    "x-paints": [
-      "recommended"
-    ],
     "x-upgrade": false
   },
   "lf-record": {

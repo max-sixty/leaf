@@ -470,6 +470,7 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
 </lf-specimen>
+<lf-ask id="pick-ask"><h2>Should the option include evidence?</h2>
 <lf-options id="pick" choose>
   <lf-option id="opt-a"><strong>With evidence</strong>
     <lf-diagram id="in-card"><pre>
@@ -479,7 +480,8 @@ graph LR
 </pre></lf-diagram>
   </lf-option>
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
-</lf-options>
+</lf-options></lf-ask>
+<lf-ask id="row-pick-ask"><h2>Where should the cable run?</h2>
 <lf-options id="row-pick" choose>
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
@@ -493,7 +495,7 @@ graph LR
 </pre></lf-diagram>
   </lf-option>
   <lf-option id="row-b">Under the lawn in a trench</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <lf-board id="evidence">
   <lf-column id="e1" label="Todo"><lf-card id="ek1"><strong>With evidence</strong>
     <lf-diagram id="in-board-card"><pre>
@@ -801,16 +803,18 @@ WHERE_I_STAND_PAGE = leaf_page(
 <h1 id="t">Standing</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not an ask.</p>
+<lf-ask id="shape-ask"><h2>Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
+<lf-ask id="settled-ask"><h2>Should we keep it?</h2>
 <lf-options id="settled" choose settled>
   <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week, with the
   <a href="https://example.invalid/keep">note behind it</a>.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
   <lf-old>Refill every feeder each morning.</lf-old>

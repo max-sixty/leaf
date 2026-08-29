@@ -1953,12 +1953,12 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "revision": 1,
             "text": "Tick what belongs and press Done:",
             "markup": (
-                '<lf-options id="an-set" choose multiple '
-                'label="What should I carry into the patch?">'
+                '<lf-ask id="an-set-ask"><h3>What should I carry into the patch?</h3>'
+                '<lf-options id="an-set" choose multiple>'
                 '<lf-option id="an-chase">Chase them monthly</lf-option>'
                 '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
                 '<lf-option id="an-say">Say what the spinner is</lf-option>'
-                "</lf-options>"
+                "</lf-options></lf-ask>"
             ),
         },
     )

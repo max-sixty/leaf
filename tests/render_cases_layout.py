@@ -374,13 +374,14 @@ FLOATING_PAGE = LONG_PAGE.replace(
 )
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     "</main>",
-    """<lf-options id="where" choose>
+    """<lf-ask id="where-ask"><h2>Which option?</h2>
+<lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
     <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
     <p>An option carrying a note written inside it.</p>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 </main>""",
 )
 
@@ -842,14 +843,16 @@ AIM_PAINT_PAGE = leaf_page(
     "aim paint",
     """
 <h1 id="t">Aim paint</h1>
+<lf-ask id="cards-ask"><h2>Which card?</h2>
 <lf-options id="cards" choose>
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
-  <lf-option id="card-star" recommended><strong>Starred</strong> A border already the accent.</lf-option>
-</lf-options>
+  <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
+</lf-options></lf-ask>
+<lf-ask id="rows-ask"><h2>Should we ship?</h2>
 <lf-options id="rows" choose>
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
 )
 # Two items meeting at a seam the browser puts between two whole pixels, held there by a
@@ -1230,6 +1233,7 @@ SHORT_CHIP_PAGE = leaf_page(
 <p id="p">The bracket order goes in on Friday and there is room in it. Change the
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
+<lf-ask id="extras-ask"><h2>Which extras should we add?</h2>
 <lf-options id="extras" choose multiple>
 <lf-option id="x-tray"><lf-chip>£9</lf-chip>
 <strong>Seed tray</strong> Catches the spill under the south pair.
@@ -1237,7 +1241,7 @@ before it ships.</p>
 <lf-option id="x-dome"><lf-chip tone="ok">£15</lf-chip>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
-</lf-options>
+</lf-options></lf-ask>
 """,
 )
 # A page that says one of its words on screen only. The rule is the page's own, which is
@@ -1318,23 +1322,21 @@ OUT_OF_REACH_PAGE = CARRIED_PAGE.replace(
 )
 # A painted fact whose spoken copy is on the page and drawn nowhere, written into the
 # markup for the same reason the two above are: the gate reads the rendered page and
-# cannot tell who suppressed the word. `recommended` is x-paints, so the runtime writes
-# a .lf-quiet span beside each of these; the style takes the box off both. One stands in
+# cannot tell who suppressed the word. `kind` is x-paints, so the runtime writes a
+# .lf-quiet span beside each of these; the style takes the box off both. One stands in
 # the open and one behind a disclosure the reader has not opened.
 PAINTED_IN_SILENCE_PAGE = leaf_page(
     "silence",
     """
 <h1 id="h">Transport</h1>
-<lf-options id="open-group">
-  <lf-option id="p-seen" recommended><strong>Lax cookie</strong> Host-only.</lf-option>
-  <lf-option id="p-other"><strong>Bearer header</strong> Every script reads it.</lf-option>
-</lf-options>
+<lf-timeline id="open-group">
+  <lf-event id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-event>
+</lf-timeline>
 <details id="folded">
   <summary>Weighed in March</summary>
-  <lf-options id="folded-group">
-    <lf-option id="p-folded" recommended><strong>Signed URL</strong> Expires.</lf-option>
-    <lf-option id="p-spare"><strong>Nothing</strong> Leave it.</lf-option>
-  </lf-options>
+  <lf-timeline id="folded-group">
+    <lf-event id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-event>
+  </lf-timeline>
 </details>
 """,
     head="<style>.lf-quiet { display: none }</style>",
@@ -1397,10 +1399,9 @@ DEEP_FOCUS = """() => {
 # name the token. The paint is where the rest is decidable, and the floor reads both, so
 # a ring the layer draws without saying so is caught there rather than excused here.
 #
-# Conditions are not read. One rule is conditional — `options-joined` sits under
-# `@media screen` — and this reading is taken on screen, in the scheme the walk uses, so
-# evaluating them would change nothing today. A ring that painted in some other medium
-# would be one the corpus never shows, and the floor saying so is the useful answer.
+# Conditions are not read. This reading is taken on screen, in the scheme the walk uses.
+# A ring that painted only in some other medium would be one the corpus never shows,
+# and the floor saying so is the useful answer.
 RING_NAMES = """() => {
   const rings = new Map();
   const eaten = new Set();

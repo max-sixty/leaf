@@ -369,6 +369,12 @@ def _validate_widget_predicates(
     # attribute's own schema — a flag is there or it isn't, an enum admits what it
     # lists — and a subschema that states neither contradicts nothing.
     awaits = entry.get("x-awaits", {})
+    request = entry.get("x-request", {})
+    if request.get("region") and request.get("ask") is not True:
+        raise RegistryError(
+            f"{path}: <{tag}> x-request.region requires ask: true — a region "
+            "owns the title of a request that joins the reader's Ask projection"
+        )
     if entry.get("x-ask"):
         if "id" not in entry.get("required", []):
             raise RegistryError(f"{path}: <{tag}> x-ask does not require an id")
@@ -381,7 +387,7 @@ def _validate_widget_predicates(
                 f"{path}: <{tag}> declares both x-ask and x-awaits — the broader "
                 "Ask frames one nested request; the nested widget owns its state"
             )
-        if entry.get("x-request", {}).get("ask") is True:
+        if request.get("ask") is True:
             raise RegistryError(
                 f"{path}: <{tag}> declares both x-ask and x-request.ask — the broader "
                 "Ask frames one nested request; the nested widget owns its lifecycle"

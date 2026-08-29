@@ -108,14 +108,17 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <lf-options>
-    <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
-      <strong>Flag first</strong> Ship dark.
-    </lf-option>
-    <lf-option id="backfill-first" recommended><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
-      <strong>Backfill first</strong> Verify, then flip.
-    </lf-option>
-  </lf-options>
+  <lf-ask id="plan-choice-ask">
+    <h3>Which plan should lead?</h3>
+    <lf-options>
+      <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
+        <strong>Flag first</strong> Ship dark.
+      </lf-option>
+      <lf-option id="backfill-first"><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
+        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
+      </lf-option>
+    </lf-options>
+  </lf-ask>
   <lf-diagram id="flow"><pre>
 graph LR
   A --> B
@@ -440,17 +443,21 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
   <lf-old><p id="refill-rule">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-camera">Refill when the camera shows it half-empty.</p></lf-new>
 </lf-suggestion>
-<lf-options>"""
+"""
+
+
+def before_choice(page, markup):
+    """Insert a fixture before the base page's titled choice Ask."""
+    start = '<lf-ask id="plan-choice-ask">'
+    return page.replace(start, markup + start)
 
 
 def suggest(page_dir, version=2, markup=SUGGESTION):
     """Write and publish v1 carrying a suggestion, and an unchanged v2 to
     check against."""
-    (page_dir / "versions" / "v1.html").write_text(PAGE.replace("<lf-options>", markup))
+    (page_dir / "versions" / "v1.html").write_text(before_choice(PAGE, markup))
     publish(page_dir)
-    (page_dir / "versions" / f"v{version}.html").write_text(
-        PAGE.replace("<lf-options>", markup)
-    )
+    (page_dir / "versions" / f"v{version}.html").write_text(before_choice(PAGE, markup))
 
 
 def decide(page_dir, outcome, widget="sug-refill"):
@@ -531,10 +538,13 @@ def _board(todo, done):
 
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
-OPTIONS = """<lf-options id="g1" choose>
-  <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
-  <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
-</lf-options>"""
+OPTIONS = """<lf-ask id="g1-ask">
+  <h3>Which migration should lead?</h3>
+  <lf-options id="g1" choose>
+    <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
+    <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
+  </lf-options>
+</lf-ask>"""
 
 
 def state_json(d):
@@ -1223,7 +1233,7 @@ def edit(page_dir, text, widget="note", version=1):
     )
 
 
-SUGGESTED = PAGE.replace("<lf-options>", SUGGESTION)
+SUGGESTED = before_choice(PAGE, SUGGESTION)
 
 
 def suggested(page_dir):

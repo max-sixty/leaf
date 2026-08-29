@@ -716,10 +716,11 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
+            '<lf-ask id="delivery-ask"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -760,10 +761,11 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
+            '<lf-ask id="delivery-ask"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -878,10 +880,11 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
+            '<lf-ask id="delivery-ask"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1175,9 +1178,10 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1252,9 +1256,10 @@ def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, pa
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1296,10 +1301,11 @@ def test_server_refuses_a_second_request_while_the_first_is_pending(server, page
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1363,10 +1369,11 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1625,9 +1632,10 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "Pick one:",
             "--markup",
             (
+                '<lf-ask id="thread-pick-ask"><h3>Which option?</h3>'
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
-                "</lf-options>"
+                "</lf-options></lf-ask>"
                 '<lf-specimen id="sample">'
                 '<lf-options id="exhibited-pick" choose>'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
@@ -1695,10 +1703,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     version.write_text(
         version.read_text().replace(
             "</section>",
+            '<lf-ask id="eligibility-ask"><h3>Which option?</h3>'
             '<lf-options id="eligibility-options" choose>'
             '<lf-option id="eligibility-a">A</lf-option>'
             '<lf-option id="eligibility-b">B</lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
 
@@ -1728,10 +1737,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
                 "Here it is:",
                 "--markup",
                 (
+                    '<lf-ask id="thread-options-ask"><h3>Which option?</h3>'
                     '<lf-options id="thread-options" choose>'
                     '<lf-option id="thread-a">A</lf-option>'
                     '<lf-option id="thread-b">B</lf-option>'
-                    "</lf-options>"
+                    "</lf-options></lf-ask>"
                 ),
             ],
         )
@@ -1786,10 +1796,11 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
     version.write_text(
         version.read_text().replace(
             "</section>",
+            '<lf-ask id="seated-ask"><h3>Which option?</h3>'
             '<lf-options id="seated-options" choose>'
             '<lf-option id="seated-a">A</lf-option>'
             '<lf-option id="seated-b">B</lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-ask></section>",
         )
     )
     publish(page_dir)
@@ -1898,12 +1909,15 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             '<strong>Worker</strong><lf-worktree id="quota-tree" '
             'source="project-worktrees"></lf-worktree></lf-agent>'
             '<lf-quota id="quota" slots="1"></lf-quota>'
-            '<lf-options id="quota-intervention" choose label="Proceed?">'
-            '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+            '<lf-ask id="quota-intervention-ask"><h3>Proceed?</h3>'
+            '<lf-options id="quota-intervention" choose>'
+            '<lf-option id="quota-ready" chosen>Ready</lf-option>'
+            "</lf-options></lf-ask>"
+            '<lf-ask id="quota-operations-ask"><h3>Restart?</h3>'
             '<lf-operations id="quota-operations" target="quota-task" '
-            'worker="quota-worker" worktree="quota-tree" label="Restart?">'
+            'worker="quota-worker" worktree="quota-tree">'
             '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations>"
+            "</lf-operations></lf-ask>"
             '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'

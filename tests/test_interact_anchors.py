@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     SUGGESTED,
     SUGGESTION,
+    before_choice,
     check,
     comment,
     decide,
@@ -61,9 +62,7 @@ def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
     assert (
         anchor["prefix"] == "risk: low Backfill first"
     )  # the option's own chip band, then its title
-    assert (
-        anchor["suffix"] == "."
-    )  # the option's last words; the fence ends the reading
+    assert anchor["suffix"] == ". My take: do this first"
 
 
 def test_a_written_comment_quotes_the_whole_passage(page_dir):
@@ -454,14 +453,14 @@ def test_a_decision_that_empties_its_widget_takes_it_off_sections_reach(page_dir
     there, so an element anchor on it would read attached while outlining nothing.
     Pending, the wrapper answers like any element; settled empty, the refusal names
     the decision that emptied it."""
-    lone = PAGE.replace(
-        "<lf-options>",
+    lone = before_choice(
+        PAGE,
         '<lf-suggestion id="sug-drop">\n'
         "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
         "</lf-suggestion>\n"
         '<lf-suggestion id="sug-add">\n'
         "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-        "</lf-suggestion>\n<lf-options>",
+        "</lf-suggestion>",
     )
     (page_dir / "versions" / "v1.html").write_text(lone)
     published(page_dir)
@@ -562,8 +561,7 @@ def test_a_version_may_not_honor_a_decision_the_reader_took_back(page_dir):
     # keeping its id, and the wrapper and the retired half gone with the decision.
     honored = SUGGESTED.replace(
         SUGGESTION,
-        '<p id="refill-camera">Refill when the camera shows it half-empty.</p>\n'
-        "<lf-options>",
+        '<p id="refill-camera">Refill when the camera shows it half-empty.</p>\n',
     )
     assert "sug-refill" not in honored and "refill-rule" not in honored
     (page_dir / "versions" / "v2.html").write_text(honored)
@@ -705,7 +703,8 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "Which mitigations?",
-            "markup": '<lf-ask id="gm-ask"><p>The retry budget is shared.</p>'
+            "markup": '<lf-ask id="gm-ask"><h3>Which mitigations?</h3>'
+            "<p>The retry budget is shared.</p>"
             '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options></lf-ask>",
@@ -734,16 +733,17 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                     "revision": 1,
                     "text": f"Choose {suffix}",
                     "markup": (
+                        f'<lf-ask id="group-{suffix}-ask"><h3>Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}" choose>'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options>"
+                        "</lf-options></lf-ask>"
                     ),
                 },
             )
         )
     assert state_json(page_dir)["asks"] == [
-        {"id": "group-a", "tag": "lf-options", "thread": roots[0]["id"]},
-        {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]},
+        {"id": "group-a-ask", "tag": "lf-ask", "thread": roots[0]["id"]},
+        {"id": "group-b-ask", "tag": "lf-ask", "thread": roots[1]["id"]},
     ]
 
     events_model.append_event(
@@ -758,7 +758,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "group-b", "tag": "lf-options", "thread": roots[1]["id"]}
+        {"id": "group-b-ask", "tag": "lf-ask", "thread": roots[1]["id"]}
     ]
 
 
@@ -777,7 +777,8 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
     nothing but a widget still posts."""
     published(page_dir)
     widget = (
-        '<lf-options id="d1" choose><lf-option id="d1-a">A</lf-option></lf-options>'
+        '<lf-ask id="d1-ask"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
 
     sheet = comment(
@@ -829,10 +830,11 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "--text",
             "Pick one:",
             "--markup",
-            '<lf-options id="ps-q" choose label="Which store?">'
+            '<lf-ask id="ps-ask"><h3>Which store?</h3>'
+            '<lf-options id="ps-q" choose>'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options>",
+            "</lf-options></lf-ask>",
         ).exit_code
         == 0
     )
@@ -871,8 +873,9 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong>'
-            '<span id="thread-label">Label</span></lf-option></lf-options>',
+            '<lf-ask id="q1-ask"><h3>Pick one</h3><lf-options id="q1" choose>'
+            '<lf-option id="q1-a"><strong>A</strong>'
+            '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
         ).exit_code
         == 0
     )

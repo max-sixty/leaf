@@ -154,8 +154,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
 
 
 def test_an_ask_region_frames_exactly_one_request(page_dir):
-    """A broad Ask has one source of liveness and state; zero leaves navigation
-    pointing at nothing, while two make its answer and roll-up ownership ambiguous."""
+    """A broad Ask has one authored title and one source of liveness and state."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -177,7 +176,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
     request = (
         '<lf-operations id="host-request" target="goal" worker="worker" '
-        'worktree="tree" label="Restart?">'
+        'worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations>"
     )
@@ -189,6 +188,15 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
         == []
     )
 
+    outside = fragment_errors(first, registry)
+    assert "this declared ask source must be inside an Ask with a heading" in " ".join(
+        outside
+    )
+    outside_request = fragment_errors(request, registry)
+    assert "this declared ask source must be inside an Ask with a heading" in " ".join(
+        outside_request
+    )
+
     # Evidence can quote another request-shaped widget without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
     # Ask list, so the authored boundary must read the same relation.
@@ -198,6 +206,36 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
         f"{second}</lf-specimen></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
+
+    untitled = fragment_errors(
+        f'<lf-ask id="ask-untitled"><p>Context.</p>{first}</lf-ask>', registry
+    )
+    assert "an Ask must have exactly one direct heading, found none" in " ".join(
+        untitled
+    )
+
+    retitled = fragment_errors(
+        f'<lf-ask id="ask-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
+        registry,
+    )
+    assert "an Ask must have exactly one direct heading" in " ".join(retitled)
+
+    context_first = fragment_errors(
+        f'<lf-ask id="ask-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
+        registry,
+    )
+    assert "direct heading must be its first content, found <p> first" in " ".join(
+        context_first
+    )
+
+    control_first = fragment_errors(
+        f'<lf-ask id="ask-control-first">{first}<h2>Choose</h2></lf-ask>',
+        registry,
+    )
+    assert (
+        "direct heading must be its first content, found <lf-options> first"
+        in " ".join(control_first)
+    )
 
     empty = fragment_errors(
         '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
@@ -273,8 +311,11 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         )
     )
 
-    group = '<lf-options id="pick" choose{}><lf-option id="opt-a"{}><strong>A</strong></lf-option>'
-    group += '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options>'
+    group = '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose{}>'
+    group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
+    group += (
+        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
+    )
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
@@ -293,7 +334,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
     assert checking_command.cmd_check(page_dir) == 0
-    assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick']" in (
+    assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-ask']" in (
         capsys.readouterr().out
     )
 
@@ -613,19 +654,19 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         )
 
     swapped = reply(
-        '<lf-operations id="commands" target="worker" worker="tree" '
-        'worktree="goal" label="Next">'
+        '<lf-ask id="commands-ask"><h3>Next</h3>'
+        '<lf-operations id="commands" target="worker" worker="tree" worktree="goal">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations>"
+        "</lf-operations></lf-ask>"
     )
     assert swapped.exit_code != 0
     assert "where role='goal'" in swapped.output
 
     valid = reply(
-        '<lf-operations id="commands" target="goal" worker="worker" '
-        'worktree="tree" label="Next">'
+        '<lf-ask id="commands-ask"><h3>Next</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations>"
+        "</lf-operations></lf-ask>"
     )
     assert valid.exit_code == 0, valid.output
 
@@ -908,22 +949,37 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             ],
         )
 
+    def question(ask_id, markup):
+        return f'<lf-ask id="{ask_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+
     # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
     clash = reply(
-        '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
+        question(
+            "flow-ask",
+            '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+        )
     )
     assert clash.exit_code != 0 and "flow" in clash.output
     fresh = reply(
-        '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>'
+        question(
+            "q1-ask",
+            '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
+        )
     )
     assert fresh.exit_code == 0, fresh.output
     # A second reply can't reuse the first reply's ids either, nor its own within itself.
     again = reply(
-        '<lf-options id="q1" choose><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>'
+        question(
+            "q1-ask",
+            '<lf-options id="q1" choose><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
+        )
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
-        '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>'
+        question(
+            "q2-ask",
+            '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
+        )
     )
     assert selfdup.exit_code != 0 and "within itself" in selfdup.output
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
@@ -939,7 +995,10 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         },
     )
     ok = reply(
-        '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>'
+        question(
+            "quoted-ask",
+            '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
+        )
     )
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
@@ -980,7 +1039,12 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             "Pick:",
             "--markup",
-            '<lf-options id="lf-pick" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+            (
+                '<lf-ask id="pick-ask"><h2>Pick?</h2>'
+                '<lf-options id="lf-pick" choose>'
+                '<lf-option id="o1"><strong>A</strong></lf-option>'
+                "</lf-options></lf-ask>"
+            ),
         ],
     )
     assert reply.exit_code != 0
@@ -1106,9 +1170,10 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "Pick one.",
             "--markup",
             (
+                '<lf-ask id="stores-ask"><h2>Which store?</h2>'
                 '<lf-options id="stores" choose>'
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
-                "</lf-options>"
+                "</lf-options></lf-ask>"
             ),
             "--awaits",
         ],

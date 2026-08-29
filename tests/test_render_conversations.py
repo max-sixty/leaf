@@ -719,10 +719,11 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         serve.page_dir,
         answered,
         "Choose the backend here.",
+        '<lf-ask id="backend-ask"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
-        "</lf-options>",
+        "</lf-options></lf-ask>",
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (2)")
@@ -1353,10 +1354,11 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-options id="tv-ask" choose label="Which store should I write up?">'
+        '<lf-ask id="tv-ask-region"><h3>Which store should I write up?</h3>'
+        '<lf-options id="tv-ask" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
         '<lf-option id="tv-cookie">A signed cookie</lf-option>'
-        "</lf-options>",
+        "</lf-options></lf-ask>",
         "tv-ask",
         chatter=10,
         after=10,
@@ -1635,9 +1637,10 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-options id="tv-ask" choose label="Which store should I write up?">'
+        '<lf-ask id="tv-ask-region"><h3>Which store should I write up?</h3>'
+        '<lf-options id="tv-ask" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options>",
+        "</lf-options></lf-ask>",
         "tv-ask",
     )
     events_model.append_event(

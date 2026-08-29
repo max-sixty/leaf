@@ -155,10 +155,11 @@ graph LR
           How these read was settled in draft 2; the record is folded below.
         </p>
         <lf-options id="pm-numbers" choose settled>
-          <lf-option id="pm-num-counts" recommended chosen
+          <lf-option id="pm-num-counts" chosen
             ><strong>Counts, not percentages</strong> "1,204 exports" is the incident as
             the affected workspaces met it. "0.9% of the week's exports" is also true,
             and reads as chosen to sound small.
+            <em>My take: lead with what affected workspaces actually experienced.</em>
           </lf-option>
           <lf-option id="pm-num-pct"
             ><strong>Percentages</strong> Honest about scale, and it holds only until a
@@ -222,7 +223,7 @@ graph LR
 
       <section id="pm-decisions">
         <lf-ask id="pm-where-ask">
-          <h2>Still open</h2>
+          <h2>Who should hear about the incident?</h2>
           <p id="pm-where-note">
             Click an option to settle each of these, or write another one in the empty
             option under them.
@@ -233,12 +234,12 @@ graph LR
               <strong>Status page only</strong> Anyone who checks finds it; the 412
               affected workspaces are not told it exists.
             </lf-option>
-            <lf-option id="pm-wh-email" recommended
+            <lf-option id="pm-wh-email"
               ><lf-chip>reaches the affected</lf-chip
               ><lf-chip tone="ok">matches the impact</lf-chip>
               <strong>Status page, plus email the 412</strong> The workspaces that felt
               the delay hear it from us rather than finding it, and nobody else's inbox
-              is spent on it.
+              is spent on it. <em>My take: match the message to the impact.</em>
             </lf-option>
             <lf-option id="pm-wh-blog"
               ><lf-chip>widest</lf-chip><lf-chip tone="warn">outsized</lf-chip>
@@ -248,15 +249,17 @@ graph LR
           </lf-options>
         </lf-ask>
         <lf-ask id="pm-date-ask">
+          <h2>Should the third fix carry a date?</h2>
           <p id="pm-date-note">
             And whether the third fix carries a date. The alerting change is in review
             now.
           </p>
           <lf-options id="pm-date" choose>
-            <lf-option id="pm-dt-week" recommended
+            <lf-option id="pm-dt-week"
               ><lf-chip tone="warn">a public promise</lf-chip>
               <strong>"Ships this week"</strong> Specific enough to hold us to it, and
               it is in review with two days of margin.
+              <em>My take: the margin makes the specific promise worthwhile.</em>
             </lf-option>
             <lf-option id="pm-dt-quarter"
               ><lf-chip>safe</lf-chip> <strong>"This quarter"</strong> Never wrong, and

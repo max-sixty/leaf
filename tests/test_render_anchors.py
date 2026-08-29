@@ -361,7 +361,9 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     # still take focus and own the choice.
     hidden_ask = page.locator('.lf-asks-row[data-lf-at="bath-heat-ask"]')
     expect(hidden_ask).to_have_count(1)
-    expect(hidden_ask).to_contain_text("The winter habitat keeps food")
+    expect(hidden_ask).to_contain_text(
+        "How should the bird bath stay open through January?"
+    )
     hidden_ask.click()
     expect(vision).to_have_attribute("aria-selected", "true")
     expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()

@@ -368,9 +368,10 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -418,9 +419,10 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-task></lf-command>"
+        "</lf-operations></lf-ask></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -609,9 +611,10 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
     """
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
+        '<lf-ask id="run-status-ask"><h2>Which run status?</h2>'
         '<lf-options id="run-status" choose>'
         '<lf-option id="rs-column">Column</lf-option>'
-        "</lf-options>"
+        "</lf-options></lf-ask>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -914,9 +917,10 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
+        '<lf-ask id="thread-choice-ask"><h3>Which option?</h3>'
         '<lf-options id="thread-choice" choose>'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options>"
+        "</lf-options></lf-ask>"
     )
     conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
 

@@ -57,11 +57,11 @@
           is merged, so it reads as one line — open it if you want the alternatives.
         </p>
         <lf-options id="cookie-transport" choose settled>
-          <lf-option id="opt-lax-cookie" recommended chosen
+          <lf-option id="opt-lax-cookie" chosen
             ><lf-chip>effort: low</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
             <strong>Host-only cookie, SameSite=Lax</strong> Set by the auth origin, sent
             on top-level navigations; nothing to store client-side and nothing for a
-            script to read.
+            script to read. <em>My take: this is the least surprising transport.</em>
           </lf-option>
           <lf-option id="opt-strict-cookie"
             ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
@@ -147,81 +147,88 @@
       </section>
 
       <section id="options">
-        <lf-options id="session-options" choose label="Where should a session live?">
-          <lf-option id="opt-jwt"
-            ><lf-chip>effort: low</lf-chip
-            ><lf-chip id="chip-jwt-risk" tone="danger">risk: high</lf-chip>
-            <strong>Stateless JWT</strong>
-            <dl class="facts">
-              <dt>Revoke</dt>
-              <dd>build a denylist</dd>
-              <dt>Outage</dt>
-              <dd>unaffected</dd>
-              <dt>New ops</dt>
-              <dd>none, at first</dd>
-            </dl>
-            <p>
-              Sessions become signed tokens; no store at all. Revocation requires a
-              denylist, which quietly reintroduces the store — with the hard parts
-              (replication, expiry) still attached, and the account-takeover response
-              waiting on them.
-            </p>
-            <lf-shot
-              id="jwt-sessions-shot"
-              alt="the support sessions panel, before and after sessions stop being stored"
-              before="/media/676977f1adde6fa1.png"
-              after="/media/128154edbb078102.png"
-            ></lf-shot>
-            <p>
-              With nothing stored there is nothing to list, so the support console loses
-              its per-device Revoke and "log out all devices" waits on the token's own
-              expiry.
-            </p>
-          </lf-option>
-          <lf-option id="opt-redis" recommended
-            ><lf-chip>effort: med</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
-            <strong>Redis, cookie fallback</strong>
-            <dl class="facts">
-              <dt>Revoke</dt>
-              <dd>delete the key</dd>
-              <dt>Outage</dt>
-              <dd>reads ride the cookie</dd>
-              <dt>New ops</dt>
-              <dd>what we already do</dd>
-            </dl>
-            <p>
-              Sessions in the Redis we already run, keyed by an opaque id; a short-lived
-              signed cookie covers Redis outages for reads, so a blip doesn't log
-              everyone out. Revocation is a delete — which is the shape support's "log
-              out all devices" needs.
-            </p>
-            <lf-diagram id="session-flow">
-              <pre>
+        <lf-ask id="session-options-ask">
+          <h2>Where should a session live?</h2>
+          <lf-options id="session-options" choose>
+            <lf-option id="opt-jwt"
+              ><lf-chip>effort: low</lf-chip
+              ><lf-chip id="chip-jwt-risk" tone="danger">risk: high</lf-chip>
+              <strong>Stateless JWT</strong>
+              <dl class="facts">
+                <dt>Revoke</dt>
+                <dd>build a denylist</dd>
+                <dt>Outage</dt>
+                <dd>unaffected</dd>
+                <dt>New ops</dt>
+                <dd>none, at first</dd>
+              </dl>
+              <p>
+                Sessions become signed tokens; no store at all. Revocation requires a
+                denylist, which quietly reintroduces the store — with the hard parts
+                (replication, expiry) still attached, and the account-takeover response
+                waiting on them.
+              </p>
+              <lf-shot
+                id="jwt-sessions-shot"
+                alt="the support sessions panel, before and after sessions stop being stored"
+                before="/media/676977f1adde6fa1.png"
+                after="/media/128154edbb078102.png"
+              ></lf-shot>
+              <p>
+                With nothing stored there is nothing to list, so the support console
+                loses its per-device Revoke and "log out all devices" waits on the
+                token's own expiry.
+              </p>
+            </lf-option>
+            <lf-option id="opt-redis"
+              ><lf-chip>effort: med</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
+              <strong>Redis, cookie fallback</strong>
+              <dl class="facts">
+                <dt>Revoke</dt>
+                <dd>delete the key</dd>
+                <dt>Outage</dt>
+                <dd>reads ride the cookie</dd>
+                <dt>New ops</dt>
+                <dd>what we already do</dd>
+              </dl>
+              <p>
+                Sessions in the Redis we already run, keyed by an opaque id; a
+                short-lived signed cookie covers Redis outages for reads, so a blip
+                doesn't log everyone out. Revocation is a delete — which is the shape
+                support's "log out all devices" needs.
+                <em
+                  >My take: this preserves revocation without making Redis an
+                  outage.</em
+                >
+              </p>
+              <lf-diagram id="session-flow">
+                <pre>
 graph LR
   S[Redis] -->|hit| H[handle]
   S -->|miss| F[cookie]
   F --> H
 </pre>
-            </lf-diagram>
-          </lf-option>
-          <lf-option id="opt-db"
-            ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
-            <strong>Postgres table</strong>
-            <dl class="facts">
-              <dt>Revoke</dt>
-              <dd>delete the row</dd>
-              <dt>Outage</dt>
-              <dd>shares the database's fate</dd>
-              <dt>New ops</dt>
-              <dd>vacuum pressure</dd>
-            </dl>
-            <p>
-              One table, no new moving parts. Every request writes a row (rolling
-              expiry), so at our volume that's the primary's headroom spent on expiry
-              bookkeeping — and a session outage becomes a database outage.
-            </p>
-          </lf-option>
-        </lf-options>
+              </lf-diagram>
+            </lf-option>
+            <lf-option id="opt-db"
+              ><lf-chip>effort: low</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
+              <strong>Postgres table</strong>
+              <dl class="facts">
+                <dt>Revoke</dt>
+                <dd>delete the row</dd>
+                <dt>Outage</dt>
+                <dd>shares the database's fate</dd>
+                <dt>New ops</dt>
+                <dd>vacuum pressure</dd>
+              </dl>
+              <p>
+                One table, no new moving parts. Every request writes a row (rolling
+                expiry), so at our volume that's the primary's headroom spent on expiry
+                bookkeeping — and a session outage becomes a database outage.
+              </p>
+            </lf-option>
+          </lf-options>
+        </lf-ask>
       </section>
 
       <section id="flow">
@@ -275,8 +282,9 @@ graph LR
             another option in the last row if none of these is the job.
           </p>
           <lf-options id="next-jobs" choose multiple>
-            <lf-option id="nx-revoke" for="constraints" recommended
-              >A revocation drill at support's volume</lf-option
+            <lf-option id="nx-revoke" for="constraints"
+              >A revocation drill at support's volume.
+              <em>My take: start here.</em></lf-option
             >
             <lf-option id="nx-fallback" for="flow"
               >Key rotation for the fallback cookie</lf-option

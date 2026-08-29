@@ -424,11 +424,12 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
           the one the section above doesn't cover.
         </p>
         <lf-options id="off-settled-merge" choose settled>
-          <lf-option id="off-sm-field" recommended chosen
+          <lf-option id="off-sm-field" chosen
             ><lf-chip>asks the reader: 63 times</lf-chip
             ><lf-chip tone="ok">loses nothing</lf-chip>
             <strong>Merge by field</strong> Edits to different paragraphs both land;
             only two edits to one paragraph reach a person.
+            <em>My take: this spends attention only on real conflicts.</em>
           </lf-option>
           <lf-option id="off-sm-last"
             ><lf-chip>asks the reader: never</lf-chip
@@ -441,15 +442,15 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
 
       <section id="off-decide-store">
         <lf-ask id="off-full-store-ask">
-          <h2>What a full store does</h2>
+          <h2>What should a full store do?</h2>
           <p id="off-store-ask">
             At 40 MB a workspace, something has to give. Nothing in the beta reached the
-            cap, so this decides what happens to the first workspace that does. My
-            recommendation is the first. Pick one to settle it; if you want a fourth
-            behaviour, the empty option under them takes it in your own words.
+            cap, so this decides what happens to the first workspace that does. Pick one
+            to settle it; if you want a fourth behaviour, the empty option under them
+            takes it in your own words.
           </p>
           <lf-options id="off-full-store" choose>
-            <lf-option id="off-fs-evict" recommended
+            <lf-option id="off-fs-evict"
               ><lf-chip>effort: done</lf-chip><lf-chip tone="ok">risk: low</lf-chip>
               <strong>Drop the oldest documents</strong>
               <dl class="facts">
@@ -466,6 +467,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                 it here, not the work in it — and this is the only one of the three that
                 does not punish a reader for not reading a banner. Pinning a document
                 keeps it, and the line that says what left says so.
+                <em>My take: this is the only option that keeps editing available.</em>
               </p>
             </lf-option>
             <lf-option id="off-fs-stop"
@@ -510,16 +512,19 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
 
       <section id="off-decide-rollout">
         <lf-ask id="off-rollout-ask-region">
-          <h2>How the rollout goes</h2>
+          <h2>How should the rollout go?</h2>
           <p id="off-rollout-ask">
             The beta workspaces already have it. This is about everyone else, and the
             three shapes differ mostly in how fast the iOS stall reaches people who
-            never agreed to a beta. I recommend the middle one.
+            never agreed to a beta.
           </p>
           <lf-options id="off-rollout" choose>
             <lf-option id="off-ro-all">Everyone on the day you sign off</lf-option>
-            <lf-option id="off-ro-ten" recommended
-              >Ten percent for a week, then everyone</lf-option
+            <lf-option id="off-ro-ten"
+              >Ten percent for a week, then everyone.
+              <em
+                >My take: this limits the iOS exposure without waiting on it.</em
+              ></lf-option
             >
             <lf-option id="off-ro-opt-in"
               >An opt-in toggle until the iOS fix lands</lf-option

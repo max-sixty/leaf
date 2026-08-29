@@ -134,12 +134,9 @@ html.lf-copy lf-command [data-lf-command-goal] > [data-lf-command-worker] { disp
  * apparatus, and a linked receipt replaces its availability with a terminal account. */
 lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: var(--sp-2); margin: var(--sp-3) 0; }
-lf-operations > [data-lf-said="label"] { grid-column: 1 / -1; color: var(--muted);
-  font: var(--t-6) var(--sans); letter-spacing: .035em; }
 lf-operation { position: relative; display: block; padding: var(--sp-3) 5.5rem var(--sp-3) var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
   --lf-frame: 1; }
-lf-operation[recommended] { border-color: color-mix(in srgb, var(--accent) 52%, var(--rule)); }
 lf-operation[data-lf-requested] { background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
 .lf-operation-press { position: absolute; top: var(--sp-3); right: var(--sp-3); padding: 3px 8px;
   border: 1px solid var(--rule); border-radius: 999px; color: var(--accent);

@@ -98,18 +98,18 @@ answer an originating open Ask, or change its declared answer when the Ask was
 already answered. Reader actions before or after the proposal do not substitute
 for that revision, and an unrelated version cannot close it.
 
-An ask must name itself without context outside the ask. Give an options group a
-`label` containing its question; tasks and milestones lead with their own
-`<strong>` title. When the context begins above the actionable widget, wrap the
-heading, introduction, evidence, and that one widget in `lf-ask`. The inner
-widget still records the answer; the wrapper is what the Asks tray names and
-what `a` / `A` aligns below the banner, so the reader arrives at the premise
-before the options.
+An ask must name itself without context outside the ask. Begin `lf-ask` with one
+ordinary heading, then include any introduction or evidence and the actionable
+widget. That heading is the question: it stays in the document's hierarchy, is
+available to selection and comments, names the Asks tray row, and is where `a` /
+`A` arrives. The nested widget still owns the answer or request lifecycle. An
+`lf-ask` has exactly one leading direct heading and one non-quoted widget
+declaring `x-awaits` or `x-request.ask`.
 
-The question leads the group in every shape it takes, and opens at the same
-column its answers open at. Under `choose` it is the joined control's first cell;
-under `settled` it stands above the line naming what was chosen, and above the
-cards that line hides.
+Keep the author's preference in the option it belongs to as ordinary prose:
+`<em>My take: this is the safest rollout.</em>` is enough. Say why when the reason
+matters. Do not encode the preference as a badge, tint, ring, or option state; it
+is an argument for the reader to weigh, not a decision the reader has made.
 
 A page whose approval unblocks work declares:
 

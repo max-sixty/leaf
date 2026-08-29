@@ -109,10 +109,11 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
 def ask_region_errors(lf_elements: list, registry: dict) -> list:
     """An x-ask region frames exactly one nested declared ask source.
 
-    The region owns the question's reading and arrival while the x-awaits or request
-    widget owns its answer. Requiring one structural source makes that split
-    unambiguous for the browser walk and for `page state`; liveness still comes from
-    the source's canonical ask projection.
+    One leading direct heading is the question's visible title and the region owns its
+    reading and arrival, while the x-awaits or request widget owns the answer. Requiring
+    both a title and one structural source makes that split unambiguous for the browser
+    walk and for `page state`; liveness still comes from the source's canonical ask
+    projection.
     """
 
     regions = [rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask")]
@@ -132,7 +133,42 @@ def ask_region_errors(lf_elements: list, registry: dict) -> list:
             sources.setdefault(id(holder), []).append(rec)
 
     errors = []
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"], {})
+        awaits = entry.get("x-awaits") or {}
+        request = entry.get("x-request") or {}
+        requires_region = (
+            awaits.get("region") and asking(rec["attrs"], awaits.get("when"))
+        ) or (request.get("region") and request.get("ask") is True)
+        if not requires_region or quoted_in(rec, registry):
+            continue
+        holder = rec.get("holder")
+        while holder and not registry.get(holder["tag"], {}).get("x-ask"):
+            holder = holder.get("holder")
+        if not holder:
+            errors.append(
+                f"{at(rec)}: this declared ask source must be inside an Ask "
+                "with a heading"
+            )
     for region in regions:
+        headings = [
+            child
+            for child in region["children"]
+            if child in {f"h{n}" for n in range(1, 7)}
+        ]
+        if len(headings) != 1:
+            errors.append(
+                f"{at(region)}: an Ask must have exactly one direct heading, "
+                f"found {headings or 'none'}"
+            )
+        elif region["direct"][0] != headings[0]:
+            first = (
+                "text" if region["direct"][0] == "#text" else f"<{region['direct'][0]}>"
+            )
+            errors.append(
+                f"{at(region)}: an Ask's direct heading must be its first content, "
+                f"found {first} first"
+            )
         nested = sources[id(region)]
         if len(nested) != 1:
             found = [

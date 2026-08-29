@@ -87,9 +87,11 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     )
     assert page.locator(".lf-sug-actions").evaluate_all(
         "rows => rows.map(row => row.dataset.lfFor)"
-    ) == ["first-change", "second-change", "third-change"], (
-        "reconnecting the first suggestion moved its controls after later source rows"
-    )
+    ) == [
+        "first-change",
+        "second-change",
+        "third-change",
+    ], "reconnecting the first suggestion moved its controls after later source rows"
     page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
     walked = []
     for _ in range(3):
@@ -1588,11 +1590,11 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
             "revision": 1,
             "text": "The second, but the cost lands on you either way:",
             "markup": (
-                '<lf-options id="rp-ask" choose '
-                'label="Which should I write up first?">'
+                '<lf-ask id="rp-ask-region"><h3>Which should I write up first?</h3>'
+                '<lf-options id="rp-ask" choose>'
                 '<lf-option id="rp-now">The migration</lf-option>'
                 '<lf-option id="rp-later">The rollback</lf-option>'
-                "</lf-options>"
+                "</lf-options></lf-ask>"
             ),
         },
     )
@@ -1603,7 +1605,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert len(rows) == 1, rows
-    assert rows[0]["at"] == "rp-ask", rows
+    assert rows[0]["at"] == "rp-ask-region", rows
     assert rows[0]["says"].startswith("Which should I write up first?"), rows
     assert errors == []
     page.close()
@@ -1724,10 +1726,11 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
             "revision": 1,
             "text": "Depends what you want to keep:",
             "markup": (
-                '<lf-options id="ps-ask" choose label="Which store should I write up?">'
+                '<lf-ask id="ps-ask-region"><h3>Which store should I write up?</h3>'
+                '<lf-options id="ps-ask" choose>'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-                "</lf-options>"
+                "</lf-options></lf-ask>"
             ),
         },
     )
@@ -1752,7 +1755,7 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
     expect(page.locator(".lf-fab")).to_be_hidden()
 
     page.locator(".lf-comments").click()
-    assert "Which store" in drag(page.locator("#ps-ask [data-lf-said]").first)
+    assert "Which store" in drag(page.locator("#ps-ask-region > h3"))
     # Both turns the handler could have used: it defers with a bare setTimeout, and the
     # step it queues queues nothing further.
     for _ in range(2):
@@ -1955,10 +1958,11 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "revision": 1,
             "text": "Depends what you want to keep:",
             "markup": (
-                '<lf-options id="ps-ask" choose label="Which store should I write up?">'
+                '<lf-ask id="ps-ask-region"><h3>Which store should I write up?</h3>'
+                '<lf-options id="ps-ask" choose>'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-                "</lf-options>"
+                "</lf-options></lf-ask>"
             ),
         },
     )
@@ -1971,7 +1975,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
             "author": "user",
             "revision": 1,
             "text": "Redis, and say why in the patch.",
-            "anchor": {"section": "ps-ask"},
+            "anchor": {"section": "ps-ask-region"},
         },
     )
     page, errors = open_page(browser, url)
@@ -1982,7 +1986,7 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     expect(thread).to_be_visible()
     label = thread.locator(".lf-quote").inner_text()
     assert "Which store should I write up?" in label, label
-    assert "ps-ask" not in label, label
+    assert "ps-ask-region" not in label, label
     # The heading over it, and the layer's own name kept for the layer's own parts.
     groups = page.evaluate(
         "() => [...document.querySelectorAll('.lf-group')].map((g) => g.textContent)"
@@ -2017,7 +2021,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
         "sug-rewrite": "rewrite",
         "sug-insert": "insertion",
         "sug-delete": "deletion",
-        "shapes-q": "options",
+        "shapes-ask": "ask",
     }
     # The words beside the kind are still the element's own, and the two changes that
     # keep a current paragraph still open on it — the reading did not move, only what
@@ -2035,10 +2039,9 @@ def test_the_asks_control_opens_what_the_page_is_waiting_for(browser, serve):
 
     The rows are openAsks() and nothing else — the same list the banner counts — so
     they arrive in document order and a twelfth widget joins the tray by declaring
-    x-awaits. Each says what kind of thing is asking and then the ask's own opening
-    words, which is why the question here carries a `label`: without one, a group holds
-    no part of the question it asks and its row reads as its first option instead. That
-    is the whole reason the attribute exists, and this is the surface that shows it.
+    x-awaits. Each says what kind of thing is asking and then the Ask's authored
+    heading, so the row reads the question rather than falling through to its first
+    answer.
 
     A closed tray holds no rows at all. That is not tidiness: they are the open
     tray's rendering, the banner's count is the closed tray's, and a hidden list of
@@ -2062,12 +2065,10 @@ def test_the_asks_control_opens_what_the_page_is_waiting_for(browser, serve):
         assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
         assert row["kind"], f"{row['at']}'s row does not say what kind of thing asks"
 
-    # The labelled group leads with its question. Before `label` there was nothing on a
-    # group to read, and this row said "Keep the store Sessions stay where they are" —
-    # the first option's case, which answers a question it never states.
+    # The Ask leads with its authored heading rather than the first option's answer.
     said = {r["at"]: r["says"] for r in rows}
-    assert said["live-question"].startswith("Where should sessions live?"), said[
-        "live-question"
+    assert said["live-question-ask"].startswith("Where should sessions live?"), said[
+        "live-question-ask"
     ]
     # A task's title is its own words already, so it needs no label to read out of
     # context — which is what says the row reads the element rather than the attribute.
@@ -2078,7 +2079,7 @@ def test_the_asks_control_opens_what_the_page_is_waiting_for(browser, serve):
     page.locator("#lq-token").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     expect(page.locator("button.lf-asks-row")).to_have_count(3)
-    assert "live-question" not in [r["at"] for r in page.evaluate(ASK_ROW_SAYS)], (
+    assert "live-question-ask" not in [r["at"] for r in page.evaluate(ASK_ROW_SAYS)], (
         "an answered ask keeps a row on the tray"
     )
 
@@ -2278,7 +2279,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("a")
-    expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#live-question-ask")).to_have_attribute("data-lf-ask", "1")
     # Where the reader now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
     # started is the whole of what says they were carried to the change instead.
@@ -2368,7 +2369,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("a")
-    expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#live-question-ask")).to_have_attribute("data-lf-ask", "1")
     was = page.evaluate("() => document.body.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 

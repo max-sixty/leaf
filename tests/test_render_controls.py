@@ -83,10 +83,11 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
+<lf-ask id="stable-options-ask"><h2>Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="control-target">Keep B</lf-option>
-</lf-options>
+</lf-options></lf-ask>
 <lf-tabs id="stable-tabs">
   <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
@@ -345,9 +346,11 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
                   overflow: getComputedStyle(document.body).overflowY};
         }"""
     )
-    assert locked == {"before": 400, "after": 400, "overflow": "hidden"}, (
-        f"the action shelf bypassed the covering panel's page lock: {locked}"
-    )
+    assert locked == {
+        "before": 400,
+        "after": 400,
+        "overflow": "hidden",
+    }, f"the action shelf bypassed the covering panel's page lock: {locked}"
     page.locator(".lf-comments").click()
     expect(page.locator(".lf-panel")).to_be_hidden()
 
@@ -441,9 +444,11 @@ def test_the_responsive_action_shelf_keeps_primary_actions_in_reach(browser, ser
                   prevented: !dispatched || event.defaultPrevented};
         }"""
     )
-    assert zoom == {"before": 0, "after": 0, "prevented": False}, (
-        f"the action shelf intercepted browser zoom: {zoom}"
-    )
+    assert zoom == {
+        "before": 0,
+        "after": 0,
+        "prevented": False,
+    }, f"the action shelf intercepted browser zoom: {zoom}"
     last = actions.locator(":scope > .lf-btn").last
     actions.evaluate("el => { el.scrollLeft = 0; }")
     last.focus()
@@ -1298,9 +1303,10 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
     url = serve(
         leaf_page(
             "self eligibility",
-            '<h1 id="heading">Choose</h1><lf-options id="pick" choose>'
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-ask"><h2>Which option?</h2>'
+            '<lf-options id="pick" choose>'
             '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options>',
+            '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
         )
     )
     page, errors = open_page(browser, url)
@@ -1338,9 +1344,10 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-options id="pick" choose>'
+            '<h1 id="heading">Choose</h1><lf-ask id="pick-ask"><h2>Which option?</h2>'
+            '<lf-options id="pick" choose>'
             '<lf-option id="pick-a">A</lf-option>'
-            '<lf-option id="pick-b">B</lf-option></lf-options>',
+            '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
         )
     )
     events_model.append_event(
@@ -2898,8 +2905,9 @@ customElements.define("lf-quota", class extends HTMLElement {
         '<h1 id="heading">Quota</h1><lf-tasks id="tasks">'
         '<lf-task id="task" status="active"><strong>Task</strong>'
         '<lf-quota id="quota" slots="1"></lf-quota>'
-        '<lf-options id="quota-intervention" choose label="Proceed?">'
-        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+        '<lf-ask id="quota-intervention-ask"><h2>Proceed?</h2>'
+        '<lf-options id="quota-intervention" choose>'
+        '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-ask>'
         '<lf-task id="child" status="active"><strong>Child</strong></lf-task>'
         "</lf-task>"
         '<lf-task id="destination" status="active">'

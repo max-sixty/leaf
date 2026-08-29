@@ -282,15 +282,16 @@ lf-chip {
               <td>
                 What x-ask declares: an instance is the complete reading and arrival
                 region for exactly one non-quoted nested widget declaring x-awaits or
-                x-request.ask. The region carries the heading, context, and evidence the
-                reader needs before the control; the nested widget still owns the answer
-                and its fold or request lifecycle. The banner, Asks tray,
-                <code>a</code>/<code>A</code> walk, standing ring, and
-                <code>page state</code> name the region while action eligibility,
+                x-request.ask. The region begins with one direct heading, then carries
+                any context and evidence the reader needs before the control; the nested
+                widget still owns the answer and its fold or request lifecycle. The
+                banner, Asks tray, <code>a</code>/<code>A</code> walk, standing ring,
+                and <code>page state</code> name the region while action eligibility,
                 replay, and request projection name the nested widget. An arrival
                 focuses that widget's answering control but scrolls to the region's
-                start. <code>version check</code> requires one non-quoted nested
-                declared ask source so the two identities cannot be ambiguous.
+                start. <code>version check</code> requires the leading heading and one
+                non-quoted nested declared ask source so the two identities cannot be
+                ambiguous.
               </td>
             </tr>
             <tr>
@@ -303,8 +304,11 @@ lf-chip {
                 that steps them, the <code>?</code> overlay's row, and conditional
                 x-state actions are readings of one projection, so nothing names a tag
                 and the twelfth widget joins by declaring. Quoted material asks nothing
-                — an exhibited decision is a mention (x-exhibit). A widget that also
-                declares x-conversation puts a box under its own request, and a
+                — an exhibited decision is a mention (x-exhibit).
+                <code>region</code> says the widget supplies the answer control but not
+                its own title: every matching instance must stand inside an x-ask, whose
+                direct heading owns the question's reading and arrival. A widget that
+                also declares x-conversation puts a box under its own request, and a
                 conversation standing in that box takes the request off the reader's
                 list for as long as it waits on the agent — whoever opened it. That is
                 not an answer: the widget's state is untouched, so a version still has
@@ -453,11 +457,11 @@ lf-chip {
             <tr>
               <td><code>x-paints</code></td>
               <td>
-                Attributes the theme renders as paint alone — a status marker's tint, an
-                event's kind, the ring on the recommended option. The runtime speaks
-                each to a reader listening (the value, or a flag attribute's own name),
-                silently on screen and out of every selection, so a fact stated in ink
-                is not silent to whoever cannot see it.
+                Attributes the theme renders as paint alone — for example, a status
+                marker's tint or an event's kind. The runtime speaks each to a reader
+                listening (the value, or a flag attribute's own name), silently on
+                screen and out of every selection, so a fact stated in ink is not silent
+                to whoever cannot see it.
               </td>
             </tr>
             <tr>
@@ -519,13 +523,16 @@ lf-chip {
                 this widget, so a crafted request cannot retarget the operation.
                 <code>ask: true</code> makes the ready lifecycle a reader ask:
                 acceptance hands the turn to the host, pending and completed leave the
-                reader's list, and failure returns it. A page holder has one lifecycle
-                per revision; a holder in frozen thread markup has one for that
-                document's whole lifetime. Pending excludes another request, failure
-                reopens it, and success completes it. Each request is durable and not
-                undoable because the host may already have acted.
-                <code>leaf receipt</code> appends exactly one linked
-                <code>succeeded</code> or <code>failed</code> outcome, and
+                reader's list, and failure returns it. <code>region: true</code> says
+                the holder supplies the commands but not its own question title, so
+                every instance stands inside an x-ask whose leading direct heading owns
+                the reading and arrival. A page holder has one lifecycle per revision; a
+                holder in frozen thread markup has one for that document's whole
+                lifetime. Pending excludes another request, failure reopens it, and
+                success completes it. Each request is durable and not undoable because
+                the host may already have acted. <code>leaf receipt</code> appends
+                exactly one linked <code>succeeded</code> or
+                <code>failed</code> outcome, and
                 <code>watchRequestLifecycle</code> supplies the holder's
                 server-projected request seat, exact request/receipt attempts, latest
                 attempt, and ready/pending/completed phase to its package module. Leaf

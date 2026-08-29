@@ -786,20 +786,21 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
+    expect(page.locator("#approach-ask[data-lf-ask]")).to_have_count(1)
     ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
-                      return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
-                              drawn(on.parentElement), drawn(on), drawn(el),
+                          return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
+                                  drawn(on.closest('lf-ask')), drawn(on), drawn(el),
                               getComputedStyle(on).backgroundColor
                                 !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
-    on, held, group_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
+    on, held, ask_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
     assert (on, held) == (
         "opt-shim",
         True,
     ), f"Tab did not land on the mark: {on} {held}"
-    assert group_ring > 0 and card_ring == 0 and mark_ring == 0, (
-        f"the focus ring is on the wrong box: group {group_ring}, card {card_ring}, "
+    assert ask_ring > 0 and card_ring == 0 and mark_ring == 0, (
+        f"the focus ring is on the wrong box: ask {ask_ring}, card {card_ring}, "
         f"mark {mark_ring}"
     )
     assert washed, "nothing says which cell the keyboard is on"
@@ -809,10 +810,10 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     # element can only wear one outline. Driven with the walk's own key, so what is
     # measured is the landing the reader gets rather than a state the test staged.
     ring = "el => [getComputedStyle(el).outline, getComputedStyle(el).outlineOffset]"
-    focused = page.locator("#approach").evaluate(ring)
+    focused = page.locator("#approach-ask").evaluate(ring)
     page.keyboard.press("a")
-    expect(page.locator("#approach[data-lf-ask]")).to_have_count(1)
-    assert page.locator("#approach").evaluate(ring) == focused, (
+    expect(page.locator("#approach-ask[data-lf-ask]")).to_have_count(1)
+    assert page.locator("#approach-ask").evaluate(ring) == focused, (
         "the walk's landing draws a different ring than the focus it hands over"
     )
 
@@ -840,93 +841,32 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("group", ["cards", "rows"])
-def test_the_question_a_joined_group_asks_stands_with_its_answers(
-    browser, serve, group
-):
-    """The question opens where the answers open, and clears the frame around them.
-
-    A group under `choose` is one control and its members are cells of it, each holding
-    its words off the drawn edge and opening at the address column the group reserves.
-    The question is a cell too. It was not treated as one: the block naming the cells
-    named the two kinds it expected — the authored options and the cell the reader
-    writes their own in — and the
-    question is written by the runtime from `x-says`, so it arrived as a third kind with
-    no rule to meet it. What shipped was a question set hard into the frame's top-left
-    corner, a full address column to the left of every word it was a question about,
-    with a band of dead ground under the hairline below it.
-
-    Both forms, because which one a group takes is a fact about its options and neither
-    states its own answer to this. And read as a column rather than as a number: what
-    makes a question and its alternatives one reading is that they open at the same
-    place, whatever that place is."""
+@pytest.mark.parametrize(
+    ("ask", "group", "question"),
+    [
+        ("cards-ask", "cards", "Where should a session live?"),
+        ("rows-ask", "rows", "Which jobs are worth starting?"),
+        ("done-ask", "done", "How do parallel sessions merge?"),
+    ],
+)
+def test_an_ask_leads_with_one_authored_heading(browser, serve, ask, group, question):
+    """The question is document content above the answers, never generated group chrome."""
     page, errors = open_page(browser, serve(ASKED_PAGE))
-    said = page.locator(f"#{group} > [data-lf-said='label']")
-    expect(said).to_have_count(1)
-
-    edges = """el => { const r = el.getBoundingClientRect();
-                       const s = getComputedStyle(el);
-                       return {left: r.left + parseFloat(s.paddingLeft),
-                               top: r.top + parseFloat(s.paddingTop),
-                               bottom: r.bottom}; }"""
-    frame = page.locator(f"#{group}").evaluate(
-        """el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
-                   return {left: r.left + parseFloat(s.borderLeftWidth),
-                           top: r.top + parseFloat(s.borderTopWidth)}; }"""
-    )
-    question = said.evaluate(edges)
-    answer = page.locator(f"#{group} > lf-option").first.evaluate(edges)
-
-    assert abs(question["left"] - answer["left"]) < 1, (
-        f"the question opens at {question['left']:.0f} and its answers at "
-        f"{answer['left']:.0f}, so they read as two columns rather than one"
-    )
-    assert question["left"] - frame["left"] > 4, (
-        "the question's words stand against the frame the group draws"
-    )
-    assert question["top"] - frame["top"] > 4, (
-        "the question's words stand against the top of the frame the group draws"
-    )
-
-    # The hairline under the question is the whole of what separates it from the first
-    # answer, so there is nothing between them: the 8px it wears leading an unjoined
-    # group is a second way to say what the line already says, and it reads as a rule
-    # floating in a band of nothing.
-    gap = (
-        page.locator(f"#{group} > lf-option").first.evaluate(
-            "el => el.getBoundingClientRect().top"
-        )
-        - question["bottom"]
-    )
-    assert gap < 0.5, f"the seam under the question floats {gap:.0f}px above the answer"
-
-    # The theme writes the question twice — the pseudo is what a page carrying no script
-    # is drawn from, and the joined control is drawn there too — so both writings answer
-    # this the same way or the two renderings disagree about where the question sits.
-    assert page.locator(f"#{group}").evaluate(
-        "el => getComputedStyle(el, '::before').padding"
-    ) == said.evaluate("el => getComputedStyle(el).padding"), (
-        "the scriptless rendering of the question is inset differently from the one the "
-        "runtime writes"
+    heading = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)")
+    expect(heading).to_have_count(1)
+    expect(heading).to_have_text(question)
+    expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
+    assert heading.evaluate("el => el.getBoundingClientRect().bottom") < page.locator(
+        f"#{group}"
+    ).evaluate("el => el.getBoundingClientRect().top"), (
+        "the answer control stands before its authored question"
     )
     assert errors == []
     page.close()
 
 
-def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
-    """A question leads, including where the group has already been answered.
-
-    Collapsed, a settled group is one line naming what was chosen, and the question is
-    the only thing on the page that says what was being chosen between. Rendered under
-    that line it read as an afterthought with nothing beneath it — and a reader met the
-    answer before learning there had been a question.
-
-    The placement is the runtime's, not the theme's: a settled group lays its members out
-    in normal flow, so DOM order is the only order there is, and the disclosure is built
-    during the upgrade, before the `x-says` pass runs. That pass steps past generated
-    chrome to keep the page's words beside the page's other words — which is right at the
-    trailing edge, where chrome stands next to the last of them, and wrong at the leading
-    edge, where a module puts one there to speak for the whole element."""
+def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
+    """A settled answer still follows the authored question, on-page and in a reply."""
     url = serve(ASKED_PAGE)
     # The same widget, same markup, in the other place a group can stand. Which of the
     # two writers gets there first is reversed in here — the panel renders a message's
@@ -940,10 +880,11 @@ def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
             "author": "claude",
             "revision": 1,
             "text": "And settled in here.",
-            "markup": '<lf-options id="th-done" choose settled label="Where, again?">'
+            "markup": '<lf-ask id="th-done-ask"><h3>Where, again?</h3>'
+            '<lf-options id="th-done" choose settled>'
             '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
-            "</lf-options>",
+            "</lf-options></lf-ask>",
         },
     )
     page, errors = open_page(browser, live_url(url))
@@ -951,9 +892,9 @@ def test_a_settled_group_asks_its_question_above_the_answer(browser, serve):
     expect(page.locator(".lf-panel")).to_be_visible()
 
     top = "el => el.getBoundingClientRect().top"
-    for group in ("done", "th-done"):
+    for ask, group in (("done-ask", "done"), ("th-done-ask", "th-done")):
         expect(page.locator(f"#{group} .lf-settled")).to_have_count(1)
-        question = page.locator(f"#{group} > [data-lf-said='label']").evaluate(top)
+        question = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)").evaluate(top)
         summary = page.locator(f"#{group} .lf-settled").evaluate(top)
         assert question < summary, (
             f"#{group}'s question is drawn at {question:.0f} and its answer at "
@@ -1210,10 +1151,8 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # joined cells answer with a wash. Read here rather than with the other two because
     # opening the quoted group is what the lines above are about.
     #
-    # Three cards, because the lift is three rules and each states the ring it layers
-    # over — a plain card, the one the document recommends, and the one it records as
-    # chosen. They differ by one attribute in the selector and carry the same exclusion,
-    # so the pair that lost one would be the pair nothing here hovered.
+    # Both card states, because the lift has one rule for an ordinary card and another
+    # for the one the document records as chosen. Both carry the specimen exclusion.
     page.locator("#live-settled .lf-settled").click()
     # Both folds have to be over before a card's box-shadow means anything. Opening a
     # group brings its rings in on the same transition the lift uses, so a rest value
@@ -1228,7 +1167,6 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     shadow = "el => getComputedStyle(el).boxShadow"
     for quiet, live, card in (
         ("#q-bearer", "#l-bearer", "plain"),
-        ("#q-signed", "#l-signed", "recommended"),
         ("#q-lax", "#l-lax", "chosen"),
     ):
         live_rest = page.locator(live).evaluate(shadow)
@@ -1244,166 +1182,16 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page.close()
 
 
-def test_the_pointer_does_not_take_a_cells_status_with_it(browser, serve):
-    """A cell says its status in the leading gutter, and the aim is a wash: two
-    facts about the same box, so both are true at once and the pointer arriving changes
-    only its own.
-
-    Which the two forms of the same statement did not manage while they shared the one
-    property. The cell's status rode a box-shadow, so did a loose card's ring, the
-    card's hover put a lift there, and the rules that restated the ring under the lift
-    carried the status attribute — one class column, enough to outrank the cell's own
-    paint in a group the card rules were never meant to reach. What a reader got for
-    pointing at the option the page recommends was the status gone, a 1px ring in its
-    place with the group's clip cutting away its side runs, and a drop shadow inside a
-    box with no room to cast one.
-
-    So the card's channels are separate (--lf-ring, --lf-lift), the cell's bar is drawn
-    where neither reaches, and the two forms are alternatives rather than layers
-    (--lf-joined): a cell is never handed the dressing it would have to undo. Read on
-    the recommended cell and its plain neighbour, since "unchanged" is also what a cell
-    with nothing to say returns.
-
-    The gutter holds the status bar first and the keyboard address second. This keeps
-    the bar away from both the reader's band outside the group and the option's words.
-    The address appears only while the keyboard is in the group, but its room is held at
-    rest so neither signal moves the prose."""
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
-    page.wait_for_function(
-        """() => document.querySelector('#live-group')
-                 .getAnimations({subtree: true}).length === 0"""
-    )
-    paint = """el => { const s = getComputedStyle(el), bar = getComputedStyle(el, '::before');
-                       return [bar.backgroundColor,
-                               [parseFloat(bar.left), parseFloat(bar.width)],
-                               s.borderTopStyle === 'none'
-                                 ? 0 : parseFloat(s.borderTopWidth),
-                               parseFloat(s.borderTopLeftRadius),
-                               s.backgroundColor]; }"""
-    marked, plain = page.locator("#l-stage"), page.locator("#l-shim")
-    stripe, (left, width), border, radius, fill = marked.evaluate(paint)
-    assert (border, radius) == (0, 0), (
-        f"a cell of a joined group wears a card's border and corner: {border}, {radius}"
-    )
-    assert stripe != plain.evaluate(paint)[0], (
-        "the recommended cell and its plain neighbour carry the same paint, so this "
-        "reads nothing about the recommendation"
-    )
-    # The column as the cell spends it, rather than the token's own text: the term is a
-    # calc over the chip's box, so `getPropertyValue` answers with the expression and a
-    # number read off it is NaN — which compares false against everything and reports a
-    # bar in the wrong place as convincingly as a real one.
-    column = marked.evaluate(
-        "el => parseFloat(getComputedStyle(el).paddingInlineStart)"
-    )
-    assert 0 < left and left + width < column, (
-        f"the bar at {left}…{left + width} does not stand inside the {column}px the "
-        "group reserves"
-    )
-    marked.hover()
-    expect(marked).not_to_have_css("background-color", fill)
-    assert marked.evaluate(paint)[:4] == [stripe, [left, width], 0, 0], (
-        f"the pointer took the recommendation with it: {marked.evaluate(paint)} "
-        f"against {[stripe, [left, width], border, radius]} at rest"
-    )
-
-    # The address arrives between the status and the prose. Read all three boundaries:
-    # a status after the address sits beside the sentence and looks like a text caret
-    # whenever the keyboard chip is hidden. The chip follows the type through
-    # --lf-key-box, so this also catches a fixed gutter that lets a larger address collide
-    # with either neighbour.
-    page.mouse.move(0, 0)
-    mark = page.locator("#l-stage .lf-pick").first
-    mark.focus()
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("Tab")
-    chip = page.locator("#l-stage .lf-address")
-    expect(chip).to_be_visible()
-    starts, ends = chip.evaluate(
-        """el => { const chip = el.getBoundingClientRect();
-                     const option = el.closest('lf-option').getBoundingClientRect();
-                     return [chip.left - option.left, chip.right - option.left]; }"""
-    )
-    assert left + width < starts < ends < column, (
-        f"the {column}px gutter places the status at {left}…{left + width} and the "
-        f"address at {starts}…{ends}; it must read status, address, then prose"
-    )
-    page.evaluate("document.documentElement.classList.add('lf-copy')")
-    expect(chip).to_be_hidden()
-    assert errors == []
-    page.close()
-
-
-def test_a_marked_card_keeps_the_shadow_its_status_is_drawn_in(browser, serve):
-    """A card says its status in a box-shadow channel and the runtime paints its marks
-    in an outline, so a card the reader has anchored a comment to says both at once.
-
-    They collided over a name. The channel is `--lf-ring`; a rule naming which here ring
-    it draws reached for the same word, and `.lf-mark-el.lf-mark-here` outranks the
-    card's own rule by a class column — so the moment a mark landed on a card, the name
-    it wrote was what `box-shadow: var(--lf-ring), var(--lf-lift)` resolved to. An
-    identifier is no shadow, the whole declaration went invalid at computed-value time,
-    and the card lost its recommendation ring and its lift together while the reader was
-    pointing at it. Nothing was wrong on screen anywhere else, and no reading asked.
-
-    So the two are spelled apart (`--lf-here-ring`), and this is what says they still
-    are. The mark classes are applied directly because they are the mechanism: they are
-    what `markHere` paints on an element a focused thread is anchored to.
-
-    Read on all three card rules, since each states the ring it layers over and a
-    rename that missed one would leave the other two clean."""
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
-    page.locator("#live-settled .lf-settled").click()
-    page.wait_for_function(
-        """() => document.querySelector('#live-settled')
-                 .getAnimations({subtree: true}).length === 0"""
-    )
-    read = """el => {
-        const cs = getComputedStyle(el);
-        return [cs.boxShadow,
-                cs.getPropertyValue('--lf-ring').trim(),
-                cs.getPropertyValue('--lf-here-ring').trim()];
-    }"""
-    mark = "el => el.classList.add('lf-mark-el', 'lf-mark-here')"
-    for card, which in (
-        ("#l-bearer", "plain"),
-        ("#l-signed", "recommended"),
-        ("#l-lax", "chosen"),
-    ):
-        rest, channel, _ = page.locator(card).evaluate(read)
-        assert rest != "none", (
-            f"a {which} card draws no shadow at rest, so this reads nothing about one"
-        )
-        page.locator(card).evaluate(mark)
-        marked, channel_now, name = page.locator(card).evaluate(read)
-        # Non-vacuity: the mark rule has to have reached this box, or the comparison
-        # below is one box against itself.
-        assert name == "element-mark", (
-            f"the mark left {name!r} on the {which} card rather than its ring's name, "
-            "so the rule this is written against never applied and the shadow was "
-            "never at risk"
-        )
-        assert (marked, channel_now) == (rest, channel), (
-            f"marking the {which} card moved its shadow: {marked} in channel "
-            f"{channel_now!r}, against {rest} in {channel!r} before"
-        )
-    assert errors == []
-    page.close()
-
-
 def test_one_band_says_where_the_reader_is_standing(browser, serve):
     """The reader's band is drawn once, on the outermost box that claims it.
 
-    A joined group is focused as one control and draws the band itself, which is the
-    same band and the same stroke the ask it stands in wears. Where the ask is the
-    group — most questions — the two are one element and one ring. Where an author has
-    written the region out, so the heading and the premise arrive with the control, the
-    ask is a box around the group and the two rings nested: one around a paragraph of
-    context, another a few pixels inside it, saying the same thing at two sizes.
+    Every live choice group stands inside an Ask whose authored heading and premise
+    arrive with the control. The Ask owns the focus ring around that complete reading;
+    drawing the group's ring as well would say the same thing twice at two sizes.
 
-    So the group's is the one that stands down. Its half of the fact — which control,
-    and which cell of it — is already said by the washed cell and the address chips,
-    while the ask's ring is what the walk aims at and what the arrival scrolls to."""
+    The group therefore stands down. Its half of the fact — which control, and which
+    cell of it — is already said by the washed cell and the address chips, while the
+    Ask's ring is what the walk aims at and what the arrival scrolls to."""
     page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
@@ -1895,11 +1683,9 @@ def test_one_pill_holds_every_short_fact(browser, serve):
 
 def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
     """A tint is a fact to whoever can see it and nothing at all to whoever can't. A
-    task's marker, an event's kind band and the ring on the recommended option each
-    carried their whole meaning in colour, so a reader listening was handed every word
-    around the fact and never the fact: done sounded exactly like blocked, and the
-    page's own recommendation — the one thing a decision page is most for — was
-    invisible to the reader with the least other way to find it.
+    task's marker and an event's kind band each carried their whole meaning in colour,
+    so a reader listening was handed every word around the fact and never the fact:
+    done sounded exactly like blocked.
 
     Declared (x-paints) rather than written into each module, which is what lets it
     reach the two widgets here that have no module at all, and read as the value or, for
@@ -1910,22 +1696,17 @@ def test_what_a_widget_paints_it_says_to_a_reader_listening(browser, serve):
     page, errors = open_page(browser, serve(PAINTED_PAGE))
     for sel, word in (
         ("#e-dark", "failure"),
-        ("#p-stage", "recommended"),
         ("#t-baffles", "blocked"),
     ):
         assert word in page.locator(sel).aria_snapshot(), (
             f"{sel} paints `{word}` and says nothing of it to a reader listening"
         )
-    # The option that isn't recommended says nothing: the pass speaks a fact the page
-    # holds, never one it merely has an attribute for.
-    assert "recommended" not in page.locator("#p-once").aria_snapshot()
-
     room = page.locator(".lf-quiet").evaluate_all(
         """els => els.map(el => { const r = el.getBoundingClientRect();
              return [el.textContent, r.width, r.height,
                      getComputedStyle(el).userSelect]; })"""
     )
-    assert len(room) == 3, f"one quiet word per painted fact, got {room}"
+    assert len(room) == 2, f"one quiet word per painted fact, got {room}"
     for word, width, height, select_mode in room:
         assert width <= 1 and height <= 1, f"`{word}` is painting {width}x{height}"
         assert select_mode == "none", f"`{word}` would come away in a copy of the page"
@@ -2258,7 +2039,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
     pinned.close()
 
     without_owner = re.sub(
-        r'<lf-options id="jobs" choose multiple>.*?</lf-options>',
+        r'<lf-ask id="jobs-ask">.*?</lf-ask>',
         '<details id="jobs"><summary>This version no longer asks the jobs question.</summary>'
         '<p id="job-mounts">Replace the M8 mounts.</p>'
         '<p id="job-heater">Heat the bird bath.</p>'

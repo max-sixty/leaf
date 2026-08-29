@@ -186,9 +186,10 @@ sees it, including edits and retired content. Quote exact visible authored words
 inside one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment.
 
-Use `--markup` for an inline widget such as a small `lf-options` question. Thread
-markup is frozen in the log; versions neither carry nor revise it. Use a page
-widget instead when the question and its answer belong in the final record.
+Use `--markup` for a small question: an `lf-ask` containing one heading and its
+`lf-options` group. Thread markup is frozen in the log; versions neither carry
+nor revise it. Use a page widget instead when the question and its answer belong
+in the final record.
 
 Answer in as few words as the question takes; one sentence is a complete reply.
 An answer the size of a page section goes into the page instead, and the

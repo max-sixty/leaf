@@ -181,6 +181,10 @@ REQUEST_SCHEMA = {
     "type": "object",
     "properties": {
         "ask": {"type": "boolean"},
+        # This request supplies the commands but not its own question title.
+        # A matching holder therefore stands inside an x-ask region, whose direct
+        # heading owns the reading and arrival.
+        "region": {"const": True},
         "offers": {
             "type": "object",
             "minProperties": 1,
@@ -227,6 +231,10 @@ AWAITS_SCHEMA = {
             "uniqueItems": True,
         },
         "rollup": {"const": True},
+        # This widget supplies the answer control but not its own question title.
+        # A matching instance therefore stands inside an x-ask region, whose direct
+        # heading owns the reading and arrival.
+        "region": {"const": True},
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "until": {
             "type": "object",
@@ -353,10 +361,9 @@ EXTENSION_SCHEMA = {
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-measured": MEASURED_SCHEMA,
-        # Attributes the theme renders as paint alone — a status marker's tint, an
-        # event's kind, the ring on the recommended option. The runtime speaks each as
-        # a clipped word (renderQuiet), the value or, where a flag carries no value,
-        # the attribute's own name.
+        # Attributes the theme renders as paint alone — a status marker's tint or an
+        # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
+        # value or, where a flag carries no value, the attribute's own name.
         "x-paints": _ATTRIBUTE_LIST,
         "x-parent": {
             "type": "array",
@@ -460,10 +467,7 @@ PAGE_OWNED_DIRS = ("revisions", "versions", *PACKAGE_DIRS, MEDIA_DIR)
 _DIR_FILES = {
     "runtime": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
     "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
-    "vendor": (
-        r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*"
-        r"(?!\.{1,2}$)[A-Za-z0-9._-]+"
-    ),
+    "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
     MEDIA_DIR: r"[a-f0-9]{16}(?:" + "|".join(re.escape(e) for e in MEDIA_TYPES) + ")",
 }
 SERVED_PATH = re.compile(

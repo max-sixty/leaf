@@ -2980,7 +2980,7 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
         """() => {
           const probe = { frames: 0, paints: 0, applied: 0 };
           window.__lfProbe = probe;
-          addEventListener("lf-actions", () => { probe.applied += 1; });
+          document.addEventListener("lf-actions", () => { probe.applied += 1; });
           new MutationObserver(() => { probe.paints += 1; }).observe(
             document.querySelector(".lf-keyline"),
             { attributes: true, childList: true, subtree: true },

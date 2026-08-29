@@ -53,43 +53,11 @@ currently about.
 
 ## Packages
 
-A package is a directory that can supply a theme, one widget, a related family,
-helper modules, vendor files, typed external-data contracts, or guidance for named
-audiences. Leaf's included content widgets are a bundled default package. Command Hub
-is an optional bundled package. Project and user packages live at `.leaf/` and
-`~/.config/leaf/`.
-
-Leaf creates and checks the package as one unit:
-
-```
-leaf package init packages/callout
-# edit its registry, theme, guidance/, and modules
-leaf package check packages/callout
-```
-
-`package init` creates the common files and directories without replacing anything
-already present. An explicit package joins a page by path:
-
-```
-leaf page init --package packages/callout <page-dir>
-```
-
-An optional bundled package joins by name:
-
-```
-leaf page init --package command-hub <page-dir>
-```
-
-The page records package selections and their order in its vendored registry, so a
-later plain `page init` reproduces the composition. A bare package name selects a
-bundled package; use `./name` for a same-shaped project path. Other paths are relative
-to the project or start with `~`; absolute paths are refused because the registry is
-public.
-Later explicit packages win collisions, followed by the user package and then the
-project package. `page init --no-packages` clears the explicit list.
-
-The [package guide](docs/packages.html) covers the directory contract and
-precedence.
+A package carries a reusable theme, widget, browser module, data contract, or role
+guide. Leaf's own content widgets use this contract. The
+[package tutorial](docs/packages.html) builds a small one; the
+[package reference](plugins/leaf/skills/leaf/references/packages.md) owns the complete
+contract.
 
 ## Examples
 

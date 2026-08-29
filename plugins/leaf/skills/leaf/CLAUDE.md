@@ -45,10 +45,14 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
+`runtime/living-margin.js` owns the page map, compact map sheet, inline margin threads,
+and the one aggregated action, communication, and information item for each page target;
+content modules contribute live controls and semantics through its registration seam but
+never place their own RHS rows;
+`runtime/margin-layout.js` owns margin-row measurement, rail claims, responsive docking,
+vertical packing, and collision bands for wide page content;
 `runtime/reactions.js` owns reaction vocabulary, lists and their standing paint,
 sending, keyboard mode, and reaction-specific undo wording;
-`runtime/living-margin.js` owns the page map, inline margin threads, and compact map
-sheet; `runtime/margin-layout.js` owns collision layout for everything in that margin;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
@@ -1095,29 +1099,29 @@ washes a reader can tell apart.
 A bare reaction — a token comment nobody has replied to — is paint, not a
 thread. `paintAnchors` resolves its anchor like any comment's and records it in
 `reacted` rather than `marked`: a wash through the `lf-react` highlight on a
-passage, `lf-react-el` on an element's shown parts, and a glyph seated by
-`seatReactions`. The seat is one `.lf-reacts` span per block, prepended so its
-static position is the block's first line, and positioned into the right margin
-the way a suggestion's controls are; the pill inside is the reaction's own
-eraser, posting the ordinary `undo` through `withdraw`. It wears `lf-ui` and
-`data-lf-gen`, so no reading takes it for the page's words and a frame's
-first-child trim ignores it. `markAt` does not see it: a reaction takes no press
-to a card and has no hover. Export keeps the glyph with its press taken off and
-writes the wash into the words as a `<mark>` (BAKE), the highlight registry
-being script state no file can hold.
+passage, `lf-react-el` on an element's shown parts, and a glyph reconciled by
+`seatReactions`. Its `.lf-reacts` span is an unpositioned contribution to the
+target's living-margin item, beside that target's decisions and actions; the
+pill inside is the reaction's own eraser, posting the ordinary `undo` through
+`withdraw`. It wears `lf-ui` and `data-lf-gen`, so no reading takes it for the
+page's words. `markAt` does not see it: a reaction takes no press to a card and
+has no hover. Export keeps the glyph with its press taken off and writes the wash
+into the words as a `<mark>` (BAKE), the highlight registry being script state
+no file can hold.
 
 The bar the selection raises is `.lf-fab-bar`: the `.lf-fab` comment glyph every
 route into the composer still goes through, followed by one reaction ellipsis.
-The ellipsis becomes the layer's token buttons in declared order without moving
-the comment glyph. Near an edge, the list opens below it. `showFab` shows and
-places the bar; `activateAimTarget` raises it for both the ⌥ press and keyboard
-item hint. `r` opens the same list on the selection, the standing item, or the latest agent message
-in the thread the reader is in. With none of those targets, it shows “Select
-something to react to” and opens nothing. Page-wide reactions remain an explicit
-ellipsis above the panel's general comment box. `REACT` claims the keyboard while
-a list is open: arrows move among tokens, Enter or Space presses the focused one,
-digits remain optional accelerators in declaration order, and a stray key closes
-the list before keeping its ordinary meaning.
+For a page target, the ellipsis hands Comment and the layer's token buttons to
+that target's shared margin item; it never opens a box below the floating bar.
+`showFab` shows and places the compact bar; `activateAimTarget` raises it for both
+the ⌥ press and keyboard item hint. `r` opens the same choices on the selection,
+the standing item, or the latest agent message in the thread the reader is in.
+With none of those targets, it shows “Select something to react to” and opens
+nothing. Page-wide reactions remain an explicit ellipsis above the panel's general
+comment box. `REACT` claims the keyboard while a list is open: arrows move among
+tokens, Enter or Space presses the focused one, digits remain optional accelerators
+in declaration order, and a stray key closes the list before keeping its ordinary
+meaning.
 
 `conversation/model.js` reads the log by `isReaction`, `spoken`, `turns`, and
 `bareReaction`, the names `events.py` reads it by, and answers `reactionsOn` and
@@ -1278,6 +1282,51 @@ The banner and key line reserve their space in normal flow. A fixed or absolute
 chrome surface may lie above that reservation, but the reservation itself
 travels to print and export only when that medium contains the surface it
 serves.
+
+### Target margin items
+
+The right margin has one projected item per page target. That item is the single
+place for controls the reader can use on the target, communications they can
+start about it, and standing information such as comment threads, decisions,
+outcomes, changes, or agent activity. It is a flex row: content controls precede
+the target's page-map marker, and temporary communication controls follow it. A
+target with no map reading may have controls without a marker.
+
+Content modules contribute through `registerMarginItem`; they own their verbs and
+events, never placement or control styling. Every press in a contribution is built
+with `marginAction(control, {glyph, label, tone, collapse})`. That is the one RHS
+control type: it owns the capsule, height, type, focus, state paint, and the glyph/word
+anatomy shared by decisions, editing, communications, and information triggers.
+Horizontal width may follow the label. `collapse: "auto"` keeps the word whenever the
+complete target item fits and hides it only when the shared layout needs the room;
+`always` is for vocabulary whose glyph is sufficient in the row. Collapsing changes
+paint, not the DOM or accessible name.
+
+The living margin groups contributions and state readings by exact target identity
+and owns one generated host plus its accessible group name. At wide widths it hoists
+that host into the main positioning context, preserving source and tab order when
+several targets share a top-level block. At compact widths it returns the host to flow
+immediately after the target's rendered text block (or the target itself). Adding
+another target action must not add another absolute row, control type, or rail
+measurement.
+
+`margin-layout` places, packs, docks, and measures the complete host. Its rail
+claim is the widest stable contribution seen and is monotonic for the document's
+lifetime, so settling an action cannot shift the readable column. A temporary
+contribution registers with `claim: false`: it borrows available RHS room and
+docks the complete host when it cannot fit, without moving the column on first
+open or leaving blank room after close. Below the margin breakpoint the complete
+host docks into flow. Visibility and vertical placement read `shownParts` and
+`shownBox`, not the target's raw client rect: a project may set `display: contents`
+while its rendered descendants remain usable, and a collapsed target has no
+rendered part to offer.
+
+The reaction key extends this same item for a page selection or item. It moves
+Comment and the declared reaction buttons to the right of the existing marker;
+it does not open a palette below the target. Conversation reactions remain in
+their conversation-owned strip. The event still carries its durable authored
+anchor, while the temporary item resolves selected text to the first rendered
+block, matching the target where replay later seats its standing reaction.
 
 ### Presentation and state motion
 

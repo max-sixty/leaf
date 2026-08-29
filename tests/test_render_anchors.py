@@ -560,13 +560,11 @@ def test_the_margin_offers_one_kind_of_press(browser, serve):
     furniture a press is a .lf-btn and looks like one, and out in the margin it is a
     marginal mark.
 
-    Pinned by reading both off one page. The pill is one statement now (.lf-pill, in
-    the runtime's document-level vocabulary), but either wearer can still restate a
-    property in its own rules — the fab's scoped block and the suggestion's state
-    rules both layer over it — and this is what says such a restatement kept the
-    family. The shadow is the one property allowed to differ, and it is the
-    difference that is real: only one of them floats over the page's own words rather
-    than standing in the empty rail."""
+    Pinned by reading both off one page. marginAction is one statement now, but either
+    wearer can still restate a property in its own rules, and this is what says such a
+    restatement kept the family. The shadow is the one property allowed to differ, and
+    it is the difference that is real: only one of them floats over the page's own words
+    rather than standing in the empty rail."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(

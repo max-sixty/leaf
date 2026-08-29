@@ -359,7 +359,7 @@ export function relabel(node, label, { says } = {}) {
 // asks again the first time there is a box. A floor of zero is not a missing
 // measurement to look at; it is the control holding no room at all.
 export function reserve(control, labels) {
-  const stood = { text: control.textContent, css: control.style.cssText };
+  const stood = { nodes: [...control.childNodes], css: control.style.cssText };
   Object.assign(control.style, {
     minWidth: "0",
     width: "auto",
@@ -372,7 +372,7 @@ export function reserve(control, labels) {
     control.textContent = label;
     widest = Math.max(widest, control.getBoundingClientRect().width);
   }
-  control.textContent = stood.text;
+  control.replaceChildren(...stood.nodes);
   control.style.cssText = stood.css;
   control.style.minWidth = Math.ceil(widest) + "px";
 }

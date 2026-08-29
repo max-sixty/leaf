@@ -1,17 +1,99 @@
 import {
+  layoutMarginRows,
   registerMarginRow,
   scheduleMarginLayout,
   unregisterMarginRow,
   updateMarginRow,
 } from "./margin-layout.js";
+import { shownBox, shownParts } from "./geometry.js";
 
 const KINDS = {
+  action: { label: "Action", symbol: "·", priority: -1 },
   change: { label: "Change", symbol: "Δ", priority: 0 },
   comment: { label: "Comment", symbol: "¶", priority: 1 },
   decision: { label: "Decision", symbol: "?", priority: 2 },
   outcome: { label: "Outcome", symbol: "✓", priority: 3 },
   activity: { label: "Agent activity", symbol: "↻", priority: 4 },
 };
+
+// Content modules contribute what their target offers; this projection decides where
+// those controls stand and joins them to every other reading of the same target. The
+// store is module-level because widgets upgrade after the margin is composed and may
+// reconnect while a live version replaces the authored document.
+const offeredItems = new Set();
+const offerListeners = new Set();
+const ACTION_COLLAPSE = new Set(["auto", "always"]);
+const ACTION_TONES = new Set(["neutral", "positive", "negative", "primary"]);
+
+const changedOffers = () => {
+  for (const listener of offerListeners) listener();
+};
+
+// One control grammar for every gesture in a target's RHS item. Contributors keep
+// their verbs and events; the margin owns the anatomy that makes those controls one
+// family and the collapse policy the shared layout can apply when horizontal room
+// runs out. The visible word remains in the DOM when it is collapsed, so the same
+// control can expand again without being rebuilt and its accessible name never changes.
+export function marginAction(
+  control,
+  { glyph, label, collapse = "auto", tone = "neutral" },
+) {
+  if (!(control instanceof Element))
+    throw new TypeError("A margin action needs an Element control");
+  if (!String(glyph ?? "").trim()) throw new TypeError("A margin action needs a glyph");
+  if (!String(label ?? "").trim()) throw new TypeError("A margin action needs a label");
+  if (!ACTION_COLLAPSE.has(collapse))
+    throw new TypeError(`Unknown margin-action collapse: ${collapse}`);
+  if (!ACTION_TONES.has(tone))
+    throw new TypeError(`Unknown margin-action tone: ${tone}`);
+
+  control.classList.add("lf-margin-action");
+  control.dataset.lfCollapse = collapse;
+  control.dataset.lfTone = tone;
+  let glyphNode = control.querySelector(":scope > .lf-margin-action-glyph");
+  let spaceNode = control.querySelector(":scope > .lf-margin-action-space");
+  let labelNode = control.querySelector(":scope > .lf-margin-action-label");
+  if (!glyphNode) glyphNode = document.createElement("span");
+  if (!spaceNode) spaceNode = document.createElement("span");
+  if (!labelNode) labelNode = document.createElement("span");
+  glyphNode.className = "lf-margin-action-glyph";
+  glyphNode.setAttribute("aria-hidden", "true");
+  glyphNode.textContent = glyph;
+  spaceNode.className = "lf-margin-action-space";
+  spaceNode.setAttribute("aria-hidden", "true");
+  spaceNode.textContent = " ";
+  labelNode.className = "lf-margin-action-label";
+  labelNode.textContent = label;
+  control.replaceChildren(glyphNode, spaceNode, labelNode);
+  if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
+  return control;
+}
+
+export function registerMarginItem({
+  target,
+  controls,
+  items = () => [],
+  side = "before",
+  claim = true,
+}) {
+  if (!new Set(["before", "after"]).has(side))
+    throw new TypeError(`Unknown margin-item side: ${side}`);
+  if (controls instanceof Element) controls.classList.add("lf-margin-contribution");
+  const offered = { target, controls, items, side, claim };
+  offeredItems.add(offered);
+  changedOffers();
+  return {
+    update({ immediate = false } = {}) {
+      changedOffers();
+      if (immediate) layoutMarginRows();
+    },
+    unregister() {
+      if (!offeredItems.delete(offered)) return;
+      controls?.remove();
+      changedOffers();
+    },
+  };
+}
 
 const trimmed = (value, limit = 110) => {
   const text = String(value ?? "")
@@ -26,25 +108,62 @@ const humanized = (value) =>
     .trim();
 
 function targetPath(target) {
-  if (target.id) return `id:${target.id}`;
+  const root = target.getRootNode();
+  // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
+  // own stable path so two instances of the same shadow template stay distinct,
+  // while a live-version replacement at the same authored coordinate can still
+  // retain its marker and preview focus.
+  const prefix = root instanceof ShadowRoot ? `${targetPath(root.host)}/shadow/` : "";
+  if (target.id) return `${prefix}id:${target.id}`;
   const steps = [];
-  for (let node = target; node?.parentElement; node = node.parentElement) {
-    const siblings = [...node.parentElement.children].filter(
+  for (let node = target; node;) {
+    const parent =
+      node.parentElement ??
+      (node.parentNode instanceof ShadowRoot ? node.parentNode : null);
+    if (!parent) break;
+    const siblings = [...parent.children].filter(
       (candidate) =>
         !candidate.classList.contains("lf-ui") &&
         !candidate.hasAttribute("data-lf-gen"),
     );
     steps.push(`${node.localName}:${siblings.indexOf(node)}`);
-    if (node.localName === "main") break;
+    if (node.localName === "main" || parent instanceof ShadowRoot) break;
+    node = parent;
   }
-  return `path:${steps.reverse().join("/")}`;
+  return `${prefix}path:${steps.reverse().join("/")}`;
 }
 
 function comesBefore(left, right) {
   if (left === right) return 0;
   if (!left) return 1;
   if (!right) return -1;
-  return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING
+  // compareDocumentPosition calls nodes in separate shadow trees disconnected and
+  // leaves their order implementation-specific. Build each composed ancestry instead:
+  // the first divergent nodes share a document or shadow root and therefore have a
+  // stable order. Keeping every inner step also distinguishes a target in an outer
+  // tree from a later target inside one of its nested shadow hosts.
+  const ancestry = (target) => {
+    const chain = [];
+    for (let node = target; node;) {
+      chain.push(node);
+      node =
+        node.assignedSlot ?? node.parentElement ?? node.getRootNode()?.host ?? null;
+    }
+    return chain.reverse();
+  };
+  const leftChain = ancestry(left);
+  const rightChain = ancestry(right);
+  let index = 0;
+  while (
+    index < leftChain.length &&
+    index < rightChain.length &&
+    leftChain[index] === rightChain[index]
+  )
+    index += 1;
+  if (index === leftChain.length || index === rightChain.length)
+    return leftChain.length - rightChain.length;
+  return leftChain[index].compareDocumentPosition(rightChain[index]) &
+    Node.DOCUMENT_POSITION_FOLLOWING
     ? -1
     : 1;
 }
@@ -55,6 +174,7 @@ export function createLivingMargin(dependencies) {
     announce,
     approveBtn,
     banner,
+    blockAt,
     chromeRoot,
     claimState,
     comparisonBase,
@@ -128,6 +248,7 @@ export function createLivingMargin(dependencies) {
       sheet.close();
       if (sheetHeld) requestAnimationFrame(() => focusMapControl());
     }
+    render();
   }
   placeMapButton();
   compact.addEventListener("change", changePosture);
@@ -161,6 +282,7 @@ export function createLivingMargin(dependencies) {
   chromeRoot.append(sheet);
 
   const rows = new Map();
+  const hosts = new Map();
   let currentEntries = [];
   let previewEntry = null;
   let previewButton = null;
@@ -172,11 +294,13 @@ export function createLivingMargin(dependencies) {
   let rovingFrame = 0;
   let sheetActivation = false;
 
-  function add(groups, target, item) {
+  function groupFor(groups, target, item = null) {
     if (target && (!target.isConnected || inChrome(target))) target = null;
-    const key = target ? targetPath(target) : `detached:${item.kind}:${item.id}`;
-    let group = groups.get(key);
+    const lookup =
+      target ?? `detached:${item?.kind ?? "action"}:${item?.id ?? groups.size}`;
+    let group = groups.get(lookup);
     if (!group) {
+      const key = target ? targetPath(target) : lookup;
       const word = target ? itemWord(target) : "Detached item";
       const said = target ? itemSays(target) : "No longer placed in this version";
       group = {
@@ -184,9 +308,15 @@ export function createLivingMargin(dependencies) {
         target,
         title: trimmed([word, said].filter(Boolean).join(" · "), 72),
         items: [],
+        offers: [],
       };
-      groups.set(key, group);
+      groups.set(lookup, group);
     }
+    return group;
+  }
+
+  function add(groups, target, item) {
+    const group = groupFor(groups, target, item);
     group.items.push(item);
   }
 
@@ -264,6 +394,21 @@ export function createLivingMargin(dependencies) {
         });
       }
 
+    for (const offered of offeredItems) {
+      const target =
+        typeof offered.target === "function" ? offered.target() : offered.target;
+      if (!target?.isConnected || inChrome(target)) continue;
+      const group = groupFor(groups, target);
+      group.offers.push(offered);
+      const items =
+        typeof offered.items === "function" ? offered.items() : offered.items;
+      for (const item of items ?? []) {
+        const kind = item.kind ?? "action";
+        if (!KINDS[kind]) throw new TypeError(`Unknown margin-item kind: ${kind}`);
+        group.items.push({ marker: false, ...item, kind });
+      }
+    }
+
     return [...groups.values()]
       .map((group) => ({
         ...group,
@@ -283,26 +428,79 @@ export function createLivingMargin(dependencies) {
   function markerOptions(row) {
     return {
       anchor: () => row.lfEntry?.target,
-      fallback: "hide",
+      ...(row.lfEntry?.offers.length ? {} : { fallback: "hide" }),
       priority: 10,
-      place: (marker, column) => {
-        const target = marker.lfEntry?.target;
+      claim: () => {
+        const entry = row.lfEntry;
+        if (!entry) return 0;
+        const stable = entry.offers
+          .filter((offered) => offered.claim && offered.controls)
+          .map((offered) => offered.controls);
+        const marker = rows.get(entry.key);
+        if (marker && !marker.hidden) stable.push(marker);
+        const widths = stable
+          .map((part) => part.getBoundingClientRect().width)
+          .filter(Boolean);
+        if (!widths.length) return 0;
+        const style = getComputedStyle(row);
+        const gap = parseFloat(style.columnGap || style.gap) || 0;
+        return (
+          widths.reduce((total, width) => total + width, 0) +
+          gap * (widths.length - 1) +
+          (parseFloat(style.paddingLeft) || 0) +
+          (parseFloat(style.paddingRight) || 0)
+        );
+      },
+      shown: (target) =>
+        Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
+      condense: (item, column, room) => {
+        if (!item.querySelector('[data-lf-collapse="auto"]')) return false;
+        const parts = [...item.children].filter((part) => part.checkVisibility());
+        if (!parts.length) return false;
+        const style = getComputedStyle(item);
+        const gap = parseFloat(style.columnGap || style.gap) || 0;
+        const natural =
+          parts.reduce((total, part) => {
+            const partStyle = getComputedStyle(part);
+            return (
+              total +
+              part.getBoundingClientRect().width +
+              (parseFloat(partStyle.marginLeft) || 0) +
+              (parseFloat(partStyle.marginRight) || 0)
+            );
+          }, 0) +
+          gap * (parts.length - 1) +
+          (parseFloat(style.paddingLeft) || 0) +
+          (parseFloat(style.paddingRight) || 0);
+        const available = compact.matches
+          ? column.width
+          : Math.max(0, room - item.getBoundingClientRect().left);
+        return natural > available + 0.5;
+      },
+      // Compact mode has no page rail. Dock every contributed item even when a
+      // positioned widget happens to leave enough local room for the absolute
+      // prototype; that accident must not give one nested target a desktop posture.
+      hangs: () => !compact.matches,
+      place: (item, column) => {
+        const target = item.lfEntry?.target;
         if (!target) return;
-        placeMargin(column);
-        marker.style.top = `${Math.max(0, target.getBoundingClientRect().top - column.top)}px`;
+        if (nav.contains(item)) placeMargin(column);
+        item.style.top = `${Math.max(0, shownBox(target).top - column.top)}px`;
       },
     };
   }
 
-  function kindsIn(entry) {
+  function kindsIn(entry, { markerOnly = false } = {}) {
     const counts = new Map();
-    for (const item of entry.items)
-      counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+    for (const item of entry.items) {
+      if (!markerOnly || item.marker !== false)
+        counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+    }
     return [...counts].map(([kind, count]) => ({ kind, count, ...KINDS[kind] }));
   }
 
   function markerName(entry, index, anchored) {
-    const kinds = kindsIn(entry)
+    const kinds = kindsIn(entry, { markerOnly: true })
       .map(({ label, count }) => `${label}${count > 1 ? `s (${count})` : ""}`)
       .join(", ");
     const main = document.querySelector("main");
@@ -319,8 +517,8 @@ export function createLivingMargin(dependencies) {
   }
 
   function availableRows() {
-    return [...toolbar.querySelectorAll(".lf-margin-marker:not(.lf-waiting)")].filter(
-      (row) => row.checkVisibility(),
+    return [...rows.values()].filter(
+      (row) => !row.hidden && !row.closest(".lf-waiting") && row.checkVisibility(),
     );
   }
 
@@ -401,43 +599,38 @@ export function createLivingMargin(dependencies) {
     next.focus({ preventScroll: true });
   }
 
-  keys(
-    toolbar,
-    "In the page map",
-    [
-      {
-        id: "margin.walk",
-        keys: ["ArrowUp", "ArrowDown"],
-        does: "Walk the visible page-map markers",
-        line: "walk the page map",
-        repeat: true,
-        run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
-      },
-      {
-        id: "margin.first",
-        keys: ["Home"],
-        does: "First visible page-map marker",
-        line: "first marker",
-        run: () => walkMarkers(0, "first"),
-      },
-      {
-        id: "margin.last",
-        keys: ["End"],
-        does: "Last visible page-map marker",
-        line: "last marker",
-        run: () => walkMarkers(0, "last"),
-      },
-      {
-        id: "margin.preview-close",
-        keys: ["Escape"],
-        does: "Close the page-map preview",
-        line: "close preview",
-        when: () => !preview.hidden,
-        run: () => closePreview(true),
-      },
-    ],
-    () => visibleRows().length > 0,
-  );
+  const marginKeys = [
+    {
+      id: "margin.walk",
+      keys: ["ArrowUp", "ArrowDown"],
+      does: "Walk the visible page-map markers",
+      line: "walk the page map",
+      repeat: true,
+      run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
+    },
+    {
+      id: "margin.first",
+      keys: ["Home"],
+      does: "First visible page-map marker",
+      line: "first marker",
+      run: () => walkMarkers(0, "first"),
+    },
+    {
+      id: "margin.last",
+      keys: ["End"],
+      does: "Last visible page-map marker",
+      line: "last marker",
+      run: () => walkMarkers(0, "last"),
+    },
+    {
+      id: "margin.preview-close",
+      keys: ["Escape"],
+      does: "Close the page-map preview",
+      line: "close preview",
+      when: () => !preview.hidden,
+      run: () => closePreview(true),
+    },
+  ];
   keys(
     preview,
     "In a page-map preview",
@@ -468,18 +661,18 @@ export function createLivingMargin(dependencies) {
   );
 
   function paintMarker(row, entry, index, anchored) {
+    const markerKinds = kindsIn(entry, { markerOnly: true });
     row.lfEntry = entry;
-    row.dataset.lfKinds = kindsIn(entry)
-      .map(({ kind }) => kind)
-      .join(" ");
+    row.hidden = markerKinds.length === 0;
+    row.dataset.lfKinds = markerKinds.map(({ kind }) => kind).join(" ");
     row.setAttribute("aria-label", markerName(entry, index, anchored));
-    row.title = kindsIn(entry)
+    row.title = markerKinds
       .map(({ label, count }) => `${label}${count > 1 ? `s (${count})` : ""}`)
       .join(" · ");
     row.setAttribute("aria-controls", preview.id);
     row.setAttribute("aria-expanded", String(previewEntry?.key === entry.key));
     row.setAttribute("aria-pressed", String(pinnedKey === entry.key));
-    const wanted = kindsIn(entry).map(({ kind, symbol, label, count }) => {
+    const wanted = markerKinds.map(({ kind, symbol, label, count }) => {
       let facet = row.querySelector(`:scope > [data-lf-kind="${kind}"]`);
       if (!facet) {
         facet = el("span", `lf-margin-facet lf-margin-${kind}`);
@@ -490,13 +683,14 @@ export function createLivingMargin(dependencies) {
       facet.title = count > 1 ? `${count} ${label.toLowerCase()}s` : label;
       return facet;
     });
-    if (entry.items.length > 1) {
+    const markerCount = entry.items.filter((item) => item.marker !== false).length;
+    if (markerCount > 1) {
       let count = row.querySelector(":scope > .lf-margin-count");
       if (!count) {
         count = el("span", "lf-margin-count");
         count.setAttribute("aria-hidden", "true");
       }
-      count.textContent = entry.items.length;
+      count.textContent = markerCount;
       wanted.push(count);
     }
     for (const child of [...row.children]) if (!wanted.includes(child)) child.remove();
@@ -506,6 +700,46 @@ export function createLivingMargin(dependencies) {
     });
   }
 
+  function externalPerch(target, main) {
+    if (!main) return target;
+    // A wide item must be a child of main's own positioning context. In the
+    // compact flow it belongs immediately after the rendered block that owns its
+    // target: hoisting every item to a common section makes controls for its first
+    // paragraph appear after the section's last one. A declared shadow tree still
+    // contributes to that one document-owned layer: climb through its host before
+    // placing the item, otherwise the document stylesheet cannot give a plug-in's
+    // controls the common action shape.
+    let perch = compact.matches ? (blockAt(target) ?? target) : target;
+    while (!main.contains(perch)) {
+      const root = perch.getRootNode();
+      if (!(root instanceof ShadowRoot)) return target;
+      perch = root.host;
+    }
+    if (compact.matches) return perch;
+    while (perch.parentElement !== main && main.contains(perch.parentElement))
+      perch = perch.parentElement;
+    return perch;
+  }
+
+  function syncControls(host, marker, entry) {
+    const controls = (side) =>
+      entry.offers
+        .filter((offered) => offered.side === side && offered.controls)
+        .map((offered) => offered.controls);
+    const wanted = [...controls("before"), marker, ...controls("after")];
+    for (const child of [...host.children]) if (!wanted.includes(child)) child.remove();
+    wanted.forEach((child, position) => {
+      if (host.children[position] !== child)
+        host.insertBefore(child, host.children[position] ?? null);
+    });
+  }
+
+  function moveHost(host, move) {
+    const held = host.contains(document.activeElement) ? document.activeElement : null;
+    move();
+    if (held?.isConnected) held.focus({ preventScroll: true });
+  }
+
   function render() {
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
@@ -513,42 +747,80 @@ export function createLivingMargin(dependencies) {
     currentEntries = collectEntries();
     const anchoredEntries = currentEntries.filter((entry) => entry.target);
     const live = new Set(anchoredEntries.map((entry) => entry.key));
-    for (const [key, row] of rows)
+    for (const [key, marker] of rows)
       if (!live.has(key)) {
-        unregisterMarginRow(row);
-        row.remove();
+        const host = hosts.get(key);
+        unregisterMarginRow(host);
+        host?.remove();
         rows.delete(key);
+        hosts.delete(key);
       }
+    const externalDocks = new Map();
+    let corePosition = 0;
     anchoredEntries.forEach((entry, index) => {
-      let row = rows.get(entry.key);
-      if (!row) {
-        row = offer("button", "lf-margin-marker");
-        row.onclick = (event) => {
-          togglePinned(row.lfEntry, row);
-          if (event.detail === 0 && pinnedKey === row.lfEntry.key)
+      let marker = rows.get(entry.key);
+      let host = hosts.get(entry.key);
+      if (host) host.lfEntry = entry;
+      if (!marker) {
+        host = el("div", "lf-ui lf-margin-item");
+        host.dataset.lfGen = "1";
+        host.setAttribute("role", "group");
+        marker = marginAction(offer("button", "lf-margin-marker"), {
+          glyph: "·",
+          label: "Open page details",
+          collapse: "always",
+        });
+        marker.onclick = (event) => {
+          togglePinned(marker.lfEntry, marker);
+          if (event.detail === 0 && pinnedKey === marker.lfEntry.key)
             previewList
               .querySelector("textarea, button")
               ?.focus({ preventScroll: true });
         };
-        row.addEventListener("pointerenter", () => {
+        marker.addEventListener("pointerenter", () => {
           suppressedKey = null;
-          showPreview(row.lfEntry, row);
+          showPreview(marker.lfEntry, marker);
         });
-        row.addEventListener("pointerleave", deferPreviewClose);
-        row.addEventListener("focus", () => {
-          if (suppressedKey !== row.lfEntry.key) showPreview(row.lfEntry, row);
+        marker.addEventListener("pointerleave", deferPreviewClose);
+        marker.addEventListener("focus", () => {
+          if (suppressedKey !== marker.lfEntry.key) showPreview(marker.lfEntry, marker);
         });
-        row.addEventListener("blur", deferPreviewClose);
-        toolbar.append(row);
-        rows.set(entry.key, row);
-        registerMarginRow(row, markerOptions(row));
-      } else updateMarginRow(row, markerOptions(row));
-      paintMarker(row, entry, index, anchoredEntries.length);
-    });
-    anchoredEntries.forEach((entry, index) => {
-      const row = rows.get(entry.key);
-      if (toolbar.children[index] !== row)
-        toolbar.insertBefore(row, toolbar.children[index] ?? null);
+        marker.addEventListener("blur", deferPreviewClose);
+        keys(
+          host,
+          "In the page map",
+          marginKeys,
+          () => document.activeElement === marker && visibleRows().length > 0,
+        );
+        host.lfEntry = entry;
+        rows.set(entry.key, marker);
+        hosts.set(entry.key, host);
+        registerMarginRow(host, markerOptions(host));
+      } else updateMarginRow(host, markerOptions(host));
+      host.lfEntry = entry;
+      host.dataset.lfMarginFor = entry.target.id || entry.key;
+      host.setAttribute("aria-label", `Page actions for ${entry.title}`);
+      marker.lfEntry = entry;
+      syncControls(host, marker, entry);
+      host.toggleAttribute(
+        "data-lf-claims-rail",
+        entry.offers.some((offered) => offered.claim && offered.controls),
+      );
+      if (entry.offers.length) {
+        host.dataset.lfExternal = "1";
+        const perch = externalPerch(entry.target, main);
+        const dock = externalDocks.get(perch) ?? perch;
+        if (dock.nextSibling !== host) moveHost(host, () => dock.after(host));
+        externalDocks.set(perch, host);
+      } else {
+        delete host.dataset.lfExternal;
+        if (toolbar.children[corePosition] !== host)
+          moveHost(host, () =>
+            toolbar.insertBefore(host, toolbar.children[corePosition] ?? null),
+          );
+        corePosition += 1;
+      }
+      paintMarker(marker, entry, index, anchoredEntries.length);
     });
     mapButton.hidden = currentEntries.length === 0;
     mapButton.textContent = `Map (${currentEntries.length})`;
@@ -824,6 +1096,7 @@ export function createLivingMargin(dependencies) {
   document.addEventListener("lf-actions", render);
   document.addEventListener("lf-answered", render);
   document.addEventListener("lf-comparison", render);
+  offerListeners.add(render);
   document.addEventListener("lf-margin-layout", placePreview);
   document.addEventListener(
     "scroll",

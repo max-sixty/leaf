@@ -45,10 +45,9 @@
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
   /* A fast first presentation never paints the waiting explanation. */
   --lf-presentation-delay: 300ms;
-  /* --rail, the comment margin, has no value here: it is the widest control row plus
-     its gap, which is a fact about the controls' own words and face, so lf-suggestion.js
-     measures the first row it builds and states it on the root element. The rule that
-     spends it is beside .lf-sug-actions below. */
+  /* --rail has no authored value: the shared margin measures its widest target item
+     after content modules have contributed their controls, then states that width on
+     the root. The rule that spends it is beside .lf-margin-item below. */
   /* A sidenote's strip: a column of text plus its gutter, chosen rather than measured
      off anything the way --rail is. The 360px it leaves the note sets about fifty-six
      characters of --t-5 serif. The rule that spends it is beside aside.sidenote below.
@@ -1342,46 +1341,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
-/* The controls hang in the page margin: absolute against <main> for the
- * horizontal edge, and against the anchor the widget prepends to the change for
- * the vertical — `anchor(top)` is the line that empty span sits on, mid-sentence
- * included. The row is <main>'s own child so that <main> is what `left: 100%`
- * resolves against (lf-suggestion.js hangs it there); one line tall, so two
- * changes a line apart don't collide, and the widget nudges the pair that still
- * would. Docked, it is the same box in flow at that same point: a control line
- * under the block the change sits in, wherever it can't hang clear of the column.
- * Waiting, the change is inside something collapsed and there is no line yet. */
-/* The trailing room is the ring's, reserved in the row's own box rather than subtracted
- * from the edge by whatever measures it. A row that ended exactly at the page's right
- * edge fitted and its ring did not — the page clips there, so ✗ Reject reached with the
- * keyboard wore a band with no right side. Carrying it here means the module's one
- * question ("does this row fit beside the column?") is still asked of a single measured
- * box, and nothing has to read a length out of CSS to ask it. Padding rather than
- * margin, because a margin is not in the box that gets measured. */
-.lf-sug-actions { position: absolute; left: 100%; margin-left: 22px; top: anchor(top);
-    display: inline-flex; gap: 4px; white-space: nowrap;
-    padding-right: var(--here-ring-room); }
-.lf-sug-actions.lf-waiting { display: none; }
-/* Docked rows flow, so two changes docked in one block sit on one line. What keeps the
- * ring on the last pill of the left pair off the first pill of the right one is the
- * trailing room every row carries (padding-right, above) — the same room that keeps a
- * row in the margin from ending flush against the page's clip, spent here between two
- * rows instead of between a row and an edge. */
-.lf-sug-actions.lf-docked { position: static; margin: 2px 0 12px; }
-/* The controls are .lf-pill — the margin's press, stated once in the runtime's
- * document-level vocabulary, where the 💬 that shares this margin wears it too, and
- * where the ring that says the reader is standing on one is stated with it. What is
- * here is only what a suggestion's own states add to it. */
-/* Hover is an offer, so the coloured edge is the pending row's alone: a decided one has
- * nothing left to press and its own colour to keep. Scoped rather than unsaid
- * afterwards — a hover rule undone by a later one is the shape the row form's first
- * draft got wrong. (The pill's own hover wash needs no scoping: a decided control's
- * background carries the attribute the decision wrote, which outranks it.) */
-.lf-sug-actions:not([data-lf-outcome]) .lf-sug-accept:hover { border-color: var(--ok); color: var(--ok-ink); }
-.lf-sug-actions:not([data-lf-outcome]) .lf-sug-reject:hover { border-color: var(--danger); color: var(--danger-ink); }
+/* A suggestion's contribution is an unpositioned group inside the shared target item.
+ * Its only theme rules are the semantics of the decision controls; placement, docking,
+ * packing, and the focus-ring allowance belong to .lf-margin-item below. */
+.lf-sug-actions { display: inline-flex; align-items: center; gap: 4px;
+    white-space: nowrap; }
 /* Decided. The control the user pressed states the outcome where it stood, in the
- * outcome's own colour; its pair stops showing without giving up its room, so the one
- * line a press must not disturb is the line the press leaves exactly as it found it.
+ * common action type's outcome colour; its pair stops showing without giving up its
+ * room, so the one line a press must not disturb is the line the press leaves exactly
+ * as it found it.
  * The past tense grows into room the control reserved from its own decided word as the
  * row was built (lf-suggestion.js), which is why the word can change without the box
  * doing the same.
@@ -1391,31 +1359,40 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * make any more should be. */
 .lf-sug-actions[data-lf-outcome="accept"] .lf-sug-reject,
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-accept { visibility: hidden; }
-/* Keyed on the pill rather than on the role, so it outranks the hand that rule states
- * outright instead of tying with it. */
-.lf-sug-actions[data-lf-outcome] .lf-pill { cursor: default; }
-.lf-sug-actions[data-lf-outcome="accept"] .lf-sug-accept { border-color: var(--ok);
-    color: var(--ok-ink); background: var(--ok-tint); }
-.lf-sug-actions[data-lf-outcome="reject"] .lf-sug-reject { border-color: var(--danger);
-    color: var(--danger-ink); background: var(--danger-tint); }
 
-/* The living margin is a retained projection of page state. Its markers share the
- * suggestion rail's geometry owner, so one packing pass keeps every marginal control
- * clear and every wide exhibit yields at the rows it actually meets. */
+/* The living margin is a retained projection with one item per page target. Content
+ * controls, the target's marker, and temporary communication controls are siblings in
+ * that item. One packing pass keeps those items clear, docks the whole unit when the
+ * margin is too narrow, and tells wide exhibits which occupied bands they must yield. */
 .lf-living-margin { position: absolute; z-index: 2; pointer-events: none; }
 .lf-living-margin[hidden] { display: none; }
 .lf-margin-toolbar { position: absolute; inset: 0; }
-.lf-margin-marker { position: absolute; left: 100%; width: 32px; min-height: 30px;
-    margin-left: 22px; padding: 3px; border: 1px solid var(--rule);
-    border-radius: 999px; background: var(--paper); color: var(--muted);
-    display: inline-flex; align-items: center; justify-content: center; gap: 1px;
-    font: 600 var(--t-6)/1 var(--sans); white-space: nowrap; pointer-events: auto;
-    box-shadow: 0 1px 4px color-mix(in srgb, var(--ink) 10%, transparent); cursor: pointer; }
+.lf-margin-item { position: absolute; z-index: 2; left: 100%; margin-left: 22px;
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    padding-right: var(--here-ring-room); pointer-events: auto; }
+.lf-margin-item.lf-waiting { display: none; }
+.lf-margin-item.lf-docked { position: static; max-width: 100%; margin: 2px 0 12px;
+    flex-wrap: wrap; white-space: normal; }
+/* Collapse is part of the exported page vocabulary as well as live chrome. A standing
+ * reaction keeps its word in the DOM for its accessible name, while the static page
+ * continues to paint the glyph-only receipt the reader saw. */
+.lf-margin-action[data-lf-collapse="always"] > :is(.lf-margin-action-space,
+    .lf-margin-action-label),
+.lf-margin-item.lf-condensed
+  .lf-margin-action[data-lf-collapse="auto"] > :is(.lf-margin-action-space,
+    .lf-margin-action-label) { display: none; }
+.lf-margin-reactions { display: inline-flex; align-items: center; gap: 4px;
+    margin-left: 4px; padding-left: 5px; border-left: 1px solid var(--rule);
+    white-space: nowrap; }
+.lf-margin-reactions > .lf-react-trigger { display: none; }
+.lf-margin-reactions > .lf-react-palette { display: inline-flex; align-items: center;
+    gap: 4px; flex-wrap: nowrap; }
+.lf-margin-reactions .lf-react[aria-busy="true"] { opacity: .55; }
+.lf-margin-marker { position: relative; width: 30px; padding: 3px;
+    gap: 1px; color: var(--muted); pointer-events: auto; }
+.lf-margin-marker[hidden] { display: none; }
 .lf-margin-marker:is(:hover, :focus-visible, [aria-pressed="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }
-.lf-margin-marker:is(:focus-visible, .lf-focus-visible) {
-    outline: var(--here-ring); --lf-here-ring: margin-marker; outline-offset: 2px; }
-.lf-margin-marker.lf-waiting { display: none; }
 .lf-margin-facet { width: 10px; text-align: center; }
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
@@ -1429,64 +1406,41 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-target { outline: var(--here-ring); --lf-here-ring: margin-target;
     outline-offset: calc(-1 * var(--here-ring-w)); }
 @media screen and (min-width: 900px) {
-  body:has(.lf-living-margin:not([hidden])) { --claim-map: 54px; }
+  body:has(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden])) {
+    --claim-map: 54px;
+  }
+  body:has(.lf-margin-item[data-lf-claims-rail]) {
+    --claim-rail: var(--rail, 54px);
+  }
 }
 @media screen and (min-width: 1152px) {
   body:not([data-lf-cramped]):has(
-      .lf-living-margin:not([hidden]) .lf-margin-marker[data-lf-kinds~="comment"]
+      .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])
     ) {
     --claim-map: var(--note);
   }
 }
 @media screen and (max-width: 899px) {
-  .lf-living-margin { display: none; }
+  .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none; }
 }
 @media (pointer: coarse) {
-  .lf-margin-marker { width: 44px; min-height: 44px; margin-left: 10px; }
+  .lf-margin-item { margin-left: 10px; }
+  .lf-margin-marker { width: 44px; min-height: 44px; }
 }
 @media print {
-  .lf-living-margin { display: none !important; }
+  .lf-living-margin, .lf-margin-marker.lf-margin-action { display: none !important; }
 }
-/* A page carrying a change to decide gives the rail up out of its own width,
- * rather than hanging the controls in whatever centring happens to leave over.
- * How wide is the row's own business: lf-suggestion.js measures the first row it
- * builds — controls already holding their decided words' room — and states --rail
- * on the root element, so the rail follows the controls' face instead of standing
- * here as a number.
- * Leftovers ran out in the posture a user actually reads in: the open comment
- * panel takes the right of the window, the margin thins below the row, and every
- * row docked above the change it decides — which reads as belonging to the
- * paragraph before it. Reserved here, the column simply centres in what remains,
- * and the row keeps the line it hangs beside. The rail is a strip of body's
- * padding rather than a narrower column, so it survives the panel's own margin
- * (syncLayout) without the two having to agree about anything. It is keyed on the
- * row and not on lf-suggestion, so a page whose only changes are exhibits — a
- * specimen grows no controls — spends nothing on it, and a page that has settled
- * every change keeps the rail it started with rather than shifting under the
- * user at the last decision. Below the breakpoint no strip is worth the
- * column it costs, and the widget docks as it always has; where the controls are
- * gone their room would be a blank margin, and keying on the row is what releases
- * it — paper never runs this rule, and a copy has a row only where a decision left
- * one standing. That last case is not the empty one it reads as: the control that
- * says a change was accepted is exactly what the margin was reserved for, so a
- * decided change carries its rail into the file, and the room a copy states for a
- * wide widget subtracts it (--strip-r) the way the live page's measurement does.
+/* A page carrying a target item reserves the widest stable width the shared layout has
+ * measured, rather than hanging durable apparatus in accidental leftover space. The
+ * claim is monotonic for the page's life: settling an action cannot move the column under
+ * the reader. Temporary reaction choices borrow the available RHS and dock the complete
+ * item if they do not fit; they do not enlarge this claim. Below the breakpoint the whole
+ * item docks into flow.
  *
- * Presence is also all the reservation can go on. What the row can't say is
- * whether it will use the rail, and the question feeds back on itself: a row
- * docks because it found no room, and the room is what the answer would reserve,
- * so a rail granted only to rows that aren't docked is a rail no row is ever
- * granted.
- *
- * A claim rather than the strip itself, because a sidenote claims this side too and the
- * page owes room for the wider of them rather than for both (the rule is beside body's
- * padding). A page carrying notes therefore reserves nothing on the rail's account, the
- * note's strip being the larger by a long way, and the row hangs inside it — over the
- * note, which is the arrangement aside.sidenote's own note argues for. */
+ * This is a claim rather than the strip itself because a sidenote may claim the same side;
+ * body spends the wider claim, not their sum. Presence is the pre-layout condition: asking
+ * whether the item docked would feed the reservation decision back into itself. */
 @media screen and (min-width: 900px) {
-  body:has(.lf-sug-actions) {
-    --claim-rail: var(--rail, 0px);
-  }
   /* And the right margin is spoken for where a row hangs in it, so a wide widget level
      with one grows to the left alone. The row hangs 22px off the column and the strip is
      reserved out of the far side of the page, which are not the same place once the
@@ -1496,9 +1450,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      measured, one change near the top of a page held a board 1400px below it to the
      column's width with 345px of margin standing empty beside it. The collision is a fact
      about one height, the same fact `clear` states for a sidenote on the left; a row is
-     positioned rather than floated, so no layout rule can see it, and the module that
-     hangs the rows is what knows where they ended up — it marks the exhibits whose bands
-     a row reaches (lf-suggestion.js, data-lf-yield) and this is where the mark is spent.
+     positioned rather than floated, so no layout rule can see it, and the shared margin
+     layout marks the exhibits whose bands a row reaches (data-lf-yield) here.
      Said beside the reservation because they are the two halves of taking a margin, and a
      page that reserves one without saying so is a page whose exhibits are drawn over its
      own apparatus. A copy runs no script and keeps the marks it was exported with, the

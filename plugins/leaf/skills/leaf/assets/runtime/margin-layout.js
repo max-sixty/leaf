@@ -4,6 +4,7 @@ const GAP = 4;
 let pending = 0;
 let observer = null;
 let observedColumn = null;
+let claimedRail = 0;
 
 export const marginColumn = () => document.querySelector("main") || document.body;
 
@@ -41,7 +42,7 @@ export function updateMarginRow(row, options = {}) {
 
 export function unregisterMarginRow(row) {
   rows.delete(row);
-  row?.classList.remove("lf-docked", "lf-waiting");
+  row?.classList.remove("lf-condensed", "lf-docked", "lf-waiting");
   if (row) row.style.transform = "";
   if (!rows.size) {
     observer?.disconnect();
@@ -59,14 +60,16 @@ export function layoutMarginRows() {
   pending = 0;
   const column = marginColumn();
   const columnRect = column.getBoundingClientRect();
+  const room = document.body.getBoundingClientRect().right;
   for (const [row, options] of rows) {
     if (!row.isConnected) {
       rows.delete(row);
       continue;
     }
-    row.classList.remove("lf-docked", "lf-waiting");
+    row.classList.remove("lf-condensed", "lf-docked", "lf-waiting");
     row.style.transform = "";
     options.place?.(row, columnRect);
+    if (options.condense?.(row, columnRect, room)) row.classList.add("lf-condensed");
   }
   if (!rows.size) {
     observer?.disconnect();
@@ -74,7 +77,6 @@ export function layoutMarginRows() {
     observedColumn = null;
   }
 
-  const room = document.body.getBoundingClientRect().right;
   const measured = [...rows].map(([row, options]) => {
     const anchor =
       typeof options.anchor === "function" ? options.anchor() : options.anchor;
@@ -89,6 +91,20 @@ export function layoutMarginRows() {
         (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility()),
     };
   });
+  for (const { row, options, rect } of measured) {
+    const width =
+      typeof options.claim === "function"
+        ? options.claim(row, rect)
+        : options.claim
+          ? rect.width
+          : 0;
+    if (!width) continue;
+    const margin = parseFloat(getComputedStyle(row).marginLeft) || 0;
+    const claim = Math.ceil(width + margin);
+    if (claim <= claimedRail) continue;
+    claimedRail = claim;
+    document.documentElement.style.setProperty("--rail", `${claimedRail}px`);
+  }
   const inMargin = [];
   for (const { row, options, rect, shown, hangs } of measured) {
     if (!shown) row.classList.add("lf-waiting");

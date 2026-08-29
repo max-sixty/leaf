@@ -59,6 +59,90 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
+    """The strip says which workstream is open, while one enclosing surface says how
+    far that workstream runs. Without the shared frame and inset, an inline tab starts
+    like a section heading and finishes like ordinary page flow, so the reader has no
+    visible answer to which headings and paragraphs belong to it."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "bounded tabs",
+                """
+<h1 id="heading">Parallel work</h1>
+<p id="shared">This context belongs to every workstream.</p>
+<lf-tabs id="workstreams">
+  <lf-tab id="implementation" label="Implementation">
+    <section id="implementation-section">
+      <h2 id="implementation-heading">Build the narrow path</h2>
+      <p id="implementation-end">This closing line still belongs to Implementation.</p>
+    </section>
+  </lf-tab>
+  <lf-tab id="research" label="Research">
+    <section id="research-section">
+      <h2 id="research-heading">Test the broad premise</h2>
+      <p id="research-end">This closing line still belongs to Research.</p>
+    </section>
+  </lf-tab>
+</lf-tabs>
+<section id="next-section"><h2 id="next-heading">Whole-page conclusion</h2></section>
+""",
+            )
+        ),
+    )
+    boundary = page.evaluate(
+        """() => {
+          const tabs = document.querySelector('#workstreams');
+          const strip = tabs.querySelector('.lf-tabstrip');
+          const panel = tabs.querySelector('lf-tab:not([hidden])');
+          const selected = strip.querySelector('[aria-selected="true"]');
+          const inactive = strip.querySelector('[aria-selected="false"]');
+          const opening = panel.querySelector('h2');
+          const closing = panel.querySelector('p:last-child');
+          const next = document.querySelector('#next-section');
+          const box = element => {
+            const rect = element.getBoundingClientRect();
+            return {left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom};
+          };
+          const style = element => getComputedStyle(element);
+          return {
+            tabs: box(tabs), strip: box(strip), panel: box(panel),
+            opening: box(opening), closing: box(closing), next: box(next),
+            frame: {
+              top: parseFloat(style(tabs).borderTopWidth),
+              right: parseFloat(style(tabs).borderRightWidth),
+              bottom: parseFloat(style(tabs).borderBottomWidth),
+              left: parseFloat(style(tabs).borderLeftWidth),
+              color: style(tabs).borderTopColor,
+              ground: style(tabs).backgroundColor,
+            },
+            stripGround: style(strip).backgroundColor,
+            selectedGround: style(selected).backgroundColor,
+            inactiveGround: style(inactive).backgroundColor,
+          };
+        }"""
+    )
+
+    frame_edges = tuple(
+        boundary["frame"][edge] for edge in ("top", "right", "bottom", "left")
+    )
+    assert min(frame_edges) > 0, (
+        f"the tab surface has an open edge: {boundary['frame']}"
+    )
+    assert boundary["frame"]["color"] != "rgba(0, 0, 0, 0)", boundary
+    assert boundary["selectedGround"] == boundary["frame"]["ground"], boundary
+    assert boundary["selectedGround"] != boundary["stripGround"], boundary
+    assert boundary["inactiveGround"] != boundary["selectedGround"], boundary
+    assert boundary["opening"]["top"] - boundary["strip"]["bottom"] >= 16, boundary
+    assert boundary["opening"]["left"] - boundary["tabs"]["left"] >= 16, boundary
+    assert boundary["tabs"]["right"] - boundary["opening"]["right"] >= 16, boundary
+    assert boundary["tabs"]["bottom"] - boundary["closing"]["bottom"] >= 16, boundary
+    assert boundary["next"]["top"] > boundary["tabs"]["bottom"], boundary
+    assert errors == []
+    page.close()
+
+
 def test_keys_answer_a_question_from_its_marks(browser, serve):
     """From a mark — where `d` lands — ↑/↓ walk the options clamping at the ends, a
     digit picks outright, and each option wears its digit only while a mark holds

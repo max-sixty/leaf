@@ -7,14 +7,14 @@ export function acceptData(candidate) {
     !candidate ||
     typeof candidate !== "object" ||
     Array.isArray(candidate) ||
-    !Number.isSafeInteger(candidate.revision) ||
+    !Number.isInteger(candidate.revision) ||
     candidate.revision < 0 ||
     !candidate.sources ||
     typeof candidate.sources !== "object" ||
     Array.isArray(candidate.sources)
   )
     throw new TypeError(
-      "state data must carry a JavaScript-safe non-negative revision and sources",
+      "state data must carry a non-negative integer revision and sources",
     );
   if (candidate.revision <= runtime.data.revision) return false;
   runtime.data = structuredClone(candidate);

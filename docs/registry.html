@@ -211,14 +211,14 @@
                   Each input names a <code>$data.contracts</code> contract and the
                   declared canonical string attribute whose authored value is this
                   page's source id. An optional <code>snapshot</code> names a declared
-                  JavaScript-safe positive-decimal attribute that selects an immutable
-                  source snapshot; without it the input follows the current value. An
-                  optional source attribute leaves that input absent;
-                  <code>watchData</code> delivers null. Several widgets may bind the
-                  same source to the same contract. Across immutable versions and
-                  widgets frozen into threads, one source cannot mean two contracts; use
-                  a new source id for a new meaning. A module subscribes by widget and
-                  input name, never by a package-owned source name.
+                  positive-decimal attribute that selects an immutable source snapshot;
+                  without it the input follows the current value. An optional source
+                  attribute leaves that input absent; <code>watchData</code> delivers
+                  null. Several widgets may bind the same source to the same contract.
+                  Across immutable versions and widgets frozen into threads, one source
+                  cannot mean two contracts; use a new source id for a new meaning. A
+                  module subscribes by widget and input name, never by a package-owned
+                  source name.
                 </p>
               </details>
             </div>

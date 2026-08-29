@@ -9,7 +9,7 @@ from referencing.exceptions import Unresolvable
 from .event_log import read_events
 from .files import list_revisions, revision_path
 from .registry.contract import aware_instant, json_validator
-from .schema import DATA_SOURCE_NAME, MAX_SAFE_INTEGER, MAX_SAFE_INTEGER_DIGITS
+from .schema import DATA_SOURCE_NAME
 from .structure import parse_structure
 
 
@@ -18,13 +18,8 @@ class DataError(click.ClickException):
 
 
 def valid_snapshot_id(value) -> bool:
-    """Whether a selector survives JSON's Python-to-JavaScript integer boundary."""
-    return (
-        isinstance(value, str)
-        and re.fullmatch(r"[1-9][0-9]*", value) is not None
-        and len(value) <= MAX_SAFE_INTEGER_DIGITS
-        and int(value) <= MAX_SAFE_INTEGER
-    )
+    """Whether a selector names a positive decimal data revision."""
+    return isinstance(value, str) and re.fullmatch(r"[1-9][0-9]*", value) is not None
 
 
 def declared_data_bindings(

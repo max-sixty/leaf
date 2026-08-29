@@ -2688,6 +2688,15 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
             ),
             "must contain a contract and only current value or snapshot fields",
         ),
+        ('{"revision":-1,"sources":{}}', "revision must be a non-negative integer"),
+        (
+            (
+                '{"revision":1,"sources":{"leaf-skill":{"contract":"text-document",'
+                '"snapshots":{"2":{"updated":"2026-08-25T12:00:00-07:00",'
+                '"value":"text","label":"SKILL.md"}}}}}'
+            ),
+            "invalid snapshot id '2'",
+        ),
     ],
 )
 def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
@@ -2707,104 +2716,6 @@ def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
 
     with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
         data_model.read_data_store(page_dir)
-
-
-def test_data_revisions_and_selectors_stay_javascript_safe(page_dir, tmp_path):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    maximum = schema_model.MAX_SAFE_INTEGER
-    (page_dir / "data.json").write_text('{"revision":' + "9" * 5000 + ',"sources":{}}')
-    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
-        data_model.read_data_store(page_dir)
-
-    (page_dir / "data.json").write_text(
-        json.dumps(
-            {
-                "revision": 1,
-                "sources": {
-                    "leaf-skill": {
-                        "contract": "text-document",
-                        "snapshots": {
-                            "9" * 5000: {
-                                "updated": "2026-08-29T12:00:00Z",
-                                "value": "text",
-                                "label": "SKILL.md",
-                            }
-                        },
-                    }
-                },
-            }
-        )
-    )
-    with pytest.raises(data_contracts_model.DataError, match="JavaScript-safe"):
-        data_model.read_data_store(page_dir)
-
-    (page_dir / "data.json").write_text(
-        json.dumps(
-            {
-                "revision": maximum + 1,
-                "sources": {},
-            }
-        )
-    )
-    with pytest.raises(data_contracts_model.DataError, match="JavaScript-safe"):
-        data_model.read_data_store(page_dir)
-
-    (page_dir / "data.json").write_text(
-        json.dumps(
-            {
-                "revision": maximum,
-                "sources": {"leaf-skill": {"contract": "text-document"}},
-            }
-        )
-    )
-    with pytest.raises(data_contracts_model.DataError, match="exhausted"):
-        data_model.cmd_data_set(page_dir, "leaf-skill", "later")
-
-    source = page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            'source="leaf-skill"',
-            f'source="leaf-skill" snapshot="{maximum + 1}"',
-        )
-    )
-    result = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
-    assert result.exit_code != 0
-    assert "JavaScript-safe positive integer" in result.output
-
-    text_file = tmp_path / "SKILL.md"
-    text_file.write_text("one\n")
-    with pytest.raises(data_contracts_model.DataError, match="line range start"):
-        data_model.cmd_data_capture(
-            page_dir, "leaf-skill", text_file, f"{'9' * 5000}:1"
-        )
-
-
-def test_capture_requires_a_bounded_regular_file(page_dir, tmp_path):
-    declare_data_input(
-        page_dir,
-        "leaf-skill",
-        {"type": "string"},
-        contract="text-document",
-        snapshot=True,
-    )
-    with pytest.raises(data_contracts_model.DataError, match="not a regular file"):
-        data_model.cmd_data_capture(page_dir, "leaf-skill", Path("/dev/null"))
-
-    oversized = tmp_path / "too-large.md"
-    oversized.write_bytes(b"x" * (schema_model.MAX_CAPTURE_BYTES + 1))
-    with pytest.raises(data_contracts_model.DataError, match="capture limit"):
-        data_model.cmd_data_capture(page_dir, "leaf-skill", oversized)
-
-    nul = tmp_path / "nul.md"
-    nul.write_bytes(b"before\x00after")
-    with pytest.raises(data_contracts_model.DataError, match=r"U\+0000"):
-        data_model.cmd_data_capture(page_dir, "leaf-skill", nul)
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):

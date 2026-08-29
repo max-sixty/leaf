@@ -1052,7 +1052,16 @@ ${MARK_RULES}
     .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
     /* The floating bar expands in place when there is room. Near an edge or an open
        Comments panel, the same list sits below the stable comment control and clamps to
-       the viewport. */
+       the viewport.
+
+       In place, the list holds one row. The bar is absolutely positioned, so it
+       shrink-to-fits against the room left of the page's right edge: a wrapping list
+       folds itself into that room and the bar's own box never reports the miss, which
+       leaves placePalette measuring a list that has already given up the row it is
+       being asked about. Kept on one row the bar overflows instead, which is the fact
+       the edge test reads. The stacked list wraps again — there it has a max-width of
+       its own, and rows below the bar are what it is for. */
+    .lf-fab-bar:not(.lf-react-stacked) > .lf-react-palette { flex-wrap: nowrap; }
     .lf-fab-bar.lf-react-stacked > .lf-react-palette {
       position: absolute; top: calc(100% + 6px); right: 0;
       width: max-content; max-width: calc(100vw - 16px); padding: 4px;

@@ -43,8 +43,8 @@ uv run pytest --lf --lfnf=none -x -n0
 ```
 
 Before handing over a browser-facing change, run its complete browser file and
-the everyday suite. `pre-commit run --all-files` runs Ruff and Prettier. The full
-landing gate runs both plus `uv run pytest tests --run-nightly` after rebasing.
+the everyday suite. `wt merge` runs pre-commit and the everyday suite after
+rebasing. CI adds `--run-nightly` after main moves.
 
 `scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
 and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run

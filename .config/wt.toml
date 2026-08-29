@@ -1,6 +1,6 @@
-# `wt merge` straight to main is how the repo lands, so this is the last check anything
-# gets. pre-merge rather than pre-commit, because it runs after the rebase: the tree it
-# checks is the one that becomes main.
+# `wt merge` straight to main is how the repo lands, so this is the last local check.
+# pre-merge rather than pre-commit, because it runs after the rebase: the tree it checks
+# is the one that becomes main.
 #
 # A hook that rewrites (prettier, ruff-format) fails the merge and leaves the rewrite
 # uncommitted in the worktree. Read it, then `wt merge` again — the squash sweeps it in.
@@ -10,10 +10,10 @@
 [[pre-merge]]
 checks = "pre-commit run -a"
 
-# `--run-nightly` adds the complete browser and published-site integration suites
-# before the landing pushes.
+# Broad discovery keeps the local gate quick. CI adds the nightly browser and
+# published-site integration suites after main moves.
 [[pre-merge]]
-tests = "uv run pytest tests --run-nightly"
+tests = "uv run pytest tests"
 
 [aliases]
 cloud = '''

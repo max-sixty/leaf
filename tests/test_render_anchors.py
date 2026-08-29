@@ -716,6 +716,12 @@ def test_the_composer_opens_where_the_button_stood(browser, serve):
     the moment something did. So the 💬 cleared the row and the composer it opened landed
     back on top of it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    # The margin has to be narrow enough that the bar lands on the suggestion's row:
+    # the bar carries 💬 and one ellipsis, so on a wide window it fits in the gap
+    # between the column's right edge and the row hanging beyond it and never steps
+    # anywhere. Narrower still and the row docks under its block instead, which puts
+    # it out of the bar's way again — 930 is inside both edges of that band.
+    resized(page, 930, 900)
     box = page.locator("#replace").bounding_box()
     select(
         page,

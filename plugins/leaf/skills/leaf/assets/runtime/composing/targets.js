@@ -54,7 +54,7 @@ export function createTargetSelection({
     box.bottom > covered() &&
     box.top < bottomCovered();
   // A fixed sheet can cover a page box without clipping it. Hints live above the chrome,
-  // so geometry alone would put a key on the comment panel for a card hidden behind it.
+  // so geometry alone would put a key on the thread panel for a card hidden behind it.
   // Ask the rendered stack at the hint's corner; pointer-events:none keeps an existing
   // hint from answering this question itself.
   const exposed = (box) => {

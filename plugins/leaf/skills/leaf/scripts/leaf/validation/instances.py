@@ -2,7 +2,7 @@
 
 import re
 
-from leaf.asks import asking, local_request_entry, quoted_in
+from leaf.decisions import asking, local_decision_entry, quoted_in
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
@@ -106,25 +106,27 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-def ask_region_errors(lf_elements: list, registry: dict) -> list:
-    """An x-ask region frames exactly one nested local request source.
+def decision_region_errors(lf_elements: list, registry: dict) -> list:
+    """An x-decision region frames exactly one nested local decision source.
 
     One leading direct heading is the question's visible title and the region owns its
     reading and arrival, while the x-awaits or request widget owns the answer. Requiring
     both a title and one structural source makes that split unambiguous for the browser
     walk and for `page state`; aggregate-only rollups are targets rather than sources.
-    Liveness still comes from the source's canonical ask projection.
+    Liveness still comes from the source's canonical decision projection.
     """
 
-    regions = [rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask")]
+    regions = [
+        rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-decision")
+    ]
     sources = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        declared = local_request_entry(entry)
+        declared = local_decision_entry(entry)
         if not declared or quoted_in(rec, registry):
             continue
         holder = rec.get("holder")
-        while holder and not registry.get(holder["tag"], {}).get("x-ask"):
+        while holder and not registry.get(holder["tag"], {}).get("x-decision"):
             holder = holder.get("holder")
         if holder:
             sources.setdefault(id(holder), []).append(rec)
@@ -136,15 +138,15 @@ def ask_region_errors(lf_elements: list, registry: dict) -> list:
         request = entry.get("x-request") or {}
         requires_region = (
             awaits.get("region") and asking(rec["attrs"], awaits.get("when"))
-        ) or (request.get("region") and request.get("ask") is True)
+        ) or (request.get("region") and request.get("decision") is True)
         if not requires_region or quoted_in(rec, registry):
             continue
         holder = rec.get("holder")
-        while holder and not registry.get(holder["tag"], {}).get("x-ask"):
+        while holder and not registry.get(holder["tag"], {}).get("x-decision"):
             holder = holder.get("holder")
         if not holder:
             errors.append(
-                f"{at(rec)}: this declared ask source must be inside an Ask "
+                f"{at(rec)}: this declared decision source must be inside a Decision "
                 "with a heading"
             )
     for region in regions:
@@ -155,7 +157,7 @@ def ask_region_errors(lf_elements: list, registry: dict) -> list:
         ]
         if len(headings) != 1:
             errors.append(
-                f"{at(region)}: an Ask must have exactly one direct heading, "
+                f"{at(region)}: a Decision must have exactly one direct heading, "
                 f"found {headings or 'none'}"
             )
         elif region["direct"][0] != headings[0]:
@@ -163,7 +165,7 @@ def ask_region_errors(lf_elements: list, registry: dict) -> list:
                 "text" if region["direct"][0] == "#text" else f"<{region['direct'][0]}>"
             )
             errors.append(
-                f"{at(region)}: an Ask's direct heading must be its first content, "
+                f"{at(region)}: a Decision's direct heading must be its first content, "
                 f"found {first} first"
             )
         nested = sources[id(region)]
@@ -172,7 +174,7 @@ def ask_region_errors(lf_elements: list, registry: dict) -> list:
                 f"<{rec['tag']}#{rec['attrs'].get('id') or '?'}>" for rec in nested
             ]
             errors.append(
-                f"{at(region)}: an Ask must frame exactly one declared ask source, "
+                f"{at(region)}: a Decision must frame exactly one declared decision source, "
                 f"found {found or 'none'}"
             )
     return errors
@@ -183,7 +185,7 @@ def request_offer_errors(lf_elements: list, registry: dict) -> list:
 
     The registry declares a holder's complete verb vocabulary, while its direct
     children choose which verbs this particular seat offers. An empty holder would
-    otherwise enter the Ask projection with no possible answer.
+    otherwise enter the Decision projection with no possible answer.
     """
     errors = []
     for holder in lf_elements:
@@ -274,7 +276,7 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
-    """Conditional asks and conversation seats need an id when they are live.
+    """Conditional Decisions and conversation seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -454,7 +456,7 @@ def fragment_errors(parser: _StructParser, registry: dict) -> list:
         + widget_errors(parser.lf_elements, registry)
         + visual_part_errors(parser.lf_elements, registry)
         + addressable_instance_errors(parser.lf_elements, registry)
-        + ask_region_errors(parser.lf_elements, registry)
+        + decision_region_errors(parser.lf_elements, registry)
         + request_offer_errors(parser.lf_elements, registry)
         + language_class_errors(parser.language_blocks, registry)
         + declared_word_errors(parser.lf_elements, registry)

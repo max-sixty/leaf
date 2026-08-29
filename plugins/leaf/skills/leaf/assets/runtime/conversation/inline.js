@@ -1,4 +1,4 @@
-/* Textual conversation views rendered outside the retained Comments list. */
+/* Textual conversation views rendered outside the retained Threads list. */
 export function createInlineConversations({
   ago,
   el,
@@ -47,7 +47,7 @@ export function createInlineConversations({
     node.lfRevision = message.edited?.id ?? "";
     node.append(head, body);
     if (message.markup) {
-      const open = offer("button", "lf-btn lf-conversation-open", "Open in Comments");
+      const open = offer("button", "lf-btn lf-conversation-open", "Open in Threads");
       open.onclick = () => showThread(message.id);
       node.append(open);
     }
@@ -81,7 +81,7 @@ export function createInlineConversations({
       if (tail.textContent !== settledBy) tail.textContent = settledBy;
     } else if (t.root.response?.kind === "version") {
       // The page seat shows what the reader proposed. Their reply workspace remains
-      // in Comments; the agent's response is the next authored version.
+      // in Threads; the agent's response is the next authored version.
       tail = null;
     } else {
       tail = thread.querySelector(":scope > .lf-say");

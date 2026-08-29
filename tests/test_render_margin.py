@@ -7,7 +7,7 @@ from axe_playwright_python.sync_playwright import Axe
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
-    ASK_PAGE,
+    DECISION_PAGE,
     _publish,
     compare_with,
     live_url,
@@ -20,14 +20,14 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
-COMMENT_ON_ASK = {
+COMMENT_ON_DECISION = {
     "kind": "comment",
     "author": "user",
     "revision": 1,
     "text": "Check whether these jobs can share one visit.",
     "anchor": {"section": "bracket"},
 }
-DECISION_ON_ASK = {
+OUTCOME_ON_DECISION = {
     "kind": "action",
     "author": "user",
     "revision": 1,
@@ -46,13 +46,13 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     outline the destination, but must preserve the user's place in the document.
     """
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     expect(marker).to_have_count(1)
     expect(marker.locator(".lf-margin-count")).to_have_text("2")
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"Comment, Decision, \d+ of")
+        "aria-label", re.compile(r"Comment, Outcome, \d+ of")
     )
 
     before = page.evaluate("() => document.body.scrollTop")
@@ -93,17 +93,19 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     page.close()
 
 
-def test_a_thread_can_be_answered_in_the_margin_without_opening_comments(
-    browser, serve
-):
+def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
     """The anchored thread is the margin's primary interaction surface."""
-    page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[COMMENT_ON_DECISION])
+    )
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.click()
     thread = page.locator(".lf-margin-thread")
     reply = thread.locator("textarea")
 
-    expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
+    expect(thread.locator(".lf-conversation-body")).to_have_text(
+        COMMENT_ON_DECISION["text"]
+    )
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
     expect(reply).to_have_value("Yes. One visit can cover both jobs.")
@@ -131,7 +133,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_comments(
 
 def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serve):
     """Other map meanings keep their narrow rail until a thread needs the card."""
-    page, errors = open_page(browser, serve(ASK_PAGE, events=[DECISION_ON_ASK]))
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION])
+    )
 
     def padding_right():
         return page.locator("body").evaluate(
@@ -140,7 +144,7 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
 
     assert padding_right() == "54px"
 
-    events_model.append_event(serve.page_dir, COMMENT_ON_ASK)
+    events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)
     assert padding_right() == "384px"
 
@@ -151,9 +155,9 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
 def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     target = page.locator("#bracket")
 
     def offset():
@@ -173,7 +177,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     """The rail becomes a touch-sized index when the margin no longer exists."""
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 390, 760)
     expect(page.locator(".lf-living-margin")).to_be_hidden()
@@ -181,7 +185,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
     expect(toggle).to_be_visible()
     expect(toggle).to_have_text(re.compile(r"Map \(\d+\)"))
     assert toggle.evaluate(
-        "button => button.previousElementSibling.matches('.lf-signoff, .lf-comments')"
+        "button => button.previousElementSibling.matches('.lf-signoff, .lf-threads-toggle')"
     ), "the small-screen map is not beside the primary feedback controls"
 
     before = page.evaluate("() => document.body.scrollTop")
@@ -215,9 +219,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve):
 def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve):
     """A responsive posture exposes one map surface, never both at once."""
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
 
@@ -233,7 +237,7 @@ def test_crossing_to_the_small_screen_retires_the_desktop_preview(browser, serve
 def test_crossing_to_the_wide_screen_retires_the_small_screen_sheet(browser, serve):
     """The restored desktop rail replaces, rather than layers under, the mobile map."""
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
@@ -252,7 +256,7 @@ def test_crossing_to_the_wide_screen_retires_the_small_screen_sheet(browser, ser
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open sheet is a live projection, not a snapshot from its opening press."""
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
     resized(page, 390, 760)
     page.locator(".lf-page-map-toggle").click()
@@ -275,7 +279,7 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     )
     told(page)
     expect(
-        page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]').locator(
+        page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]').locator(
             ".lf-margin-count"
         )
     ).to_have_text("3")
@@ -289,9 +293,9 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
 def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     """A pinned marker card stays current while its semantic location is retained."""
     page, errors = open_page(
-        browser, serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
     )
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.click()
     actions = page.locator(".lf-margin-preview-action")
     expect(actions).to_have_count(1)
@@ -322,14 +326,16 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
 
 def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, serve):
     """Replacing authored main must not discard focus held by retained map chrome."""
-    version_url = serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+    version_url = serve(
+        DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION]
+    )
     page, errors = open_page(browser, live_url(version_url))
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.focus()
     expect(marker).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(
-        ASK_PAGE.replace("Three jobs", "Four jobs")
+        DECISION_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -341,9 +347,11 @@ def test_a_live_version_keeps_the_reader_on_the_same_margin_location(browser, se
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     """A retained preview must outline the new document's matching destination."""
-    version_url = serve(ASK_PAGE, events=[DECISION_ON_ASK, COMMENT_ON_ASK])
+    version_url = serve(
+        DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION]
+    )
     page, errors = open_page(browser, live_url(version_url))
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment decision"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
     marker.click()
     action = page.locator(".lf-margin-preview-action")
     action.focus()
@@ -351,7 +359,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.locator("#bracket")).to_have_class(re.compile(r"lf-margin-target"))
 
     (serve.page_dir / "index.html").write_text(
-        ASK_PAGE.replace("Three jobs", "Four jobs")
+        DECISION_PAGE.replace("Three jobs", "Four jobs")
     )
     told(page)
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
@@ -365,11 +373,11 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):
     """Comparison marks are another projection, not DOM scraped by the map."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     _publish(
         serve.page_dir,
         2,
-        ASK_PAGE.replace("Three jobs", "Four jobs"),
+        DECISION_PAGE.replace("Three jobs", "Four jobs"),
         "The heading now names four jobs.",
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))

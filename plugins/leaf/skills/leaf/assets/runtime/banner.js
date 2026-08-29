@@ -97,7 +97,7 @@ export function createBanner({ agentName, ago, dot, el, presented, statusText })
   // it couldn't reach the server, not a second function's own rendering. The line is one of
   // the two things on the row that give up width when it runs out (see the theme), so what
   // a narrow window clips is a hover away, the way the version chooser's label is — worth
-  // more now that the line carries the ask and not only the state. Written every time
+  // more now that the line carries the decision and not only the state. Written every time
   // rather than only when the box clips, because whether it does is a fact about the
   // rendering and nothing here reads that back.
   const showStatus = (tone, ...parts) => {
@@ -150,7 +150,7 @@ export function createBanner({ agentName, ago, dot, el, presented, statusText })
       text = `${agentName()} is working${detail ? " — " + detail : ""}`;
     } else if (kind === "listening") {
       // Attendance is half the news; the other half is what the page wants back. The
-      // Asks count beside it says how many things are unanswered and nothing about what
+      // Decisions count beside it says how many things are unanswered and nothing about what
       // any of them is, so the claim's detail says that here in the agent's own words,
       // the way a `working` claim's says what it is doing. With nothing declared it is
       // the standing instruction, which is what a page asking nothing wanted anyway.
@@ -158,9 +158,9 @@ export function createBanner({ agentName, ago, dot, el, presented, statusText })
       // "awaits" while the judged kind stays `listening`: they name different things.
       // The kind and the server field behind it are the evidence — a watcher live on the
       // other end — and the words are the stance it supports, which is the registry's
-      // own word for a standing request to the reader (x-awaits). Wording is the seat's,
+      // own word for a standing decision for the reader (x-awaits). Wording is the seat's,
       // per `presented`, so a row in the leaves panel leads with the bare word and
-      // carries the same ask behind it.
+      // carries the same decision behind it.
       text = `${agentName()} awaits — ${detail || "select text to comment"}`;
     } else if (kind === "stalled") {
       // The claim stands, dated, with no remedy attached: a watcher is live, so the

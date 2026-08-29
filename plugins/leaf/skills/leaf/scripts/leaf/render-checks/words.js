@@ -246,7 +246,7 @@ export function unreadSyntax() {
 // wearing the .lf-ui that `says` skips on purpose, so what is asked of it is its box: a
 // span clipped to a pixel still has one wherever it renders, and none at all where it
 // doesn't. Which is only a question worth putting where the element renders at all — a
-// collapsed card, a tab nobody opened and a shut comment panel all lay out nothing, and
+// collapsed card, a tab nobody opened and a shut thread panel all lay out nothing, and
 // their rects report the ancestor rather than the widget. That is the *second* failure
 // here, a word the widget wrote and then hid. The first one, a word it never wrote, is a
 // fault wherever the element stands, since a tab the reader has not opened is a tab they

@@ -360,7 +360,7 @@ export function createAnchors(dependencies) {
     if (!item) return "";
     const tag = item.tagName.toLowerCase();
     // A widget whose kind is not its tag says which it is. Three shapes of change are all
-    // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks tray
+    // <lf-suggestion>, and naming each of them by the tag put a deletion on the decisions tray
     // under the words it proposed to remove, reading exactly like the insertion above it.
     // Asked only where an entry says there is something to ask, and answered only by an
     // element that has upgraded — before that, and for every widget that declares nothing,
@@ -384,11 +384,11 @@ export function createAnchors(dependencies) {
   // ending mid-word reads as a quote that lost its tail rather than as a name for the thing.
   const ITEM_SAYS_CAP = 52;
   // The reading is the whole answer, and it is the answer wherever the item stands. An
-  // ask carried by a message is still an ask, and it is read here exactly as an ask on
+  // decision carried by a message is still a decision, and it is read here exactly as one on
   // the page is: rooted at the item, so the panel around it is nobody's chrome (see the
   // note on `overIn`) while the item's own marks and offers still are. A veto on
   // `inChrome` stood in front of this, from the days only an anchor's section reached it:
-  // it threw the reading away and left the asks tray naming the question by its raw id.
+  // it threw the reading away and left the decisions tray naming the question by its raw id.
   function itemSays(item) {
     if (!item) return "";
     const whole = quoteFrom(textNodesUnder(item));
@@ -686,7 +686,7 @@ export function createAnchors(dependencies) {
         continue;
       }
       if (found.element) {
-        // The boxes the element shows through, for the same reason the ask ring hangs on
+        // The boxes the element shows through, for the same reason the decision ring hangs on
         // those: an outline needs a box, and a wrapper that generates none took its ring
         // to the document's origin and drew nothing there. The record is what the pass
         // clears, what the pointer hit-tests, and what the composer stands off, so all
@@ -996,7 +996,7 @@ export function createAnchors(dependencies) {
   }
 
   // Bring an element in the document to the position its caller names. A thread's element
-  // anchor takes the middle; an Ask takes the readable start so its context comes before
+  // anchor takes the middle; a Decision takes the readable start so its context comes before
   // its control. Which box does the travelling is scrollerFor's answer, asked here rather
   // than assumed: the document's scroller was written into this twice, so an element
   // standing in the panel's list was taken into view by the platform and then had this
@@ -1197,7 +1197,7 @@ export function createAnchors(dependencies) {
   // the view that was missing.
   //
   // Derived from the focus rather than written where the travel put the reader, for the
-  // reason markHere gives about the ask ring: a mark written at the arrival says where the
+  // reason markHere gives about the decision ring: a mark written at the arrival says where the
   // reader was *sent*, and goes on saying it after they have clicked away, read on down the
   // page and come back tomorrow. Every way into a thread then paints it — the quote's press,
   // t/T, a plain click on the card — because they all end in the same focus, and no

@@ -16,7 +16,7 @@ where a page's absolute /theme.css and /leaf.js resolve, and puts each example a
 own examples/<name>/versions/v1.html, which is where the runtime reads a version number
 from. What answers the three paths is `docs/session.js`, loaded in front of the runtime
 by `docs/leaf.js`: the log lives in the reader's own tab. Every control on the page is
-then the shipped one, working — the banner, the comment panel, a board that takes a drag
+then the shipped one, working — the banner, the thread panel, a board that takes a drag
 and holds it. The half no host can supply is the agent at the other end: the page
 reports itself unattended and the banner says so in the runtime's own words, and
 `docs/sitenote.js` says the whole of it in the site's own label above the document.

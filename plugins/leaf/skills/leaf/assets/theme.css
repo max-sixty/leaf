@@ -78,7 +78,7 @@
      768px and the strip. Two things ask it and they cannot share one form — the media
      query below asks it of the window, which is the only reading a file with no runtime
      behind it can get, and syncLayout asks it of the page's own box, which is the window
-     less whatever the comment panel has taken of it. A query cannot read a token and a
+     less whatever the thread panel has taken of it. A query cannot read a token and a
      token cannot see the panel, so the number is here for the runtime to read and
      written out again in the query, and test_the_strip_floor_is_one_number holds them
      together.
@@ -179,7 +179,7 @@
      annotated, and the two never look alike side by side. */
   --react: #dfd1ed40;
   /* The "you are here" ring: where the reader is standing, wherever they are
-     standing. The ask they are in wears it ([data-lf-ask], leaf.js), as do the
+     standing. The decision they are in wears it ([data-lf-decision], leaf.js), as do the
      runtime's own controls, which is where a reader backing out of the panel lands.
      One band for one fact — stated apart,
      the same ring was free to become three, and a reader would have had to learn
@@ -386,7 +386,7 @@ body { margin: 0; background: var(--paper); color: var(--ink);
  *
  * The hold is opted into by the canonical module tag as soon as the stylesheet can paint.
  * Waiting to infer it from JavaScript left one paint between HTML parse and module
- * evaluation. Runtime chrome is deliberately outside main: Comments remains usable while
+ * evaluation. Runtime chrome is deliberately outside main: Threads remains usable while
  * widgets upgrade, and its panels stand above the waiting surface. A scriptless rendering
  * therefore stays ordinary prose, while a module that never evaluates or fails before
  * reading the log leaves a fixed recovery message rather than unread authored decisions.
@@ -556,7 +556,7 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
  * Screen only, in both of its media. Paper has no window to take room from and a printed
  * page is the column's width, so leaving the rule out of print is the whole of what paper
  * needs — the same bargain it already has with every affordance a copy keeps. A copy is a
- * screen and does keep this, on its own reading of the room: it has no comment panel to
+ * screen and does keep this, on its own reading of the room: it has no thread panel to
  * yield a strip to and no session to grow one in, so the viewport is an honest answer
  * there where on the live page it is a panel's width of lie. It is an estimate all the
  * same, since `vw` counts a classic scrollbar this platform doesn't draw and no stylesheet
@@ -1191,7 +1191,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * the change is has to have. An element generating none measures (0,0) at the document's
  * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
  * Four consumers met that separately and each worked around it where it stood: the ring
- * had nothing to hang on, the ask walk's travel centred the document, a container's edge
+ * had nothing to hang on, the decision walk's travel centred the document, a container's edge
  * rule reached past the wrapper to the slots, and the widget prepends a span to itself
  * for its controls to anchor from. None of the first three arises here now. The fourth
  * outlived the reason it was written for and earns its place on another: what a widget
@@ -1419,8 +1419,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-facet { width: 10px; text-align: center; }
 .lf-margin-change { color: var(--accent); }
 .lf-margin-comment { color: var(--mark-ink); }
-.lf-margin-ask { color: var(--warn-ink); }
-.lf-margin-decision { color: var(--ok-ink); }
+.lf-margin-decision { color: var(--warn-ink); }
+.lf-margin-outcome { color: var(--ok-ink); }
 .lf-margin-activity { color: var(--accent); }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;

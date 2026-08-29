@@ -35,7 +35,7 @@ from render_support import (
     TAIL_PAGE,
     THIN_V1,
     THIN_V2,
-    THREAD_ASKS,
+    THREAD_DECISIONS,
     TWICE_PAGE,
     TWO_COPIES_PAGE,
     _publish,
@@ -319,8 +319,8 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
 def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     """A focused stream may hide the earlier context, never its collaboration state.
 
-    The shipped example opens on the narrow work in hand. A comment and an ask in
-    inactive panels still stand in the page's one Comments list and one Asks tray,
+    The shipped example opens on the narrow work in hand. A comment and a decision in
+    inactive panels still stand in the page's one Threads list and one Decisions tray,
     and either global surface opens the panel it points into. Switching panels is
     reading the page, so it leaves the event log untouched."""
     example = next(p for p in EXAMPLES if p.stem == "parallel-workstreams")
@@ -340,7 +340,7 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     assert _traffic(page).sends == sent, "switching workstreams sent an event"
     assert events_model.read_events(serve.page_dir) == before
 
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     # This test's own comment, plus whatever the example ships a log for. Counted
     # rather than fixed at one, because the number is a fact about the corpus and
     # not about tabs: the day this example seeds a thread, a `1` here reds a test
@@ -353,18 +353,18 @@ def test_workstream_tabs_share_one_collaboration_layer(browser, serve):
     comment.click()
     expect(evidence).to_have_attribute("aria-selected", "true")
 
-    page.get_by_role("button", name="Close comments").click()
-    asks = page.locator(".lf-asks")
-    expect(asks).to_have_text("Asks (2)")
-    asks.click()
-    # The row names the broader Ask's opening context now, while the options inside it
+    page.get_by_role("button", name="Close threads").click()
+    decisions = page.locator(".lf-decisions")
+    expect(decisions).to_have_text("Decisions (2)")
+    decisions.click()
+    # The row names the broader Decision's opening context now, while the options inside it
     # still take focus and own the choice.
-    hidden_ask = page.locator('.lf-asks-row[data-lf-at="bath-heat-ask"]')
-    expect(hidden_ask).to_have_count(1)
-    expect(hidden_ask).to_contain_text(
+    hidden_decision = page.locator('.lf-decisions-row[data-lf-at="bath-heat-decision"]')
+    expect(hidden_decision).to_have_count(1)
+    expect(hidden_decision).to_contain_text(
         "How should the bird bath stay open through January?"
     )
-    hidden_ask.click()
+    hidden_decision.click()
     expect(vision).to_have_attribute("aria-selected", "true")
     expect(page.locator("#bath-heat .lf-pick").first).to_be_focused()
 
@@ -595,7 +595,7 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     The face is compared because the same address vocabulary must not change voice between
     a document control and the chord layer."""
     url = serve(ADDRESSED_PAGE)
-    for event in THREAD_ASKS:
+    for event in THREAD_DECISIONS:
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
@@ -913,7 +913,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
                 "anchor": {"section": None, "quote": quote},
             },
         )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
@@ -1048,7 +1048,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
-    page.get_by_role("button", name="Close comments").click()
+    page.get_by_role("button", name="Close threads").click()
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab").click()
     page.wait_for_function(
@@ -1089,7 +1089,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     if page.locator(".lf-panel.open").count():
-        page.get_by_role("button", name="Close comments").click()
+        page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
 
     page.locator("#fig").scroll_into_view_if_needed()
@@ -1191,7 +1191,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
             },
         },
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     # Posted to the server rather than through the page, so the page hears about it
     # when its next poll asks.
     told(page)
@@ -2075,7 +2075,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
                 "anchor": {"section": "fig"},
             },
         )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
@@ -2874,7 +2874,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     line = page.locator(".lf-keyline")
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
-    for word in ["comment", "threads", "half a page", "versions"]:
+    for word in ["threads", "page down", "page up", "versions"]:
         expect(line).to_contain_text(word)
 
     page.keyboard.press("v")
@@ -2885,7 +2885,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # same claim the dispatcher reads — one statement, both surfaces.
     expect(line).to_contain_text("walk — marking changes")
     expect(line).to_contain_text("close versions")
-    for word in ["comment", "threads", "half a page", "design mode"]:
+    for word in ["threads", "page down", "page up", "design mode"]:
         expect(line).not_to_contain_text(word)
 
     # The exemption: the progressive help route still lists the mode standing over the

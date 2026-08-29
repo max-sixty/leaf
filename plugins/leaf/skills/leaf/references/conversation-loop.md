@@ -150,8 +150,8 @@ event the wait printed while ack waits for the next batch:
 
 - **Comment:** a comment with `"response": {"kind": "version", "verb": "…"}` takes no reply: incorporate
   it in the next version, then resolve it. If the revision depends on the reader,
-  open a separate exact-section thread on the same Ask with
-  `leaf comment --section <ask-id>`. Reply to other comments in-thread and revise
+  open a separate exact-section thread on the same Decision with
+  `leaf comment --section <decision-id>`. Reply to other comments in-thread and revise
   the page when warranted. A comment with `"suggestion": true` proposes exact
   replacement text; take it verbatim or reply with the reason for declining it.
 - **Layer comment:** an event with `"about": "layer"` changes the relevant Leaf
@@ -204,7 +204,7 @@ sees it, including edits and retired content. Quote exact visible authored words
 inside one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment.
 
-Use `--markup` for a small question: an `lf-ask` containing one heading and its
+Use `--markup` for a small question: an `lf-decision` containing one heading and its
 `lf-options` group. Thread markup is frozen in the log; versions neither carry
 nor revise it. Use a page widget instead when the question and its answer belong
 in the final record.
@@ -230,16 +230,16 @@ EOF
 Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.
 An ordinary reply leaves the thread open for follow-up without counting it as an
-outstanding request. Add `--awaits` when the reply's prose asks the reader to answer:
+outstanding decision. Add `--awaits` when the reply's prose asks the reader to answer:
 
 ```bash
 leaf reply <page> --to <thread-id> --awaits --text "Which store should own it?"
 ```
 
-A widget whose registry entry declares a local `x-awaits` or `x-request.ask`
-request already joins the page's ask list and keeps its thread in "Waiting on you"
-while that request stands. Leaf refuses `--awaits` beside such markup; the widget's
-state or request lifecycle is the one reading.
+A widget whose registry entry declares a local `x-awaits` or
+`x-request.decision` decision already joins the page's decision list and keeps its
+thread in "Waiting on you" while that decision stands. Leaf refuses `--awaits` beside
+such markup; the widget's state or request lifecycle is the one reading.
 
 Correct one of this session's sent messages without adding another turn:
 

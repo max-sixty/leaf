@@ -18,7 +18,7 @@ to date.
 So a claim of work has to be renewed, and the command that makes one renews it.
 `--on` names the comment thread the work is about, so one check-in moves both
 the page's line and the note the reader sees under their own words in the
-comment panel, where it stands until the agent's next word in that thread. That
+thread panel, where it stands until the agent's next word in that thread. That
 is how a claim crosses a turn boundary the session cannot write across: nothing
 in a session touches status.json while its turn is over, so work handed to a
 delegate is renewed from the delegate's own hands or not at all.

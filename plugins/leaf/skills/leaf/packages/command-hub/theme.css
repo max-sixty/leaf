@@ -63,7 +63,7 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
  * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's
  * done-fraction) is built by the lf-task upgrade. The marker vocabulary is
  * the milestone's, plus `review` in the warn tint: finished by its holder and
- * ready to be reviewed. A nested Ask assigns that review. */
+ * ready to be reviewed. A nested Decision assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;

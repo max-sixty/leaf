@@ -97,7 +97,7 @@ graph LR
               <dd>both edited anything</dd>
               <dt>Beta rate</dt>
               <dd>6.4 per 1,000 edits</dd>
-              <dt>Asks the reader</dt>
+              <dt>Reader decision</dt>
               <dd>every clash</dd>
             </dl>
             <p>
@@ -113,7 +113,7 @@ graph LR
               <dd>both edited one paragraph</dd>
               <dt>Beta rate</dt>
               <dd>2.3 per 1,000 edits</dd>
-              <dt>Asks the reader</dt>
+              <dt>Reader decision</dt>
               <dd>63 of 494 clashes</dd>
             </dl>
             <p>
@@ -348,7 +348,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
             </lf-task>
             <lf-task id="off-t-resync-workaround" status="review" owner="mobile">
               <strong>Backgrounding workaround</strong> Written and tested.
-              <lf-ask id="off-workaround-ask">
+              <lf-decision id="off-workaround-decision">
                 <h3>Should the backgrounding workaround ship?</h3>
                 <p id="off-workaround-context">
                   It resends the batch on a 20-second timer when the app is
@@ -364,13 +364,13 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                     review.</lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </lf-decision>
             </lf-task>
           </lf-task>
           <lf-task id="off-t-copy" status="review" owner="design">
             <strong>Conflict prompt copy</strong> Rewritten after five of those 63 ended
             with the reader picking the side they hadn't meant to, and saying so.
-            <lf-ask id="off-copy-ask">
+            <lf-decision id="off-copy-decision">
               <h3>Is the conflict prompt copy ready?</h3>
               <p id="off-copy-context">The proposed wording is quoted above.</p>
               <lf-options id="off-copy-review" choose>
@@ -383,7 +383,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                   review.</lf-option
                 >
               </lf-options>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task id="off-t-evict" status="blocked" owner="client">
             <strong>Store eviction</strong> Written for the answer I recommend below and
@@ -469,9 +469,9 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       </section>
 
       <section id="off-decide-store">
-        <lf-ask id="off-full-store-ask">
+        <lf-decision id="off-full-store-decision">
           <h2>What should a full store do?</h2>
-          <p id="off-store-ask">
+          <p id="off-store-decision">
             At 40 MB a workspace, something has to give. Nothing in the beta reached the
             cap, so this decides what happens to the first workspace that does. Pick one
             to settle it; if you want a fourth behaviour, the empty option under them
@@ -516,7 +516,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                 the banner telling them so.
               </p>
             </lf-option>
-            <lf-option id="off-fs-ask"
+            <lf-option id="off-fs-decision"
               ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
               <strong>Ask which documents to keep</strong>
               <dl class="facts">
@@ -527,7 +527,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                 <dt>Worst case</dt>
                 <dd>a dialog between them and their document</dd>
               </dl>
-              <p id="off-fs-ask-why">
+              <p id="off-fs-decision-why">
                 The most respectful of the three on paper. In practice it arrives
                 without warning, mid-sentence, and asks someone who came to write a
                 question about storage — and it still needs the eviction code
@@ -535,13 +535,13 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
               </p>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 
       <section id="off-decide-rollout">
-        <lf-ask id="off-rollout-ask-region">
+        <lf-decision id="off-rollout-decision-region">
           <h2>How should the rollout go?</h2>
-          <p id="off-rollout-ask">
+          <p id="off-rollout-decision">
             The beta workspaces already have it. This is about everyone else, and the
             three shapes differ mostly in how fast the iOS stall reaches people who
             never agreed to a beta.
@@ -558,7 +558,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
               >An opt-in toggle until the iOS fix lands</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-decision>
         <p id="off-rollout-day">The day itself, whichever shape wins:</p>
         <ol class="steps" id="off-runbook">
           <li>
@@ -653,7 +653,7 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="off-followup">
-        <lf-ask id="off-followups-ask">
+        <lf-decision id="off-followups-decision">
           <h2>What I pick up next</h2>
           <p id="off-followup-intro">
             Four jobs stand behind the ship, none of them holding it. Tick whichever you
@@ -674,7 +674,7 @@ and we have reported it; the workaround ships either way.
               >A review of what offline comments would take</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
     </main>
   </body>

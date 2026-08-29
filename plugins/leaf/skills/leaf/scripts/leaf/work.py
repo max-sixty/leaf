@@ -3,14 +3,14 @@
 import sys
 from pathlib import Path
 
-from .asks import asking, quoted_in, replayed_attrs
+from .decisions import asking, quoted_in, replayed_attrs
 from .events import build_threads, note_settlements
 from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
-    decisions,
     page_projection,
+    retirement_outcomes,
     rewritten_bodies,
 )
 from .registry.storage import require_registry
@@ -95,7 +95,7 @@ def widget_work_without_seats(
 ) -> list[str]:
     """Standing widget work the given document and vocabulary cannot show locally."""
     ignored = set(ignored)
-    decided = decisions(projection.actions, registry)
+    decided = retirement_outcomes(projection.actions, registry)
     passages = page_passages(
         html, registry, decided, rewritten_bodies(projection.actions)
     )
@@ -164,7 +164,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
         assert (
             registry is not None and widget_projection is not None and html is not None
         )
-        decided = decisions(widget_projection.actions, registry)
+        decided = retirement_outcomes(widget_projection.actions, registry)
         passages = page_passages(
             html,
             registry,
@@ -172,7 +172,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             rewritten_bodies(widget_projection.actions),
         )
         if target in passages.retired or target in passages.gone:
-            sys.exit(f"{target} is not visible under the page's standing decisions")
+            sys.exit(f"{target} is not visible under the page's standing outcomes")
         if quoted_in(widget, registry):
             sys.exit(f"{target} is quoted exhibit content, not a live page widget")
         if not widget_work_seat(widget, widget_projection, registry):

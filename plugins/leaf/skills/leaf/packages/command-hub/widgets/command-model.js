@@ -1,13 +1,13 @@
 /* Shared projection for the optional orchestration family. Leaf's kernel supplies the
- * document, log, asks, and report folds; this package owns the meaning of Command's tags.
+ * document, log, decisions, and report folds; this package owns the meaning of Command's tags.
  * Later packages may replace or add role entries under `$command.widgets`. */
 import {
-  askSource,
+  decisionSource,
   declarationFor,
   elementsDeclaring,
   layerFact,
   matchesWhen,
-  openAsks,
+  openDecisions,
   quietSince,
   quoted,
   saidAt,
@@ -162,7 +162,7 @@ function goalView(goal, open) {
 }
 
 export function commandSnapshot(plan) {
-  const open = new Set(openAsks().map(askSource));
+  const open = new Set(openDecisions().map(decisionSource));
   const goals = elementsWithCommandRole(plan, "goal").map((goal) =>
     goalView(goal, open),
   );

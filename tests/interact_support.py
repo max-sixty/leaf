@@ -108,7 +108,7 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <lf-ask id="plan-choice-ask">
+  <lf-decision id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
       <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
@@ -118,7 +118,7 @@ PAGE = """<!doctype html>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
-  </lf-ask>
+  </lf-decision>
   <lf-diagram id="flow"><pre>
 graph LR
   A --> B
@@ -447,8 +447,8 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 
 def before_choice(page, markup):
-    """Insert a fixture before the base page's titled choice Ask."""
-    start = '<lf-ask id="plan-choice-ask">'
+    """Insert a fixture before the base page's titled choice Decision."""
+    start = '<lf-decision id="plan-choice-decision">'
     return page.replace(start, markup + start)
 
 
@@ -538,13 +538,13 @@ def _board(todo, done):
 
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
-OPTIONS = """<lf-ask id="g1-ask">
+OPTIONS = """<lf-decision id="g1-decision">
   <h3>Which migration should lead?</h3>
   <lf-options id="g1" choose>
     <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
-</lf-ask>"""
+</lf-decision>"""
 
 
 def state_json(d):

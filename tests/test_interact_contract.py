@@ -323,7 +323,7 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again(page_dir
 
 
 def test_another_widget_s_answer_holds_a_thread_two_widgets_answered(page_dir):
-    """Superseding is per widget, because the ask is. Two suggestions can answer one
+    """Superseding is per widget, because the decision is. Two suggestions can answer one
     question, and deciding against the second says nothing about the first — a fold
     keyed on the thread instead of the widget would have let it."""
     threads = logged(page_dir, COMMENT, {**ACCEPT, "widget": "sug-b"}, ACCEPT, REJECT)
@@ -368,10 +368,10 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -419,10 +419,10 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -611,10 +611,10 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
     """
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
-        '<lf-ask id="run-status-ask"><h2>Which run status?</h2>'
+        '<lf-decision id="run-status-decision"><h2>Which run status?</h2>'
         '<lf-options id="run-status" choose>'
         '<lf-option id="rs-column">Column</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-decision>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -917,10 +917,10 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<lf-ask id="thread-choice-ask"><h3>Which option?</h3>'
+        '<lf-decision id="thread-choice-decision"><h3>Which option?</h3>'
         '<lf-options id="thread-choice" choose>'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></lf-decision>"
     )
     conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
 
@@ -1512,7 +1512,9 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "version response but declares no x-awaits standing request" in result.output
+    assert (
+        "version response but declares no x-awaits standing decision" in result.output
+    )
 
     del registry["lf-diagram"]["x-conversation"]["response"]
     registry["lf-diagram"]["x-awaits"] = {"rollup": True}
@@ -1651,8 +1653,8 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         ("unknown-offered-verb", "names undeclared verbs ['explode']"),
         ("unoffered-verb", "verbs ['restart'] cannot be offered"),
-        ("self-framing-ask", "declares both x-ask and x-request.ask"),
-        ("dual-ask-source", "declares both x-request.ask and x-awaits"),
+        ("self-framing-decision", "declares both x-decision and x-request.decision"),
+        ("dual-decision-source", "declares both x-request.decision and x-awaits"),
     ],
 )
 def test_an_x_request_declaration_closes_its_widget_boundary(
@@ -1700,10 +1702,10 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         registry["lf-operation"]["properties"]["verb"]["enum"].append("explode")
     elif mutation == "unoffered-verb":
         registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
-    elif mutation == "self-framing-ask":
-        operations["x-ask"] = True
+    elif mutation == "self-framing-decision":
+        operations["x-decision"] = True
         operations["x-content"] = "prose"
-    elif mutation == "dual-ask-source":
+    elif mutation == "dual-decision-source":
         operations["x-awaits"] = {"rollup": True}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -2247,7 +2249,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     never been wired up.
     Same for a blanket answer naming a verb the widget does not speak, whose button
     would call a method nothing implements — and for an until verb, which would
-    hold a thread ask open for a press no widget renders."""
+    hold a thread decision open for a press no widget renders."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2280,14 +2282,14 @@ def test_an_aggregate_only_rollup_declaration_is_valid(page_dir):
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
-        ({}, "local request declares no answer verbs"),
+        ({}, "local decision declares no answer verbs"),
         (
             {"rollup": True, "when": {"status": ["review"]}},
-            "rollup also declares local request fields ['when']",
+            "rollup also declares local decision fields ['when']",
         ),
     ],
 )
-def test_an_awaits_declaration_has_one_request_role(page_dir, declaration, message):
+def test_an_awaits_declaration_has_one_decision_role(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2311,7 +2313,7 @@ def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
 
     assert result.exit_code != 0
     assert "completion verbs" in result.output
-    assert "require their own request to be closed" in result.output
+    assert "require their own decision to be closed" in result.output
 
 
 def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir):
@@ -2830,7 +2832,7 @@ def test_the_strip_floor_is_one_number():
     """The width a page's box needs before the theme takes a margin strip out of it is
     asked by two parties that cannot share a form: a media query, which asks it of the
     window and is right for a file with no runtime behind it, and syncLayout, which asks
-    it of the page's own box because only the runtime knows what the comment panel left
+    it of the page's own box because only the runtime knows what the thread panel left
     of it. A query cannot read a token and a token cannot see the panel, so the number
     is written twice — and the second table free to disagree with the first is the shape
     this codebase keeps getting wrong. Here it is a static fact about one file, so this
@@ -3058,7 +3060,7 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
 
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-idless-ask"] = {
+    registry["lf-idless-decision"] = {
         "type": "object",
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,

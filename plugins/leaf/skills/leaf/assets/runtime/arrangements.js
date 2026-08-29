@@ -13,9 +13,9 @@ export function createArrangements({
   traysEdge,
 }) {
   publishedArrangements = [
-    { name: "the comment panel open", ...readerStore.where(PANEL_KEY), value: "1" },
+    { name: "the thread panel open", ...readerStore.where(PANEL_KEY), value: "1" },
     {
-      name: "the comment panel at the width the reader drew it to",
+      name: "the thread panel at the width the reader drew it to",
       ...readerStore.where(commentsEdge.key),
       value: "560",
     },

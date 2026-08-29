@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from leaf.anchor_capture import capture_anchor
-from leaf.asks import local_request_entry, page_awaiting_values
+from leaf.decisions import local_decision_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import append_event
 from leaf.files import (
@@ -17,9 +17,9 @@ from leaf.files import (
 from leaf.host import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import (
-    decisions,
     markup_facet,
     page_projection,
+    retirement_outcomes,
     rewritten_bodies,
 )
 from leaf.registry.storage import require_registry
@@ -117,7 +117,7 @@ def cmd_comment(
             html = revision_path(page_dir, revision).read_text(encoding="utf-8")
             registry = require_registry(page_dir)
             projection, _, _ = page_projection(html, events, registry, revision)
-            decided = decisions(projection.actions, registry)
+            decided = retirement_outcomes(projection.actions, registry)
             edited = rewritten_bodies(projection.actions)
             try:
                 anchor = capture_anchor(
@@ -159,7 +159,7 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
             sys.exit(
                 f"thread {root_id!r} requires a page version and cannot take a reply; "
                 "incorporate its request in the next version, or open a separate "
-                "thread on the same Ask with `leaf comment --section <ask-id>` if "
+                "thread on the same Decision with `leaf comment --section <decision-id>` if "
                 "you need an answer first"
             )
         fragment = check_markup(page_dir, "reply", markup, events) if markup else None
@@ -169,13 +169,13 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if local_request_entry(registry.get(rec["tag"]) or {})
+                    if local_decision_entry(registry.get(rec["tag"]) or {})
                 }
             )
             if structural:
                 sys.exit(
                     "--awaits is for a prose question; reply markup already declares "
-                    "a local request "
+                    "a local decision "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         event = {
@@ -252,7 +252,7 @@ def cmd_resolve(page_dir: Path, to: str) -> None:
         ):
             sys.exit(
                 f"thread {root_id!r} requires a page version that answers its "
-                "originating Ask, or changes its declared answer if it was already "
+                "originating Decision, or changes its declared answer if it was already "
                 "answered, before the agent can resolve it"
             )
         event = {

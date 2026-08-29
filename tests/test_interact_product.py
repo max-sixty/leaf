@@ -153,7 +153,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
 
 
 def test_an_ask_region_frames_exactly_one_request(page_dir):
-    """A broad Ask has one authored title and one source of liveness and state."""
+    """A broad Decision has one authored title and one source of liveness and state."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -168,7 +168,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
 
     assert (
         fragment_errors(
-            f'<lf-ask id="ask-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
+            f'<lf-decision id="decision-one"><h2>Choose</h2><p>Context.</p>{first}</lf-decision>',
             registry,
         )
         == []
@@ -181,46 +181,49 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
     assert (
         fragment_errors(
-            f'<lf-ask id="ask-request"><h2>Recover it</h2>{request}</lf-ask>',
+            f'<lf-decision id="decision-request"><h2>Recover it</h2>{request}</lf-decision>',
             registry,
         )
         == []
     )
 
     outside = fragment_errors(first, registry)
-    assert "this declared ask source must be inside an Ask with a heading" in " ".join(
-        outside
+    assert (
+        "this declared decision source must be inside a Decision with a heading"
+        in " ".join(outside)
     )
     outside_request = fragment_errors(request, registry)
-    assert "this declared ask source must be inside an Ask with a heading" in " ".join(
-        outside_request
+    assert (
+        "this declared decision source must be inside a Decision with a heading"
+        in " ".join(outside_request)
     )
 
-    # Evidence can quote another request-shaped widget without giving this Ask a
+    # Evidence can quote another request-shaped widget without giving this Decision a
     # second live source. The runtime already excludes x-exhibit descendants from the
-    # Ask list, so the authored boundary must read the same relation.
+    # Decision list, so the authored boundary must read the same relation.
     with_evidence = (
-        '<lf-ask id="ask-with-evidence"><h2>Choose</h2>'
+        '<lf-decision id="decision-with-evidence"><h2>Choose</h2>'
         f'{first}<lf-specimen id="request-example" label="another request">'
-        f"{second}</lf-specimen></lf-ask>"
+        f"{second}</lf-specimen></lf-decision>"
     )
     assert fragment_errors(with_evidence, registry) == []
 
     untitled = fragment_errors(
-        f'<lf-ask id="ask-untitled"><p>Context.</p>{first}</lf-ask>', registry
+        f'<lf-decision id="decision-untitled"><p>Context.</p>{first}</lf-decision>',
+        registry,
     )
-    assert "an Ask must have exactly one direct heading, found none" in " ".join(
+    assert "a Decision must have exactly one direct heading, found none" in " ".join(
         untitled
     )
 
     retitled = fragment_errors(
-        f'<lf-ask id="ask-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
+        f'<lf-decision id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-decision>',
         registry,
     )
-    assert "an Ask must have exactly one direct heading" in " ".join(retitled)
+    assert "a Decision must have exactly one direct heading" in " ".join(retitled)
 
     context_first = fragment_errors(
-        f'<lf-ask id="ask-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-decision id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-decision>',
         registry,
     )
     assert "direct heading must be its first content, found <p> first" in " ".join(
@@ -228,7 +231,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
 
     control_first = fragment_errors(
-        f'<lf-ask id="ask-control-first">{first}<h2>Choose</h2></lf-ask>',
+        f'<lf-decision id="decision-control-first">{first}<h2>Choose</h2></lf-decision>',
         registry,
     )
     assert (
@@ -237,22 +240,24 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
 
     empty = fragment_errors(
-        '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
+        '<lf-decision id="decision-empty"><h2>Nothing to answer</h2></lf-decision>',
+        registry,
     )
-    assert "an Ask must frame exactly one declared ask source, found none" in " ".join(
-        empty
+    assert (
+        "a Decision must frame exactly one declared decision source, found none"
+        in " ".join(empty)
     )
 
     crowded = fragment_errors(
-        f'<lf-ask id="ask-crowded">{first}{second}</lf-ask>', registry
+        f'<lf-decision id="decision-crowded">{first}{second}</lf-decision>', registry
     )
     message = " ".join(crowded)
-    assert "an Ask must frame exactly one declared ask source" in message
+    assert "a Decision must frame exactly one declared decision source" in message
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
 def test_a_request_holder_offers_at_least_one_command(page_dir):
-    """A ready request seat cannot be an Ask the reader has no way to answer."""
+    """A ready request seat cannot be a decision the reader has no way to answer."""
     registry = registry_storage.load_registry(page_dir)
     empty = (
         '<lf-operations id="host-request" target="goal" worker="worker" '
@@ -310,11 +315,9 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         )
     )
 
-    group = '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose{}>'
+    group = '<lf-decision id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
-    group += (
-        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
-    )
+    group += '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-decision>'
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
@@ -333,8 +336,9 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
     assert checking_command.cmd_check(page_dir) == 0
-    assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-ask']" in (
-        capsys.readouterr().out
+    assert (
+        "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-decision']"
+        in (capsys.readouterr().out)
     )
 
 
@@ -482,7 +486,10 @@ def test_the_key_table_is_generated_from_the_registry():
     committed = keydocs.DOCS_PAGE.read_text()
 
     def said(html):
-        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", html))
+        tags = re.sub(
+            r"<[^>]*>", lambda match: re.sub(r"\s+>", ">", match.group()), html
+        )
+        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
 
     assert said(keydocs.build(committed)) == said(committed), (
         "the registry's $keys changed — rerun scripts/keydocs.py"
@@ -652,19 +659,19 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         )
 
     swapped = reply(
-        '<lf-ask id="commands-ask"><h3>Next</h3>'
+        '<lf-decision id="commands-decision"><h3>Next</h3>'
         '<lf-operations id="commands" target="worker" worker="tree" worktree="goal">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
+        "</lf-operations></lf-decision>"
     )
     assert swapped.exit_code != 0
     assert "where role='goal'" in swapped.output
 
     valid = reply(
-        '<lf-ask id="commands-ask"><h3>Next</h3>'
+        '<lf-decision id="commands-decision"><h3>Next</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
+        "</lf-operations></lf-decision>"
     )
     assert valid.exit_code == 0, valid.output
 
@@ -722,7 +729,8 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask" in unresolved.output
+        "requires a page version that answers its originating Decision"
+        in unresolved.output
     )
 
     unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
@@ -734,7 +742,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert still_unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask"
+        "requires a page version that answers its originating Decision"
         in still_unresolved.output
     )
 
@@ -752,7 +760,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     assert resolved.exit_code == 0, resolved.output
 
 
-def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
+def test_an_already_answered_decision_still_requires_its_version_response(page_dir):
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
@@ -780,7 +788,8 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
     )
     assert unrelated.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask" in unrelated.output
+        "requires a page version that answers its originating Decision"
+        in unrelated.output
     )
 
     answered = chosen.replace(" chosen", "", 1).replace(
@@ -797,7 +806,7 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
     assert resolved.exit_code == 0, resolved.output
 
 
-def test_a_version_response_can_settle_a_standing_ask(page_dir):
+def test_a_version_response_can_settle_a_standing_decision(page_dir):
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / "versions" / "v1.html").write_text(asking)
     publish(page_dir)
@@ -904,7 +913,8 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
 
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask" in unresolved.output
+        "requires a page version that answers its originating Decision"
+        in unresolved.output
     )
 
     (page_dir / "versions" / "v3.html").write_text(
@@ -947,20 +957,20 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             ],
         )
 
-    def question(ask_id, markup):
-        return f'<lf-ask id="{ask_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+    def question(decision_id, markup):
+        return f'<lf-decision id="{decision_id}"><h2>Pick?</h2>{markup}</lf-decision>'
 
     # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
     clash = reply(
         question(
-            "flow-ask",
+            "flow-decision",
             '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         )
     )
     assert clash.exit_code != 0 and "flow" in clash.output
     fresh = reply(
         question(
-            "q1-ask",
+            "q1-decision",
             '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
         )
     )
@@ -968,14 +978,14 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # A second reply can't reuse the first reply's ids either, nor its own within itself.
     again = reply(
         question(
-            "q1-ask",
+            "q1-decision",
             '<lf-options id="q1" choose><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
         )
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
         question(
-            "q2-ask",
+            "q2-decision",
             '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
         )
     )
@@ -994,7 +1004,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
     ok = reply(
         question(
-            "quoted-ask",
+            "quoted-decision",
             '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
         )
     )
@@ -1038,10 +1048,10 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "Pick:",
             "--markup",
             (
-                '<lf-ask id="pick-ask"><h2>Pick?</h2>'
+                '<lf-decision id="pick-decision"><h2>Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
             ),
         ],
     )
@@ -1178,10 +1188,10 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "Pick one.",
             "--markup",
             (
-                '<lf-ask id="stores-ask"><h2>Which store?</h2>'
+                '<lf-decision id="stores-decision"><h2>Which store?</h2>'
                 '<lf-options id="stores" choose>'
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
             ),
             "--awaits",
         ],
@@ -1214,11 +1224,11 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "Restart it?",
             "--markup",
             (
-                '<lf-ask id="reply-operations-ask"><h2>Restart it?</h2>'
+                '<lf-decision id="reply-operations-decision"><h2>Restart it?</h2>'
                 '<lf-operations id="reply-operations" target="goal" '
                 'worker="worker" worktree="tree">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations></lf-ask>"
+                "</lf-operations></lf-decision>"
             ),
             "--awaits",
         ],
@@ -1230,7 +1240,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     assert request_duplicate.exit_code == 1
-    assert "reply markup already declares a local request" in request_duplicate.output
+    assert "reply markup already declares a local decision" in request_duplicate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "awaits" not in replies[0]
     assert replies[1]["awaits"] is True

@@ -21,7 +21,7 @@ from leaf.styles import (
 from leaf.thread_context import thread_structure
 from leaf.validation.instances import (
     addressable_instance_errors,
-    ask_region_errors,
+    decision_region_errors,
     declared_word_errors,
     language_class_errors,
     line_ref_errors,
@@ -183,7 +183,7 @@ def _registry_errors(
         )
     )
     errors.extend(addressable_instance_errors(parser.lf_elements, registry))
-    errors.extend(ask_region_errors(parser.lf_elements, registry))
+    errors.extend(decision_region_errors(parser.lf_elements, registry))
     errors.extend(request_offer_errors(parser.lf_elements, registry))
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)

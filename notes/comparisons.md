@@ -464,7 +464,7 @@ past it costs a reconciliation design.
 
 The two route a person's attention at different scales. herdr answers which of your
 sessions needs you, and published plugins forward that signal to a phone when an agent
-goes `blocked`. leaf's banner counts the open asks inside one page and its keyboard walk
+goes `blocked`. leaf's banner counts the open decisions inside one page and its keyboard walk
 steps through them, for a reader who already has the page open. A leaf session is an agent
 at a terminal, so it is the kind of thing that sits in a herdr pane, and the page it
 serves is content herdr has no opinion about.
@@ -627,7 +627,7 @@ travel is every key that makes the vocabulary leaf's: `x-state` names a verb, it
 form and its fold unit so replay and undo can work over a log a catalog has no counterpart
 for; `x-parent` and `x-retired-when` describe a settlement the log adjudicates; the passage
 keys bound what a file's reading may claim about a page; `x-awaits` feeds the banner's
-count and the walk through open asks. Strip those and what ships is twenty-eight tags of
+count and the walk through open decisions. Strip those and what ships is twenty-eight tags of
 styled HTML, which is a stylesheet. So the question settles: leaf is mostly the loop, and
 the vocabulary is what the loop is written in terms of rather than something that stands
 on its own.
@@ -711,7 +711,7 @@ reach, roughly in order of how badly the omission dates this one:
   replace the terminal, where leaf sits beside it.
 - **Human-in-the-loop inboxes** — LangChain's Agent Inbox and `humanInTheLoopMiddleware`,
   HumanLayer routing approvals to Slack or email. Approve, edit, reject or respond, on a
-  paused tool call. leaf's asks are the same act on a page instead of in a queue.
+  paused tool call. leaf's decisions are the same act on a page instead of in a queue.
 - **In-app annotators** — InstantCode, Agentation, pi-annotate, Vibe Annotations: click an
   element in your running app, leave a note, and the agent gets the DOM path back. The
   same gesture as a leaf comment, aimed at software rather than at a document.

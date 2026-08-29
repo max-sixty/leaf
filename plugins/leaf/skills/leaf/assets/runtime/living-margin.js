@@ -8,8 +8,8 @@ import {
 const KINDS = {
   change: { label: "Change", symbol: "Δ", priority: 0 },
   comment: { label: "Comment", symbol: "¶", priority: 1 },
-  ask: { label: "Ask", symbol: "?", priority: 2 },
-  decision: { label: "Decision", symbol: "✓", priority: 3 },
+  decision: { label: "Decision", symbol: "?", priority: 2 },
+  outcome: { label: "Outcome", symbol: "✓", priority: 3 },
   activity: { label: "Agent activity", symbol: "↻", priority: 4 },
 };
 
@@ -62,13 +62,13 @@ export function createLivingMargin(dependencies) {
     compact,
     el,
     elementById,
-    goToAsk,
+    goToDecision,
     inChrome,
     itemSays,
     itemWord,
     keys,
     offer,
-    openAsks,
+    openDecisions,
     pageScroller,
     paintKeys,
     placedAt,
@@ -90,7 +90,7 @@ export function createLivingMargin(dependencies) {
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, comments, asks, decisions, and activity",
+    "Changes, comments, decisions, outcomes, and activity",
   );
   nav.append(toolbar);
   chromeRoot.append(nav);
@@ -206,17 +206,17 @@ export function createLivingMargin(dependencies) {
       });
     }
 
-    const asks = openAsks();
-    for (const ask of asks) {
-      const id = ask.id;
-      add(groups, ask, {
-        kind: "ask",
-        id: `ask:${id}`,
-        text: trimmed(`${itemWord(ask)} · ${itemSays(ask) || id}`),
+    const decisions = openDecisions();
+    for (const decision of decisions) {
+      const id = decision.id;
+      add(groups, decision, {
+        kind: "decision",
+        id: `decision:${id}`,
+        text: trimmed(`${itemWord(decision)} · ${itemSays(decision) || id}`),
         activate: () => {
-          const standing = openAsks();
+          const standing = openDecisions();
           const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, standing);
+          if (next) goToDecision(next, standing);
         },
       });
     }
@@ -230,10 +230,10 @@ export function createLivingMargin(dependencies) {
         .filter(Boolean)
         .join(" · ");
       add(groups, target, {
-        kind: "decision",
-        id: `decision:${coordinate}`,
+        kind: "outcome",
+        id: `outcome:${coordinate}`,
         text: trimmed(account),
-        activate: () => revealTarget(target, `Decision: ${account}`),
+        activate: () => revealTarget(target, `Outcome: ${account}`),
       });
     }
 
@@ -611,7 +611,7 @@ export function createLivingMargin(dependencies) {
         node?.remove();
         node = el("section", "lf-margin-thread");
         const body = el("div", "lf-margin-thread-body");
-        const open = el("button", "lf-btn lf-margin-thread-open", "Open in Comments");
+        const open = el("button", "lf-btn lf-margin-thread-open", "Open in Threads");
         open.type = "button";
         node.append(body, open);
       }

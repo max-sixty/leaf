@@ -566,7 +566,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     and it owes a reader who is listening the same fact in words. The runtime
     writes that word, so what is left to check is whether anything drew it. Asking
     is asking for a box, and only an element that is being laid out has one to give:
-    a disclosure nobody opened, a tab nobody switched to and a shut comment panel
+    a disclosure nobody opened, a tab nobody switched to and a shut thread panel
     all lay out nothing, and their emptiness is the ancestor's answer rather than
     the widget's.
 
@@ -636,7 +636,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         serve.page_dir,
         {
             "kind": "comment",
-            "id": "c-ask",
+            "id": "c-decision",
             "author": "user",
             "revision": 1,
             "text": "What would the alternative look like?",
@@ -647,7 +647,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         {
             "kind": "reply",
             "author": "claude",
-            "parent": "c-ask",
+            "parent": "c-decision",
             "revision": 1,
             "text": SPECIMEN_TEXT,
             "markup": SPECIMEN_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',

@@ -274,7 +274,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     at each target's corner decides whether it is actually exposed."""
     page, errors = open_page(browser, serve(ROOT / "examples" / "gallery.html"))
     resized(page, 700, 900)
-    page.get_by_role("button", name=re.compile(r"^Comments")).click()
+    page.get_by_role("button", name=re.compile(r"^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).not_to_have_count(0)
@@ -293,7 +293,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     )
     assert geometry["centres"]
     assert max(geometry["centres"]) < geometry["panelLeft"], (
-        f"a selection hint is painted on the covering comment panel: {geometry}"
+        f"a selection hint is painted on the covering thread panel: {geometry}"
     )
     assert errors == []
     page.close()

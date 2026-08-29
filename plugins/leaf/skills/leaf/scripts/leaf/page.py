@@ -32,7 +32,7 @@ CATALOG_FACTS = (
     ),
     ("$state", "x-state's fields — the facet, fold unit, and record forms."),
     ("$report", "x-report's fields — how a version answers a standing report."),
-    ("$awaits", "x-awaits' fields — local requests, answers, and nested rollups."),
+    ("$awaits", "x-awaits' fields — local Decisions, answers, and nested rollups."),
     (
         "$languages",
         "The languages this page colors, in a code block's class or an x-language attribute.",

@@ -1,10 +1,12 @@
-let publishedAskModel;
-export const answeredContext = (...args) => publishedAskModel.answeredContext(...args);
-export const askSource = (...args) => publishedAskModel.askSource(...args);
-export const openAsks = (...args) => publishedAskModel.openAsks(...args);
+let publishedDecisionModel;
+export const answeredContext = (...args) =>
+  publishedDecisionModel.answeredContext(...args);
+export const decisionSource = (...args) =>
+  publishedDecisionModel.decisionSource(...args);
+export const openDecisions = (...args) => publishedDecisionModel.openDecisions(...args);
 
-/* Server-projected ask state, resolved onto the browser's live DOM. */
-export function createAskModel({
+/* Server-projected decision state, resolved onto the browser's live DOM. */
+export function createDecisionModel({
   authoredParentOf,
   closestAcross,
   elementById,
@@ -14,28 +16,28 @@ export function createAskModel({
   stateProjection,
   tagsDeclaring,
 }) {
-  const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
-  const requestAskEntry = (el) => {
+  const decisionEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
+  const requestDecisionEntry = (el) => {
     const request = registry[el.tagName.toLowerCase()]?.["x-request"];
-    return request?.ask ? request : null;
+    return request?.decision ? request : null;
   };
-  const askSourceEntry = (el) => askEntry(el) ?? requestAskEntry(el);
-  const askTags = () =>
-    tagsDeclaring((entry) => entry["x-awaits"] || entry["x-request"]?.ask);
-  const askSurfaceTags = () => tagsDeclaring((entry) => entry["x-ask"]);
+  const decisionSourceEntry = (el) => decisionEntry(el) ?? requestDecisionEntry(el);
+  const decisionTags = () =>
+    tagsDeclaring((entry) => entry["x-awaits"] || entry["x-request"]?.decision);
+  const decisionSurfaceTags = () => tagsDeclaring((entry) => entry["x-decision"]);
 
-  function askSurface(el) {
-    const tags = askSurfaceTags();
+  function decisionSurface(el) {
+    const tags = decisionSurfaceTags();
     return (tags.length && closestAcross(el, tags.join(","))) || el;
   }
 
-  function askSource(el) {
-    if (askSourceEntry(el)) return el;
-    const tags = askTags();
-    if (!tags.length || !registry[el.localName]?.["x-ask"]) return el;
+  function decisionSource(el) {
+    if (decisionSourceEntry(el)) return el;
+    const tags = decisionTags();
+    if (!tags.length || !registry[el.localName]?.["x-decision"]) return el;
     return (
       [...el.querySelectorAll(tags.join(","))].find(
-        (candidate) => askSurface(candidate) === el,
+        (candidate) => decisionSurface(candidate) === el,
       ) ?? el
     );
   }
@@ -62,9 +64,9 @@ export function createAskModel({
 
   const awaitingValues = (answered) => ({
     ...(answered
-      ? runtime.view?.document?.asks?.unanswered_awaiting
-      : runtime.view?.document?.asks?.awaiting),
-    ...(runtime.browser?.conversation?.asks?.awaiting ?? {}),
+      ? runtime.view?.document?.decisions?.unanswered_awaiting
+      : runtime.view?.document?.decisions?.awaiting),
+    ...(runtime.browser?.conversation?.decisions?.awaiting ?? {}),
   });
 
   function context(answered = false) {
@@ -83,12 +85,13 @@ export function createAskModel({
     authoredParentOf(el) ??
     el.parentElement;
 
-  function asks(kind) {
+  function decisions(kind) {
     if (!pagePresented()) return [];
-    const documentAsks = runtime.view?.document?.asks?.[kind] ?? [];
-    const conversationAsks = runtime.browser?.conversation?.asks?.[kind] ?? [];
-    const elements = [...documentAsks, ...conversationAsks]
-      .map((ask) => elementById(ask.id))
+    const documentDecisions = runtime.view?.document?.decisions?.[kind] ?? [];
+    const conversationDecisions =
+      runtime.browser?.conversation?.decisions?.[kind] ?? [];
+    const elements = [...documentDecisions, ...conversationDecisions]
+      .map((decision) => elementById(decision.id))
       .filter(Boolean);
     return [...new Set(elements)].sort((left, right) => {
       if (left === right) return 0;
@@ -98,20 +101,18 @@ export function createAskModel({
     });
   }
 
-  // TODO(2026-08-28): Consider whether Decision is the clearer reader-facing name
-  // for Ask. Rename this one category if so; do not add a parallel Decision category.
-  const openAsks = () => asks("reader");
-  const unansweredAsks = () => asks("unanswered");
+  const openDecisions = () => decisions("reader");
+  const unansweredDecisions = () => decisions("unanswered");
 
   const model = {
     answeredContext,
-    askEntry,
-    askSource,
+    decisionEntry,
+    decisionSource,
     isAwaiting,
-    openAsks,
+    openDecisions,
     projectedParent,
-    unansweredAsks,
+    unansweredDecisions,
   };
-  publishedAskModel = model;
+  publishedDecisionModel = model;
   return model;
 }

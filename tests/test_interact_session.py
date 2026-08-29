@@ -779,13 +779,13 @@ def test_a_delivered_request_on_a_sent_widget_carries_its_frozen_contract(
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a conversation is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
-    '<lf-ask id="plan-choice-ask">',
+    '<lf-decision id="plan-choice-decision">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
     "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
     "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-    '</lf-suggestion>\n<lf-ask id="plan-choice-ask">',
+    '</lf-suggestion>\n<lf-decision id="plan-choice-decision">',
 )
-SETTLING_ASK = {
+SETTLING_DECISION = {
     "kind": "comment",
     "id": "c1",
     "author": "user",
@@ -803,7 +803,7 @@ SETTLING_ACCEPT = {
 
 
 def _settling_page(page_dir):
-    events_model.append_event(page_dir, dict(SETTLING_ASK))
+    events_model.append_event(page_dir, dict(SETTLING_DECISION))
     (page_dir / "versions" / "v1.html").write_text(SETTLING_PAGE)
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -2936,7 +2936,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # An id is all this can name, to a session that may no longer hold a word of
     # what was said under it, so the instruction that reaches it has to carry the
     # reading that recovers the exchange.
-    assert schema_model.ANSWER_ASK_INSTRUCTION in answer["reason"]
+    assert schema_model.ANSWER_DECISION_INSTRUCTION in answer["reason"]
 
     # A reply clears it, and the thread stays open behind it: closing one is the
     # reader's to do, so an open thread is not an unanswered one.
@@ -2946,7 +2946,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # The reader's follow-up puts the ask back, and this is the case that picks
+    # The reader's follow-up puts the decision back, and this is the case that picks
     # the reading. The browser posts a follow-up as a reply of the reader's own,
     # so a gate asking whether anyone but them has *ever* spoken is answered
     # "yes" by the reply above and never fires for this thread again — the drop
@@ -2992,9 +2992,9 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # The agent's own ask holds nothing while the reader has yet to answer it:
+    # The agent's own decision holds nothing while the reader has yet to answer it:
     # the last word there is the agent's. When they answer in the thread — which
-    # is where the panel's reply box puts it — the ask is the agent's again, and
+    # is where the panel's reply box puts it — the decision is the agent's again, and
     # it is the last word rather than any reading of the root that says so.
     ask = events_model.append_event(
         claimed,
@@ -3909,7 +3909,7 @@ def test_wait_prints_a_reaction_with_its_meaning_and_ack_covers_it(page_dir, cap
     assert page_state(page_dir)["pending"] == 0
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_ask(claimed, capsys):
+def test_a_reaction_holds_no_turn_as_an_unanswered_decision(claimed, capsys):
     """A reaction is a mark, not a question: the agent answers it by acting, so an
     acknowledged one nobody replied to does not hold the turn the way a comment
     does. Nor does an `ok` the reader put on the agent's answer hand the thread back

@@ -246,7 +246,7 @@ export function offer(tag, cls, label) {
 // largest hole a survey of this runtime found was that Space activates nine classes of
 // control across core and five widgets and only one of them ever said so. As a scope it is
 // named once in the reference, and named on the line exactly while the reader stands on
-// one — which is where the walk through the page's asks puts them.
+// one — which is where the walk through the page's decisions puts them.
 
 // A drag that ends on a control is that selection's mouseup, not a press: the
 // user was reaching for the words, and a control whose label is one of the

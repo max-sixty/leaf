@@ -138,7 +138,7 @@ export function createReactions({
   // The react press opens one surface's list. `r` uses the latest agent reply in the
   // thread the reader is standing in, an already raised bar, or the item holding focus.
   // A page with none of those has no reaction target: it says what is missing and leaves
-  // Comments alone. Page-wide reactions remain an explicit surface inside that panel.
+  // Threads alone. Page-wide reactions remain an explicit surface inside that panel.
   let reactArmed = false;
   let reactRaised = false;
   let reactFrom = null;

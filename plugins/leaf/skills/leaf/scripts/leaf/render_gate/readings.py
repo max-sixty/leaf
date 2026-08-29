@@ -4,7 +4,7 @@ import json
 
 from leaf.event_contracts import thread_universe
 from leaf.passages import EMPTY, spoken
-from leaf.projection import decisions, page_projection, retirement_holders
+from leaf.projection import page_projection, retirement_holders, retirement_outcomes
 from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
 
@@ -100,7 +100,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
             # Behind it too: the settlement mark is replay's own write, so a
             # reading taken earlier asks after paint the page has not been
             # asked to make yet. The expected outcomes are the file's, scoped
-            # to each holder's own relation: `decisions` folds any verb that
+            # to each holder's own relation: `retirement_outcomes` folds any verb that
             # retires somewhere in the vocabulary, so a verb of that name on
             # a family it settles nothing of decides nothing here — the
             # browser's write reads the per-holder relation, and a comparison
@@ -110,7 +110,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
                 projection, vparser, _ = page_projection(
                     markup, state["events"], registry, here
                 )
-                outcomes = decisions(projection.actions, registry)
+                outcomes = retirement_outcomes(projection.actions, registry)
                 holders = []
                 for h in retirement_holders(vparser, registry):
                     declared = slots[h["tag"]]

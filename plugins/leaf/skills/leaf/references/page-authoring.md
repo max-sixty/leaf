@@ -39,10 +39,10 @@ notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
 catalog is the only widget vocabulary.
 
-The runtime injects the status banner, comment sidebar, version picker, keyboard
-shortcuts, live-leaves tray, and open-asks tray. Author asks through the
-registry's request widgets and regions, but do not duplicate that chrome or
-maintain a second list of it in the page.
+The runtime injects the status banner, thread panel, version picker, keyboard
+shortcuts, live-leaves tray, and open-decisions tray. Authors declare reader
+decisions through the registry's decision widgets and regions, but do not duplicate
+that chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. The theme scrolls a `<pre>` or a table
 that runs wider than it and fits an image or SVG to it, so none of them needs a
@@ -57,7 +57,7 @@ its source rather than pinning a page width.
 ## Stable anchors
 
 Give every section, major block, and widget item a stable, meaningful `id`.
-Comments and reading position attach to those ids across versions. Keep an id
+Threads and reading position attach to those ids across versions. Keep an id
 where its passage survives, and stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
 attributes. `version check` refuses all three, including a name the runtime does
@@ -71,10 +71,10 @@ When broad context gives way to focused work, branch the live page with one
 intact into another `lf-tab` so its ids retain their comments and decisions. Put
 the current workstream first: ordering makes it the default for a reader with no
 saved panel or reading position. A saved panel or restored position takes
-precedence. Comments, asks, versions, and sign-off still cover the whole page,
+precedence. Threads, decisions, versions, and sign-off still cover the whole page,
 so none of that runtime chrome belongs inside a tab.
 
-## Asks and sign-off
+## Decisions and sign-off
 
 Put alternatives in `lf-options` with `choose`. Each option carries its title,
 case, and evidence in the option itself. When whole page sections are the
@@ -88,23 +88,23 @@ answer. In a thread the reply box is already that cell, so the group carries
 none of its own.
 
 Writing there is the reader dealing with the question, so the group stops being
-one of the page's open asks and the ball is yours. Nothing is recorded by it:
+one of the page's open decisions and the ball is yours. Nothing is recorded by it:
 the group still holds no new pick. Answer what they wrote in the authored page:
 carry their words in as another option and mark the pick it settled. If the reader
 explicitly rejects every option, settle the group without a pick. This thread
 takes no agent reply; if the revision needs an answer first, open a separate
-exact-section thread on the same Ask. Only authored state in a later version can
-answer an originating open Ask, or change its declared answer when the Ask was
+exact-section thread on the same Decision. Only authored state in a later version can
+answer an originating open Decision, or change its declared answer when the Decision was
 already answered. Reader actions before or after the proposal do not substitute
 for that revision, and an unrelated version cannot close it.
 
-An ask must name itself without context outside the ask. Begin `lf-ask` with one
+A decision must name itself without context outside the decision. Begin `lf-decision` with one
 ordinary heading, then include any introduction or evidence and the actionable
 widget. That heading is the question: it stays in the document's hierarchy, is
-available to selection and comments, names the Asks tray row, and is where `a` /
-`A` arrives. The nested widget still owns the answer or request lifecycle. An
-`lf-ask` has exactly one leading direct heading and one non-quoted local request
-declared by `x-awaits` or `x-request.ask`.
+available to selection and comments, names the Decisions tray row, and is where `d` /
+`D` arrives. The nested widget still owns the answer or request lifecycle. An
+`lf-decision` has exactly one leading direct heading and one non-quoted local decision
+declared by `x-awaits` or `x-request.decision`.
 
 Keep the author's preference in the option it belongs to as ordinary prose:
 `<em>My take: this is the safest rollout.</em>` is enough. Say why when the reason
@@ -178,7 +178,7 @@ Open words are read; collapsed words are there when the reader wants them. So
 what stands open in the column is what the reader has to take from the page, and
 its backing goes under `<details>`: the full argument, a transcript, source and
 output, how a number was reached. Collapsed words stay quotable, and the runtime
-opens the disclosure when a comment or a walk lands inside one. An ask never
+opens the disclosure when a comment or a walk lands inside one. A decision never
 collapses, and neither does the evidence it turns on.
 
 The title names the page, and the lede under it carries the finding. A section
@@ -219,7 +219,7 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 ## Interactivity and evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task's nested Ask takes a pick.
+drag, an options group takes a click, or a review task's nested Decision takes a pick.
 Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for what mermaid draws — a flow, a sequence, a state machine —

@@ -86,7 +86,7 @@ page cannot repair that behavior.
 The same line runs through the render gate's own readings, and what decides it is
 whether a reading needs a box.
 
-A reading of text or attributes may cross into the comment panel, and several do:
+A reading of text or attributes may cross into the thread panel, and several do:
 a widget an agent sent in a reply is a widget, and `unreachableWords`,
 `silentWords` and `undeclaredAttrs` answer for it. A reading of geometry may not,
 because the gate never opens the panel and a shut one has no boxes at all. Most
@@ -128,7 +128,7 @@ asserting anything about its shape.
 
 Which control wears the ring is a separate question from which one holds the focus,
 and four of the layer's rules answer it differently: a thread card wears the ring
-for anything focused inside it, an ask for whichever of its controls the reader
+for anything focused inside it, a decision for whichever of its controls the reader
 reached, a joined option group for the one its picks give up, and an element a
 focused thread is anchored to wears one with no focus of its own.
 `getComputedStyle(activeElement)` returns `no ring here` for every one, in the same
@@ -449,7 +449,7 @@ sign, and it is worse, because retrying is what usually rescues a reader from it
 positive assertion polls until the frame arrives; a negative one is satisfied by the
 first poll, and the first poll is before the frame. So it passes on the state the press
 has not reached yet and goes on passing while the paint it denies lands a frame later.
-`not_to_have_attribute("data-lf-ask", …)` read straight after a `.focus()` is green
+`not_to_have_attribute("data-lf-decision", …)` read straight after a `.focus()` is green
 whatever `markHere` is about to do. Wait on a positive fact the same frame writes — the
 key line's word, through `key_line` — and read the absence behind it. Bug-back with a
 probe that paints the mark the assertion denies, not by reverting the change: reverting

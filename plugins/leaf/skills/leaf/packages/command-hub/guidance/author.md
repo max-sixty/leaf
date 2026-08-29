@@ -16,7 +16,7 @@ only the worker's current focus.
 Put each decision or input beside the goal it blocks. The package derives the header, stopped-work
 reading, live-worker view, and action record from the tree and log. A
 project-specific goal or worker widget can join the projection through
-`$command.widgets`. Do not author a role enum, second roster, asks list, progress
+`$command.widgets`. Do not author a role enum, second roster, decisions list, progress
 count, relative report time, or another summary of the same work.
 
 The coordinating agent reads `leaf page guidance <page> coordinator` before it

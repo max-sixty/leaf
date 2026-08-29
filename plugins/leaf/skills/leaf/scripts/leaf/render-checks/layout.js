@@ -45,7 +45,7 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // because everything inside one inherits its box and would name the same fault a
 // dozen times over.
 // What stands in the page's margin by its own declaration — placed absolutely, or
-// floated clear of the column — as one reading shared by the two passes that ask:
+// floated clear of the column — as one reading shared by the two passes that decision:
 // MISPLACED_BOXES, deciding whether a wide widget was drawn over one, and
 // WITHHELD_ROOM, deciding whether an exhibit's sideways scroll answers to a margin's
 // occupant or to room the layer withheld. A resident is whatever answered for itself
@@ -70,7 +70,7 @@ export function misplacedBoxes() {
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
   // measured is the column's leftover, the rail a suggestion hangs in and the strip
-  // the comment panel takes, and an exhibit over that edge is in the margin whether or
+  // the thread panel takes, and an exhibit over that edge is in the margin whether or
   // not the window happened to scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
   // the reader's window is free to be narrower than this one.

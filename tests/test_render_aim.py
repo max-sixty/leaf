@@ -614,14 +614,14 @@ def test_design_mode_names_every_platform_control_from_the_shared_boundary(
 def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     """The banner, the panel, a control on either: what no comment could reach before.
 
-    The anchor pass passes over the runtime's own layer, so a remark about the Comments
+    The anchor pass passes over the runtime's own layer, so a remark about the Threads
     button had nowhere to land. In design mode the press on it is a comment on it —
     anchored on the part the runtime named (`lf-banner`), naming the control the press
     landed on — and the button does not do what it does: the panel stays closed."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     page.keyboard.press("i")
-    comments = page.locator(".lf-banner .lf-comments")
-    said = comments.inner_text()  # "Comments (0)" — the control's word is what it shows
+    comments = page.locator(".lf-banner .lf-threads-toggle")
+    said = comments.inner_text()  # "Threads (0)" — the control's word is what it shows
     comments.hover()
     expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
     comments.click()
@@ -641,14 +641,14 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
     page.keyboard.press("Escape")
 
-    # And the comment panel, which is the case where the aim's own geometry had nothing to
+    # And the thread panel, which is the case where the aim's own geometry had nothing to
     # say. A fixed box is not clipped by the page's scroller, and body is that scroller
     # narrowed to the column standing beside the panel — so the panel measured through its
     # ancestors came back wholly clipped away, and a mode whose row promises a click on the
     # chrome drew nothing over the chrome. Wide enough for the panel to stand beside the
     # page, which is where body and the panel part company.
     resized(page, 1280, 800)
-    page.locator(".lf-banner .lf-comments").click()
+    page.locator(".lf-banner .lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
     page.wait_for_function(
         "() => document.querySelector('.lf-panel').getBoundingClientRect().left"
@@ -657,7 +657,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page.keyboard.press("i")
     box = page.locator(".lf-panel").bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-comments")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads-toggle")
     assert page.evaluate(
         """() => {
              const aim = document.querySelector('.lf-aim').getBoundingClientRect();
@@ -685,7 +685,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     edge = EDGES[0]
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     standing = geometry(page, edge)
     page.keyboard.press("i")
@@ -789,7 +789,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     assert abs(name["x"] - box["x"]) < 4, (name, box)
     # The panel takes a strip from the page and every block moves; the legend moves
     # with them, off the resize each item reports. Opened by key: in the mode a press
-    # on the Comments button is a comment about the button.
+    # on the Threads button is a comment about the button.
     page.keyboard.press("c")
     expect(page.locator(".lf-panel")).to_be_visible()
     page.wait_for_function(
@@ -998,10 +998,10 @@ sequenceDiagram
 def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serve):
     """What a press would take can change with no mouse event to say so.
 
-    Only a pointer move used to re-ask the aim, so scrolling under a held key left the
+    Only a pointer move used to re-decision the aim, so scrolling under a held key left the
     outline on the item that had been under the pointer while a press took the one now
     there — the paint answering an old page, the claim the current one. The scroll
-    listener re-asks; this scrolls the page under a parked pointer and requires the
+    listener re-decisions; this scrolls the page under a parked pointer and requires the
     promise to answer for where the page now stands."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.mouse.move(600, 300)
@@ -1151,7 +1151,7 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".lf-comments")
+    comments = page.locator(".lf-threads-toggle")
     comments.hover()
     page.keyboard.down("Alt")
     comments.click()

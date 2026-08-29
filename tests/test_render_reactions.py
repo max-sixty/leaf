@@ -116,8 +116,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     assert -2 <= level["dy"] <= 6 and level["right"] > 0, level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
-    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
     # The panel's page row shows it standing nowhere: it is on a passage, not the page.
@@ -132,7 +132,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     # there is the same take-back as the glyph's. The panel closed first: open, it takes
     # the margin, the seat docks into the paragraph's own line, and a drag to the
     # paragraph's end would end on the glyph rather than on the words.
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     expect(page.locator(".lf-reacts")).not_to_have_class(re.compile("lf-docked"))
     select_paragraph(page, "#how-store")
@@ -161,7 +161,7 @@ def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     """`r` turns the ellipsis into the inline reaction buttons while the comment icon
     stays put. Digits remain optional accelerators in declaration order. With no
     selection, focused item, or agent reply, the key names the missing target and does
-    not borrow the page-wide strip by opening Comments."""
+    not borrow the page-wide strip by opening Threads."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
@@ -215,8 +215,8 @@ def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Page-wide reactions remain explicit inside Comments instead of being r's fallback.
-    page.locator(".lf-comments").click()
+    # Page-wide reactions remain explicit inside Threads instead of being r's fallback.
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page_strip = page.locator(".lf-page-strip")
     expect(page_strip.locator(".lf-react:visible")).to_have_count(0)
@@ -895,7 +895,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         },
     )["id"]
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
     def strip(mid):
@@ -988,7 +988,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     expect(strip).to_be_visible()
@@ -1041,7 +1041,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if removal == "filter":
         page.locator(".lf-needs").click()
@@ -1089,14 +1089,14 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
     page, errors = open_page(browser, url)
     painted(page, [["merge-both", "no"]])
-    expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
 
     conversation_model.cmd_reply(
         serve.page_dir, reaction["id"], "Which part — the case, or the answer?", ""
     )
     told(page)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
-    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
     expect(thread.locator(".lf-react-said")).to_have_text("× no")
@@ -1105,7 +1105,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
     conversation_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
     assert errors == []
     page.close()

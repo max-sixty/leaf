@@ -1,4 +1,4 @@
-/* Search and waiting-on-reader narrowing for the comment panel. */
+/* Search and waiting-on-reader narrowing for the thread panel. */
 export function createConversationNarrowing(dependencies) {
   const {
     anchorLabel,
@@ -19,9 +19,9 @@ export function createConversationNarrowing(dependencies) {
   // comment for why a remembered narrowing is the trap rather than the convenience.
   //
   // Whose turn a thread is (`awaitsReader`) belongs to the model rather than to this file,
-  // because the banner's ask count asks the same question from the other side: a request
+  // because the banner's decision count asks the same question from the other side: a request
   // whose own conversation is with the agent is not the reader's to deal with. The panel
-  // saying so while the banner went on counting the ask was one fact told two ways.
+  // saying so while the banner went on counting the decision was one fact told two ways.
   let finding = "";
   let needsYou = false;
   const narrowed = () => Boolean(finding) || needsYou;
@@ -51,7 +51,7 @@ export function createConversationNarrowing(dependencies) {
     const said = finding
       ? needsYou
         ? `Nothing waiting on you says “${finding}”.`
-        : `No comment says “${finding}”.`
+        : `No thread matches “${finding}”.`
       : "Nothing is waiting on you.";
     if (noMatch.textContent !== said) noMatch.textContent = said;
     return noMatch;
@@ -69,7 +69,7 @@ export function createConversationNarrowing(dependencies) {
   function paintNarrowing(open, shown) {
     const showing = shown.filter((t) => !t.resolved).length;
     panelTitle.textContent =
-      narrowed() && open.length ? `Showing ${showing} of ${open.length}` : "Comments";
+      narrowed() && open.length ? `Showing ${showing} of ${open.length}` : "Threads";
     const waiting = open.filter(awaitsReader).length;
     needsBtn.textContent = waiting ? `Waiting on you (${waiting})` : "Waiting on you";
     // Pressable while it stands pressed, so the reader can always let it go; dead only when

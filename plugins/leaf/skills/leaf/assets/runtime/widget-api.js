@@ -3,7 +3,7 @@
 export { ARRANGEMENTS } from "./arrangements.js";
 export { itemWord } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
-export { answeredContext, askSource, openAsks } from "./asks/model.js";
+export { answeredContext, decisionSource, openDecisions } from "./decisions/model.js";
 export { conversationBox } from "./conversation/box.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";

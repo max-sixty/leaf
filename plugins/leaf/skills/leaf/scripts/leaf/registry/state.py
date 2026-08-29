@@ -35,7 +35,7 @@ def _validate_widget_state_relations(
             )
 
     # Eligibility reuses the one awaiting projection. Close the target relation here:
-    # self and every permitted holder must declare a local request or aggregate-only
+    # self and every permitted holder must declare a local decision or aggregate-only
     # rollup. Runtime evaluators then neither guess a widget family nor maintain a
     # second representation of whether descendant reader work remains open.
     for verb, spec in entry.get("x-state", {}).items():
@@ -226,20 +226,20 @@ def _validate_widget_record_contracts(
                     'this action answers) — declare it {"type": "string"} or '
                     "rename the field"
                 )
-            # A thread is answered by the ask, and an ask is a widget
+            # A thread is answered by the decision, and a decision is a widget
             # instance (x-awaits) — so the answer is absolute across the
             # widget, and both thread builders key the standing answer on
             # the widget id, the one key a log outlives its markup with.
             # A per-part verb answering a thread would fold per part and
             # settle per widget, and the disagreement is invisible: the
             # thread reads right until a second part is acted on. Whoever
-            # writes that widget needs an ask per part first, and this is
+            # writes that widget needs a decision per part first, and this is
             # where they find that out.
             if unit != "widget":
                 raise RegistryError(
                     f"{path}: <{tag}> {channel} verb `{verb}` answers a "
                     f"comment thread (`resolves`) but folds per `{unit}` — "
-                    "a thread is answered by the ask, and an ask is the "
+                    "a thread is answered by the decision, and a decision is the "
                     "whole widget"
                 )
         undeclared = [field for field in fields if field not in detail_properties]
@@ -383,7 +383,7 @@ def _validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
 
 def _validate_awaiting_units(widgets: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
-    # more fundamental structural errors. An answer closes the whole ask, so its
+    # more fundamental structural errors. An answer closes the whole decision, so its
     # fold coordinate must be the widget rather than one detail-named child.
     for tag, entry in widgets.items():
         answers = (entry.get("x-awaits") or {}).get("answers", [])
@@ -412,7 +412,7 @@ def _validate_awaiting_units(widgets: dict, path) -> None:
         if self_circular:
             raise RegistryError(
                 f"{path}: <{tag}> x-awaits completion verbs {self_circular} "
-                "require their own request to be closed, so they cannot "
+                "require their own decision to be closed, so they cannot "
                 "complete it"
             )
         parent_circular = sorted(

@@ -15,8 +15,6 @@ from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
-    ASK_PAGE,
-    ASKS_PAGE,
     AUTHORED_LINES_PAGE,
     BARE_IDENTIFIERS_PAGE,
     BOTH_STAMPS,
@@ -24,6 +22,8 @@ from render_support import (
     COLORED_CODE_PAGE,
     COMMAND_HUB_PACKAGE,
     CUSTOM_WIDGET_PAGE,
+    DECISION_PAGE,
+    DECISIONS_PAGE,
     EDGE_IDS,
     EDGES,
     EXAMPLES,
@@ -407,8 +407,8 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
-    page.locator(".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-panel")).to_be_visible()
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
 
@@ -564,7 +564,7 @@ def test_the_render_gate_requires_a_declared_conversations_host(browser, serve):
     The shipped module first proves the gate accepts the real page. The bug-back then
     removes only its conversationBox placement from the vendored module; a fresh browser
     context prevents the clean load's module cache from answering for the changed file."""
-    url = serve(ASK_PAGE)
+    url = serve(DECISION_PAGE)
     assert render_gate_model.render_version(browser, url) == []
 
     module = serve.page_dir / "widgets" / "lf-options.js"
@@ -1116,13 +1116,13 @@ def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
     """An element the reader can see and no mark can be drawn on, which the gate reads
     without pressing a key.
 
-    The marks are the ask walk's ring and an element-anchored comment's outline, and both
+    The marks are the decision walk's ring and an element-anchored comment's outline, and both
     need a box. An element with `display: contents` generates none, so its own rect is the
     empty one every rect starts as — zero-sized at the document's origin — and the runtime
     hangs the mark on the boxes the element shows through instead. `#veiled` has one and
     is fine. `#ghost` has none, and there the paint has nowhere to land: this is the fault
-    that reached a reader as `a` appearing to do nothing at all, on a page whose remaining
-    asks were all suggestions, while the gate rendered it green.
+    that reached a reader as `d` appearing to do nothing at all, on a page whose remaining
+    decisions were all suggestions, while the gate rendered it green.
 
     TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
     for an element with no box, so it filters out exactly the elements at issue."""
@@ -1418,7 +1418,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     }"""
     roomy = page.evaluate(reading)
     resized(page, 1024, 900)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     cramped = page.evaluate(reading)
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
@@ -1554,7 +1554,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
 
 
 def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_leaf):
-    """Leaves and asks are the same furniture at two scopes, one at a time on one side of
+    """Leaves and decisions are the same furniture at two scopes, one at a time on one side of
     the window, so the width is the side's rather than either tray's. A reader who drew
     the edge out to read long names has drawn the edge, and finding the other tray back
     at its default would be one fact kept in two places — which is what a width per tray
@@ -1563,7 +1563,7 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
     tray of one — the page the reader is already on — is not worth a control, so without
     a neighbour `g l` is unavailable."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
     trays = EDGES[1]
     trays.stand(page)
     edge_settled(page, trays)
@@ -1597,17 +1597,17 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
     note is one idiom that spends it: a reading of the note would go on passing the day a
     second idiom stopped asking. Both states, because the attribute standing permanently
     would read the same way here and would cost every wide page its margins."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
     cramped = "() => document.body.hasAttribute('data-lf-cramped')"
     room = page.evaluate(cramped)
 
-    page.locator(".lf-asks").click()
+    page.locator(".lf-decisions").click()
     edge_settled(page, EDGES[1])
     standing = page.evaluate(cramped)
 
-    page.locator(".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    page.locator(".lf-decisions").click()
+    expect(page.locator(".lf-decisions-panel")).to_be_hidden()
     page.wait_for_function("() => document.body.getAnimations().length === 0")
     given_back = page.evaluate(cramped)
     page.close()
@@ -1638,10 +1638,10 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     asks is that the room never returns to a value it has left. That is true of a slide
     both ways — arriving, the room is stated at once and holds; leaving, it grows back
     frame by frame — and it is false the moment two readings disagree by a pixel."""
-    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page, errors = open_page(browser, serve(DECISIONS_PAGE))
     resized(page, 1200, 900)
     page.evaluate(ROOM_EVERY_FRAME, 60)
-    page.locator(".lf-asks").click()
+    page.locator(".lf-decisions").click()
     edge_settled(page, EDGES[1])
     page.wait_for_function("() => window.__room.length >= 60")
     trace = page.evaluate("() => window.__room")
@@ -1885,7 +1885,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     assert seeded, "no example ships a log, so the panel would open on nothing"
     page, errors = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
     # The control. A thread's own box draws its inset, and a first block reserving a
@@ -1969,12 +1969,12 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "revision": 1,
             "text": "Tick what belongs and press Done:",
             "markup": (
-                '<lf-ask id="an-set-ask"><h3>What should I carry into the patch?</h3>'
+                '<lf-decision id="an-set-decision"><h3>What should I carry into the patch?</h3>'
                 '<lf-options id="an-set" choose multiple>'
                 '<lf-option id="an-chase">Chase them monthly</lf-option>'
                 '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
                 '<lf-option id="an-say">Say what the spinner is</lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
             ),
         },
     )

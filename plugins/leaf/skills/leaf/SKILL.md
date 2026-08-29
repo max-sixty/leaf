@@ -86,7 +86,7 @@ guidance <page>` lists the available audiences, and `leaf page guidance <page>
 <audience>` prints one guide. Read the assigned audience before acting in that
 role; `page catalog` prints the `author` guide where a package supplies one.
 
-Every ask has a control beside its evidence. A page that needs approval declares
+Every decision has a control beside its evidence. A page that needs approval declares
 sign-off; an informative page does not. Save freely as the subject changes and
 stamp meaningful checkpoints. Use status detail for progress between revisions.
 Keep the waiter alive while work continues so comments can affect the next step.

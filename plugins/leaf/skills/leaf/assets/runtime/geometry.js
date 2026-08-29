@@ -65,7 +65,7 @@ export function shownBox(el) {
 // The runtime's own chrome leaves by name rather than on that test. Area read as though
 // it were doing the job, and it was doing it by luck: a suggestion hangs its controls off
 // a span with no width, so the apparatus fell out on its own. The line saying how many
-// comments a block holds is clipped to a pixel and has one — so an ask that had been
+// comments a block holds is clipped to a pixel and has one — so a decision that had been
 // commented on wore its ring on the runtime's word about the page rather than on the
 // page, and the pixel it hung from moves the first time a comment lands. That question is
 // already asked, declared labels and all, and it is the one the anchor pass puts
@@ -92,7 +92,7 @@ export function shownParts(el) {
 //
 // The walk stops at a box the viewport holds rather than the document: nothing above a
 // `position: fixed` element clips it, so the ancestors past that one are answering about a
-// flow the element left. Every box in the chrome is behind one — the comment panel is
+// flow the element left. Every box in the chrome is behind one — the thread panel is
 // fixed, and body is the page's scroller narrowed to the column beside it — so a reply box
 // measured through body's band came back wholly clipped away, at any window wide enough for
 // the panel to stand beside the page rather than over it. The one caller before this asked
@@ -135,7 +135,7 @@ export function clippedRect(box, item, clips) {
   // overflow — that clips what it holds — so its band is skipped and only its position is
   // read. Starting at the parent instead asked the question of every ancestor of a fixed
   // box and never of the box, which is the same bug one level up: in design mode the aim
-  // resolves the comment panel itself, and the panel measured through body's band came
+  // resolves the thread panel itself, and the panel measured through body's band came
   // back wholly clipped away, so a mode whose row promises a click on the chrome drew
   // nothing over the chrome.
   for (let a = item; a; a = a.parentElement) {

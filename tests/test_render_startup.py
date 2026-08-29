@@ -319,9 +319,9 @@ main, main * {
               return dialog.open && !dialog.matches(':modal');
             }"""
         ), "the widget's final non-modal state did not stand before replay"
-        assert page.get_by_role("button", name=re.compile("^Comments")).evaluate(
+        assert page.get_by_role("button", name=re.compile("^Threads")).evaluate(
             "button => { button.focus(); return document.activeElement === button; }"
-        ), "a held authored modal disabled the usable Comments chrome"
+        ), "a held authored modal disabled the usable Threads chrome"
         page.evaluate(
             "document.querySelector('#shadowed').shadowRoot"
             ".querySelector('#shadow-stale-popover').hidePopover()"
@@ -372,7 +372,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     The tray was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Opening Comments during that interval replaces the remembered tray, and replay leaves
+    Opening Threads during that interval replaces the remembered tray, and replay leaves
     the current workspace standing while it paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
@@ -391,7 +391,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-tray-up', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-tray-up', 'decisions')")
     priming.close()
 
     held = []
@@ -406,24 +406,24 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         )
         assert held, "the positive control did not hold the first state response"
         body = page.locator("body")
-        expect(body).to_have_attribute("data-lf-tray", "asks")
-        expect(page.locator(".lf-asks")).to_be_hidden()
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(body).to_have_attribute("data-lf-tray", "decisions")
+        expect(page.locator(".lf-decisions")).to_be_hidden()
+        expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
 
-        comments = page.get_by_role("button", name=re.compile("^Comments"))
+        comments = page.get_by_role("button", name=re.compile("^Threads"))
         expect(comments).to_be_enabled()
         comments.click()
-        expect(body).not_to_have_attribute("data-lf-tray", "asks")
+        expect(body).not_to_have_attribute("data-lf-tray", "decisions")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-asks")).to_be_hidden()
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(page.locator(".lf-decisions")).to_be_hidden()
+        expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-panel")).to_be_visible()
-        expect(page.locator("button.lf-asks-row")).to_have_count(0)
+        expect(page.locator("button.lf-decisions-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []
     finally:
@@ -452,8 +452,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the Markdown renderer"
 
-        page.get_by_role("button", name=re.compile("^Comments")).click()
-        expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+        page.get_by_role("button", name=re.compile("^Threads")).click()
+        expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
         expect(page.locator(".lf-thread")).to_have_count(0)
 
         held.pop(0).continue_()
@@ -835,7 +835,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     put it — so this press meets the same page those runs handed the test above, on any
     machine and in a second.
 
-    Only a press can state it. A read lives through the interval, since `expect` re-asks
+    Only a press can state it. A read lives through the interval, since `expect` re-decisions
     for five seconds and the retry lands in two; a keystroke into a page that has no
     versions yet is gone, and the chooser never opens."""
     url = serve(LONG_PAGE)
@@ -1096,7 +1096,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     d = serve.page_dir
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     events = [
         json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
@@ -1137,7 +1137,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     d = serve.page_dir
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
@@ -1183,7 +1183,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     """The chrome and initial state read do not wait behind widget startup.
 
     That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, general Comments accepts a
+    unapplied until upgrades have captured the authored page, general Threads accepts a
     send but holds it until the layer identity arrives, and an anchored comment waits until
     upgrades have made the page's final words. The explicit gate proves each assertion runs
     on the intended side of the fetch rather than racing a timer.
@@ -1234,13 +1234,13 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
     expect(page.locator("body > main")).to_be_hidden()
     expect(page.locator(".lf-banner")).to_be_visible()
-    expect(page.get_by_role("button", name=re.compile("^Comments"))).to_be_enabled()
+    expect(page.get_by_role("button", name=re.compile("^Threads"))).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()
-    expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
@@ -1301,7 +1301,7 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     # open_page's traffic watcher goes on outside this, so what it counts as answered is
     # what the page was handed — the held poll included, which is the whole subject here.
     page, errors = open_page(browser, serve(JOURNEY_V1), init_script=delay_second_state)
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     page.locator(".lf-general textarea").fill("Starts the slow poll")
     page.locator(".lf-general button").click()
     round_trip(page)
@@ -1342,7 +1342,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     response can enter that await before an older held poll; when the shared import
     finishes, the older continuation must not repaint the log backwards."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
 
     older = []
@@ -1397,7 +1397,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     poll left it up to two seconds), which `told` below waits through. The quiet
     three seconds are the half of this no faster poll could pass."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     asked = _traffic(page).asked
     page.wait_for_timeout(3000)
@@ -1417,7 +1417,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
 def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     """Two reads cross on two sockets: the earlier ask is answered later, with the
     newer state. Nothing the log orders tells such answers apart when neither carries
-    a new event — the status is not in the log — and the order the asks went out in
+    a new event — the status is not in the log — and the order the decisions went out in
     is the wrong order. Each answer says when the server took it, and the page keeps
     the later one without asking again."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -1438,18 +1438,18 @@ def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     with page.expect_request("**/api/state*"):
         declare("second")
     page.wait_for_timeout(0)  # yield from the request event to its route callback
-    # The stream restates its word every few seconds, and each restatement is an ask
+    # The stream restates its word every few seconds, and each restatement is a decision
     # while these stay unanswered, so there may be more than two. The first and the
     # last went out in that order, which is all that is asked of them.
     assert len(held) >= 2
     earlier, later = held[0], held[-1]
-    # The later ask is answered first; the earlier one after the page moves again.
+    # The later request is answered first; the earlier one after the page moves again.
     second = later.fetch().json()
     with page.expect_request("**/api/state*"):
         declare("third")
     page.wait_for_timeout(0)
-    stale_ask = held[-1]
-    assert stale_ask is not later
+    stale_request = held[-1]
+    assert stale_request is not later
     third = earlier.fetch().json()
     later.fulfill(json=second)
     expect(text).to_have_text(re.compile(r"^Claude is working — second"))
@@ -1457,10 +1457,10 @@ def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     told(page)
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
     # And an answer taken before the one the page holds is turned away however late
-    # it lands and whichever ask it answers: the third ask, answered with the second
+    # it lands and whichever request it answers: the third request, answered with the second
     # answer, must not put the status back.
     with page.expect_response("**/api/state*"):
-        stale_ask.fulfill(json=second)
+        stale_request.fulfill(json=second)
     page.title()  # let the stale answer settle before reading the page again
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
     told(page)
@@ -1475,7 +1475,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     spacing a failed exchange has always had. Without that a page would sit under
     an offline banner until something else happened to it."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     page.route("**/api/state*", refuse)
     with page.expect_event(
@@ -1506,7 +1506,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     status = page.locator(".lf-status-text")
     port = serve.httpd.server_address[1]
@@ -1709,7 +1709,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
         # What the page wants back, in the agent's words, where the reader arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
-        # clipped, and a narrow window must not be why the ask goes unread.
+        # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text("Claude awaits — pick a storage engine")
         expect(text).to_have_attribute("title", "Claude awaits — pick a storage engine")

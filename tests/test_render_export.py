@@ -317,7 +317,7 @@ def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):
     so the stamp export opens on is no promise that anything in the log has been painted.
     Ordinarily the answer is ready by then, which is why the page arrives painted however
     the wait is written and why the count being wrong stayed invisible. Refusing that
-    first read is the whole difference — replay is left to the asks on the far side of
+    first read is the whole difference — replay is left to the state reads on the far side of
     the stamp: the one the news stream prompts as it opens, and the 2s tick behind it,
     which is exactly where a loaded machine would have put it. Counting actions alone
     leaves nothing to wait for on a log holding one report, and the copy goes out blank.
@@ -386,7 +386,7 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")
     live.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-    live.locator(".lf-comments").click()
+    live.locator(".lf-threads-toggle").click()
     live.wait_for_timeout(600)
     measured = live.evaluate(inline_custom)
     live.close()

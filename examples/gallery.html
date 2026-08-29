@@ -100,7 +100,7 @@ graph LR
               <dd>both edited anything</dd>
               <dt>Beta rate</dt>
               <dd>6.4 per 1,000 edits</dd>
-              <dt>Asks the reader</dt>
+              <dt>Reader decision</dt>
               <dd>every clash</dd>
             </dl>
             <p>
@@ -116,7 +116,7 @@ graph LR
               <dd>both edited one paragraph</dd>
               <dt>Beta rate</dt>
               <dd>2.3 per 1,000 edits</dd>
-              <dt>Asks the reader</dt>
+              <dt>Reader decision</dt>
               <dd>63 of 494 clashes</dd>
             </dl>
             <p>
@@ -351,7 +351,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
             </lf-task>
             <lf-task id="off-t-resync-workaround" status="review" owner="mobile">
               <strong>Backgrounding workaround</strong> Written and tested.
-              <lf-ask id="off-workaround-ask">
+              <lf-decision id="off-workaround-decision">
                 <h3>Should the backgrounding workaround ship?</h3>
                 <p id="off-workaround-context">
                   It resends the batch on a 20-second timer when the app is
@@ -367,13 +367,13 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                     review.</lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </lf-decision>
             </lf-task>
           </lf-task>
           <lf-task id="off-t-copy" status="review" owner="design">
             <strong>Conflict prompt copy</strong> Rewritten after five of those 63 ended
             with the reader picking the side they hadn't meant to, and saying so.
-            <lf-ask id="off-copy-ask">
+            <lf-decision id="off-copy-decision">
               <h3>Is the conflict prompt copy ready?</h3>
               <p id="off-copy-context">The proposed wording is quoted above.</p>
               <lf-options id="off-copy-review" choose>
@@ -386,7 +386,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                   review.</lf-option
                 >
               </lf-options>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task id="off-t-evict" status="blocked" owner="client">
             <strong>Store eviction</strong> Written for the answer I recommend below and
@@ -472,9 +472,9 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       </section>
 
       <section id="off-decide-store">
-        <lf-ask id="off-full-store-ask">
+        <lf-decision id="off-full-store-decision">
           <h2>What should a full store do?</h2>
-          <p id="off-store-ask">
+          <p id="off-store-decision">
             At 40 MB a workspace, something has to give. Nothing in the beta reached the
             cap, so this decides what happens to the first workspace that does. Pick one
             to settle it; if you want a fourth behaviour, the empty option under them
@@ -519,7 +519,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                 the banner telling them so.
               </p>
             </lf-option>
-            <lf-option id="off-fs-ask"
+            <lf-option id="off-fs-decision"
               ><lf-chip>effort: a week</lf-chip><lf-chip tone="warn">risk: med</lf-chip>
               <strong>Ask which documents to keep</strong>
               <dl class="facts">
@@ -530,7 +530,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
                 <dt>Worst case</dt>
                 <dd>a dialog between them and their document</dd>
               </dl>
-              <p id="off-fs-ask-why">
+              <p id="off-fs-decision-why">
                 The most respectful of the three on paper. In practice it arrives
                 without warning, mid-sentence, and asks someone who came to write a
                 question about storage — and it still needs the eviction code
@@ -538,13 +538,13 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
               </p>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 
       <section id="off-decide-rollout">
-        <lf-ask id="off-rollout-ask-region">
+        <lf-decision id="off-rollout-decision-region">
           <h2>How should the rollout go?</h2>
-          <p id="off-rollout-ask">
+          <p id="off-rollout-decision">
             The beta workspaces already have it. This is about everyone else, and the
             three shapes differ mostly in how fast the iOS stall reaches people who
             never agreed to a beta.
@@ -561,7 +561,7 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
               >An opt-in toggle until the iOS fix lands</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-decision>
         <p id="off-rollout-day">The day itself, whichever shape wins:</p>
         <ol class="steps" id="off-runbook">
           <li>
@@ -656,7 +656,7 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="off-followup">
-        <lf-ask id="off-followups-ask">
+        <lf-decision id="off-followups-decision">
           <h2>What I pick up next</h2>
           <p id="off-followup-intro">
             Four jobs stand behind the ship, none of them holding it. Tick whichever you
@@ -677,7 +677,7 @@ and we have reported it; the workaround ships either way.
               >A review of what offline comments would take</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 </lf-tab>
 
@@ -757,7 +757,7 @@ and we have reported it; the workaround ships either way.
           copying. Their answer travels less well, since they had a tenth of our write
           volume and nothing that had to survive the store going down.
         </p>
-        <lf-specimen id="payments-ask" label="payments, March">
+        <lf-specimen id="payments-decision" label="payments, March">
           <lf-options id="pay-store" choose>
             <lf-option id="pay-redis"
               ><lf-chip tone="ok">already on call for it</lf-chip>
@@ -812,7 +812,7 @@ and we have reported it; the workaround ships either way.
       </section>
 
       <section id="options">
-        <lf-ask id="session-options-ask">
+        <lf-decision id="session-options-decision">
           <h2>Where should a session live?</h2>
           <lf-options id="session-options" choose>
             <lf-option id="opt-jwt"
@@ -893,7 +893,7 @@ graph LR
               </p>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 
       <section id="flow">
@@ -938,7 +938,7 @@ graph LR
       </section>
 
       <section id="next-up">
-        <lf-ask id="next-jobs-ask">
+        <lf-decision id="next-jobs-decision">
           <h2>What I pick up next</h2>
           <p id="next-intro">
             Whichever store wins, three jobs stand behind it, and each is argued
@@ -958,7 +958,7 @@ graph LR
               >A write load test at request rate</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 </lf-tab>
 
@@ -1167,7 +1167,7 @@ graph LR
       </section>
 
       <section id="pm-decisions">
-        <lf-ask id="pm-where-ask">
+        <lf-decision id="pm-where-decision">
           <h2>Who should hear about the incident?</h2>
           <p id="pm-where-note">
             Click an option to settle each of these, or write another one in the empty
@@ -1192,8 +1192,8 @@ graph LR
               the audience of a blog post is mostly people the incident never touched.
             </lf-option>
           </lf-options>
-        </lf-ask>
-        <lf-ask id="pm-date-ask">
+        </lf-decision>
+        <lf-decision id="pm-date-decision">
           <h2>Should the third fix carry a date?</h2>
           <p id="pm-date-note">
             And whether the third fix carries a date. The alerting change is in review
@@ -1216,7 +1216,7 @@ graph LR
               hasn't already done.
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 
       <section id="pm-notice">
@@ -1646,7 +1646,7 @@ outside average, before, after
         </lf-chart>
       </section>
 
-      <lf-ask id="heat-first-ask">
+      <lf-decision id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
         <p id="heat-first-note">
           The three are independent, and doing all of them this year needs the floor to
@@ -1683,7 +1683,7 @@ outside average, before, after
             </p>
           </lf-option>
         </lf-options>
-      </lf-ask>
+      </lf-decision>
 </lf-tab>
 
 <lf-tab id="gal-triage-board" label="Triage board">
@@ -1807,7 +1807,7 @@ outside average, before, after
               commit; its branch and evidence remain inspectable.
               <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="dedupe-operations-ask">
+            <lf-decision id="dedupe-operations-decision">
               <h3>What should the host do with the stalled work?</h3>
               <lf-operations
                 id="dedupe-operations"
@@ -1831,7 +1831,7 @@ outside average, before, after
                   40 GB for this rewrite.
                 </lf-operation>
               </lf-operations>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task
             id="parser-zero"
@@ -1840,9 +1840,9 @@ outside average, before, after
           >
             <strong>Choose the zero-row behavior</strong> This policy is consequential
             enough to wait for an explicit choice.
-            <lf-ask id="ask-zero-region">
+            <lf-decision id="decision-zero-region">
               <h3>What should happen when a nightly imports zero rows?</h3>
-              <lf-options id="ask-zero" choose>
+              <lf-options id="decision-zero" choose>
                 <lf-option id="zero-alert" for="parser-zero">
                   <strong>Fail and page</strong> Preserve the export and stop the
                   downstream publish.
@@ -1853,7 +1853,7 @@ outside average, before, after
                   no data.
                 </lf-option>
               </lf-options>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
         </lf-task>
 
@@ -1872,7 +1872,7 @@ outside average, before, after
               reconciliation evidence.
               <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="schema-operations-ask">
+            <lf-decision id="schema-operations-decision">
               <h3>What should the host do with the schema branch?</h3>
               <lf-operations
                 id="schema-operations"
@@ -1890,7 +1890,7 @@ outside average, before, after
                   and take one larger review tomorrow.
                 </lf-operation>
               </lf-operations>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task id="schema-backfill" status="planned" needs="schema-choice">
             <strong>Backfill reconciliation fields</strong>
@@ -1904,7 +1904,7 @@ outside average, before, after
             <strong>Bring one replica-only ledger fixture</strong> Run the exact
             credentialed command, inspect the full cargo below, trim it, then save the
             draft. The edit receipt tells the orchestrator that w-8 can resume.
-            <lf-ask id="ask-ledger-fixture-region">
+            <lf-decision id="decision-ledger-fixture-region">
               <h3>Which replica-only ledger fixture should the worker use?</h3>
               <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
   where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
@@ -1913,7 +1913,7 @@ outside average, before, after
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.
 </pre>
               </lf-draft>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task
             id="ledger-variance"
@@ -1940,7 +1940,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               compatibility tests.
               <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="api-operations-ask">
+            <lf-decision id="api-operations-decision">
               <h3>What should the host do with atlas/public-api?</h3>
               <lf-operations
                 id="api-operations"
@@ -1961,7 +1961,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   standing change request and reap its reviser.
                 </lf-operation>
               </lf-operations>
-            </lf-ask>
+            </lf-decision>
           </lf-task>
           <lf-task id="api-errors" status="planned" needs="api-shape">
             <strong>Map structured failures</strong>
@@ -2135,7 +2135,8 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
       <p class="lede" id="workstreams-lede">
         The work began with a broad plan for food, water, and observation through
         winter. Bracket installation is now the work in hand, so it opens first; the
-        vision and field evidence stay one tab away. Comments and Asks cover every tab.
+        vision and field evidence stay one tab away. Threads and Decisions cover every
+        tab.
       </p>
 
       <h2>Current handoffs</h2>
@@ -2195,7 +2196,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
               <lf-card id="card-mounts"><strong>South mounts</strong></lf-card>
             </lf-column>
           </lf-board>
-          <lf-ask id="feeder-extras-ask">
+          <lf-decision id="feeder-extras-decision">
             <h2>Which extras should join the bracket order?</h2>
             <p id="feeder-order">
               The bracket order goes in on Friday and there is room in it. These are the
@@ -2219,11 +2220,11 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                 once the feeders are up.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </lf-decision>
         </lf-tab>
 
         <lf-tab id="tab-bath" label="Vision">
-          <lf-ask id="bath-heat-ask">
+          <lf-decision id="bath-heat-decision">
             <h2>How should the bird bath stay open through January?</h2>
             <p id="bath-status">
               The winter habitat keeps food, water, and a camera available without
@@ -2249,7 +2250,7 @@ Output is unchanged on our corpus; the bump is for the upstream security fix.
                 <strong>Let it freeze</strong> Refill on thaw days only.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </lf-decision>
         </lf-tab>
 
         <lf-tab id="tab-camera" label="Field evidence">

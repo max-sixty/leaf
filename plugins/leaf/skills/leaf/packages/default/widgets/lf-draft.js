@@ -475,7 +475,7 @@ customElements.define(
     // the authored text and marks data-lf-pending for every widget alike.
     applyAction(action, detail) {
       // The shape of `text` is the registry's claim and the POST door's gate
-      // (action_contract_error), so nothing here re-asks it. What is left to
+      // (action_contract_error), so nothing here re-decisions it. What is left to
       // check is what no schema can say, and for one absolute body that is
       // nothing at all.
       if (action !== "edit") return;

@@ -47,7 +47,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     sight, silently. Both send routes then end in the composer the words left, where
     the rebuild sent a button click's focus somewhere else than ⌘⏎'s."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     assert page.evaluate(
         "() => { const t = document.querySelector('.lf-threads');"
@@ -85,7 +85,7 @@ def test_an_arriving_reply_leaves_the_list_where_the_reader_put_it(browser, serv
     free to adjust. The old rebuild restored the offset and let the content slide under
     it."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     held = page.evaluate("""() => {
         const box = document.querySelector('.lf-threads');
@@ -134,7 +134,7 @@ def test_an_arriving_reply_cannot_move_resolve_out_from_under_a_press(browser, s
     of the button and the browser emits no click at all. Drive the two halves separately
     so the ordering is the test's arrangement rather than a scheduling accident."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=6))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     roots = [
         event["id"]
@@ -209,7 +209,7 @@ def test_a_work_claim_cannot_move_a_later_control_under_the_pointer(browser, ser
     The work-line writer shares the list's hold so provisional news arriving above a
     control cannot move that control out from under a reader who is aiming at it."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=6))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     roots = [
         event["id"]
@@ -259,7 +259,7 @@ def test_an_arrival_interrupts_nothing_the_user_holds(browser, serve):
     could only approximate this by saving and restoring focus and caret by hand, and
     the two send routes proved the restore had holes."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     ta = page.locator(".lf-threads > .lf-thread").first.locator("textarea")
     ta.click()
@@ -312,7 +312,7 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
     )
     try:
         page, errors = open_page(browser, serve(LONG_PAGE, comments=1), context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         thread = page.locator(".lf-threads > .lf-thread")
         compose = thread.locator(".lf-compose")
@@ -384,7 +384,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     kept too, so the user's open toggle survives the next resolution instead of snapping
     shut on every arrival, which is what the rebuild did."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     c1, c2, c3 = [
         e["id"]
@@ -407,7 +407,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
@@ -460,7 +460,7 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
     lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
 
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     assert page.evaluate(LIST_RUNS) == [
         "§ Shipping offline editing",
@@ -504,7 +504,7 @@ def test_a_page_with_no_headings_gets_the_order_and_no_landmarks(browser, serve)
     first = panel_comment(d, "On the first.", {"section": "one"})
 
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     assert page.evaluate(LIST_RUNS) == [
         first,
@@ -536,7 +536,7 @@ def test_a_thread_on_words_a_widget_renders_stands_where_the_widget_does(
     both = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
 
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # The passage really is inside the widget's shadow tree, so the reading under test is
     # the cross-tree one rather than an ordinary document comparison.
@@ -575,7 +575,7 @@ def test_a_run_of_threads_says_which_part_of_the_page_it_is_about(browser, serve
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 800)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     heading = page.locator(".lf-group[data-group]", has_text="The merge rule")
     expect(heading).to_have_count(1)
@@ -660,7 +660,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 3")
     # The page's own count is the log's and says so throughout.
-    expect(page.locator(".lf-comments")).to_have_text("Comments (3)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (3)")
 
     # The part of the page a thread is on is one of its words: a reader looking for the
     # merge rule finds the thread under that heading without its message saying so.
@@ -674,7 +674,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.locator("#lede").click()
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(1)
     expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(".lf-panel-head span")).to_have_text("Comments")
+    expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(3)
 
     # Escape spends one rung on the narrowing and the next on the box, rather than
@@ -764,7 +764,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads > .lf-thread")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-head span")).to_have_text("Comments")
+    expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
     assert errors == []
     page.close()
 
@@ -821,7 +821,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
           };
         })()""",
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
@@ -847,11 +847,11 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         serve.page_dir,
         answered,
         "Choose the backend here.",
-        '<lf-ask id="backend-ask"><h3>Which backend?</h3>'
+        '<lf-decision id="backend-decision"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-decision>",
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("Waiting on you (2)")
@@ -884,7 +884,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     agent's resolve arrives on a poll with no gesture behind it, and that thread says
     who closed it — in the row the control stood in, at the end it stood at."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=2))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     c1, c2 = [
         e["id"]
@@ -918,7 +918,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     """Reopening is a logged transition: the thread returns to the open list with
     its reply and resolve controls, and the disclosure leaves when it is empty."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=18))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     comment = next(
         e["id"]
@@ -942,7 +942,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     expect(reopened.locator("textarea")).to_have_count(1)
     expect(reopened.locator(".lf-resolve")).to_have_count(1)
     expect(page.locator(".lf-details")).to_have_count(0)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (18)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (18)")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
     assert errors == []
     page.close()
@@ -962,7 +962,7 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     page.locator(".lf-details summary").click()
     events_model.append_event(
         serve.page_dir,
@@ -996,7 +996,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     thread stays where it stood, states on the pressed control what was done to it,
     and folds; the disclosure gets it when the fold is over.
 
-    What the log says is true from that first frame regardless — Comments counts down
+    What the log says is true from that first frame regardless — Threads counts down
     and Resolved counts up while the pixels catch up — and a thread on its way out is
     out of the t/T walk from the same frame rather than remaining a destination that is
     about to disappear.
@@ -1008,7 +1008,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     c1, c2, c3 = [
         e["id"]
@@ -1052,7 +1052,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "was stated, so the fold started from somewhere other than the box the reader "
         "was looking at"
     )
-    expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
@@ -1104,7 +1104,7 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=6), init_script=HOLD_MOTION
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     roots = [
         event["id"]
@@ -1225,7 +1225,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=6), init_script=HOLD_MOTION
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     roots = [
         event["id"]
@@ -1303,7 +1303,7 @@ def test_a_fold_hands_off_without_reapplying_movement_already_held(browser, serv
         {"kind": "resolve", "author": "user", "parent": resolved},
     )
     page, errors = open_page(browser, page_url, init_script=HOLD_MOTION)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     details = page.locator(".lf-details")
     details.locator("summary").click()
@@ -1394,7 +1394,7 @@ def test_an_external_resolution_leaves_the_reader_on_the_thread_list(browser, se
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=1), init_script=HOLD_MOTION
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     root = next(
         event
@@ -1443,7 +1443,7 @@ def test_the_fold_never_paints_a_frame_that_undoes_the_last(browser, serve):
     direction: sampled at exactly the duration, an animation is already past its
     own interval and reads as the element it never was."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     c1 = next(
         e["id"]
@@ -1499,7 +1499,7 @@ def test_a_reader_who_asked_for_less_motion_gets_the_resolved_thread_at_once(
             context=context,
             init_script=HOLD_MOTION,
         )
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         c1, c2 = [
             e["id"]
@@ -1536,7 +1536,7 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     page, errors = open_page(
         browser, serve(LONG_PAGE, comments=3), init_script=HOLD_MOTION
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     c1 = next(
         e["id"]
@@ -1677,6 +1677,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
         "lf-over-item",
         "lf-quiet",
+        # Shared textual thread boxes render both in page-owned widget seats and in the
+        # chrome-owned margin preview.
+        "lf-conversation-msg",
+        "lf-say",
         # A standing reaction's paint on the page: the element outline, the seat in the
         # margin and the glyph in it, and the wash a copy carries as a <mark>.
         "lf-react-el",
@@ -1752,7 +1756,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
         d,
         {
             "kind": "comment",
-            "id": "tv-asked",
+            "id": "tv-decisioned",
             "author": "user",
             "revision": 1,
             "text": "Which store?",
@@ -1763,7 +1767,7 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
         {
             "kind": "reply",
             "author": "claude",
-            "parent": "tv-asked",
+            "parent": "tv-decisioned",
             "revision": 1,
             "text": "Depends what you want to keep:",
             "markup": markup,
@@ -1814,12 +1818,12 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-ask-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-ask" choose>'
+        '<lf-decision id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-options id="tv-decision" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
         '<lf-option id="tv-cookie">A signed cookie</lf-option>'
-        "</lf-options></lf-ask>",
-        "tv-ask",
+        "</lf-options></lf-decision>",
+        "tv-decision",
         chatter=10,
         after=10,
     )
@@ -1845,7 +1849,7 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
         reduced_motion="reduce",
     )
     page, errors = open_page(browser, url, context=context)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
     page.evaluate("() => { document.body.scrollTop = 1200; }")
@@ -1859,7 +1863,7 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     WHERE = """() => {
       const box = document.querySelector('.lf-threads');
       const view = box.getBoundingClientRect();
-      const el = document.getElementById('tv-ask').getBoundingClientRect();
+      const el = document.getElementById('tv-decision').getBoundingClientRect();
       const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
       return { at: el.top - view.top,
                want: Math.max((view.height - el.height) / 2, clear),
@@ -1968,7 +1972,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
         reduced_motion="reduce",
     )
     page, errors = open_page(browser, url, context=context)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # The key line only draws while it has something to say, which is what a held key
     # gives it. Held down, so the part is on screen for the press below.
@@ -2057,7 +2061,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
         )
         page, errors = open_page(browser, url)
         resized(page, 1280, 900)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         settled = page.evaluate(
             """(wid) => {
@@ -2089,7 +2093,7 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     parts included — that is what lets a design comment about the banner point at the
     banner. What the outline may not do there is offer the hand: `markAt` refuses a
     press inside the chrome on purpose, because what the chrome holds keeps its own
-    presses. The Comments button opens the panel and an option takes a pick; neither
+    presses. The Threads button opens the panel and an option takes a pick; neither
     of them opens a thread. So the pointer stood over a marked question an agent had
     asked, promising a click nothing took.
 
@@ -2097,11 +2101,11 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-ask-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-ask" choose>'
+        '<lf-decision id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-options id="tv-decision" choose>'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></lf-ask>",
-        "tv-ask",
+        "</lf-options></lf-decision>",
+        "tv-decision",
     )
     events_model.append_event(
         serve.page_dir,
@@ -2116,7 +2120,7 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     )
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
     marks = page.evaluate(
@@ -2142,7 +2146,7 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
     opened = page.evaluate(
         "() => document.querySelector('.lf-thread[data-id=\"tv-on-it\"]')?.className"
     )
-    page.locator("#tv-ask").click(position={"x": 4, "y": 4})
+    page.locator("#tv-decision").click(position={"x": 4, "y": 4})
     assert (
         page.evaluate(
             "() => document.querySelector('.lf-thread[data-id=\"tv-on-it\"]')"
@@ -2180,7 +2184,7 @@ def test_a_control_in_a_reply_holds_its_room_and_leaves_the_page_s_rail_alone(
         "a row standing in the panel stated the page's rail; the page has no change "
         "of its own and wants no margin for one"
     )
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     # Again now the row has a box: the guard's whole subject is a row that measures,
     # and read only while the panel was shut this said nothing about it.
@@ -2220,7 +2224,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     document.
 
     `shownParts` falls back to an element's children when the element itself has no
-    box, which is what a mark hangs on and what an ask's ring hangs on. It kept the
+    box, which is what a mark hangs on and what a decision's ring hangs on. It kept the
     runtime's own apparatus out of that fallback by asking whether each child was
     under the runtime's chrome, and a widget an agent sent in a reply is: the panel
     over it answers for every child, so the fallback filtered all of them away and the
@@ -2242,19 +2246,19 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     # reach, and the subject here is a boxless wrapper rather than a cascade fight.
     seed_reply(
         serve.page_dir,
-        '<lf-options id="tv-ask">'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis" chosen>Redis</lf-option>'
         "</lf-options>",
-        "tv-ask",
+        "tv-decision",
     )
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     parts = page.evaluate(
         """async () => {
              const { shownParts } = await import('/runtime/widget-api.js');
-             const el = document.getElementById('tv-ask');
+             const el = document.getElementById('tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,
                       parts: shownParts(el).map((p) => p.id || p.localName) };
@@ -2305,11 +2309,11 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "revision": 1,
             "text": "the answer that survived it",
             "markup": (
-                '<lf-ask id="tv-ask"><h2>Which recovery should we use?</h2>'
+                '<lf-decision id="tv-decision"><h2>Which recovery should we use?</h2>'
                 '<lf-options id="tv-choice" choose>'
                 '<lf-option id="tv-retry">Retry</lf-option>'
                 '<lf-option id="tv-stop">Stop</lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
             ),
         },
     )
@@ -2332,8 +2336,8 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
-    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
-    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-decisions")).to_have_text("Decisions (1)")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
@@ -2376,7 +2380,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         threads = page.locator(".lf-threads > .lf-thread").count()
         assert threads == 16, (
@@ -2477,7 +2481,7 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     panel_comment(d, "The storage rule is settled.", {"section": "how-store"})
 
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     find = page.locator(".lf-find-box")
     find.focus()
@@ -2509,7 +2513,7 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
     context = browser.new_context(viewport={"width": 800, "height": 900})
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         thread = page.locator(".lf-threads > .lf-thread")
         thread.focus()
@@ -2527,8 +2531,8 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
 
 
 def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser, serve):
-    """A focused comment is one addressable place with two useful placements. `g t`
-    and `g b` move that card inside the panel without moving focus or the document,
+    """A focused thread is one addressable place with two useful placements. `g k`
+    and `g j` move that card inside the panel without moving focus or the document,
     and the list's own scroll padding keeps the landing clear of its pinned heading
     and focus ring."""
     url = serve(PANEL_PAGE)
@@ -2541,7 +2545,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         box = page.locator(".lf-threads")
         target = page.locator(".lf-threads > .lf-thread").nth(8)
@@ -2555,10 +2559,10 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
         expect(
             page.locator(
                 ".lf-keyline .lf-key:not([hidden])",
-                has_text="comment top / bottom",
+                has_text="thread top / bottom",
             )
         ).to_have_count(1)
-        page.keyboard.press("t")
+        page.keyboard.press("k")
         top = page.evaluate(
             """() => {
               const box = document.querySelector('.lf-threads');
@@ -2570,13 +2574,13 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
             }"""
         )
         assert abs(top["gap"] - top["clear"]) < 2, (
-            f"g t left the card {top['gap']:.1f}px from the list top; "
+            f"g k left the card {top['gap']:.1f}px from the list top; "
             f"the landable edge is {top['clear']:.1f}px"
         )
         expect(target).to_be_focused()
 
         page.keyboard.press("g")
-        page.keyboard.press("b")
+        page.keyboard.press("j")
         bottom = page.evaluate(
             """() => {
               const box = document.querySelector('.lf-threads');
@@ -2588,7 +2592,7 @@ def test_the_address_chord_places_a_focused_comment_at_either_list_edge(browser,
             }"""
         )
         assert abs(bottom["gap"] - bottom["clear"]) < 2, (
-            f"g b left the card {bottom['gap']:.1f}px from the list bottom; "
+            f"g j left the card {bottom['gap']:.1f}px from the list bottom; "
             f"the landable edge is {bottom['clear']:.1f}px"
         )
         expect(target).to_be_focused()
@@ -2655,7 +2659,7 @@ def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
         # Bury the card by exactly its ring, which is the reader's own case: a list nudged
@@ -2749,7 +2753,7 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
         # Stand in the card first, then carry the list under it — which is the order the
@@ -2809,7 +2813,7 @@ def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
         first = page.locator(".lf-threads > .lf-thread").first
@@ -2885,7 +2889,7 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
         # Keep the quoted passage outside the page's readable viewport. This test is the
@@ -2973,7 +2977,7 @@ def test_a_drag_across_a_comments_words_leaves_the_list_where_it_was_read(
     )
     try:
         page, errors = open_page(browser, url, context=context)
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
 
         # Far enough under the heading that a landing would be a visible jump, so the
@@ -3042,7 +3046,7 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
     try:
         page, errors = open_page(browser, url, context=context)
         edge = next(e for e in EDGES if e.name == "comments")
-        page.locator(".lf-comments").click()
+        page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         room = (
             "() => getComputedStyle(document.querySelector('.lf-threads'))"
@@ -3139,7 +3143,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     expect(shown).to_have_count(2)
     # The list's own key leads: something is waiting, so `w` is live and nearest.
     expect(shown.nth(0)).to_contain_text("waiting on you")
-    expect(shown.nth(1)).to_contain_text("close comments")
+    expect(shown.nth(1)).to_contain_text("close threads")
 
     # And the press it displaced still works, from the placeholder that advertises it.
     expect(page.locator(".lf-general textarea")).to_have_attribute(

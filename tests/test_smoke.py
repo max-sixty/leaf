@@ -21,7 +21,7 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     example = ROOT / "examples" / "ship-review.html"
     page, errors = open_page(browser, serve(example))
 
-    expect(page.locator(".lf-asks")).to_have_text("Asks (9)")
+    expect(page.locator(".lf-decisions")).to_have_text("Decisions (9)")
     for options in ["off-workaround-review", "off-copy-review"]:
         expect(page.locator(f"#{options} .lf-pick")).to_have_count(2)
         expect(page.locator(f"#{options} .lf-pick").first).to_be_visible()

@@ -53,7 +53,7 @@ def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):
     naming the resolve — not a second settlement, which would read as the reader
     deciding to reopen a thread they had only meant not to close."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     comments = [
         e["id"]
@@ -97,7 +97,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     """Resolve and reopen are undoable gestures too. While a second resolve is in
     the outbox, undo cannot name the older resolve still visible in the log."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     threads = page.locator(".lf-threads > .lf-thread")
     threads.nth(0).locator(".lf-resolve").click()
@@ -1601,12 +1601,12 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     expect(old).to_be_visible()
-    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect(page.locator(".lf-asks")).to_have_text("Asks (2)")
+    expect(page.locator(".lf-decisions")).to_have_text("Decisions (2)")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1616,7 +1616,7 @@ def test_z_takes_back_a_decision_no_state_can_state(browser, serve):
     expect(page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")).to_have_text(
         "✓ Accept", use_inner_text=True
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
+    expect(page.locator(".lf-decisions")).to_have_text("Decisions (3)")
     assert page.locator("[data-lf-for='sug-refill']").count() == 1, (
         "the rebuilt change hung a second row beside the one it replaced"
     )
@@ -1885,7 +1885,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect(two.locator(".lf-asks")).to_have_text("Asks (3)")
+    expect(two.locator(".lf-decisions")).to_have_text("Decisions (3)")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -1949,7 +1949,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again, errors = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect(again.locator(".lf-asks")).to_have_text("Asks (3)")
+    expect(again.locator(".lf-decisions")).to_have_text("Decisions (3)")
     assert errors == []
     again.close()
 
@@ -2099,7 +2099,7 @@ def test_a_float_the_panel_displaces_hands_the_page_no_sideways_scroll(browser, 
         "   >= document.querySelector('main').getBoundingClientRect().right"
     ), "the margin placement is the precondition — nothing strands a column-placed box"
     # A press on the banner's own button: standDown keeps a composer holding text.
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.wait_for_function("""() => {
         const box = document.querySelector('.lf-composer').getBoundingClientRect();
@@ -2237,7 +2237,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.wait_for_selector("lf-board.lf-dragging")  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
-    # assertion that re-asks passes on the poll and says nothing about the edge.
+    # assertion that re-decisions passes on the poll and says nothing about the edge.
     assert "z undo" not in _painted_line(page), (
         "the line offered a press the dispatcher refuses for the length of a drag"
     )

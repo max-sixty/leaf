@@ -95,7 +95,7 @@ STACKED_OPTIONS_PAGE = leaf_page(
     "stacked options",
     """
 <h1 id="h">Clip storage</h1>
-<lf-ask id="stacked-ask"><h2>Where should clips live?</h2>
+<lf-decision id="stacked-decision"><h2>Where should clips live?</h2>
 <lf-options id="stacked" choose>
   <lf-option id="st-sd"><lf-chip>effort: low</lf-chip><lf-chip tone="danger">risk: high</lf-chip>
     <strong>SD card only</strong>
@@ -107,7 +107,7 @@ STACKED_OPTIONS_PAGE = leaf_page(
     <dl class="facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
     <p>A nightly pull over the garden wifi; the link is the weak span.</p>
   </lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-options id="terse">
   <lf-option id="t-paper"><lf-chip>effort: low</lf-chip><lf-chip>risk: high</lf-chip><strong>Paper maps</strong> Nothing
   to charge.</lf-option>
@@ -137,31 +137,31 @@ STACKED_OPTIONS_PAGE = leaf_page(
 </lf-compare>
 """,
 )
-# A heading-first Ask in every shape its choice group takes: cards, rows, and a settled
+# A heading-first Decision in every shape its choice group takes: cards, rows, and a settled
 # collapse. The question belongs to the document region; the group only owns answers.
-ASKED_PAGE = leaf_page(
+DECISION_SHAPES_PAGE = leaf_page(
     "asked",
     """
 <h1 id="t">Asked</h1>
-<lf-ask id="cards-ask"><h2>Where should a session live?</h2>
+<lf-decision id="cards-decision"><h2>Where should a session live?</h2>
 <lf-options id="cards" choose>
   <lf-option id="c-redis"><strong>Redis</strong>
   <p>A store we already run, keyed by an opaque id.</p></lf-option>
   <lf-option id="c-pg"><strong>Postgres</strong>
   <p>One fewer moving part, at the cost of write load.</p></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="rows-ask"><h2>Which jobs are worth starting?</h2>
+</lf-options></lf-decision>
+<lf-decision id="rows-decision"><h2>Which jobs are worth starting?</h2>
 <lf-options id="rows" choose multiple>
   <lf-option id="r-drill">A revocation drill</lf-option>
   <lf-option id="r-rotate">Key rotation for the fallback cookie</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="done-ask"><h2>How do parallel sessions merge?</h2>
+</lf-options></lf-decision>
+<lf-decision id="done-decision"><h2>How do parallel sessions merge?</h2>
 <lf-options id="done" choose settled>
   <lf-option id="d-serial" chosen><strong>A branch each</strong>
   <p>Merged one at a time against current main.</p></lf-option>
   <lf-option id="d-shared"><strong>One shared branch</strong>
   <p>Cheapest to set up, and conflicts are the norm.</p></lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 # The other form of a question, on one page beside the first: options that are bare
@@ -174,30 +174,30 @@ ASKED_PAGE = leaf_page(
 # (#bracket). Which is what makes a claim about arity testable on its own — #jobs against
 # #bracket differs in two things at once, and a rule that was really the list form's
 # would pass that pair either way.
-ASK_PAGE = leaf_page(
+DECISION_PAGE = leaf_page(
     "ask",
     """
 <h1 id="h">Three jobs</h1>
-<lf-ask id="jobs-ask"><h2>Which jobs are worth starting?</h2>
+<lf-decision id="jobs-decision"><h2>Which jobs are worth starting?</h2>
 <lf-options id="jobs" choose multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
   <lf-option id="job-heater" for="sec-heater"><lf-chip tone="ok">reversible</lf-chip>Heat the bird bath</lf-option>
   <lf-option id="job-camera">Neither — the camera first</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <section id="sec-mounts"><h2>The mounts</h2><p id="mounts-p">Plastic, and one came
 down in January.</p></section>
 <section id="sec-heater"><h2>The bird bath</h2><p id="heater-p">Frozen eleven
 mornings last winter.</p></section>
-<lf-ask id="bracket-ask"><h2>Which bracket should we use?</h2>
+<lf-decision id="bracket-decision"><h2>Which bracket should we use?</h2>
 <lf-options id="bracket" choose>
   <lf-option id="br-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="br-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="tools-ask"><h2>Which tools should we bring?</h2>
+</lf-options></lf-decision>
+<lf-decision id="tools-decision"><h2>Which tools should we bring?</h2>
 <lf-options id="tools" choose multiple>
   <lf-option id="tl-clamp"><strong>Bar clamp</strong> Holds the rail while it sets.</lf-option>
   <lf-option id="tl-torque"><strong>Torque wrench</strong> The mounts are rated.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-options id="ordered">
   <lf-option id="ord-mounts">Mounts, before the frost</lf-option>
   <lf-option id="ord-heater">Heater, after it</lf-option>
@@ -213,24 +213,24 @@ def sent_events(page_dir):
     ]
 
 
-NESTED_ASK_PAGE = leaf_page(
+NESTED_DECISION_PAGE = leaf_page(
     "nested",
     """
 <h1 id="h">Two jobs</h1>
-<lf-ask id="outer-ask"><h2>Which jobs should we start?</h2>
+<lf-decision id="outer-decision"><h2>Which jobs should we start?</h2>
 <lf-options id="outer" choose multiple>
   <lf-option id="out-drill"><strong>The revocation drill</strong>
     <p id="drill-p">Support wants it run at their own volume.</p>
-    <lf-ask id="inner-ask"><h3>When should the drill run?</h3>
+    <lf-decision id="inner-decision"><h3>When should the drill run?</h3>
     <lf-options id="inner" choose>
       <lf-option id="in-now">This sprint</lf-option>
       <lf-option id="in-next">Next sprint</lf-option>
-    </lf-options></lf-ask>
+    </lf-options></lf-decision>
   </lf-option>
   <lf-option id="out-keys"><strong>Key rotation</strong>
     <p id="keys-p">Cheap, and overdue since the split.</p>
   </lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 # An option arguing its case with the evidence inside it, which is the whole reason the
@@ -246,23 +246,23 @@ INLINE_CASE_PAGE = leaf_page(
     "inline case",
     """
 <h1 id="h">The status column</h1>
-<lf-ask id="rollout-ask"><h2>Should we ship the column?</h2>
+<lf-decision id="rollout-decision"><h2>Should we ship the column?</h2>
 <lf-options id="rollout" choose>
   <lf-option id="ro-column"><strong>Ship the column</strong>
     <lf-shot id="ro-shot" alt="the run list, before and after the status column"
       before="/media/051bee487bfb5d13.png" after="/media/a99a1b63048502d0.png"></lf-shot>
     <details id="ro-numbers"><summary>What it costs</summary>
       <p id="ro-cost">One join, 40ms at the list's own volume.</p></details>
-    <lf-ask id="ro-note-ask"><h3>How should the note read?</h3>
+    <lf-decision id="ro-note-decision"><h3>How should the note read?</h3>
     <lf-draft id="ro-note"><pre>
 Run status now shows on the run list itself.
-</pre></lf-draft></lf-ask>
+</pre></lf-draft></lf-decision>
     <p id="ro-column-p">A failure reads off the list instead of costing a click.</p>
   </lf-option>
   <lf-option id="ro-leave"><strong>Leave it</strong>
     <p id="ro-leave-p">A failure stays one click away.</p>
   </lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 CHIP_PAGE = leaf_page(
@@ -270,10 +270,10 @@ CHIP_PAGE = leaf_page(
     """
 <h1 id="h">Short facts</h1>
 <p id="intro">The store is <span class="tag">experimental</span> for now.</p>
-<lf-ask id="picks-ask"><h2>Should we keep the store?</h2>
+<lf-decision id="picks-decision"><h2>Should we keep the store?</h2>
 <lf-options id="picks" choose>
   <lf-option id="p-keep"><lf-chip>reversible</lf-chip><strong>Keep the store</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-tasks id="plan">
   <lf-task id="t-camera" status="active" owner="finch"><strong>Mount the camera</strong></lf-task>
 </lf-tasks>
@@ -293,7 +293,7 @@ PAINTED_PAGE = leaf_page(
 </lf-tasks>
 """,
 )
-SETTLED_ASK_PAGE = ASK_PAGE.replace(
+SETTLED_DECISION_PAGE = DECISION_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
     '<lf-options id="jobs" choose multiple settled>',
 )
@@ -462,18 +462,18 @@ HOLD_MOTION = """
     return motion;
   };
 """
-# Every shape the ask predicate has to tell apart, on one page: four things the page is
+# Every shape the decision predicate has to tell apart, on one page: four things the page is
 # waiting on the reader for, and, beneath them, one of each way of not being one. The
 # four are in document order, because that is the order the walk below must take them in.
-ASKS_PAGE = leaf_page(
-    "asks",
+DECISIONS_PAGE = leaf_page(
+    "decisions",
     """
 <h1 id="h">What is still open</h1>
-<lf-ask id="live-question-ask"><h2>Where should sessions live?</h2>
+<lf-decision id="live-question-decision"><h2>Where should sessions live?</h2>
 <lf-options id="live-question" choose>
   <lf-option id="lq-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
   <lf-option id="lq-token"><strong>Signed tokens</strong> No store at all.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-suggestion id="sug-refill">
   <lf-old><p id="refill-was">Refill every feeder each morning.</p></lf-old>
   <lf-new><p id="refill-now">Refill a feeder when its camera says so.</p></lf-new>
@@ -481,32 +481,32 @@ ASKS_PAGE = leaf_page(
 <lf-tasks id="plan">
   <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
   <lf-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
-    <lf-ask id="t-baffles-ask"><h2>Are the baffles ready?</h2>
+    <lf-decision id="t-baffles-decision"><h2>Are the baffles ready?</h2>
       <lf-options id="t-baffles-review" choose>
         <lf-option id="t-baffles-approve"><strong>Approve</strong></lf-option>
         <lf-option id="t-baffles-revise"><strong>Request changes</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-decision>
   </lf-task>
   <lf-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
-    <lf-ask id="t-bath-ask"><h2>How should the bath proceed?</h2>
-      <lf-options id="t-bath-decision" choose>
+    <lf-decision id="t-bath-decision"><h2>How should the bath proceed?</h2>
+      <lf-options id="t-bath-choice" choose>
         <lf-option id="t-bath-wait"><strong>Wait for the transformer</strong></lf-option>
         <lf-option id="t-bath-skip"><strong>Leave it unheated</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-decision>
   </lf-task>
   <lf-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-task>
 </lf-tasks>
-<lf-ask id="honored-ask"><h2>Which gate design?</h2>
+<lf-decision id="honored-decision"><h2>Which gate design?</h2>
 <lf-options id="honored" choose>
   <lf-option id="hon-tiers" chosen><strong>Two-tier gates</strong></lf-option>
   <lf-option id="hon-one"><strong>One gate</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="retired-ask"><h2>Which cookie policy?</h2>
+</lf-options></lf-decision>
+<lf-decision id="retired-decision"><h2>Which cookie policy?</h2>
 <lf-options id="retired" choose settled>
   <lf-option id="ret-lax"><strong>Lax cookie</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-options id="exhibited">
   <lf-option id="exh-paper"><strong>Paper maps</strong></lf-option>
 </lf-options>
@@ -522,20 +522,20 @@ ASKS_PAGE = leaf_page(
 </lf-specimen>
 """,
 )
-ASKS_IN_ORDER = [
-    "live-question-ask",
+DECISIONS_IN_ORDER = [
+    "live-question-decision",
     "sug-refill",
-    "t-baffles-ask",
-    "t-bath-ask",
+    "t-baffles-decision",
+    "t-bath-decision",
 ]
 
 
-ASK_WITH_CONTEXT_PAGE = leaf_page(
+DECISION_WITH_CONTEXT_PAGE = leaf_page(
     "ask with context",
     f"""
 <h1 id="h">A decision with context</h1>
 {"".join(f"<p id='lead-{i}'>Earlier finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
-<lf-ask id="storage-ask">
+<lf-decision id="storage-decision">
   <h2 id="storage-heading">What should a full store do?</h2>
   <p id="storage-context-1">The beta never reached the cap, so this is the first
   reader's experience of it. The observed reopen rate favors eviction.</p>
@@ -548,19 +548,19 @@ ASK_WITH_CONTEXT_PAGE = leaf_page(
     <lf-option id="storage-stop"><strong>Pause offline editing</strong>
     Nothing leaves, but the editor becomes read-only.</lf-option>
   </lf-options>
-</lf-ask>
+</lf-decision>
 {"".join(f"<p id='tail-{i}'>Later finding {i}. " + "Background. " * 18 + "</p>" for i in range(8))}
 """,
 )
-# The ask the walk is standing on. One ask wears the mark, on however many boxes it
+# The decision the walk is standing on. One decision wears the mark, on however many boxes it
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the asks tray's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
+# main because the decisions tray's row mirrors the same fact in the chrome.
+STANDING_DECISION = "main [data-lf-decision]:not([data-lf-decision] [data-lf-decision])"
 # The document's scroll once it has stopped moving. A leaf's travel is a glide, so any
 # reading taken while it runs is of a place the gesture passes through rather than of
-# where it went — and "the ask is on screen" is one of those places, true for a moment
+# where it went — and "the decision is on screen" is one of those places, true for a moment
 # in the wrong position before the glide has started. A test that waited on that passed
 # with the travel bug put back, which is how this came to be written.
 SCROLL_SETTLED = """(hold) => {
@@ -572,16 +572,16 @@ SCROLL_SETTLED = """(hold) => {
   }
   return performance.now() - window.__lfScrollSince > hold;
 }"""
-# Where the tray's rows say their ask's own words, which is the half of a row a static
+# Where the tray's rows say their decision's own words, which is the half of a row a static
 # lint can never read: the words are whatever the page renders, after every upgrade.
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The
 # words are the same in both, which is what makes the room they need the same.
-ROOM_WIDGETS = """<lf-ask id="{id}-ask"><h2>Which extras go in?</h2>
+ROOM_WIDGETS = """<lf-decision id="{id}-decision"><h2>Which extras go in?</h2>
 <lf-options id="{id}-q" choose>
   <lf-option id="{id}-tray">A seed tray under the feeder</lf-option>
   <lf-option id="{id}-pole">A second pole for the north pair</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-board id="{id}-b">
   <lf-column id="{id}-todo" label="To do">
     <lf-card id="{id}-brackets"><strong>Steel brackets</strong> For the north pair.</lf-card>
@@ -614,10 +614,10 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-ASK_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-asks-row')].map((r) => ({
+DECISION_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-decisions-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
-  kind: r.querySelector('.lf-asks-kind').textContent,
-  says: r.querySelector('.lf-asks-says').textContent,
+  kind: r.querySelector('.lf-decisions-kind').textContent,
+  says: r.querySelector('.lf-decisions-says').textContent,
   w: Math.round(r.getBoundingClientRect().width),
   h: Math.round(r.getBoundingClientRect().height),
 }))"""
@@ -635,11 +635,11 @@ CHANGE_SHAPES_PAGE = leaf_page(
 <lf-suggestion id="sug-delete">
   <lf-old><p id="p-logs">Retries are logged at debug level.</p></lf-old>
 </lf-suggestion>
-<lf-ask id="shapes-ask"><h2>How long should a parked job wait?</h2>
+<lf-decision id="shapes-decision"><h2>How long should a parked job wait?</h2>
 <lf-options id="shapes-q" choose>
   <lf-option id="wait-day"><strong>A day</strong></lf-option>
   <lf-option id="wait-week"><strong>A week</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 # A group that takes a pick, so the layer seats a conversation in it (x-conversation),
@@ -649,11 +649,11 @@ CONVERSATION_DIFF_PAGE = leaf_page(
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
-<lf-ask id="cd-ask"><h2>Which extras go in?</h2>
+<lf-decision id="cd-decision"><h2>Which extras go in?</h2>
 <lf-options id="cd-q" choose>
   <lf-option id="cd-tray">A seed tray under the feeder</lf-option>
   <lf-option id="cd-pole">A second pole for the north pair</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 LIVE_READING = (
@@ -873,16 +873,16 @@ STANDING_PAGE = leaf_page(
     "standing state",
     """
 <h1 id="ab-t">The v1 cutover</h1>
-<lf-ask id="ab-pick-ask"><h2>How should the schema migrate?</h2>
+<lf-decision id="ab-pick-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="ab-pick" choose>
   <lf-option id="ab-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="ab-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="ab-scope-ask"><h2>Which callers should migrate?</h2>
+</lf-options></lf-decision>
+<lf-decision id="ab-scope-decision"><h2>Which callers should migrate?</h2>
 <lf-options id="ab-scope" choose>
   <lf-option id="ab-all"><strong>Every caller</strong> Nobody is left on v1.</lf-option>
   <lf-option id="ab-ten"><strong>The top ten</strong> The rest follow in August.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-board id="ab-work">
   <lf-column id="ab-doing" label="Doing"><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
   <lf-column id="ab-done" label="Done"><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
@@ -1089,10 +1089,10 @@ RETIRED_WIDGET_PAGE = leaf_page(
 <p id="lede">Replacing the whole decision block below.</p>
 <lf-suggestion id="sug-swap">
   <lf-old id="was">
-    <lf-ask id="old-group-ask"><h2>How should sessions travel?</h2>
+    <lf-decision id="old-group-decision"><h2>How should sessions travel?</h2>
     <lf-options id="old-group" choose>
       <lf-option id="old-lax" chosen><strong>Lax cookie</strong> The way it stands.</lf-option>
-    </lf-options></lf-ask>
+    </lf-options></lf-decision>
   </lf-old>
   <lf-new id="now"><p id="p-now">A bearer header, settled elsewhere.</p></lf-new>
 </lf-suggestion>
@@ -1210,18 +1210,18 @@ REF_PAGE = leaf_page(
 </section>
 """,
 )
-THREAD_ASKS = [
+THREAD_DECISIONS = [
     {
         "kind": "comment",
         "id": "c-which",
         "author": "claude",
         "revision": 1,
         "text": "Which store?",
-        "markup": '<lf-ask id="tq-one-ask"><h3>Which store?</h3>'
+        "markup": '<lf-decision id="tq-one-decision"><h3>Which store?</h3>'
         '<lf-options id="tq-one" choose>'
         '<lf-option id="tq-redis">Redis</lf-option>'
         '<lf-option id="tq-cookie">Signed cookie</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-decision>",
     },
     {
         "kind": "comment",
@@ -1229,10 +1229,10 @@ THREAD_ASKS = [
         "author": "claude",
         "revision": 1,
         "text": "Pick any that apply.",
-        "markup": '<lf-ask id="tq-set-ask"><h3>Which extras apply?</h3>'
+        "markup": '<lf-decision id="tq-set-decision"><h3>Which extras apply?</h3>'
         '<lf-options id="tq-set" choose multiple>'
         '<lf-option id="tq-logs">Logs</lf-option>'
         '<lf-option id="tq-metrics">Metrics</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></lf-decision>",
     },
 ]

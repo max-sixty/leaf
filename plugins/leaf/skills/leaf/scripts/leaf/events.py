@@ -21,9 +21,9 @@ def is_reaction(event: dict) -> bool:
 def spoken_turns(thread: dict) -> list:
     """The thread's messages with words in them. A reaction is a mark on a
     message rather than a turn in the conversation, so readings of who spoke
-    last — including the hook's unanswered asks — walk this list rather than
-    `msgs`. The panel's "waiting on you" also reads explicit reply asks and
-    structural thread asks in the browser after finding the last spoken turn."""
+    last — including the hook's unanswered decisions — walk this list rather than
+    `msgs`. The panel's "waiting on you" also reads explicit reply questions and
+    structural thread decisions in the browser after finding the last spoken turn."""
     return [m for m in thread["msgs"] if not is_reaction(m)]
 
 
@@ -105,7 +105,7 @@ def build_threads(events: list, within: dict) -> dict:
     while the fold reported the suggestion rejected: the log held one thing, the
     panel showed another, and nothing on either side said so.
 
-    An ask is a widget instance ($awaits), so what answers one is that widget's
+    A decision is a widget instance ($awaits), so what answers one is that widget's
     own last word — and the widget id is also the only key the log carries by
     itself. That is why the state fold cannot serve here: it drops an action whose
     widget the current page no longer holds, and the version that honors a
@@ -240,8 +240,8 @@ def awaits_agent(thread: dict) -> bool:
     Anyone other than the agent spoke last and it waits on the agent. An agent-last
     thread and a resolved thread do not. This reading deliberately says nothing about
     whether the reader owes a word: an ordinary agent reply may leave the open thread
-    awaiting nobody, while an agent comment, an explicit prose ask, or a structured
-    widget ask awaits the reader. The runtime's `awaitsAgent` is the same sentence,
+    awaiting nobody, while an agent comment, an explicit prose question, or a structured
+    widget decision awaits the reader. The runtime's `awaitsAgent` is the same sentence,
     and it has to be: the panel telling the reader a seated thread is with the agent
     while the banner counts the same question as theirs is one fact told two ways.
 
@@ -280,7 +280,7 @@ def seats_with_agent(threads: dict) -> set[str]:
     """Widget ids whose own seat holds a conversation now waiting on the agent.
 
     A request whose own conversation is with the agent is not one the reader has to
-    deal with, so an ask projection reading their list subtracts these. It is not an
+    deal with, so a decision projection reading their list subtracts these. It is not an
     answer — the widget's state is untouched — which is why the reading that asks
     whether a request is answered passes an empty set instead. The runtime builds the
     same set from `awaitsAgent` over `seatRoot`, so the banner's count and `page state`

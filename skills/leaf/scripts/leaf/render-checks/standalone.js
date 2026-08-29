@@ -16,12 +16,14 @@ export function coveredWords({
   const outOfFlow = (style) =>
     style.position === "absolute" || style.position === "fixed";
   const floating = (el) => {
-    for (
-      let ancestor = el.closest("[data-lf-offer]");
-      ancestor;
-      ancestor = ancestor.parentElement?.closest("[data-lf-offer]")
-    )
+    // The offer may be only one contribution inside a shared positioned host. Walk
+    // its actual ancestry rather than jumping from offer to offer, so the geometry
+    // owner can remain a generated container without making its children's words
+    // look like ordinary in-flow prose.
+    for (let ancestor = el.closest("[data-lf-offer]"); ancestor;) {
       if (outOfFlow(getComputedStyle(ancestor))) return true;
+      ancestor = ancestor.parentElement;
+    }
     return false;
   };
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -178,15 +180,17 @@ export function bake() {
   // nothing, and `anchor(top)` is measured from it.
   // A reaction is the reader's mark on the page, and a copy keeps a mark the way it
   // keeps a chosen option's word: the glyph stays in the margin with its press taken
-  // off — the tab stop, the role, the marker, and the title that promised a press —
-  // and the wash on the words, which is a highlight-registry entry no serialization
-  // carries, is written into the words as a <mark> for this copy alone (the theme's
-  // html.lf-copy rule paints it). Each painted range lies within one text node
+  // off — the tab stop, interactive role, marker, and title that promised a press.
+  // The remaining glyph becomes a named static image, and the wash on the words,
+  // which is a highlight-registry entry no serialization carries, is written into
+  // the words as a <mark> for this copy alone (the theme's html.lf-copy rule paints
+  // it). Each painted range lies within one text node
   // (anchors.js paints a range per segment), which is what lets surroundContents
   // wrap it; the ranges are live, so an earlier wrap moves a later one's offsets.
   for (const mark of document.querySelectorAll(".lf-react-mark")) {
-    for (const attr of ["tabindex", "role", "data-lf-offer", "title"])
+    for (const attr of ["tabindex", "data-lf-offer", "title"])
       mark.removeAttribute(attr);
+    mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", mark.dataset.token);
   }
   // Two reactions on overlapping words leave the second range straddling the first's

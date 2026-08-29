@@ -240,9 +240,16 @@ export function chromeStyle({
     border: 1px solid var(--border-2); border-radius: 999px;
     background: var(--card); color: var(--ink-2);
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
-    font: 600 var(--t-6)/1 var(--sans); white-space: nowrap; cursor: pointer;
+    font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
     scroll-margin-block: var(--here-ring-room);
   }
+  /* The look is the control's and the hand is the press's, which is one rule apart —
+     the same split the pill above states, and for the same reason. A copy keeps the
+     shape and loses the gesture: BAKE takes the role and the tab stop off a standing
+     reaction mark and leaves the mark itself, so a hand hung on the class alone
+     promises a press no file can answer. It reads the two ways a press is spelled
+     here: the platform's element, and the attribute offer() writes on a span. */
+  .lf-margin-action:is(button, [role="button"]) { cursor: pointer; }
   .lf-margin-action:hover:not([aria-disabled="true"]) { background: var(--chip); }
   .lf-margin-action:is(:focus-visible, .lf-focus-visible) {
     outline: var(--here-ring); --lf-here-ring: margin-action; outline-offset: 1px;

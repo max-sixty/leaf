@@ -797,10 +797,10 @@ FOCUS_IN_PAGE = """() => {
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting is not that: the runtime
-# paints .lf-mark-hover on a marked element under the cursor, so a reading taken with the
-# pointer still on an item reports the hover as a change the press made. It shows up only
-# on an element some thread already marks, which is why nothing saw it until a shipped
-# log carried a comment on a widget.
+# paints .lf-mark-hover on a marked element under the cursor and .lf-margin-target on a
+# target whose page-map preview the pointer opened, so a reading taken with the pointer
+# still on an item reports that paint as a change the press made. Neither is authored
+# state and both come off when the pointer leaves.
 PAGE_MARKUP = """() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -808,7 +808,7 @@ PAGE_MARKUP = """() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")])
-            el.classList?.remove("lf-mark-hover");
+            el.classList?.remove("lf-mark-hover", "lf-margin-target");
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""

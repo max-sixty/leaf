@@ -1180,8 +1180,12 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
 ):
     """Export keeps standing reactions as their painted marks and drops the
     affordances, like every other control: the glyph stays in the margin with no tab
-    stop or role, and the wash is written into the words, the highlight registry being
-    script state no file can carry."""
+    stop and nothing calling it a press, and the wash is written into the words, the
+    highlight registry being script state no file can carry.
+
+    The role it does keep is the picture's. The glyph is aria-hidden paint and the word
+    beside it is collapsed away, so the token is the mark's name or the mark has none,
+    and a name on a role-less span is the one place the platform refuses one."""
     url = serve(PANEL_PAGE)
     events_model.append_event(
         serve.page_dir,
@@ -1204,9 +1208,12 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
           glyph: [...document.querySelectorAll(
             '.lf-margin-item[data-lf-margin-for="how-store"] .lf-react-mark'
           )]
-            .map(m => [m.innerText, m.getAttribute('role'), m.getAttribute('tabindex')]),
+            .map(m => [m.innerText, m.getAttribute('role'),
+                       m.getAttribute('aria-label'), m.getAttribute('tabindex')]),
         })"""
     )
-    assert copy == {"washed": ["every edit"], "glyph": [["−", None, None]]}, copy
+    assert copy == {"washed": ["every edit"], "glyph": [["−", "img", "cut", None]]}, (
+        copy
+    )
     assert errors == []
     page.close()

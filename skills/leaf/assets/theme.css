@@ -1408,7 +1408,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     outline-offset: calc(-1 * var(--here-ring-w)); }
 @media screen and (min-width: 900px) {
   body:has(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden])) {
-    --claim-map: 54px;
+    /* The 30px marker hangs 22px off the column and its complete host keeps the
+       shared focus-ring room at the outer edge. Claim all three, or opening a side
+       panel leaves that last band past body's room and the layout hides the marker. */
+    --claim-map: calc(52px + var(--here-ring-room));
   }
   body:has(.lf-margin-item[data-lf-claims-rail]) {
     --claim-rail: var(--rail, 54px);

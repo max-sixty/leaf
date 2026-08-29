@@ -1218,7 +1218,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     page.locator("#sug-level").scroll_into_view_if_needed()
     geometry = """() => {
         const note = document.getElementById('level-note').getBoundingClientRect();
-        const row = document.querySelector('.lf-sug-actions');
+        const row = document.querySelector("[data-lf-margin-for='sug-level']");
         const b = row.getBoundingClientRect();
         return {position: getComputedStyle(row).position,
                 across: Math.min(note.right, b.right) - Math.max(note.left, b.left),
@@ -1232,7 +1232,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     # of the predicate is reached — and the class is the fact that frame states.
     resized(page, 800, 900)
     page.wait_for_function(
-        "() => document.querySelector('.lf-sug-actions')"
+        "() => document.querySelector(\"[data-lf-margin-for='sug-level']\")"
         ".classList.contains('lf-docked')"
     )
     docked = page.evaluate(geometry)

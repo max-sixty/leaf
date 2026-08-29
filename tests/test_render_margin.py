@@ -532,7 +532,7 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
             "body => getComputedStyle(body).paddingRight"
         )
 
-    assert padding_right() == "54px"
+    assert padding_right() == "57px"
 
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)

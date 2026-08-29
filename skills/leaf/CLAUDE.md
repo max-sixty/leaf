@@ -2422,6 +2422,13 @@ Widget affordances fall into three groups:
 - Module-specific visual affordances guarded by live script exist only under
   `html:not(.lf-copy)`.
 
+Paint that promises a gesture — the pointer hand above all — hangs on how a press is
+spelled (`button`, `[role="button"]`), never on a control class alone. Export takes
+the role off and leaves the class, so a hand hung on the class is a hand a file cannot
+answer. A control that keeps its shape in a copy keeps its name too, and the name needs
+a role that admits one: a glyph whose word is collapsed away is an `img` with a text
+alternative, not a bare span wearing `aria-label`.
+
 Projected data is a fourth question with a different answer: a copy keeps the current
 `projectData` rendering, including its projection and datum labels, but loses the
 module that could refresh it. It is therefore a labelled snapshot, not a live

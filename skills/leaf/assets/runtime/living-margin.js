@@ -283,6 +283,7 @@ export function createLivingMargin(dependencies) {
 
   const rows = new Map();
   const hosts = new Map();
+  const inlineHosts = new Map();
   let currentEntries = [];
   let previewEntry = null;
   let previewButton = null;
@@ -734,6 +735,52 @@ export function createLivingMargin(dependencies) {
     });
   }
 
+  // A widget frozen into a conversation belongs to that conversation's document,
+  // not to the page margin behind it. Keep its contributed controls in the local
+  // flow, grouped by the same exact target identity, without registering a page rail
+  // claim or a second placement model in the widget module.
+  function syncInlineOffers() {
+    const grouped = new Map();
+    for (const offered of offeredItems) {
+      const target =
+        typeof offered.target === "function" ? offered.target() : offered.target;
+      if (!target?.isConnected || !inChrome(target) || !offered.controls) continue;
+      const offers = grouped.get(target) ?? [];
+      offers.push(offered);
+      grouped.set(target, offers);
+    }
+
+    for (const [target, offers] of grouped) {
+      let host = inlineHosts.get(target);
+      if (!host) {
+        host = el("div", "lf-ui");
+        host.dataset.lfGen = "1";
+        host.setAttribute("role", "group");
+        inlineHosts.set(target, host);
+      }
+      host.dataset.lfMarginFor = target.id || targetPath(target);
+      host.setAttribute("aria-label", `Actions for ${itemWord(target)}`);
+      const controls = (side) =>
+        offers
+          .filter((offered) => offered.side === side)
+          .map((offered) => offered.controls);
+      const wanted = [...controls("before"), ...controls("after")];
+      for (const child of [...host.children])
+        if (!wanted.includes(child)) child.remove();
+      wanted.forEach((child, position) => {
+        if (host.children[position] !== child)
+          host.insertBefore(child, host.children[position] ?? null);
+      });
+      if (target.nextSibling !== host) moveHost(host, () => target.after(host));
+    }
+
+    for (const [target, host] of inlineHosts)
+      if (!grouped.has(target)) {
+        host.remove();
+        inlineHosts.delete(target);
+      }
+  }
+
   function moveHost(host, move) {
     const held = host.contains(document.activeElement) ? document.activeElement : null;
     move();
@@ -744,6 +791,7 @@ export function createLivingMargin(dependencies) {
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
     placeMargin(main?.getBoundingClientRect());
+    syncInlineOffers();
     currentEntries = collectEntries();
     const anchoredEntries = currentEntries.filter((entry) => entry.target);
     const live = new Set(anchoredEntries.map((entry) => entry.key));

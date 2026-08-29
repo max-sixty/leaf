@@ -483,7 +483,15 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
 
     Asserted through the hit test rather than the rectangles, since what matters is which
     element the press would reach — and then by making the press, which is the whole
-    claim."""
+    claim.
+
+    Both readings ask where the row's own centre is, so both go quiet together the moment
+    the bar stops reaching it, and neither says so. That is not hypothetical: the bar
+    carrying six reaction pills reached 219px past the row, and the bar carrying 💬 and one
+    ellipsis misses it by 2.9px, so between those two shapes this test passed on a page
+    where nothing was ever in the way. The walk stepping is the arrangement, so state it —
+    the sibling test below already does, and it is the assertion that caught the same
+    staleness rather than sleeping through it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
@@ -493,6 +501,11 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         steps=16,
     )
     expect(page.locator(".lf-fab")).to_be_visible()
+    assert page.locator(".lf-fab-bar").evaluate(
+        "el => el.getBoundingClientRect().top"
+    ) > page.locator("[data-lf-for='sug-refill']").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ), "the bar never stepped past the row, so standing on no control proves nothing"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => !c.closest(".lf-chrome"))

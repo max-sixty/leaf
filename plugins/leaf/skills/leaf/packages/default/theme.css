@@ -1009,7 +1009,7 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
-lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: 1px;
+lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: calc(-1 * var(--here-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
@@ -1054,7 +1054,8 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * that is the whole difference between this widget and lf-shot's checkbox. */
 @media screen {
   html:not(.lf-copy) {
-    lf-tabs.lf-rendered { margin: var(--sp-4) 0 32px;
+    /* :where keeps the frame face below the generic edge trim's specificity. */
+    :where(lf-tabs.lf-rendered) { margin: var(--sp-4) 0 32px;
       border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--card); --lf-frame: 1; }
     .lf-tabstrip { display: flex; padding: 8px 8px 0;

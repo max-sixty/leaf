@@ -793,6 +793,14 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
+  // Blur on a marker is delayed so focus can enter its preview. Once focus leaves the
+  // preview too, that bridge is spent: a keyboard reader's next control must not sit
+  // under an unpinned card that belongs to the previous stop.
+  preview.addEventListener("focusout", (event) => {
+    const next = event.relatedTarget;
+    if (!pinnedKey && !preview.contains(next) && next !== previewButton)
+      closePreview(false);
+  });
   preview.addEventListener("pointerenter", () => (cardHovered = true));
   preview.addEventListener("pointerleave", () => {
     cardHovered = false;

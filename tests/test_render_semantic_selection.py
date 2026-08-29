@@ -430,7 +430,14 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
     match = page.locator(".lf-target-match").first
     expect(match).to_be_visible()
-    mark = match.bounding_box()
+    mark = page.evaluate(
+        """() => {
+          const node = document.querySelector('.lf-target-match');
+          if (!node) return null;
+          const { x, y, width, height } = node.getBoundingClientRect();
+          return { x, y, width, height };
+        }"""
+    )
     assert mark is not None
     keyline_top = page.locator(".lf-keyline").bounding_box()["y"]
     assert mark["y"] > 42 and mark["y"] + mark["height"] < keyline_top

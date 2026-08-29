@@ -131,6 +131,29 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     page.close()
 
 
+def test_an_unpinned_preview_leaves_with_keyboard_focus(browser, serve):
+    """A preview reached from the margin is a stop on the page's Tab walk, not a layer
+    left over the control the reader reaches next."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    preview = page.locator(".lf-margin-preview")
+
+    marker.focus()
+    expect(preview).to_be_visible()
+    page.locator(".lf-margin-preview-close").focus()
+    expect(page.locator(".lf-margin-preview-close")).to_be_focused()
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.focus()
+
+    expect(toggle).to_be_focused()
+    assert preview.is_hidden()
+    expect(page.locator("#bracket")).not_to_have_class(re.compile(r"lf-margin-target"))
+    assert errors == []
+    page.close()
+
+
 def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serve):
     """Other map meanings keep their narrow rail until a thread needs the card."""
     page, errors = open_page(

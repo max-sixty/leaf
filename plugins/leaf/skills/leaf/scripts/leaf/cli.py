@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 
 from leaf.agent_state import cmd_page_state
+from leaf.codex import cmd_codex_start, run_adapter
 from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
 from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
@@ -49,6 +50,30 @@ def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
 @click.group()
 def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
+
+
+@cli.group(short_help="Deliver page updates to later turns of this Codex task.")
+def codex() -> None:
+    """Run Leaf's detached Codex delivery carrier."""
+
+
+@codex.command("start", short_help="Keep PAGE connected after this turn ends.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--codex-path", hidden=True)
+def codex_start(dir: str, codex_path: str | None) -> None:
+    """Start one task-wide delivery carrier and claim PAGE for it."""
+    try:
+        click.echo(cmd_codex_start(resolve_dir(dir), codex_path))
+    except RuntimeError as error:
+        raise click.ClickException(str(error)) from error
+
+
+@codex.command("run", hidden=True)
+@click.option("--codex-path", required=True)
+@click.option("--ready-fd", type=int)
+def codex_run(codex_path: str, ready_fd: int | None) -> None:
+    """Run the detached carrier child."""
+    sys.exit(run_adapter(codex_path, ready_fd))
 
 
 @cli.group(short_help="Create pages and add media.")

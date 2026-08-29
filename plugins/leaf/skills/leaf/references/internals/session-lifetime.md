@@ -52,21 +52,38 @@ leaf bug costs a turn nothing. Unacknowledged events are the one
 thing `leaf status <page> idle` can't close over: idling is how a leaf ends, and
 one can't end on comments nobody read.
 
-A session's leaves cost it one long-running command between them, and that
-command is the watcher. The two jobs end in opposite ways: `leaf wait` has to
-exit, because its exit is how what the user said reaches the agent; the server
-has to not exit at all, because the browser holds a stream open to it between
-turns and straight across every wait. So no single process does both. Only the
-watcher belongs to the session, and one watcher is enough: it watches every
-page the session holds, re-reading the set on each pass, and delivers one
-page's batch under a first line naming the page and carrying the conversations
-its events land in. `leaf wait` holds the lease until the first delivery;
-afterward, `leaf ack` advances that batch's cursor and becomes the next
-long-running watcher, so each turn still leaves exactly one process holding the
-lease. `server start` spawns the service into a session of its own and hands
-back the URL that process printed and the lifetime it recorded — so a killed
-background task costs only the watcher and leaves every page up, and recovery
-is one `leaf wait`.
+A session's leaves cost it one long-running carrier between them, and that
+carrier is separate from the page server. Claude Code uses a sequence of direct
+watchers: `leaf wait` exits to put a batch in model context, then `leaf ack`
+advances its cursor and becomes the next watcher. Codex uses one detached
+adapter instead. It holds the same task-wide wait lease, persists the exact
+batch it captured, hands a bounded pointer to Codex's durable same-task queue,
+advances the cursor after acceptance, and keeps watching while the foreground
+turn is over. The already-loaded Desktop client keeps the task writer, consumes
+the shared durable queue, and owns every execution or approval request. Leaf's
+queue command never resumes or starts the task. An unloaded task therefore
+keeps the accepted item standing until the Codex client reopens it.
+The adapter has a second lease because a generic wait lease cannot prove that
+its output can enter a later Codex turn; the Stop hook trusts only the pair.
+Both carriers watch every page the session holds, re-reading the set on each
+pass, and deliver one page's batch under a first line naming the page and
+carrying the conversations its events land in.
+
+The Codex delivery intent and its immutable payload live under the host state
+home's session records, not in the page. They are transport recovery state: the
+document and event log remain the page authority, while the intent preserves one
+stable Leaf delivery id and exact pointer prompt across queue acceptance before
+cursor acknowledgement. An uncertain queue command is retried with that same
+pointer. The resulting delivery is at least once; a repeated turn recognizes
+the delivery id and applies the page-and-sequence retry rule. Once a queue
+command succeeds, the adapter advances the page cursor and removes the intent.
+The payload stays as conservative recovery state because queue acceptance does
+not prove that a later turn read it.
+
+`server start` spawns the service into a session of its own and hands back the
+URL that process printed and the lifetime it recorded — so a killed carrier
+costs only delivery and leaves every page up. A direct-loop recovery is one
+`leaf wait`; a Codex recovery is one `leaf codex start <page>`.
 
 Whether a session's end reaches a server is decided at launch and written in
 service.json as its lifetime. A serve from an agent host records the page's

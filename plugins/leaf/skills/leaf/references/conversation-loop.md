@@ -63,15 +63,29 @@ it.
 - **Claude Code:** start `leaf wait` as a background task and end the turn. Its
   completion becomes host input. After each batch, start `leaf ack` as the next
   background task; it acknowledges that batch and waits for another.
-- **Codex:** send the URL in an intermediate update, start `leaf wait` in unified
-  exec, retain that exact session id, and keep the turn active. Poll the same
-  session with empty `write_stdin` calls and long yields. After each batch, run
-  `leaf ack` in unified exec and retain its session id in the same way. Never
-  detach either command or end the turn expecting completion to start another
-  turn.
+- **Codex:** start `leaf codex start <page>` after setting the page `waiting`,
+  then finish the turn normally. One detached adapter watches every page this
+  task owns. It gives each complete batch a stable delivery id, queues it as a
+  new user turn in this same task, and acknowledges only after Codex accepts the
+  durable queue item. The loaded Desktop client starts that later turn and keeps
+  ownership of execution and approvals. If the task has been unloaded, the item
+  stays queued until Codex reopens it; the adapter never resumes the task or
+  answers client requests on the user's behalf. The small queued message points
+  to the exact persisted batch rather than copying an arbitrarily large batch
+  into Codex's bounded text input. A later queued turn reads that payload,
+  processes it directly, and leaves only `leaf wait` and `leaf ack` to the
+  adapter. The turn still owns replies, revisions, and page status, including
+  the handoff back to `waiting` or `idle`. Starting the command again for another
+  page adds that page to the same task-wide watch.
 
-An optional Codex watcher requires the user's explicit authorization because it
-creates a visible task. Its separate route is in the main skill.
+  If `leaf codex start` refuses to start, do not finish over a live page. Follow
+  its diagnostic: an existing foreground `leaf wait` must be stopped before the
+  adapter can take the task's single wait lease, and an unavailable Codex queue
+  command cannot receive later turns.
+
+An optional separate Codex watcher remains a fallback that requires the user's
+explicit authorization because it creates a visible task. Its route is in the
+main skill.
 
 The initial `leaf wait` revives a dead server under its recorded lifetime and
 reports that on stderr. Its exit 2 means stderr names an ending rather than a
@@ -109,9 +123,13 @@ and its most recent, with `elided` counting what was dropped between, and
 Printing is not receipt. The wait owner acknowledges only after the complete
 batch reaches its next durable consumer.
 
-In the direct loop, the durable consumer is model context. An adapter instead
-owns its wait and acknowledgement; it acknowledges after its receiver accepts
-the batch, and the receiver does not wait or acknowledge.
+In the direct loop, the durable consumer is model context. The Codex adapter
+instead owns its wait and acknowledgement. It acknowledges after Codex's queue
+accepts the batch; the queued turn reads its named delivery payload and does not
+wait or acknowledge. If a queue command has an uncertain outcome, the adapter
+retries the same pointer with the same Leaf delivery id. This is at-least-once
+delivery and may create a retry turn; the task applies the page-and-sequence
+retry rule below.
 
 If wait output is truncated, acknowledge nothing and rerun with enough output
 capacity for the whole batch. After the complete batch reaches its next durable

@@ -2,6 +2,7 @@
 
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
@@ -221,13 +222,13 @@ def _batch_registry(reading: PageTick):
         return None  # the token still reaches the agent
 
 
-def _deliver_batch(reading: PageTick) -> None:
-    """Write one page's complete batch and claim its handoff when needed."""
+def batch_jsonl(reading: PageTick) -> str:
+    """Serialize one complete delivery batch without taking receipt for it."""
     # Whose events follow, said in-band: no event line names its page, and the
     # ack has to go back to the right one. The conversations they land in come
     # with them, because a delivered reply names only the message it answers and
     # the session that knew what that was may since have compacted.
-    print(
+    lines = [
         jsonl_line(
             {
                 "page": str(reading.page_dir),
@@ -237,19 +238,21 @@ def _deliver_batch(reading: PageTick) -> None:
                     active_enclosing(reading.page_dir),
                 ),
             }
-        ),
-        flush=True,
-    )
+        )
+    ]
     # A reaction's word is explained beside it (`means`), off the page's own
     # vendored vocabulary, so a project token reaches the agent already saying
     # what it asks for. A stale registry must not block the remaining batch.
     registry = _batch_registry(reading)
-    for event in reading.batch:
-        print(jsonl_line(described(event, registry)), flush=True)
+    lines.extend(jsonl_line(described(event, registry)) for event in reading.batch)
+    return "\n".join(lines)
+
+
+def mark_handoff(reading: PageTick) -> None:
+    """Claim a batch after its next consumer has accepted it."""
     if reading.status["state"] != "working":
         # Flip before the agent handles the batch: the handoff gap between this
-        # exit and pickup must not show "waiting". The tick still holds the page
-        # lock, so a transfer cannot land between delivery and this claim.
+        # delivery and pickup must not show "waiting".
         count = len(reading.batch)
         reading.transaction.set_status(
             "working",
@@ -258,7 +261,17 @@ def _deliver_batch(reading: PageTick) -> None:
         )
 
 
-def _read_watch_pass(watch: Watch, named: Path | None) -> _WatchPass:
+def _deliver_batch(reading: PageTick) -> None:
+    """Write one page's complete batch and claim its direct handoff."""
+    print(batch_jsonl(reading), flush=True)
+    mark_handoff(reading)
+
+
+def read_watch_pass(
+    watch: Watch,
+    named: Path | None,
+    deliver: Callable[[PageTick], None] = _deliver_batch,
+) -> _WatchPass:
     """Read pages until this pass completes or one page ends the wait."""
     readings = []
     live = []
@@ -285,7 +298,7 @@ def _read_watch_pass(watch: Watch, named: Path | None) -> _WatchPass:
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch:
-            _deliver_batch(reading)
+            deliver(reading)
             return _WatchPass(readings, live, 0)
         if reading.lost:
             print(
@@ -372,7 +385,7 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
         return 2
     try:
         while True:
-            reading = _read_watch_pass(watch, named)
+            reading = read_watch_pass(watch, named)
             if reading.outcome is not None:
                 return reading.outcome
             # A leaf the agent idled has nobody left to carry a comment to, so it
@@ -384,6 +397,22 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
         watch.release()
 
 
+def acknowledge(page: PageTransaction, seq: int) -> None:
+    """Advance one locked page through a delivered batch target."""
+    events = page.events
+    # By the seq the event carries, never by its position in the list. A seq
+    # is a line number and read_events skips what it can't read, so the two
+    # coincide only on a log nothing tore.
+    target = next((e for e in events if e["seq"] == seq), None)
+    if target is None:
+        end = events[-1]["seq"] if events else 0
+        sys.exit(f"event {seq} does not exist; the log ends at {end}")
+    if target["author"] != "user" and target["kind"] not in ("report", "error"):
+        sys.exit(f"event {seq} is not a user event, a report, or a page error")
+    if seq > page.cursor:
+        write_json(page.page_dir / "cursor.json", {"seq": seq})
+
+
 def cmd_ack(page_dir: Path, seq: int) -> None:
     """Acknowledge through one event of a complete wait batch that reached delivery.
 
@@ -393,15 +422,4 @@ def cmd_ack(page_dir: Path, seq: int) -> None:
     the cursor advances makes retries harmless.
     """
     with PageTransaction(page_dir) as page:
-        events = page.events
-        # By the seq the event carries, never by its position in the list. A seq
-        # is a line number and read_events skips what it can't read, so the two
-        # coincide only on a log nothing tore.
-        target = next((e for e in events if e["seq"] == seq), None)
-        if target is None:
-            end = events[-1]["seq"] if events else 0
-            sys.exit(f"event {seq} does not exist; the log ends at {end}")
-        if target["author"] != "user" and target["kind"] not in ("report", "error"):
-            sys.exit(f"event {seq} is not a user event, a report, or a page error")
-        if seq > page.cursor:
-            write_json(page_dir / "cursor.json", {"seq": seq})
+        acknowledge(page, seq)

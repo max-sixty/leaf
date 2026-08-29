@@ -46,6 +46,7 @@ Options:
 
 Commands:
   ack         Acknowledge one batch, then wait for the next.
+  codex       Deliver page updates to later turns of this Codex task.
   comment     Open an agent thread — on a passage, or on the page whole.
   data        Set or clear page-bound external data.
   edit        Edit one of this agent session's messages.
@@ -63,6 +64,20 @@ Commands:
   wait        Print one page's unacknowledged events and reports, then exit.
 """,
             id="root",
+        ),
+        pytest.param(
+            ["codex", "--help"],
+            """Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
+
+  Run Leaf's detached Codex delivery carrier.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  start  Keep PAGE connected after this turn ends.
+""",
+            id="codex",
         ),
         pytest.param(
             ["data", "--help"],

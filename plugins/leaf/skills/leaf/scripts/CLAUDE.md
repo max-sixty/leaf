@@ -23,7 +23,8 @@ The main owners are:
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;
 - `server` and `hosting`: server address and lifetime state, and the HTTP process;
-- `session` and `hooks`: wait delivery and host lifecycle;
+- `session` and `hooks`: direct wait delivery and host lifecycle;
+- `codex`: detached Codex queue delivery and recovery;
 - `presence`: page, claim, and neighboring-leaf presence readings;
 - `served_state/` and `http`: browser-facing projections and change readings,
   and HTTP transport;

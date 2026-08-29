@@ -4,6 +4,7 @@ import json
 
 from .event_log import read_events
 from .events import awaits_agent, build_threads, seat_root, spoken_turns
+from .leases import adapter_is_live
 from .passages import active_enclosing
 from .schema import ACK_BATCH_INSTRUCTION, ANSWER_ASK_INSTRUCTION
 from .served_state.page import full_state
@@ -106,6 +107,7 @@ def unattended_pages(session_id: str) -> list:
         except FileNotFoundError:
             continue
         codex = state["host"] == "codex"
+        adapter = codex and adapter_is_live(session_id)
         # Asked of every page, watched or not, and ahead of the watch question
         # below: a watcher cannot deliver a comment the cursor has already
         # passed, so a live wait is no answer to this one.
@@ -121,7 +123,7 @@ def unattended_pages(session_id: str) -> list:
         # then the `leaf ack` that re-arms it. It prints what's pending on its own.
         # Reporting the page here would start a second waiter and print the same
         # unacknowledged events twice.
-        if not (state["listening"] and not codex):
+        if not (state["listening"] and (not codex or adapter)):
             # The watcher's whole batch — user events and workers' reports — not the
             # reader-facing count, which deliberately leaves reports out.
             n = len(unacknowledged(events, state["cursor"]))
@@ -134,8 +136,8 @@ def unattended_pages(session_id: str) -> list:
                     )
                 elif codex:
                     remedy = (
-                        "Start `leaf wait` in unified exec, retain its session id, "
-                        "and poll it with `write_stdin`."
+                        f"Start `leaf codex start {page_dir}` so later updates queue "
+                        "new turns in this task."
                     )
                 else:
                     remedy = "`leaf wait` prints them."
@@ -157,10 +159,9 @@ def unattended_pages(session_id: str) -> list:
                     )
                 elif codex:
                     page_reasons.append(
-                        f"{page_dir}: no watcher. Start `leaf wait` in unified exec, "
-                        "retain its session id, and keep this turn active while polling it with "
-                        "`write_stdin`; or run `leaf status <page> idle` if the page "
-                        "is done."
+                        f"{page_dir}: no delivery adapter. Start `leaf codex start "
+                        f"{page_dir}` so this turn can finish and later updates start "
+                        "new turns; or run `leaf status <page> idle` if the page is done."
                     )
                 else:
                     page_reasons.append(

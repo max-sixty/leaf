@@ -595,9 +595,12 @@ def test_a_pick_offered_can_be_pointed_at_too(browser, serve):
     # version is parsed unupgraded and has no mark in it at all. Read as text, the card
     # carrying the pick lights up as changed on every revision.
     #
-    # v2 rewords a third card, so the card the diff should mark and the card wearing the
-    # mark are different ones — with the pick on the reworded card there is nothing to
-    # see, which is how this passed while reading the mark as text.
+    # v2 rewords the strict card while the pick stands on bearer, so the card the diff
+    # should mark and the card wearing the mark are different ones. The round trip above
+    # is load-bearing: until bearer's action reaches the log, the preceding strict pick
+    # still stands and the author correctly cannot rewrite it. With the pick on the
+    # reworded card there would be nothing to see, which is how this passed while reading
+    # the mark as text.
     d = serve.page_dir
     next_page = (
         SETTLED_PAGE.replace(

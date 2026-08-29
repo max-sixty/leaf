@@ -48,6 +48,7 @@ from render_support import (
     open_page,
     panel_settled,
     post_event,
+    resized,
     round_trip,
     select,
     stamp_version_file,
@@ -488,11 +489,29 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     Both readings ask where the row's own centre is, so both go quiet together the moment
     the bar stops reaching it, and neither says so. That is not hypothetical: the bar
     carrying six reaction pills reached 219px past the row, and the bar carrying 💬 and one
-    ellipsis misses it by 2.9px, so between those two shapes this test passed on a page
+    ellipsis stops 2.9px short of it, so between those two shapes this test ran on a page
     where nothing was ever in the way. The walk stepping is the arrangement, so state it —
     the sibling test below already does, and it is the assertion that caught the same
-    staleness rather than sleeping through it."""
+    staleness rather than sleeping through it.
+
+    Read that precondition as a tripwire and not as the coverage claim restored. The
+    compact bar reaches the row's left edge and stops well short of the Accept centre both
+    readings ask about, at every width where the row still hangs in the margin, so on this
+    fixture the two assertions below cannot presently fail. What the precondition holds is
+    that the arrangement is still a collision; when it goes, this says so instead of the
+    file going quiet again. Restoring the readings themselves needs a fixture whose control
+    the bar can actually cover, which is a different change.
+
+    Narrowed to where the bar and the row genuinely overlap rather than left at a desk's
+    width, because at 1200 the bar clears the row outright and steps only through
+    placeClear's 6px sharing gutter — 3.1px of slack, which is the allowance that same
+    filter's comment says a one-glyph difference between system fonts must not decide. A
+    precondition resting on it would go red for a font, saying staleness. At 930 the two
+    overlap by 20.3px and the step is the row's own doing."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    # Wide enough that the suggestion still hangs its row in the margin — below 900 it
+    # docks under its block and is out of the bar's way again.
+    resized(page, 930, 900)
     box = page.locator("#replace").bounding_box()
     select(
         page,

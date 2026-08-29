@@ -460,11 +460,21 @@ function receiveState(...args) {
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
 // because `shadowStage` calls it, far above the key line it repaints for.
-const disclosureWatch = new MutationObserver(() => paintHere());
+// A write that says what the attribute already said is not a disclosure changing, and
+// taking it for one closes a loop: paintCoreControls paints `aria-expanded` on the key
+// line's More control, so every paint scheduled the next one and the page repainted for
+// as long as it was open. Reading the old value is what tells the two apart. A real
+// toggle still arrives, including one that lands back where it started, because the
+// record for its return leg carries the other value.
+const disclosureWatch = new MutationObserver((records) => {
+  if (records.some((r) => r.target.getAttribute(r.attributeName) !== r.oldValue))
+    paintHere();
+});
 const watchDisclosures = (root) =>
   disclosureWatch.observe(root, {
     subtree: true,
     attributeFilter: ["open", "aria-expanded"],
+    attributeOldValue: true,
   });
 createShadowStage(watchDisclosures);
 

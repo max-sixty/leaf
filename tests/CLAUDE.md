@@ -392,10 +392,12 @@ binding, so a promise awaited inside it — an animation's `finished`, a module'
 listener's next call — is a wait nothing bounds. It does not fail in thirty seconds
 naming its test: it spends the job's whole step, and the share of the suite already
 handed to that worker never runs. Bound the await with a `setTimeout` that rejects
-naming what never arrived and the bound it passed, as `render_checks.py`'s probe loader
-races one and the diff renders in `test_render_anchors.py` hold a frame poll against
-one, or state the fact from inside the page and read it with `wait_for_function`.
-`SERVED_TIMEOUT_MS` is the patience the payload gives such a wait.
+naming what never arrived and the bound it passed, as `render_checks.py` races one
+around its probe module's load and around each probe's own answer, and the diff renders
+in `test_render_anchors.py` hold a frame poll against one, or state the fact from inside
+the page and read it with `wait_for_function`. `SERVED_TIMEOUT_MS` is the patience the
+payload gives such a wait. A reading taken through `evaluate_probe` therefore already
+states its end, and needs no race of its own.
 
 ### A state the page passes through is not a state to poll for
 

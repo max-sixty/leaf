@@ -48,6 +48,7 @@ from render_support import (
     open_page,
     panel_settled,
     post_event,
+    resized,
     round_trip,
     select,
     stamp_version_file,
@@ -483,8 +484,36 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
 
     Asserted through the hit test rather than the rectangles, since what matters is which
     element the press would reach — and then by making the press, which is the whole
-    claim."""
+    claim.
+
+    Both readings ask where the row's own centre is, so both go quiet together the moment
+    the bar stops reaching it, and neither says so. That is not hypothetical: the bar
+    carrying six reaction pills reached 219px past the row, and the bar carrying 💬 and one
+    ellipsis stops 2.9px short of it, so between those two shapes this test ran on a page
+    where nothing was ever in the way. The walk stepping is the arrangement, so state it —
+    the sibling test below already does, and it is the assertion that caught the same
+    staleness rather than sleeping through it.
+
+    Read at the control's corners as well as its centre, because a press lands where the
+    reader aimed and the top of a pill is as much of it as the middle. The centre alone
+    could not fail here: the bar hangs 6px above the line it stands beside and is the row's
+    own height, so a bar that never stepped reaches the row's top edge and stops 1.25px
+    short of its centre — at every width where the row still hangs in the margin, not just
+    this one. The walk could have been removed outright and the centre stayed clear. The
+    corners are on the part the bar does reach, so the coverage claim is falsifiable again
+    without trading the hit test for rectangles; the press below still lands at the centre,
+    which is why the hit test is what carries the claim and the press confirms it.
+
+    Narrowed to where the bar and the row genuinely overlap rather than left at a desk's
+    width, because at 1200 the bar clears the row outright and steps only through
+    placeClear's 6px sharing gutter — 3.1px of slack, which is the allowance that same
+    filter's comment says a one-glyph difference between system fonts must not decide. A
+    precondition resting on it would go red for a font, saying staleness. At 930 the two
+    overlap by 20.3px and the step is the row's own doing."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    # Wide enough that the suggestion still hangs its row in the margin — below 900 it
+    # docks under its block and is out of the bar's way again.
+    resized(page, 930, 900)
     box = page.locator("#replace").bounding_box()
     select(
         page,
@@ -493,13 +522,20 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         steps=16,
     )
     expect(page.locator(".lf-fab")).to_be_visible()
+    assert page.locator(".lf-fab-bar").evaluate(
+        "el => el.getBoundingClientRect().top"
+    ) > page.locator("[data-lf-for='sug-refill']").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    ), "the bar never stepped past the row, so standing on no control proves nothing"
 
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => !c.closest(".lf-chrome"))
         .filter(c => { const b = c.getBoundingClientRect();
-                       const top = document.elementFromPoint((b.left + b.right) / 2,
-                                                            (b.top + b.bottom) / 2);
-                       return top && !c.contains(top) && top.closest(".lf-chrome"); })
+                       const xs = [b.left + 4, (b.left + b.right) / 2, b.right - 4];
+                       const ys = [b.top + 4, (b.top + b.bottom) / 2, b.bottom - 4];
+                       return xs.some(x => ys.some(y => {
+                         const top = document.elementFromPoint(x, y);
+                         return top && !c.contains(top) && top.closest(".lf-chrome"); })); })
         .map(c => c.className)""")
     assert under == [], f"floating chrome is standing on controls: {under}"
 

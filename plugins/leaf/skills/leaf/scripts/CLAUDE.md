@@ -18,7 +18,9 @@ The main owners are:
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
   delivery context, and conversation writes;
 - `work`: transient work claims and widget work seats;
-- `asks`: declaration-driven page and thread request projections;
+- `asks`: declaration-driven page and thread ask projections;
+- `requests`: declared request seats, their canonical lifecycle, and the
+  terminal host receipts that close one;
 - `host`: local paths, process readings, host identity, and session lifetime;
 - `leases`: process-backed page, transition, and waiter leases;
 - `service`: page claims, serialized transactions, and status;

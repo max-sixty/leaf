@@ -207,6 +207,40 @@ def test_the_skill_routes_every_reference_it_ships():
         assert relative in skill, relative
 
 
+def test_the_python_instructions_name_every_module_they_own():
+    """A module the ownership list never names is one no session is routed to.
+
+    The companion to the reference test above, and the same reason: the set comes
+    from the directory, so adding a module and forgetting to list it cannot stay
+    green. The list has drifted twice by hand already — four owners went unnamed
+    until they were counted, and `requests` arrived with the request lifecycle and
+    was not added beside `asks`.
+
+    Any backticked span counts as naming, because the list is not the only place a
+    module is legitimately introduced: `cli` is named in the opening prose as
+    `leaf/cli.py`, and the `registry/`, `served_state/`, `render_gate/`, and
+    `validation/` members are named in their own Boundaries paragraphs rather than
+    in the top list. A package initializer is a marker rather than an owner, which
+    the instructions say outright, so it is not asked for.
+    """
+    scripts = SKILL_ROOT / "scripts"
+    instructions = (scripts / "CLAUDE.md").read_text(encoding="utf-8")
+    named = {
+        part.removesuffix(".py")
+        for span in re.findall(r"`([^`]+)`", instructions)
+        for part in span.split("/")
+    }
+
+    modules = sorted(
+        path.relative_to(scripts / "leaf").as_posix()
+        for path in (scripts / "leaf").rglob("*.py")
+        if path.name != "__init__.py"
+    )
+    assert modules, "no modules read — an empty set names itself"
+    unnamed = [m for m in modules if Path(m).stem not in named]
+    assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
 

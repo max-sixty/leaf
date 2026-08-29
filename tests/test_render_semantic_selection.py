@@ -1,0 +1,500 @@
+"""Keyboard semantic-selection browser journeys."""
+
+import re
+
+import pytest
+from playwright.sync_api import expect
+from render_support import (
+    ROOT,
+    TARGETS_PAGE,
+    leaf_page,
+    open_page,
+    pending_text,
+    resized,
+)
+
+pytestmark = pytest.mark.nightly
+
+
+def test_s_selects_the_passage_named_by_its_hint(browser, serve):
+    """Selection starts from an explicit target, not from an invisible caret or a
+    convention about the top of the viewport. `s` labels each visible semantic block;
+    typing the label on this paragraph makes the same native selection a pointer drag
+    would have made, and the existing c path comments on it.
+
+    The label is read from the chip beside the paragraph rather than assumed from its
+    document position. That is the contract this mode adds: the page says what a key will
+    choose before the reader presses it."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page.keyboard.press("s")
+
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(3)  # heading, paragraph, and figcaption
+    expect(page.locator(".lf-keyline")).to_contain_text("choose hint")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
+    expect(page.locator(".lf-live")).to_contain_text("Hint a: Targets")
+    page.keyboard.press("?")
+    expect(
+        page.locator(".lf-help").get_by_role(
+            "heading", name="Selecting a passage", exact=True
+        )
+    ).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(3)  # help was a layer over the chooser, not its end
+    prose_code = page.evaluate(
+        """() => {
+          const top = document.querySelector('#prose').getBoundingClientRect().top;
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
+                          - Math.abs(b.getBoundingClientRect().top - top))[0]
+            .dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(prose_code)
+
+    passage = " ".join(page.locator("#prose").inner_text().split())
+    selected = " ".join(page.evaluate("() => getSelection().toString()").split())
+    assert selected == passage
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Selected passage: A paragraph with enough words"
+    )
+    expect(hints).to_have_count(0)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    expect(page.locator(".lf-keyline")).to_contain_text("comment on the selection")
+
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => getSelection().toString()") == ""
+    expect(page.locator(".lf-fab")).to_be_hidden()
+
+    page.keyboard.press("s")
+    page.keyboard.type(prose_code)
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert pending_text(page) == passage
+    assert errors == []
+    page.close()
+
+
+def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
+    """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
+    not turn every target into a two-key address. Many remain one key and only the tail
+    branches. A two-key tail hint still raises an ordinary item anchor for a visual with
+    no text to select."""
+    figures = "".join(
+        f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
+        f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
+        'height="16" fill="none" stroke="currentColor"></rect></svg></figure>'
+        for i in range(60)
+    )
+    html = leaf_page(
+        "dense visual targets",
+        f'<h1 id="title">Visual targets</h1><div class="visual-grid">{figures}</div>',
+        head="""
+<style>
+.visual-grid { display: grid; grid-template-columns: repeat(10, 44px); gap: 12px; }
+.visual-grid figure { margin: 0; width: 32px; height: 18px; }
+</style>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("s")
+
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(61)  # heading plus sixty atomic figures
+    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfTarget)")
+    assert any(len(code) == 1 for code in codes)
+    assert max(map(len, codes)) == 2
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
+
+    last = codes[-1]
+    page.keyboard.press(last[0])
+    expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
+    page.keyboard.press(last[1])
+    expect(hints).to_have_count(0)
+    expect(page.locator(".lf-fab")).to_be_visible()
+    expect(page.locator(".lf-keyline")).to_contain_text("comment on the figure")
+    geometry = page.evaluate(
+        """() => {
+          const figure = document.querySelector('#visual-59').getBoundingClientRect();
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          return { figureTop: figure.top, barTop: bar.top };
+        }"""
+    )
+    assert abs(geometry["barTop"] - geometry["figureTop"]) < 100, geometry
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab")).to_be_hidden()
+
+    page.keyboard.press("s")
+    page.keyboard.type(last)
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
+    browser, serve
+):
+    """A fixed panel covers rather than clips the page. Hint geometry read from the page
+    alone therefore still exists behind it, but a key drawn above the chrome there would
+    appear to name a panel control and choose hidden document content. The rendered stack
+    at each target's corner decides whether it is actually exposed."""
+    page, errors = open_page(browser, serve(ROOT / "examples" / "gallery.html"))
+    resized(page, 700, 900)
+    page.get_by_role("button", name=re.compile(r"^Comments")).click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+
+    geometry = page.evaluate(
+        """() => {
+          const panel = document.querySelector('.lf-panel').getBoundingClientRect();
+          return {
+            panelLeft: panel.left,
+            centres: [...document.querySelectorAll('.lf-target-hint')].map((hint) => {
+              const box = hint.getBoundingClientRect();
+              return box.left + box.width / 2;
+            }),
+          };
+        }"""
+    )
+    assert geometry["centres"]
+    assert max(geometry["centres"]) < geometry["panelLeft"], (
+        f"a selection hint is painted on the covering comment panel: {geometry}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_selection_search_finds_page_text_without_a_target_kind(browser, serve):
+    """Slash inside selection is ordinary whole-page find. It narrows by the words the
+    reader knows, highlights one exact occurrence, and Enter hands that range to the same
+    comment surface as a hint. No paragraph/sentence/widget key is needed first."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page.keyboard.press("s")
+    page.keyboard.press("/")
+
+    search = page.get_by_role("searchbox", name="Search page text")
+    expect(search).to_be_focused()
+    page.keyboard.type("button the key")
+    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-target-match")).not_to_have_count(0)
+    expect(page.locator(".lf-keyline")).to_contain_text("select match")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "raises the button the key then presses"
+    )
+
+    page.keyboard.press("Enter")
+    assert " ".join(page.evaluate("() => getSelection().toString()").split()) == (
+        "button the key"
+    )
+    expect(page.locator(".lf-target-search")).to_be_hidden()
+    expect(page.locator(".lf-fab")).to_be_visible()
+
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert pending_text(page) == "button the key"
+    assert errors == []
+    page.close()
+
+
+def test_selection_search_announces_context_across_inline_node_boundaries(
+    browser, serve
+):
+    """Repeated matches that fill separate inline nodes remain distinguishable to a
+    nonvisual reader by context drawn from the shared page reading on both sides."""
+    html = leaf_page(
+        "search context",
+        """
+<p>Before alpha <em>repeat</em> after alpha.</p>
+<p>Before beta <strong>repeat</strong> after beta.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("s")
+    page.keyboard.press("/")
+    page.keyboard.type("repeat")
+    expect(page.locator(".lf-target-search-status")).to_contain_text("of 2")
+
+    page.keyboard.press("Tab")
+    live = page.locator(".lf-live")
+    expect(live).to_contain_text("repeat")
+    first = live.inner_text()
+    page.keyboard.press("Tab")
+    page.wait_for_function(
+        "first => { const text = document.querySelector('.lf-live').textContent;"
+        "           return text && text !== first; }",
+        arg=first,
+    )
+    second = live.inner_text()
+    assert "repeat" in first and "repeat" in second
+    assert {"alpha", "beta"} <= set(first.split() + second.split())
+    assert errors == []
+    page.close()
+
+
+def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
+    """A search result is a target, not only a count. When the query exists solely below
+    the fold, the first complete search moves that occurrence into view and paints it;
+    otherwise Enter would silently select words the reader still could not see."""
+    html = leaf_page(
+        "offscreen search",
+        """
+<h1 id="title">Search the whole page</h1>
+<div style="height: 1400px" aria-hidden="true"></div>
+<p id="far">The distant phrase is the one this search should reveal.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("s")
+    page.keyboard.press("/")
+    page.keyboard.type("distant phrase")
+
+    page.wait_for_function(
+        """() => {
+          const box = document.querySelector('#far').getBoundingClientRect();
+          return box.bottom > 42 && box.top < innerHeight;
+        }"""
+    )
+    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-target-match")).not_to_have_count(0)
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+
+    page.keyboard.press("Enter")
+    assert " ".join(page.evaluate("() => getSelection().toString()").split()) == (
+        "distant phrase"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser, serve):
+    """Whole-page find travels to the exact range, not merely to the block containing
+    it. A match near the foot of a multi-screen pre is visible before Enter selects it."""
+    lines = "\n".join(["an ordinary line"] * 90 + ["the solitary copper needle"])
+    page, errors = open_page(
+        browser,
+        serve(leaf_page("range search", f'<pre id="long">{lines}</pre>')),
+    )
+    page.keyboard.press("s")
+    page.keyboard.press("/")
+    page.keyboard.type("copper needle")
+
+    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-target-match")).not_to_have_count(0)
+    mark = page.locator(".lf-target-match").first.bounding_box()
+    keyline_top = page.locator(".lf-keyline").bounding_box()["y"]
+    assert mark["y"] > 42 and mark["y"] + mark["height"] < keyline_top
+
+    page.keyboard.press("Enter")
+    assert page.evaluate("() => getSelection().toString()") == "copper needle"
+    assert errors == []
+    page.close()
+
+
+def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, serve):
+    """Tab announces one visible target. If scrolling changes the viewport map before
+    Enter, that stale index cannot silently become a different target."""
+    html = leaf_page(
+        "changing hint map",
+        """
+<h1 id="first">The initially announced heading</h1>
+<div style="height: 1200px" aria-hidden="true"></div>
+<p id="later">A later visible target.</p>
+<div style="height: 600px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("s")
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_contain_text("initially announced heading")
+    expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
+
+    page.evaluate("() => { document.body.scrollTop = 1050; }")
+    expect(page.locator(".lf-target-hint.lf-current")).to_have_count(0)
+    expect(page.locator(".lf-keyline")).not_to_contain_text("select target")
+    page.keyboard.press("Enter")
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert errors == []
+    page.close()
+
+
+def test_cancelling_selection_restores_the_control_that_opened_it(browser, serve):
+    """Search borrows focus for its real input. Escaping back through both selection
+    layers returns focus to the control from which the reader pressed s."""
+    html = leaf_page(
+        "selection focus",
+        '<button id="opener">Starting control</button><p>A passage to select.</p>',
+    )
+    page, errors = open_page(browser, serve(html))
+    opener = page.locator("#opener")
+    opener.focus()
+
+    page.keyboard.press("s")
+    page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(opener).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serve):
+    """The exact focused control opens the mode, even across a shadow boundary. Closing
+    both selection layers returns to that control rather than only to its host."""
+    html = leaf_page(
+        "shadow selection focus",
+        '<div id="opener"></div><p>A passage to select.</p>',
+    )
+    page, errors = open_page(browser, serve(html))
+    page.evaluate(
+        """() => {
+          const root = document.querySelector('#opener').attachShadow({ mode: 'open' });
+          root.innerHTML = '<button id="inside">Starting control</button>';
+          root.querySelector('#inside').focus();
+        }"""
+    )
+
+    page.keyboard.press("s")
+    page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    assert (
+        page.evaluate(
+            "() => document.querySelector('#opener').shadowRoot.activeElement?.id"
+        )
+        == "inside"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, serve):
+    """The hint face is viewport-local, but slash is whole-page find. Reaching blank
+    space must not close the shared mode and strand searchable text somewhere else."""
+    html = leaf_page(
+        "search from empty viewport",
+        """
+<h1 id="title">A searchable beginning</h1>
+<p>The phrase only appears above the blank viewport.</p>
+<div style="height: 1800px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.evaluate("() => { document.body.scrollTop = document.body.scrollHeight; }")
+    page.wait_for_function("() => document.body.scrollTop > 500")
+
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(0)
+    expect(page.locator(".lf-keyline")).to_contain_text("search page")
+    expect(page.locator(".lf-keyline")).not_to_contain_text("choose hint")
+    page.keyboard.press("/")
+    page.keyboard.type("phrase only appears")
+    expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
+    expect(page.locator(".lf-target-match")).not_to_have_count(0)
+
+    page.keyboard.press("Enter")
+    assert page.evaluate("() => getSelection().toString()") == "phrase only appears"
+    assert errors == []
+    page.close()
+
+
+def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
+    browser, serve
+):
+    """A line beginning behind the fixed banner can still be visibly selectable below
+    it. Its hint sits at the clipped edge instead of putting half its key under chrome."""
+    html = leaf_page(
+        "top-edge target",
+        """
+<div style="height: 300px" aria-hidden="true"></div>
+<p id="edge">This passage begins beneath the banner edge.</p>
+<div style="height: 1200px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.evaluate(
+        """() => {
+          const text = document.querySelector('#edge').firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollTop += range.getBoundingClientRect().top - (banner.bottom - 5);
+        }"""
+    )
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(1)
+
+    geometry = page.evaluate(
+        """() => ({
+          bannerBottom: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+          hintTop: document.querySelector('.lf-target-hint').getBoundingClientRect().top,
+        })"""
+    )
+    assert geometry["hintTop"] >= geometry["bannerBottom"], geometry
+
+    page.keyboard.press("Escape")
+    page.evaluate(
+        """() => {
+          const text = document.querySelector('#edge').firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const keyline = document.querySelector('.lf-keyline').getBoundingClientRect();
+          document.body.scrollTop += range.getBoundingClientRect().top - (keyline.top - 5);
+        }"""
+    )
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(1)
+    geometry = page.evaluate(
+        """() => ({
+          keylineTop: document.querySelector('.lf-keyline').getBoundingClientRect().top,
+          hintBottom: document.querySelector('.lf-target-hint').getBoundingClientRect().bottom,
+        })"""
+    )
+    assert geometry["hintBottom"] <= geometry["keylineTop"], geometry
+    assert errors == []
+    page.close()
+
+
+def test_a_partly_banner_clipped_atomic_item_keeps_its_hint_below_the_banner(
+    browser, serve
+):
+    """Atomic visuals use item geometry rather than text ranges, but obey the same
+    upper chrome boundary when only their lower edge is exposed."""
+    html = leaf_page(
+        "top-edge visual",
+        """
+<div style="height: 300px" aria-hidden="true"></div>
+<figure id="edge-visual"><svg viewBox="0 0 120 60" width="120" height="60"
+  role="img" aria-label="Edge visual"><rect width="120" height="60"></rect></svg></figure>
+<div style="height: 1200px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.evaluate(
+        """() => {
+          const visual = document.querySelector('#edge-visual').getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          document.body.scrollTop += visual.top - (banner.bottom - 8);
+        }"""
+    )
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(1)
+
+    geometry = page.evaluate(
+        """() => ({
+          bannerBottom: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+          hintTop: document.querySelector('.lf-target-hint').getBoundingClientRect().top,
+        })"""
+    )
+    assert geometry["hintTop"] >= geometry["bannerBottom"], geometry
+    assert errors == []
+    page.close()

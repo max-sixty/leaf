@@ -1332,6 +1332,42 @@ ${MARK_RULES}
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */
     .lf-addresses > .lf-address.lf-in { transform: translate(-50%, 0); }
+    /* Passage selection borrows the address chip's face but not its meaning. These hints
+       are deliberately local to the viewport: the page gives every visible text block a
+       short, prefix-free name for the few seconds this mode stands. Unlike addresses,
+       hints are never dropped for a collision — they are the route itself, not a reminder
+       of a stable route that works without being drawn. Paragraph-like blocks put enough
+       vertical air between their starts for the shared square to remain legible, and a
+       wrapped block contributes one start rather than one chip per line. */
+    .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
+    .lf-targets > .lf-target-hint { position: absolute; display: block;
+      transform: translate(-50%, -50%); }
+    .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
+    .lf-targets > .lf-target-hint.lf-current { font-weight: 700;
+      box-shadow: 0 0 0 2px var(--accent); }
+    /* Search has one active result, painted as a quiet wash rather than a second native
+       selection. The real Selection is made only on Enter, when the ordinary comment
+       surface takes over. One inset line survives over both light and dark authored fills
+       without changing the page's layout or wrapping its words. */
+    .lf-target-match { position: absolute; box-sizing: border-box; pointer-events: none;
+      border-radius: 2px;
+      background: color-mix(in srgb, var(--accent) 17%, transparent);
+      box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent); }
+    .lf-target-search { position: fixed; z-index: 9080;
+      top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
+      width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+      gap: 10px; padding: 7px; border: 1px solid var(--border-2);
+      border-radius: var(--r); background: var(--card);
+      box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+    .lf-target-search[hidden] { display: none; }
+    .lf-target-search-box { min-width: 0; box-sizing: border-box; font: inherit;
+      padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;
+      background: var(--paper); color: var(--ink); }
+    .lf-target-search-box:focus-visible { outline: var(--here-ring);
+      --lf-here-ring: target-search; outline-offset: 1px; }
+    .lf-target-search-status { min-width: 58px; color: var(--muted);
+      font-size: var(--t-6); text-align: right; white-space: nowrap; }
     .lf-legend-box { position: absolute; z-index: 8910; pointer-events: none;
       box-sizing: border-box;
       border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }

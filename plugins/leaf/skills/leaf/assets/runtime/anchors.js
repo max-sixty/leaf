@@ -1043,6 +1043,17 @@ export function createAnchors(dependencies) {
     );
   }
 
+  function scrollToRange(where, behavior = scrollBehavior()) {
+    const holder =
+      where.startContainer instanceof Element
+        ? where.startContainer
+        : where.startContainer.parentElement;
+    if (!holder) return;
+    reveal(holder);
+    holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+    moveScrollerBy(pageScroller, centreBy(where), behavior);
+  }
+
   // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
   // panel and the page can't disagree about whether the passage survived. A painted range has
   // no element to scroll into view, so its own box does the work.
@@ -1075,8 +1086,7 @@ export function createAnchors(dependencies) {
     // Sideways first, and only as far as it takes: a passage inside a wide `pre` or a
     // rendered diagram sits in a box with its own horizontal scroll, which the vertical
     // jump below cannot reach — scrolling to it in one axis leaves it off-screen in the other.
-    holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-    moveScrollerBy(pageScroller, centreBy(where), scrollBehavior());
+    scrollToRange(where);
   }
 
   // Pointer feedback a wrapped <mark> got from :hover and cursor: pointer, neither of which
@@ -1265,6 +1275,7 @@ export function createAnchors(dependencies) {
     fragmentId,
     markAt,
     scrollToElement,
+    scrollToRange,
     scrollToThread,
     paintStanding,
     refreshHover,

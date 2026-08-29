@@ -472,7 +472,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert page.evaluate(
         "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
     )
-    assert "close actions" in key_line(page)
+    assert "unselect" in key_line(page)
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
@@ -1003,20 +1003,19 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     page.close()
 
 
-def test_escape_keeps_selection_actions_dismissed(browser, serve):
-    """Escape closes only the action layer. The native selection remains available for
-    Copy, and the keyup half of the same press must not immediately raise the bar again."""
+def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
+    """Escape gives back the selected target and its action layer together. The keyup
+    half of the same press must not immediately raise the bar again."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    selected = page.evaluate("() => getSelection().toString()")
     bar.locator("[data-lf-offer][tabindex]").first.focus()
 
     page.keyboard.press("Escape")
     page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
     assert not bar.is_visible()
-    assert page.evaluate("() => getSelection().toString()") == selected
+    assert page.evaluate("() => getSelection().toString()") == ""
     assert errors == []
     page.close()
 

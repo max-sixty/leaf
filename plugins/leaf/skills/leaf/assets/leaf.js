@@ -124,7 +124,12 @@
  * panel this time. The layer that leaves between is where the surface's own keys can be
  * reached at all.
  *
- * One key sequence exists: g arms a mode in which a mnemonic names a panel or a
+ * Two page modes make a destination explicit before acting on it. `s` draws short,
+ * viewport-local hints on the smallest visible text blocks and atomic visuals; `/`
+ * inside that mode searches all page text, Tab walks repeated matches, and Enter turns
+ * the current result into an ordinary native selection. Both routes end at the same
+ * passage or item the pointer path uses, so the existing `c` comments on it and no second
+ * anchor vocabulary exists. `g` arms a mode in which a mnemonic names a panel or a
  * document list. `g c`, `g a`, and `g l` land in Comments, Asks, and All leaves.
  * A following digit names a member of a document list, so `g h 3` is the third
  * hyperlink; `g g` and `g G` are the page's top and bottom edges.
@@ -183,6 +188,7 @@ import {
   pendingAnchor,
 } from "./runtime/composing/selection.js";
 import { createSelectionSurface } from "./runtime/composing/surface.js";
+import { createTargetSelection } from "./runtime/composing/targets.js";
 import { agentName, runtime } from "./runtime/context.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
 import { createDeferredModals } from "./runtime/deferred-modals.js";
@@ -496,6 +502,7 @@ function paintHere() {
     // have: a poll that retires an ask moves the list under an armed window, and only the
     // panel's own render was calling the chip pass.
     paintAddresses();
+    paintTargets();
     paintCoreControls();
     paintInputHints();
     renderLine();
@@ -969,6 +976,25 @@ legendRoot.setAttribute("aria-hidden", "true");
 // The eye's copy of what the chord announces, so it says nothing to a screen reader.
 const addressLayer = el("div", "lf-ui lf-addresses");
 addressLayer.setAttribute("aria-hidden", "true");
+// The selection chooser's two faces. Hints and the active search result are paint only;
+// the search box is a real control, kept beside them so its focus and accessible name are
+// the platform's rather than a keyboard mode's imitation of one.
+const selectionLayer = el("div", "lf-ui lf-targets");
+selectionLayer.setAttribute("aria-hidden", "true");
+const selectionSearch = el("div", "lf-ui lf-target-search");
+selectionSearch.setAttribute("role", "search");
+selectionSearch.hidden = true;
+const selectionInput = document.createElement("input");
+selectionInput.className = "lf-target-search-box";
+selectionInput.type = "search";
+selectionInput.autocomplete = "off";
+selectionInput.spellcheck = false;
+selectionInput.maxLength = 160;
+selectionInput.placeholder = "Search page text";
+selectionInput.setAttribute("aria-label", "Search page text");
+const selectionStatus = el("span", "lf-target-search-status");
+selectionStatus.setAttribute("role", "status");
+selectionSearch.append(selectionInput, selectionStatus);
 // The runtime's parts, named: a design comment can point at one, and an anchor names an
 // element by id, so each part that is a thing to point at carries a stable one under the
 // runtime's own prefix. `[id]:not(.lf-ui)` — how the anchor pass asks which section a
@@ -998,6 +1024,8 @@ chromeRoot.append(
   panel,
   legendRoot,
   addressLayer,
+  selectionLayer,
+  selectionSearch,
   aimBox,
   fabBar,
   composer,
@@ -1622,10 +1650,10 @@ const letGo = () => document.body.focus({ preventScroll: true });
 function rung() {
   const active = documentFocused();
   const holding = Boolean(active) && active !== document.body;
-  if (fabAnchorAt())
+  if (pageSelection() || fabAnchorAt())
     return {
-      says: "close actions",
-      does: "Close the reaction and comment actions",
+      says: "unselect",
+      does: "Clear the selection",
       out: dismissFab,
     };
   if (holding && !inChrome(active))
@@ -1856,6 +1884,41 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
   startsAt,
   scrollToElement,
   threadsBox,
+});
+
+const { SELECT, isSelecting, paintTargets, startSelecting } = createTargetSelection({
+  allButTheReference,
+  anchoringIsReady: () => anchoringReady,
+  announce,
+  banner,
+  blockAt: (...args) => blockAt(...args),
+  containsAcross: (...args) => containsAcross(...args),
+  contextAround: (...args) => contextAround(...args),
+  cut: (...args) => cut(...args),
+  el,
+  findText: (...args) => findText(...args),
+  focused,
+  inChrome: (node) => inChrome(node),
+  isItem,
+  itemSelector: () => ITEM,
+  itemSays,
+  itemWord,
+  keyline: keylineEl,
+  pageQueryAll: (...args) => pageQueryAll(...args),
+  pageText: (...args) => pageText(...args),
+  paintHere,
+  quoteFrom: (...args) => quoteFrom(...args),
+  raiseOnItem,
+  rangeOf: (...args) => rangeOf(...args),
+  scrollToRange,
+  selectionInput,
+  selectionLayer,
+  selectionSearch,
+  selectionStatus,
+  shownRect: (...args) => shownRect(...args),
+  textBlockSelector: () => TEXT_BLOCK,
+  textNodesUnder: (...args) => textNodesUnder(...args),
+  updateFab,
 });
 
 // ---------- reactions ----------
@@ -2438,6 +2501,14 @@ const REFERENCE = {
 const PAGE = {
   rows: [
     {
+      id: "selection.open",
+      keys: ["s"],
+      does: "Select a visible passage by hint, or search all page text",
+      line: "select passage",
+      when: () => anchoringReady,
+      run: startSelecting,
+    },
+    {
       id: "comment.create",
       keys: ["c"],
       // One key, four destinations, and the surfaces name the one in front of the reader:
@@ -2602,6 +2673,7 @@ const SCOPES = [
   GO,
   REACT,
   HELP,
+  SELECT,
   ELEMENTS,
   VERSIONS,
   COMPOSER,
@@ -2824,6 +2896,7 @@ const midComposition = () => {
   const active = focused();
   return (
     composerOpen ||
+    isSelecting() ||
     Boolean(fabAnchorAt()) ||
     unaccountedGesture() ||
     (active?.tagName === "TEXTAREA" &&
@@ -2956,6 +3029,9 @@ function markAt(...args) {
 function scrollToElement(...args) {
   return anchorRuntime.scrollToElement(...args);
 }
+function scrollToRange(...args) {
+  return anchorRuntime.scrollToRange(...args);
+}
 function scrollToThread(...args) {
   return anchorRuntime.scrollToThread(...args);
 }
@@ -3015,6 +3091,8 @@ const {
   pageText,
   spanIn,
   findQuote,
+  findText,
+  contextAround,
 } = passageRuntime;
 
 const runtimeProjection = createProjection(runtime, {

@@ -292,7 +292,8 @@ export function createSelectionSurface({
   }
   let dismissedSelectionKeyup = false;
   function dismissFab() {
-    dismissedSelectionKeyup = Boolean(fabAnchor?.quote);
+    dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor?.quote);
+    pageSelection()?.removeAllRanges();
     showFab(null);
   }
   function refreshFab() {

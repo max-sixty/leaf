@@ -783,6 +783,39 @@ export function createPassages(dependencies) {
     return found ? spanOf(origin, found.from, found.to) : [];
   }
 
+  // Every occurrence of a reader's search, as passages in the page reading. This is not
+  // anchor resolution: a search is allowed to find repeated words, while a stored anchor
+  // must identify one occurrence or detach. It does keep the passage reader's other rules —
+  // elastic whitespace and element edges, and no match crossing an opaque passage fence —
+  // so choosing a result produces exactly the kind of segments capture and resolution use.
+  function findText(text, query) {
+    const words = query.trim().split(/\s+/u).filter(Boolean);
+    if (!words.length) return [];
+    const pattern = new RegExp(
+      words.map((w) => [...w].map(escape).join(`${EDGE}*`)).join(`[\\s${EDGE}]+`),
+      "giu",
+    );
+    const out = [];
+    for (const match of text.raw.matchAll(pattern)) {
+      const from = match.index;
+      const to = from + match[0].length;
+      if (text.fences.some((fence) => from < fence && fence < to)) continue;
+      out.push(spanOf(text.origin, from, to));
+    }
+    return out;
+  }
+
+  function contextAround(text, segments, length = 28) {
+    const [start, end] = spanIn(text, segments);
+    const before = neighbourhood(text.origin, text.fences, start, length, true);
+    const after = neighbourhood(text.origin, text.fences, end, length, false);
+    const beforeLength = [...before].length;
+    return {
+      before: cut(before, Math.max(0, beforeLength - length), beforeLength),
+      after: cut(after, 0, length),
+    };
+  }
+
   const passages = {
     settlementSlots,
     renderRetired,
@@ -820,6 +853,8 @@ export function createPassages(dependencies) {
     pageText,
     spanIn,
     findQuote,
+    findText,
+    contextAround,
   };
   publishedPassages = passages;
   return passages;

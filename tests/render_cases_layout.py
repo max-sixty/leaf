@@ -29,6 +29,7 @@ from render_cases_interaction import (
 from render_harness import (
     CARRIED_PAGE,
     LONG_PAGE,
+    RENDERED,
     TOKEN,
     leaf_page,
     record_claim,
@@ -707,9 +708,6 @@ BANNER_WATCH = f"""(sel) => {{
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => window.__lfOnScreen(n)
       ? [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight] : null); }"""
-# Nested animation-frame callbacks have one complete rendering turn between them, so
-# this states rendered progress rather than elapsed time between two frame polls.
-RENDERED = "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
 
 
 def page_at_rest(page):

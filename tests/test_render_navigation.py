@@ -23,6 +23,7 @@ from render_support import (
     NOTED_PAGE,
     OVER_WORDS,
     PANEL_PAGE,
+    RENDERED,
     ROOT,
     SPENT,
     STANDS_BACK,
@@ -913,23 +914,22 @@ def test_an_address_is_never_drawn_on_the_key_line(browser, serve):
     # step waits for the runtime's own paint frame, since the chips follow a scroll on a
     # frame of their own and boxes read in the same turn are the positions it just left.
     fouled = page.evaluate(
-        """async () => {
-             const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+        f"""async () => {{
              const line = () => document.querySelector('.lf-keyline').getBoundingClientRect();
              const hit = (a, b) => a.left < b.right && b.left < a.right
                                 && a.top < b.bottom && b.top < a.bottom;
              const out = [];
              const room = document.body.scrollHeight - document.body.clientHeight;
-             for (let i = 0; i <= 20; i++) {
+             for (let i = 0; i <= 20; i++) {{
                document.body.scrollTo(0, Math.round((room * i) / 20));
-               await frame(); await frame();
+               await ({RENDERED})();
                const bar = line();
                for (const chip of document.querySelectorAll('.lf-addresses > .lf-address'))
                  if (hit(chip.getBoundingClientRect(), bar))
                    out.push(chip.textContent + ' at ' + Math.round(document.body.scrollTop));
-             }
+             }}
              return out;
-           }"""
+           }}"""
     )
     assert fouled == [], (
         f"addresses are drawn over the key line that explains them: {fouled}"
@@ -2703,9 +2703,6 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     loses focus to `body` does not stop, it silently restarts, and a reader tabbing
     through their own page never gets past the banner."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
-    frame = (
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
     who = """() => {
       let e = document.activeElement;
       while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
@@ -2723,7 +2720,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         for _ in range(24):
             page.keyboard.press("Tab")
             if settled:
-                page.evaluate(frame)
+                page.evaluate(RENDERED)
             trail.append(page.evaluate(who))
         walks["frame" if settled else "fast"] = trail
 
@@ -2749,7 +2746,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
         ):
             break
     expect(page.locator(".lf-key-more")).to_be_focused()
-    page.evaluate(frame)
+    page.evaluate(RENDERED)
     expect(page.locator(".lf-key-more")).to_be_focused()
 
     assert errors == []
@@ -2985,9 +2982,7 @@ def test_a_label_press_keeps_the_shortcut_hint_on_the_focused_box(browser, serve
         bounds["x"] + bounds["width"] - 2, bounds["y"] + bounds["height"] / 2
     )
     page.mouse.down()
-    page.evaluate(
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
+    page.evaluate(RENDERED)
     assert box.get_attribute("placeholder") == hint
     page.keyboard.type("x")
     expect(box).to_have_value("x")
@@ -3020,9 +3015,7 @@ def test_a_label_press_keeps_the_shortcut_hint_on_the_focused_box(browser, serve
     assert "Suggest replacement text" in page.evaluate(
         "() => getSelection().toString()"
     )
-    page.evaluate(
-        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
-    )
+    page.evaluate(RENDERED)
     assert box.get_attribute("placeholder") == replacement_hint
     page.mouse.up()
     expect(box).to_have_attribute("placeholder", "Replacement text")

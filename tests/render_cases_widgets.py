@@ -4,6 +4,7 @@ from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
 from render_harness import (
+    RENDERED,
     leaf_page,
 )
 
@@ -784,9 +785,7 @@ def _painted_line(page):
     Consume the coalesced frame once: polling could pass on an unrelated later paint.
     Read rows rather than visible text because hidden rows still state liveness.
     """
-    page.evaluate(
-        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
-    )
+    page.evaluate(RENDERED)
     return page.eval_on_selector_all(
         ".lf-keyline .lf-key",
         "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",

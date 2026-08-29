@@ -129,5 +129,6 @@ result; finish with `git push origin main:main` because the skipped hook normall
 pushes. `✗ Can't push to local main branch` is a fast-forward failure instead.
 
 Installed sessions load host caches, not the checkout. After pushing, Claude
-Code updates on its marketplace sweep. Codex needs
-`codex plugin marketplace upgrade leaf`, then `codex plugin add leaf@leaf`.
+Code updates on its marketplace sweep. The post-merge hook refreshes an installed
+Codex plugin; after a merge that skipped hooks, run
+`codex plugin marketplace upgrade leaf`.

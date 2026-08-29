@@ -15,6 +15,18 @@ checks = "pre-commit run -a"
 [[pre-merge]]
 tests = "uv run pytest tests"
 
+# `marketplace upgrade` also refreshes installed plugins. The guard keeps this
+# hook inert for developers who do not use Leaf through Codex.
+[post-merge]
+refresh-codex-leaf = '''
+if command -v codex >/dev/null 2>&1 &&
+  codex plugin list --marketplace leaf --json |
+    jq -e 'any(.installed[]; .pluginId == "leaf@leaf")' >/dev/null
+then
+  codex plugin marketplace upgrade leaf
+fi
+'''
+
 [aliases]
 cloud = '''
 uv sync --frozen

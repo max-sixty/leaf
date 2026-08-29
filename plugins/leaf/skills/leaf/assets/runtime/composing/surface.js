@@ -194,7 +194,10 @@ export function createSelectionSurface({
     const box = node.getBoundingClientRect();
     const sharing = pageControls()
       .map((c) => c.getBoundingClientRect())
-      .filter((r) => r.width && r.left < box.right && box.left < r.right)
+      // Keep the same small gutter sideways that the walk leaves below a row. A
+      // one-glyph difference between system fonts must not decide whether two
+      // controls almost touch or the float steps clear.
+      .filter((r) => r.width && r.left < box.right + 6 && box.left < r.right + 6)
       .sort((a, b) => a.top - b.top);
     let y = box.top;
     for (const r of sharing)

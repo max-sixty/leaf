@@ -1044,6 +1044,10 @@ ${MARK_RULES}
     .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
       color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
     .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+    /* Inline is one row. Let its real width reach placePalette rather than shrinking
+       into a tall column that technically fits beside Comment; stacked is the one
+       form that may wrap. */
+    .lf-fab-bar:not(.lf-react-stacked) > .lf-react-palette { flex-wrap: nowrap; }
     .lf-react-open > .lf-react-trigger { display: none; }
     .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
       display: none; }

@@ -33,7 +33,9 @@ from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
 DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
-COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = (
+    ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "command-hub"
+)
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -128,7 +130,7 @@ def test_only_the_stylesheet_link_becomes_the_served_copy(site):
     assert published.count('href="theme.css"') == 1
 
 
-def test_the_site_serves_the_whole_layer_a_page_asks_for(site):
+def test_the_site_serves_the_whole_layer_a_page_decisions_for(site):
     """A page asks for its layer by absolute path, so the layer is the site's root. Any
     one of these missing is a page that opens unstyled, unupgraded, or not at all — and
     a static host reports none of it."""
@@ -308,10 +310,10 @@ def test_the_label_is_chrome_rather_than_words_to_quote(site, hosted, browser):
 
         label = drag_across(page, "main > .sitenote p")
         assert "live example" in label["text"]
-        # The word `c` carries with nothing in hand — it goes to the comments rather
+        # The word `c` carries with nothing in hand — it goes to the threads rather
         # than opening a box on anything, and "comment on the selection" does not
         # contain it, so the two readings still tell each other apart.
-        assert "comments" in label["says"], (
+        assert "threads" in label["says"], (
             "the site's own label was offered as a passage to quote"
         )
         assert not errors, errors[:3]
@@ -344,8 +346,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
             .split("\n")
             if line.strip()
         )
-        expect(page.locator(".lf-comments")).to_have_text(f"Comments ({threads})")
-        page.locator(".lf-comments").click()
+        expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({threads})")
+        page.locator(".lf-threads-toggle").click()
         # Named rather than taken first: the panel orders threads by where on the
         # page they point, so the seed's other thread — a question about the diagram,
         # which stands higher up — heads the list.
@@ -366,7 +368,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(site, hosted, browser):
         ask = page.locator("#off-slip")
         expect(ask).to_be_visible()
         assert ask.locator("[data-lf-offer]").count() > 0, (
-            "the group renders on the site with nothing to press, so the ask "
+            "the group renders on the site with nothing to press, so the decision "
             "is a picture of one"
         )
         assert not errors, errors[:3]
@@ -424,8 +426,8 @@ def test_a_comment_lands_in_the_thread_with_its_quote(site, hosted, browser):
         )
         expect(thread).to_contain_text("Does this cover key rotation?")
         expect(thread.locator("blockquote")).to_contain_text("session state homeless")
-        expect(page.locator(".lf-comments")).to_have_text(
-            f"Comments ({opened_with + 1})"
+        expect(page.locator(".lf-threads-toggle")).to_have_text(
+            f"Threads ({opened_with + 1})"
         )
         # The demo answers once, in its own name, and says what the page can't do.
         expect(thread).to_contain_text("This is the demo answering, not an agent")
@@ -493,12 +495,12 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
     they have never opened."""
     page, errors = open_page(browser, example_url(hosted, "design-decision"))
     try:
-        page.locator(".lf-comments").click()  # the box lives in the panel
+        page.locator(".lf-threads-toggle").click()  # the box lives in the panel
         page.locator(".lf-general textarea").fill("Where does this go?")
         page.locator(".lf-general .lf-btn.primary").click()
         # One, and typed: this example ships no log, so the count is the comment
         # just written and nothing else.
-        expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
+        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
         # The page's own scroller (the runtime's `pageScroller`), moved the way a
         # reader moves it far enough down that the landmark is worth restoring.
         page.evaluate("() => document.body.scrollTo({top: 1500, behavior: 'instant'})")
@@ -515,7 +517,7 @@ def test_what_a_reader_leaves_on_one_page_stays_on_it(site, hosted, browser):
             if not p.with_suffix(".jsonl").exists()
         )
         opened(page, errors, example_url(hosted, plain))
-        expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
+        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
         assert page.evaluate("() => document.body.scrollTop") == 0, (
             "the ship review opened at the offset the reader left on another page"
         )

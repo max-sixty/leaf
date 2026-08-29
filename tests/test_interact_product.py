@@ -1,4 +1,4 @@
-"""Version corpus, catalog, message, and export tests."""
+"""Version corpus, registry, message, and export tests."""
 
 import importlib.util
 import json
@@ -10,6 +10,7 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
+from example_data import data_operations
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMMAND_SUBJECTS,
@@ -21,7 +22,6 @@ from interact_support import (
     comment,
     fetch,
     fragment_errors,
-    link_command_hub_package,
     live_versions,
     page_state,
     publish,
@@ -154,7 +154,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
 
 
 def test_an_ask_region_frames_exactly_one_request(page_dir):
-    """A broad Ask has one authored title and one source of liveness and state."""
+    """A broad Decision has one authored title and one source of liveness and state."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -169,7 +169,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
 
     assert (
         fragment_errors(
-            f'<lf-ask id="ask-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
+            f'<lf-decision id="decision-one"><h2>Choose</h2><p>Context.</p>{first}</lf-decision>',
             registry,
         )
         == []
@@ -182,46 +182,49 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
     assert (
         fragment_errors(
-            f'<lf-ask id="ask-request"><h2>Recover it</h2>{request}</lf-ask>',
+            f'<lf-decision id="decision-request"><h2>Recover it</h2>{request}</lf-decision>',
             registry,
         )
         == []
     )
 
     outside = fragment_errors(first, registry)
-    assert "this declared ask source must be inside an Ask with a heading" in " ".join(
-        outside
+    assert (
+        "this declared decision source must be inside a Decision with a heading"
+        in " ".join(outside)
     )
     outside_request = fragment_errors(request, registry)
-    assert "this declared ask source must be inside an Ask with a heading" in " ".join(
-        outside_request
+    assert (
+        "this declared decision source must be inside a Decision with a heading"
+        in " ".join(outside_request)
     )
 
-    # Evidence can quote another request-shaped widget without giving this Ask a
+    # Evidence can quote another request-shaped widget without giving this Decision a
     # second live source. The runtime already excludes x-exhibit descendants from the
-    # Ask list, so the authored boundary must read the same relation.
+    # Decision list, so the authored boundary must read the same relation.
     with_evidence = (
-        '<lf-ask id="ask-with-evidence"><h2>Choose</h2>'
+        '<lf-decision id="decision-with-evidence"><h2>Choose</h2>'
         f'{first}<lf-specimen id="request-example" label="another request">'
-        f"{second}</lf-specimen></lf-ask>"
+        f"{second}</lf-specimen></lf-decision>"
     )
     assert fragment_errors(with_evidence, registry) == []
 
     untitled = fragment_errors(
-        f'<lf-ask id="ask-untitled"><p>Context.</p>{first}</lf-ask>', registry
+        f'<lf-decision id="decision-untitled"><p>Context.</p>{first}</lf-decision>',
+        registry,
     )
-    assert "an Ask must have exactly one direct heading, found none" in " ".join(
+    assert "a Decision must have exactly one direct heading, found none" in " ".join(
         untitled
     )
 
     retitled = fragment_errors(
-        f'<lf-ask id="ask-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
+        f'<lf-decision id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-decision>',
         registry,
     )
-    assert "an Ask must have exactly one direct heading" in " ".join(retitled)
+    assert "a Decision must have exactly one direct heading" in " ".join(retitled)
 
     context_first = fragment_errors(
-        f'<lf-ask id="ask-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-decision id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-decision>',
         registry,
     )
     assert "direct heading must be its first content, found <p> first" in " ".join(
@@ -229,7 +232,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
 
     control_first = fragment_errors(
-        f'<lf-ask id="ask-control-first">{first}<h2>Choose</h2></lf-ask>',
+        f'<lf-decision id="decision-control-first">{first}<h2>Choose</h2></lf-decision>',
         registry,
     )
     assert (
@@ -238,22 +241,24 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     )
 
     empty = fragment_errors(
-        '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
+        '<lf-decision id="decision-empty"><h2>Nothing to answer</h2></lf-decision>',
+        registry,
     )
-    assert "an Ask must frame exactly one declared ask source, found none" in " ".join(
-        empty
+    assert (
+        "a Decision must frame exactly one declared decision source, found none"
+        in " ".join(empty)
     )
 
     crowded = fragment_errors(
-        f'<lf-ask id="ask-crowded">{first}{second}</lf-ask>', registry
+        f'<lf-decision id="decision-crowded">{first}{second}</lf-decision>', registry
     )
     message = " ".join(crowded)
-    assert "an Ask must frame exactly one declared ask source" in message
+    assert "a Decision must frame exactly one declared decision source" in message
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
 def test_a_request_holder_offers_at_least_one_command(page_dir):
-    """A ready request seat cannot be an Ask the reader has no way to answer."""
+    """A ready request seat cannot be a decision the reader has no way to answer."""
     registry = registry_storage.load_registry(page_dir)
     empty = (
         '<lf-operations id="host-request" target="goal" worker="worker" '
@@ -311,11 +316,9 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         )
     )
 
-    group = '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose{}>'
+    group = '<lf-decision id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
-    group += (
-        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
-    )
+    group += '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-decision>'
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
@@ -334,8 +337,9 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
     assert checking_command.cmd_check(page_dir) == 0
-    assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-ask']" in (
-        capsys.readouterr().out
+    assert (
+        "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-decision']"
+        in (capsys.readouterr().out)
     )
 
 
@@ -388,7 +392,6 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    link_command_hub_package(tmp_path)
     examples = sorted(root.glob("*.html"))
     assert examples
     selection_args = [arg for package in packages for arg in ("--package", package)]
@@ -405,6 +408,17 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
         (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        for operation in data_operations(example):
+            if operation["kind"] == "set":
+                data_model.cmd_data_set(d, operation["source"], operation["value"])
+            else:
+                data_model.cmd_data_capture(
+                    d,
+                    operation["source"],
+                    operation["text_file"],
+                    operation["lines"],
+                    operation["label"],
+                )
         activated = revisioning_model.activate_source(d, [])
         assert activated.error is None
         # The example's companion log, where it ships one (examples/CLAUDE.md), so
@@ -415,12 +429,6 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             # same here: normalizing a stale event contract in the fixture would
             # let the shipped demo fail while its corpus gate stayed green.
             (d / "comments.jsonl").write_bytes(seed.read_bytes())
-        data_seed = example.with_suffix(".data.json")
-        if data_seed.exists():
-            for name, value in json.loads(
-                data_seed.read_text(encoding="utf-8")
-            ).items():
-                data_model.cmd_data_set(d, name, value)
         result = check(d)
         assert result.exit_code == 0, f"{example.name}: {result.output}"
 
@@ -453,6 +461,22 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     )
 
 
+def test_shipped_widget_purposes_live_in_their_descriptions():
+    registry = validation_model.incoming_registry(
+        [
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
+    titled = [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and "title" in entry
+    ]
+    assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
+
+
 def test_gallery_is_generated_from_the_examples():
     """examples/gallery.html is derived; a commit that lets it drift fails here."""
     spec = importlib.util.spec_from_file_location(
@@ -472,7 +496,7 @@ def test_gallery_is_generated_from_the_examples():
 
 def test_the_key_table_is_generated_from_the_registry():
     """docs/packages.html's table of x- keys is written from the registry's $keys —
-    one home for what a key means, read by the catalog and the site alike — so a
+    one home for what a key means, read by agents and the site alike — so a
     commit that lets the two drift fails here. Compared with the whitespace between
     tags dropped, because prettier re-flows the page and a formatter's line breaks are
     not what the table says."""
@@ -484,7 +508,10 @@ def test_the_key_table_is_generated_from_the_registry():
     committed = keydocs.DOCS_PAGE.read_text()
 
     def said(html):
-        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", html))
+        tags = re.sub(
+            r"<[^>]*>", lambda match: re.sub(r"\s+>", ">", match.group()), html
+        )
+        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
 
     assert said(keydocs.build(committed)) == said(committed), (
         "the registry's $keys changed — rerun scripts/keydocs.py"
@@ -547,39 +574,6 @@ def test_no_example_writes_another_example_s_sentences():
         f"{len(shared)} run(s) of {run}+ words shared between examples; write each "
         "page's own sentence:\n  " + "\n  ".join(sorted(set(shared))[:10])
     )
-
-
-def test_catalog_prints_widgets_and_idioms(page_dir):
-    result = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    assert result.exit_code == 0
-    assert "lf-options" in result.output
-    assert "x-example" in result.output
-    assert ".callout" in result.output
-    assert "$idioms" not in result.output  # sections are split out, not dumped raw
-    # Every x- key an entry may declare is explained, in the one section that does.
-    assert "# The x- keys an entry may declare" in result.output
-    for key in schema_model.EXTENSION_SCHEMA["properties"]:
-        assert f'"{key}": "' in result.output, key
-
-
-def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
-    """The catalog is what the agent authors from, and a layer declaring a $ fact of
-    its own is the documented way to share one — so a catalog working from a list of $
-    names it had been taught dropped exactly what a project had gone to the trouble of
-    declaring, silently, in the one output that would have shown it. Same never-closed
-    rule as the widget list, one side of the registry over."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$hazards"] = {"freeze": {"description": "Deploys freeze on Fridays."}}
-    registry_path.write_text(json.dumps(registry))
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-
-    assert result.exit_code == 0, result.output
-    assert "Deploys freeze on Fridays." in result.output
-    assert "# $hazards, declared by this layer." in result.output
-    # The runtime contract and the vendoring record stay out of the author's catalog.
-    assert '"$events"' not in result.output
 
 
 def test_reply_validates_widget_markup(page_dir):
@@ -654,19 +648,19 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         )
 
     swapped = reply(
-        '<lf-ask id="commands-ask"><h3>Next</h3>'
+        '<lf-decision id="commands-decision"><h3>Next</h3>'
         '<lf-operations id="commands" target="worker" worker="tree" worktree="goal">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
+        "</lf-operations></lf-decision>"
     )
     assert swapped.exit_code != 0
     assert "where role='goal'" in swapped.output
 
     valid = reply(
-        '<lf-ask id="commands-ask"><h3>Next</h3>'
+        '<lf-decision id="commands-decision"><h3>Next</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask>"
+        "</lf-operations></lf-decision>"
     )
     assert valid.exit_code == 0, valid.output
 
@@ -724,7 +718,8 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask" in unresolved.output
+        "requires a page version that answers its originating Decision"
+        in unresolved.output
     )
 
     unrelated = unchosen.replace("</main>", "<p>Unrelated update.</p>\n</main>")
@@ -736,7 +731,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     )
     assert still_unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask"
+        "requires a page version that answers its originating Decision"
         in still_unresolved.output
     )
 
@@ -754,7 +749,7 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
     assert resolved.exit_code == 0, resolved.output
 
 
-def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
+def test_an_already_answered_decision_still_requires_its_version_response(page_dir):
     chosen = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
         '<lf-option id="flag-first"', '<lf-option id="flag-first" chosen', 1
     )
@@ -782,7 +777,8 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
     )
     assert unrelated.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask" in unrelated.output
+        "requires a page version that answers its originating Decision"
+        in unrelated.output
     )
 
     answered = chosen.replace(" chosen", "", 1).replace(
@@ -799,7 +795,7 @@ def test_an_already_answered_ask_still_requires_its_version_response(page_dir):
     assert resolved.exit_code == 0, resolved.output
 
 
-def test_a_version_response_can_settle_a_standing_ask(page_dir):
+def test_a_version_response_can_settle_a_standing_decision(page_dir):
     asking = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / "versions" / "v1.html").write_text(asking)
     publish(page_dir)
@@ -906,7 +902,8 @@ def test_a_reader_pick_cannot_substitute_for_an_authored_version_response(
 
     assert unresolved.exit_code != 0
     assert (
-        "requires a page version that answers its originating Ask" in unresolved.output
+        "requires a page version that answers its originating Decision"
+        in unresolved.output
     )
 
     (page_dir / "versions" / "v3.html").write_text(
@@ -949,20 +946,20 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             ],
         )
 
-    def question(ask_id, markup):
-        return f'<lf-ask id="{ask_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+    def question(decision_id, markup):
+        return f'<lf-decision id="{decision_id}"><h2>Pick?</h2>{markup}</lf-decision>'
 
     # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
     clash = reply(
         question(
-            "flow-ask",
+            "flow-decision",
             '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         )
     )
     assert clash.exit_code != 0 and "flow" in clash.output
     fresh = reply(
         question(
-            "q1-ask",
+            "q1-decision",
             '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
         )
     )
@@ -970,14 +967,14 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # A second reply can't reuse the first reply's ids either, nor its own within itself.
     again = reply(
         question(
-            "q1-ask",
+            "q1-decision",
             '<lf-options id="q1" choose><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
         )
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
         question(
-            "q2-ask",
+            "q2-decision",
             '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
         )
     )
@@ -996,7 +993,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
     ok = reply(
         question(
-            "quoted-ask",
+            "quoted-decision",
             '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
         )
     )
@@ -1040,10 +1037,10 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "Pick:",
             "--markup",
             (
-                '<lf-ask id="pick-ask"><h2>Pick?</h2>'
+                '<lf-decision id="pick-decision"><h2>Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
             ),
         ],
     )
@@ -1137,6 +1134,16 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_dir):
+    source = page_dir / "versions" / "v1.html"
+    source.write_text(
+        source.read_text().replace(
+            "</section>",
+            '<lf-command id="reply-command" label="Reply subjects">'
+            '<lf-task id="goal" status="active"><strong>Goal</strong>'
+            + COMMAND_SUBJECTS
+            + "</lf-task></lf-command></section>",
+        )
+    )
     published(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -1170,10 +1177,47 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "Pick one.",
             "--markup",
             (
-                '<lf-ask id="stores-ask"><h2>Which store?</h2>'
+                '<lf-decision id="stores-decision"><h2>Which store?</h2>'
                 '<lf-options id="stores" choose>'
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
+            ),
+            "--awaits",
+        ],
+    )
+    aggregate = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--text",
+            "Should I continue?",
+            "--markup",
+            (
+                '<lf-tasks id="reply-plan"><lf-task id="reply-task" status="review">'
+                "<strong>Review</strong></lf-task></lf-tasks>"
+            ),
+            "--awaits",
+        ],
+    )
+    request_duplicate = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--text",
+            "Restart it?",
+            "--markup",
+            (
+                '<lf-decision id="reply-operations-decision"><h2>Restart it?</h2>'
+                '<lf-operations id="reply-operations" target="goal" '
+                'worker="worker" worktree="tree">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations></lf-decision>"
             ),
             "--awaits",
         ],
@@ -1183,9 +1227,13 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
     assert "reply markup already declares" in duplicate.output
+    assert aggregate.exit_code == 0, aggregate.output
+    assert request_duplicate.exit_code == 1
+    assert "reply markup already declares a local decision" in request_duplicate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "awaits" not in replies[0]
     assert replies[1]["awaits"] is True
+    assert replies[2]["awaits"] is True
 
 
 def test_an_agent_edits_its_own_messages_without_rewriting_history(
@@ -1559,14 +1607,16 @@ def test_note_refuses_a_version_that_fails_check(page_dir):
     assert live_versions(page_dir) == []
 
 
-def test_example_layer_names_repository_packages():
+def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     examples = ROOT / "examples"
     packages = json.loads((examples / "layer.json").read_text(encoding="utf-8"))
+    monkeypatch.chdir(tmp_path)
 
     assert packages
     assert all(not Path(name).is_absolute() for name in packages)
-    assert all((ROOT / name).is_dir() for name in packages)
-    assert layer_model.checked_inputs([ROOT / name for name in packages])
+    resolved = layer_model.resolve_packages(tuple(packages))
+    assert resolved == [COMMAND_HUB_PACKAGE]
+    assert layer_model.checked_inputs(resolved) == resolved
 
 
 def test_every_seeded_fragment_passes_the_door_it_never_came_through(
@@ -1597,7 +1647,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     ]
     assert seeded, "no example ships a log; this gate is reading nothing"
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
-    link_command_hub_package(tmp_path)
     selection_args = [arg for package in packages for arg in ("--package", package)]
     read = 0
     for example in seeded:
@@ -1609,6 +1658,17 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        for operation in data_operations(example):
+            if operation["kind"] == "set":
+                data_model.cmd_data_set(d, operation["source"], operation["value"])
+            else:
+                data_model.cmd_data_capture(
+                    d,
+                    operation["source"],
+                    operation["text_file"],
+                    operation["lines"],
+                    operation["label"],
+                )
         # Published, because the door is only open on a page a reader could be
         # holding — which is the state every one of these seeds is written for.
         published = CliRunner().invoke(
@@ -1663,8 +1723,8 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     leave a bare one out — paint on the page is not a conversation — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the reader's mark rather than a turn, glyph and meaning beside it,
-    since it is read where no bar explains the glyph. The catalog names the
-    vocabulary under its own heading."""
+    since it is read where no bar explains the glyph. The registry owns that
+    vocabulary."""
     published(page_dir)
     bare = events_model.append_event(
         page_dir,
@@ -1697,8 +1757,3 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert result.exit_code == 0, result.output
     assert "- **User** reacted: − cut — does not earn its length" in result.output
     assert "- **User** reacted: × no — this is wrong" in result.output
-
-    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    # What the catalog teaches is the vendored vocabulary itself, entry and all.
-    vendored = json.loads((page_dir / "registry.json").read_text())["$reactions"]
-    assert json.dumps(vendored, indent=2, ensure_ascii=False) in catalog.output

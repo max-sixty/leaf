@@ -4,9 +4,9 @@ import json
 
 from leaf.event_contracts import thread_universe
 from leaf.passages import EMPTY, spoken
-from leaf.projection import decisions, page_projection, retirement_holders
+from leaf.projection import page_projection, retirement_holders, retirement_outcomes
 from leaf.registry.state import retirement_slots
-from leaf.render_checks import evaluate_probe
+from leaf.render_checks import evaluate_probe, wait_for_probe
 
 from .models import _SchemeContext, _SchemeReadings
 
@@ -100,7 +100,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
             # Behind it too: the settlement mark is replay's own write, so a
             # reading taken earlier asks after paint the page has not been
             # asked to make yet. The expected outcomes are the file's, scoped
-            # to each holder's own relation: `decisions` folds any verb that
+            # to each holder's own relation: `retirement_outcomes` folds any verb that
             # retires somewhere in the vocabulary, so a verb of that name on
             # a family it settles nothing of decides nothing here — the
             # browser's write reads the per-holder relation, and a comparison
@@ -110,7 +110,7 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
                 projection, vparser, _ = page_projection(
                     markup, state["events"], registry, here
                 )
-                outcomes = decisions(projection.actions, registry)
+                outcomes = retirement_outcomes(projection.actions, registry)
                 holders = []
                 for h in retirement_holders(vparser, registry):
                     declared = slots[h["tag"]]
@@ -184,8 +184,11 @@ def _read_scheme(context: _SchemeContext) -> _SchemeReadings:
         relative = evaluate_probe(page, "relativeReplays")
     # The print reset and replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
-    # would call an attempt complete before its last error channel had spoken.
-    evaluate_probe(page, "nextFrame")
+    # would call an attempt complete before its last error channel had spoken. Ask
+    # synchronously and poll the presented-frame fact from the driver: a compositor
+    # that never draws cannot strand page.evaluate on its unresolved Promise.
+    requested_frame = evaluate_probe(page, "requestFrame")
+    wait_for_probe(page, "framePresented", requested_frame)
     return _SchemeReadings(
         failsoft=failsoft,
         missing_upgrades=missing_upgrades,

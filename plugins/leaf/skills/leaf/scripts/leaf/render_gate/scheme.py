@@ -182,13 +182,13 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         e["widget"] for e in state["events"] if e["kind"] in ("action", "report")
     ]
     # Every reading below is of a page at rest, and the upgrade stamp above is
-    # one part of that. The stamp is written without awaiting the first read, so
-    # a gate reading there reads the authored board, the unanswered question and
-    # the body the reader has since rewritten — a page nobody is shown. The
-    # caught-up stamp is the log's answer to that, and the frame it lands in is
-    # the first frame of whatever the replay set moving, a replay past the
-    # presentation boundary moving rather than teleporting. Both waits are taken
-    # in both schemes, because every reading below has boxes or words in it. The
+    # one part of that. The first read runs beside upgrade, but its answer may still
+    # be pending when the stamp lands; a gate reading there sees the authored board,
+    # the unanswered question and the body the reader has since rewritten — a page
+    # nobody is shown. The caught-up stamp is the log's answer to that, and the frame
+    # it lands in is the first frame of whatever the replay set moving, a replay past
+    # the presentation boundary moving rather than teleporting. Both waits are taken in
+    # both schemes, because every reading below has boxes or words in it. The
     # windows open under load alone, which is how one page passed at a desk and
     # reported words drawn over words under a full suite ("The page finishes
     # twice", in the layer's own CLAUDE.md).

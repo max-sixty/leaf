@@ -116,8 +116,8 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     )
     assert -2 <= level["dy"] <= 6 and level["right"] > 0, level
     # A mark, not a thread: nothing in the panel, and nothing in its count.
-    expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
-    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
     # The panel's page row shows it standing nowhere: it is on a passage, not the page.
@@ -132,7 +132,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     # there is the same take-back as the glyph's. The panel closed first: open, it takes
     # the margin, the seat docks into the paragraph's own line, and a drag to the
     # paragraph's end would end on the glyph rather than on the words.
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     expect(page.locator(".lf-reacts")).not_to_have_class(re.compile("lf-docked"))
     select_paragraph(page, "#how-store")
@@ -161,7 +161,7 @@ def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     """`r` turns the ellipsis into the inline reaction buttons while the comment icon
     stays put. Digits remain optional accelerators in declaration order. With no
     selection, focused item, or agent reply, the key names the missing target and does
-    not borrow the page-wide strip by opening Comments."""
+    not borrow the page-wide strip by opening Threads."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
@@ -200,6 +200,7 @@ def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     # The sentence behind the chip, off the register: the reference's z row names the
     # token and the passage it stands on, where it promised a generic take-back before.
     page.keyboard.press("?")
+    page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     rows = page.locator(".lf-help").inner_text()
     assert "Take back: cut on “The store is capped" in rows, rows
@@ -214,8 +215,8 @@ def test_r_expands_the_ellipsis_without_moving_comment_and_needs_a_target(
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Page-wide reactions remain explicit inside Comments instead of being r's fallback.
-    page.locator(".lf-comments").click()
+    # Page-wide reactions remain explicit inside Threads instead of being r's fallback.
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page_strip = page.locator(".lf-page-strip")
     expect(page_strip.locator(".lf-react:visible")).to_have_count(0)
@@ -439,9 +440,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile("Start request")
     )
-    expect(
-        page.get_by_role("button", name="React or comment on Start request")
-    ).to_have_count(1)
+    expect(page.get_by_role("button", name="Respond to Start request")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -510,9 +509,9 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     start = page.locator('#flow g[id^="flowchart-S-"]')
     expect(start).not_to_have_attribute("role", "button")
     expect(start).not_to_have_attribute("tabindex", re.compile(".+"))
-    expect(
-        page.get_by_role("button", name="React or comment on Handle request")
-    ).to_have_count(0)
+    expect(page.get_by_role("button", name="Respond to Handle request")).to_have_count(
+        0
+    )
 
     whole_control = page.locator(".lf-visual-action").first
     page.locator("#flow").evaluate("flow => { flow.style.marginTop = '1100px'; }")
@@ -530,7 +529,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     ), (whole_bar, keyline)
 
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^React or comment on Start request$")
+        has_text=re.compile(r"^Respond to Start request$")
     )
     control.focus()
     page.keyboard.press("Enter")
@@ -540,7 +539,11 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert page.evaluate(
         "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
     )
-    assert "unselect" in key_line(page)
+    # The captured target spends the short line's two slots on its actions; Escape still
+    # clears it below and remains in the complete reference.
+    line = key_line(page)
+    assert "comment on the diagram" in line and "react" in line
+    assert "unselect" not in line
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
@@ -588,7 +591,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     ).replace("</lf-diagram>", "</lf-diagram></details>", 1)
     page, errors = open_page(browser, serve(folded))
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^React or comment on Start request$")
+        has_text=re.compile(r"^Respond to Start request$")
     )
     expect(control).to_have_count(1)
     page.evaluate(
@@ -619,7 +622,7 @@ def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, s
     that stable anchor. The focused control changes its name and remains focused."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^React or comment on Start request$")
+        has_text=re.compile(r"^Respond to Start request$")
     )
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
@@ -697,7 +700,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     bar = page.locator(".lf-fab-bar")
     diagram.evaluate("element => { element.style.width = '240px'; }")
 
-    control = page.get_by_role("button", name="React or comment on Start request")
+    control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     assert page.evaluate(
@@ -770,6 +773,8 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
         (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
         steps=12,
     )
+    # The compatibility click restores the preserved range in its queued completion.
+    page.wait_for_function("() => getSelection().toString().includes('Start request')")
     repeated = page.evaluate("() => getSelection().toString()")
     assert "Start request" in repeated
     expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
@@ -787,7 +792,7 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     """When a keyboard-raised action completes, focus returns to the proxy that named
     the target instead of remaining inside a hidden action bar."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    control = page.get_by_role("button", name="React or comment on Start request")
+    control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     assert page.evaluate(
@@ -809,7 +814,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     mouseup or keyup in the page. The new passage replaces the visual target, and
     clearing that passage dismisses the shared action surface."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    control = page.get_by_role("button", name="React or comment on Start request")
+    control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[id^="flowchart-S-"]')
     control.focus()
     page.keyboard.press("Enter")
@@ -894,7 +899,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         },
     )["id"]
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
     def strip(mid):
@@ -987,7 +992,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     expect(strip).to_be_visible()
@@ -1040,7 +1045,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page, errors = open_page(browser, url)
-    page.locator(".lf-comments").click()
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if removal == "filter":
         page.locator(".lf-needs").click()
@@ -1088,14 +1093,14 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     )
     page, errors = open_page(browser, url)
     painted(page, [["merge-both", "no"]])
-    expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
 
     conversation_model.cmd_reply(
         serve.page_dir, reaction["id"], "Which part — the case, or the answer?", ""
     )
     told(page)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
-    page.locator(".lf-comments").click()
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{reaction["id"]}"]')
     expect(thread.locator(".lf-react-said")).to_have_text("× no")
@@ -1104,7 +1109,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
     conversation_model.cmd_resolve(serve.page_dir, reaction["id"])
     told(page)
-    expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
     assert errors == []
     page.close()

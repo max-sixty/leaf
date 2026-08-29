@@ -70,7 +70,7 @@ customElements.define(
       // spends it (--lf-grip-room), and only a board that grew grips states it, so
       // paper, copies and quoted boards hold no dead column.
       // Off the grip's own box, so it waits for one (`measure`): a board quoted into
-      // a reply is built into the comment panel, which may not be open yet.
+      // a reply is built into the thread panel, which may not be open yet.
       measure(this, () => {
         const grip = this.querySelector(":scope > lf-column > lf-card > .lf-grip");
         if (grip)
@@ -201,7 +201,7 @@ customElements.define(
     // line promising the wrong press.
     //
     // The page's own keys still work mid-grab, and that is not an oversight: any of them
-    // that takes focus off the grip (c into the composer, a to the next ask) blurs it, and
+    // that takes focus off the grip (c into the composer, d to the next Decision) blurs it, and
     // the blur below cancels the grab and puts the card back where it was. A held card
     // therefore cannot be stranded by a press that moves the reader elsewhere, which is
     // what suspending the page would have been for.

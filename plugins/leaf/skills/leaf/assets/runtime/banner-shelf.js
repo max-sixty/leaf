@@ -24,7 +24,7 @@ export function createBannerShelf({ banner, el, pageScroller }) {
   // to say. Room a control has once taken is room it keeps for the rest of the page's
   // life. A live root pays nothing for news it may never get. A pinned version is
   // different: falling behind is part of its contract, so it reserves the future chip
-  // before publication can move Comments or approval under a reaching pointer. Once any
+  // before publication can move Threads or approval under a reaching pointer. Once any
   // news has stood, the rest of the row cannot close ranks over its place when it goes
   // quiet again.
   //

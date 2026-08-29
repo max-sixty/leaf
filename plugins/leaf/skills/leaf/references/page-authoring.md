@@ -1,9 +1,29 @@
 # Page authoring
 
 Read this before writing or revising a version.
-`leaf page catalog <page>` is the authority for the page's vendored widgets,
-attributes, examples, theme idioms, and composed guidance for authors; read it
-before authoring.
+
+## Read the registry
+
+`<page>/registry.json` is the page's complete vendored vocabulary. List its keys
+without printing the entries:
+
+```bash
+registry="<page>/registry.json"
+jq 'keys' "$registry"
+```
+
+Then read the complete entries for the widgets and `$` facts the page will use:
+
+```bash
+registry="<page>/registry.json"
+jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
+```
+
+Each selected entry owns its purpose and instructions in `description`, along with
+its example, attributes, content and parent rules, and behavioral contracts.
+Package-defined tags and `$` facts join the same key list.
+`leaf page guidance <page>` lists the composed guidance audiences; read `author`
+when it is present.
 
 ## Document scaffold
 
@@ -29,7 +49,7 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
 
 ## Theme and vocabulary
 
-Write semantic HTML and use the catalog's class idioms. The vendored theme owns
+Write semantic HTML and use the registry's class idioms. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
 
@@ -37,12 +57,12 @@ Widget attributes carry scalars; children carry prose; an item's title is a
 leading `<strong>`. A data-bodied widget such as `lf-diagram` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
-catalog is the only widget vocabulary.
+registry is the only widget vocabulary.
 
-The runtime injects the status banner, comment sidebar, version picker, keyboard
-shortcuts, live-leaves tray, and open-asks tray. Author asks through the
-registry's request widgets and regions, but do not duplicate that chrome or
-maintain a second list of it in the page.
+The runtime injects the status banner, thread panel, version picker, keyboard
+shortcuts, live-leaves tray, and open-decisions tray. Authors declare reader
+decisions through the registry's decision widgets and regions, but do not duplicate
+that chrome or maintain a second list of it in the page.
 
 Keep content inside the page's column. The theme scrolls a `<pre>` or a table
 that runs wider than it and fits an image or SVG to it, so none of them needs a
@@ -50,14 +70,14 @@ width. A table that scrolls has every column at its longest unbreakable run,
 and the browser gate refuses one that scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where
 it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose catalog
+what the measure holds. Widgets whose registry
 entry declares a wide shape size themselves; fix a diagram that is too wide in
 its source rather than pinning a page width.
 
 ## Stable anchors
 
 Give every section, major block, and widget item a stable, meaningful `id`.
-Comments and reading position attach to those ids across versions. Keep an id
+Threads and reading position attach to those ids across versions. Keep an id
 where its passage survives, and stay out of the `lf-` prefix: it is the runtime's
 namespace for ids and for classes alike, and `data-lf-` is the same for
 attributes. `version check` refuses all three, including a name the runtime does
@@ -71,10 +91,10 @@ When broad context gives way to focused work, branch the live page with one
 intact into another `lf-tab` so its ids retain their comments and decisions. Put
 the current workstream first: ordering makes it the default for a reader with no
 saved panel or reading position. A saved panel or restored position takes
-precedence. Comments, asks, versions, and sign-off still cover the whole page,
+precedence. Threads, decisions, versions, and sign-off still cover the whole page,
 so none of that runtime chrome belongs inside a tab.
 
-## Asks and sign-off
+## Decisions and sign-off
 
 Put alternatives in `lf-options` with `choose`. Each option carries its title,
 case, and evidence in the option itself. When whole page sections are the
@@ -88,23 +108,23 @@ answer. In a thread the reply box is already that cell, so the group carries
 none of its own.
 
 Writing there is the reader dealing with the question, so the group stops being
-one of the page's open asks and the ball is yours. Nothing is recorded by it:
+one of the page's open decisions and the ball is yours. Nothing is recorded by it:
 the group still holds no new pick. Answer what they wrote in the authored page:
 carry their words in as another option and mark the pick it settled. If the reader
 explicitly rejects every option, settle the group without a pick. This thread
 takes no agent reply; if the revision needs an answer first, open a separate
-exact-section thread on the same Ask. Only authored state in a later version can
-answer an originating open Ask, or change its declared answer when the Ask was
+exact-section thread on the same Decision. Only authored state in a later version can
+answer an originating open Decision, or change its declared answer when the Decision was
 already answered. Reader actions before or after the proposal do not substitute
 for that revision, and an unrelated version cannot close it.
 
-An ask must name itself without context outside the ask. Begin `lf-ask` with one
+A decision must name itself without context outside the decision. Begin `lf-decision` with one
 ordinary heading, then include any introduction or evidence and the actionable
 widget. That heading is the question: it stays in the document's hierarchy, is
-available to selection and comments, names the Asks tray row, and is where `a` /
-`A` arrives. The nested widget still owns the answer or request lifecycle. An
-`lf-ask` has exactly one leading direct heading and one non-quoted widget
-declaring `x-awaits` or `x-request.ask`.
+available to selection and comments, names the Decisions tray row, and is where `d` /
+`D` arrives. The nested widget still owns the answer or request lifecycle. An
+`lf-decision` has exactly one leading direct heading and one non-quoted local decision
+declared by `x-awaits` or `x-request.decision`.
 
 Keep the author's preference in the option it belongs to as ordinary prose:
 `<em>My take: this is the safest rollout.</em>` is enough. Say why when the reason
@@ -178,7 +198,7 @@ Open words are read; collapsed words are there when the reader wants them. So
 what stands open in the column is what the reader has to take from the page, and
 its backing goes under `<details>`: the full argument, a transcript, source and
 output, how a number was reached. Collapsed words stay quotable, and the runtime
-opens the disclosure when a comment or a walk lands inside one. An ask never
+opens the disclosure when a comment or a walk lands inside one. A decision never
 collapses, and neither does the evidence it turns on.
 
 The title names the page, and the lede under it carries the finding. A section
@@ -219,8 +239,8 @@ claim they could doubt, and drop the journey once the conclusion replaces it.
 ## Interactivity and evidence
 
 Introduce each interaction in the page's own language: say that a board takes a
-drag, an options group takes a click, or a review task awaits a decision. Do not
-copy the connective sentence from another page.
+drag, an options group takes a click, or a review task's nested Decision takes a pick.
+Do not copy the connective sentence from another page.
 
 Use `lf-diagram` for what mermaid draws — a flow, a sequence, a state machine —
 and `lf-chart` for quantities: a comparison across a few categories, a run over
@@ -228,8 +248,34 @@ time, a ranking, a composition, two numbers against each other. A handful of num
 carry is prose; a chart is for when the shape of the numbers is the point. Use
 inline SVG only for a bespoke drawing. Use `<pre><code class="language-…">` for
 selectable literal source and `lf-code` for a line-numbered walkthrough. The
-catalog lists accepted language names. Keep logs and transcripts plain when they
-are not source code.
+registry's `$languages.names` lists accepted language names. Keep logs and
+transcripts plain when they are not source code.
+
+Use `lf-source` when the literal text already lives in a UTF-8 file and should remain
+selectable and commentable without copying it into the authored HTML. First add a
+current-data binding to the page source so Leaf can give the source its page-lifetime
+contract:
+
+```html
+<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+```
+
+Then capture the whole file or an inclusive line range. Capture accepts one regular
+UTF-8 file up to 1 MiB, rejects U+0000, and normalizes CRLF or CR line endings to LF so
+live rendering, comments, and export share one text:
+
+```bash
+leaf data capture <page> leaf-skill --text-file SKILL.md --label SKILL.md
+leaf data capture <page> leaf-skill --text-file SKILL.md --lines 71:102
+```
+
+Capture prints the data revision it retained. Add `snapshot="REVISION"` before
+stamping or handing over the reviewed page to freeze that capture; omit the attribute
+when the block should follow later captures or `data set` calls. On a served page, the
+valid unpinned save that adds the binding may already have become an interim revision
+before capture. That is expected; the next valid save activates the pinned snapshot.
+Wrap `lf-source` in ordinary `<details>` or place it in an `lf-tabs` panel when the
+evidence should start collapsed or share a compact frame with alternatives.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

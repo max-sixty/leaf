@@ -158,6 +158,9 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           bot_name: leaf-agent
           model: opus
+          sandbox_setup: |
+            uv run playwright install chromium --only-shell
+            uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()"
           prompt: >-
             ${{ format('/tend-ci-runner:review {0}', github.event.pull_request.number) }}
 

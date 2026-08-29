@@ -91,7 +91,7 @@ export function createChromeLayout({
   document.body.style.setProperty("--lf-head", banner.offsetHeight + "px");
 
   // Until the first state answer, [] means "not read", not "no comments". Keep that
-  // distinction for a Comments panel restored or opened during startup; its General
+  // distinction for a Threads panel restored or opened during startup; its General
   // composer stays usable while the log-derived list says what it is waiting for.
 
   // The threads the panel last reconciled. A work line repaints on the heartbeat's clock and
@@ -112,7 +112,7 @@ export function createChromeLayout({
   // focus: beside the page the panel is a column of its own, and a reader working down the
   // list is in it whatever the window is wide enough to show behind them.
   const inPanel = () => panelOpen && containsAcross(panel, focused());
-  // The strip the page yields to the comment panel is its edge's width until the window is
+  // The strip the page yields to the thread panel is its edge's width until the window is
   // too narrow to give one up. One expression keeps the margin the rule takes and the room
   // measured against it on the same terms.
   const panelStrip = () => (panelOpen && !panelCovers() ? commentsEdge.width() : 0);
@@ -194,7 +194,7 @@ export function createChromeLayout({
     // The key line takes the toast's lift over a covering sheet, or the sheet's own
     // composer stands on the words saying what Esc will do to it.
     keylineEl.style.bottom = `calc(${panelCovers() ? generalRow.offsetHeight + 14 : 14}px + var(--lf-safe-bottom))`;
-    // Beside the page, the comment panel owns the right strip all the way to its foot. The
+    // Beside the page, the thread panel owns the right strip all the way to its foot. The
     // line starts at the window's left, so cap its room at that strip rather than letting a
     // long computed hint cross into the general comment box. A covering panel is handled by
     // the lift above and leaves the line the window's full width.
@@ -252,7 +252,7 @@ export function createChromeLayout({
   // nor the one it is going to. Both readings are wrong, in opposite directions and at
   // different prices, so the room takes whichever of the two is smaller and the page never
   // owes room it hasn't got. Both sides, because both yield one: the tray panel's margin
-  // eases exactly as the comment panel's does, and reading it off the box alone left every
+  // eases exactly as the thread panel's does, and reading it off the box alone left every
   // exhibit a tray's width too wide for the fifth of a second the tray took to arrive.
   //
   // The two readings are compared rather than added, which is the same arithmetic done in

@@ -10,7 +10,7 @@ that were each, at some point, wrong:
   - a widget that upgrades into a box of no size (lf-tabs marked itself with a
     class the runtime's chrome had already claimed for its visually-hidden live
     region, so every tabbed page rendered blank below the lede);
-  - the document and the comment panel scrolling in one region, which stacks two
+  - the document and the thread panel scrolling in one region, which stacks two
     scrollbars in the same few pixels at the window's right edge;
   - a text box sized by script, which had to shrink itself to re-measure and so
     flashed a scrollbar on every keystroke;
@@ -40,6 +40,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
+from example_data import data_operations
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -58,7 +59,9 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
-COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = (
+    ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "command-hub"
+)
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
@@ -122,12 +125,17 @@ def stamp_version_file(page_dir: Path, version: int, text: str) -> dict:
 
 
 def wait_for_revision(page, revision: int) -> None:
-    """Wait until a live tab has installed one complete immutable revision."""
+    """Wait until a live tab has installed and applied one immutable revision."""
     page.wait_for_function(
         "revision => document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
         "?.content === String(revision)",
         arg=revision,
     )
+    # activateRevision writes the marker while it is replacing the authored document,
+    # before the encompassing state transaction replays and publishes its reading.
+    # The marker answers which source is installed; the reading answers whether that
+    # source and the server state that selected it became one complete browser view.
+    told(page)
 
 
 # A long page, so the document scrolls, and nothing else — the panel is the subject.
@@ -153,13 +161,13 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<lf-ask id="opts-ask"><h2>How should sessions work?</h2>
+<lf-decision id="opts-decision"><h2>How should sessions work?</h2>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
@@ -189,7 +197,7 @@ SETTLED_PAGE = leaf_page(
     """
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
-<lf-ask id="transport-ask"><h2>How should sessions travel?</h2>
+<lf-decision id="transport-decision"><h2>How should sessions travel?</h2>
 <lf-options id="transport" choose settled>
   <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
@@ -197,7 +205,7 @@ SETTLED_PAGE = leaf_page(
   started from an emailed link arrives logged out.</lf-option>
   <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 
@@ -301,22 +309,22 @@ SPECIMEN_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-specimen>
-<lf-ask id="live-group-ask"><h2>How should the schema migrate?</h2>
+<lf-decision id="live-group-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="live-rows-ask"><h2>What should happen to the nightly job?</h2>
+</lf-options></lf-decision>
+<lf-decision id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
 <lf-options id="live-rows" choose>
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="live-settled-ask"><h2>How should sessions travel?</h2>
+</lf-options></lf-decision>
+<lf-decision id="live-settled-decision"><h2>How should sessions travel?</h2>
 <lf-options id="live-settled" choose settled>
   <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
   <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-board id="live-board">
   <lf-column id="l-col" label="Doing">
     <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
@@ -348,11 +356,11 @@ SPECIMEN_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SPECIMEN_MARKUP = """<lf-ask id="rp-live-ask"><h3>How should the schema migrate?</h3>
+SPECIMEN_MARKUP = """<lf-decision id="rp-live-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="rp-live" choose>
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-specimen id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
@@ -370,11 +378,11 @@ REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<lf-ask id="approach-ask"><h2>How should the schema migrate?</h2>
+<lf-decision id="approach-decision"><h2>How should the schema migrate?</h2>
 <lf-options id="approach" choose>
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 <lf-board id="work">
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
   <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
@@ -433,6 +441,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         events=(),
         layer_registry=None,
         layer_widgets=None,
+        seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
         project = tmp_path / ".leaf"
@@ -445,8 +454,9 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
-        packages = link_example_packages(tmp_path)
-        selection_args = [arg for name in packages for arg in ("--package", name)]
+        selection_args = [
+            arg for name in EXAMPLE_PACKAGES for arg in ("--package", name)
+        ]
         d = tmp_path / f"page{len(servers)}"
 
         def initialize(target):
@@ -476,6 +486,18 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             path.write_bytes(data)
         for event in events:
             events_model.append_event(d, event)
+        if example:
+            for operation in data_operations(example):
+                if operation["kind"] == "set":
+                    data_model.cmd_data_set(d, operation["source"], operation["value"])
+                else:
+                    data_model.cmd_data_capture(
+                        d,
+                        operation["source"],
+                        operation["text_file"],
+                        operation["lines"],
+                        operation["label"],
+                    )
         activated = revisioning_model.activate_source(d, events_model.read_events(d))
         assert activated.error is None and activated.revision == 1, activated.error
         (d / "versions" / "v1.html").write_text(html)
@@ -489,18 +511,13 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 "text": "t",
             },
         )
-        if example and (data_seed := example.with_suffix(".data.json")).exists():
-            for name, value in json.loads(
-                data_seed.read_text(encoding="utf-8")
-            ).items():
-                data_model.cmd_data_set(d, name, value)
         # After the note, so v1's announcement stays the log's first line and the
         # exchange reads in the order it happened, which is preview.py's ordering.
         # (The site build writes the seed alone and announces its versions
         # elsewhere, so it has no note to come after.) Split on the writer's own
         # separator, never splitlines(), whose wider class reads a U+2028 inside a
         # comment's text as a break.
-        if example and (seed := example.with_suffix(".jsonl")).exists():
+        if example and seed_log and (seed := example.with_suffix(".jsonl")).exists():
             for line in seed.read_text(encoding="utf-8").split("\n"):
                 if line.strip():
                     events_model.append_event(d, json.loads(line))
@@ -951,17 +968,6 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
     return package
 
 
-def link_example_packages(root: Path) -> list[str]:
-    """Expose the corpus packages at their recorded project-relative paths."""
-    for name in EXAMPLE_PACKAGES:
-        relative = Path(name)
-        package = root / relative
-        package.parent.mkdir(parents=True, exist_ok=True)
-        if not package.exists():
-            package.symlink_to(ROOT / relative, target_is_directory=True)
-    return EXAMPLE_PACKAGES
-
-
 # `z` is the one press whose subject is read rather than pointed at, so the dispatcher
 # holds it dead while the page holds a gesture no log read has accounted for — this
 # press's own trip included (unrecordedGesture). Every other press acts on what is under
@@ -1056,18 +1062,16 @@ def held_stale(context):
 
 # The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
 # and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
-# pass, and `lf-presented` says a deliberately shown waiting surface has completed its
-# minimum dwell. Applied state is not yet a completed page while that surface stands.
-# The runtime stamps the document in the same breath as it starts that first read and
-# never awaits it, so a page can be done becoming itself while knowing nothing of what
-# the reader has decided or which version is newest.
+# pass, and `lf-presented` says the authoritative projection or offline fallback has been
+# released to the reader. The first read starts beside widget startup, but its answer stays
+# unapplied until the document earns its upgrade stamp. Either half may finish first.
 #
 # One predicate, because it was spelled out in eleven places and only the one that
 # noticed ever grew the second half. `open_page` took it when a loaded Linux runner
 # dropped three keypresses into pages with nothing yet to answer them; every navigation a
 # test makes for itself kept waiting on the document alone. What that leaves out is not a nicety of
 # the log: the version chooser and the live-pages button are drawn from a read's answer
-# and Comments has no count until one lands, so a page at the document's stamp is a page
+# and Threads has no count until one lands, so a page at the document's stamp is a page
 # whose banner the reader would not recognize.
 BOTH_STAMPS = (
     "() => document.body.dataset.lfUpgraded === '1'"
@@ -1347,10 +1351,9 @@ def primed(browser, prepare):
 
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
-    that has earned its keep: the runtime stamps `lf-upgraded` in the same breath as it
-    starts that read, never awaiting it, so a refusal puts replay on the far side of the
-    document's stamp — where a slow machine would have put it — deterministically and in
-    a second."""
+    that has earned its keep: the runtime starts that read beside widget startup but never
+    applies it there. A refusal lets `lf-upgraded` land while replay remains held, putting
+    the two readiness facts on opposite sides of a deterministic boundary."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)

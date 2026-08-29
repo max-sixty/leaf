@@ -127,9 +127,13 @@ export function undeclaredAttrs(widgets) {
 // COVERED_WORDS', for its reasons: [hidden] holds until-found content whose boxes
 // report as last laid out, and visibility and opacity hide with layout intact. One
 // scheme, on the trapped-margin reading's premise — the palettes carry no geometry
-// between them — with the fold a replayed decision plays awaited first, finite
-// animations only, because a slot mid-fold still paints words it has already retired.
-export async function retiredSlots(holders) {
+// between them. Replay installs a fold's terminal DOM synchronously: the runtime's
+// motion() refuses animation while it is projecting state or before presentation.
+// The gate's global `pageSettled` fact separately holds independently authored motion
+// before any reading starts. This reading stays synchronous: waiting on
+// `Animation.finished` here would give page.evaluate a promise the driver cannot
+// interrupt if the compositor stops.
+export function retiredSlots(holders) {
   const roots = (root) => [
     root,
     ...[...root.querySelectorAll("*")]
@@ -163,12 +167,6 @@ export async function retiredSlots(holders) {
   for (const h of holders) {
     const el = find(h.id);
     if (!el || inChrome(el) || quoted(el)) continue;
-    await Promise.allSettled(
-      el
-        .getAnimations({ subtree: true })
-        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-        .map((a) => a.finished),
-    );
     const mark = el.getAttribute("data-lf-state");
     const at = `<${h.tag} id='${h.id}'>`;
     if (mark !== (h.outcome ?? null)) {

@@ -8,14 +8,14 @@ export const standingState = (...args) => publishedProjection.standingState(...a
 /* Declaration-driven state projection and reconciliation. */
 export function createProjection(runtime, dependencies) {
   const {
-    ASK_ROW,
+    DECISION_ROW,
     COLLAPSE,
     MARKED_ANYWHERE,
     MARKED_IN_PAGE,
     PAGE_PAINT_ATTRIBUTE,
     PAGE_PAINT_ATTRIBUTES,
     answeredContext,
-    askEntry,
+    decisionEntry,
     containsAcross,
     dress,
     elementById,
@@ -232,7 +232,7 @@ export function createProjection(runtime, dependencies) {
       node = projectedParent(node, context)
     )
       if (registry[node.localName])
-        return permitted.includes(node.localName) && askEntry(node) ? node : null;
+        return permitted.includes(node.localName) && decisionEntry(node) ? node : null;
     return null;
   }
 
@@ -240,7 +240,7 @@ export function createProjection(runtime, dependencies) {
     if (!pagePresented()) return false;
     const requirement = spec.requires;
     // Whether the request is answered, which is not the question the banner asks: a
-    // conversation standing in the widget's own seat takes the request off the reader's
+    // conversation standing in the widget's own seat takes the decision off the reader's
     // list without answering it. Reading the reader's list here would refuse the pick
     // because the reader had remarked on the question, which is refusing them the answer
     // they were asked for. One reducer, and the caller names the question it wants.
@@ -404,7 +404,8 @@ export function createProjection(runtime, dependencies) {
     const here = focused();
     const standing =
       Boolean(here) &&
-      (containsAcross(el, here) || Boolean(here.closest?.(`[${ASK_ROW}="${id}"]`)));
+      (containsAcross(el, here) ||
+        Boolean(here.closest?.(`[${DECISION_ROW}="${id}"]`)));
     // Chrome the widget hoisted out of itself goes with it, and the widget is what takes
     // it: a control hung in the page margin is outside the subtree being replaced, so
     // only its owner knows to take it away, and disconnectedCallback is where the

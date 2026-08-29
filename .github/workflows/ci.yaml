@@ -41,9 +41,12 @@ jobs:
       # so whatever is left unreported is what stopped. It watches nothing and ends
       # nothing — the hang guard `pyproject.toml` rules out is a different mechanism,
       # and the reason it was removed was that it killed a worker to say less than this.
+      # A slow but advancing hosted runner reached 72% at the old 45-minute bound in run
+      # 33266184820. Ninety minutes still turns a wedge into a failure while giving the
+      # complete browser corpus room to finish under that measured slowdown.
       - name: 🧪 Nightly suite
         if: github.event_name == 'push'
-        timeout-minutes: 45
+        timeout-minutes: 90
         run: uv run pytest tests --run-nightly -v
 
   lint:

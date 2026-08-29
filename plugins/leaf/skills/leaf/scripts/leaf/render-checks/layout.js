@@ -45,7 +45,7 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // because everything inside one inherits its box and would name the same fault a
 // dozen times over.
 // What stands in the page's margin by its own declaration — placed absolutely, or
-// floated clear of the column — as one reading shared by the two passes that ask:
+// floated clear of the column — as one reading shared by the two passes that decision:
 // MISPLACED_BOXES, deciding whether a wide widget was drawn over one, and
 // WITHHELD_ROOM, deciding whether an exhibit's sideways scroll answers to a margin's
 // occupant or to room the layer withheld. A resident is whatever answered for itself
@@ -53,7 +53,7 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // declaring anything to either pass. Spliced after `main`, `left` and `right` are in
 // scope, the way OPEN_ROOTS is spliced where `roots` is wanted.
 
-export async function misplacedBoxes() {
+export function misplacedBoxes() {
   // shownBand is the runtime's own: what a container lets the reader see of what it
   // holds, or nothing where it shows all of it. Imported rather than restated, so the
   // band a handover is refused against and the band the page paints to cannot come
@@ -70,7 +70,7 @@ export async function misplacedBoxes() {
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
   // measured is the column's leftover, the rail a suggestion hangs in and the strip
-  // the comment panel takes, and an exhibit over that edge is in the margin whether or
+  // the thread panel takes, and an exhibit over that edge is in the margin whether or
   // not the window happened to scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
   // the reader's window is free to be narrower than this one.
@@ -478,7 +478,7 @@ export function withheldRoom() {
 // unwrapped would push every column it spans out and name them all.
 // A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
 // is real.
-export async function squeezedTables() {
+export function squeezedTables() {
   const main = document.querySelector("main");
   if (!main) return [];
   const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;

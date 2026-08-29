@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .data import read_data_store
-from .data_contracts import data_contract_errors, page_data_bindings
+from .data_contracts import (
+    data_contract_errors,
+    page_data_bindings,
+    page_data_snapshot_selections,
+)
 from .event_log import flocked, now_iso, read_events
 from .files import (
     json_bytes,
@@ -74,7 +78,7 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
         ):
             sys.exit(
                 f"{page_dir / 'registry.json'}: $layer.packages must be a unique "
-                "list of non-empty package paths"
+                "list of non-empty package selections"
             )
         selected = tuple(recorded)
     inputs = layer_inputs(selected)
@@ -181,14 +185,28 @@ def _refuse_data_contract_drift(
             for source, contract in standing_bindings.items()
             if incoming_bindings.get(source) != contract
         ]
-        if binding_errors or binding_changes:
+        standing_snapshots = page_data_snapshot_selections(page_dir, current, events)
+        incoming_snapshots = page_data_snapshot_selections(page_dir, incoming, events)
+        selection_changes = [
+            f"{document} <{tag}{'#' + widget if widget else ''}> input `{input_name}` "
+            f"changes immutable snapshot selection from {standing_snapshots.get(seat)} "
+            f"to {incoming_snapshots.get(seat)}"
+            for seat in sorted(
+                set(standing_snapshots) | set(incoming_snapshots), key=repr
+            )
+            for document, _ordinal, tag, widget, _line, input_name in [seat]
+            if incoming_snapshots.get(seat) != standing_snapshots.get(seat)
+        ]
+        if binding_errors or binding_changes or selection_changes:
             sys.exit(
                 "this page's immutable documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
-                    f"  - {error}" for error in binding_errors + binding_changes
+                    f"  - {error}"
+                    for error in binding_errors + binding_changes + selection_changes
                 )
-                + "\nuse a new source id for a new contract before re-vendoring."
+                + "\npreserve those bindings and snapshot selectors in the incoming "
+                "registry before re-vendoring."
             )
     if data_errors := data_contract_errors(stored_data, incoming):
         sys.exit(

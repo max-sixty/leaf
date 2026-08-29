@@ -16,7 +16,7 @@ where a page's absolute /theme.css and /leaf.js resolve, and puts each example a
 own examples/<name>/versions/v1.html, which is where the runtime reads a version number
 from. What answers the three paths is `docs/session.js`, loaded in front of the runtime
 by `docs/leaf.js`: the log lives in the reader's own tab. Every control on the page is
-then the shipped one, working — the banner, the comment panel, a board that takes a drag
+then the shipped one, working — the banner, the thread panel, a board that takes a drag
 and holds it. The half no host can supply is the agent at the other end: the page
 reports itself unattended and the banner says so in the runtime's own words, and
 `docs/sitenote.js` says the whole of it in the site's own label above the document.
@@ -37,6 +37,8 @@ import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+
+from example_data import data_operations
 
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
@@ -232,6 +234,30 @@ def publish_pages(out: Path, env: dict) -> None:
             # host uses.
             data_file = page / "data.json"
             data_file.unlink(missing_ok=True)
+            for operation in data_operations(source):
+                if operation["kind"] == "set":
+                    leaf(
+                        env,
+                        "data",
+                        "set",
+                        str(page),
+                        operation["source"],
+                        input_text=json.dumps(operation["value"]),
+                    )
+                    continue
+                args = [
+                    "data",
+                    "capture",
+                    str(page),
+                    operation["source"],
+                    "--text-file",
+                    str(operation["text_file"]),
+                ]
+                if operation["label"] is not None:
+                    args.extend(("--label", operation["label"]))
+                if operation["lines"] is not None:
+                    args.extend(("--lines", operation["lines"]))
+                leaf(env, *args)
             leaf(
                 env,
                 "version",
@@ -241,19 +267,6 @@ def publish_pages(out: Path, env: dict) -> None:
                 f"{source.name}, as published",
             )
             version = page / "versions" / "v1.html"
-            data_seed = source.with_suffix(".data.json")
-            if data_seed.exists():
-                for name, value in json.loads(
-                    data_seed.read_text(encoding="utf-8")
-                ).items():
-                    leaf(
-                        env,
-                        "data",
-                        "set",
-                        str(page),
-                        name,
-                        input_text=json.dumps(value),
-                    )
             # The example's companion log, where it ships one (examples/CLAUDE.md).
             # Written rather than appended, because one page directory serves every
             # example here and an appended seed would hand the next one the last one's

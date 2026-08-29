@@ -329,7 +329,7 @@ def record(
     )
     shot(2300)
 
-    page.get_by_role("button", name="Close comments").click()
+    page.get_by_role("button", name="Close threads").click()
     page.locator("#top").scroll_into_view_if_needed()
     shot(2100)
 
@@ -412,7 +412,7 @@ def shoot_stills(
             "() => document.querySelector('.lf-status-text')"
             ".textContent.includes('awaits')"
         )
-        page.locator(".lf-banner .lf-comments").click()
+        page.locator(".lf-banner .lf-threads-toggle").click()
         page.wait_for_selector(".lf-thread .lf-msg.claude")
         page.locator("#top").scroll_into_view_if_needed()
         # The panel's margin transition, asked of the transition rather than waited out:

@@ -7,21 +7,22 @@ from pathlib import Path
 import click
 
 from leaf.agent_state import cmd_page_state
+from leaf.codex import cmd_codex_start, run_adapter
 from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
-from leaf.data import cmd_data_clear, cmd_data_set
+from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
-from leaf.hooks import cmd_hook, unanswered_asks
+from leaf.hooks import cmd_hook, unanswered_decisions
 from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_stop, start_server
 from leaf.media import cmd_media
 from leaf.packages import cmd_package_check, cmd_package_init
-from leaf.page import cmd_catalog, cmd_guidance
+from leaf.page import cmd_guidance
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
-    ANSWER_ASK_INSTRUCTION,
+    ANSWER_DECISION_INSTRUCTION,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
 )
 from leaf.service import (
@@ -51,6 +52,30 @@ def cli() -> None:
     """Build and run interactive pages a session shares with its user."""
 
 
+@cli.group(short_help="Deliver page updates to later turns of this Codex task.")
+def codex() -> None:
+    """Run Leaf's detached Codex delivery carrier."""
+
+
+@codex.command("start", short_help="Keep PAGE connected after this turn ends.")
+@click.argument("dir", metavar="PAGE")
+@click.option("--codex-path", hidden=True)
+def codex_start(dir: str, codex_path: str | None) -> None:
+    """Start one task-wide delivery carrier and claim PAGE for it."""
+    try:
+        click.echo(cmd_codex_start(resolve_dir(dir), codex_path))
+    except RuntimeError as error:
+        raise click.ClickException(str(error)) from error
+
+
+@codex.command("run", hidden=True)
+@click.option("--codex-path", required=True)
+@click.option("--ready-fd", type=int)
+def codex_run(codex_path: str, ready_fd: int | None) -> None:
+    """Run the detached carrier child."""
+    sys.exit(run_adapter(codex_path, ready_fd))
+
+
 @cli.group(short_help="Create pages and add media.")
 def page() -> None:
     """Create pages and add media."""
@@ -63,7 +88,7 @@ def page() -> None:
     "selected",
     multiple=True,
     metavar="PACKAGE",
-    help="include a project-relative or ~ package path; repeat for more",
+    help="include a bundled name or explicit project-relative/~ path; repeat for more",
 )
 @click.option(
     "--no-packages",
@@ -82,9 +107,9 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
     if any(not selection for selection in selected):
-        raise click.UsageError("--package paths cannot be empty")
+        raise click.UsageError("--package selections cannot be empty")
     if len(set(selected)) != len(selected):
-        raise click.UsageError("each --package path may appear only once")
+        raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
     cmd_init(resolve_dir(dir, must_exist=False), selections)
 
@@ -135,13 +160,6 @@ def media(dir: str, files) -> None:
         print(f"{url}\t{src}")
 
 
-@page.command(short_help="Print the widget and theme vocabulary.")
-@click.argument("dir", metavar="PAGE")
-def catalog(dir: str) -> None:
-    """Print the page's widget and theme vocabulary."""
-    cmd_catalog(resolve_dir(dir))
-
-
 @page.command(short_help="List or print composed guidance by audience.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("audience", required=False, metavar="AUDIENCE")
@@ -154,14 +172,14 @@ def guidance(dir: str, audience: str | None) -> None:
 @click.argument("dir", metavar="PAGE")
 def state(dir: str) -> None:
     """Fold the log onto the active revision and print the result as one JSON
-    object: elements, standing state and reports, record lag, open asks,
+    object: elements, standing state and reports, record lag, open decisions,
     threads, versions, presence, external data and its page bindings."""
     cmd_page_state(resolve_dir(dir))
 
 
-@cli.group(short_help="Set or clear page-bound external data.")
+@cli.group(short_help="Set, capture, or clear page-bound external data.")
 def data() -> None:
-    """Manage replaceable external or derived page data."""
+    """Manage current values and immutable text captures."""
 
 
 @data.command("set", short_help="Replace one bound source value.")
@@ -185,11 +203,34 @@ def data_set(dir: str, source: str, input_file) -> None:
     cmd_data_set(resolve_dir(dir), source, value)
 
 
-@data.command("clear", short_help="Remove one source snapshot.")
+@data.command("capture", short_help="Capture a bound UTF-8 text source.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("source", metavar="SOURCE")
+@click.option(
+    "--text-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    metavar="PATH",
+    help="regular UTF-8 file up to 1 MiB without U+0000 to capture",
+)
+@click.option(
+    "--lines",
+    metavar="START:END",
+    help="one-based inclusive line range",
+)
+@click.option("--label", help="display label (default: file name)")
+def data_capture(
+    dir: str, source: str, text_file: Path, lines: str | None, label: str | None
+) -> None:
+    """Capture LF-normalized text as SOURCE's current value and a snapshot."""
+    cmd_data_capture(resolve_dir(dir), source, text_file, lines, label)
+
+
+@data.command("clear", short_help="Clear current and unreferenced captures.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
-    """Remove SOURCE, including a value its current schema rejects."""
+    """Clear SOURCE while retaining captures selected by durable documents."""
     cmd_data_clear(resolve_dir(dir), source)
 
 
@@ -391,7 +432,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
         events = page.events
         cursor = page.cursor
         pending = len(unacknowledged(events, cursor))
-        unanswered = unanswered_asks(events, cursor, active_enclosing(page_dir))
+        unanswered = unanswered_decisions(events, cursor, active_enclosing(page_dir))
         if pending:
             prefix = (
                 f"{pending} update{'s' if pending != 1 else ''} nobody has picked up; "
@@ -407,7 +448,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
             sys.exit(
                 f"{len(unanswered)} acknowledged "
                 f"comment{'s' if len(unanswered) != 1 else ''} with no answer "
-                f"({ids}); idling ends the leaf over them. " + ANSWER_ASK_INSTRUCTION
+                f"({ids}); idling ends the leaf over them. "
+                + ANSWER_DECISION_INSTRUCTION
             )
         page.set_status(state, detail)
 

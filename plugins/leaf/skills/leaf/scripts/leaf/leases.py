@@ -80,6 +80,22 @@ def waiter_lease_path(page_dir: Path | None, session: dict | None) -> Path | Non
     return page_dir / "waiter.lock" if page_dir is not None else None
 
 
+def adapter_lease_path(session_id: str) -> Path:
+    """The live proof for a detached host delivery adapter.
+
+    A wait lease says only that some process can read page events.  The Codex
+    Stop hook needs the narrower fact that the process can durably hand those
+    events to a later turn after the foreground turn ends, so the adapter holds
+    a second lease for exactly that capability.
+    """
+    return state_home() / "sessions" / f"{session_id}.adapter"
+
+
+def adapter_is_live(session_id: str) -> bool:
+    """Whether this session has a detached delivery carrier right now."""
+    return lock_is_held(adapter_lease_path(session_id))
+
+
 def take_waiter_lease(path: Path):
     """Take and return a wait lease, or None when another wait already holds it."""
     require_cross_process_locking()

@@ -165,7 +165,7 @@ export function chromeStyle({
      runtime marks the page's own elements (lf-mark-el, lf-ins-block). Adding one
      widens the vocabulary; a rule that styles the runtime's own layer goes in the
      @scope block below instead. */
-  .lf-ui { font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); color: var(--ink); box-sizing: border-box; }
+  .lf-ui, .lf-conversation-msg.lf-ui, .lf-say.lf-ui { font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh); color: var(--ink); box-sizing: border-box; }
   .lf-ui *, .lf-ui *::before, .lf-ui *::after { box-sizing: inherit; }
   /* Clearing the UA's form-control face is a different kind of declaration from
      choosing one, so the clearing lives in a layer, which any unlayered choice
@@ -263,8 +263,8 @@ export function chromeStyle({
   [aria-busy="true"], [aria-busy="true"] :is(button, [role="button"]) { cursor: progress; }
   /* Standing on a press, in the band everything else the reader stands on is drawn in
      (--here-ring). The two shapes were the last places on the product still wearing the
-     browser's own ring: a reader who backed out of the panel landed on Comments in
-     Chrome's blue, beside an ask wearing the page's accent, with nothing saying the two
+     browser's own ring: a reader who backed out of the panel landed on Threads in
+     Chrome's blue, beside a decision wearing the page's accent, with nothing saying the two
      rectangles meant one thing.
 
      Each states its own gap, because they stand at different densities and the ring may
@@ -464,7 +464,7 @@ ${MARK_RULES}
   .lf-mark-el:is(.lf-mark-hover, :focus-visible, .lf-focus-visible) { outline-width: var(--here-ring-w);
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* The standing comment's element anchor (paintStanding). It keeps the hairline's own
-     inset rather than taking the ask ring's gap, so focusing the thread changes the ring
+     inset rather than taking the decision ring's gap, so focusing the thread changes the ring
      where it already is instead of moving it outward by four pixels — the mark is the
      same mark. -2px and not the hairline's -1px because the width doubles: the offset is
      to the outer edge, so the ring drawn at -1px would poke a pixel outside a box the
@@ -510,18 +510,18 @@ ${MARK_RULES}
     outline: var(--here-ring); --lf-here-ring: visual-target;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
-  /* The unanswered ask the reader is standing in (markHere), worn by the ask rather than
+  /* The unanswered decision the reader is standing in (markHere), worn by the decision rather than
      by whichever of its controls holds the focus — they are standing in the whole thing,
      however they got there. Unanswered and not open: a widget whose own seat is
      mid-conversation with the agent has left the reader's list while the reader is still
-     standing in it. Exactly one ask wears it at a time: every shipped widget
+     standing in it. Exactly one decision wears it at a time: every shipped widget
      draws one box for it to paint on, and one a page styles boxless hangs it on the
-     boxes its contents make (shownParts). While the asks tray is open, its row mirrors
-     the same fact — for an ask the tray lists, which is one the reader still owes. It is an outline like every other mark the
+     boxes its contents make (shownParts). While the decisions tray is open, its row mirrors
+     the same fact — for a decision the tray lists, which is one the reader still owes. It is an outline like every other mark the
      runtime paints on the page's own elements: it moves nothing on arriving, and it
      keeps its place for nothing, being the element's own paint rather than a box in
      the chrome that would have to chase it down every scroll, reflow and drag. */
-  [${PAGE_PAINT_ATTRIBUTE.ask}] { outline: var(--here-ring); --lf-here-ring: ask; outline-offset: var(--here-ring-gap); }
+  [${PAGE_PAINT_ATTRIBUTE.decision}] { outline: var(--here-ring); --lf-here-ring: decision; outline-offset: var(--here-ring-gap); }
   /* Paper takes no input, so what a widget injects to be worked goes: the control,
      and the box that holds controls. What stays is a control whose label is one of
      the page's own words — a pick mark reading "chosen" is the only place the page
@@ -560,7 +560,7 @@ ${MARK_RULES}
        a design comment about the banner point at the banner, and a thread about a
        question an agent asked in a reply point at the question. What the outline may
        not do here is offer the hand: markAt refuses a press inside this container on
-       purpose, because what the container holds keeps its own presses — the Comments
+       purpose, because what the container holds keeps its own presses — the Threads
        button opens the panel, an option takes a pick, and neither opens a thread. So
        the outline goes on saying which element, and stops promising a click nothing
        takes. Scoped rather than written at document level, where it would widen the
@@ -594,7 +594,7 @@ ${MARK_RULES}
     .lf-banner-status { flex: 0 1 max-content; min-width: 24px; }
     /* The actions are their own shelf whenever the status and available destinations no
        longer share the row. The DOM puts each edge's control nearest the panel it opens:
-       Comments leads the covering shelf, while All leaves leads the wide row beside its
+       Threads leads the covering shelf, while All leaves leads the wide row beside its
        left-hand tray. Keyboard focus and a horizontal gesture can bring every later
        address wholly on screen without widening the document. Usually there is nothing
        to scroll, so the wide arrangement keeps its ordinary single-row reading. Four
@@ -710,7 +710,7 @@ ${MARK_RULES}
        the rows rather than the presses because the rows are the run that touch. */
     .lf-version-row.lf-compared::before { content: ""; position: absolute;
       left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
-    /* The trays' edge: the comment panel's mirror on the left, holding one tray at a
+    /* The trays' edge: the thread panel's mirror on the left, holding one tray at a
        time (showTray), each its own scroll region so one wheel gesture moves one region.
        Every metric is the edge's rather than either tray's — a reader who has both keys
        should not find two different regions where they learned one — and it is stated once
@@ -745,30 +745,30 @@ ${MARK_RULES}
        nothing. */
     .lf-others-line { color: var(--ink-2); margin-left: 17px; white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; }
-    /* An ask's row, against a leaf's above: a leaf's is a link out to another page and an
-       ask's is a press that moves this one, so it is a button and takes the button's own
+    /* A decision's row, against a leaf's above: a leaf's is a link out to another page and a
+       decision's is a press that moves this one, so it is a button and takes the button's own
        reset. */
-    .lf-asks-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
+    .lf-decisions-row { display: block; width: 100%; text-align: left; padding: 8px 10px;
       border: 0; border-radius: 6px; background: none; color: inherit; font: inherit;
       cursor: pointer; }
-    .lf-asks-row:hover { background: var(--chip); }
+    .lf-decisions-row:hover { background: var(--chip); }
     /* Both rings this row can wear, inset together. A control packed into a list states
        its own inset (theme.css, --here-ring), because the list clips to its padding box.
        The second ring arrives from a rule written for a page element with room around
-       it: while the tray is open the row mirrors the standing ask (markHere) wherever
-       the tray lists that ask, so it wears the ask's own outset ring and lost a pixel of
+       it: while the tray is open the row mirrors the standing decision (markHere) wherever
+       the tray lists that decision, so it wears the decision's own outset ring and lost a pixel of
        it to each edge. */
-    .lf-asks-row:is(:focus-visible, .lf-focus-visible, [${PAGE_PAINT_ATTRIBUTE.ask}]) {
-      outline: var(--here-ring); --lf-here-ring: asks-row; outline-offset: calc(-1 * var(--here-ring-w)); }
-    /* What kind of thing is asking, in the apparatus voice, over the ask's own words in
+    .lf-decisions-row:is(:focus-visible, .lf-focus-visible, [${PAGE_PAINT_ATTRIBUTE.decision}]) {
+      outline: var(--here-ring); --lf-here-ring: decisions-row; outline-offset: calc(-1 * var(--here-ring-w)); }
+    /* What kind of thing is asking, in the apparatus voice, over the decision's own words in
        the page's. Two lines, because they are two claims: the kind is the runtime's word
        for the element and the words below it are the page's own. */
-    .lf-asks-kind { display: block; color: var(--muted); font-size: var(--t-6);
+    .lf-decisions-kind { display: block; color: var(--muted); font-size: var(--t-6);
       text-transform: uppercase; letter-spacing: .05em; }
-    /* Three lines at most, then ellipsized: an ask's opening words are a name here, and a
+    /* Three lines at most, then ellipsized: a decision's opening words are a name here, and a
        name that runs to eight lines stops being one — while a single line would cut most
        questions off before they said which question they were. */
-    .lf-asks-says { display: -webkit-box; -webkit-box-orient: vertical;
+    .lf-decisions-says { display: -webkit-box; -webkit-box-orient: vertical;
       -webkit-line-clamp: 3; overflow: hidden; }
     /* Version news remains a legible address at every width. When the row runs out of
        room the shelf above scrolls; clipping the one control instead left a visible
@@ -779,7 +779,7 @@ ${MARK_RULES}
       flex-direction: column; padding-right: var(--lf-safe-right);
       padding-bottom: var(--lf-safe-bottom); }
     .lf-panel.open { display: flex; }
-    /* An edge, offered as a thing to take hold of — the comment panel's on the right of
+    /* An edge, offered as a thing to take hold of — the thread panel's on the right of
        the page, the trays' on the left, and nothing here knows which it is drawing except
        the two lines that place it. It draws nothing of its own: the region's inner border
        is the line the reader already sees, and this is the room around that line in which
@@ -1044,6 +1044,10 @@ ${MARK_RULES}
     .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
       color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
     .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+    /* Inline is one row. Let its real width reach placePalette rather than shrinking
+       into a tall column that technically fits beside Comment; stacked is the one
+       form that may wrap. */
+    .lf-fab-bar:not(.lf-react-stacked) > .lf-react-palette { flex-wrap: nowrap; }
     .lf-react-open > .lf-react-trigger { display: none; }
     .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
       display: none; }
@@ -1051,17 +1055,8 @@ ${MARK_RULES}
       display: none; }
     .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
     /* The floating bar expands in place when there is room. Near an edge or an open
-       Comments panel, the same list sits below the stable comment control and clamps to
-       the viewport.
-
-       In place, the list holds one row. The bar is absolutely positioned, so it
-       shrink-to-fits against the room left of the page's right edge: a wrapping list
-       folds itself into that room and the bar's own box never reports the miss, which
-       leaves placePalette measuring a list that has already given up the row it is
-       being asked about. Kept on one row the bar overflows instead, which is the fact
-       the edge test reads. The stacked list wraps again — there it has a max-width of
-       its own, and rows below the bar are what it is for. */
-    .lf-fab-bar:not(.lf-react-stacked) > .lf-react-palette { flex-wrap: nowrap; }
+       Threads panel, the same list sits below the stable comment control and clamps to
+       the viewport. */
     .lf-fab-bar.lf-react-stacked > .lf-react-palette {
       position: absolute; top: calc(100% + 6px); right: 0;
       width: max-content; max-width: calc(100vw - 16px); padding: 4px;
@@ -1196,6 +1191,13 @@ ${MARK_RULES}
       border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
     .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
     .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
+    .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
+    .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
+    .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
+    .lf-margin-thread .lf-say { align-items: flex-end; }
+    .lf-margin-thread .lf-say textarea { min-width: 0; }
+    .lf-margin-thread-open { display: block; margin: 8px 0 0 auto; color: var(--muted);
+      font-size: var(--t-6); }
     .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
@@ -1241,9 +1243,10 @@ ${MARK_RULES}
       color: var(--ink-2);
       border: 1px solid var(--border-2); border-radius: 4px; padding: 1px 6px; }
     /* The key line: two hints about what keys do right now, rendered from the register
-       the dispatcher walks (see the module docstring). Each hint is the eye's copy of
-       facts spoken elsewhere and stays aria-hidden; the final More is a real control.
-       syncLayout keeps the line out of a side-by-side comment panel and lifts it over a
+       the dispatcher walks (see the module docstring). More unfolds the same current
+       register into two rows before it opens the complete reference. Each hint is the
+       eye's copy of facts spoken elsewhere and stays aria-hidden; More is a real control.
+       syncLayout keeps the line out of a side-by-side thread panel and lifts it over a
        covering one, while body reserves its height so the document's last lines never
        end under it. Overflow remains a backstop for a window too narrow to hold even
        the short line. */
@@ -1255,6 +1258,8 @@ ${MARK_RULES}
       overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
       background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
       padding: 5px 10px; }
+    .lf-keyline[data-lf-expanded="true"] { width: max-content; flex-wrap: wrap;
+      row-gap: 6px; align-items: baseline; }
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
     .lf-keyline .lf-key[hidden] { display: none; }
@@ -1340,13 +1345,12 @@ ${MARK_RULES}
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */
     .lf-addresses > .lf-address.lf-in { transform: translate(-50%, 0); }
-    /* Passage selection borrows the address chip's face but not its meaning. These hints
-       are deliberately local to the viewport: the page gives every visible text block a
-       short, prefix-free name for the few seconds this mode stands. Unlike addresses,
-       hints are never dropped for a collision — they are the route itself, not a reminder
-       of a stable route that works without being drawn. Paragraph-like blocks put enough
-       vertical air between their starts for the shared square to remain legible, and a
-       wrapped block contributes one start rather than one chip per line. */
+    /* Item selection borrows the address chip's face but not its meaning. These hints are
+       deliberately local to the viewport: the page gives every visible item a short,
+       prefix-free name for the few seconds this mode stands. Unlike addresses, hints are
+       never dropped for a collision — they are the route itself, not a reminder of a
+       stable route that works without being drawn. Nested targets that begin at the same
+       corner are spread by the hint pass before this layer is shown. */
     .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-targets > .lf-target-hint { position: absolute; display: block;
       transform: translate(-50%, -50%); }

@@ -41,9 +41,11 @@ codex plugin add leaf@leaf
 ```
 
 No config or account is required. It needs
-[`uv`](https://docs.astral.sh/uv/) on `PATH` (`interact.py` declares its dependencies
-in a PEP 723 header, and `uv` resolves them through whatever index you have already
-configured) and a browser on the same machine as the session.
+[`uv`](https://docs.astral.sh/uv/) and
+[`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (`interact.py`
+declares its Python dependencies in a PEP 723 header, and `uv` resolves them through
+whatever index you have already configured), plus a browser on the same machine as the
+session.
 
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
@@ -53,8 +55,9 @@ currently about.
 
 A package is a directory that can supply a theme, one widget, a related family,
 helper modules, vendor files, typed external-data contracts, or guidance for named
-audiences. Leaf's included content widgets are a bundled default package. Project
-and user packages live at `.leaf/` and `~/.config/leaf/`.
+audiences. Leaf's included content widgets are a bundled default package. Command Hub
+is an optional bundled package. Project and user packages live at `.leaf/` and
+`~/.config/leaf/`.
 
 Leaf creates and checks the package as one unit:
 
@@ -71,11 +74,19 @@ already present. An explicit package joins a page by path:
 leaf page init --package packages/callout <page-dir>
 ```
 
-The page records explicit package paths and their order in its vendored registry,
-so a later plain `page init` reproduces the composition. Paths are relative to the
-project or start with `~`; absolute paths are refused because the registry is
-public. Later explicit packages win collisions, followed by the user package and
-then the project package. `page init --no-packages` clears the explicit list.
+An optional bundled package joins by name:
+
+```
+leaf page init --package command-hub <page-dir>
+```
+
+The page records package selections and their order in its vendored registry, so a
+later plain `page init` reproduces the composition. A bare package name selects a
+bundled package; use `./name` for a same-shaped project path. Other paths are relative
+to the project or start with `~`; absolute paths are refused because the registry is
+public.
+Later explicit packages win collisions, followed by the user package and then the
+project package. `page init --no-packages` clears the explicit list.
 
 The [package guide](docs/packages.html) covers the directory contract and
 precedence.

@@ -43,7 +43,7 @@ export const parsed = (binding) => {
 // A modifier joins its key with nothing between them where its glyph is a symbol and with
 // a + where it is a word, so "⌘⏎" and "Ctrl+⏎" are each their own platform's spelling.
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
-// how this page's reference always has: the binding says Shift+a because that is what the
+// how this page's reference always has: the binding says Shift+d because that is what the
 // dispatcher must ask for, and the chip says A because that is what the reader presses.
 export const spell = (binding) => {
   const { key, mods } = parsed(binding);
@@ -80,7 +80,7 @@ export const bindings = (row) =>
   );
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
 // answer. Three rows existed only to carry a partner key — `u`, `k` and `]`, each
-// invisible on both surfaces and reachable only through a sibling's hand-typed "d / u" —
+// invisible on both surfaces and reachable only through a sibling's hand-typed spelling —
 // and folded into the rows that name them when this replaced those labels.
 export const labelOf = (row) => word(row.label) ?? bindings(row).map(spell).join(" / ");
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
@@ -102,12 +102,13 @@ const COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
 export const canonicalBinding = (binding) => {
   const { key, mods } = parsed(binding);
   const letter = key.length === 1 && key.toLowerCase() !== key.toUpperCase();
+  const named = key === " " || key.length > 1;
   const canonicalKey = letter ? key.toLowerCase() : key;
   // Punctuation already names the produced glyph (`?`, not the physical `/` key), and
   // `answers` deliberately leaves its Shift state to the keyboard layout. A Shift prefix
   // on such a glyph is therefore neither portable nor a distinct command.
   const canonicalMods = MODIFIERS.filter(
-    (mod) => mods.includes(mod) && (mod !== "Shift" || letter || key.length > 1),
+    (mod) => mods.includes(mod) && (mod !== "Shift" || letter || named),
   );
   return [...canonicalMods, canonicalKey].join("+");
 };
@@ -165,13 +166,13 @@ export const ariaShortcuts = (rows, current = true, where) =>
   ].join(" ");
 
 // Does this press answer this binding? Modifiers are matched exactly, so ⌘D is the
-// browser's bookmark rather than half a page down, and ⌥ stays the aim chord's alone.
+// browser's bookmark rather than a page command, and ⌥ stays the aim chord's alone.
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `A` would be the answer that ends the matter for
-// every ask on the page: a reader with caps lock on gets it from a bare letter they
-// meant as a letter, and can no longer reach it with the Shift the chip names. Asking
+// shifted press. Read off the glyph, `D` would match the shifted decision walk from a
+// bare letter under caps lock, and could no longer be reached with the Shift the chip
+// names. Asking
 // for the modifier is what makes the chip true in both directions.
 export function answers(binding, ev) {
   const { key, mods } = parsed(binding);
@@ -187,14 +188,14 @@ export function answers(binding, ev) {
   // is on a letter. Shift+→ is how a reader extends a selection through the words of a
   // <summary> they are standing on, and the laxity here was closing the section under
   // them and eating the extension.
-  return key.length > 1
+  return key === " " || key.length > 1
     ? ev.key === key && ev.shiftKey === shift
     : ev.key === key && (!shift || ev.shiftKey);
 }
 
 // Checked where a scope is declared, which is the edge this data enters at: a row that
 // presses must carry the word the line says over it. This is the whole failure the
-// register was built for, wearing its smallest form — `d`/`u` stepped half a page for as
+// register was built for, wearing its smallest form — a page step existed for as
 // long as the runtime has had them and no always-visible surface ever named them, because
 // the word was an optional field and its absence read exactly like a decision. So the
 // absence is refused rather than defaulted: falling back to the reference's sentence would

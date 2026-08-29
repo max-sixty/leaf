@@ -1,21 +1,29 @@
-"""Declaration-driven page and thread ask projections."""
+"""Declaration-driven page and thread decision projections."""
 
 from leaf.passages import page_passages, spoken
 from leaf.projection import (
     StateProjection,
-    decisions,
     enclosing_widgets,
     folded_facet,
     markup_facet,
+    retirement_outcomes,
     state_coordinate,
     state_projection,
 )
 from leaf.thread_context import thread_roots, thread_structure
 
 
+def local_decision_entry(entry: dict) -> bool:
+    """Whether one widget entry originates a decision rather than aggregating it."""
+    awaits = entry.get("x-awaits")
+    return (awaits is not None and not awaits.get("rollup")) or entry.get(
+        "x-request", {}
+    ).get("decision") is True
+
+
 def asking(attrs: dict, when: dict) -> bool:
     """The runtime's `asking`: every attribute `when` names holds one of the
-    values that ask, a flag's two values being its presence and its absence."""
+    values that decision, a flag's two values being its presence and its absence."""
     return all(
         any(
             (attr in attrs) == value
@@ -72,7 +80,7 @@ def answered_verb(
     return bool(held and held[0]["action"] == verb)
 
 
-def answered_ask(
+def answered_decision(
     rec: dict,
     entry: dict,
     projection: StateProjection,
@@ -143,8 +151,8 @@ def projected_action_holders(
     return holders
 
 
-class _AskReducer:
-    """One page or frozen-thread request fold over a shared state projection."""
+class _DecisionReducer:
+    """One page or frozen-thread decision fold over a shared state projection."""
 
     def __init__(
         self,
@@ -189,13 +197,13 @@ class _AskReducer:
         return self.registry[record["tag"]]
 
     def _is_request(self, record):
-        return self._entry(record).get("x-request", {}).get("ask") is True
+        return self._entry(record).get("x-request", {}).get("decision") is True
 
     def _is_declared(self, record):
         entry = self.registry.get(record["tag"]) or {}
         return (
             entry.get("x-awaits") is not None
-            or entry.get("x-request", {}).get("ask") is True
+            or entry.get("x-request", {}).get("decision") is True
         )
 
     def _declaration(self, record):
@@ -204,6 +212,8 @@ class _AskReducer:
     def _local(self, record):
         if self._is_request(record):
             return self.request_phases.get(record["attrs"].get("id")) == "ready"
+        if self._declaration(record).get("rollup"):
+            return False
         return asking(
             replayed_attrs(record, self.projection),
             self._declaration(record).get("when"),
@@ -212,13 +222,6 @@ class _AskReducer:
     def _holder(self, record):
         unit = record["attrs"].get("id")
         return self.positioned_holders.get(unit, record.get("holder"))
-
-    def _contains(self, ancestor, record):
-        while record:
-            if record is ancestor:
-                return True
-            record = self._holder(record)
-        return False
 
     def _answered(self, record):
         entry = self._entry(record)
@@ -235,7 +238,7 @@ class _AskReducer:
                     action["widget"] == unit and action["action"] == until["verb"]
                     for action, _spec in self.projection.actions.values()
                 )
-        return answered_ask(
+        return answered_decision(
             record,
             entry,
             self.projection,
@@ -264,35 +267,12 @@ class _AskReducer:
         if not self.exists[key]:
             self.values[key] = False
             return False
-        if not self.local[key]:
-            self.values[key] = False
-            return False
         declaration = self._declaration(record)
         if not declaration.get("rollup"):
-            self.values[key] = not self._answered(record)
+            self.values[key] = self.local[key] and not self._answered(record)
             return self.values[key]
         descendants = self.direct.get(key, [])
-        interventions = [
-            candidate
-            for candidate in descendants
-            if not self._declaration(candidate).get("rollup")
-            and (self.local[id(candidate)] or self._is_request(candidate))
-        ]
-        if interventions:
-            self.values[key] = any(
-                self._awaits(candidate) for candidate in interventions
-            )
-            return self.values[key]
-        children = [
-            candidate
-            for candidate in descendants
-            if self._declaration(candidate).get("rollup")
-        ]
-        self.values[key] = (
-            any(self._awaits(candidate) for candidate in children)
-            if children
-            else not self._answered(record)
-        )
+        self.values[key] = any(self._awaits(candidate) for candidate in descendants)
         return self.values[key]
 
     def _surfaces(self):
@@ -301,10 +281,6 @@ class _AskReducer:
             record
             for record in open_records
             if not self._declaration(record).get("rollup")
-            or not any(
-                inner is not record and self._contains(record, inner)
-                for inner in open_records
-            )
         ]
         surfaces = []
         seen = set()
@@ -312,7 +288,7 @@ class _AskReducer:
             surface = record
             holder = self._holder(record)
             while holder:
-                if (self.registry.get(holder["tag"]) or {}).get("x-ask"):
+                if (self.registry.get(holder["tag"]) or {}).get("x-decision"):
                     surface = holder
                     break
                 holder = self._holder(holder)
@@ -340,7 +316,7 @@ class _AskReducer:
         )
 
 
-def page_ask_projection(
+def page_decision_projection(
     source,
     projection,
     byid,
@@ -352,27 +328,26 @@ def page_ask_projection(
     thread: bool = False,
     request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict[str, bool]]:
-    """The page's visible asks and exact awaiting value for every declared target.
+    """The page's visible decisions and exact awaiting value for every declared target.
 
     An ordinary x-awaits instance is its local condition minus an explicit answer.
-    A roll-up projects the same fact through a nested plan: a false local condition
-    stops; direct ordinary interventions take precedence;
-    otherwise child roll-ups recurse; a matching leaf waits.
+    A roll-up projects the logical OR of its nearest local decisions and child roll-ups
+    through a nested plan without originating one.
 
-    An x-request.ask instance is local exactly while its canonical lifecycle is ready.
+    An x-request.decision instance is local exactly while its canonical lifecycle is ready.
     Its pending and completed phases hand the turn away from the reader; failure
-    returns the lifecycle to ready and therefore reopens the ask.
+    returns the lifecycle to ready and therefore reopens the decision.
 
     `with_agent` chooses which question this answers, and is the whole of the
     difference between the two. Given `seats_with_agent`, it is the reader's list: a
-    request whose own conversation seat holds a thread the agent owes an answer to is
+    decision whose own conversation seat holds a thread the agent owes an answer to is
     not one the reader has to deal with, whatever its state. Given an empty set, it is
-    whether the request is answered at all, which is what an action's `requires` asks
+    whether the decision is answered at all, which is what an action's `requires` asks
     — a conversation does not answer a question the widget still holds no state for,
     and refusing the pick over the reader's own remark would refuse them the answer
     they were asked for. Frozen thread markup seats no conversation either way.
     """
-    return _AskReducer(
+    return _DecisionReducer(
         source,
         projection,
         byid,
@@ -385,7 +360,7 @@ def page_ask_projection(
     ).result()
 
 
-def page_asks(
+def page_decisions(
     parser,
     projection,
     byid,
@@ -395,7 +370,7 @@ def page_asks(
     with_agent: set[str],
     request_phases: dict[str, str] | None = None,
 ) -> list:
-    return page_ask_projection(
+    return page_decision_projection(
         parser,
         projection,
         byid,
@@ -415,9 +390,11 @@ def page_awaiting_values(
     registry: dict,
     request_phases: dict[str, str] | None = None,
 ) -> dict:
-    """Each current page request's declaration-driven awaiting value."""
-    passages = page_passages(html, registry, decisions(projection.actions, registry))
-    return page_ask_projection(
+    """Each current page decision's declaration-driven awaiting value."""
+    passages = page_passages(
+        html, registry, retirement_outcomes(projection.actions, registry)
+    )
+    return page_decision_projection(
         parser,
         projection,
         parser.by_id,
@@ -429,7 +406,7 @@ def page_awaiting_values(
     )[1]
 
 
-def thread_ask_projection(
+def thread_decision_projection(
     events: list,
     registry: dict,
     settled: set,
@@ -437,14 +414,15 @@ def thread_ask_projection(
     prepared: tuple | None = None,
     request_phases: dict[str, str] | None = None,
 ) -> tuple[list, dict]:
-    """Asks standing in thread markup — the runtime's `answeredThreadAsk` read
-    from the log. A fragment is frozen: no version answers it and no `restated`
-    retracts it, so every action on its widgets stands (no floors, no window).
-    A widget with an action ask or request ask can stand in a thread. `until` holds a
-    matching action ask open until the reader has posted the verb it names, while a
-    request ask follows its frozen-document request lifecycle.
+    """Decisions standing in thread markup, read from the log.
 
-    `settled` is the root ids of the closed threads, whose asks went with them —
+    A fragment is frozen: no version answers it and no `restated`
+    retracts it, so every action on its widgets stands (no floors, no window).
+    A widget with an action decision or request decision can stand in a thread. `until`
+    holds a matching action decision open until the reader has posted the verb it names,
+    while a request decision follows its frozen-document request lifecycle.
+
+    `settled` is the root ids of the closed threads, whose decisions went with them —
     the question was the thread's, and the panel's own reading takes a closed
     thread's mark off the page for the same reason. Without it, a question the
     agent asked and then withdrew by resolving stays on the banner's count for
@@ -472,7 +450,7 @@ def thread_ask_projection(
     if projection is None:
         projection = state_projection(events, byid, spk, registry, None, {})
 
-    asks, values = page_ask_projection(
+    decisions, values = page_decision_projection(
         [rec for _thread, rec in records],
         projection,
         byid,
@@ -487,15 +465,21 @@ def thread_ask_projection(
         request_phases=request_phases,
     )
     thread_by_id = {rec["attrs"].get("id"): thread for thread, rec in records}
-    return ([{**ask, "thread": thread_by_id[ask["id"]]} for ask in asks], values)
+    return (
+        [
+            {**decision, "thread": thread_by_id[decision["id"]]}
+            for decision in decisions
+        ],
+        values,
+    )
 
 
-def thread_asks(
+def thread_decisions(
     events: list,
     registry: dict,
     settled: set,
     request_phases: dict[str, str] | None = None,
 ) -> list:
-    return thread_ask_projection(
+    return thread_decision_projection(
         events, registry, settled, request_phases=request_phases
     )[0]

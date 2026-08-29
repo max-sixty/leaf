@@ -17,7 +17,6 @@ from interact_support import (
     add_test_widget,
     case_alias,
     check,
-    link_command_hub_package,
     record_claim,
     widget_entry,
 )
@@ -47,8 +46,9 @@ Options:
 
 Commands:
   ack         Acknowledge one batch, then wait for the next.
+  codex       Deliver page updates to later turns of this Codex task.
   comment     Open an agent thread — on a passage, or on the page whole.
-  data        Set or clear page-bound external data.
+  data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   package     Create and check packages.
@@ -66,17 +66,32 @@ Commands:
             id="root",
         ),
         pytest.param(
-            ["data", "--help"],
-            """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
+            ["codex", "--help"],
+            """Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
 
-  Manage replaceable external or derived page data.
+  Run Leaf's detached Codex delivery carrier.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  clear  Remove one source snapshot.
-  set    Replace one bound source value.
+  start  Keep PAGE connected after this turn ends.
+""",
+            id="codex",
+        ),
+        pytest.param(
+            ["data", "--help"],
+            """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
+
+  Manage current values and immutable text captures.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  capture  Capture a bound UTF-8 text source.
+  clear    Clear current and unreferenced captures.
+  set      Replace one bound source value.
 """,
             id="data",
         ),
@@ -105,7 +120,6 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  catalog   Print the widget and theme vocabulary.
   guidance  List or print composed guidance by audience.
   init      Create or re-vendor a page directory.
   media     Add images and print their page paths.
@@ -290,6 +304,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
         "skills/leaf/references/serving-pages.md",
+        "skills/leaf/packages/command-hub/registry.json",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/scripts/interact.py",
     ]:
@@ -338,13 +353,16 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     )
 
     init_result = subprocess.run(
-        [launcher, "page", "init", page],
+        [launcher, "page", "init", "--package", "command-hub", page],
         cwd=elsewhere,
         capture_output=True,
         text=True,
         check=False,
     )
     assert init_result.returncode == 0, init_result.stderr
+    installed_registry = json.loads((page / "registry.json").read_text())
+    assert "lf-command" in installed_registry
+    assert installed_registry["$layer"]["packages"] == ["command-hub"]
     (page / "index.html").write_text(PAGE)
     publish_result = subprocess.run(
         [
@@ -448,7 +466,7 @@ def test_init_composes_and_prunes_nested_browser_modules(tmp_path, monkeypatch):
     runner = CliRunner()
 
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "package", str(page)]
+        cli_model.cli, ["page", "init", "--package", "./package", str(page)]
     )
 
     assert initialized.exit_code == 0, initialized.output
@@ -486,7 +504,7 @@ def test_init_refuses_composed_file_directory_collisions_before_writing(
     nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
     nested.parent.mkdir(parents=True)
     nested.write_text("nested")
-    packages = ["nested", "flat"] if nested_first else ["flat", "nested"]
+    packages = ["./nested", "./flat"] if nested_first else ["./flat", "./nested"]
 
     result = runner.invoke(
         cli_model.cli,
@@ -528,7 +546,7 @@ def test_init_refuses_an_intermediate_symlink_before_writing_nested_modules(
 
     result = runner.invoke(
         cli_model.cli,
-        ["page", "init", "--package", "package", str(page)],
+        ["page", "init", "--package", "./package", str(page)],
     )
 
     assert result.exit_code != 0
@@ -569,9 +587,9 @@ def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
             "page",
             "init",
             "--package",
-            "flat",
+            "./flat",
             "--package",
-            "nested",
+            "./nested",
             str(page),
         ],
     )
@@ -590,7 +608,7 @@ def test_the_layer_composer_is_the_browser_module_population():
     """The registry and composed layer, not independent filesystem globs, decide which
     browser modules a page receives. The JavaScript parser/linter owns import legality;
     this assertion owns the population it checks and includes dependency-only modules."""
-    command_hub = ROOT / "examples" / "packages" / "command-hub"
+    command_hub = schema_model.BUNDLED_PACKAGES / "command-hub"
     composition = layer_model.compose_layer(
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE, command_hub]
     )
@@ -707,6 +725,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "x-upgrade": False,
     }
     project_only = {
+        "description": "project-only shape",
         "type": "object",
         "properties": {},
         "additionalProperties": False,
@@ -731,13 +750,12 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 
 
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
-    """A project idiom joins the shipped catalog; a restated one replaces its member.
+    """A project idiom joins the shipped registry; a restated one replaces its member.
 
     $ entries merge one level deep. Under replace-whole, the first project layer
     to declare an idiom vendored a $idioms holding only its own: the shipped
-    idioms' CSS kept styling (theme files concatenate), while `page catalog`
-    stopped documenting them — a silent wipe of everything the layer didn't
-    restate.
+    idioms' CSS kept styling (theme files concatenate), while the vendored registry
+    stopped declaring them — a silent wipe of everything the layer didn't restate.
     """
     project = tmp_path / "proj"
     layer = project / ".leaf"
@@ -1266,16 +1284,16 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
             "page",
             "init",
             "--package",
-            "first",
+            "./first",
             "--package",
-            "second",
+            "./second",
             str(page),
         ],
     )
 
     assert result.exit_code == 0, result.output
     registry = json.loads((page / "registry.json").read_text())
-    assert registry["$layer"]["packages"] == ["first", "second"]
+    assert registry["$layer"]["packages"] == ["./first", "./second"]
     assert registry["lf-shared"]["description"] == "second"
     assert (page / "widgets" / "shared.js").read_text() == "// second\n"
     theme = (page / "theme.css").read_text()
@@ -1514,6 +1532,23 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
+
+
+def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-toned-note"]["description"] = "   "
+    registry_path.write_text(json.dumps(registry))
+
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+
+    assert result.exit_code != 0
+    assert "<lf-toned-note> must carry a non-empty description" in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -2130,7 +2165,7 @@ def test_package_refuses_targets_aliased_to_another_layer(tmp_path, monkeypatch,
     assert after == before
 
 
-def test_page_init_refuses_a_duplicate_package_path(tmp_path, monkeypatch):
+def test_page_init_refuses_a_duplicate_package_selection(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "solo"
     package.mkdir()
@@ -2141,18 +2176,20 @@ def test_page_init_refuses_a_duplicate_package_path(tmp_path, monkeypatch):
             "page",
             "init",
             "--package",
-            "solo",
+            "./solo",
             "--package",
-            "solo",
+            "./solo",
             str(tmp_path / "page"),
         ],
     )
 
     assert result.exit_code == 2
-    assert "each --package path may appear only once" in result.output
+    assert "each --package selection may appear only once" in result.output
 
 
-def test_page_init_refuses_an_empty_package_path_before_writing(tmp_path, monkeypatch):
+def test_page_init_refuses_an_empty_package_selection_before_writing(
+    tmp_path, monkeypatch
+):
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "page"
 
@@ -2162,7 +2199,39 @@ def test_page_init_refuses_an_empty_package_path_before_writing(tmp_path, monkey
     )
 
     assert result.exit_code == 2
-    assert "--package paths cannot be empty" in result.output
+    assert "--package selections cannot be empty" in result.output
+    assert not page.exists()
+
+
+def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "solo").mkdir()
+    page = tmp_path / "page"
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "solo", str(page)],
+    )
+
+    assert result.exit_code == 1
+    assert "unknown bundled package 'solo'" in result.output
+    assert "use './solo'" in result.output
+    assert not page.exists()
+
+
+def test_page_init_refuses_to_select_the_always_included_default_package(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "page"
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "default", str(page)],
+    )
+
+    assert result.exit_code == 1
+    assert "package 'default' is already included in every page" in result.output
     assert not page.exists()
 
 
@@ -2178,7 +2247,9 @@ def test_page_init_refuses_to_publish_an_absolute_package_path(tmp_path, monkeyp
     )
 
     assert result.exit_code == 1
-    assert "use a project-relative or ~ path" in result.output
+    assert (
+        "use a bundled name, explicit project-relative path, or ~ path" in result.output
+    )
     assert "does not publish a machine path" in result.output
     assert not page.exists()
 
@@ -2237,16 +2308,16 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
             "page",
             "init",
             "--package",
-            "solo",
+            "./solo",
             "--package",
-            "night",
+            "./night",
             str(page),
         ],
     )
 
     assert initialized.exit_code == 0, initialized.output
     registry = json.loads((page / "registry.json").read_text())
-    assert registry["$layer"]["packages"] == ["solo", "night"]
+    assert registry["$layer"]["packages"] == ["./solo", "./night"]
     assert "lf-solo" in registry
     assert (page / "widgets" / "lf-solo.js").is_file()
     assert (page / "widgets" / "ready.js").is_file()
@@ -2270,8 +2341,8 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert revendored.exit_code == 0, revendored.output
     assert json.loads((page / "registry.json").read_text())["$layer"]["packages"] == [
-        "solo",
-        "night",
+        "./solo",
+        "./night",
     ]
 
 
@@ -2279,14 +2350,13 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
-    package = link_command_hub_package(tmp_path)
     plain = tmp_path / "plain"
     command = tmp_path / "command"
 
     plain_result = CliRunner().invoke(cli_model.cli, ["page", "init", str(plain)])
     packaged_result = CliRunner().invoke(
         cli_model.cli,
-        ["page", "init", "--package", package, str(command)],
+        ["page", "init", "--package", "command-hub", str(command)],
     )
 
     assert plain_result.exit_code == 0, plain_result.output
@@ -2307,7 +2377,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert "$command" not in plain_registry
     assert "$command" in packaged_registry
     assert plain_registry["$layer"]["packages"] == []
-    assert packaged_registry["$layer"]["packages"] == [package]
+    assert packaged_registry["$layer"]["packages"] == ["command-hub"]
     assert not (plain / "widgets" / "lf-command.js").exists()
     assert (command / "widgets" / "lf-command.js").is_file()
     assert list((plain / "guidance").iterdir()) == []
@@ -2315,25 +2385,8 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     plain_audiences = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
-    plain_catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(plain)])
-    packaged_catalog = CliRunner().invoke(
-        cli_model.cli, ["page", "catalog", str(command)]
-    )
     assert plain_audiences.exit_code == 0, plain_audiences.output
     assert plain_audiences.output == ""
-    assert plain_catalog.exit_code == 0, plain_catalog.output
-    assert packaged_catalog.exit_code == 0, packaged_catalog.output
-    assert '"lf-worktree"' not in plain_catalog.output
-    assert '"lf-worktree"' in packaged_catalog.output
-    assert "# Widget `<lf-worktree>`" in packaged_catalog.output
-    assert (
-        packaged_registry["lf-worktree"]["x-guidance"]["author"]
-        in packaged_catalog.output
-    )
-    assert "# Guidance for authors" not in plain_catalog.output
-    assert "# $command, declared by this layer." in packaged_catalog.output
-    assert "# Guidance for authors" in packaged_catalog.output
-    assert "# Command Hub package" in packaged_catalog.output
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(command), "coordinator"]
@@ -2354,7 +2407,7 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert revendor.exit_code == 0, revendor.output
     assert json.loads((command / "registry.json").read_text())["$layer"][
         "packages"
-    ] == [package]
+    ] == ["command-hub"]
     assert (command / "widgets" / "lf-command.js").is_file()
 
     removed = CliRunner().invoke(
@@ -2366,6 +2419,37 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     assert "lf-command" not in removed_registry
     assert not (command / "widgets" / "lf-command.js").exists()
     assert list((command / "guidance").iterdir()) == []
+
+
+def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    local = tmp_path / "command-hub"
+    local.mkdir()
+    (local / "registry.json").write_text(
+        json.dumps({"lf-local": widget_entry("lf-local")})
+    )
+
+    bundled = tmp_path / "bundled"
+    local_page = tmp_path / "local"
+    bundled_result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "command-hub", str(bundled)],
+    )
+    local_result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "./command-hub", str(local_page)],
+    )
+
+    assert bundled_result.exit_code == 0, bundled_result.output
+    assert local_result.exit_code == 0, local_result.output
+    bundled_registry = json.loads((bundled / "registry.json").read_text())
+    local_registry = json.loads((local_page / "registry.json").read_text())
+    assert "lf-command" in bundled_registry
+    assert "lf-local" not in bundled_registry
+    assert bundled_registry["$layer"]["packages"] == ["command-hub"]
+    assert "lf-command" not in local_registry
+    assert "lf-local" in local_registry
+    assert local_registry["$layer"]["packages"] == ["./command-hub"]
 
 
 def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):

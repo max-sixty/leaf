@@ -26,8 +26,8 @@ point at it. Its main parts are:
 - `skills/leaf/scripts/interact.py` and `scripts/leaf/`: the CLI, server, event
   model, validation, projection, vendoring, and export;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
-- `skills/leaf/packages/default/`: the bundled content vocabulary, widgets,
-  modules, and vendor files;
+- `skills/leaf/packages/`: the default and optional bundled content vocabularies,
+  widgets, modules, and vendor files;
 - `skills/leaf/references/`: page-authoring and internal protocol references;
 - `hooks/hooks.json`: the shared host hooks.
 
@@ -98,7 +98,7 @@ falling back to order or offsets.
 
 Content widgets stay anonymous outside their module. A new family should require
 only a complete registry entry, its module, and theme rules. Runtime, Python,
-CSS, tests, catalog, and docs consume declarations rather than tag-name lists.
+CSS, tests, agent queries, and docs consume declarations rather than tag-name lists.
 Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
@@ -129,5 +129,6 @@ result; finish with `git push origin main:main` because the skipped hook normall
 pushes. `✗ Can't push to local main branch` is a fast-forward failure instead.
 
 Installed sessions load host caches, not the checkout. After pushing, Claude
-Code updates on its marketplace sweep. Codex needs
-`codex plugin marketplace upgrade leaf`, then `codex plugin add leaf@leaf`.
+Code updates on its marketplace sweep. The post-merge hook refreshes an installed
+Codex plugin; after a merge that skipped hooks, run
+`codex plugin marketplace upgrade leaf`.

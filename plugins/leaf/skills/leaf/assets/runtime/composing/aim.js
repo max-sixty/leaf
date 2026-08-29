@@ -1,16 +1,14 @@
 export function createAim({
+  activateAimTarget,
+  aimTargetAt,
   designPress,
   designTarget,
   inChrome,
-  itemAt,
   openOnDesign,
-  openOnVisual,
-  raiseOnItem,
   pointerAt,
   refreshAim,
   spell,
   standDown,
-  visualAt,
 }) {
   // While ⌥ is held the page shows what a click would take — the item under
   // the pointer wears the aim's box (refreshAim), so the chord
@@ -28,33 +26,26 @@ export function createAim({
   // is spelled from the modifier through the register's own table rather than written out
   // twice in two platforms' glyphs.
   const AIM = {
-    id: "aim.comment",
+    id: "aim.respond",
     modifier: "Alt",
     keys: [],
     label: `${spell("Alt")} click`,
-    does: "Comment on the item under the pointer",
+    does: "Respond to the item under the pointer",
   };
   // What the pointer is over, asked of the page rather than of an event, so pressing the key
   // without moving the mouse answers too — the user holds ⌥ to find out what they would
   // get, and the answer cannot wait for them to jiggle the mouse first. An open composer
-  // is no reason to say nothing: the press still acts (it re-anchors the box), so the
-  // promise still paints — what stood down here left that one press made blind.
+  // is no reason to say nothing: the press still acts (it selects another target and
+  // raises its actions), so the promise still paints — what stood down here left that
+  // one press made blind.
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
     const at = document.elementFromPoint(pointer.x, pointer.y);
     if (!at || inChrome(at)) return null;
-    // The explicit Alt-click aim claims a declared part even inside a native control;
-    // plain activation and keyboard proxies use visualAt's unclaimed-only default.
-    const visual = visualAt(at, { unclaimed: false });
-    if (visual?.part) return { visual };
-    const item = itemAt(at);
-    return item ? { item } : null;
+    return aimTargetAt(at);
   }
-  const aimedItem = () => {
-    const target = aimedTarget();
-    return target?.visual?.part.element ?? target?.item ?? null;
-  };
+  const aimedItem = () => aimedTarget()?.element ?? null;
   function setAiming(on) {
     aiming = on;
     document.body.classList.toggle("lf-aiming", on);
@@ -113,8 +104,8 @@ export function createAim({
     "click",
     "dblclick",
   ];
-  // The press the aim has taken — {item} or {visual} for the ⌥ aim, {design} for design
-  // mode — until the next one starts.
+  // The press the aim has taken, or the design target when design mode claimed it, until
+  // the next one starts.
   let aimedPress = null;
   function claimPress(ev) {
     // Made and dropped at the same moment, which is the start of a press: a drag already
@@ -130,7 +121,7 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
-      aimedPress = aim ? (aimedTarget() ?? { item: null }) : design ? { design } : null;
+      aimedPress = aim ? { aim: aimedTarget() } : design ? { design } : null;
       if (aimedPress) standDown(ev.target);
     }
     if (!aimedPress) return;
@@ -145,10 +136,12 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
-    if (aimedPress.item) raiseOnItem(aimedPress.item, from);
-    else if (aimedPress.visual) openOnVisual(aimedPress.visual, from);
-    else if (aimedPress.design) openOnDesign(aimedPress.design, from);
+    if (aimedPress.aim) activateAimTarget(aimedPress.aim);
+    else if (aimedPress.design)
+      openOnDesign(aimedPress.design, {
+        left: ev.clientX + 6,
+        top: ev.clientY - 40,
+      });
   }
   for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
 

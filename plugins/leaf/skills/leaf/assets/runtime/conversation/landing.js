@@ -155,7 +155,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
     setTimeout(() => thread.classList.remove("flash"), 1300);
   }
 
-  // The same ask, insisted on. Two callers mean the thread has to be on screen and cannot
+  // The same decision, insisted on. Two callers mean the thread has to be on screen and cannot
   // see the narrowing they would be asking past: a press out on the page or in a message,
   // which knows nothing of the panel at all, and a comment the reader has just written,
   // which cannot be allowed to vanish into a narrowing it does not match. So the narrowing
@@ -165,7 +165,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
   // reply landing in a thread in front of them — and takes the list as it stands. A
   // narrowing that let go for having been used would be worse than one that hid something:
   // answering a thread is exactly how the reader empties the waiting-on-you list.
-  function showThread(id) {
+  function showThread(id, { stand = true } = {}) {
     setPanel(true);
     if (!listNode(id)) widen();
     // Showing a thread is an arrival in the panel, not a glimpse from the page. Focus is
@@ -173,7 +173,7 @@ export function createPanelLanding({ reachedForWords, setPanel, threadsBox, wide
     // painted passage has to end on the same focus target as t/T and the address chord.
     // preventScroll keeps this call out of the scroll: the list lands a thread that takes
     // the focus, and the reveal below is the deliberate placement that follows and wins.
-    listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });
+    if (stand) listNode(id)?.closest(".lf-thread")?.focus({ preventScroll: true });
     revealThread(id);
   }
 

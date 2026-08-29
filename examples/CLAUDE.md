@@ -83,7 +83,7 @@ fixture can establish a cause, but it cannot stand in for the composed surface.
 
 ## An example is one stamped version, plus any log and data it ships beside it
 
-`examples/layer.json` names the package paths shared by the corpus. Preview,
+`examples/layer.json` names the package selections shared by the corpus. Preview,
 lint, and site tooling all read that list, so the pages exercise the same vendored
 layer the website serves.
 
@@ -114,11 +114,16 @@ reader's own tab.
 
 External data is the other companion state. An example that binds a widget input to a
 source ships `<stem>.data.json`, mapping each page-owned source id to its complete
-value. Every page builder named above sets those values through `leaf data
-set`, so binding, contract validation, revisioning, live preview, browser sweeps, and the
-static site all exercise the same door. `scripts/gallery.py` composes those companions
-into `gallery.data.json`; edit the individual example's file and regenerate rather than
-patching the gallery copy.
+current value. A reserved `$captures` object instead maps a source id to `text-file`
+and optional `label` or `lines`; the file is a sibling of the example. Builders apply
+captures first and then current values through `leaf data capture` and `leaf data set`,
+so binding, contract validation, revisioning, live preview, browser sweeps, and the
+static site all exercise the real doors. `scripts/gallery.py` composes those companions
+into `gallery.data.json`; edit the individual example's files and regenerate rather
+than patching the gallery copies. A selected snapshot number must stay valid both in
+its own page and in gallery composition, so the first capture in the first contributing
+example owns snapshot `1`; grow this fixture convention only when another capture
+actually needs to compose.
 
 Wherever the page is served, the cursor is set to the end of the seeded log. A
 seed is history, not news. Leave the cursor at zero and every preview hands the

@@ -79,7 +79,8 @@ export function createAnchors(dependencies) {
     threadsBox,
     under,
     withdraw,
-    worksSelector,
+    worksWithoutTabStopSelector,
+    runtimeOwnsScrollerStop,
   } = dependencies;
 
   // ---------- anchors ----------
@@ -127,7 +128,7 @@ export function createAnchors(dependencies) {
   const genericVisualSelector = "svg, img, figure";
   const visualSelector = () =>
     [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
-  const interactiveSelector = `${worksSelector},[data-lf-offer]`;
+  const interactiveWithoutTabStopSelector = `${worksWithoutTabStopSelector},[data-lf-offer]`;
   const parentAcross = (element) =>
     element?.parentElement ?? element?.getRootNode()?.host ?? null;
   const outermostAcross = (element, selector) => {
@@ -139,8 +140,17 @@ export function createAnchors(dependencies) {
     }
     return element;
   };
-  const unclaimedVisualGesture = (target) =>
-    !inChrome(target) && !inUi(target) && !closestAcross(target, interactiveSelector);
+  const claimsVisualGesture = (element) =>
+    element.matches(interactiveWithoutTabStopSelector) ||
+    (element.hasAttribute("tabindex") &&
+      element.tabIndex >= 0 &&
+      !runtimeOwnsScrollerStop(element));
+  const unclaimedVisualGesture = (target) => {
+    if (inChrome(target) || inUi(target)) return false;
+    for (let element = target; element; element = parentAcross(element))
+      if (claimsVisualGesture(element)) return false;
+    return true;
+  };
   // A declared provider owns every hit inside it, including an inner svg wrapped by a
   // generic figure. Without one, the outermost ordinary picture is the target. Generated
   // ids remain implementation details; the nearest authored id is the durable seat.
@@ -254,7 +264,7 @@ export function createAnchors(dependencies) {
         }
         unused.delete(control);
         control.lfAnchor = anchor;
-        const name = `React or comment on ${label}`;
+        const name = `Respond to ${label}`;
         if (control.textContent !== name) control.textContent = name;
         return control;
       });
@@ -360,7 +370,7 @@ export function createAnchors(dependencies) {
     if (!item) return "";
     const tag = item.tagName.toLowerCase();
     // A widget whose kind is not its tag says which it is. Three shapes of change are all
-    // <lf-suggestion>, and naming each of them by the tag put a deletion on the asks tray
+    // <lf-suggestion>, and naming each of them by the tag put a deletion on the decisions tray
     // under the words it proposed to remove, reading exactly like the insertion above it.
     // Asked only where an entry says there is something to ask, and answered only by an
     // element that has upgraded — before that, and for every widget that declares nothing,
@@ -384,11 +394,11 @@ export function createAnchors(dependencies) {
   // ending mid-word reads as a quote that lost its tail rather than as a name for the thing.
   const ITEM_SAYS_CAP = 52;
   // The reading is the whole answer, and it is the answer wherever the item stands. An
-  // ask carried by a message is still an ask, and it is read here exactly as an ask on
+  // decision carried by a message is still a decision, and it is read here exactly as one on
   // the page is: rooted at the item, so the panel around it is nobody's chrome (see the
   // note on `overIn`) while the item's own marks and offers still are. A veto on
   // `inChrome` stood in front of this, from the days only an anchor's section reached it:
-  // it threw the reading away and left the asks tray naming the question by its raw id.
+  // it threw the reading away and left the decisions tray naming the question by its raw id.
   function itemSays(item) {
     if (!item) return "";
     const whole = quoteFrom(textNodesUnder(item));
@@ -396,6 +406,43 @@ export function createAnchors(dependencies) {
     const short = cut(whole, 0, ITEM_SAYS_CAP);
     const at = short.lastIndexOf(" ");
     return (at > ITEM_SAYS_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
+  }
+  const aimLabel = (
+    item,
+    says = itemSays(item) ||
+      item?.getAttribute("aria-label") ||
+      item?.querySelector("[aria-label]")?.getAttribute("aria-label"),
+  ) => [itemWord(item), says].filter(Boolean).join(": ");
+  const itemAimTarget = (item) => ({
+    anchor: { section: item.id },
+    element: item,
+    label: aimLabel(item),
+  });
+  // One reading for the pointer aim and the keyboard's item hints. A declared picture
+  // part outranks the authored item around it; everywhere else the innermost stable id
+  // is the target.
+  function aimTargetAt(node) {
+    const visual = visualAt(node, { unclaimed: false });
+    if (visual?.part)
+      return {
+        anchor: { section: visual.id, visual: visual.part.part },
+        element: visual.part.element,
+        label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
+      };
+    const item = itemAt(node);
+    return item ? itemAimTarget(item) : null;
+  }
+  function aimTargets() {
+    return [
+      ...pageQueryAll(ITEM).filter(isItem).map(itemAimTarget),
+      ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
+        [...declaredVisualParts(visual)].flatMap((token) => {
+          const part = visualPart(visual, token);
+          const target = part ? aimTargetAt(part.element) : null;
+          return target?.anchor.visual ? [target] : [];
+        }),
+      ),
+    ];
   }
   function resolveAnchor(anchor, text) {
     // An element anchor asks a different question — whether the section is still on the
@@ -649,7 +696,7 @@ export function createAnchors(dependencies) {
         continue;
       }
       if (found.element) {
-        // The boxes the element shows through, for the same reason the ask ring hangs on
+        // The boxes the element shows through, for the same reason the decision ring hangs on
         // those: an outline needs a box, and a wrapper that generates none took its ring
         // to the document's origin and drew nothing there. The record is what the pass
         // clears, what the pointer hit-tests, and what the composer stands off, so all
@@ -688,8 +735,9 @@ export function createAnchors(dependencies) {
     // a promise has to interrupt where an annotation may whisper, so the aim has a box
     // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
     // why). An open composer doesn't stand the aim down — a press while the box is up
-    // re-anchors it to the aimed item (openOnItem) — so the two can show at once, which
-    // is the true state: where the draft stands, and where a press would move it.
+    // selects another target and raises its action bar — so the two can show at once,
+    // which is the true state: where the draft stands, and where the next response would
+    // land.
     const draft =
       composerIsOpen() && composerAnchor()
         ? resolveAnchor(composerAnchor(), text)
@@ -959,7 +1007,7 @@ export function createAnchors(dependencies) {
   }
 
   // Bring an element in the document to the position its caller names. A thread's element
-  // anchor takes the middle; an Ask takes the readable start so its context comes before
+  // anchor takes the middle; a Decision takes the readable start so its context comes before
   // its control. Which box does the travelling is scrollerFor's answer, asked here rather
   // than assumed: the document's scroller was written into this twice, so an element
   // standing in the panel's list was taken into view by the platform and then had this
@@ -1160,7 +1208,7 @@ export function createAnchors(dependencies) {
   // the view that was missing.
   //
   // Derived from the focus rather than written where the travel put the reader, for the
-  // reason markHere gives about the ask ring: a mark written at the arrival says where the
+  // reason markHere gives about the decision ring: a mark written at the arrival says where the
   // reader was *sent*, and goes on saying it after they have clicked away, read on down the
   // page and come back tomorrow. Every way into a thread then paints it — the quote's press,
   // t/T, a plain click on the card — because they all end in the same focus, and no
@@ -1260,6 +1308,8 @@ export function createAnchors(dependencies) {
     itemAt,
     itemWord,
     itemSays,
+    aimTargetAt,
+    aimTargets,
     visualAt,
     visualActionAnchor,
     visualPartAt,

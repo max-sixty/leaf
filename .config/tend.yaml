@@ -11,6 +11,22 @@ setup:
   - uses: astral-sh/setup-uv@v7
   - run: uv sync --frozen
 
+# `setup:` runs as the runner, and Playwright downloads browsers under the
+# home of whoever runs it — a home the sandbox does not inherit. So the agent
+# meets `BrowserType.launch: Executable doesn't exist` partway through the
+# suite, which is most of it: nearly every test here drives a real browser
+# (`tests/CLAUDE.md`). Seeding it under the sandbox's own home is what makes
+# the repo's gate runnable from a session rather than only in `ci`.
+#
+# Same browser `ci.yaml` installs, and no `--with-deps`: the sandbox user has
+# no sudo, so that flag fails on `sudo: a password is required` — the runner
+# image already carries the system libraries. The launch afterwards is the
+# assertion the install worked, so a broken one stops the job instead of
+# reaching the agent as a suite that cannot start.
+sandbox_setup:
+  - uv run playwright install chromium --only-shell
+  - 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()"'
+
 workflows:
   ci-fix:
     watched_workflows:

@@ -26,8 +26,8 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
     merges by member: it is not a contract but the layer's namespace of shared
     facts. Under replace-whole, a project declaring its one idiom vendored a
     $idioms holding exactly that idiom — its theme rules kept styling,
-    theme.css concatenating where the registry did not, while `page catalog`
-    silently dropped the shipped ten. A member that is itself a map merges by
+    theme.css concatenating where the registry did not, while the vendored
+    registry silently dropped the shipped ten. A member that is itself a map merges by
     its own keys for the same reason one level down: $languages.paths is
     indexed by extension, and a layer adding `.svelte` must not silently drop
     every shipped extension with it. Scalar and list members replace whole —
@@ -169,8 +169,8 @@ def _validate_layer_declarations(
     # $keys documents exactly the x- keys the lint admits, one string per key: the
     # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
     # declared is documentation of nothing, and a key with no member is one an author
-    # reads the catalog for and finds unsaid. `page catalog` prints it and the site's
-    # table is generated from it, which is what makes the pin worth keeping.
+    # reads the registry for and finds unsaid. Agents query it and the site's table is
+    # generated from it, which is what makes the pin worth keeping.
     keys = registry.get("$keys")
     admitted = set(EXTENSION_SCHEMA["properties"])
     documented = set(keys or {}) - {"description"}

@@ -13,7 +13,7 @@ def _render_version_attempt(
     module that never defines its declared element, an x-conversation whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
-    there would outline nothing and the ask walk would travel to the top of the page,
+    there would outline nothing and the decision walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     a drawing scrolling beside an empty margin the page had room in,
     a table that scrolls sideways with a cell in it wrapped,

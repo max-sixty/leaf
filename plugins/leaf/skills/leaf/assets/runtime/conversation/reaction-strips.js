@@ -1,6 +1,6 @@
 import { paintReactionStanding } from "../reactions.js";
 
-/* Reaction surfaces rendered in the comment panel. */
+/* Reaction surfaces rendered in the thread panel. */
 export function createConversationReactionStrips(dependencies) {
   const {
     bareReaction,

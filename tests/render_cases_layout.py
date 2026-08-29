@@ -24,7 +24,7 @@ from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_PAGE,
+    DECISIONS_PAGE,
 )
 from render_harness import (
     CARRIED_PAGE,
@@ -85,7 +85,7 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the comment panel shut, no tray standing, design mode off —
+    is of a first visit — the thread panel shut, no tray standing, design mode off —
     and each of those is something a reader turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
     watching it, and a tray someone had left standing came up as a ReferenceError
@@ -374,14 +374,14 @@ FLOATING_PAGE = LONG_PAGE.replace(
 )
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
     "</main>",
-    """<lf-ask id="where-ask"><h2>Which option?</h2>
+    """<lf-decision id="where-decision"><h2>Which option?</h2>
 <lf-options id="where" choose>
   <lf-option id="opt-a"><strong>First</strong>
     <aside class="sidenote" id="boxed-note">Measured over a quarter.</aside>
     <p>An option carrying a note written inside it.</p>
   </lf-option>
   <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 </main>""",
 )
 
@@ -478,7 +478,7 @@ EDGES = [
         name="comments",
         html=lambda: LONG_PAGE,
         comments=1,
-        stand=lambda page: page.locator(".lf-comments").click(),
+        stand=lambda page: page.locator(".lf-threads-toggle").click(),
         region=".lf-panel",
         side="right",
         store="lf-panel-width",
@@ -487,10 +487,10 @@ EDGES = [
     ),
     SimpleNamespace(
         name="trays",
-        html=lambda: ASKS_PAGE,
+        html=lambda: DECISIONS_PAGE,
         comments=0,
-        stand=lambda page: page.locator(".lf-asks").click(),
-        region=".lf-asks-panel",
+        stand=lambda page: page.locator(".lf-decisions").click(),
+        region=".lf-decisions-panel",
         side="left",
         store="lf-tray-width",
         wide=300,
@@ -843,16 +843,16 @@ AIM_PAINT_PAGE = leaf_page(
     "aim paint",
     """
 <h1 id="t">Aim paint</h1>
-<lf-ask id="cards-ask"><h2>Which card?</h2>
+<lf-decision id="cards-decision"><h2>Which card?</h2>
 <lf-options id="cards" choose>
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
   <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="rows-ask"><h2>Should we ship?</h2>
+</lf-options></lf-decision>
+<lf-decision id="rows-decision"><h2>Should we ship?</h2>
 <lf-options id="rows" choose>
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 # Two items meeting at a seam the browser puts between two whole pixels, held there by a
@@ -1114,20 +1114,24 @@ SCROLL_STILL = """(hold) => {
   }
   return performance.now() - window.__lfScrollSince > hold;
 }"""
-# Twelve things waiting, which is more than any shipped example asks and the point: the
+# Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the tray.
-MANY_ASKS_PAGE = leaf_page(
-    "many asks",
+MANY_DECISIONS_PAGE = leaf_page(
+    "many decisions",
     """
-<h1>Many asks</h1>
+<h1>Many decisions</h1>
 <p>A tray long enough to scroll.</p>
 <lf-tasks id="plan">
 """
     + "\n".join(
         f'<lf-task id="t-{i}" status="review" owner="wren">'
         f"<strong>Waiting on you, item {i}</strong>"
-        f"<p>Something to decide about item {i}.</p></lf-task>"
-        for i in range(12)
+        f'<lf-decision id="t-{i}-decision"><h2>Decision {i}</h2>'
+        f'<lf-options id="t-{i}-choice" choose>'
+        f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
+        f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
+        f"</lf-options></lf-decision></lf-task>"
+        for i in range(24)
     )
     + """
 </lf-tasks>
@@ -1233,7 +1237,7 @@ SHORT_CHIP_PAGE = leaf_page(
 <p id="p">The bracket order goes in on Friday and there is room in it. Change the
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
-<lf-ask id="extras-ask"><h2>Which extras should we add?</h2>
+<lf-decision id="extras-decision"><h2>Which extras should we add?</h2>
 <lf-options id="extras" choose multiple>
 <lf-option id="x-tray"><lf-chip>£9</lf-chip>
 <strong>Seed tray</strong> Catches the spill under the south pair.
@@ -1241,7 +1245,7 @@ before it ships.</p>
 <lf-option id="x-dome"><lf-chip tone="ok">£15</lf-chip>
 <strong>Weather dome</strong> Keeps the seed dry through a wet week.
 </lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-decision>
 """,
 )
 # A page that says one of its words on screen only. The rule is the page's own, which is
@@ -1449,7 +1453,7 @@ RING_NAMES = """() => {
 # Asked of every box painting one, rather than of the focused one.
 # The two are not the same set: four rules draw
 # the ring on something other than the control holding focus — a thread card wears it
-# for anything focused inside it, an ask wears it for whichever of its controls the
+# for anything focused inside it, a decision wears it for whichever of its controls the
 # reader reached, a joined option group wears the one its picks give up, and an element
 # a focused thread is anchored to wears it with no focus of its own — and a reading that
 # asks only `getComputedStyle(activeElement)` returns `no ring here` for every one. A 2px
@@ -1537,7 +1541,7 @@ RINGS_DRAWN = f"""async () => {{
     // A ring on something the browser is not rendering is not on screen, and its box is
     // whatever the last layout left behind. An inactive lf-tab is the case: it carries
     // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
-    // contents are skipped, and the ask inside one still answers a stale rect three
+    // contents are skipped, and the decision inside one still answers a stale rect three
     // thousand pixels from the band its own panel now reports.
     if (!el.checkVisibility({{
       contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true,
@@ -1576,7 +1580,7 @@ RINGS_DRAWN = f"""async () => {{
       // claim a box can be held to: where the control can be seen, so can the ring
       // around it. Asked of the edge rather than of the size, because the two answers
       // differ for everything not focused — a code block taller than the window hangs
-      // out of it however the browser scrolls; an ask wears its ring for a control the
+      // out of it however the browser scrolls; a decision wears its ring for a control the
       // reader reached near its top and its own foot is below the fold; a thread's
       // element mark is painted on a widget nobody has scrolled to at all. None of
       // those is a ring drawn outside its box, and a size test excuses the first and

@@ -1,5 +1,6 @@
 """Layer input resolution and composition."""
 
+import re
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -8,9 +9,11 @@ from .host import config_home
 from .locations import located, locations_overlap
 from .schema import (
     BROWSER_DIRS,
+    BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
     GUIDANCE_DIR,
     GUIDANCE_FILE,
+    HTML_NAME,
     KERNEL,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
@@ -22,19 +25,32 @@ from .validation.compatibility import incoming_registry
 
 
 def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
-    """Resolve recorded package paths without changing their order.
+    """Resolve recorded package selections without changing their order.
 
-    Relative paths are project-relative, like the implicit `.leaf/` package. A `~`
-    path stays portable across the user's machines. Absolute paths are not recorded
-    because `$layer.packages` is part of the page's public vendored registry.
+    A bare name selects an optional package shipped with Leaf. Other relative paths
+    are project-relative, like the implicit `.leaf/` package. A `~` path stays
+    portable across the user's machines. Absolute paths are not recorded because
+    `$layer.packages` is part of the page's public vendored registry.
     """
     packages = []
     for value in selected:
+        if re.fullmatch(HTML_NAME, value):
+            if value == DEFAULT_PACKAGE.name:
+                sys.exit("package 'default' is already included in every page")
+            bundled = BUNDLED_PACKAGES / value
+            if not bundled.is_dir():
+                sys.exit(
+                    f"unknown bundled package {value!r}; use './{value}' for a "
+                    "project-relative package path"
+                )
+            packages.append(bundled)
+            continue
         package_path = Path(value)
         if package_path.is_absolute():
             sys.exit(
-                f"package {value!r} is absolute; use a project-relative or ~ path "
-                "so the vendored registry does not publish a machine path"
+                f"package {value!r} is absolute; use a bundled name, "
+                "explicit project-relative path, or ~ path so the vendored registry "
+                "does not publish a machine path"
             )
         root = package_path.expanduser()
         if not root.is_absolute():

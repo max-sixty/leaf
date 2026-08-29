@@ -12,7 +12,7 @@ import { highlightBlocks } from "./syntax.js";
 // replay signature must keep seeing it — its own gate is RETIRED_SLOTS, not the sigs.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  ask: "data-lf-ask",
+  decision: "data-lf-decision",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",

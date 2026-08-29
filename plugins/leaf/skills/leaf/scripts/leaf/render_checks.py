@@ -20,57 +20,48 @@ PROBE_SOURCES = {
 }
 
 _PROBE_CACHE = "__leafRenderChecks"
-_LOAD_PROBES = f"""async (call) => {{
-  if (globalThis.{_PROBE_CACHE}?.route !== call.route) {{
-    let timer;
-    try {{
-      const probes = await Promise.race([
-        import(call.route),
-        new Promise((_, reject) => {{
-          timer = setTimeout(
-            () => reject(new Error(
-              `Leaf browser probes did not load from ${{call.route}} ` +
-              `within ${{call.timeoutMs}}ms`
-            )),
-            call.timeoutMs,
-          );
-        }}),
-      ]);
-      globalThis.{_PROBE_CACHE} = {{route: call.route, probes}};
-    }} finally {{
-      clearTimeout(timer);
-    }}
-  }}
+_START_PROBES = f"""(call) => {{
+  if (globalThis.{_PROBE_CACHE}?.route === call.route) return;
+  const loading = {{route: call.route, probes: null, error: null}};
+  globalThis.{_PROBE_CACHE} = loading;
+  import(call.route).then(
+    (probes) => {{
+      if (globalThis.{_PROBE_CACHE} === loading) loading.probes = probes;
+    }},
+    (error) => {{
+      if (globalThis.{_PROBE_CACHE} === loading)
+        loading.error = {{
+          name: error?.name ?? "Error",
+          message: error?.message ?? String(error),
+        }};
+    }},
+  );
 }}"""
-# The answer states its end as well as its fact, on the same deadline the load above
-# states. `page.evaluate` takes no timeout in any binding, so a probe that awaits a
-# promise the page never settles — a rendering turn a stopped compositor never gives,
-# an animation whose `finished` never comes — is a wait nothing bounds: not the gate's
-# `served_timeout_ms`, not Playwright's own default, not the suite's. It runs for as
-# long as the process lives, with no probe named and nothing printed.
-_INVOKE_PROBE = f"""async (call) => {{
-  await ({_LOAD_PROBES})(call);
-  const probes = globalThis.{_PROBE_CACHE}.probes;
+_PROBES_LOADED = f"""(call) => {{
+  const loading = globalThis.{_PROBE_CACHE};
+  if (loading?.route !== call.route) return false;
+  if (loading.error) {{
+    const error = new Error(
+      `Leaf browser probes failed to load from ${{call.route}}: ` +
+      loading.error.message
+    );
+    error.name = loading.error.name;
+    throw error;
+  }}
+  return loading.probes !== null;
+}}"""
+_INVOKE_PROBE = f"""(call) => {{
+  const probes = globalThis.{_PROBE_CACHE}?.probes;
   const probe = probes[call.name];
   if (typeof probe !== "function")
     throw new TypeError(`unknown Leaf browser probe ${{call.name}}`);
-  let timer;
-  try {{
-    return await Promise.race([
-      probe(...call.args),
-      new Promise((_, reject) => {{
-        timer = setTimeout(
-          () => reject(new Error(
-            `Leaf browser probe ${{call.name}} did not answer ` +
-            `within ${{call.timeoutMs}}ms`
-          )),
-          call.timeoutMs,
-        );
-      }}),
-    ]);
-  }} finally {{
-    clearTimeout(timer);
-  }}
+  const result = probe(...call.args);
+  if (result && typeof result.then === "function")
+    throw new TypeError(
+      `Leaf browser probe ${{call.name}} must be synchronous; ` +
+      `publish a synchronous reading or readiness fact instead`
+    );
+  return result;
 }}"""
 _POLL_PROBE = f"""(call) => {{
   const probe = globalThis.{_PROBE_CACHE}?.probes?.[call.name];
@@ -122,16 +113,40 @@ def prepare_standalone_probes(page) -> None:
     page._leaf_standalone_probes_prepared = True
 
 
+def _load_probes(page, call: dict) -> None:
+    """Start the module load and observe its result from a bounded driver wait."""
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    page.evaluate(_START_PROBES, call)
+    try:
+        page.wait_for_function(_PROBES_LOADED, arg=call, timeout=call["timeoutMs"])
+    except PlaywrightTimeout as error:
+        raise PlaywrightError(
+            f"Leaf browser probes did not load from {call['route']} within "
+            f"{call['timeoutMs']}ms"
+        ) from error
+
+
 def evaluate_probe(page, name: str, *args):
     """Invoke one named export from the browser probe module."""
-    return page.evaluate(_INVOKE_PROBE, _call(page, name, args))
+    call = _call(page, name, args)
+    _load_probes(page, call)
+    return page.evaluate(_INVOKE_PROBE, call)
 
 
 def wait_for_probe(page, name: str, *args) -> None:
     """Wait until one named browser probe returns a truthy value."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
     call = _call(page, name, args)
-    page.evaluate(_LOAD_PROBES, call)
-    page.wait_for_function(_POLL_PROBE, arg=call)
+    _load_probes(page, call)
+    try:
+        page.wait_for_function(_POLL_PROBE, arg=call, timeout=call["timeoutMs"])
+    except PlaywrightTimeout as error:
+        raise PlaywrightTimeout(
+            f"Leaf wait probe {name} did not become true within {call['timeoutMs']}ms"
+        ) from error
 
 
 def install_window_errors(page) -> None:

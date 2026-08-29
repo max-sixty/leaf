@@ -545,7 +545,7 @@ customElements.define(
         this.paint(Plot, table, axis);
         this.classList.add("lf-rendered");
         // Everything after the first draw is the room changing under it: a window
-        // resized, the comment panel opening and taking its strip out of the column. The
+        // resized, the thread panel opening and taking its strip out of the column. The
         // drawing would scale with the box and take its labels below legibility with it,
         // which is what a diagram has to live with and a chart does not — it can simply
         // be drawn again. Only the width is watched, and only when it lands on a new

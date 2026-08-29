@@ -45,6 +45,9 @@ def _validate_widget_schemas(widgets: dict, path) -> None:
             raise RegistryError(
                 f"{path}: <{tag}> is not a valid JSON Schema: {error.message}"
             )
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise RegistryError(f"{path}: <{tag}> must carry a non-empty description")
         extensions = {
             key: value for key, value in entry.items() if key.startswith("x-")
         }
@@ -252,6 +255,17 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> x-data input `{input_name}` source attribute "
                 f"`{source_attr}` must be a canonical data source string"
             )
+        if snapshot_attr := spec.get("snapshot"):
+            snapshot_schema = properties.get(snapshot_attr, {})
+            if (
+                not isinstance(snapshot_schema, dict)
+                or snapshot_schema.get("type") != "string"
+                or snapshot_schema.get("pattern") != "^[1-9][0-9]*$"
+            ):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-data input `{input_name}` snapshot attribute "
+                    f"`{snapshot_attr}` must be a positive decimal string"
+                )
     if measured := entry.get("x-measured"):
         input_name = measured["input"]
         if input_name not in entry.get("x-data", {}):
@@ -370,27 +384,32 @@ def _validate_widget_predicates(
     # lists — and a subschema that states neither contradicts nothing.
     awaits = entry.get("x-awaits", {})
     request = entry.get("x-request", {})
-    if request.get("region") and request.get("ask") is not True:
+    if request.get("region") and request.get("decision") is not True:
         raise RegistryError(
-            f"{path}: <{tag}> x-request.region requires ask: true — a region "
-            "owns the title of a request that joins the reader's Ask projection"
+            f"{path}: <{tag}> x-request.region requires decision: true — a region "
+            "owns the title of a request that joins the reader's Decision projection"
         )
-    if entry.get("x-ask"):
+    if request.get("decision") is True and entry.get("x-awaits") is not None:
+        raise RegistryError(
+            f"{path}: <{tag}> declares both x-request.decision and x-awaits — one "
+            "widget cannot own both a lifecycle request and a state decision or rollup"
+        )
+    if entry.get("x-decision"):
         if "id" not in entry.get("required", []):
-            raise RegistryError(f"{path}: <{tag}> x-ask does not require an id")
+            raise RegistryError(f"{path}: <{tag}> x-decision does not require an id")
         if entry.get("x-content") != "prose":
             raise RegistryError(
-                f"{path}: <{tag}> x-ask must admit prose around the request it frames"
+                f"{path}: <{tag}> x-decision must admit prose around the Decision it frames"
             )
         if awaits:
             raise RegistryError(
-                f"{path}: <{tag}> declares both x-ask and x-awaits — the broader "
-                "Ask frames one nested request; the nested widget owns its state"
+                f"{path}: <{tag}> declares both x-decision and x-awaits — the broader "
+                "Decision frames one nested decision source; the nested widget owns its state"
             )
-        if request.get("ask") is True:
+        if request.get("decision") is True:
             raise RegistryError(
-                f"{path}: <{tag}> declares both x-ask and x-request.ask — the broader "
-                "Ask frames one nested request; the nested widget owns its lifecycle"
+                f"{path}: <{tag}> declares both x-decision and x-request.decision — the broader "
+                "Decision frames one nested external request; the nested widget owns its lifecycle"
             )
     conditions = [
         ("x-awaits", awaits.get("when", {})),
@@ -450,15 +469,20 @@ def _validate_widget_predicates(
             f"and static, but {dynamic} are written by value records"
         )
     response = conversation.get("response")
-    if response and entry.get("x-awaits") is None:
+    if response and (entry.get("x-awaits") is None or awaits.get("rollup")):
         raise RegistryError(
             f"{path}: <{tag}> x-conversation requires a version response but "
-            "declares no x-awaits standing request"
+            "declares no x-awaits standing decision"
         )
-    data_sources = {spec["source"] for spec in entry.get("x-data", {}).values()}
-    if dynamic := sorted(data_sources & mutable_values):
+    data_bindings = {
+        attr
+        for spec in entry.get("x-data", {}).values()
+        for attr in (spec["source"], spec.get("snapshot"))
+        if attr is not None
+    }
+    if dynamic := sorted(data_bindings & mutable_values):
         raise RegistryError(
-            f"{path}: <{tag}> x-data source attributes are authored bindings, "
+            f"{path}: <{tag}> x-data binding attributes are authored, "
             f"but {dynamic} are written by value records"
         )
     if (measured := entry.get("x-measured")) and measured["at"] in mutable_values:
@@ -499,6 +523,17 @@ def _validate_widget_interactions(
     # A blanket answer is one of this widget's own verbs, so the log records it
     # the way every other decision is recorded.
     answers = awaits.get("answers", [])
+    if awaits.get("rollup"):
+        local_fields = sorted(set(awaits) - {"rollup"})
+        if local_fields:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits rollup also declares local decision "
+                f"fields {local_fields}"
+            )
+    elif entry.get("x-awaits") is not None and not answers:
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits local decision declares no answer verbs"
+        )
     if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"
@@ -518,11 +553,11 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> x-awaits blanket verb `{blanket}` is not one of "
             "its answer verbs"
         )
-    # The until verb closes a thread ask, so it too is one of the widget's own
+    # The until verb closes a thread decision, so it too is one of the widget's own
     # verbs — same rule as `all`, same reason.
     if (until := awaits.get("until")) and until["verb"] not in entry.get("x-state", {}):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits holds asks open until `{until['verb']}`, "
+            f"{path}: <{tag}> x-awaits holds decisions open until `{until['verb']}`, "
             "which it does not declare as an x-state verb"
         )
     if response:

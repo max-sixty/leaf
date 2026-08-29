@@ -92,7 +92,7 @@
           copying. Their answer travels less well, since they had a tenth of our write
           volume and nothing that had to survive the store going down.
         </p>
-        <lf-specimen id="payments-ask" label="payments, March">
+        <lf-specimen id="payments-decision" label="payments, March">
           <lf-options id="pay-store" choose>
             <lf-option id="pay-redis"
               ><lf-chip tone="ok">already on call for it</lf-chip>
@@ -147,7 +147,7 @@
       </section>
 
       <section id="options">
-        <lf-ask id="session-options-ask">
+        <lf-decision id="session-options-decision">
           <h2>Where should a session live?</h2>
           <lf-options id="session-options" choose>
             <lf-option id="opt-jwt"
@@ -228,7 +228,7 @@ graph LR
               </p>
             </lf-option>
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
 
       <section id="flow">
@@ -273,7 +273,7 @@ graph LR
       </section>
 
       <section id="next-up">
-        <lf-ask id="next-jobs-ask">
+        <lf-decision id="next-jobs-decision">
           <h2>What I pick up next</h2>
           <p id="next-intro">
             Whichever store wins, three jobs stand behind it, and each is argued
@@ -293,7 +293,7 @@ graph LR
               >A write load test at request rate</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-decision>
       </section>
     </main>
   </body>

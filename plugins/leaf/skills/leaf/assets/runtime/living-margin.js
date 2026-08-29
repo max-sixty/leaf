@@ -8,8 +8,8 @@ import {
 const KINDS = {
   change: { label: "Change", symbol: "Δ", priority: 0 },
   comment: { label: "Comment", symbol: "¶", priority: 1 },
-  ask: { label: "Ask", symbol: "?", priority: 2 },
-  decision: { label: "Decision", symbol: "✓", priority: 3 },
+  decision: { label: "Decision", symbol: "?", priority: 2 },
+  outcome: { label: "Outcome", symbol: "✓", priority: 3 },
   activity: { label: "Agent activity", symbol: "↻", priority: 4 },
 };
 
@@ -62,16 +62,17 @@ export function createLivingMargin(dependencies) {
     compact,
     el,
     elementById,
-    goToAsk,
+    goToDecision,
     inChrome,
     itemSays,
     itemWord,
     keys,
     offer,
-    openAsks,
+    openDecisions,
     pageScroller,
     paintKeys,
     placedAt,
+    renderMarginThread,
     scrollBehavior,
     scrollToElement,
     showThread,
@@ -89,7 +90,7 @@ export function createLivingMargin(dependencies) {
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, comments, asks, decisions, and activity",
+    "Changes, comments, decisions, outcomes, and activity",
   );
   nav.append(toolbar);
   chromeRoot.append(nav);
@@ -200,21 +201,22 @@ export function createLivingMargin(dependencies) {
         text: trimmed(
           thread.root.text || anchorLabel(thread.root.anchor, thread.root.about),
         ),
+        thread,
         activate: () => showThread(id),
       });
     }
 
-    const asks = openAsks();
-    for (const ask of asks) {
-      const id = ask.id;
-      add(groups, ask, {
-        kind: "ask",
-        id: `ask:${id}`,
-        text: trimmed(`${itemWord(ask)} · ${itemSays(ask) || id}`),
+    const decisions = openDecisions();
+    for (const decision of decisions) {
+      const id = decision.id;
+      add(groups, decision, {
+        kind: "decision",
+        id: `decision:${id}`,
+        text: trimmed(`${itemWord(decision)} · ${itemSays(decision) || id}`),
         activate: () => {
-          const standing = openAsks();
+          const standing = openDecisions();
           const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, standing);
+          if (next) goToDecision(next, standing);
         },
       });
     }
@@ -228,10 +230,10 @@ export function createLivingMargin(dependencies) {
         .filter(Boolean)
         .join(" · ");
       add(groups, target, {
-        kind: "decision",
-        id: `decision:${coordinate}`,
+        kind: "outcome",
+        id: `outcome:${coordinate}`,
         text: trimmed(account),
-        activate: () => revealTarget(target, `Decision: ${account}`),
+        activate: () => revealTarget(target, `Outcome: ${account}`),
       });
     }
 
@@ -524,7 +526,9 @@ export function createLivingMargin(dependencies) {
         row.onclick = (event) => {
           togglePinned(row.lfEntry, row);
           if (event.detail === 0 && pinnedKey === row.lfEntry.key)
-            previewList.querySelector("button")?.focus({ preventScroll: true });
+            previewList
+              .querySelector("textarea, button")
+              ?.focus({ preventScroll: true });
         };
         row.addEventListener("pointerenter", () => {
           suppressedKey = null;
@@ -569,7 +573,7 @@ export function createLivingMargin(dependencies) {
 
   function buildPreview(entry) {
     const focusedItem = preview.contains(document.activeElement)
-      ? document.activeElement.dataset.lfMarginItem
+      ? document.activeElement.closest?.("[data-lf-margin-item]")?.dataset.lfMarginItem
       : null;
     previewTitle.textContent = entry.title;
     previewKinds.replaceChildren(
@@ -582,33 +586,60 @@ export function createLivingMargin(dependencies) {
         return chip;
       }),
     );
-    previewList.replaceChildren(
-      ...entry.items.map((item) => {
-        const button = el("button", "lf-margin-preview-action");
-        button.type = "button";
-        button.append(
-          el(
-            "span",
-            `lf-margin-action-kind lf-margin-${item.kind}`,
-            KINDS[item.kind].label,
-          ),
-          el("span", "lf-margin-action-text", item.text || entry.title),
-        );
-        button.setAttribute(
-          "aria-label",
-          `Open ${KINDS[item.kind].label.toLowerCase()}: ${item.text || entry.title}`,
-        );
-        button.dataset.lfMarginItem = item.id;
-        button.onclick = () => activate(item, entry);
-        return button;
-      }),
-    );
+    const nodes = entry.items.map((item) => previewItemNode(entry, item));
+    const keep = new Set(nodes);
+    for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
+    let cursor = previewList.firstChild;
+    for (const node of nodes) {
+      if (node === cursor) cursor = cursor.nextSibling;
+      else previewList.insertBefore(node, cursor);
+    }
     if (focusedItem) {
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-item]"),
       ].find((candidate) => candidate.dataset.lfMarginItem === focusedItem);
       (replacement ?? previewClose).focus({ preventScroll: true });
     }
+  }
+
+  function previewItemNode(entry, item) {
+    let node = [...previewList.children].find(
+      (candidate) => candidate.dataset.lfMarginItem === item.id,
+    );
+    if (item.kind === "comment") {
+      if (!node?.classList.contains("lf-margin-thread")) {
+        node?.remove();
+        node = el("section", "lf-margin-thread");
+        const body = el("div", "lf-margin-thread-body");
+        const open = el("button", "lf-btn lf-margin-thread-open", "Open in Threads");
+        open.type = "button";
+        node.append(body, open);
+      }
+      renderMarginThread(
+        node.querySelector(":scope > .lf-margin-thread-body"),
+        item.thread,
+      );
+      node.querySelector(":scope > .lf-margin-thread-open").onclick = () =>
+        activate(item, entry);
+    } else {
+      if (!node?.classList.contains("lf-margin-preview-action")) {
+        node?.remove();
+        node = el("button", "lf-margin-preview-action");
+        node.type = "button";
+        node.append(el("span"), el("span", "lf-margin-action-text"));
+      }
+      const kind = node.firstElementChild;
+      kind.className = `lf-margin-action-kind lf-margin-${item.kind}`;
+      kind.textContent = KINDS[item.kind].label;
+      node.lastElementChild.textContent = item.text || entry.title;
+      node.setAttribute(
+        "aria-label",
+        `Open ${KINDS[item.kind].label.toLowerCase()}: ${item.text || entry.title}`,
+      );
+      node.onclick = () => activate(item, entry);
+    }
+    node.dataset.lfMarginItem = item.id;
+    return node;
   }
 
   function highlight(target) {
@@ -684,12 +715,19 @@ export function createLivingMargin(dependencies) {
       const minTop = Math.max(12, bannerBottom + 8);
       const maxTop = Math.max(minTop, innerHeight - card.height - 12);
       const top = Math.max(minTop, Math.min(maxTop, marker.top));
-      const rightRoom = innerWidth - marker.right - 12;
+      // The room is the page's own and not the window's, which is the side's version of
+      // the banner line two above. An open panel takes its strip out of the body rather
+      // than standing over it (chrome-style.js), so a card placed against the window
+      // stands in the panel — and one the reader left open covers the narrowing box at
+      // the top of it, where the ring of the box they are typing in goes under this
+      // card's ×. The margin's card belongs in the column the margin is drawn in.
+      const roomRight = document.body.getBoundingClientRect().right;
+      const rightRoom = roomRight - marker.right - 12;
       const left =
         rightRoom >= card.width + 8
           ? marker.right + 8
           : Math.max(12, marker.left - card.width - 8);
-      preview.style.left = `${Math.min(left, innerWidth - card.width - 12)}px`;
+      preview.style.left = `${Math.min(left, roomRight - card.width - 12)}px`;
       preview.style.top = `${top}px`;
     });
   }
@@ -762,6 +800,14 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
+  // Blur on a marker is delayed so focus can enter its preview. Once focus leaves the
+  // preview too, that bridge is spent: a keyboard reader's next control must not sit
+  // under an unpinned card that belongs to the previous stop.
+  preview.addEventListener("focusout", (event) => {
+    const next = event.relatedTarget;
+    if (!pinnedKey && !preview.contains(next) && next !== previewButton)
+      closePreview(false);
+  });
   preview.addEventListener("pointerenter", () => (cardHovered = true));
   preview.addEventListener("pointerleave", () => {
     cardHovered = false;

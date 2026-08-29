@@ -1,6 +1,6 @@
 """Document-scoped browser projection and undo readings."""
 
-from ..asks import page_ask_projection
+from ..decisions import page_decision_projection
 from ..events import (
     action_retracted,
     retractions,
@@ -9,7 +9,7 @@ from ..events import (
     undo_error,
 )
 from ..passages import enclosing_of, page_passages
-from ..projection import StateProjection, decisions, page_projection
+from ..projection import StateProjection, page_projection, retirement_outcomes
 from ..requests import request_lifecycles_for, request_phases
 from .wire import _browser_projection
 
@@ -26,7 +26,9 @@ def _browser_document(
     projection, parser, spk = prepared or page_projection(
         html, events, registry, revision
     )
-    passages = page_passages(html, registry, decisions(projection.actions, registry))
+    passages = page_passages(
+        html, registry, retirement_outcomes(projection.actions, registry)
+    )
     dropped = set(passages.retired) | set(passages.gone)
     requests = request_lifecycles_for(
         events,
@@ -35,7 +37,7 @@ def _browser_document(
         {"kind": "page", "revision": revision},
     )
     phases = request_phases(requests)
-    reader_asks, reader_awaiting = page_ask_projection(
+    reader_decisions, reader_awaiting = page_decision_projection(
         parser,
         projection,
         parser.by_id,
@@ -45,7 +47,7 @@ def _browser_document(
         seats_with_agent(threads),
         request_phases=phases,
     )
-    unanswered_asks, unanswered_awaiting = page_ask_projection(
+    unanswered_decisions, unanswered_awaiting = page_decision_projection(
         parser,
         projection,
         parser.by_id,
@@ -66,9 +68,9 @@ def _browser_document(
                 within=within,
                 floors=floors,
             ),
-            "asks": {
-                "reader": reader_asks,
-                "unanswered": unanswered_asks,
+            "decisions": {
+                "reader": reader_decisions,
+                "unanswered": unanswered_decisions,
                 "awaiting": reader_awaiting,
                 "unanswered_awaiting": unanswered_awaiting,
             },

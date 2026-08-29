@@ -4,9 +4,9 @@ export function createAddress({
   EVERYTHING,
   addressLayer,
   announce,
-  askRows,
-  asksPanel,
-  asksOffered,
+  decisionRows,
+  decisionsPanel,
+  decisionsOffered,
   banner,
   claimsEsc,
   el,
@@ -32,10 +32,10 @@ export function createAddress({
   threadsBox,
 }) {
   // ---------- the g chord: the page's destinations ----------
-  // g names one-off travel. A mnemonic completes a panel destination (`g c` Comments,
-  // `g a` Asks, `g l` All leaves), while a document list takes a following decimal place
-  // (`g h 3` is the third hyperlink and `g d 2` the second disclosure). Repeated movement
-  // through comments and asks belongs to their single-key category walks, t/T and a/A, so
+  // g names one-off travel. A mnemonic completes a panel destination (`g t` Threads,
+  // `g d` Decisions, `g l` All leaves), while a document list takes a following decimal place
+  // (`g h 3` is the third hyperlink and `g f 2` the second fold). Repeated movement
+  // through threads and decisions belongs to their single-key category walks, t/T and d/D, so
   // those categories do not also carry numbered addresses.
   //
   // Which numbered lists there are is this table and nothing else. The chord's scope, the chips, the
@@ -45,7 +45,7 @@ export function createAddress({
   // sentence the reference reads, its members in address order, and how to arrive at one.
   // What the document holds, in reading order, as against what the chrome holds: the banner,
   // the versions and the panels are direct destinations, while a comment's message is the
-  // Comments panel's rather than the page's. The addresses read the document through here, where
+  // Threads panel's rather than the page's. The addresses read the document through here, where
   // a scope naming a platform key reads `pageQueryAll` and crosses the declared shadow roots
   // as well: an address is a place in a list the reader counts down the page, and a tree a
   // module built has no place in that count, while what the reader can stand on is wherever
@@ -83,10 +83,10 @@ export function createAddress({
   // than leaving the dispatcher to know which furniture it opens.
   const PANEL_DESTINATIONS = [
     {
-      id: "navigation.panel.comments",
-      key: "c",
-      does: "Go to the Comments panel",
-      line: "Comments panel",
+      id: "navigation.panel.threads",
+      key: "t",
+      does: "Go to the Threads panel",
+      line: "Threads panel",
       when: () => true,
       go: () => {
         setPanel(true);
@@ -94,14 +94,14 @@ export function createAddress({
       },
     },
     {
-      id: "navigation.panel.asks",
-      key: "a",
-      does: "Go to the Asks panel",
-      line: "Asks panel",
-      when: asksOffered,
+      id: "navigation.panel.decisions",
+      key: "d",
+      does: "Go to the Decisions panel",
+      line: "Decisions panel",
+      when: decisionsOffered,
       go: () => {
-        showTray("asks");
-        (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
+        showTray("decisions");
+        (decisionRows()[0] ?? decisionsPanel).focus({ preventScroll: true });
       },
     },
     {
@@ -132,10 +132,10 @@ export function createAddress({
       },
     },
     {
-      id: "navigation.disclosure",
-      key: "d",
-      word: "disclosures",
-      does: "Go to the nth disclosure and open it",
+      id: "navigation.fold",
+      key: "f",
+      word: "folds",
+      does: "Go to the nth fold and open it",
       list: pageDisclosures,
       // Opening is the arrival and not a press that follows it. Every arrival here reveals
       // the collapsed containers on its way — this is the one whose target is the container,
@@ -404,33 +404,33 @@ export function createAddress({
     claims: EVERYTHING,
     rows: [
       {
-        id: "navigation.comment.edge",
-        // A focused comment is one place, so its two placements complete the chord
+        id: "navigation.thread.edge",
+        // A focused thread is one place, so its two placements complete the chord
         // without naming a list or taking a digit. This is the thread-local counterpart
-        // to the page edges below: t/b place the card inside its panel rather than moving
+        // to the page edges below: k/j place the card inside its panel rather than moving
         // the document to the passage the card is about. It leads while live because it
         // is the one offer specific to where the reader stands; list members wear their
         // address chips directly when the chord arms.
-        keys: ["t", "b"],
+        keys: ["k", "j"],
         routes: [
           {
-            id: "navigation.comment.top",
-            binding: "t",
-            does: "Put the focused comment at the top of its list",
+            id: "navigation.thread.top",
+            binding: "k",
+            does: "Put the focused thread at the top of its list",
           },
           {
-            id: "navigation.comment.bottom",
-            binding: "b",
-            does: "Put the focused comment at the bottom of its list",
+            id: "navigation.thread.bottom",
+            binding: "j",
+            does: "Put the focused thread at the bottom of its list",
           },
         ],
-        does: "Put the focused comment at the top / bottom of its list",
-        line: "comment top / bottom",
+        does: "Put the focused thread at the top / bottom of its list",
+        line: "thread top / bottom",
         when: () => !aimedList && Boolean(focusedThread()),
         run: (binding) => {
           const thread = focusedThread();
           setChord(false);
-          placeThreadEdge(thread, binding === "t" ? "start" : "end");
+          placeThreadEdge(thread, binding === "k" ? "start" : "end");
         },
       },
       {
@@ -438,11 +438,11 @@ export function createAddress({
         // This is travel from the panel to the page, not an Escape rung: every layer
         // remains standing, so the address says what stays open. A covering panel locks
         // the document scroller and has no page to hand back; ordinary Escape remains
-        // the truthful route there. It follows the focused comment's own placements so
+        // the truthful route there. It follows the focused thread's own placements so
         // they keep the short line a reader standing on that card arrived to use.
         keys: ["p"],
-        does: "Return to the page, keeping the comment panel open",
-        line: "page — comments kept",
+        does: "Return to the page, keeping the thread panel open",
+        line: "page — threads kept",
         when: () => !aimedList && inPanel() && !panelCovers(),
         run: () => {
           setChord(false);

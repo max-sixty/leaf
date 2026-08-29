@@ -6,6 +6,7 @@ export function createSelectionSurface({
   composer,
   composerInput,
   composerIsOpen,
+  collapseKeyline,
   designIsOn,
   designTarget,
   fab,
@@ -130,8 +131,9 @@ export function createSelectionSurface({
     // they are read differently. Covering the tail of a quote is fine — the user has read
     // it, and the mark still names where it starts. A card, a column, a metric is judged as
     // one object, so a box standing anywhere on it is a box between them and the thing they
-    // are writing about. ⌥-click made that plain by opening the composer under the pointer,
-    // which is by definition inside what was clicked.
+    // are writing about. An aimed Comment makes that plain: its target is the whole object,
+    // so the composer must clear the object rather than cover the point beside which its
+    // action bar stood.
     const whole = marks.some((where) => where instanceof Element);
     const touching = (r) =>
       r.left < box.right &&
@@ -194,7 +196,10 @@ export function createSelectionSurface({
     const box = node.getBoundingClientRect();
     const sharing = pageControls()
       .map((c) => c.getBoundingClientRect())
-      .filter((r) => r.width && r.left < box.right && box.left < r.right)
+      // Keep the same small gutter sideways that the walk leaves below a row. A
+      // one-glyph difference between system fonts must not decide whether two
+      // controls almost touch or the float steps clear.
+      .filter((r) => r.width && r.left < box.right + 6 && box.left < r.right + 6)
       .sort((a, b) => a.top - b.top);
     let y = box.top;
     for (const r of sharing)
@@ -266,10 +271,7 @@ export function createSelectionSurface({
     fab.style.display = fabAnchor ? "block" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
-      fabBar.setAttribute(
-        "aria-label",
-        label ? `Comment or react on ${label}` : "Comment or react",
-      );
+      fabBar.setAttribute("aria-label", label ? `Respond to ${label}` : "Respond");
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintStanding(fabBar, reactionsOn(fabAnchor));
@@ -305,14 +307,10 @@ export function createSelectionSurface({
     showFab(null, null, { returnFocus: "none" });
     openComposer({ section: item.id }, "", from.left, from.top);
   }
-  function openOnVisual({ id, part }, from) {
-    showFab(null, null, { returnFocus: "none" });
-    openComposer({ section: id, visual: part.part }, "", from.left, from.top);
-  }
-  // The ⌥ press takes the item whole rather than opening the composer on it: the bar
-  // offers the cheap answers first, and its own Comment is the way through to the box.
-  function raiseOnItem(item) {
-    showFab({ section: item.id });
+  // Pointer and keyboard aim choose a semantic target. Every target then raises the
+  // same actions; its anchor alone decides which element supplies the mark and geometry.
+  function activateAimTarget({ anchor }) {
+    showFab(anchor);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
@@ -447,7 +445,7 @@ export function createSelectionSurface({
   // (see claimPress) and must not take this with it, or the keyboard reference stays up over
   // the composer that press just opened. Hence one function, called from both.
   // The two side panels are absent from it on purpose. A float answers the press in front
-  // of it and stands down behind it; the comment panel and the leaves tray are
+  // of it and stands down behind it; the thread panel and the leaves tray are
   // workspaces the reader stood up, kept through a reload (PANEL_KEY, TRAY_KEY) and so
   // through a click all the more — a tray any press removes cannot be watched while
   // working, which is the tray's point. Each closes by its own button, its key, or Esc.
@@ -471,6 +469,7 @@ export function createSelectionSurface({
       if (composerIsOpen() && !composerInput.value) hideComposer();
     }
     if (referenceIsOpen() && !target.closest?.(".lf-help")) hideReference();
+    if (!target.closest?.(".lf-help, .lf-keyline")) collapseKeyline();
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))
@@ -575,8 +574,7 @@ export function createSelectionSurface({
     dismissFab,
     fabAnchorAt,
     openOnItem,
-    openOnVisual,
-    raiseOnItem,
+    activateAimTarget,
     placeClear,
     placeComposer,
     refreshFab,

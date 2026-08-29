@@ -200,7 +200,7 @@ def retirable_ids(
     wraps is the page's own, and only the user's own `accept` consents to losing
     it.
 
-    The outcomes are replay's own (`decisions`, folded over the version these
+    The outcomes are replay's own (`retirement_outcomes`, folded over the version these
     widgets are on), so a decision a later version restated away settles
     nothing here either — replay hands the widget back as pending, and the
     slots stay needed. `spk` is that same version's reading, so the thread half of
@@ -261,7 +261,7 @@ def protected_ids(
         holders,
         events,
         dropped,
-        decisions(projection.actions, registry),
+        retirement_outcomes(projection.actions, registry),
         spk,
     )
     return (anchored_ids(events, within) | state_ids | retirement_ids) - licensed
@@ -477,7 +477,7 @@ def rewritten_bodies(actions: dict) -> dict:
     }
 
 
-def decisions(actions: dict, registry: dict) -> dict:
+def retirement_outcomes(actions: dict, registry: dict) -> dict:
     """widget id → the accept/reject its action projection leaves standing.
 
     Which verbs decide is the registry's word too: `x-retired-when` names the

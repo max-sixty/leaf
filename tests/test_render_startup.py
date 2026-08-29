@@ -45,6 +45,7 @@ from render_support import (
     _traffic,
     compare_with,
     data_projection_page,
+    leaf_page,
     live_url,
     live_watcher,
     nudge,
@@ -231,14 +232,6 @@ main, main * {
         )
         frames = page.evaluate("() => window.__lfPresentation.frames")
         assert held, "the positive control did not hold the first state response"
-        assert page.evaluate(
-            """() => [
-              getComputedStyle(document.documentElement)
-                .getPropertyValue('--lf-presentation-delay').trim(),
-              getComputedStyle(document.documentElement)
-                .getPropertyValue('--lf-presentation-dwell').trim(),
-            ]"""
-        ) == ["300ms", "400ms"], "the shipped first-presentation timing drifted"
         assert frames and all(frame["height"] > 0 for frame in frames), (
             f"the authored state was never laid out, so the paint gate tested nothing: {frames}"
         )
@@ -327,9 +320,9 @@ main, main * {
               return dialog.open && !dialog.matches(':modal');
             }"""
         ), "the widget's final non-modal state did not stand before replay"
-        assert page.get_by_role("button", name=re.compile("^Comments")).evaluate(
+        assert page.get_by_role("button", name=re.compile("^Threads")).evaluate(
             "button => { button.focus(); return document.activeElement === button; }"
-        ), "a held authored modal disabled the usable Comments chrome"
+        ), "a held authored modal disabled the usable Threads chrome"
         page.evaluate(
             "document.querySelector('#shadowed').shadowRoot"
             ".querySelector('#shadow-stale-popover').hidePopover()"
@@ -380,7 +373,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     The tray was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
-    Opening Comments during that interval replaces the remembered tray, and replay leaves
+    Opening Threads during that interval replaces the remembered tray, and replay leaves
     the current workspace standing while it paints the accepted state directly.
     """
     url = serve(SHORT_SUGGESTION)
@@ -399,7 +392,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-tray-up', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-tray-up', 'decisions')")
     priming.close()
 
     held = []
@@ -414,24 +407,24 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         )
         assert held, "the positive control did not hold the first state response"
         body = page.locator("body")
-        expect(body).to_have_attribute("data-lf-tray", "asks")
-        expect(page.locator(".lf-asks")).to_be_hidden()
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(body).to_have_attribute("data-lf-tray", "decisions")
+        expect(page.locator(".lf-decisions")).to_be_hidden()
+        expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
 
-        comments = page.get_by_role("button", name=re.compile("^Comments"))
+        comments = page.get_by_role("button", name=re.compile("^Threads"))
         expect(comments).to_be_enabled()
         comments.click()
-        expect(body).not_to_have_attribute("data-lf-tray", "asks")
+        expect(body).not_to_have_attribute("data-lf-tray", "decisions")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
-        expect(page.locator(".lf-asks")).to_be_hidden()
-        expect(page.locator(".lf-asks-panel")).to_be_hidden()
+        expect(page.locator(".lf-decisions")).to_be_hidden()
+        expect(page.locator(".lf-decisions-panel")).to_be_hidden()
         expect(page.locator(".lf-panel")).to_be_visible()
-        expect(page.locator("button.lf-asks-row")).to_have_count(0)
+        expect(page.locator("button.lf-decisions-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []
     finally:
@@ -460,8 +453,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the Markdown renderer"
 
-        page.get_by_role("button", name=re.compile("^Comments")).click()
-        expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+        page.get_by_role("button", name=re.compile("^Threads")).click()
+        expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
         expect(page.locator(".lf-thread")).to_have_count(0)
 
         held.pop(0).continue_()
@@ -620,16 +613,16 @@ def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
+def test_a_slow_first_replay_releases_when_state_is_ready(
     browser, serve, reduced_motion
 ):
-    """The delayed wait is real pixels, and once paid for it cannot become a flash.
+    """The delayed wait is real pixels, but it never holds a ready page.
 
     A paused CSS timeline makes both sides of the paint threshold observable without a
-    race against module load or screenshot speed. When the held response reaches fetch,
-    the probe starts a fresh dwell interval in that same browser task. The presentation
-    mutation must land beyond it, with response receipt before it as the positive control
-    that a missing release-time wait could not pass vacuously."""
+    race against module load or screenshot speed. An enormous dwell override is the
+    bug-back: a runtime that still consults it cannot present within the test boundary,
+    while replay readiness releases the current page directly.
+    """
     from PIL import Image, ImageChops
 
     held = []
@@ -638,39 +631,6 @@ def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
     )
     page = context.new_page()
     errors = watched(page)
-    page.add_init_script(
-        """
-        const nativeFetch = window.fetch.bind(window);
-        window.fetch = async (...args) => {
-          const response = await nativeFetch(...args);
-          const input = args[0];
-          const url = typeof input === 'string' ? input : input.url;
-          if (new URL(url, location.href).pathname !== '/api/state'
-              || window.__lfReplayReceivedAt !== undefined) return response;
-
-          const wait = document.getAnimations()
-            .find(a => a.animationName === 'lf-presentation-wait');
-          const timing = wait.effect.getTiming();
-          wait.currentTime = timing.delay + timing.duration;
-          const current = Number(wait.currentTime);
-          const dwell = Number(getComputedStyle(document.documentElement)
-            .getPropertyValue('--lf-presentation-dwell').replace('ms', ''));
-          window.__lfReplayReceivedAt = document.timeline.currentTime;
-          window.__lfEarliestPresentation =
-            window.__lfReplayReceivedAt - current + timing.delay + dwell;
-          window.__lfPresentationAt = null;
-          new MutationObserver((changes, observer) => {
-            if (!document.body.hasAttribute('data-lf-presented')) return;
-            window.__lfPresentationAt = document.timeline.currentTime;
-            observer.disconnect();
-          }).observe(document.body, {
-            attributes: true,
-            attributeFilter: ['data-lf-presented'],
-          });
-          return response;
-        };
-        """
-    )
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(serve(SHORT_SUGGESTION), wait_until="load")
@@ -715,24 +675,14 @@ def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
             sum(pixel != (0, 0, 0) for pixel in changed.get_flattened_data()) > 100
         ), "the waiting surface did not paint enough pixels to be a useful explanation"
         assert held, "the positive control did not hold the first state response"
+        page.evaluate(
+            """() => document.documentElement.style.setProperty(
+              '--lf-presentation-dwell', '86400000ms'
+            )"""
+        )
         held.pop(0).continue_()
         page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-        release = page.evaluate(
-            """() => [
-              window.__lfPresentationAt,
-              window.__lfEarliestPresentation,
-              window.__lfReplayReceivedAt,
-            ]"""
-        )
-        assert release[2] < release[1], (
-            "the held response arrived after the dwell boundary, so the release-time "
-            f"wait was not exercised: response at {release[2]:.1f}, "
-            f"boundary at {release[1]:.1f}"
-        )
-        assert release[0] + 1 >= release[1], (
-            "the ready page cut off a waiting explanation before its CSS dwell ended: "
-            f"presentation at {release[0]:.1f}, earliest {release[1]:.1f}"
-        )
+        expect(page.locator("body > main")).to_be_visible()
         assert errors == []
     finally:
         context.close()
@@ -886,7 +836,7 @@ def test_a_page_the_suite_opens_has_read_the_log(browser, serve):
     put it — so this press meets the same page those runs handed the test above, on any
     machine and in a second.
 
-    Only a press can state it. A read lives through the interval, since `expect` re-asks
+    Only a press can state it. A read lives through the interval, since `expect` re-decisions
     for five seconds and the retry lands in two; a keystroke into a page that has no
     versions yet is gone, and the chooser never opens."""
     url = serve(LONG_PAGE)
@@ -1147,7 +1097,7 @@ def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve)
     d = serve.page_dir
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
     events = [
         json.loads(line) for line in (d / "comments.jsonl").read_text().splitlines()
@@ -1188,7 +1138,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     d = serve.page_dir
     page, errors = open_page(browser, url)
     page.get_by_role("button", name=re.compile("^Accept the suggested change")).click()
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
@@ -1230,24 +1180,29 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     page.close()
 
 
-def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
-    """The chrome is wired before the asynchronous registry fetch completes.
-    That interval is real state, not a missing-registry fallback: general Comments
-    accepts a send but holds it until the layer identity arrives, while an anchored
-    comment waits until upgrades have made the page's final words. The explicit gate
-    proves each assertion runs on the intended side of the fetch rather than racing a
-    timer."""
+def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
+    """The chrome and initial state read do not wait behind widget startup.
+
+    That interval is real state, not a missing-registry fallback: the state answer waits
+    unapplied until upgrades have captured the authored page, general Threads accepts a
+    send but holds it until the layer identity arrives, and an anchored comment waits until
+    upgrades have made the page's final words. The explicit gate proves each assertion runs
+    on the intended side of the fetch rather than racing a timer.
+    """
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
       window.lfRegistryGate = new Promise(resolve => window.lfReleaseRegistry = resolve);
-      window.fetch = (...args) => {
+      window.fetch = async (...args) => {
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
-        if (new URL(url, location.href).pathname === '/registry.json') {
+        const path = new URL(url, location.href).pathname;
+        if (path === '/registry.json') {
           window.lfRegistryBlocked = true;
           return window.lfRegistryGate.then(() => nativeFetch(...args));
         }
-        return nativeFetch(...args);
+        const response = await nativeFetch(...args);
+        if (path === '/api/state') window.lfInitialStateReceived = true;
+        return response;
       };
     """
     html = JOURNEY_V1.replace(
@@ -1270,18 +1225,23 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
         upgraded=False,
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
+    page.wait_for_function("() => window.lfInitialStateReceived === true")
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-applied", re.compile(".")
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     page.wait_for_function(
         "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
     )
     expect(page.locator("body > main")).to_be_hidden()
     expect(page.locator(".lf-banner")).to_be_visible()
-    expect(page.get_by_role("button", name=re.compile("^Comments"))).to_be_enabled()
+    expect(page.get_by_role("button", name=re.compile("^Threads"))).to_be_enabled()
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
 
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()
-    expect(page.locator(".lf-empty")).to_have_text("Loading current comments…")
+    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
     page.locator(".lf-general").get_by_role("button", name="Send").click()
@@ -1342,7 +1302,7 @@ def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
     # open_page's traffic watcher goes on outside this, so what it counts as answered is
     # what the page was handed — the held poll included, which is the whole subject here.
     page, errors = open_page(browser, serve(JOURNEY_V1), init_script=delay_second_state)
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     page.locator(".lf-general textarea").fill("Starts the slow poll")
     page.locator(".lf-general button").click()
     round_trip(page)
@@ -1383,7 +1343,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     response can enter that await before an older held poll; when the shared import
     finishes, the older continuation must not repaint the log backwards."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
 
     older = []
@@ -1438,7 +1398,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
     poll left it up to two seconds), which `told` below waits through. The quiet
     three seconds are the half of this no faster poll could pass."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     asked = _traffic(page).asked
     page.wait_for_timeout(3000)
@@ -1458,7 +1418,7 @@ def test_a_page_hears_news_without_asking_for_it(browser, serve):
 def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     """Two reads cross on two sockets: the earlier ask is answered later, with the
     newer state. Nothing the log orders tells such answers apart when neither carries
-    a new event — the status is not in the log — and the order the asks went out in
+    a new event — the status is not in the log — and the order the decisions went out in
     is the wrong order. Each answer says when the server took it, and the page keeps
     the later one without asking again."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -1479,18 +1439,18 @@ def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     with page.expect_request("**/api/state*"):
         declare("second")
     page.wait_for_timeout(0)  # yield from the request event to its route callback
-    # The stream restates its word every few seconds, and each restatement is an ask
+    # The stream restates its word every few seconds, and each restatement is a decision
     # while these stay unanswered, so there may be more than two. The first and the
     # last went out in that order, which is all that is asked of them.
     assert len(held) >= 2
     earlier, later = held[0], held[-1]
-    # The later ask is answered first; the earlier one after the page moves again.
+    # The later request is answered first; the earlier one after the page moves again.
     second = later.fetch().json()
     with page.expect_request("**/api/state*"):
         declare("third")
     page.wait_for_timeout(0)
-    stale_ask = held[-1]
-    assert stale_ask is not later
+    stale_request = held[-1]
+    assert stale_request is not later
     third = earlier.fetch().json()
     later.fulfill(json=second)
     expect(text).to_have_text(re.compile(r"^Claude is working — second"))
@@ -1498,10 +1458,10 @@ def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
     told(page)
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
     # And an answer taken before the one the page holds is turned away however late
-    # it lands and whichever ask it answers: the third ask, answered with the second
+    # it lands and whichever request it answers: the third request, answered with the second
     # answer, must not put the status back.
     with page.expect_response("**/api/state*"):
-        stale_ask.fulfill(json=second)
+        stale_request.fulfill(json=second)
     page.title()  # let the stale answer settle before reading the page again
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
     told(page)
@@ -1516,7 +1476,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     spacing a failed exchange has always had. Without that a page would sit under
     an offline banner until something else happened to it."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     page.route("**/api/state*", refuse)
     with page.expect_event(
@@ -1547,7 +1507,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     thing it knew about the server is from before the silence."""
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
-    page.get_by_role("button", name=re.compile("^Comments")).click()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     status = page.locator(".lf-status-text")
     port = serve.httpd.server_address[1]
@@ -1601,6 +1561,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
                   does: 'a project widget using the same heading' }]);
         }"""
     )
+    page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_be_visible()
     expect(page.locator(".lf-help h3", has_text="On a draft")).to_have_count(1)
@@ -1749,7 +1710,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
 
         # What the page wants back, in the agent's words, where the reader arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
-        # clipped, and a narrow window must not be why the ask goes unread.
+        # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text("Claude awaits — pick a storage engine")
         expect(text).to_have_attribute("title", "Claude awaits — pick a storage engine")
@@ -2134,12 +2095,23 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     # And the mark itself is an image the browser will render, which is the one thing
     # a string comparison above cannot say: an SVG this file mangles decodes to nothing
     # and shows as a blank tab, with no error anywhere to find it by.
-    drawn = page.evaluate("""() => new Promise((done) => {
+    page.evaluate("""() => {
         const img = new Image();
+        globalThis.__lfTabMarkWidth = null;
+        globalThis.__lfTabMarkImage = img;
+        const done = (width) => {
+          globalThis.__lfTabMarkWidth = width;
+          delete globalThis.__lfTabMarkImage;
+        };
         img.onload = () => done(img.naturalWidth);
         img.onerror = () => done(0);
         img.src = document.querySelector('link[rel=icon]').getAttribute('href');
-    })""")
+    }""")
+    page.wait_for_function(
+        "() => globalThis.__lfTabMarkWidth !== null",
+        timeout=render_checks_model.SERVED_TIMEOUT_MS,
+    )
+    drawn = page.evaluate("() => globalThis.__lfTabMarkWidth")
     assert drawn > 0, "the tab's mark is not an image the browser can decode"
     assert errors == []
     page.close()
@@ -2272,6 +2244,130 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     ) == [["api", "Ready"], ["worker", "Ready"]]
     assert page.locator("script").count() == 0, (
         "the snapshot still claims it can refresh"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
+    browser, serve, tmp_path
+):
+    source_page = leaf_page(
+        "captured source",
+        """
+<h1 id="title">Leaf skill</h1>
+<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+<p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
+""",
+    )
+    url = live_url(serve(source_page))
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_bytes(b"# Leaf\r\n\r\nOriginal instructions.\r\n")
+    long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
+    data_model.cmd_data_capture(
+        serve.page_dir, "leaf-skill", text_file, "1:3", long_label
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("lf-source figcaption")).to_have_text(
+        f"{long_label} · lines 1–3"
+    )
+    expect(page.locator("lf-source code")).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+    page.set_viewport_size({"width": 320, "height": 720})
+    assert page.locator("lf-source figcaption").evaluate(
+        "node => node.scrollWidth <= node.clientWidth"
+    )
+    page.set_viewport_size({"width": 1280, "height": 720})
+
+    data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
+    expect(page.locator("lf-source code")).to_have_text("Current instructions.\n")
+    current = (serve.page_dir / "versions" / "v1.html").read_text()
+    _publish(
+        serve.page_dir,
+        2,
+        current.replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
+        ).replace(">10 ms</lf-num>", ">11 ms</lf-num>"),
+        "froze the reviewed source",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("lf-source figcaption")).to_have_text(
+        f"{long_label} · lines 1–3 · snapshot 1"
+    )
+    expect(page.locator("lf-source code")).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+    compare_with(page, 1)
+    expect(page.locator("lf-source")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator("#latency-line")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    compare_with(page, 1)
+
+    bounds = page.locator("lf-source code").evaluate(
+        """code => {
+          const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+          let node;
+          while ((node = walker.nextNode())) {
+            const at = node.data.indexOf('Original instructions.');
+            if (at < 0) continue;
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + 'Original instructions.'.length);
+            const rect = range.getBoundingClientRect();
+            return {left: rect.left, right: rect.right, y: rect.top + rect.height / 2};
+          }
+          return null;
+        }"""
+    )
+    assert bounds is not None
+    select(page, (bounds["left"] + 1, bounds["y"]), (bounds["right"] - 1, bounds["y"]))
+    selected = page.evaluate(
+        """() => ({
+          text: getSelection().toString(),
+          anchor: getSelection().anchorNode?.parentElement?.outerHTML,
+        })"""
+    )
+    assert selected["text"], selected
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Keep this exact source.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"]["section"] == "skill-source"
+    assert comment["anchor"]["datum"] == "document"
+
+    data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Changed again.\n")
+    told(page)
+    expect(page.locator("lf-source code")).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+
+    out = tmp_path / "source-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    copy = browser.new_page()
+    copy_errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.locator('[data-lf-datum="document"] code')).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+    assert copy.locator("script").count() == 0
+    assert copy_errors == []
+    copy.close()
+    assert (
+        page.evaluate(
+            """async () => {
+          const {acceptData} = await import('/runtime/data.js');
+          try {
+            acceptData({revision: Number.MAX_SAFE_INTEGER + 1, sources: {}});
+          } catch (error) {
+            return error.message;
+          }
+          return null;
+        }"""
+        )
+        == "state data must carry a JavaScript-safe non-negative revision and sources"
     )
     assert errors == []
     page.close()

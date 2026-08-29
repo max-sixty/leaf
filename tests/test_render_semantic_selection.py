@@ -1,10 +1,13 @@
 """Keyboard semantic-selection browser journeys."""
 
+import json
 import re
 
 import pytest
 from playwright.sync_api import expect
 from render_support import (
+    DRAFT_MARK,
+    PART_DIAGRAM_PAGE,
     ROOT,
     TARGETS_PAGE,
     leaf_page,
@@ -16,32 +19,37 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
-def test_s_selects_the_passage_named_by_its_hint(browser, serve):
-    """Selection starts from an explicit target, not from an invisible caret or a
-    convention about the top of the viewport. `s` labels each visible semantic block;
-    typing the label on this paragraph makes the same native selection a pointer drag
-    would have made, and the existing c path comments on it.
-
-    The label is read from the chip beside the paragraph rather than assumed from its
-    document position. That is the contract this mode adds: the page says what a key will
-    choose before the reader presses it."""
+def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
+    """The keyboard target is the same stable item Alt-click would take. Choosing the
+    paragraph raises its item bar without making a native text selection; `c` then opens
+    an element-anchored composer."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
 
     hints = page.locator(".lf-target-hint")
-    expect(hints).to_have_count(3)  # heading, paragraph, and figcaption
+    expect(hints).to_have_count(3)  # heading, paragraph, and figure
     expect(page.locator(".lf-keyline")).to_contain_text("choose hint")
     page.keyboard.press("Tab")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
-    expect(page.locator(".lf-live")).to_contain_text("Hint a: Targets")
+    expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-live")).to_contain_text(
+        "More keyboard shortcuts shown. Press question mark again for all shortcuts"
+    )
     page.keyboard.press("?")
     expect(
         page.locator(".lf-help").get_by_role(
-            "heading", name="Selecting a passage", exact=True
+            "heading", name="Selecting an item", exact=True
         )
     ).to_be_visible()
     page.keyboard.press("Escape")
     expect(hints).to_have_count(3)  # help was a layer over the chooser, not its end
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "false")
+    expect(hints).to_have_count(3)
     prose_code = page.evaluate(
         """() => {
           const top = document.querySelector('#prose').getBoundingClientRect().top;
@@ -53,16 +61,47 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
     )
     page.keyboard.type(prose_code)
 
-    passage = " ".join(page.locator("#prose").inner_text().split())
-    selected = " ".join(page.evaluate("() => getSelection().toString()").split())
-    assert selected == passage
+    assert page.evaluate("() => getSelection().toString()") == ""
     expect(page.locator(".lf-live")).to_contain_text(
-        "Selected passage: A paragraph with enough words"
+        "Selected paragraph: A paragraph with enough words"
     )
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab")).to_be_visible()
-    expect(page.locator(".lf-keyline")).to_contain_text("comment on the selection")
+    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(0)).to_contain_text("comment on the paragraph")
+    expect(shown.nth(1).locator("kbd")).to_have_text("r")
+    expect(shown.nth(1)).to_contain_text("react")
 
+    # Hiding s from the compact projection must not disable it. It can immediately
+    # reopen the chooser to replace the captured item, and cancelling leaves the
+    # prior target in hand.
+    page.keyboard.press("s")
+    expect(hints).to_have_count(3)
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => getSelection().toString()") == ""
+    expect(page.locator(".lf-fab")).to_be_visible()
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(1).locator("kbd")).to_have_text("r")
+
+    # Both help layers leave the captured item in hand. The first Escape returns
+    # from the reference to the shelf and the second folds the shelf; only the third
+    # reaches the item's own way out.
+    page.keyboard.press("?")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "true")
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.keyboard.press("?")
+    expect(page.locator(".lf-help")).to_be_visible()
+    expect(
+        page.locator(".lf-help tr", has_text="Select a visible item by hint")
+    ).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-help")).to_be_hidden()
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-keyline")).to_have_attribute("data-lf-expanded", "false")
+    expect(page.locator(".lf-fab")).to_be_visible()
     page.keyboard.press("Escape")
     assert page.evaluate("() => getSelection().toString()") == ""
     expect(page.locator(".lf-fab")).to_be_hidden()
@@ -71,7 +110,40 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
     page.keyboard.type(prose_code)
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    assert pending_text(page) == passage
+    assert page.evaluate(DRAFT_MARK) == "prose"
+    assert pending_text(page) == ""
+    assert errors == []
+    page.close()
+
+
+def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
+    """A layer may remove the complete reaction vocabulary. Then c is the only action
+    on the captured target, so the second short-line slot keeps its ordinary way out."""
+    registry = json.loads(
+        (ROOT / "plugins/leaf/skills/leaf/packages/default/registry.json").read_text()
+    )
+    tokens = {name: None for name in registry["$reactions"]["tokens"]}
+    page, errors = open_page(
+        browser,
+        serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+    )
+    page.keyboard.press("s")
+    code = page.locator(".lf-target-hint").first.get_attribute("data-lf-target")
+    page.keyboard.type(code)
+
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
+    expect(page.locator(".lf-live")).to_contain_text("Choose a response.")
+    shown = page.locator(".lf-keyline .lf-key:not([hidden])")
+    expect(shown).to_have_count(2)
+    expect(shown.nth(0).locator("kbd")).to_have_text("c")
+    expect(shown.nth(0)).to_contain_text("comment on the heading")
+    expect(shown.nth(1).locator("kbd")).to_have_text("esc")
+    expect(shown.nth(1)).to_contain_text("unselect")
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -79,8 +151,7 @@ def test_s_selects_the_passage_named_by_its_hint(browser, serve):
 def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
     """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
     not turn every target into a two-key address. Many remain one key and only the tail
-    branches. A two-key tail hint still raises an ordinary item anchor for a visual with
-    no text to select."""
+    branches. A two-key tail hint raises the same ordinary item anchor as Alt-click."""
     figures = "".join(
         f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
         f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
@@ -137,6 +208,76 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.close()
 
 
+def test_nested_item_hints_do_not_cover_each_other(browser, serve):
+    """A container and its first child may paint the same box corner. Both remain
+    reachable, because both are item targets, and their hint faces remain distinct."""
+    html = leaf_page(
+        "nested targets",
+        '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
+        head="<style>section, p { margin: 0; }</style>",
+    )
+    page, errors = open_page(browser, serve(html))
+    page.keyboard.press("s")
+
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(2)
+    boxes = hints.evaluate_all(
+        """nodes => nodes.map(node => {
+          const { left, top, right, bottom } = node.getBoundingClientRect();
+          return { left, top, right, bottom };
+        })"""
+    )
+    assert not (
+        boxes[0]["left"] < boxes[1]["right"]
+        and boxes[1]["left"] < boxes[0]["right"]
+        and boxes[0]["top"] < boxes[1]["bottom"]
+        and boxes[1]["top"] < boxes[0]["bottom"]
+    ), boxes
+    assert errors == []
+    page.close()
+
+
+def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
+    """A declared picture part outranks its enclosing item without changing what aim
+    means. Choosing its hint raises the shared action bar; Comment then opens the
+    part-anchored composer."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page.keyboard.press("s")
+    expect(page.locator(".lf-target-hint")).to_have_count(4)
+
+    start_code = page.evaluate(
+        """() => {
+          const part = document.querySelector('#flow g[id^="flowchart-S-"]')
+            .getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-hint')]
+            .sort((a, b) => {
+              const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+              return Math.hypot(ar.left - part.left, ar.top - part.top)
+                   - Math.hypot(br.left - part.left, br.top - part.top);
+            })[0].dataset.lfTarget;
+        }"""
+    )
+    page.keyboard.type(start_code)
+
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Selected diagram: Start request. Choose a response."
+    )
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-action-target\b"))
+
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Start request")
+    expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
+    assert page.evaluate("() => getSelection().toString()") == ""
+    assert errors == []
+    page.close()
+
+
 def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     browser, serve
 ):
@@ -146,7 +287,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     at each target's corner decides whether it is actually exposed."""
     page, errors = open_page(browser, serve(ROOT / "examples" / "gallery.html"))
     resized(page, 700, 900)
-    page.get_by_role("button", name=re.compile(r"^Comments")).click()
+    page.get_by_role("button", name=re.compile(r"^Threads")).click()
     expect(page.locator(".lf-panel")).to_be_visible()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).not_to_have_count(0)
@@ -165,7 +306,7 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     )
     assert geometry["centres"]
     assert max(geometry["centres"]) < geometry["panelLeft"], (
-        f"a selection hint is painted on the covering comment panel: {geometry}"
+        f"a selection hint is painted on the covering thread panel: {geometry}"
     )
     assert errors == []
     page.close()
@@ -287,8 +428,17 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     page.keyboard.type("copper needle")
 
     expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
-    expect(page.locator(".lf-target-match")).not_to_have_count(0)
-    mark = page.locator(".lf-target-match").first.bounding_box()
+    match = page.locator(".lf-target-match").first
+    expect(match).to_be_visible()
+    mark = page.evaluate(
+        """() => {
+          const node = document.querySelector('.lf-target-match');
+          if (!node) return null;
+          const { x, y, width, height } = node.getBoundingClientRect();
+          return { x, y, width, height };
+        }"""
+    )
+    assert mark is not None
     keyline_top = page.locator(".lf-keyline").bounding_box()["y"]
     assert mark["y"] > 42 and mark["y"] + mark["height"] < keyline_top
 

@@ -34,7 +34,7 @@ def reserved_marker_errors(parser) -> list:
 
 def id_errors(parser) -> list:
     """What a parsed page's own names must not do: repeat, or trespass on the runtime's
-    own namespace — its ids, and its markers. One reader, because the two gates that ask
+    own namespace — its ids, and its markers. One reader, because the two gates that decision
     are asking the same thing of the same parser: a version, and a catalog example, which
     is markup an author writes from. Written twice, the second gate is the one that goes
     on not asking whatever the first one learns to."""

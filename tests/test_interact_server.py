@@ -373,15 +373,15 @@ def test_server_round_trip(server, page_dir):
                 "revision": 2,
                 "text": "the button reads dim",
                 "about": "layer",
-                "anchor": {"section": "lf-banner", "part": "Comments"},
+                "anchor": {"section": "lf-banner", "part": "Threads"},
             }
         ).encode(),
     )
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
-    assert design["about"] == "layer" and design["anchor"]["part"] == "Comments"
+    assert design["about"] == "layer" and design["anchor"]["part"] == "Threads"
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
-    assert "> § lf-banner · Comments  — about the layer" in transcript.output
+    assert "> § lf-banner · Threads  — about the layer" in transcript.output
     for bad in [
         {"kind": []},
         {"kind": "action", "action": "move"},  # no widget
@@ -513,7 +513,7 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     server, page_dir
 ):
-    """The declaration is the ask, and the door holds anything posting past the banner
+    """The declaration is the decision, and the door holds anything posting past the banner
     to it: a version that never asked has no approval to record."""
     publish(page_dir, version=1)
 
@@ -716,11 +716,11 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-ask"><h3>When should this ship?</h3>'
+            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-decision></section>",
         )
     )
     publish(page_dir)
@@ -761,11 +761,11 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-ask"><h3>When should this ship?</h3>'
+            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-decision></section>",
         )
     )
     publish(page_dir)
@@ -880,11 +880,11 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-ask"><h3>When should this ship?</h3>'
+            '<lf-decision id="delivery-decision"><h3>When should this ship?</h3>'
             '<lf-options id="delivery" choose>'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-decision></section>",
         )
     )
     publish(page_dir)
@@ -1178,10 +1178,10 @@ def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1256,10 +1256,10 @@ def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, pa
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1301,11 +1301,11 @@ def test_server_refuses_a_second_request_while_the_first_is_pending(server, page
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1369,11 +1369,11 @@ def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
         + COMMAND_SUBJECTS
-        + '<lf-ask id="commands-ask"><h3>What next?</h3>'
+        + '<lf-decision id="commands-decision"><h3>What next?</h3>'
         '<lf-operations id="commands" target="goal" worker="worker" worktree="tree">'
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
-        "</lf-operations></lf-ask></lf-task></lf-command>"
+        "</lf-operations></lf-decision></lf-task></lf-command>"
     )
     version = page_dir / "versions" / "v1.html"
     version.write_text(
@@ -1632,10 +1632,10 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             "Pick one:",
             "--markup",
             (
-                '<lf-ask id="thread-pick-ask"><h3>Which option?</h3>'
+                '<lf-decision id="thread-pick-decision"><h3>Which option?</h3>'
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></lf-decision>"
                 '<lf-specimen id="sample">'
                 '<lf-options id="exhibited-pick" choose>'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
@@ -1690,7 +1690,7 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
 def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     server, page_dir, in_thread
 ):
-    """A child attribute record closes the sender's standing request."""
+    """A child attribute record closes the sender's standing decision."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["x-state"]["defer"] = {
         "detail": {"type": "object", "additionalProperties": False},
@@ -1703,11 +1703,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="eligibility-ask"><h3>Which option?</h3>'
+            '<lf-decision id="eligibility-decision"><h3>Which option?</h3>'
             '<lf-options id="eligibility-options" choose>'
             '<lf-option id="eligibility-a">A</lf-option>'
             '<lf-option id="eligibility-b">B</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-decision></section>",
         )
     )
 
@@ -1737,11 +1737,11 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
                 "Here it is:",
                 "--markup",
                 (
-                    '<lf-ask id="thread-options-ask"><h3>Which option?</h3>'
+                    '<lf-decision id="thread-options-decision"><h3>Which option?</h3>'
                     '<lf-options id="thread-options" choose>'
                     '<lf-option id="thread-a">A</lf-option>'
                     '<lf-option id="thread-b">B</lf-option>'
-                    "</lf-options></lf-ask>"
+                    "</lf-options></lf-decision>"
                 ),
             ],
         )
@@ -1796,11 +1796,11 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="seated-ask"><h3>Which option?</h3>'
+            '<lf-decision id="seated-decision"><h3>Which option?</h3>'
             '<lf-options id="seated-options" choose>'
             '<lf-option id="seated-a">A</lf-option>'
             '<lf-option id="seated-b">B</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></lf-decision></section>",
         )
     )
     publish(page_dir)
@@ -1909,16 +1909,20 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             '<strong>Worker</strong><lf-worktree id="quota-tree" '
             'source="project-worktrees"></lf-worktree></lf-agent>'
             '<lf-quota id="quota" slots="1"></lf-quota>'
-            '<lf-ask id="quota-intervention-ask"><h3>Proceed?</h3>'
+            '<lf-decision id="quota-intervention-decision"><h3>Proceed?</h3>'
             '<lf-options id="quota-intervention" choose>'
             '<lf-option id="quota-ready" chosen>Ready</lf-option>'
-            "</lf-options></lf-ask>"
-            '<lf-ask id="quota-operations-ask"><h3>Restart?</h3>'
+            "</lf-options></lf-decision>"
+            '<lf-decision id="quota-operations-decision"><h3>Restart?</h3>'
             '<lf-operations id="quota-operations" target="quota-task" '
             'worker="quota-worker" worktree="quota-tree">'
             '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-            "</lf-operations></lf-ask>"
-            '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
+            "</lf-operations></lf-decision>"
+            '<lf-task id="quota-child" status="active"><strong>Child</strong>'
+            '<lf-decision id="quota-child-decision"><h3>Is the child ready?</h3>'
+            '<lf-options id="quota-child-review" choose>'
+            '<lf-option id="quota-child-ready">Ready</lf-option>'
+            "</lf-options></lf-decision></lf-task>"
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'
             "<strong>Destination</strong></lf-task>"
@@ -1965,10 +1969,6 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             "detail": {"status": "blocked"},
         },
     )
-    # The answered direct intervention takes precedence over the nested task, so the
-    # stopped parent is available while that answer and pending request stand.
-    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
-
     event_model.append_event(
         page_dir,
         {
@@ -1980,11 +1980,26 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             "detail": {"status": "blocked"},
         },
     )
-    increase = {**event, "detail": {"slots": "3"}}
-    assert fetch(f"{server}/api/event", data=json.dumps(increase).encode())[0] == 200
+    # Work status remains orthogonal, while the open child request keeps the parent
+    # aggregate awaiting even though its direct intervention is answered.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 400
+    assert "still awaiting the reader" in json.loads(body)["error"]
 
-    # Clearing the direct answer reopens that intervention. It now overrides the
-    # blocked child in the other direction and closes capacity under the same lock.
+    child_choice = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "quota-child-review",
+        "action": "choose",
+        "detail": {"options": ["quota-child-ready"]},
+    }
+    assert (
+        fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
+    )
+    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
+
+    # Clearing the direct answer reopens that intervention and closes capacity under
+    # the same lock.
     choose = {
         "kind": "action",
         "revision": revision,
@@ -2020,7 +2035,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         logged["action"]
         for logged in event_model.read_events(page_dir)
         if logged["kind"] == "action"
-    ] == ["increase", "increase", "choose", "decrease", "move", "increase"]
+    ] == ["choose", "increase", "choose", "decrease", "move", "increase"]
 
 
 def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(

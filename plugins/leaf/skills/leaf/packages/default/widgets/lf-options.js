@@ -46,7 +46,7 @@
  * In a thread the existing reply box already owns those words, so Enter reaches that
  * box and a `multiple` group grows a Done press instead: every toggle reaches
  * the agent as it lands, so the press is the one statement that the set is whole,
- * posted as an `answer` action and held as the thread ask's closing condition
+ * posted as an `answer` action and held as the thread decision's closing condition
  * (x-awaits.until). Answered is paint on the press, never a wider word, and the set can
  * still change after — each later toggle still reaches the agent, who reads the log.
  *
@@ -245,7 +245,7 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. One press,
-    // one `answer` action, and the ask this group stands as is discharged
+    // one `answer` action, and the decision this group stands as is discharged
     // (x-awaits.until). One-way — a later toggle still reaches the agent, so there
     // is nothing to take back — and the answer is paint rather than a fold, so
     // the pressed control's own line holds still.
@@ -402,7 +402,7 @@ customElements.define(
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it
-    // names, which is the same way the comment panel writes an element anchor, and
+    // names, which is the same way the thread panel writes an element anchor, and
     // chrome throughout — a thing to work and nothing else, so paper drops it.
     #reference(option) {
       const target = option.getAttribute("for");

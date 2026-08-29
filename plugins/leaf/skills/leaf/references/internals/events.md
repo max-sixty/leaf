@@ -10,7 +10,7 @@ edit (agent; message=id, replacing only that message's visible text),
 resolve (parent=id), unresolve (the reader reopening a resolved thread by parent=id),
 done (user sign-off; the banner offers it, and this door
 takes it, only on a page declaring <meta name="lf-review" content="sign-off"> —
-approval is the page's ask, and a page that asks nothing gets no terminal
+approval is the page's decision, and a page that asks nothing gets no terminal
 control at all), action (user; a widget reporting the
 user editing the document through it — widget=element id, action=verb, detail
 per widget, revision the edit was made against), report (agent; a worker's
@@ -20,7 +20,7 @@ shape as an action, validated by the widget's x-report declaration at the
 request (user; a durable, non-undoable one-shot instruction whose widget,
 action, typed detail, and revision are validated against the holder's
 `x-request` declaration and exact direct-child offers; when that declaration has
-`ask: true`, the ready lifecycle is a reader ask, acceptance hands it to the host,
+`decision: true`, the ready lifecycle is a reader decision, acceptance hands it to the host,
 and a failed receipt reopens it), receipt (agent; exactly
 one terminal `succeeded` or `failed` outcome naming a prior request), note
 (agent; one stamped checkpoint's public `version`, exact `revision`, and
@@ -58,8 +58,9 @@ An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply always
 hands the thread back to the agent, so it needs no parallel declaration. When a
-reply carries an `x-awaits` widget, the widget's standing projection declares the
-request instead; the CLI refuses a parallel `--awaits` flag on that markup.
+reply carries a widget with a local `x-awaits` or `x-request.decision` request, the
+widget's standing projection or lifecycle declares the request instead; the CLI
+refuses a parallel `--awaits` flag on that markup.
 
 `leaf edit` may revise only a comment or reply whose recorded session matches the
 posting session. It appends rather than rewriting: the original message and every
@@ -91,8 +92,8 @@ message in that thread. When the change needs clarification, the agent opens a
 separate comment thread in the same exact-section seat. That thread carries the
 version response through the stop gate while it waits on the reader; their answer
 hands both back to the agent. The original remains open until authored state in a
-later published version answers an originating open request, or changes the
-declared answer when the request was already answered. Log actions do not
+later published version answers an originating open decision, or changes the
+declared answer when the decision was already answered. Log actions do not
 substitute for that version. That is also when `leaf resolve` first accepts it.
 
 Either side can open a thread and either side can close one, and `author` is the

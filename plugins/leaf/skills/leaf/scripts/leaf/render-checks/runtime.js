@@ -44,4 +44,18 @@ export function arrange(arrangement) {
   const store = arrangement.store === "session" ? sessionStorage : localStorage;
   store.setItem(arrangement.key, arrangement.value);
 }
-export const nextFrame = () => new Promise(requestAnimationFrame);
+
+let requestedFrame = 0;
+let presentedFrame = 0;
+
+// Ask the compositor for a rendering turn without handing page.evaluate a Promise
+// whose settlement depends on that turn. The driver polls the synchronous fact below,
+// so its own deadline still runs when a stopped compositor never calls us back.
+export function requestFrame() {
+  const requested = ++requestedFrame;
+  requestAnimationFrame(() => {
+    presentedFrame = Math.max(presentedFrame, requested);
+  });
+  return requested;
+}
+export const framePresented = (requested) => presentedFrame >= requested;

@@ -404,8 +404,12 @@ projections. `x-awaits.answers` says which actions actually close the request;
 orthogonal actions do not, and neither does a conversation standing in the widget's
 declared `x-conversation` seat — that takes the request off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
-it. `x-awaits.rollup` derives a nested request from direct interventions and child
-roll-ups in Python; the browser receives the resulting ids and awaiting values.
+it. An answer or thread-completion verb cannot require its own awaiting value, or
+an aggregate parent's awaiting value, to be false: either prerequisite is circular
+while the request stands. `x-awaits.rollup`
+carries the logical OR of its nearest local requests and child
+roll-ups in Python; the aggregate owner never originates or surfaces a request. The
+browser receives the resulting ids and awaiting values.
 
 Python's `state_projection` is the durable derived view. Under the same page
 transaction as `/api/state`, `browser_state` serializes its classified events and
@@ -1120,9 +1124,11 @@ word; opening it replaces the ellipsis with the complete list. `paintPageStrip`
 builds the explicit page-wide surface above the general box. A token press closes
 the list and returns focus to the ellipsis; any standing mark remains visible as
 its own eraser.
-`awaitsReader` reads an agent comment as a question, an agent reply's explicit
-`awaits` field for prose, or the standing `x-awaits` projection of a request carried
-in that reply's markup. A `settles` token standing on that latest request answers it
+`awaitsReader` first reads any standing local `x-awaits` or `x-request.ask`
+request carried anywhere in the unresolved thread; a later plain turn does not hide
+an earlier structural request. With no such request, it reads the latest spoken turn:
+an agent comment is a question and an agent reply's explicit `awaits` field marks a
+prose request. A `settles` token standing on that latest prose request answers it
 without closing the thread.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
@@ -1987,8 +1993,8 @@ retire Comments, then presents the remembered tray directly without replaying
 opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
 tray.
 
-Ask rows come from `x-awaits` and ready holders declaring `x-request.ask`, not from a
-list of ask tags. Where an `x-awaits` source is
+Ask rows come from local `x-awaits` sources and ready holders declaring
+`x-request.ask`, not from a list of ask tags. Where an `x-awaits` source is
 nested in an `x-ask` region, the row names the region: its heading, context, and
 evidence are the request the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
@@ -2034,13 +2040,13 @@ answer a question the widget holds no state for, and refusing a pick over the re
 own remark would refuse them the answer they were asked for. The version-response
 resolve gate is another. Where the reader is standing is the third, through
 `unansweredAsks`; **Standing somewhere** owns it. Frozen thread markup seats no
-conversation of its own, so only an action answers there. A `rollup` instance evaluates its own `when`,
-then matching direct non-rollup interventions, then child
-roll-ups, and finally itself as a leaf. The standing projection keeps the
-deepest open member; an enclosing `x-ask` replaces that member only on the
-visible/navigation surface. `actionAvailable` still queries whether the source or an
-ancestor's request is open. A module reading `openAsks()` calls `askSource()` when it
-needs the actionable widget rather than the reader-facing region.
+conversation of its own, so only an action answers there. A `rollup` instance is an
+aggregate-only owner: it awaits when any nearest local request or child roll-up awaits,
+but it never enters the visible list. The standing projection keeps every open local
+member; an enclosing `x-ask` replaces that member only on the visible/navigation
+surface. `actionAvailable` still queries whether the source or an ancestor's aggregate
+is open. A module reading `openAsks()` calls `askSource()` when it needs the actionable
+widget rather than the reader-facing region.
 
 ### Go-to chord
 

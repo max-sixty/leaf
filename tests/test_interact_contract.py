@@ -1515,7 +1515,7 @@ def test_a_version_response_requires_a_standing_request(page_dir):
     assert "version response but declares no x-awaits standing request" in result.output
 
     del registry["lf-diagram"]["x-conversation"]["response"]
-    registry["lf-diagram"]["x-awaits"] = {}
+    registry["lf-diagram"]["x-awaits"] = {"rollup": True}
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
@@ -1652,6 +1652,7 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ("unknown-offered-verb", "names undeclared verbs ['explode']"),
         ("unoffered-verb", "verbs ['restart'] cannot be offered"),
         ("self-framing-ask", "declares both x-ask and x-request.ask"),
+        ("dual-ask-source", "declares both x-request.ask and x-awaits"),
     ],
 )
 def test_an_x_request_declaration_closes_its_widget_boundary(
@@ -1702,6 +1703,8 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
     elif mutation == "self-framing-ask":
         operations["x-ask"] = True
         operations["x-content"] = "prose"
+    elif mutation == "dual-ask-source":
+        operations["x-awaits"] = {"rollup": True}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2203,13 +2206,16 @@ def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page)
         (
             "lf-suggestion",
             "x-awaits",
-            {"all": "approve"},
+            {"answers": ["accept"], "all": "approve"},
             "does not declare as an x-state verb",
         ),
         (
             "lf-options",
             "x-awaits",
-            {"until": {"verb": "submit", "when": {"multiple": [True]}}},
+            {
+                "answers": ["choose"],
+                "until": {"verb": "submit", "when": {"multiple": [True]}},
+            },
             "does not declare as an x-state verb",
         ),
         (
@@ -2263,18 +2269,106 @@ def test_rollup_false_is_omitted_instead_of_becoming_a_second_form(page_dir):
     assert "True was expected" in result.output
 
 
-def test_an_unconditional_request_declaration_is_valid(page_dir):
+def test_an_aggregate_only_rollup_declaration_is_valid(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"] = {}
+    registry["lf-task"]["x-awaits"] = {"rollup": True}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     assert check(page_dir).exit_code == 0
 
 
+@pytest.mark.parametrize(
+    ("declaration", "message"),
+    [
+        ({}, "local request declares no answer verbs"),
+        (
+            {"rollup": True, "when": {"status": ["review"]}},
+            "rollup also declares local request fields ['when']",
+        ),
+    ],
+)
+def test_an_awaits_declaration_has_one_request_role(page_dir, declaration, message):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-awaits"] = declaration
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
+
+
+@pytest.mark.parametrize("verb", ["choose", "answer"])
+def test_a_completion_verb_cannot_require_its_request_closed(page_dir, verb):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"][verb]["requires"] = {
+        "target": "self",
+        "awaiting": False,
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "completion verbs" in result.output
+    assert "require their own request to be closed" in result.output
+
+
+def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    state = {
+        "detail": {"type": "object", "additionalProperties": False},
+        "facet": "answer",
+        "unit": "widget",
+    }
+    registry["lf-request-parent"] = {
+        "description": "A parent request used to validate sequencing.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "items",
+        "x-upgrade": True,
+        "x-awaits": {"answers": ["answer"]},
+        "x-state": {"answer": state},
+    }
+    registry["lf-request-child"] = {
+        "description": "A child request sequenced after its parent.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-parent": ["lf-request-parent"],
+        "x-content": "none",
+        "x-upgrade": True,
+        "x-awaits": {"answers": ["answer"]},
+        "x-state": {
+            "answer": {
+                **state,
+                "requires": {"target": "parent", "awaiting": False},
+            }
+        },
+    }
+
+    assert registry_validation.validate_registry(registry, "test registry") is registry
+
+    registry["lf-request-parent"]["x-awaits"] = {"rollup": True}
+    with pytest.raises(registry_contract.RegistryError) as raised:
+        registry_validation.validate_registry(registry, "test registry")
+    assert "aggregate parents ['lf-request-parent']" in str(raised.value)
+    assert "cannot complete it" in str(raised.value)
+
+
 def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-chip"]["x-awaits"] = {}
-    registry["lf-options"]["x-parent"] = ["lf-chip"]
+    registry["lf-suggestion"]["required"].remove("id")
+    registry["lf-options"]["x-parent"] = ["lf-suggestion"]
     registry["lf-options"]["x-state"]["choose"]["requires"] = {
         "target": "parent",
         "awaiting": True,
@@ -2284,7 +2378,7 @@ def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "['lf-chip'] do not require an id" in result.output
+    assert "['lf-suggestion'] do not require an id" in result.output
 
 
 @pytest.mark.parametrize(
@@ -2969,7 +3063,14 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
         "x-content": "prose",
-        "x-awaits": {"when": {"open": [True]}},
+        "x-awaits": {"when": {"open": [True]}, "answers": ["answer"]},
+        "x-state": {
+            "answer": {
+                "detail": {"type": "object", "additionalProperties": False},
+                "facet": "answer",
+                "unit": "widget",
+            }
+        },
         "x-upgrade": False,
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))

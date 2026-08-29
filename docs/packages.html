@@ -284,52 +284,53 @@ lf-chip {
               <td><code>x-ask</code></td>
               <td>
                 What x-ask declares: an instance is the complete reading and arrival
-                region for exactly one non-quoted nested widget declaring x-awaits or
-                x-request.ask. The region begins with one direct heading, then carries
-                any context and evidence the reader needs before the control; the nested
-                widget still owns the answer and its fold or request lifecycle. The
-                banner, Asks tray, <code>a</code>/<code>A</code> walk, standing ring,
-                and <code>page state</code> name the region while action eligibility,
-                replay, and request projection name the nested widget. An arrival
-                focuses that widget's answering control but scrolls to the region's
-                start. <code>version check</code> requires the leading heading and one
-                non-quoted nested declared ask source so the two identities cannot be
+                region for exactly one non-quoted nested local request declared by
+                x-awaits or x-request.ask. The region begins with one direct heading,
+                then carries any context and evidence the reader needs before the
+                control; the nested widget still owns the answer and its fold or request
+                lifecycle. The banner, Asks tray, <code>a</code>/<code>A</code> walk,
+                standing ring, and <code>page state</code> name the region while action
+                eligibility, replay, and request projection name the nested widget. An
+                arrival focuses that widget's answering control but scrolls to the
+                region's start. <code>version check</code> requires the leading heading
+                and one non-quoted nested request source so the two identities cannot be
                 ambiguous.
               </td>
             </tr>
             <tr>
               <td><code>x-awaits</code></td>
               <td>
-                What x-awaits declares: an instance of this tag is a standing request to
-                the reader — a question with no pick, a change nobody has decided, a
-                piece of work the page says is waiting on them. One declaration is the
-                whole of it. The banner's count, the <code>a</code>/<code>A</code> walk
-                that steps them, the <code>?</code> overlay's row, and conditional
-                x-state actions are readings of one projection, so nothing names a tag
-                and the twelfth widget joins by declaring. Quoted material asks nothing
-                — an exhibited decision is a mention (x-exhibit).
-                <code>region</code> says the widget supplies the answer control but not
-                its own title: every matching instance must stand inside an x-ask, whose
-                direct heading owns the question's reading and arrival. A widget that
-                also declares x-conversation puts a box under its own request, and a
-                conversation standing in that box takes the request off the reader's
-                list for as long as it waits on the agent — whoever opened it. That is
-                not an answer: the widget's state is untouched, so a version still has
-                to record what the words settled, and an action's
-                <code>requires</code> reads the request as open. An ordinary reply or
-                resolve hands the conversation back. A version-response conversation
-                takes no reply; only authored state in a later version that answers an
-                originating open request, or changes its declared answer when the
-                request was already answered, unlocks the agent's resolve. Reader
+                What x-awaits declares: a tag either originates a standing request to
+                the reader or, with <code>rollup: true</code>, aggregates descendant
+                requests through a nested plan. A local request always names the x-state
+                verbs that answer it. A roll-up owner can expose and gate on descendant
+                requests without entering the Ask list itself. The banner's count, the
+                <code>a</code>/<code>A</code> walk that steps requests, the
+                <code>?</code> overlay's row, and conditional x-state actions are
+                readings of one projection, so nothing names a tag and a new widget
+                joins by declaring. Quoted material asks nothing — an exhibited decision
+                is a mention (x-exhibit). <code>region</code> says the widget supplies
+                the answer control but not its own title: every matching local request
+                must stand inside an x-ask, whose direct heading owns the question's
+                reading and arrival. A widget that also declares x-conversation puts a
+                box under its own request, and a conversation standing in that box takes
+                the request off the reader's list for as long as it waits on the agent —
+                whoever opened it. That is not an answer: the widget's state is
+                untouched, so a version still has to record what the words settled, and
+                an action's <code>requires</code> reads the request as open. An ordinary
+                reply or resolve hands the conversation back. A version-response
+                conversation takes no reply; only authored state in a later version that
+                answers an originating open request, or changes its declared answer when
+                the request was already answered, unlocks the agent's resolve. Reader
                 actions in the log do not substitute for that version. A widget inside a
                 thread asks like one on the page, with one bound set by frozen thread
                 markup: the thread's own reply box is already that seat, so only an
                 action can answer it there. <code>when</code> selects asking instances,
                 <code>answers</code> names exactly the x-state verbs that settle one,
-                <code>rollup</code> derives a nested request from ordinary interventions
-                and child roll-ups, <code>until</code> can require a distinct completion
-                verb for a matching thread ask, and <code>all</code> names a blanket
-                answer offered by the banner.
+                <code>rollup</code> carries the logical OR of descendant requests,
+                <code>until</code> can require a distinct completion verb for a matching
+                thread ask, and <code>all</code> names a blanket answer offered by the
+                banner.
               </td>
             </tr>
             <tr>
@@ -352,8 +353,8 @@ lf-chip {
                 an x-state or x-report value record cannot drive this predicate). It
                 projects exact-section threads textually from the whole log; Comments
                 keeps the complete interactive view. Thread markup and quoted material
-                take no second view. Where the widget is also a standing request
-                (x-awaits), the seat is where the reader deals with it in words: the
+                take no second view. Where the widget also originates a local x-awaits
+                request, the seat is where the reader deals with it in words: the
                 request leaves their list while that conversation waits on the agent,
                 rather than being counted a second time under a box they have already
                 used. It is not an answer — the widget's own state is untouched, so its

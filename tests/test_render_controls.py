@@ -1108,6 +1108,9 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
             scroll_box = page.locator(list_selector)
             scroll_box.evaluate("box => { box.scrollTop = 0; }")
+            assert scroll_box.evaluate("box => box.scrollHeight > box.clientHeight"), (
+                f"the {name} list has no scroll range to exercise"
+            )
             before = edge["now"]
             swipe(mid_x, edge["top"] - 24)
             page.wait_for_function(
@@ -2911,7 +2914,11 @@ customElements.define("lf-quota", class extends HTMLElement {
         '<lf-ask id="quota-intervention-ask"><h2>Proceed?</h2>'
         '<lf-options id="quota-intervention" choose>'
         '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options></lf-ask>'
-        '<lf-task id="child" status="active"><strong>Child</strong></lf-task>'
+        '<lf-task id="child" status="active"><strong>Child</strong>'
+        '<lf-ask id="quota-child-ask"><h2>Is the child ready?</h2>'
+        '<lf-options id="quota-child-review" choose>'
+        '<lf-option id="quota-child-ready" chosen>Ready</lf-option>'
+        "</lf-options></lf-ask></lf-task>"
         "</lf-task>"
         '<lf-task id="destination" status="active">'
         "<strong>Destination</strong></lf-task>"
@@ -2935,8 +2942,7 @@ customElements.define("lf-quota", class extends HTMLElement {
     )
     told(current)
     expect(current.locator("#task")).to_have_attribute("status", "blocked")
-    # The answered direct intervention takes precedence over the nested task, so
-    # changing the child alone does not close capacity.
+    # Status describes work only, so reports cannot create a reader prerequisite.
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -2956,9 +2962,11 @@ customElements.define("lf-quota", class extends HTMLElement {
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "false"
     )
-    current.locator("#quota-ready").click()
+    # The direct intervention remains answered. Reopening the child request alone
+    # makes the parent aggregate await and closes capacity in the current tab.
+    current.locator("#quota-child-ready").click()
     round_trip(current)
-    expect(current.locator("#quota-ready")).not_to_have_attribute("chosen", "")
+    expect(current.locator("#quota-child-ready")).not_to_have_attribute("chosen", "")
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "true"
     )

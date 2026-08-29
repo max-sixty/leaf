@@ -1114,7 +1114,7 @@ SCROLL_STILL = """(hold) => {
   }
   return performance.now() - window.__lfScrollSince > hold;
 }"""
-# Twelve things waiting, which is more than any shipped example asks and the point: the
+# Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the tray.
 MANY_ASKS_PAGE = leaf_page(
     "many asks",
@@ -1124,10 +1124,14 @@ MANY_ASKS_PAGE = leaf_page(
 <lf-tasks id="plan">
 """
     + "\n".join(
-        f'<lf-task id="t-{i}" status="review" owner="wren" ask>'
+        f'<lf-task id="t-{i}" status="review" owner="wren">'
         f"<strong>Waiting on you, item {i}</strong>"
-        f"<p>Something to decide about item {i}.</p></lf-task>"
-        for i in range(12)
+        f'<lf-ask id="t-{i}-ask"><h2>Decision {i}</h2>'
+        f'<lf-options id="t-{i}-decision" choose>'
+        f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
+        f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
+        f"</lf-options></lf-ask></lf-task>"
+        for i in range(24)
     )
     + """
 </lf-tasks>

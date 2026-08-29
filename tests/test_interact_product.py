@@ -1135,6 +1135,16 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_dir):
+    source = page_dir / "versions" / "v1.html"
+    source.write_text(
+        source.read_text().replace(
+            "</section>",
+            '<lf-command id="reply-command" label="Reply subjects">'
+            '<lf-task id="goal" status="active"><strong>Goal</strong>'
+            + COMMAND_SUBJECTS
+            + "</lf-task></lf-command></section>",
+        )
+    )
     published(page_dir)
     root = events_model.append_event(
         page_dir,
@@ -1176,14 +1186,55 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             "--awaits",
         ],
     )
+    aggregate = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--text",
+            "Should I continue?",
+            "--markup",
+            (
+                '<lf-tasks id="reply-plan"><lf-task id="reply-task" status="review">'
+                "<strong>Review</strong></lf-task></lf-tasks>"
+            ),
+            "--awaits",
+        ],
+    )
+    request_duplicate = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--text",
+            "Restart it?",
+            "--markup",
+            (
+                '<lf-ask id="reply-operations-ask"><h2>Restart it?</h2>'
+                '<lf-operations id="reply-operations" target="goal" '
+                'worker="worker" worktree="tree">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations></lf-ask>"
+            ),
+            "--awaits",
+        ],
+    )
 
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
     assert "reply markup already declares" in duplicate.output
+    assert aggregate.exit_code == 0, aggregate.output
+    assert request_duplicate.exit_code == 1
+    assert "reply markup already declares a local request" in request_duplicate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "awaits" not in replies[0]
     assert replies[1]["awaits"] is True
+    assert replies[2]["awaits"] is True
 
 
 def test_an_agent_edits_its_own_messages_without_rewriting_history(

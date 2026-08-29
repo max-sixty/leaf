@@ -236,9 +236,10 @@ outstanding request. Add `--awaits` when the reply's prose asks the reader to an
 leaf reply <page> --to <thread-id> --awaits --text "Which store should own it?"
 ```
 
-A widget whose registry entry declares `x-awaits` already joins the page's ask
-list and keeps its thread in "Waiting on you" while its declared request stands.
-Leaf refuses `--awaits` beside such markup; the widget's state is the one reading.
+A widget whose registry entry declares a local `x-awaits` or `x-request.ask`
+request already joins the page's ask list and keeps its thread in "Waiting on you"
+while that request stands. Leaf refuses `--awaits` beside such markup; the widget's
+state or request lifecycle is the one reading.
 
 Correct one of this session's sent messages without adding another turn:
 

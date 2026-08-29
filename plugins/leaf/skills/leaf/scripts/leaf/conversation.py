@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from leaf.anchor_capture import capture_anchor
-from leaf.asks import page_awaiting_values
+from leaf.asks import local_request_entry, page_awaiting_values
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import append_event
 from leaf.files import (
@@ -169,13 +169,13 @@ def cmd_reply(page_dir: Path, to: str, text, markup: str, awaits: bool = False) 
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+                    if local_request_entry(registry.get(rec["tag"]) or {})
                 }
             )
             if structural:
                 sys.exit(
                     "--awaits is for a prose question; reply markup already declares "
-                    "whether its request is open through x-awaits "
+                    "a local request "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         event = {

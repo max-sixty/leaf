@@ -34,10 +34,10 @@ def _validate_widget_state_relations(
                 "(or both remain recordless)"
             )
 
-    # Eligibility reuses the one standing-request projection. Close the target
-    # relation here: self must be an ask, and every holder a child permits must be
-    # one. Runtime evaluators then neither guess a widget family nor maintain a
-    # second representation of whether the request remains open.
+    # Eligibility reuses the one awaiting projection. Close the target relation here:
+    # self and every permitted holder must declare a local request or aggregate-only
+    # rollup. Runtime evaluators then neither guess a widget family nor maintain a
+    # second representation of whether descendant reader work remains open.
     for verb, spec in entry.get("x-state", {}).items():
         requirement = spec.get("requires")
         if not requirement:
@@ -399,6 +399,38 @@ def _validate_awaiting_units(widgets: dict, path) -> None:
             raise RegistryError(
                 f"{path}: <{tag}> x-awaits until verb `{until['verb']}` must fold "
                 "on the widget"
+            )
+        completion_verbs = set(answers)
+        if until:
+            completion_verbs.add(until["verb"])
+        self_circular = sorted(
+            verb
+            for verb in completion_verbs
+            if (entry["x-state"][verb].get("requires") or {})
+            == {"target": "self", "awaiting": False}
+        )
+        if self_circular:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits completion verbs {self_circular} "
+                "require their own request to be closed, so they cannot "
+                "complete it"
+            )
+        parent_circular = sorted(
+            verb
+            for verb in completion_verbs
+            if (entry["x-state"][verb].get("requires") or {})
+            == {"target": "parent", "awaiting": False}
+        )
+        aggregate_parents = sorted(
+            parent
+            for parent in entry.get("x-parent", [])
+            if (widgets[parent].get("x-awaits") or {}).get("rollup")
+        )
+        if parent_circular and aggregate_parents:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits completion verbs {parent_circular} "
+                f"require aggregate parents {aggregate_parents} to be closed, "
+                "so they cannot complete it"
             )
 
 

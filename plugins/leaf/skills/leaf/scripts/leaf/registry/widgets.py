@@ -375,6 +375,11 @@ def _validate_widget_predicates(
             f"{path}: <{tag}> x-request.region requires ask: true — a region "
             "owns the title of a request that joins the reader's Ask projection"
         )
+    if request.get("ask") is True and entry.get("x-awaits") is not None:
+        raise RegistryError(
+            f"{path}: <{tag}> declares both x-request.ask and x-awaits — one "
+            "widget cannot own both a lifecycle request and a state request or rollup"
+        )
     if entry.get("x-ask"):
         if "id" not in entry.get("required", []):
             raise RegistryError(f"{path}: <{tag}> x-ask does not require an id")
@@ -450,7 +455,7 @@ def _validate_widget_predicates(
             f"and static, but {dynamic} are written by value records"
         )
     response = conversation.get("response")
-    if response and entry.get("x-awaits") is None:
+    if response and (entry.get("x-awaits") is None or awaits.get("rollup")):
         raise RegistryError(
             f"{path}: <{tag}> x-conversation requires a version response but "
             "declares no x-awaits standing request"
@@ -499,6 +504,17 @@ def _validate_widget_interactions(
     # A blanket answer is one of this widget's own verbs, so the log records it
     # the way every other decision is recorded.
     answers = awaits.get("answers", [])
+    if awaits.get("rollup"):
+        local_fields = sorted(set(awaits) - {"rollup"})
+        if local_fields:
+            raise RegistryError(
+                f"{path}: <{tag}> x-awaits rollup also declares local request "
+                f"fields {local_fields}"
+            )
+    elif entry.get("x-awaits") is not None and not answers:
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits local request declares no answer verbs"
+        )
     if unknown := sorted(set(answers) - set(entry.get("x-state", {}))):
         raise RegistryError(
             f"{path}: <{tag}> x-awaits names undeclared answer verbs {unknown}"

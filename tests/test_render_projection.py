@@ -502,12 +502,12 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # prose is on screen above the one the reader was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the ask they just left.
     assert page.evaluate("""() => {
-        const ask = document.getElementById('t-baffles').getBoundingClientRect();
+        const ask = document.getElementById('t-baffles-ask').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         return earlier.bottom > 42 && earlier.bottom <= ask.top;
     }"""), "the reader is at the top of the window, where either reading would do"
     page.keyboard.press("a")
-    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-ask")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
 
@@ -677,7 +677,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
 
     # A window tall enough to hold the whole page, so body is no scroll container and
     # the browser will not focus it as a favour.
-    resized(page, 1200, 1800)
+    resized(page, 1200, 2400)
     assert not page.evaluate(
         "() => document.body.scrollHeight > document.body.clientHeight"
     ), "the page still scrolls, so this proves nothing about a short one"
@@ -752,32 +752,22 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
     page.close()
 
 
-def test_an_ask_joins_the_walk_by_being_declared(browser, serve):
-    """The list is never closed, and this is the test of it: a widget core has never
-    heard of joins the count, the walk and the overlay by its registry entry alone,
-    and the one that carried the whole feature leaves by losing its own.
-
-    Driven by rewriting the page's vendored registry, because that is exactly what a
-    project layer does — a page can add a widget to its own vocabulary, and nothing in
-    the runtime, the banner or the key may need teaching about it."""
+def test_the_ask_walk_follows_registry_declarations(browser, serve):
+    """Removing a standing-request declaration removes that widget from every Ask
+    surface without changing the runtime, banner, or keyboard walk."""
     url = serve(ASKS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
-    registry["lf-milestone"]["x-awaits"] = {"when": {"status": ["active", "blocked"]}}
     del registry["lf-suggestion"]["x-awaits"]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
 
     page, errors = open_page(browser, url)
-    # Four, minus the suggestion that stopped declaring, plus the two milestones that
-    # started — and no code anywhere knows any of those three tags.
-    expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
     for expected in [
         "live-question-ask",
-        "t-baffles",
-        "t-bath",
-        "m-build",
-        "m-install",
+        "t-baffles-ask",
+        "t-bath-ask",
     ]:
         page.keyboard.press("a")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
@@ -791,13 +781,13 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, the element wears
-    data-lf-reported rather than the user's pending mark, and a task authored
-    as a reader ask joins the banner when it is reported into `review`. Then
-    the version that answers the report by id takes the page back: replay skips
-    a report the note named, so the overruling version's own state is what
-    renders, with no provisional mark left on it. Last, the diff against the
-    base version reads the base's state as the reader saw it — report included — so the overrule
-    marks as a change even though the two files spell the same status."""
+    data-lf-reported rather than the user's pending mark. Task status remains work
+    state and never creates a reader request. Then the version that answers the report
+    by id takes the page back: replay skips a report the note named, so the overruling
+    version's own state is what renders, with no provisional mark left on it. Last, the
+    diff against the base version reads the base's state as the reader saw it — report
+    included — so the overrule marks as a change even though the two files spell the
+    same status."""
     url = serve(REPORT_PAGE)
     d = serve.page_dir
     page, errors = open_page(browser, live_url(url))
@@ -817,9 +807,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a reader listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
-    # The authored reader obligation becomes a standing ask when the report moves
-    # its task into review.
-    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
+    expect(page.locator(".lf-asks")).to_be_hidden()
 
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
@@ -838,8 +826,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # settlements resolved from `overruled`, so replay stops them
     # and the document speaks again.
     v2 = REPORT_PAGE.replace(
-        '<lf-task id="t-parser" status="active" ask>',
-        '<lf-task id="t-parser" status="active" ask overruled>',
+        '<lf-task id="t-parser" status="active">',
+        '<lf-task id="t-parser" status="active" overruled>',
     )
     stamp_page(d, v2, "not done yet")
     assert len(events_model.read_events(d)[-1]["settles"]) == 2
@@ -3399,8 +3387,9 @@ def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
 
 def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serve):
     """The panel is a second document. Its operation asks while ready, hands the
-    turn to the host while pending, and keeps its completed receipt across page
-    revisions without borrowing the page holder's lifecycle."""
+    turn to the host while pending, returns after failure, and keeps its completed
+    receipt across page revisions without borrowing the page holder's lifecycle.
+    A later plain reply does not hide that earlier structural request."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     root = events_model.append_event(
         serve.page_dir,
@@ -3428,19 +3417,56 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
             ),
         },
     )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "The operation above remains ready when you are.",
+        },
+    )
     told(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks (6)")
     page.locator(".lf-comments").click()
     panel_settled(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     operations = page.locator("#thread-commands")
     operations.get_by_role("button", name="Restart").click()
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks (5)")
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
     request = next(
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "request" and event["widget"] == "thread-commands"
     )
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(serve.page_dir),
+            request["id"],
+            "failed",
+            "--text",
+            "The worker was still shutting down",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    told(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (6)")
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
+    expect(operations).to_contain_text("restart failed")
+
+    operations.get_by_role("button", name="Restart").click()
+    round_trip(page)
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you")
+    request = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "thread-commands"
+    ][-1]
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -3772,15 +3798,21 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     page.close()
 
 
-def test_command_hub_keeps_a_real_goal_ask_outside_a_quoted_decision(browser, serve):
-    """An exhibited choice is inert evidence. It cannot answer the blocked goal
-    containing it, nor suppress that goal merely because it declares x-awaits."""
+def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, serve):
+    """An exhibited choice is inert evidence. It cannot suppress the explicit
+    request beside it in the same blocked goal."""
     command = """<lf-command id="hub-plan" label="Quoted ask">
-      <lf-task id="goal" status="blocked" ask stopped-at="2026-08-21T08:00:00Z">
+      <lf-task id="goal" status="blocked" stopped-at="2026-08-21T08:00:00Z">
         <strong>Blocked goal</strong>
         <lf-specimen id="sample"><lf-options id="example" choose>
           <lf-option id="example-a"><strong>Example only</strong></lf-option>
         </lf-options></lf-specimen>
+        <lf-ask id="real-decision-ask"><h3>What should unblock it?</h3>
+          <lf-options id="real-decision" choose>
+            <lf-option id="real-a"><strong>Proceed</strong></lf-option>
+            <lf-option id="real-b"><strong>Stop</strong></lf-option>
+          </lf-options>
+        </lf-ask>
       </lf-task>
     </lf-command>"""
     html = re.sub(
@@ -4234,7 +4266,7 @@ def test_project_widget_can_join_the_orchestration_projection(
             "additionalProperties": False,
             "x-parent": ["lf-command", "lf-area"],
             "x-content": "prose",
-            "x-awaits": {"when": {"phase": ["blocked"]}},
+            "x-awaits": {"rollup": True},
             "x-upgrade": False,
         },
         "$command": {
@@ -4257,6 +4289,12 @@ def test_project_widget_can_join_the_orchestration_projection(
 <lf-command id="hub" label="Project plan" phase="planning">
   <lf-area id="custom-goal" phase="blocked">
     <strong>Custom project goal</strong> Waiting for a project decision.
+    <lf-ask id="custom-goal-ask"><h2>How should it proceed?</h2>
+      <lf-options id="custom-goal-decision" choose>
+        <lf-option id="custom-goal-a"><strong>Proceed</strong></lf-option>
+        <lf-option id="custom-goal-b"><strong>Stop</strong></lf-option>
+      </lf-options>
+    </lf-ask>
     </lf-area>
 </lf-command>
 """,

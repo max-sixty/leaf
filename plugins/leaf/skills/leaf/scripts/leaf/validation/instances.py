@@ -2,7 +2,7 @@
 
 import re
 
-from leaf.asks import asking, quoted_in
+from leaf.asks import asking, local_request_entry, quoted_in
 from leaf.projection import enclosing_widgets
 from leaf.registry.contract import json_validator, registry_path, visual_parts
 from leaf.registry.state import retirement_slots
@@ -107,23 +107,20 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
 
 
 def ask_region_errors(lf_elements: list, registry: dict) -> list:
-    """An x-ask region frames exactly one nested declared ask source.
+    """An x-ask region frames exactly one nested local request source.
 
     One leading direct heading is the question's visible title and the region owns its
     reading and arrival, while the x-awaits or request widget owns the answer. Requiring
     both a title and one structural source makes that split unambiguous for the browser
-    walk and for `page state`; liveness still comes from the source's canonical ask
-    projection.
+    walk and for `page state`; aggregate-only rollups are targets rather than sources.
+    Liveness still comes from the source's canonical ask projection.
     """
 
     regions = [rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask")]
     sources = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        declared = (
-            entry.get("x-awaits") is not None
-            or entry.get("x-request", {}).get("ask") is True
-        )
+        declared = local_request_entry(entry)
         if not declared or quoted_in(rec, registry):
             continue
         holder = rec.get("holder")

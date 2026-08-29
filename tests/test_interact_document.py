@@ -2863,22 +2863,26 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
     assert state_json(page_dir)["asks"] == []
 
 
-def test_task_status_and_reader_ownership_are_independent(page_dir):
+def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     tasks = """<lf-tasks id="work">
       <lf-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-task>
       <lf-task id="copy" status="review"><strong>Copy review</strong></lf-task>
-      <lf-task id="future" status="active" ask><strong>Future review</strong></lf-task>
-      <lf-task id="decision" status="blocked" ask><strong>Reader decision</strong></lf-task>
-      <lf-task id="read" status="review" ask><strong>Reader review</strong></lf-task>
-      <lf-task id="release" status="review" ask><strong>Release review</strong>
-        <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
-      </lf-task>
-      <lf-task id="handoff" status="review" ask><strong>Release handoff</strong>
-        <lf-ask id="handoff-ask"><h2>Release now?</h2>
-          <lf-options id="handoff-choice" choose>
-            <lf-option id="handoff-now"><strong>Release now</strong></lf-option>
+      <lf-task id="future" status="active"><strong>Future review</strong>
+        <lf-ask id="future-ask"><h3>Review it now?</h3>
+          <lf-options id="future-review" choose>
+            <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </lf-ask>
+      </lf-task>
+      <lf-task id="decision" status="blocked"><strong>Reader decision</strong>
+        <lf-ask id="decision-ask"><h3>Which way out?</h3>
+          <lf-options id="decision-options" choose>
+            <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
+          </lf-options>
+        </lf-ask>
+      </lf-task>
+      <lf-task id="release" status="review"><strong>Release review</strong>
+        <lf-task id="release-build" status="done"><strong>Build release</strong></lf-task>
       </lf-task>
     </lf-tasks>"""
     (page_dir / "versions" / "v1.html").write_text(
@@ -2887,46 +2891,24 @@ def test_task_status_and_reader_ownership_are_independent(page_dir):
     publish(page_dir)
 
     assert state_json(page_dir)["asks"] == [
-        {"id": "decision", "tag": "lf-task", "thread": None},
-        {"id": "read", "tag": "lf-task", "thread": None},
-        {"id": "release", "tag": "lf-task", "thread": None},
-        {"id": "handoff-ask", "tag": "lf-ask", "thread": None},
-    ]
-
-    events_model.append_event(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "handoff-choice",
-            "action": "choose",
-            "detail": {"options": ["handoff-now"]},
-        },
-    )
-    assert state_json(page_dir)["asks"] == [
-        {"id": "decision", "tag": "lf-task", "thread": None},
-        {"id": "read", "tag": "lf-task", "thread": None},
-        {"id": "release", "tag": "lf-task", "thread": None},
-        {"id": "handoff", "tag": "lf-task", "thread": None},
+        {"id": "future-ask", "tag": "lf-ask", "thread": None},
+        {"id": "decision-ask", "tag": "lf-ask", "thread": None},
     ]
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report closes the ask its status change resolves, stands in
-    the canonical update feed with the record lag beside it, and remains there as
-    settled history when a note absorbs it."""
+    """A standing report updates task status without creating reader work, stands in
+    the canonical update feed, and remains there as settled history when a note
+    absorbs it."""
     tasks = (
-        '<lf-tasks id="work"><lf-task id="t-parser" status="review" ask>'
+        '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong> Ready for eyes.</lf-task></lf-tasks>"
     )
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
-        {"id": "t-parser", "tag": "lf-task", "thread": None}
-    ]
+    assert state_json(page_dir)["asks"] == []
     rep = events_model.append_event(
         page_dir,
         {
@@ -3114,20 +3096,24 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     assert "unpointable" not in result.output
 
 
-def test_a_quoted_ask_does_not_hide_the_goal_that_contains_it(page_dir):
+def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
         '<lf-command id="hub">'
-        '<lf-task id="goal" status="blocked" ask><strong>Blocked goal</strong>'
+        '<lf-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-specimen id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
-        "</lf-options></lf-specimen></lf-task></lf-command>"
+        "</lf-options></lf-specimen>"
+        '<lf-ask id="real-ask"><h3>What next?</h3>'
+        '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
+        '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
+        "</lf-task></lf-command>"
     )
     (page_dir / "versions" / "v1.html").write_text(
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "goal", "tag": "lf-task", "thread": None}
+        {"id": "real-ask", "tag": "lf-ask", "thread": None}
     ]
 
 

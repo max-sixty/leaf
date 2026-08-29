@@ -2280,7 +2280,9 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
     server hands the browser can hold a reply whose message is gone. The panel is built
     by walking replies onto their parents, and the walk threw where the parent was
     missing — taking down not the thread but the whole reconcile, on a page whose log
-    had already been read successfully by the side that wrote it."""
+    had already been read successfully by the side that wrote it. The missing id stays
+    the recovered thread's identity, so a structural Ask in one surviving reply also
+    stays visible after a later plain reply."""
     url = serve(REPLY_TRAVEL_PAGE)
     d = serve.page_dir
     events_model.append_event(
@@ -2302,6 +2304,24 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
             "parent": "tv-lost",
             "revision": 1,
             "text": "the answer that survived it",
+            "markup": (
+                '<lf-ask id="tv-ask"><h2>Which recovery should we use?</h2>'
+                '<lf-options id="tv-choice" choose>'
+                '<lf-option id="tv-retry">Retry</lf-option>'
+                '<lf-option id="tv-stop">Stop</lf-option>'
+                "</lf-options></lf-ask>"
+            ),
+        },
+    )
+    events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "id": "tv-later",
+            "author": "claude",
+            "parent": "tv-kept",
+            "revision": 1,
+            "text": "the later plain reply",
         },
     )
     log = d / "comments.jsonl"
@@ -2312,10 +2332,13 @@ def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serv
 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
+    expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
     page.locator(".lf-comments").click()
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
     expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
+    expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
+    expect(page.locator(".lf-needs")).to_have_text("Waiting on you (1)")
     assert errors == []
     page.close()
 

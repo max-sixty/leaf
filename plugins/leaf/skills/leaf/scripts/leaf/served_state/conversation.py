@@ -1,6 +1,6 @@
 """Conversation-scoped browser projection."""
 
-from ..asks import thread_ask_projection
+from ..asks import local_request_entry, thread_ask_projection
 from ..events import (
     awaits_agent,
     bare_reaction,
@@ -29,13 +29,17 @@ def _thread_projection(events: list, registry: dict):
 
 
 def _thread_awaits_reader(
+    thread_id: str,
     thread: dict,
     registry: dict,
     awaiting: dict[str, bool],
     structure,
+    open_ask_threads: set[str],
 ) -> bool:
     if thread["resolved"]:
         return False
+    if thread_id in open_ask_threads:
+        return True
     turns = spoken_turns(thread)
     if not turns or turns[-1]["author"] != "claude":
         return False
@@ -45,7 +49,7 @@ def _thread_awaits_reader(
         asks = [
             rec["attrs"].get("id")
             for rec in (fragment.lf_elements if fragment else [])
-            if (registry.get(rec["tag"]) or {}).get("x-awaits") is not None
+            if local_request_entry(registry.get(rec["tag"]) or {})
         ]
         structural = (
             any(awaiting.get(identity, False) for identity in asks) if asks else None
@@ -86,17 +90,18 @@ def _browser_conversation(
         prepared=prepared,
         request_phases=request_phases(requests),
     )
+    open_ask_threads = {ask["thread"] for ask in asks}
     rendered_threads = [
         {
             **thread,
             "awaits_agent": awaits_agent(thread),
             "awaits_reader": _thread_awaits_reader(
-                thread, registry, awaiting, structure
+                thread_id, thread, registry, awaiting, structure, open_ask_threads
             ),
             "bare_reaction": bare_reaction(thread),
             "seat": seat_root(thread),
         }
-        for thread in threads.values()
+        for thread_id, thread in threads.items()
     ]
     return (
         {

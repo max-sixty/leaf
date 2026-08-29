@@ -10,7 +10,7 @@
     }
   },
   "lf-ask": {
-    "description": "One complete request to the reader: begin with one direct heading stating the question, then include any context or evidence needed to answer it and exactly one non-quoted widget whose entry declares x-awaits or x-request.ask. The nested widget still owns the action or external-request lifecycle and determines whether the request is open. The authored heading is the Ask's title: it stays in the document's reading, gives the Asks tray its name, and is where `a`/`A` arrives. Keep an ordinary semantic section around the Ask when the document needs a section landmark. The wrapper adds no frame or caption of its own.",
+    "description": "One complete request to the reader: begin with one direct heading stating the question, then include any context or evidence needed to answer it and exactly one non-quoted widget whose entry declares a local request through x-awaits or x-request.ask. The nested widget still owns the action or external-request lifecycle and determines whether the request is open. The authored heading is the Ask's title: it stays in the document's reading, gives the Asks tray its name, and is where `a`/`A` arrives. Keep an ordinary semantic section around the Ask when the document needs a section landmark. The wrapper adds no frame or caption of its own.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}

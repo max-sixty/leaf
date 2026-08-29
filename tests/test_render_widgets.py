@@ -1334,8 +1334,8 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
     suggestions, and silently nothing for every other thing a page waits on. What
     makes an instance an ask is now the entry's own attribute condition, and the entry
     explicitly names which state verbs answer it — so this page's four are
-    a question with no pick, a change nobody has decided, and the two tasks whose
-    status says they are waiting.
+    a decision, a change nobody has decided, and two explicit questions nested in
+    tasks.
 
     The rest of the page is every way of not being one, and each was a way of getting
     it wrong: a group whose pick the version already carries (`chosen`, with nothing in
@@ -1376,9 +1376,9 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     at the last one would strand the reader there.
 
     The landing is marked on the ask and focused on the control that answers it, so
-    the reader can see what they were brought to and Tab straight into working it —
-    on a suggestion that control is the ✓ Accept hoisted into the page margin, and
-    the walk follows it out there."""
+    the reader can see what they were brought to and answer it immediately. On a
+    suggestion that control is the ✓ Accept hoisted into the page margin, and the walk
+    follows it out there."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
     for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:  # one past the end: it wraps
@@ -1398,8 +1398,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     assert walked == [
         "span lf-pick lf-ui",  # the question: its first pick mark
         "span lf-pill lf-sug-accept lf-ui",  # ✓ Accept, in the margin
-        "lf-task ",  # a task holds no control, so it takes the focus itself
-        "lf-task ",
+        "span lf-pick lf-ui",  # the task's nested review question
+        "span lf-pick lf-ui",
         "span lf-pick lf-ui",
     ], f"the walk landed on something else: {walked}"
 
@@ -1413,11 +1413,8 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
 
-    # The stop the walk lends an ask that holds nothing to work goes back when it moves
-    # on. The two tasks here are one after the other, which is what makes the leak
-    # reachable at all: the stop is paint on the author's element, and one left standing
-    # is a tab stop no author wrote in a page the replay signature reads attribute by
-    # attribute.
+    # Every request has an answering control, so the walk never has to lend a tab stop
+    # to authored content.
     expect(page.locator(STANDING_ASK)).to_have_count(1)
     # Asked of the tag's dash, the platform's own mark of a widget element, which is what
     # the export's own sweep for stray stops asks (BAKE).
@@ -1443,7 +1440,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
     page.keyboard.press("a")
-    expect(page.locator("#t-baffles")).to_be_focused()
+    expect(page.locator("#t-baffles-review .lf-pick").first).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1526,14 +1523,14 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     # why it is the ask they step off rather than the one they step to.
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.keyboard.press("a")
-    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-baffles-ask")).to_have_attribute("data-lf-ask", "1")
 
     # The banner's press opens the tray and keeps the focus, so the walk after it
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     page.locator(".lf-asks").click()
     page.keyboard.press("a")
-    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-ask")).to_have_attribute("data-lf-ask", "1")
 
     # A selection outranks the mark, because it is the reader saying where they are
     # since the walk last moved them: from a task above the two the walk has just been
@@ -1547,7 +1544,7 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
 
     drag_over_the_done_task()
     page.keyboard.press("a")
-    expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-baffles-ask")).to_have_attribute("data-lf-ask", "1")
     drag_over_the_done_task()
     page.keyboard.press("Shift+a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
@@ -2071,9 +2068,9 @@ def test_the_asks_control_opens_what_the_page_is_waiting_for(browser, serve):
     assert said["live-question-ask"].startswith("Where should sessions live?"), said[
         "live-question-ask"
     ]
-    # A task's title is its own words already, so it needs no label to read out of
-    # context — which is what says the row reads the element rather than the attribute.
-    assert said["t-baffles"].startswith("Fit squirrel baffles"), said["t-baffles"]
+    assert said["t-baffles-ask"].startswith("Are the baffles ready?"), said[
+        "t-baffles-ask"
+    ]
 
     # Answered, and the row goes with the ask. The tray emptying is the progress, so
     # what is left on it is what is left to do — never a burn-down of everything done.
@@ -2143,27 +2140,25 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
 
     # The last of the four, which a short window leaves well off screen.
     on_screen = """() => {
-      const r = document.querySelector('#t-bath').getBoundingClientRect();
+      const r = document.querySelector('#t-bath-ask').getBoundingClientRect();
       return r.top >= 0 && r.bottom <= innerHeight;
     }"""
     assert not page.evaluate(on_screen), (
-        "the fixture must start with #t-bath off screen"
+        "the fixture must start with #t-bath-ask off screen"
     )
 
-    page.locator("button.lf-asks-row[data-lf-at='t-bath']").click()
+    page.locator("button.lf-asks-row[data-lf-at='t-bath-ask']").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
-    # This blocked task explicitly asks the reader in its own prose. It has no control
-    # of its own, so the task itself takes focus — the landing is a place to stand.
-    expect(page.locator("#t-bath")).to_be_focused()
-    expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
+    expect(page.locator("#t-bath-ask")).to_have_attribute("data-lf-ask", "1")
     # The covering tray has gone, so its projected rows go with it. The page carries the
     # one standing mark rather than leaving a second, hidden authority in the closed tray.
     marked = page.evaluate(
         """() => [...document.querySelectorAll('[data-lf-ask]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""
     )
-    assert sorted(set(marked)) == ["t-bath"], marked
+    assert sorted(set(marked)) == ["t-bath-ask"], marked
     assert errors == []
     page.close()
 

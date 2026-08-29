@@ -58,8 +58,9 @@ An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply always
 hands the thread back to the agent, so it needs no parallel declaration. When a
-reply carries an `x-awaits` widget, the widget's standing projection declares the
-request instead; the CLI refuses a parallel `--awaits` flag on that markup.
+reply carries a widget with a local `x-awaits` or `x-request.ask` request, the
+widget's standing projection or lifecycle declares the request instead; the CLI
+refuses a parallel `--awaits` flag on that markup.
 
 `leaf edit` may revise only a comment or reply whose recorded session matches the
 posting session. It appends rather than rewriting: the original message and every

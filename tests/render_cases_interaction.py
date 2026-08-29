@@ -480,8 +480,22 @@ ASKS_PAGE = leaf_page(
 </lf-suggestion>
 <lf-tasks id="plan">
   <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-  <lf-task id="t-baffles" status="review" owner="finch" ask><strong>Fit squirrel baffles</strong></lf-task>
-  <lf-task id="t-bath" status="blocked" ask><strong>Heat the bird bath</strong></lf-task>
+  <lf-task id="t-baffles" status="review" owner="finch"><strong>Fit squirrel baffles</strong>
+    <lf-ask id="t-baffles-ask"><h2>Are the baffles ready?</h2>
+      <lf-options id="t-baffles-review" choose>
+        <lf-option id="t-baffles-approve"><strong>Approve</strong></lf-option>
+        <lf-option id="t-baffles-revise"><strong>Request changes</strong></lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-task>
+  <lf-task id="t-bath" status="blocked"><strong>Heat the bird bath</strong>
+    <lf-ask id="t-bath-ask"><h2>How should the bath proceed?</h2>
+      <lf-options id="t-bath-decision" choose>
+        <lf-option id="t-bath-wait"><strong>Wait for the transformer</strong></lf-option>
+        <lf-option id="t-bath-skip"><strong>Leave it unheated</strong></lf-option>
+      </lf-options>
+    </lf-ask>
+  </lf-task>
   <lf-task id="t-camera" status="active"><strong>Mount the camera</strong></lf-task>
 </lf-tasks>
 <lf-ask id="honored-ask"><h2>Which gate design?</h2>
@@ -508,7 +522,12 @@ ASKS_PAGE = leaf_page(
 </lf-specimen>
 """,
 )
-ASKS_IN_ORDER = ["live-question-ask", "sug-refill", "t-baffles", "t-bath"]
+ASKS_IN_ORDER = [
+    "live-question-ask",
+    "sug-refill",
+    "t-baffles-ask",
+    "t-bath-ask",
+]
 
 
 ASK_WITH_CONTEXT_PAGE = leaf_page(
@@ -777,7 +796,7 @@ REPORT_PAGE = leaf_page(
 <lf-tasks id="plan">
   <lf-task id="t-feeders" status="active" owner="wren"><strong>Rebuild the feeders</strong>
     <lf-task id="t-mounts" status="done"><strong>Replace the mounts</strong></lf-task>
-    <lf-task id="t-parser" status="active" ask><strong>Fit squirrel baffles</strong></lf-task>
+    <lf-task id="t-parser" status="active"><strong>Fit squirrel baffles</strong></lf-task>
   </lf-task>
 </lf-tasks>
 """,

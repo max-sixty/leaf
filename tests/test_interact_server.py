@@ -1918,7 +1918,11 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             'worker="quota-worker" worktree="quota-tree">'
             '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
             "</lf-operations></lf-ask>"
-            '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
+            '<lf-task id="quota-child" status="active"><strong>Child</strong>'
+            '<lf-ask id="quota-child-ask"><h3>Is the child ready?</h3>'
+            '<lf-options id="quota-child-review" choose>'
+            '<lf-option id="quota-child-ready">Ready</lf-option>'
+            "</lf-options></lf-ask></lf-task>"
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'
             "<strong>Destination</strong></lf-task>"
@@ -1965,10 +1969,6 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             "detail": {"status": "blocked"},
         },
     )
-    # The answered direct intervention takes precedence over the nested task, so the
-    # stopped parent is available while that answer and pending request stand.
-    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
-
     event_model.append_event(
         page_dir,
         {
@@ -1980,11 +1980,26 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
             "detail": {"status": "blocked"},
         },
     )
-    increase = {**event, "detail": {"slots": "3"}}
-    assert fetch(f"{server}/api/event", data=json.dumps(increase).encode())[0] == 200
+    # Work status remains orthogonal, while the open child request keeps the parent
+    # aggregate awaiting even though its direct intervention is answered.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 400
+    assert "still awaiting the reader" in json.loads(body)["error"]
 
-    # Clearing the direct answer reopens that intervention. It now overrides the
-    # blocked child in the other direction and closes capacity under the same lock.
+    child_choice = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "quota-child-review",
+        "action": "choose",
+        "detail": {"options": ["quota-child-ready"]},
+    }
+    assert (
+        fetch(f"{server}/api/event", data=json.dumps(child_choice).encode())[0] == 200
+    )
+    assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
+
+    # Clearing the direct answer reopens that intervention and closes capacity under
+    # the same lock.
     choose = {
         "kind": "action",
         "revision": revision,
@@ -2020,7 +2035,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         logged["action"]
         for logged in event_model.read_events(page_dir)
         if logged["kind"] == "action"
-    ] == ["increase", "increase", "choose", "decrease", "move", "increase"]
+    ] == ["choose", "increase", "choose", "decrease", "move", "increase"]
 
 
 def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(

@@ -3157,10 +3157,6 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     assert check(page_dir).exit_code == 0
-    assert (
-        CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)]).exit_code
-        == 0
-    )
     assert service_model.owned_pages("s7") == []
     # `page init` left the page "working", which is the state the guard blocks on —
     # but only for a page some session answers for, and none does.

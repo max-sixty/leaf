@@ -41,9 +41,11 @@ codex plugin add leaf@leaf
 ```
 
 No config or account is required. It needs
-[`uv`](https://docs.astral.sh/uv/) on `PATH` (`interact.py` declares its dependencies
-in a PEP 723 header, and `uv` resolves them through whatever index you have already
-configured) and a browser on the same machine as the session.
+[`uv`](https://docs.astral.sh/uv/) and
+[`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (`interact.py`
+declares its Python dependencies in a PEP 723 header, and `uv` resolves them through
+whatever index you have already configured), plus a browser on the same machine as the
+session.
 
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is

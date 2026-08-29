@@ -5,8 +5,8 @@ page, re-vendoring, or a page previously owned by another session.
 
 ## Exported files
 
-When `$ARGUMENTS` asks for `--export`, initialize, catalog, author, and stamp as
-usual, then run:
+When `$ARGUMENTS` asks for `--export`, initialize, query the page registry,
+author, and stamp as usual, then run:
 
 ```bash
 leaf version export <page> -o <file>

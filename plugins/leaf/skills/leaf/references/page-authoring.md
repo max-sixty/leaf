@@ -1,9 +1,60 @@
 # Page authoring
 
 Read this before writing or revising a version.
-`leaf page catalog <page>` is the authority for the page's vendored widgets,
-attributes, examples, theme idioms, and composed guidance for authors; read it
-before authoring.
+
+## Read the registry
+
+`<page>/registry.json` is the page's complete vendored vocabulary. Start with a
+compact index that lists every widget's purpose and authored attributes, plus
+every layer fact except runtime event schemas and vendoring records, without
+printing their full contracts:
+
+```bash
+registry="<page>/registry.json"
+jq '{
+  widgets: [
+    to_entries[]
+    | select(.key | startswith("lf-"))
+    | {
+        tag: .key,
+        purpose: (.value.title // .value.description // ""),
+        attributes: (
+          (.value.properties // {})
+          | with_entries(
+              .value |= (
+                if type == "object" then
+                  {type, enum, const}
+                  | with_entries(select(.value != null))
+                else
+                  {schema: .}
+                end
+              )
+            )
+        ),
+        required: (.value.required // []),
+        content: .value["x-content"]
+      }
+  ],
+  facts: [
+    keys[]
+    | select(startswith("$") and . != "$events" and . != "$layer")
+  ]
+}' "$registry"
+```
+
+Then read the complete entries only for the widgets and facts the page will use:
+
+```bash
+registry="<page>/registry.json"
+jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
+```
+
+The compact purpose is the entry's JSON Schema `title`, falling back to its full
+description for an entry that has no title. The selected entries own the complete
+descriptions, examples, content and parent rules, and behavioral contracts.
+Package-defined tags and `$` facts join the same file, so discovery never depends
+on a shipped tag list. `leaf page guidance <page>` lists the composed guidance
+audiences; read `author` when it is present.
 
 ## Document scaffold
 
@@ -29,7 +80,7 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
 
 ## Theme and vocabulary
 
-Write semantic HTML and use the catalog's class idioms. The vendored theme owns
+Write semantic HTML and use the registry's class idioms. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
 
@@ -37,7 +88,7 @@ Widget attributes carry scalars; children carry prose; an item's title is a
 leading `<strong>`. A data-bodied widget such as `lf-diagram` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
-catalog is the only widget vocabulary.
+registry is the only widget vocabulary.
 
 The runtime injects the status banner, thread panel, version picker, keyboard
 shortcuts, live-leaves tray, and open-decisions tray. Authors declare reader
@@ -50,7 +101,7 @@ width. A table that scrolls has every column at its longest unbreakable run,
 and the browser gate refuses one that scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where
 it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose catalog
+what the measure holds. Widgets whose registry
 entry declares a wide shape size themselves; fix a diagram that is too wide in
 its source rather than pinning a page width.
 
@@ -228,8 +279,8 @@ time, a ranking, a composition, two numbers against each other. A handful of num
 carry is prose; a chart is for when the shape of the numbers is the point. Use
 inline SVG only for a bespoke drawing. Use `<pre><code class="language-…">` for
 selectable literal source and `lf-code` for a line-numbered walkthrough. The
-catalog lists accepted language names. Keep logs and transcripts plain when they
-are not source code.
+registry's `$languages.names` lists accepted language names. Keep logs and
+transcripts plain when they are not source code.
 
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with

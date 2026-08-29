@@ -2558,7 +2558,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
 def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
     """$keys documents each x- key an entry may declare, and exactly those: a member
     for a key the lint doesn't admit is documentation of nothing, and one missing is a
-    key the catalog then leaves unsaid. A project layer overrides a member (its own
+    key the registry then leaves unsaid. A project layer overrides a member (its own
     reading of a key) and adds none — the set is closed where the keys are checked."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
@@ -2577,8 +2577,6 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
     assert keys["x-wide"] == "wider, in this project"
     assert keys["x-says"]  # the rest of the shipped members stand
-    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    assert "wider, in this project" in catalog.output
 
 
 @pytest.mark.parametrize("field", ["restated", "session"])

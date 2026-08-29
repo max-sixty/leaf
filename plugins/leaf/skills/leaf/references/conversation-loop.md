@@ -267,7 +267,8 @@ The reader's cheapest answer is a token: `ok` `no` `lost` `cut` `more` `this`
 as the default package ships them, on a passage, an element, the page whole, or
 one of your replies. `page state` lists every standing one under `reactions`,
 each with its `means`, and the tokens themselves are the page's vendored
-`$reactions` (`page catalog`), so a project's own tokens read the same way. An
+`$reactions` entry in `registry.json`, so a project's own tokens read the same
+way. An
 `ok` on your latest reply request takes the thread out of "waiting on you";
 no reply is owed for it. Resolve a page reaction once the live revision has acted
 on it.

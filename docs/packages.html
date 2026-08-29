@@ -131,9 +131,8 @@ leaf package check packages/callout</code></pre>
           audience names; Leaf does not keep a role list.
           <code>leaf page guidance PAGE</code> lists the vendored audiences, and
           <code>leaf page guidance PAGE AUDIENCE</code> composes the package-wide,
-          contract, and widget guidance for one audience. The complete
-          <code>author</code> reading also follows the merged vocabulary in
-          <code>page catalog</code>.
+          contract, and widget guidance for one audience. Authors query the merged
+          vocabulary directly from the page's <code>registry.json</code>.
         </p>
         <p>
           <code>--package</code> accepts an optional bundled name or a project-relative
@@ -257,8 +256,8 @@ lf-chip {
           <code>theme.css</code> in the package that owns it.
         </p>
         <p>
-          The entry's example appears in <code>catalog</code>, so an agent working in
-          the project can discover and use it:
+          The entry and its example appear in the merged <code>registry.json</code>, so
+          an agent working in the project can discover and use it:
         </p>
         <pre><code>&lt;lf-callout id="migration-warning"&gt;
   &lt;strong&gt;Migration window&lt;/strong&gt;
@@ -266,10 +265,13 @@ lf-chip {
 &lt;/lf-callout&gt;</code></pre>
         <p>
           Edit the package's <code>registry.json</code> to declare attributes, child
-          relationships, or a different content model. The entry is JSON Schema over the
-          element's attributes. Leaf's <code>x-*</code> keys connect that schema to the
-          rest of the page — the registry documents each under <code>$keys</code>, which
-          <code>page catalog</code> prints and this table is written from:
+          relationships, or a different content model. Set its JSON Schema
+          <code>title</code> to a short purpose an author can use during compact
+          discovery; an entry without one falls back to its full
+          <code>description</code>. The entry is JSON Schema over the element's
+          attributes. Leaf's <code>x-*</code> keys connect that schema to the rest of
+          the page — the registry documents each under <code>$keys</code>, which agents
+          can query directly and this table is written from:
         </p>
         <table>
           <thead>
@@ -399,8 +401,8 @@ lf-chip {
               <td><code>x-example</code></td>
               <td>
                 Authored markup exhibiting the widget, valid against the merged
-                registry: <code>page catalog</code> shows it, it is what an agent writes
-                from, and the lint refuses one that does not validate.
+                registry: an agent reads it with the widget entry, writes from it, and
+                the lint refuses one that does not validate.
               </td>
             </tr>
             <tr>
@@ -894,7 +896,7 @@ leaf data clear PAGE release-ci</code></pre>
         <h2>Vendor and check the result</h2>
         <pre><code>leaf package check .leaf
 leaf page init &lt;page-dir&gt;
-leaf page catalog &lt;page-dir&gt;
+jq '.["lf-callout"], .["$keys"]' &lt;page-dir&gt;/registry.json
 leaf page guidance &lt;page-dir&gt;</code></pre>
         <p>
           Then use the custom element in the page's next

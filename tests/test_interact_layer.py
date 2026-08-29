@@ -119,7 +119,6 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  catalog   Print the widget and theme vocabulary.
   guidance  List or print composed guidance by audience.
   init      Create or re-vendor a page directory.
   media     Add images and print their page paths.
@@ -749,13 +748,12 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 
 
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
-    """A project idiom joins the shipped catalog; a restated one replaces its member.
+    """A project idiom joins the shipped registry; a restated one replaces its member.
 
     $ entries merge one level deep. Under replace-whole, the first project layer
     to declare an idiom vendored a $idioms holding only its own: the shipped
-    idioms' CSS kept styling (theme files concatenate), while `page catalog`
-    stopped documenting them — a silent wipe of everything the layer didn't
-    restate.
+    idioms' CSS kept styling (theme files concatenate), while the vendored registry
+    stopped declaring them — a silent wipe of everything the layer didn't restate.
     """
     project = tmp_path / "proj"
     layer = project / ".leaf"
@@ -2368,25 +2366,8 @@ def test_page_init_vendors_an_explicit_package_without_privileging_it(
     plain_audiences = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(plain)]
     )
-    plain_catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(plain)])
-    packaged_catalog = CliRunner().invoke(
-        cli_model.cli, ["page", "catalog", str(command)]
-    )
     assert plain_audiences.exit_code == 0, plain_audiences.output
     assert plain_audiences.output == ""
-    assert plain_catalog.exit_code == 0, plain_catalog.output
-    assert packaged_catalog.exit_code == 0, packaged_catalog.output
-    assert '"lf-worktree"' not in plain_catalog.output
-    assert '"lf-worktree"' in packaged_catalog.output
-    assert "# Widget `<lf-worktree>`" in packaged_catalog.output
-    assert (
-        packaged_registry["lf-worktree"]["x-guidance"]["author"]
-        in packaged_catalog.output
-    )
-    assert "# Guidance for authors" not in plain_catalog.output
-    assert "# $command, declared by this layer." in packaged_catalog.output
-    assert "# Guidance for authors" in packaged_catalog.output
-    assert "# Command Hub package" in packaged_catalog.output
     audiences = CliRunner().invoke(cli_model.cli, ["page", "guidance", str(command)])
     coordinator = CliRunner().invoke(
         cli_model.cli, ["page", "guidance", str(command), "coordinator"]

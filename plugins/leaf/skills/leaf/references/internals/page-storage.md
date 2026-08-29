@@ -24,9 +24,8 @@ A page directory holds:
                          x-state): the one statement of what this page's vendored
                          runtime speaks
     guidance/            package-owned guidance grouped by audience. Files with the
-                         same name concatenate in package order; `page catalog` adds
-                         author.md to the vocabulary, while `page guidance` reads any
-                         audience
+                         same name concatenate in package order; `page guidance` reads
+                         any audience
     icon.svg             the mark the tab wears, whose lf-tone element the runtime
                          paints in whatever colour the banner's dot is wearing — so a
                          reader with six leaves open sees which one wants them

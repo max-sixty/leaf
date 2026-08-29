@@ -16,7 +16,7 @@ from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_stop, start_server
 from leaf.media import cmd_media
 from leaf.packages import cmd_package_check, cmd_package_init
-from leaf.page import cmd_catalog, cmd_guidance
+from leaf.page import cmd_guidance
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
 from leaf.requests import cmd_receipt
@@ -158,13 +158,6 @@ def media(dir: str, files) -> None:
     """
     for src, url in cmd_media(resolve_dir(dir), [Path(f) for f in files]):
         print(f"{url}\t{src}")
-
-
-@page.command(short_help="Print the widget and theme vocabulary.")
-@click.argument("dir", metavar="PAGE")
-def catalog(dir: str) -> None:
-    """Print the page's widget and theme vocabulary."""
-    cmd_catalog(resolve_dir(dir))
 
 
 @page.command(short_help="List or print composed guidance by audience.")

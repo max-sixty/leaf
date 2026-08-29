@@ -73,8 +73,7 @@ A widget attaches its own guidance through `x-guidance`, while a data contract m
 carry producer guidance beside its schema. Packages define audiences such as `author`,
 `reviewer`, or `worker`; Leaf does not keep a role list. `leaf page guidance PAGE` lists
 the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` composes all
-three sources. `page catalog` also prints the complete `author` reading after the merged
-vocabulary.
+three sources. The page author reads the `author` audience when the list includes it.
 
 Composition order is kernel, bundled default package, selected packages in command
 order, user package, then project package. Later packages win collisions. `page init`
@@ -100,17 +99,19 @@ Tokens change every surface that reads them: `--accent`, `--r`, the three faces
 `--mono` (evidence). Ordinary selectors tune one element or widget. A shape the project
 reuses across pages is an idiom — declare it under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
-`theme.css`; `page catalog` then lists it beside the shipped ones. Presentation unique to
-one page stays in that version's `<style>`.
+`theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
+Presentation unique to one page stays in that version's `<style>`.
 
 ## A widget
 
 The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
-stands as one of the page's decisions. `page catalog` prints what each key means (`$keys`) and
-the shipped entries are the worked examples; the entry's `x-example` must validate, and
-is what the catalog shows.
+stands as one of the page's decisions. The merged registry's `$keys` entry defines each key,
+and the shipped widget entries are the worked examples. Set the JSON Schema `title` to a
+short purpose an author can use during compact discovery; an entry without one falls
+back to its full `description`. An entry's `x-example` must validate and is the markup an
+author queries with that entry.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:

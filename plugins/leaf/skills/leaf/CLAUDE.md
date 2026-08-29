@@ -648,8 +648,8 @@ survived later events.
 
 ## The widget vocabulary stays open
 
-`registry.json` is the layer contract shared by rendering, validation, catalog,
-event parsing, replay, and export. Core code may name a widget only when the
+`registry.json` is the layer contract shared by rendering, validation, agent
+queries, event parsing, replay, and export. Core code may name a widget only when the
 widget is part of how Leaf itself works. Content widgets remain anonymous
 outside their module. The test for a general mechanism is whether another widget
 family can join by adding its entry, module, and theme rules without editing a

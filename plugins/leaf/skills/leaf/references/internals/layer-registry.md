@@ -20,7 +20,7 @@ the old process's contract.
 
 The registry is shared by the JS runtime, the POST and re-vendor action gates,
 `leaf version check` and thread-markup validation, the passage reader
-`leaf comment` anchors through, and the `page catalog` the agent reads. Each
+`leaf comment` anchors through, and the selective queries the agent runs. Each
 successful init embeds a fresh `$layer.generation` in both leaf.js and the
 registry. State reports it and event requests carry it; the server repeats it on
 contract responses, so an old or half-loaded tab reloads before a replacement

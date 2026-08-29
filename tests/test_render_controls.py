@@ -3603,7 +3603,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
 
     The population is the rings the layer declares (`RING_NAMES`), read out of the
     page's own composed stylesheets rather than kept in a list beside them, for the
-    reason `page catalog` reads the merged registry: a twelfth widget must not need a
+    reason the runtime reads the merged registry: a twelfth widget must not need a
     handwritten list updated, and the list that was here in prose was already wrong.
     What is credited is the name the cascade handed the box, so a ring is lit by the
     rule the reader is looking at rather than by every rule whose selector reached it.

@@ -5,10 +5,12 @@ must work when the install directory is read-only.
 
 ## The host supplies the runtime
 
-`skills/leaf/scripts/interact.py` declares payload dependencies in its PEP 723
-header. State the lowest version the suite passes on, with no upper cap. The
+`skills/leaf/scripts/interact.py` declares Python payload dependencies in its PEP
+723 header. State the lowest version the suite passes on, with no upper cap. The
 payload ships no lock: `uv` must resolve through the index and Python supply the
-host configured, including private mirrors and Python download mirrors.
+host configured, including private mirrors and Python download mirrors. The host
+also supplies the `jq` authoring dependency at the minimum version named in the
+README.
 
 `bin/leaf` invokes that script and resolves Playwright through the same host
 environment when a browser check needs it. Browser checks launch the host's

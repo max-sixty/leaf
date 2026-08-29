@@ -98,7 +98,7 @@ falling back to order or offsets.
 
 Content widgets stay anonymous outside their module. A new family should require
 only a complete registry entry, its module, and theme rules. Runtime, Python,
-CSS, tests, catalog, and docs consume declarations rather than tag-name lists.
+CSS, tests, agent queries, and docs consume declarations rather than tag-name lists.
 Layer-wide facts live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository

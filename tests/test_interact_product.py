@@ -1,4 +1,4 @@
-"""Version corpus, catalog, message, and export tests."""
+"""Version corpus, registry, message, and export tests."""
 
 import importlib.util
 import json
@@ -474,7 +474,7 @@ def test_gallery_is_generated_from_the_examples():
 
 def test_the_key_table_is_generated_from_the_registry():
     """docs/packages.html's table of x- keys is written from the registry's $keys —
-    one home for what a key means, read by the catalog and the site alike — so a
+    one home for what a key means, read by agents and the site alike — so a
     commit that lets the two drift fails here. Compared with the whitespace between
     tags dropped, because prettier re-flows the page and a formatter's line breaks are
     not what the table says."""
@@ -552,39 +552,6 @@ def test_no_example_writes_another_example_s_sentences():
         f"{len(shared)} run(s) of {run}+ words shared between examples; write each "
         "page's own sentence:\n  " + "\n  ".join(sorted(set(shared))[:10])
     )
-
-
-def test_catalog_prints_widgets_and_idioms(page_dir):
-    result = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    assert result.exit_code == 0
-    assert "lf-options" in result.output
-    assert "x-example" in result.output
-    assert ".callout" in result.output
-    assert "$idioms" not in result.output  # sections are split out, not dumped raw
-    # Every x- key an entry may declare is explained, in the one section that does.
-    assert "# The x- keys an entry may declare" in result.output
-    for key in schema_model.EXTENSION_SCHEMA["properties"]:
-        assert f'"{key}": "' in result.output, key
-
-
-def test_catalog_prints_a_dollar_key_it_was_never_taught(page_dir):
-    """The catalog is what the agent authors from, and a layer declaring a $ fact of
-    its own is the documented way to share one — so a catalog working from a list of $
-    names it had been taught dropped exactly what a project had gone to the trouble of
-    declaring, silently, in the one output that would have shown it. Same never-closed
-    rule as the widget list, one side of the registry over."""
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["$hazards"] = {"freeze": {"description": "Deploys freeze on Fridays."}}
-    registry_path.write_text(json.dumps(registry))
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-
-    assert result.exit_code == 0, result.output
-    assert "Deploys freeze on Fridays." in result.output
-    assert "# $hazards, declared by this layer." in result.output
-    # The runtime contract and the vendoring record stay out of the author's catalog.
-    assert '"$events"' not in result.output
 
 
 def test_reply_validates_widget_markup(page_dir):
@@ -1723,8 +1690,8 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     leave a bare one out — paint on the page is not a conversation — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the reader's mark rather than a turn, glyph and meaning beside it,
-    since it is read where no bar explains the glyph. The catalog names the
-    vocabulary under its own heading."""
+    since it is read where no bar explains the glyph. The registry owns that
+    vocabulary."""
     published(page_dir)
     bare = events_model.append_event(
         page_dir,
@@ -1757,8 +1724,3 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
     assert result.exit_code == 0, result.output
     assert "- **User** reacted: − cut — does not earn its length" in result.output
     assert "- **User** reacted: × no — this is wrong" in result.output
-
-    catalog = CliRunner().invoke(cli_model.cli, ["page", "catalog", str(page_dir)])
-    # What the catalog teaches is the vendored vocabulary itself, entry and all.
-    vendored = json.loads((page_dir / "registry.json").read_text())["$reactions"]
-    assert json.dumps(vendored, indent=2, ensure_ascii=False) in catalog.output

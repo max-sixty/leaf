@@ -3,6 +3,7 @@ name: leaf
 description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate. Use for “explain this in HTML,” “write up the findings,” “show me the options,” or work whose progress or review belongs in a shared page.
 allowed-tools:
   - Bash(leaf:*)
+  - Bash(jq:*)
 ---
 
 Present the session's subject as a live HTML page. The user comments on exact
@@ -29,10 +30,10 @@ command shown as `leaf`. Claude Code also puts it on `PATH`. If the resolved fil
 is absent, report that the plugin payload is incomplete. A checkout keeps it at
 `plugins/leaf/bin/leaf`.
 
-1. Run `leaf page init <page>`, then run and read
-   `leaf page catalog <page>`.
-2. Read `references/page-authoring.md`. Write the page to `<page>/index.html`
-   using only the catalog's tags, attributes, and idioms. A valid save becomes
+1. Run `leaf page init <page>`.
+2. Read `references/page-authoring.md`, including its selective
+   `registry.json` queries. Write the page to `<page>/index.html`
+   using only the registry's tags, attributes, and idioms. A valid save becomes
    the active immutable revision; an invalid save leaves the last valid revision
    live and reports its diagnostic in page state and the browser.
 3. Match the handoff ceremony to the page's intended lifetime, regardless of
@@ -73,8 +74,8 @@ The subject decides the shape. Use options for decisions, boards for movable
 work, milestones for stages, metrics for measurements, and prose where no other
 shape fits. Prose connects the shapes, so keep it short. What stands open in the
 column is what the reader has to take from the page, and its backing sits under
-`<details>`. `leaf page catalog <page>` is the authority for the vendored
-vocabulary and theme.
+`<details>`. `<page>/registry.json` is the authority for the vendored vocabulary
+and theme; query only the entries the page needs.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal — the
@@ -84,7 +85,7 @@ not have to.
 Packages may also carry guidance for roles involved in the page. `leaf page
 guidance <page>` lists the available audiences, and `leaf page guidance <page>
 <audience>` prints one guide. Read the assigned audience before acting in that
-role; `page catalog` prints the `author` guide where a package supplies one.
+role. List the page's audiences and read `author` guidance when it is available.
 
 Every decision has a control beside its evidence. A page that needs approval declares
 sign-off; an informative page does not. Save freely as the subject changes and

@@ -10,6 +10,7 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
+from example_data import data_operations
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMMAND_SUBJECTS,
@@ -407,6 +408,17 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
         (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        for operation in data_operations(example):
+            if operation["kind"] == "set":
+                data_model.cmd_data_set(d, operation["source"], operation["value"])
+            else:
+                data_model.cmd_data_capture(
+                    d,
+                    operation["source"],
+                    operation["text_file"],
+                    operation["lines"],
+                    operation["label"],
+                )
         activated = revisioning_model.activate_source(d, [])
         assert activated.error is None
         # The example's companion log, where it ships one (examples/CLAUDE.md), so
@@ -417,12 +429,6 @@ def test_examples_pass_check(tmp_path, monkeypatch, clone_initialized_page):
             # same here: normalizing a stale event contract in the fixture would
             # let the shipped demo fail while its corpus gate stayed green.
             (d / "comments.jsonl").write_bytes(seed.read_bytes())
-        data_seed = example.with_suffix(".data.json")
-        if data_seed.exists():
-            for name, value in json.loads(
-                data_seed.read_text(encoding="utf-8")
-            ).items():
-                data_model.cmd_data_set(d, name, value)
         result = check(d)
         assert result.exit_code == 0, f"{example.name}: {result.output}"
 
@@ -1636,6 +1642,17 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
         (d / "index.html").write_text(example.read_text())
         (d / "versions" / "v1.html").write_text(example.read_text())
         shutil.copytree(ROOT / "examples" / "media", d / "media", dirs_exist_ok=True)
+        for operation in data_operations(example):
+            if operation["kind"] == "set":
+                data_model.cmd_data_set(d, operation["source"], operation["value"])
+            else:
+                data_model.cmd_data_capture(
+                    d,
+                    operation["source"],
+                    operation["text_file"],
+                    operation["lines"],
+                    operation["label"],
+                )
         # Published, because the door is only open on a page a reader could be
         # holding — which is the state every one of these seeds is written for.
         published = CliRunner().invoke(

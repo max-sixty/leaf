@@ -1499,6 +1499,21 @@ lf-code .lf-code-note { margin: 4px 8px 6px 46px; padding: 6px 10px;
              font-size: var(--t-5); white-space: normal; --lf-frame: 1; }
 lf-code lf-note { display: block; }
 
+/* lf-source: captured text with the provenance needed to identify the immutable
+   selection. The frame is one evidence object; its caption uses the apparatus face
+   without becoming runtime chrome, because the label is captured page data too. */
+lf-source { display: block; margin: 14px 0; min-height: 2px; }
+lf-source > .lf-source-document {
+  margin: 0; border: 1px solid var(--rule); border-radius: var(--r);
+  overflow: hidden; background: var(--pre-bg); --lf-frame: 1;
+}
+lf-source figcaption {
+  padding: 7px 11px; border-bottom: 1px solid var(--rule);
+  color: var(--muted); font-family: var(--sans); font-size: var(--t-6);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+lf-source pre { margin: 0; border: 0; border-radius: 0; }
+
 /* lf-draft rendered form: a block of text the user owns. The dashed border says
    "editable"; the ✎ button is the accessible door (double-click is the fast path) and
    sharpens on hover or focus. Newlines in a draft are content, so the body preserves

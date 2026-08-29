@@ -56,7 +56,7 @@ package = false
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup"
-pythonpath = ["plugins/leaf/skills/leaf/scripts"]
+pythonpath = ["plugins/leaf/skills/leaf/scripts", "scripts"]
 markers = ["nightly: complete browser or site integration; `--run-nightly` runs it"]
 # No hang guard runs inside the suite. What stalls here is a wait inside the browser,
 # and a faulthandler dump cannot name that test: its frames sit in a suspended greenlet,

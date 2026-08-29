@@ -48,9 +48,10 @@ A page directory holds:
                          So the transport was never an optimisation over
                          inlining; inlining was never available
     comments.jsonl       append-only event log; an event's seq is its line number (1-based)
-    data.json            explicit replace-in-place authority for page-bound source
-                         snapshots, validated against the registry's named data
-                         contracts
+    data.json            explicit authority for page-bound sources: each record keeps
+                         its contract identity, may have a replaceable current value,
+                         and may retain immutable text captures selected by document
+                         versions or frozen threads
     status.json          the agent's declared state: {"state": working|waiting|idle, "detail", "ts"};
                          detail is the finer grain the banner reads out after the
                          state — what the agent is doing while working, what it

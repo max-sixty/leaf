@@ -6,6 +6,12 @@
         "schema": {
           "type": ["number", "string"]
         }
+      },
+      "text-document": {
+        "description": "LF-normalized UTF-8 text without U+0000, captured from a regular file or a selected line range.",
+        "schema": {
+          "type": "string"
+        }
       }
     }
   },
@@ -88,6 +94,40 @@
     },
     "x-upgrade": false,
     "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
+  },
+  "lf-source": {
+    "description": "A file-backed text document supplied through Leaf data. `source` binds the page-owned feed. `snapshot` selects an immutable capture; omit it to follow the current value. `language` colors the source with one of $languages. The capture's label and selected line range appear above the exact text. Put the widget inside ordinary details or an lf-tab when the source should begin collapsed or in a separate view.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "snapshot": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      },
+      "language": {
+        "type": "string"
+      }
+    },
+    "required": ["id", "source"],
+    "additionalProperties": false,
+    "x-content": "none",
+    "x-data": {
+      "document": {
+        "contract": "text-document",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
+    },
+    "x-language": "language",
+    "x-upgrade": true,
+    "x-example": "<lf-source id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-source>"
   },
   "lf-toc": {
     "title": "Table of contents",

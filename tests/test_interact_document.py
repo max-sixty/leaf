@@ -2316,7 +2316,10 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
         cli_model.cli, ["data", "clear", str(page_dir), "deployments"]
     )
     assert cleared.exit_code == 0, cleared.output
-    assert state_json(page_dir)["data"] == {"revision": 2, "sources": {}}
+    assert state_json(page_dir)["data"] == {
+        "revision": 2,
+        "sources": {"deployments": {"contract": "deployment-rows"}},
+    }
 
     unbound = runner.invoke(
         cli_model.cli,
@@ -2324,7 +2327,106 @@ def test_package_data_is_validated_replaced_and_exposed_in_page_state(page_dir):
         input="[]",
     )
     assert unbound.exit_code != 0
-    assert "not bound by any page or thread widget" in unbound.output
+    assert (
+        "not bound by the page source, a version, or a thread widget" in unbound.output
+    )
+
+
+def test_text_capture_keeps_selected_snapshots_when_the_current_value_is_cleared(
+    page_dir, tmp_path
+):
+    """Capture admits file text through the existing typed source boundary. The data
+    revision names the immutable selection, while clear drops the replaceable value and
+    any capture no immutable document selects."""
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_bytes(b"one\r\ntwo\r\nthree")
+    runner = CliRunner()
+
+    captured = runner.invoke(
+        cli_model.cli,
+        [
+            "data",
+            "capture",
+            str(page_dir),
+            "leaf-skill",
+            "--text-file",
+            str(text_file),
+            "--lines",
+            "2:3",
+            "--label",
+            "Leaf skill",
+        ],
+    )
+    assert captured.exit_code == 0, captured.output
+    assert "as snapshot 1" in captured.output
+    stored = data_model.read_data(page_dir)
+    source = stored["sources"]["leaf-skill"]
+    assert source["value"] == "two\nthree"
+    assert source["snapshots"] == {
+        "1": {
+            "updated": source["updated"],
+            "value": "two\nthree",
+            "label": "Leaf skill",
+            "lines": "2:3",
+        }
+    }
+
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
+        )
+    )
+    activated = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activated.error is None
+    consumers = state_json(page_dir)["data_bindings"]["leaf-skill"]["consumers"]
+    assert any(consumer.get("snapshot") == "1" for consumer in consumers)
+    text_file.write_text("unreferenced")
+    data_model.cmd_data_capture(page_dir, "leaf-skill", text_file)
+    data_model.cmd_data_set(page_dir, "leaf-skill", "new current value")
+    data_model.cmd_data_clear(page_dir, "leaf-skill")
+
+    assert data_model.read_data(page_dir) == {
+        "revision": 4,
+        "sources": {
+            "leaf-skill": {
+                "contract": "text-document",
+                "snapshots": source["snapshots"],
+            }
+        },
+    }
+    assert check(page_dir).exit_code == 0
+
+
+def test_a_document_cannot_select_a_missing_data_snapshot(page_dir):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="17"'
+        )
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "selects snapshot '17'" in result.output
+    assert "data.json does not contain it" in result.output
 
 
 def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_dir):
@@ -2408,6 +2510,31 @@ def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir
     result = check(page_dir, 2)
     assert result.exit_code != 0
     assert "use a new source id for the new meaning" in result.output
+
+
+def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
+    """A mutable-only bootstrap can be cleared before its first reviewed version.
+    The data tombstone still prevents the page-owned source id changing meaning."""
+    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+    data_model.cmd_data_clear(page_dir, "project-feed")
+    for revision in files_model.list_revisions(page_dir):
+        files_model.revision_path(page_dir, revision).unlink()
+
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["other-rows"] = {
+        "description": "Another meaning.",
+        "schema": {"type": "array"},
+    }
+    registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
+    registry_path.write_text(json.dumps(registry))
+
+    with pytest.raises(data_contracts_model.DataError, match="standing snapshot uses"):
+        data_model.cmd_data_set(page_dir, "project-feed", [])
+    assert data_model.read_data(page_dir)["sources"]["project-feed"] == {
+        "contract": "rows"
+    }
 
 
 def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
@@ -2559,7 +2686,7 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
                 '{"revision":1,"sources":{"builds":{"contract":"Bad Contract",'
                 '"updated":"2026-08-25T12:00:00-07:00","value":[]}}}'
             ),
-            "must contain only contract, updated, and value",
+            "must contain a contract and only current value or snapshot fields",
         ),
     ],
 )
@@ -2580,6 +2707,104 @@ def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
 
     with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
         data_model.read_data_store(page_dir)
+
+
+def test_data_revisions_and_selectors_stay_javascript_safe(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    maximum = schema_model.MAX_SAFE_INTEGER
+    (page_dir / "data.json").write_text('{"revision":' + "9" * 5000 + ',"sources":{}}')
+    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
+        data_model.read_data_store(page_dir)
+
+    (page_dir / "data.json").write_text(
+        json.dumps(
+            {
+                "revision": 1,
+                "sources": {
+                    "leaf-skill": {
+                        "contract": "text-document",
+                        "snapshots": {
+                            "9" * 5000: {
+                                "updated": "2026-08-29T12:00:00Z",
+                                "value": "text",
+                                "label": "SKILL.md",
+                            }
+                        },
+                    }
+                },
+            }
+        )
+    )
+    with pytest.raises(data_contracts_model.DataError, match="JavaScript-safe"):
+        data_model.read_data_store(page_dir)
+
+    (page_dir / "data.json").write_text(
+        json.dumps(
+            {
+                "revision": maximum + 1,
+                "sources": {},
+            }
+        )
+    )
+    with pytest.raises(data_contracts_model.DataError, match="JavaScript-safe"):
+        data_model.read_data_store(page_dir)
+
+    (page_dir / "data.json").write_text(
+        json.dumps(
+            {
+                "revision": maximum,
+                "sources": {"leaf-skill": {"contract": "text-document"}},
+            }
+        )
+    )
+    with pytest.raises(data_contracts_model.DataError, match="exhausted"):
+        data_model.cmd_data_set(page_dir, "leaf-skill", "later")
+
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            'source="leaf-skill"',
+            f'source="leaf-skill" snapshot="{maximum + 1}"',
+        )
+    )
+    result = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
+    assert result.exit_code != 0
+    assert "JavaScript-safe positive integer" in result.output
+
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_text("one\n")
+    with pytest.raises(data_contracts_model.DataError, match="line range start"):
+        data_model.cmd_data_capture(
+            page_dir, "leaf-skill", text_file, f"{'9' * 5000}:1"
+        )
+
+
+def test_capture_requires_a_bounded_regular_file(page_dir, tmp_path):
+    declare_data_input(
+        page_dir,
+        "leaf-skill",
+        {"type": "string"},
+        contract="text-document",
+        snapshot=True,
+    )
+    with pytest.raises(data_contracts_model.DataError, match="not a regular file"):
+        data_model.cmd_data_capture(page_dir, "leaf-skill", Path("/dev/null"))
+
+    oversized = tmp_path / "too-large.md"
+    oversized.write_bytes(b"x" * (schema_model.MAX_CAPTURE_BYTES + 1))
+    with pytest.raises(data_contracts_model.DataError, match="capture limit"):
+        data_model.cmd_data_capture(page_dir, "leaf-skill", oversized)
+
+    nul = tmp_path / "nul.md"
+    nul.write_bytes(b"before\x00after")
+    with pytest.raises(data_contracts_model.DataError, match=r"U\+0000"):
+        data_model.cmd_data_capture(page_dir, "leaf-skill", nul)
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):

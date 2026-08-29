@@ -324,7 +324,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # replay never reached, and every assertion above it would still pass —
         # a drawn widget and a built control say nothing about whose state is on it.
         if decided_here:
-            plain = serve(example.read_text())
+            plain = serve(example, seed_log=False)
             for event in [e for e in events if e["kind"] != "action"]:
                 events_model.append_event(serve.page_dir, event)
             undecided, errors = open_page(browser, plain)
@@ -360,14 +360,14 @@ def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, examp
     reading and nothing in the other. The generated gallery derives its tab bodies from
     these sources; its generation check owns that composition, while this sweep keeps
     one file reading for every page an author can change."""
-    # The markup rather than the example, so a shipped log stays out. This sweep
+    # Suppress the shipped log while retaining companion data. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and
     # every example that ever ships one would read as painting text it does not
     # name. The seeded anchor has its own reader in
     # test_a_shipped_log_opens_its_example_on_a_live_thread.
     html = example.read_text()
-    url = serve(html)
+    url = serve(example, seed_log=False)
     d = serve.page_dir
     anchors = written_anchors(d, html)
     assert len(anchors) >= 10, (

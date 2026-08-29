@@ -40,6 +40,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
+from example_data import data_operations
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -440,6 +441,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
         events=(),
         layer_registry=None,
         layer_widgets=None,
+        seed_log=True,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
         project = tmp_path / ".leaf"
@@ -484,6 +486,18 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             path.write_bytes(data)
         for event in events:
             events_model.append_event(d, event)
+        if example:
+            for operation in data_operations(example):
+                if operation["kind"] == "set":
+                    data_model.cmd_data_set(d, operation["source"], operation["value"])
+                else:
+                    data_model.cmd_data_capture(
+                        d,
+                        operation["source"],
+                        operation["text_file"],
+                        operation["lines"],
+                        operation["label"],
+                    )
         activated = revisioning_model.activate_source(d, events_model.read_events(d))
         assert activated.error is None and activated.revision == 1, activated.error
         (d / "versions" / "v1.html").write_text(html)
@@ -497,18 +511,13 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
                 "text": "t",
             },
         )
-        if example and (data_seed := example.with_suffix(".data.json")).exists():
-            for name, value in json.loads(
-                data_seed.read_text(encoding="utf-8")
-            ).items():
-                data_model.cmd_data_set(d, name, value)
         # After the note, so v1's announcement stays the log's first line and the
         # exchange reads in the order it happened, which is preview.py's ordering.
         # (The site build writes the seed alone and announces its versions
         # elsewhere, so it has no note to come after.) Split on the writer's own
         # separator, never splitlines(), whose wider class reads a U+2028 inside a
         # comment's text as a break.
-        if example and (seed := example.with_suffix(".jsonl")).exists():
+        if example and seed_log and (seed := example.with_suffix(".jsonl")).exists():
             for line in seed.read_text(encoding="utf-8").split("\n"):
                 if line.strip():
                     events_model.append_event(d, json.loads(line))

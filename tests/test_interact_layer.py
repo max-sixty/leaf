@@ -48,7 +48,7 @@ Commands:
   ack         Acknowledge one batch, then wait for the next.
   codex       Deliver page updates to later turns of this Codex task.
   comment     Open an agent thread — on a passage, or on the page whole.
-  data        Set or clear page-bound external data.
+  data        Set, capture, or clear page-bound external data.
   edit        Edit one of this agent session's messages.
   events      Print the event log as JSON lines.
   package     Create and check packages.
@@ -83,14 +83,15 @@ Commands:
             ["data", "--help"],
             """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
 
-  Manage replaceable external or derived page data.
+  Manage current values and immutable text captures.
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  clear  Remove one source snapshot.
-  set    Replace one bound source value.
+  capture  Capture a bound UTF-8 text source.
+  clear    Clear current and unreferenced captures.
+  set      Replace one bound source value.
 """,
             id="data",
         ),

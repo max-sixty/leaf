@@ -260,13 +260,18 @@ that really apply to the package as a whole.
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "snapshot": { "type": "string", "pattern": "^[1-9][0-9]*$" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "none",
     "x-data": {
-      "builds": { "contract": "build-status", "source": "source" }
+      "builds": {
+        "contract": "build-status",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
     },
     "x-guidance": {
       "author": "Bind `source` to the build feed this page should show."
@@ -282,6 +287,7 @@ ids.
 
 ```html
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
+<lf-source id="release-notes-source" source="release-notes" language="markdown"></lf-source>
 ```
 
 The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
@@ -290,6 +296,7 @@ complete snapshot using the page's source id:
 ```bash
 printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
+leaf data capture PAGE release-notes --text-file CHANGELOG.md --lines 20:44
 leaf data clear PAGE release-ci
 ```
 
@@ -298,11 +305,22 @@ the prior revision untouched. Source revisions and event sequences are independe
 an old poll may contain new data, and a new event response may contain old data, so
 neither orders the other.
 
-A source id keeps one contract for the lifetime of the page. Every immutable version
-and every widget frozen into a thread shares the page's current data store, so a later
-document cannot reuse an old id with a new meaning. `data clear` removes the current
-value, not that identity. Use a new source id for a new contract. Re-vendoring preserves
-this mapping as well as validating any standing values against the incoming schemas.
+`data capture` reads one regular UTF-8 file of at most 1 MiB without making the author
+copy it into markup. It rejects U+0000, normalizes CRLF and CR line endings to LF, can
+select an inclusive `START:END` line range, and attaches a display label. Capture both
+replaces the source's current value and retains that value under the reported data
+revision. A widget without its snapshot attribute follows the current value; a widget with
+`snapshot="REVISION"` keeps reading that immutable capture. The captured source path is
+never stored or sent to readers.
+
+A source id keeps one contract for the lifetime of the page. Documents without a
+snapshot selection share the page's current value; immutable versions and widgets
+frozen into threads may instead select a retained capture. `data clear` removes the
+current value and unreferenced captures, but keeps captures selected by those durable
+documents and a contract-only tombstone that never releases the source id for a new
+meaning. Use a new source id for a new contract. Re-vendoring preserves this mapping and
+each standing widget selection while validating current values and captures against the
+incoming schemas.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every reader of the page, including fields a module does not
@@ -316,10 +334,12 @@ this.stopWatching = watchData(this, "builds", (snapshot) => {
 });
 ```
 
-The callback receives `null` before the host has supplied a value, otherwise a clone of
-`{contract, updated, value}`. It runs immediately and again when Leaf asks subscribers
-to restate their view. Return the cleanup function from the element's disconnect path.
-The callback must state the whole rendering and remain idempotent.
+The callback receives `null` before the host has supplied a current value, otherwise a
+clone of `{contract, updated, value}`. A selected capture additionally carries
+`snapshot`, `label`, and optional `lines`; a captured current value may carry its label
+and line range. It runs immediately and again when Leaf asks subscribers to restate its
+view. Return the cleanup function from the element's disconnect path. The callback must
+state the whole rendering and remain idempotent.
 
 Render the value with `projectData(root, records, keyOf, render)`. The root is an
 id-bearing authored seat and owns the projection's children. `keyOf` returns a stable

@@ -9,7 +9,7 @@ import click
 from leaf.agent_state import cmd_page_state
 from leaf.codex import cmd_codex_start, run_adapter
 from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
-from leaf.data import cmd_data_clear, cmd_data_set
+from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_decisions
 from leaf.host import host_identity
@@ -177,9 +177,9 @@ def state(dir: str) -> None:
     cmd_page_state(resolve_dir(dir))
 
 
-@cli.group(short_help="Set or clear page-bound external data.")
+@cli.group(short_help="Set, capture, or clear page-bound external data.")
 def data() -> None:
-    """Manage replaceable external or derived page data."""
+    """Manage current values and immutable text captures."""
 
 
 @data.command("set", short_help="Replace one bound source value.")
@@ -203,11 +203,34 @@ def data_set(dir: str, source: str, input_file) -> None:
     cmd_data_set(resolve_dir(dir), source, value)
 
 
-@data.command("clear", short_help="Remove one source snapshot.")
+@data.command("capture", short_help="Capture a bound UTF-8 text source.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("source", metavar="SOURCE")
+@click.option(
+    "--text-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    metavar="PATH",
+    help="regular UTF-8 file up to 1 MiB without U+0000 to capture",
+)
+@click.option(
+    "--lines",
+    metavar="START:END",
+    help="one-based inclusive line range",
+)
+@click.option("--label", help="display label (default: file name)")
+def data_capture(
+    dir: str, source: str, text_file: Path, lines: str | None, label: str | None
+) -> None:
+    """Capture LF-normalized text as SOURCE's current value and a snapshot."""
+    cmd_data_capture(resolve_dir(dir), source, text_file, lines, label)
+
+
+@data.command("clear", short_help="Clear current and unreferenced captures.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
-    """Remove SOURCE, including a value its current schema rejects."""
+    """Clear SOURCE while retaining captures selected by durable documents."""
     cmd_data_clear(resolve_dir(dir), source)
 
 

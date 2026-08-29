@@ -282,6 +282,32 @@ selectable literal source and `lf-code` for a line-numbered walkthrough. The
 registry's `$languages.names` lists accepted language names. Keep logs and
 transcripts plain when they are not source code.
 
+Use `lf-source` when the literal text already lives in a UTF-8 file and should remain
+selectable and commentable without copying it into the authored HTML. First add a
+current-data binding to the page source so Leaf can give the source its page-lifetime
+contract:
+
+```html
+<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+```
+
+Then capture the whole file or an inclusive line range. Capture accepts one regular
+UTF-8 file up to 1 MiB, rejects U+0000, and normalizes CRLF or CR line endings to LF so
+live rendering, comments, and export share one text:
+
+```bash
+leaf data capture <page> leaf-skill --text-file SKILL.md --label SKILL.md
+leaf data capture <page> leaf-skill --text-file SKILL.md --lines 71:102
+```
+
+Capture prints the data revision it retained. Add `snapshot="REVISION"` before
+stamping or handing over the reviewed page to freeze that capture; omit the attribute
+when the block should follow later captures or `data set` calls. On a served page, the
+valid unpinned save that adds the binding may already have become an interim revision
+before capture. That is expected; the next valid save activates the pinned snapshot.
+Wrap `lf-source` in ordinary `<details>` or place it in an `lf-tabs` panel when the
+evidence should start collapsed or share a compact frame with alternatives.
+
 Run `leaf page media <page> <file>…` and use the printed `/media/…` path for
 images. Never inline image bytes. For a real visual change, use `lf-shot` with
 before and after captures from the same viewport. Put invented examples inside

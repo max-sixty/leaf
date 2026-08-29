@@ -52,6 +52,9 @@ export function createVersionDiff({
       ...tagsDeclaring(
         (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
       ),
+      // External data is absent from both authored documents. Its seat is opaque, and
+      // the authored binding and immutable selector below are the comparison key.
+      ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
       // flatMap, so the set holds holder tags rather than the arrays naming them: a set
       // of arrays never dedupes, two array objects never being equal.
       ...new Set(
@@ -100,7 +103,18 @@ export function createVersionDiff({
     for (const w of root.querySelectorAll(opaque)) {
       // parentElement, not w itself: an svg a widget rendered stays its widget's.
       if (inChrome(w) || w.parentElement?.closest(opaque)) continue;
-      pairs.push([w, ` ${w.tagName}#${w.id}`]);
+      const entry = registry[w.localName] ?? {};
+      // A data selection is authored semantics even though the generated children
+      // of an upgraded widget are opaque to comparison.
+      const bindingAttrs = new Set();
+      for (const input of Object.values(entry["x-data"] ?? {})) {
+        bindingAttrs.add(input.source);
+        if (input.snapshot) bindingAttrs.add(input.snapshot);
+      }
+      const binding = [...bindingAttrs]
+        .sort()
+        .map((attr) => [attr, w.getAttribute(attr)]);
+      pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
     }
     return pairs;
   }

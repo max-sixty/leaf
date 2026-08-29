@@ -40,6 +40,12 @@ HTML_NAME = r"[a-z][a-z0-9-]*"
 WIDGET_NAME = r"lf-[a-z0-9]+(?:-[a-z0-9]+)*"
 DATA_SOURCE_NAME = HTML_NAME
 DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
+# Data revisions cross JSON into JavaScript, where larger integers are not distinct.
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
+MAX_SAFE_INTEGER_DIGITS = len(str(MAX_SAFE_INTEGER))
+# Every captured value is included in each state response. Bound the source file before
+# line selection so neither admission work nor the page's polling transfer is unbounded.
+MAX_CAPTURE_BYTES = 1_048_576
 # The record forms one vocabulary of declared state draws on ($state in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
@@ -277,6 +283,7 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "snapshot": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "required": ["contract", "source"],
         "additionalProperties": False,

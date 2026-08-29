@@ -370,12 +370,14 @@ lf-chip {
                 The widget's named external-data inputs. Each input names a
                 <code>$data.contracts</code> contract and the declared canonical string
                 attribute whose authored value is this page's source id. An optional
-                attribute leaves that input absent; <code>watchData</code> delivers
-                null. Several widgets may bind the same source to the same contract.
-                Across immutable versions and widgets frozen into threads, one source
-                cannot mean two contracts; use a new source id for a new meaning. A
-                module subscribes by widget and input name, never by a package-owned
-                source name.
+                <code>snapshot</code> names a declared JavaScript-safe positive-decimal
+                attribute that selects an immutable source snapshot; without it the
+                input follows the current value. An optional source attribute leaves
+                that input absent; <code>watchData</code> delivers null. Several widgets
+                may bind the same source to the same contract. Across immutable versions
+                and widgets frozen into threads, one source cannot mean two contracts;
+                use a new source id for a new meaning. A module subscribes by widget and
+                input name, never by a package-owned source name.
               </td>
             </tr>
             <tr>
@@ -836,56 +838,70 @@ customElements.define(
   }
 }</code></pre>
         <p>
-          The widget declares a named input, the contract it expects, and the attribute
-          where the page binds a source. Require that attribute when the widget cannot
-          work without the input; an optional unbound input delivers
-          <code>null</code>. Widget-specific guidance can travel in
-          <code>x-guidance</code>; producer guidance can live beside the data contract.
-          A package merely distributes these contributions.
+          The widget declares a named input, the contract it expects, the attribute
+          where the page binds a source, and optionally an attribute that selects an
+          immutable capture. Require the source attribute when the widget cannot work
+          without the input; an optional unbound input delivers <code>null</code>.
+          Widget-specific guidance can travel in <code>x-guidance</code>; producer
+          guidance can live beside the data contract. A package merely distributes these
+          contributions.
         </p>
         <pre><code>{
   "lf-builds": {
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+      "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "snapshot": { "type": "string", "pattern": "^[1-9][0-9]*$" }
     },
     "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "none",
     "x-data": {
-      "builds": { "contract": "build-status", "source": "source" }
+      "builds": {
+        "contract": "build-status",
+        "source": "source",
+        "snapshot": "snapshot"
+      }
     },
     "x-upgrade": true
   }
 }</code></pre>
-        <pre><code>&lt;lf-builds id="release-builds" source="release-ci"&gt;&lt;/lf-builds&gt;</code></pre>
+        <pre><code>&lt;lf-builds id="release-builds" source="release-ci"&gt;&lt;/lf-builds&gt;
+&lt;lf-source id="release-notes-source" source="release-notes" language="markdown"&gt;&lt;/lf-source&gt;</code></pre>
         <p>
           The host gathers the value; Leaf does not execute a package provider or fetch
           a package URL. <code>data set</code> validates and atomically replaces one
-          complete source. A rejected value leaves the prior revision untouched. Every
+          current source value. <code>data capture</code> reads one regular UTF-8 file
+          of at most 1 MiB, rejects U+0000, normalizes CRLF or CR line endings to LF,
+          can select an inclusive line range, and retains that value under the reported
+          data revision. A rejected value leaves the prior revision untouched. Every
           field goes to every reader of the page, even when the module does not paint
           it, so source values must not contain credentials or private host state.
         </p>
         <pre><code>printf '%s' '{"main":"passing"}' | leaf data set PAGE release-ci
 leaf data set PAGE release-ci --file build-state.json
+leaf data capture PAGE release-notes --text-file CHANGELOG.md --lines 20:44
 leaf data clear PAGE release-ci</code></pre>
         <p>
           The module subscribes with
           <code>watchData(this, "builds", render)</code>. Its callback receives
-          <code>null</code> before the source has a value, otherwise a clone of
-          <code>{contract, updated, value}</code>. Render records into a stable,
-          id-bearing authored seat with <code>projectData</code>; stable datum keys keep
-          comments attached when later snapshots reorder or replace the text. Export
-          keeps the last rendering as a labelled snapshot and removes the code that
-          could refresh it.
+          <code>null</code> before a current source has a value, otherwise a clone of
+          <code>{contract, updated, value}</code>. A selected capture additionally
+          carries its snapshot id, label, and optional line range. Render records into a
+          stable, id-bearing authored seat with <code>projectData</code>; stable datum
+          keys keep comments attached when later values replace the text. Export keeps
+          the last rendering as a labelled snapshot and removes the code that could
+          refresh it.
         </p>
         <p>
           Source revision and event sequence are independent. A source id keeps one
-          contract for the lifetime of the page: old versions and widgets frozen into
-          threads all share the current data store. Clearing removes its value, not its
-          meaning. Use a new source id for a new contract. Re-vendoring preserves this
-          mapping and checks standing values against incoming schemas.
+          contract for the lifetime of the page. Bindings without a snapshot selector
+          follow current; immutable versions and widgets frozen into threads may select
+          retained captures. Clearing removes current and unreferenced captures, not the
+          source's meaning. Use a new source id for a new contract. Re-vendoring
+          preserves this mapping and every standing selection, and checks current and
+          captured values against incoming schemas.
           <code>leaf page state PAGE</code> exposes the complete
           <code>data_bindings</code> inventory, so a producer can discover source ids,
           contracts, consumers, and their documents without parsing markup.

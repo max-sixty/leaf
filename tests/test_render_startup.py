@@ -45,6 +45,7 @@ from render_support import (
     _traffic,
     compare_with,
     data_projection_page,
+    leaf_page,
     live_url,
     live_watcher,
     nudge,
@@ -2243,6 +2244,130 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
     ) == [["api", "Ready"], ["worker", "Ready"]]
     assert page.locator("script").count() == 0, (
         "the snapshot still claims it can refresh"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
+    browser, serve, tmp_path
+):
+    source_page = leaf_page(
+        "captured source",
+        """
+<h1 id="title">Leaf skill</h1>
+<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+<p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
+""",
+    )
+    url = live_url(serve(source_page))
+    text_file = tmp_path / "SKILL.md"
+    text_file.write_bytes(b"# Leaf\r\n\r\nOriginal instructions.\r\n")
+    long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
+    data_model.cmd_data_capture(
+        serve.page_dir, "leaf-skill", text_file, "1:3", long_label
+    )
+
+    page, errors = open_page(browser, url)
+    expect(page.locator("lf-source figcaption")).to_have_text(
+        f"{long_label} · lines 1–3"
+    )
+    expect(page.locator("lf-source code")).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+    page.set_viewport_size({"width": 320, "height": 720})
+    assert page.locator("lf-source figcaption").evaluate(
+        "node => node.scrollWidth <= node.clientWidth"
+    )
+    page.set_viewport_size({"width": 1280, "height": 720})
+
+    data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
+    expect(page.locator("lf-source code")).to_have_text("Current instructions.\n")
+    current = (serve.page_dir / "versions" / "v1.html").read_text()
+    _publish(
+        serve.page_dir,
+        2,
+        current.replace(
+            'source="leaf-skill"', 'source="leaf-skill" snapshot="1"'
+        ).replace(">10 ms</lf-num>", ">11 ms</lf-num>"),
+        "froze the reviewed source",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("lf-source figcaption")).to_have_text(
+        f"{long_label} · lines 1–3 · snapshot 1"
+    )
+    expect(page.locator("lf-source code")).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+    compare_with(page, 1)
+    expect(page.locator("lf-source")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator("#latency-line")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    compare_with(page, 1)
+
+    bounds = page.locator("lf-source code").evaluate(
+        """code => {
+          const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+          let node;
+          while ((node = walker.nextNode())) {
+            const at = node.data.indexOf('Original instructions.');
+            if (at < 0) continue;
+            const range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + 'Original instructions.'.length);
+            const rect = range.getBoundingClientRect();
+            return {left: rect.left, right: rect.right, y: rect.top + rect.height / 2};
+          }
+          return null;
+        }"""
+    )
+    assert bounds is not None
+    select(page, (bounds["left"] + 1, bounds["y"]), (bounds["right"] - 1, bounds["y"]))
+    selected = page.evaluate(
+        """() => ({
+          text: getSelection().toString(),
+          anchor: getSelection().anchorNode?.parentElement?.outerHTML,
+        })"""
+    )
+    assert selected["text"], selected
+    expect(page.locator(".lf-fab")).to_be_visible()
+    page.locator(".lf-fab").click()
+    page.locator(".lf-composer textarea").fill("Keep this exact source.")
+    page.get_by_role("button", name="Comment", exact=True).click()
+    round_trip(page)
+    comment = next(e for e in sent_events(serve.page_dir) if e["kind"] == "comment")
+    assert comment["anchor"]["section"] == "skill-source"
+    assert comment["anchor"]["datum"] == "document"
+
+    data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Changed again.\n")
+    told(page)
+    expect(page.locator("lf-source code")).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+
+    out = tmp_path / "source-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    copy = browser.new_page()
+    copy_errors = watched(copy)
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.locator('[data-lf-datum="document"] code')).to_have_text(
+        "# Leaf\n\nOriginal instructions.\n"
+    )
+    assert copy.locator("script").count() == 0
+    assert copy_errors == []
+    copy.close()
+    assert (
+        page.evaluate(
+            """async () => {
+          const {acceptData} = await import('/runtime/data.js');
+          try {
+            acceptData({revision: Number.MAX_SAFE_INTEGER + 1, sources: {}});
+          } catch (error) {
+            return error.message;
+          }
+          return null;
+        }"""
+        )
+        == "state data must carry a JavaScript-safe non-negative revision and sources"
     )
     assert errors == []
     page.close()

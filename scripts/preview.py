@@ -35,6 +35,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from example_data import data_operations
+
 ROOT = Path(__file__).resolve().parent.parent
 LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
 PAGE = ROOT / ".tmp" / "preview"  # gitignored, and stable so the port persists
@@ -52,12 +54,30 @@ def leaf(*args, check=True, input_text=None):
 
 
 def seed_data(source: Path, page: Path) -> None:
-    """Set each page-bound source shipped beside an example."""
-    seed = source.with_suffix(".data.json")
-    if not seed.exists():
-        return
-    for name, value in json.loads(seed.read_text(encoding="utf-8")).items():
-        leaf("data", "set", str(page), name, input_text=json.dumps(value))
+    """Apply each page-bound data operation shipped beside an example."""
+    for operation in data_operations(source):
+        if operation["kind"] == "set":
+            leaf(
+                "data",
+                "set",
+                str(page),
+                operation["source"],
+                input_text=json.dumps(operation["value"]),
+            )
+            continue
+        args = [
+            "data",
+            "capture",
+            str(page),
+            operation["source"],
+            "--text-file",
+            str(operation["text_file"]),
+        ]
+        if operation["label"] is not None:
+            args.extend(("--label", operation["label"]))
+        if operation["lines"] is not None:
+            args.extend(("--lines", operation["lines"]))
+        leaf(*args)
 
 
 def seed_log(source: Path, page: Path) -> None:
@@ -108,6 +128,7 @@ def main() -> None:
         source.read_text(encoding="utf-8"), encoding="utf-8"
     )
     shutil.copytree(ROOT / "examples" / "media", PAGE / "media", dirs_exist_ok=True)
+    seed_data(source, PAGE)
     leaf(
         "version",
         "stamp",
@@ -115,7 +136,6 @@ def main() -> None:
         "--text",
         f"{source.name}, as it stands in the tree",
     )
-    seed_data(source, PAGE)
     seed_log(source, PAGE)
     leaf("server", "run", str(PAGE))
 

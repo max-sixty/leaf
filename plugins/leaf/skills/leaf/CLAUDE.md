@@ -142,7 +142,7 @@ Each mutable fact has one writer:
 | Fact | Authority | Browser writer |
 | --- | --- | --- |
 | authored widget state | the version's markup before upgrade | `captureAuthoredFacets` and `rememberAuthoredMarkup` capture it; neither changes it |
-| external data | the latest accepted page data revision | `receiveState` replaces the source snapshot; `watchData` delivers clones to widget modules |
+| external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the latest immutable version accepted at the activation boundary | `activateVersion` advances `currentVersion`; an immutable version path derives it from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
@@ -801,11 +801,12 @@ minimum obligations:
   receives the prior node so unchanged controls and selections can remain in place.
 - Declare each external input through the widget's `x-data`, then subscribe with
   `watchData(widget, input, callback)`. The authored source attribute is the page's
-  binding; the named contract is the input's meaning. Treat `{contract, updated, value}`
-  as one complete replaceable snapshot, render `null` as absence, and dispose the
-  watcher when the element disconnects. The watcher captures the source at subscription;
-  mutating the live attribute cannot rebind it. A module does not fetch or retain a
-  second copy.
+  binding; the named contract is the input's meaning. An optional declared snapshot
+  attribute selects an immutable capture, while its absence follows the replaceable
+  current value. Treat the delivered envelope as complete, render `null` as absence,
+  and dispose the watcher when the element disconnects. The watcher captures both
+  authored selectors at subscription; mutating a live attribute cannot rebind it. A
+  module does not fetch or retain a second copy.
 - Keep durable standalone state in serializable HTML attributes. Export removes
   scripts and handlers.
 - Remove hoisted chrome in `disconnectedCallback` when a reconstruction replaces
@@ -872,23 +873,30 @@ children, labels each rendered element with the seat id (`data-lf-projection`) a
 record's stable key (`data-lf-datum`), and marks it generated. Records remain the
 caller's input; the DOM never becomes another record store.
 
-Where records come from outside the document, their authority is `data.json`: a
-page-owned replace-in-place store. `$data.contracts` declares reusable meanings and
-schemas. A widget's `x-data` names the contract of each input and the declared attribute
-that carries this page's concrete source id. `leaf data set` resolves that binding,
-validates against its contract, and atomically replaces one complete source value; it
-does not append an event or run package code. The stored snapshot retains its contract,
-so re-vendoring never has to infer meaning from a source's spelling. A source id keeps
-that contract across every immutable version and widget frozen into a thread. Those
-documents all read the current page store: clearing a value therefore does not release
-its id for a new meaning, and re-vendoring must preserve the page-lifetime binding.
-`page state` exposes those bindings and their consumers to producers. The browser keeps
-the latest accepted data revision independently from `lastEventSeq`, because overlapping
-poll and POST responses can order those two authorities differently.
-`watchData(widget, input, callback)` delivers a clone of
-`{contract, updated, value}`, or `null` before the bound source has a value, immediately
-and after state application. Modules project that value into the authored seat; they do
-not fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.
+Where records come from outside the document, their authority is `data.json`: one
+page-owned store with a replaceable current value and retained immutable captures.
+`$data.contracts` declares reusable meanings and schemas. A widget's `x-data` names the
+contract, the attribute carrying this page's concrete source id, and optionally an
+attribute selecting one capture by data revision. `leaf data set` validates and
+atomically replaces the current value. `leaf data capture` reads a regular UTF-8 file
+up to 1 MiB, rejects U+0000, normalizes CRLF or CR line endings to LF, may slice an
+inclusive line range, and both replaces current and retains the value under the new data revision.
+Neither command appends an event or runs package code, and capture stores no source
+path. Each stored source retains its contract even after clear, so re-vendoring never has
+to infer meaning from a source's spelling.
+
+A source id keeps that contract across every immutable version and widget frozen into
+a thread. Bindings without a snapshot selector read current; durable documents may
+select a retained capture. Clearing removes current and unreferenced captures but never
+releases the id for a new meaning. Re-vendoring must preserve the page-lifetime binding
+and every standing selection. `page state` exposes those bindings and consumers to
+producers. The browser keeps the accepted data revision independently from
+`lastEventSeq`, because overlapping poll and POST responses can order the authorities
+differently. `watchData(widget, input, callback)` delivers a clone of
+`{contract, updated, value}` for current, a clone with `snapshot`, `label`, and optional
+`lines` for a selected capture, or `null` before a bound current value exists. Modules
+project the result into the authored seat; they do not fetch it, mutate the accepted
+copy, or keep a hidden current-value map of their own.
 
 Keys identify facts, not renderings or display strings. They are non-empty strings,
 unique within one projection, and must remain with the same logical datum across

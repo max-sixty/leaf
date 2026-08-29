@@ -190,6 +190,7 @@ def declare_data_input(
     tag="lf-test-data",
     input_name="data",
     guidance=None,
+    snapshot=False,
 ):
     """Add one typed widget input and bind it in the latest fixture version."""
     registry_path = page_dir / "registry.json"
@@ -204,11 +205,22 @@ def declare_data_input(
         "properties": {
             "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
             "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            **(
+                {"snapshot": {"type": "string", "pattern": "^[1-9][0-9]*$"}}
+                if snapshot
+                else {}
+            ),
         },
         "required": ["id", "source"],
         "additionalProperties": False,
         "x-content": "none",
-        "x-data": {input_name: {"contract": contract, "source": "source"}},
+        "x-data": {
+            input_name: {
+                "contract": contract,
+                "source": "source",
+                **({"snapshot": "snapshot"} if snapshot else {}),
+            }
+        },
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))

@@ -440,9 +440,7 @@ def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serv
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
         "aria-label", re.compile("Start request")
     )
-    expect(
-        page.get_by_role("button", name="React or comment on Start request")
-    ).to_have_count(1)
+    expect(page.get_by_role("button", name="Respond to Start request")).to_have_count(1)
     assert errors == []
     page.close()
 
@@ -511,9 +509,9 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     start = page.locator('#flow g[id^="flowchart-S-"]')
     expect(start).not_to_have_attribute("role", "button")
     expect(start).not_to_have_attribute("tabindex", re.compile(".+"))
-    expect(
-        page.get_by_role("button", name="React or comment on Handle request")
-    ).to_have_count(0)
+    expect(page.get_by_role("button", name="Respond to Handle request")).to_have_count(
+        0
+    )
 
     whole_control = page.locator(".lf-visual-action").first
     page.locator("#flow").evaluate("flow => { flow.style.marginTop = '1100px'; }")
@@ -531,7 +529,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     ), (whole_bar, keyline)
 
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^React or comment on Start request$")
+        has_text=re.compile(r"^Respond to Start request$")
     )
     control.focus()
     page.keyboard.press("Enter")
@@ -593,7 +591,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     ).replace("</lf-diagram>", "</lf-diagram></details>", 1)
     page, errors = open_page(browser, serve(folded))
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^React or comment on Start request$")
+        has_text=re.compile(r"^Respond to Start request$")
     )
     expect(control).to_have_count(1)
     page.evaluate(
@@ -624,7 +622,7 @@ def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, s
     that stable anchor. The focused control changes its name and remains focused."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^React or comment on Start request$")
+        has_text=re.compile(r"^Respond to Start request$")
     )
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
@@ -702,7 +700,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     bar = page.locator(".lf-fab-bar")
     diagram.evaluate("element => { element.style.width = '240px'; }")
 
-    control = page.get_by_role("button", name="React or comment on Start request")
+    control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     assert page.evaluate(
@@ -794,7 +792,7 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     """When a keyboard-raised action completes, focus returns to the proxy that named
     the target instead of remaining inside a hidden action bar."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    control = page.get_by_role("button", name="React or comment on Start request")
+    control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     assert page.evaluate(
@@ -816,7 +814,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     mouseup or keyup in the page. The new passage replaces the visual target, and
     clearing that passage dismisses the shared action surface."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    control = page.get_by_role("button", name="React or comment on Start request")
+    control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[id^="flowchart-S-"]')
     control.focus()
     page.keyboard.press("Enter")

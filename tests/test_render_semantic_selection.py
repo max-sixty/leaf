@@ -131,7 +131,10 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     code = page.locator(".lf-target-hint").first.get_attribute("data-lf-target")
     page.keyboard.type(code)
 
-    expect(page.locator(".lf-fab")).to_be_visible()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
+    expect(page.locator(".lf-live")).to_contain_text("Choose a response.")
     shown = page.locator(".lf-keyline .lf-key:not([hidden])")
     expect(shown).to_have_count(2)
     expect(shown.nth(0).locator("kbd")).to_have_text("c")
@@ -234,9 +237,10 @@ def test_nested_item_hints_do_not_cover_each_other(browser, serve):
     page.close()
 
 
-def test_s_aims_at_the_same_declared_visual_part_as_alt_click(browser, serve):
-    """A declared picture part outranks its enclosing item in both aim routes. Choosing
-    its hint opens the part-anchored composer directly, as Alt-click does."""
+def test_s_raises_the_same_action_bar_on_a_declared_visual_part(browser, serve):
+    """A declared picture part outranks its enclosing item without changing what aim
+    means. Choosing its hint raises the shared action bar; Comment then opens the
+    part-anchored composer."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).to_have_count(4)
@@ -255,9 +259,18 @@ def test_s_aims_at_the_same_declared_visual_part_as_alt_click(browser, serve):
     )
     page.keyboard.type(start_code)
 
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Selected diagram: Start request. Choose a response."
+    )
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-action-target\b"))
+
+    page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Start request")
-    start = page.locator('#flow g[id^="flowchart-S-"]')
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert page.evaluate("() => getSelection().toString()") == ""

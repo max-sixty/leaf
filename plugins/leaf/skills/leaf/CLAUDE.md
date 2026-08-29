@@ -1530,8 +1530,9 @@ so its ordinary Escape rung remains the route back.
 ### Item selection is explicit
 
 `s` names the visible items and declared visual parts that Alt-click can aim at. Both
-routes read `aimTargetAt` and activate the same anchor: a whole item raises the comment
-and reaction bar, while a visual part opens its composer directly.
+routes read `aimTargetAt`, then raise the same comment and reaction bar. The target kind
+changes only the anchor: a whole item names its authored id, while a visual part adds
+its declared token and resolves the bar against that part's geometry.
 
 The short, viewport-local hints form a prefix-free tree over one alphabet. Most targets
 cost one letter; only the tail branches when the viewport holds more targets than the

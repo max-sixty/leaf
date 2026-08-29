@@ -131,8 +131,9 @@ export function createSelectionSurface({
     // they are read differently. Covering the tail of a quote is fine — the user has read
     // it, and the mark still names where it starts. A card, a column, a metric is judged as
     // one object, so a box standing anywhere on it is a box between them and the thing they
-    // are writing about. ⌥-click made that plain by opening the composer under the pointer,
-    // which is by definition inside what was clicked.
+    // are writing about. An aimed Comment makes that plain: its target is the whole object,
+    // so the composer must clear the object rather than cover the point beside which its
+    // action bar stood.
     const whole = marks.some((where) => where instanceof Element);
     const touching = (r) =>
       r.left < box.right &&
@@ -270,10 +271,7 @@ export function createSelectionSurface({
     fab.style.display = fabAnchor ? "block" : "none";
     if (fabAnchor) {
       const label = anchorLabel(fabAnchor).replace(/^§\s*/, "");
-      fabBar.setAttribute(
-        "aria-label",
-        label ? `Comment or react on ${label}` : "Comment or react",
-      );
+      fabBar.setAttribute("aria-label", label ? `Respond to ${label}` : "Respond");
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintStanding(fabBar, reactionsOn(fabAnchor));
@@ -309,12 +307,10 @@ export function createSelectionSurface({
     showFab(null, null, { returnFocus: "none" });
     openComposer({ section: item.id }, "", from.left, from.top);
   }
-  // The aim has one activation door for pointer and keyboard. A whole item raises the
-  // cheap-answer bar; a declared visual part opens its anchored composer directly.
-  function activateAimTarget({ anchor }, from) {
-    if (!anchor.visual) return showFab(anchor);
-    showFab(null, null, { returnFocus: "none" });
-    openComposer(anchor, "", from.left, from.top);
+  // Pointer and keyboard aim choose a semantic target. Every target then raises the
+  // same actions; its anchor alone decides which element supplies the mark and geometry.
+  function activateAimTarget({ anchor }) {
+    showFab(anchor);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on

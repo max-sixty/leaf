@@ -264,7 +264,7 @@ export function createAnchors(dependencies) {
         }
         unused.delete(control);
         control.lfAnchor = anchor;
-        const name = `React or comment on ${label}`;
+        const name = `Respond to ${label}`;
         if (control.textContent !== name) control.textContent = name;
         return control;
       });
@@ -735,8 +735,9 @@ export function createAnchors(dependencies) {
     // a promise has to interrupt where an annotation may whisper, so the aim has a box
     // of its own in the chrome's layer (refreshAim, and the .lf-aim rule's account of
     // why). An open composer doesn't stand the aim down — a press while the box is up
-    // re-anchors it to the aimed item (openOnItem) — so the two can show at once, which
-    // is the true state: where the draft stands, and where a press would move it.
+    // selects another target and raises its action bar — so the two can show at once,
+    // which is the true state: where the draft stands, and where the next response would
+    // land.
     const draft =
       composerIsOpen() && composerAnchor()
         ? resolveAnchor(composerAnchor(), text)

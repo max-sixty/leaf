@@ -241,17 +241,8 @@ export function createTargetSelection({
   function choose(target) {
     setOpen(false);
     document.body.focus({ preventScroll: true });
-    const { left, right, top, bottom } =
-      shownRect(target.element, clips()) ?? target.rect;
-    activateAimTarget(target, {
-      left: (left + right) / 2,
-      top: (top + bottom) / 2,
-    });
-    announce(
-      target.anchor.visual
-        ? `Commenting on ${target.label}.`
-        : `Selected ${target.label}. Press c to comment.`,
-    );
+    activateAimTarget(target);
+    announce(`Selected ${target.label}. Choose a response.`);
   }
 
   function typeHint(key) {

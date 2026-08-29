@@ -904,11 +904,11 @@ panel.append(panelHead, findRow, threadsBox, generalRow);
 // becomes the layer's reaction buttons. `.lf-fab` stays the Comment route into the
 // composer; the bar is placed and shown by showFab, and buildReactBar fills the list
 // once the registry has supplied its vocabulary. One affordance, raised only where the
-// reader has already pointed: a selection, a visual's click, the ⌥-click on an item, or
-// `r`.
+// reader has already pointed: a selection, a visual's click, an aimed item or visual
+// part, or `r`.
 const fabBar = el("div", "lf-ui lf-fab-bar");
 fabBar.setAttribute("role", "group");
-fabBar.setAttribute("aria-label", "Comment or react");
+fabBar.setAttribute("aria-label", "Respond");
 const fab = el("button", "lf-ui lf-pill lf-fab", "💬");
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";

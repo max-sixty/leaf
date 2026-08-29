@@ -433,14 +433,12 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
 
 
 def test_the_aim_still_promises_while_a_composer_is_open(browser, serve):
-    """An armed press with the box up re-anchors it, so the aim must still say where.
+    """An armed press with the box up selects a new target, so aim still says where.
 
-    claimPress acts whether or not a composer stands open, and openComposer carries the
-    typed text onto the new anchor — so the aim standing down on composerOpen, as it did
-    from its first commit, left exactly one press made blind: the one that moves a
-    draft. Holding ⌥ over a second item raises its box beside the draft's own mark;
-    two at once is the true state — where the draft stands, and where a press would
-    move it — and the press then does what the box promised."""
+    claimPress acts whether or not a composer stands open. Holding ⌥ over a second item
+    raises its box beside the draft's own mark; two at once is the true state — where
+    the draft stands, and where a response would land. The press raises that target's
+    actions, and choosing Comment carries the typed text onto the new anchor."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     heading = page.locator("#t")
     heading.hover()
@@ -921,14 +919,19 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     page.close()
 
 
-def test_a_linked_flowchart_node_uses_the_item_aim_for_its_comment(browser, serve):
-    """A link keeps plain navigation while Alt-click claims only the node comment."""
+def test_a_linked_flowchart_node_uses_the_shared_aim_actions(browser, serve):
+    """Alt-click claims the linked visual part without following the link, then raises
+    the same Comment and Reaction choices as any other aimed item."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     handler = diagram.locator('g[id^="flowchart-H-"]')
     expect(handler.locator("xpath=ancestor::*[local-name()='a'][1]")).to_have_count(1)
 
     handler.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(handler).to_have_class(re.compile(r"\blf-action-target\b"))
+    page.locator(".lf-fab").click()
     expect(handler).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(diagram).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     page.locator(".lf-composer textarea").fill("keep this linked step visible")

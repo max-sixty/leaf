@@ -26,17 +26,18 @@ export function createAim({
   // is spelled from the modifier through the register's own table rather than written out
   // twice in two platforms' glyphs.
   const AIM = {
-    id: "aim.comment",
+    id: "aim.respond",
     modifier: "Alt",
     keys: [],
     label: `${spell("Alt")} click`,
-    does: "Comment on the item under the pointer",
+    does: "Respond to the item under the pointer",
   };
   // What the pointer is over, asked of the page rather than of an event, so pressing the key
   // without moving the mouse answers too — the user holds ⌥ to find out what they would
   // get, and the answer cannot wait for them to jiggle the mouse first. An open composer
-  // is no reason to say nothing: the press still acts (it re-anchors the box), so the
-  // promise still paints — what stood down here left that one press made blind.
+  // is no reason to say nothing: the press still acts (it selects another target and
+  // raises its actions), so the promise still paints — what stood down here left that
+  // one press made blind.
   function aimedTarget() {
     const pointer = pointerAt();
     if (pointer.x < 0) return null;
@@ -135,9 +136,12 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    const from = { left: ev.clientX + 6, top: ev.clientY - 40 };
-    if (aimedPress.aim) activateAimTarget(aimedPress.aim, from);
-    else if (aimedPress.design) openOnDesign(aimedPress.design, from);
+    if (aimedPress.aim) activateAimTarget(aimedPress.aim);
+    else if (aimedPress.design)
+      openOnDesign(aimedPress.design, {
+        left: ev.clientX + 6,
+        top: ev.clientY - 40,
+      });
   }
   for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
 

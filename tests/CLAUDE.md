@@ -340,14 +340,13 @@ before navigation, waits for the load event, and then waits on `BOTH_STAMPS`:
 
 - `data-lf-upgraded="1"` says widget upgrade and anchor preparation finished.
 - `data-lf-applied` says a replay pass applied the event log.
-- `data-lf-presented="1"` says any deliberately shown waiting surface completed its
-  minimum presentation.
+- `data-lf-presented="1"` says the authoritative projection or offline fallback is
+  visible and interactive.
 
-These are independent facts. The document can finish upgrading before its first
-state response arrives, and an applied state can still sit behind a waiting surface.
-Network quiet does not imply either one. A browser action sent before replay has
-landed may be ignored without a later assertion revealing that the keypress itself
-was lost.
+These are independent facts. The document and first state read run together, and the
+state answer remains unapplied until upgrade finishes. Network quiet does not imply
+either one. A browser action sent before replay has landed may be ignored without a
+later assertion revealing that the keypress itself was lost.
 
 Use the shared `BOTH_STAMPS` predicate for manual navigations as well. Do not copy a
 partial readiness expression into a test. The `upgraded=False` escape in `open_page`

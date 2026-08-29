@@ -43,10 +43,8 @@
   --accent: #2f5480; --ok: #3f7d4e;   --warn: #b4741a;   --danger: #b4402f;
   --r: 6px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px;
-  /* One timing contract for first presentation. leaf.js reads the dwell here,
-     so the paint and release cannot drift into two ideas of "shown". */
+  /* A fast first presentation never paints the waiting explanation. */
   --lf-presentation-delay: 300ms;
-  --lf-presentation-dwell: 400ms;
   /* --rail, the comment margin, has no value here: it is the widest control row plus
      its gap, which is a fact about the controls' own words and face, so lf-suggestion.js
      measures the first row it builds and states it on the root element. The rule that

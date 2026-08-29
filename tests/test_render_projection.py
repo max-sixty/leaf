@@ -1945,10 +1945,10 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
 ):
     """A page finishes twice, and the second ending arrives moving.
 
-    `lf-upgraded` is the first: every widget upgraded, the geometry final. The
-    runtime writes it in the same breath as it *starts* the first read and never
-    awaits that read, so a gate reading there reads the authored page — here, a
-    widget standing 120px out of place with its words over the paragraphs below it.
+    `lf-upgraded` is the first: every widget upgraded, the geometry final. The first
+    read starts earlier but its answer cannot apply before that boundary, so a gate
+    reading there can still read the authored page — here, a widget standing 120px
+    out of place with its words over the paragraphs below it.
     `lf-applied` is the second, and the frame it lands in is the first frame of the
     move it describes: a read that brings nothing presents the authored page
     deliberately, so the replay after it crosses the presentation boundary and moves

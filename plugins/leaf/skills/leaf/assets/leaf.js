@@ -3536,6 +3536,10 @@ stateFeed = createStateFeed({
   runtime,
   sameLayer,
 });
+// The server can build the authoritative page state while the browser loads and settles
+// the registry's widget modules. Its answer stays buffered until startPage has captured
+// the upgraded authored facets that replay starts from.
+const initialStateRead = stateFeed.beginRead();
 
 // ---------- restore ----------
 // The general box and reply textareas repopulate as they render; a saved composer draft
@@ -3594,42 +3598,14 @@ const { landArrival, savedView } = viewRuntime.installArrival({
 const savedComposer = pendingComposer();
 
 // ---------- start ----------
-const PRESENTATION_WAIT_ANIMATION = "lf-presentation-wait";
-const cssMilliseconds = (name) => {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-  if (value.endsWith("ms")) return Number(value.slice(0, -2));
-  if (value.endsWith("s")) return Number(value.slice(0, -1)) * 1000;
-  return Number(value);
-};
-
 // One positive fact for the one presentation boundary. Success has applied the log;
 // an unavailable first poll has painted the offline status and deliberately hands the
 // authored page back. A caught startup failure cannot make that promise, so it leaves
-// the fixed recovery surface in place rather than exposing decisions it never read. A
-// fast answer releases before the delayed waiting surface can paint. Once that surface
-// has started, its CSS animation is the clock and the CSS dwell is the budget: the message
-// stays long enough to read instead of becoming the flash it was meant to prevent.
-async function presentPage() {
+// the fixed recovery surface in place rather than exposing decisions it never read. A fast
+// answer releases before the delayed waiting surface can paint; a slower answer releases
+// as soon as replay commits, so the explanation never holds a ready page behind it.
+function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
-  const wait = document
-    .getAnimations()
-    .find((animation) => animation.animationName === PRESENTATION_WAIT_ANIMATION);
-  const current = Number(wait?.currentTime);
-  const delay = Number(wait?.effect.getTiming().delay);
-  if (wait && Number.isFinite(current) && current >= delay) {
-    const shownAt = (wait.startTime ?? document.timeline.currentTime - current) + delay;
-    const releaseAt = shownAt + cssMilliseconds("--lf-presentation-dwell");
-    // Timers are a wake-up hint, not the presentation clock: a browser may service one
-    // a few milliseconds before its requested deadline. Re-read the CSS timeline after
-    // every wake so the recovery message never loses the end of its promised dwell.
-    while (document.timeline.currentTime < releaseAt) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, releaseAt - document.timeline.currentTime),
-      );
-    }
-  }
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
   // Repaint state-dependent chrome in this same task. The presentation attribute opens
   // the gate, replay is already complete, and no frame can expose the authored count or
@@ -3694,30 +3670,18 @@ async function startPage() {
       Boolean(savedComposer.suggest),
       savedComposer.about ?? null,
     );
-  // Start replay before stamping the document, preserving the two readiness facts, but
-  // present neither half on its own. The first completed read — state or offline — is the
-  // presentation boundary; only after it settles do the heartbeat and the stream begin,
-  // so a held first request cannot be overtaken by a second answer and leave presentation
-  // waiting on the wrong call.
-  let presentationAttempt;
-  const ensurePresentation = () => {
-    if (!presentationAttempt)
-      presentationAttempt = presentPage().finally(() => {
-        presentationAttempt = null;
-      });
-    return presentationAttempt;
-  };
-  const present = async () => {
-    if (!document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented))
-      await ensurePresentation();
-  };
-  stateFeed.start(present);
   // Every widget has upgraded and every async one has settled, so the geometry and
   // the drawn SVG are final. `version export` copies the page at this moment and has no
   // other way to know it arrived: a load event fires before the modules run, and
   // networkidle only says a bundle finished downloading, not that it finished
   // drawing. The stamp says the document is done becoming itself.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  // Apply the buffered first read only after that stamp, preserving the two readiness
+  // facts but presenting neither half on its own. The first completed read — state or
+  // offline — is the presentation boundary; only after it settles do the heartbeat and
+  // the stream begin, so a held first request cannot be overtaken by a second answer and
+  // leave presentation waiting on the wrong call.
+  stateFeed.start(presentPage, initialStateRead);
 }
 
 startPage().catch((error) => {

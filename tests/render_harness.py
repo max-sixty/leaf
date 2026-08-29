@@ -1053,11 +1053,9 @@ def held_stale(context):
 
 # The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
 # and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
-# pass, and `lf-presented` says a deliberately shown waiting surface has completed its
-# minimum dwell. Applied state is not yet a completed page while that surface stands.
-# The runtime stamps the document in the same breath as it starts that first read and
-# never awaits it, so a page can be done becoming itself while knowing nothing of what
-# the reader has decided or which version is newest.
+# pass, and `lf-presented` says the authoritative projection or offline fallback has been
+# released to the reader. The first read starts beside widget startup, but its answer stays
+# unapplied until the document earns its upgrade stamp. Either half may finish first.
 #
 # One predicate, because it was spelled out in eleven places and only the one that
 # noticed ever grew the second half. `open_page` took it when a loaded Linux runner
@@ -1344,10 +1342,9 @@ def primed(browser, prepare):
 
     What a test states there is `page.route`, which stops or delays a request from outside
     the page as everything else here now does. Refusing the first `/api/state` is the one
-    that has earned its keep: the runtime stamps `lf-upgraded` in the same breath as it
-    starts that read, never awaiting it, so a refusal puts replay on the far side of the
-    document's stamp — where a slow machine would have put it — deterministically and in
-    a second."""
+    that has earned its keep: the runtime starts that read beside widget startup but never
+    applies it there. A refusal lets `lf-upgraded` land while replay remains held, putting
+    the two readiness facts on opposite sides of a deterministic boundary."""
 
     def new_page(**kwargs):
         page = browser.new_page(**kwargs)

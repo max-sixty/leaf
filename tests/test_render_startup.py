@@ -231,14 +231,6 @@ main, main * {
         )
         frames = page.evaluate("() => window.__lfPresentation.frames")
         assert held, "the positive control did not hold the first state response"
-        assert page.evaluate(
-            """() => [
-              getComputedStyle(document.documentElement)
-                .getPropertyValue('--lf-presentation-delay').trim(),
-              getComputedStyle(document.documentElement)
-                .getPropertyValue('--lf-presentation-dwell').trim(),
-            ]"""
-        ) == ["300ms", "400ms"], "the shipped first-presentation timing drifted"
         assert frames and all(frame["height"] > 0 for frame in frames), (
             f"the authored state was never laid out, so the paint gate tested nothing: {frames}"
         )
@@ -620,16 +612,16 @@ def test_a_fast_first_replay_does_not_flash_the_waiting_surface(browser, serve):
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
-def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
+def test_a_slow_first_replay_releases_when_state_is_ready(
     browser, serve, reduced_motion
 ):
-    """The delayed wait is real pixels, and once paid for it cannot become a flash.
+    """The delayed wait is real pixels, but it never holds a ready page.
 
     A paused CSS timeline makes both sides of the paint threshold observable without a
-    race against module load or screenshot speed. When the held response reaches fetch,
-    the probe starts a fresh dwell interval in that same browser task. The presentation
-    mutation must land beyond it, with response receipt before it as the positive control
-    that a missing release-time wait could not pass vacuously."""
+    race against module load or screenshot speed. An enormous dwell override is the
+    bug-back: a runtime that still consults it cannot present within the test boundary,
+    while replay readiness releases the current page directly.
+    """
     from PIL import Image, ImageChops
 
     held = []
@@ -638,39 +630,6 @@ def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
     )
     page = context.new_page()
     errors = watched(page)
-    page.add_init_script(
-        """
-        const nativeFetch = window.fetch.bind(window);
-        window.fetch = async (...args) => {
-          const response = await nativeFetch(...args);
-          const input = args[0];
-          const url = typeof input === 'string' ? input : input.url;
-          if (new URL(url, location.href).pathname !== '/api/state'
-              || window.__lfReplayReceivedAt !== undefined) return response;
-
-          const wait = document.getAnimations()
-            .find(a => a.animationName === 'lf-presentation-wait');
-          const timing = wait.effect.getTiming();
-          wait.currentTime = timing.delay + timing.duration;
-          const current = Number(wait.currentTime);
-          const dwell = Number(getComputedStyle(document.documentElement)
-            .getPropertyValue('--lf-presentation-dwell').replace('ms', ''));
-          window.__lfReplayReceivedAt = document.timeline.currentTime;
-          window.__lfEarliestPresentation =
-            window.__lfReplayReceivedAt - current + timing.delay + dwell;
-          window.__lfPresentationAt = null;
-          new MutationObserver((changes, observer) => {
-            if (!document.body.hasAttribute('data-lf-presented')) return;
-            window.__lfPresentationAt = document.timeline.currentTime;
-            observer.disconnect();
-          }).observe(document.body, {
-            attributes: true,
-            attributeFilter: ['data-lf-presented'],
-          });
-          return response;
-        };
-        """
-    )
     page.route("**/api/state*", lambda route: held.append(route))
     try:
         page.goto(serve(SHORT_SUGGESTION), wait_until="load")
@@ -715,24 +674,14 @@ def test_a_slow_first_replay_waits_then_keeps_its_explanation_readable(
             sum(pixel != (0, 0, 0) for pixel in changed.get_flattened_data()) > 100
         ), "the waiting surface did not paint enough pixels to be a useful explanation"
         assert held, "the positive control did not hold the first state response"
+        page.evaluate(
+            """() => document.documentElement.style.setProperty(
+              '--lf-presentation-dwell', '86400000ms'
+            )"""
+        )
         held.pop(0).continue_()
         page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-        release = page.evaluate(
-            """() => [
-              window.__lfPresentationAt,
-              window.__lfEarliestPresentation,
-              window.__lfReplayReceivedAt,
-            ]"""
-        )
-        assert release[2] < release[1], (
-            "the held response arrived after the dwell boundary, so the release-time "
-            f"wait was not exercised: response at {release[2]:.1f}, "
-            f"boundary at {release[1]:.1f}"
-        )
-        assert release[0] + 1 >= release[1], (
-            "the ready page cut off a waiting explanation before its CSS dwell ended: "
-            f"presentation at {release[0]:.1f}, earliest {release[1]:.1f}"
-        )
+        expect(page.locator("body > main")).to_be_visible()
         assert errors == []
     finally:
         context.close()
@@ -1230,24 +1179,29 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     page.close()
 
 
-def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
-    """The chrome is wired before the asynchronous registry fetch completes.
-    That interval is real state, not a missing-registry fallback: general Comments
-    accepts a send but holds it until the layer identity arrives, while an anchored
-    comment waits until upgrades have made the page's final words. The explicit gate
-    proves each assertion runs on the intended side of the fetch rather than racing a
-    timer."""
+def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
+    """The chrome and initial state read do not wait behind widget startup.
+
+    That interval is real state, not a missing-registry fallback: the state answer waits
+    unapplied until upgrades have captured the authored page, general Comments accepts a
+    send but holds it until the layer identity arrives, and an anchored comment waits until
+    upgrades have made the page's final words. The explicit gate proves each assertion runs
+    on the intended side of the fetch rather than racing a timer.
+    """
     gate_registry = """
       const nativeFetch = window.fetch.bind(window);
       window.lfRegistryGate = new Promise(resolve => window.lfReleaseRegistry = resolve);
-      window.fetch = (...args) => {
+      window.fetch = async (...args) => {
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
-        if (new URL(url, location.href).pathname === '/registry.json') {
+        const path = new URL(url, location.href).pathname;
+        if (path === '/registry.json') {
           window.lfRegistryBlocked = true;
           return window.lfRegistryGate.then(() => nativeFetch(...args));
         }
-        return nativeFetch(...args);
+        const response = await nativeFetch(...args);
+        if (path === '/api/state') window.lfInitialStateReceived = true;
+        return response;
       };
     """
     html = JOURNEY_V1.replace(
@@ -1270,6 +1224,11 @@ def test_chrome_is_safe_during_the_registry_fetch(browser, serve):
         upgraded=False,
     )
     page.wait_for_function("() => window.lfRegistryBlocked === true")
+    page.wait_for_function("() => window.lfInitialStateReceived === true")
+    expect(page.locator("body")).not_to_have_attribute(
+        "data-lf-applied", re.compile(".")
+    )
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     page.wait_for_function(
         "() => Number(getComputedStyle(document.body, '::after').opacity) > 0"
     )

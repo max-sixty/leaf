@@ -194,20 +194,23 @@ or events.
 
 Startup order is load-bearing:
 
-1. Fetch and validate the registry.
-2. Index passage fences and clone recordless authored widgets while the DOM
+1. Begin the first state read without applying its answer.
+2. Fetch and validate the registry.
+3. Index passage fences and clone recordless authored widgets while the DOM
    still contains only the version's markup.
-3. Import modules declared by `x-upgrade`.
-4. Wait for module settlement, then run the shared dressing passes.
-5. Capture authored record facets from the upgraded, authored state.
-6. Mark `body` `data-lf-upgraded="1"`.
-7. Read the first state, reconcile it, and present the page.
+4. Import modules declared by `x-upgrade`.
+5. Wait for module settlement, then run the shared dressing passes.
+6. Capture authored record facets from the upgraded, authored state.
+7. Mark `body` `data-lf-upgraded="1"`.
+8. Apply the prepared state answer, reconcile it, and present the page.
 
 `rememberAuthoredMarkup` runs before imports because a clone taken after upgrade
 would contain generated controls and the module's once-only stamp. It stores
 only widget families with a recordless durable action. `captureAuthoredFacets`
 runs after upgrade because record-bearing widgets may arrange the authored state
 in `connectedCallback`, but it must run before replay changes that state.
+The state read overlaps those upgrades, but its answer stays buffered until both
+captures have established the authored initial condition.
 
 The served page root is a stable live document. Its first response projects the
 latest immutable version and carries a runtime-only version marker. On a later
@@ -240,9 +243,10 @@ the vendored layer in turn:
   deliberate offline authored fallback, has crossed the presentation boundary.
 
 Do not merge these stamps. A document can finish upgrading while its first state
-read is pending. A projection can commit while finite reconciliation animations
-are still settling. Any consumer that reads final boxes waits for upgraded,
-applied, presented, and no finite animation reported by `moving`.
+read is pending, or the answer can wait unapplied while upgrades finish. A
+projection can commit while finite reconciliation animations are still settling.
+Any consumer that reads final boxes waits for upgraded, applied, presented, and
+no finite animation reported by `moving`.
 
 The authored `main` stays behind the presentation gate until the first state read
 has either applied or established that the server is unavailable. Fixed recovery

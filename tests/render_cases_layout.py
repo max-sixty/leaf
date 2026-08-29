@@ -1124,7 +1124,7 @@ MANY_ASKS_PAGE = leaf_page(
 <lf-tasks id="plan">
 """
     + "\n".join(
-        f'<lf-task id="t-{i}" status="review" owner="wren">'
+        f'<lf-task id="t-{i}" status="review" owner="wren" ask>'
         f"<strong>Waiting on you, item {i}</strong>"
         f"<p>Something to decide about item {i}.</p></lf-task>"
         for i in range(12)

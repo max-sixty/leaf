@@ -264,12 +264,10 @@ class _AskReducer:
         if not self.exists[key]:
             self.values[key] = False
             return False
-        if not self.local[key]:
-            self.values[key] = False
-            return False
         declaration = self._declaration(record)
+        own_request = self.local[key] and not self._answered(record)
         if not declaration.get("rollup"):
-            self.values[key] = not self._answered(record)
+            self.values[key] = own_request
             return self.values[key]
         descendants = self.direct.get(key, [])
         interventions = [
@@ -279,8 +277,9 @@ class _AskReducer:
             and (self.local[id(candidate)] or self._is_request(candidate))
         ]
         if interventions:
-            self.values[key] = any(
-                self._awaits(candidate) for candidate in interventions
+            self.values[key] = (
+                any(self._awaits(candidate) for candidate in interventions)
+                or own_request
             )
             return self.values[key]
         children = [
@@ -289,9 +288,7 @@ class _AskReducer:
             if self._declaration(candidate).get("rollup")
         ]
         self.values[key] = (
-            any(self._awaits(candidate) for candidate in children)
-            if children
-            else not self._answered(record)
+            any(self._awaits(candidate) for candidate in children) or own_request
         )
         return self.values[key]
 
@@ -355,9 +352,9 @@ def page_ask_projection(
     """The page's visible asks and exact awaiting value for every declared target.
 
     An ordinary x-awaits instance is its local condition minus an explicit answer.
-    A roll-up projects the same fact through a nested plan: a false local condition
-    stops; direct ordinary interventions take precedence;
-    otherwise child roll-ups recurse; a matching leaf waits.
+    A roll-up projects requests through a nested plan: direct ordinary interventions
+    take precedence over child roll-ups, while a matching owner's own request remains
+    standing underneath either and surfaces when no deeper request remains.
 
     An x-request.ask instance is local exactly while its canonical lifecycle is ready.
     Its pending and completed phases hand the turn away from the reader; failure

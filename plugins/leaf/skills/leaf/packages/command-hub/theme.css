@@ -43,13 +43,12 @@ lf-agent[state="done"] > strong, lf-agent[state="idle"] > strong { color: var(--
 .lf-doing { color: var(--ink-2); }
 .lf-heard { color: var(--muted); white-space: nowrap; font-size: var(--t-6); }
 /* Silence against a claim of work. The word is the module's and says the whole of it;
- * the tint is the bonus, on the same amber the vocabulary already spends on "this one
- * is the reader's to deal with". */
+ * the tint is the bonus, using the vocabulary's amber for work that needs attention. */
 .lf-cold { color: var(--warn-ink); background: var(--warn-tint);
            padding: 0 8px; border-radius: 999px; font-size: var(--t-6); }
 /* The state, in the vocabulary's own semantics: green for finished, accent for the one
- * in flight, amber for what has come back to the reader, red for stuck, and neutral for
- * a worker with nothing to do — which is not a fault and is not tinted as one. */
+ * in flight, amber for waiting, red for stuck, and neutral for a worker with nothing to
+ * do — which is not a fault and is not tinted as one. */
 .lf-state { padding: 0 8px; border-radius: 999px; font-size: var(--t-6);
             white-space: nowrap; background: var(--chip); color: var(--ink-2); }
 .lf-state-working { background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -63,8 +62,8 @@ lf-agent[state="reaped"] > strong { color: var(--ink-2); }
 /* lf-tasks / lf-task: a hierarchy of work. The indent guides and status
  * markers are CSS; the chip row (`owner`, `when`, `tags`, and a parent's
  * done-fraction) is built by the lf-task upgrade. The marker vocabulary is
- * the milestone's, plus `review` in the warn tint: finished by its holder,
- * awaiting the reader — the amber is the reader's own work showing. */
+ * the milestone's, plus `review` in the warn tint: finished by its holder and
+ * ready to be reviewed. The separate `ask` declaration assigns that review. */
 lf-tasks, lf-command { display: block; margin: 14px 0; }
 lf-task { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
 lf-task::before { content: ""; position: absolute; left: 6px; top: 5px;
@@ -115,7 +114,7 @@ lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
   background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6); }
 .lf-task-crew { cursor: pointer; color: var(--accent); }
 .lf-task-held { color: var(--warn-ink) !important; background: var(--warn-tint) !important; }
-.lf-task-ask { color: var(--accent) !important; }
+.lf-task-signal { color: var(--accent) !important; }
 lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-conversation) {
   grid-column: 1 / -1; }
 lf-command [data-lf-command-goal] > [data-lf-command-goal],

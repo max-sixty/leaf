@@ -329,8 +329,9 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
       <section id="off-work">
         <h2>The work, piece by piece</h2>
         <p id="off-work-note">
-          Amber means the owner is done and waiting on your read. A red task names
-          whatever is holding it. The two under the stall are the two ways out of it.
+          Amber means the owner is done and ready for review. The two amber tasks here
+          explicitly wait on your read. A red task names whatever is holding it. The two
+          under the stall are the two ways out of it.
         </p>
         <lf-tasks id="off-left">
           <lf-task id="off-t-resync" status="blocked" owner="mobile">
@@ -346,16 +347,16 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
               <strong>Vendor fix</strong> Filed with the reproducer above. They have
               acknowledged it and named no date.
             </lf-task>
-            <lf-task id="off-t-resync-workaround" status="review" owner="mobile">
+            <lf-task id="off-t-resync-workaround" status="review" owner="mobile" ask>
               <strong>Backgrounding workaround</strong> Resend the batch on a 20-second
               timer when the app is foregrounded, which turns the stall into a delay
               nobody watches. Written and tested; awaiting your read.
             </lf-task>
           </lf-task>
-          <lf-task id="off-t-copy" status="review" owner="design">
+          <lf-task id="off-t-copy" status="review" owner="design" ask>
             <strong>Conflict prompt copy</strong> The wording quoted above, rewritten
             after five of those 63 ended with the reader picking the side they hadn't
-            meant to, and saying so.
+            meant to, and saying so. Ready for your read.
           </lf-task>
           <lf-task id="off-t-evict" status="blocked" owner="client">
             <strong>Store eviction</strong> Written for the answer I recommend below and

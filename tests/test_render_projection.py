@@ -789,12 +789,12 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, the element wears
-    data-lf-reported rather than the user's pending mark, and a task reported
-    into `review` joins the asks the banner counts. Then the version that
-    answers the report by id takes the page back: replay skips a report the
-    note named, so the overruling version's own state is what renders, with no
-    provisional mark left on it. Last, the diff against the base version reads
-    the base's state as the reader saw it — report included — so the overrule
+    data-lf-reported rather than the user's pending mark, and a task authored
+    as a reader ask joins the banner when it is reported into `review`. Then
+    the version that answers the report by id takes the page back: replay skips
+    a report the note named, so the overruling version's own state is what
+    renders, with no provisional mark left on it. Last, the diff against the
+    base version reads the base's state as the reader saw it — report included — so the overrule
     marks as a change even though the two files spell the same status."""
     url = serve(REPORT_PAGE)
     d = serve.page_dir
@@ -815,7 +815,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a reader listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
-    # A task at review is a standing ask however the status got there.
+    # The authored reader obligation becomes a standing ask when the report moves
+    # its task into review.
     expect(page.locator(".lf-asks")).to_have_text("Asks (1)")
 
     # A second report supersedes the first — absolute values fold — and the
@@ -835,8 +836,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # settlements resolved from `overruled`, so replay stops them
     # and the document speaks again.
     v2 = REPORT_PAGE.replace(
-        '<lf-task id="t-parser" status="active">',
-        '<lf-task id="t-parser" status="active" overruled>',
+        '<lf-task id="t-parser" status="active" ask>',
+        '<lf-task id="t-parser" status="active" ask overruled>',
     )
     stamp_page(d, v2, "not done yet")
     assert len(events_model.read_events(d)[-1]["settles"]) == 2
@@ -3773,7 +3774,7 @@ def test_command_hub_keeps_a_real_goal_ask_outside_a_quoted_decision(browser, se
     """An exhibited choice is inert evidence. It cannot answer the blocked goal
     containing it, nor suppress that goal merely because it declares x-awaits."""
     command = """<lf-command id="hub-plan" label="Quoted ask">
-      <lf-task id="goal" status="blocked" stopped-at="2026-08-21T08:00:00Z">
+      <lf-task id="goal" status="blocked" ask stopped-at="2026-08-21T08:00:00Z">
         <strong>Blocked goal</strong>
         <lf-specimen id="sample"><lf-options id="example" choose>
           <lf-option id="example-a"><strong>Example only</strong></lf-option>

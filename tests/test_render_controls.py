@@ -2980,6 +2980,8 @@ customElements.define("lf-quota", class extends HTMLElement {
     stamp_version_file(serve.page_dir, 2, "same plan")
     told(current)
     expect(current.locator(".lf-version")).to_contain_text("v2")
+    expect(current.locator("#task")).not_to_have_attribute("data-lf-reported", "1")
+    expect(current.locator("#child")).not_to_have_attribute("data-lf-reported", "1")
     expect(current.locator("#destination > #quota")).to_have_count(1)
     expect(current.get_by_role("button", name="Increase")).to_have_attribute(
         "aria-disabled", "true"

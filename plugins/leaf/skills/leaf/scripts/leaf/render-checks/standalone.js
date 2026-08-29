@@ -225,6 +225,12 @@ export function bake() {
       )
         el.removeAttribute(attr.name);
   });
+  // Target items are generated containers rather than offers themselves. A pending
+  // action leaves the container empty when its inert controls are stripped above; take
+  // that shell too, or :has(.lf-margin-item) reserves the live page's rail in a copy
+  // that kept nothing in it. Decided records and standing reaction marks remain as
+  // children and therefore retain both their shared item and its rail.
+  document.querySelectorAll(".lf-margin-item:empty").forEach((item) => item.remove());
   // What the runtime painted, as against what a widget built, goes the same way. An
   // element-anchored comment's mark is a class the kept stylesheet answers with a
   // ring and a pointer hand, and the panel that hand promised left with the chrome —

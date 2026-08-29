@@ -8,6 +8,8 @@ from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
     DECISION_PAGE,
+    PANEL_PAGE,
+    SUGGESTION_PAGE,
     _publish,
     compare_with,
     live_url,
@@ -15,6 +17,7 @@ from render_support import (
     panel_settled,
     resized,
     round_trip,
+    select,
     ticked,
     told,
 )
@@ -36,6 +39,332 @@ OUTCOME_ON_DECISION = {
     "action": "choose",
     "detail": {"options": ["br-steel"]},
 }
+
+ACTION_PAGE = SUGGESTION_PAGE.replace(
+    "<main>", '<main><section id="action-section">'
+).replace(
+    "</main>",
+    """
+<lf-draft id="draft-ops"><pre>
+  Run the migration before deploying.
+</pre></lf-draft>
+<div style="height: 500px" aria-hidden="true"></div>
+    </section></main>""",
+)
+UNID_SELECTION_PAGE = PANEL_PAGE.replace('<p id="how-cap">', "<p>")
+
+
+def test_one_margin_item_owns_a_targets_controls_information_and_more_actions(
+    browser, serve
+):
+    """A target has one RHS surface; `r` extends that surface horizontally."""
+    page, errors = open_page(browser, serve(ACTION_PAGE))
+    resized(page, 1440, 900)
+
+    suggestion = page.locator("[data-lf-for='sug-refill'].lf-sug-actions")
+    suggestion_item = suggestion.locator("xpath=..")
+    expect(suggestion_item).to_have_class(re.compile(r"lf-margin-item"))
+    expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
+    expect(suggestion_item.locator(".lf-sug-accept")).to_be_visible()
+    expect(suggestion_item.locator(".lf-sug-reject")).to_be_visible()
+    for action in (
+        suggestion_item.locator(".lf-sug-accept"),
+        suggestion_item.locator(".lf-sug-reject"),
+        suggestion_item.locator(":scope > .lf-margin-marker"),
+    ):
+        expect(action).to_have_class(re.compile(r"lf-margin-action"))
+    expect(
+        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+    ).to_be_visible()
+    expect(
+        suggestion_item.locator(".lf-sug-reject .lf-margin-action-label")
+    ).to_be_visible()
+
+    draft_controls = page.locator("[data-lf-for='draft-ops'].lf-draft-controls")
+    draft_item = draft_controls.locator("xpath=..")
+    expect(draft_item).to_have_class(re.compile(r"lf-margin-item"))
+    expect(draft_item.locator(":scope > .lf-margin-marker")).to_have_count(1)
+    expect(draft_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
+    expect(draft_item.locator(".lf-draft-pencil")).to_be_visible()
+    expect(draft_item.locator(".lf-draft-pencil")).to_have_class(
+        re.compile(r"lf-margin-action")
+    )
+    expect(draft_item.locator(".lf-draft-pencil .lf-margin-action-label")).to_have_text(
+        "Edit"
+    )
+
+    shapes = page.locator(
+        ".lf-sug-accept, .lf-sug-reject, .lf-draft-pencil, "
+        '[data-lf-margin-for="sug-refill"] > .lf-margin-marker'
+    ).evaluate_all(
+        "els => els.map(el => { const box = el.getBoundingClientRect(); "
+        "const style = getComputedStyle(el); "
+        "return [Math.round(box.height), style.borderRadius]; })"
+    )
+    assert len({tuple(shape) for shape in shapes}) == 1, (
+        "Accept, Reject, Edit, and the information marker no longer share one shape"
+    )
+
+    accept = suggestion.locator(".lf-sug-accept")
+    accept.focus()
+    # Reconciliation that does not change the target order leaves the complete item in
+    # place, so a focused contribution remains focused.
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-actions'))")
+    expect(accept).to_be_focused()
+    rail = page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
+    column = page.locator("main").evaluate(
+        "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+    )
+    page.keyboard.press("r")
+    reactions = suggestion_item.locator(":scope > .lf-margin-reactions")
+    expect(reactions.locator(".lf-react:visible")).to_have_count(6)
+    expect(suggestion_item).to_have_class(re.compile(r"lf-condensed"))
+    expect(
+        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+    ).to_be_hidden()
+    expect(
+        suggestion_item.locator(".lf-sug-reject .lf-margin-action-label")
+    ).to_be_hidden()
+    expect(reactions.locator(":scope > .lf-fab")).to_have_class(
+        re.compile(r"lf-margin-action")
+    )
+    expect(reactions.locator(".lf-react").first).to_have_class(
+        re.compile(r"lf-margin-action")
+    )
+    expect(reactions.locator(".lf-react .lf-margin-action-label").first).to_be_hidden()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.evaluate(
+        "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
+    )
+    assert (
+        page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
+        == rail
+    ), "temporary reaction choices permanently widened the page rail"
+    assert (
+        page.locator("main").evaluate(
+            "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
+        )
+        == column
+    ), "opening reaction choices moved the readable column"
+    assert reactions.evaluate(
+        """surface => {
+          const row = surface.parentElement.getBoundingClientRect();
+          const controls = [...surface.parentElement.children]
+            .filter(el => el.checkVisibility())
+            .map(el => el.getBoundingClientRect());
+          const center = row.y + row.height / 2;
+          return controls.every(box => Math.abs(box.y + box.height / 2 - center) < 2)
+            && controls.every((box, i) => !i || box.x >= controls[i - 1].right);
+        }"""
+    ), "r opened outside the target's horizontal margin item"
+
+    # Condensation follows the complete row's available width, not a permanent compact
+    # variant chosen by the suggestion or by `r`.
+    resized(page, 2400, 900)
+    expect(suggestion_item).not_to_have_class(re.compile(r"lf-condensed"))
+    expect(
+        suggestion_item.locator(".lf-sug-accept .lf-margin-action-label")
+    ).to_be_visible()
+    expect(
+        suggestion_item.locator(".lf-sug-reject .lf-margin-action-label")
+    ).to_be_visible()
+    accept.focus()
+    page.keyboard.press("r")
+    expect(reactions.locator(".lf-react:visible")).to_have_count(6)
+    expect(reactions.locator(".lf-react .lf-margin-action-label").first).to_be_visible()
+
+    # The shared behavior belongs to the target item, not specifically to a
+    # suggestion: focusing the draft's resting Edit action extends that same item.
+    page.keyboard.press("Escape")
+    draft_controls.locator(".lf-draft-pencil").focus()
+    page.keyboard.press("r")
+    expect(
+        draft_item.locator(":scope > .lf-margin-reactions .lf-react:visible")
+    ).to_have_count(6)
+
+    # On a narrow screen each item docks directly after the rendered block that owns its
+    # target. It does not join every other action at the end of their common section, and
+    # the desktop map marker leaves the compact action row to the Map sheet.
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement.blur()")
+    resized(page, 390, 900)
+    suggestion.locator(".lf-sug-accept").focus()
+    expect(page.locator("#sug-refill")).to_be_in_viewport()
+    assert suggestion_item.evaluate(
+        "item => item.previousElementSibling === document.querySelector('#replace')"
+    ), "the first proposal's controls were hoisted past later targets in its section"
+    assert draft_item.evaluate(
+        "item => item.previousElementSibling === document.querySelector('#draft-ops')"
+    ), "the draft's Edit action no longer follows the draft"
+    expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
+    page.keyboard.press("r")
+    expect(reactions.locator(".lf-react:visible")).to_have_count(6)
+    expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
+    reactions.locator('.lf-react[data-token="ok"]').click()
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["token"] == "ok" and sent["anchor"] == {"section": "sug-refill"}
+
+    assert errors == []
+    page.close()
+
+
+def test_reaction_choices_and_their_receipt_share_an_unided_selected_block(
+    browser, serve
+):
+    """The durable section coordinate does not pull the visible RHS item to its top."""
+    page, errors = open_page(browser, serve(UNID_SELECTION_PAGE))
+    resized(page, 1600, 900)
+    paragraph = page.locator("#s-how > p:nth-of-type(2)")
+    box = paragraph.bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=12,
+    )
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    bar.locator(".lf-react-trigger").click()
+    item = page.locator(".lf-margin-item").filter(
+        has=page.locator(".lf-margin-reactions")
+    )
+    expect(item).to_have_count(1)
+    assert abs(item.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
+
+    item.locator('.lf-react[data-token="ok"]').click()
+    round_trip(page)
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
+    receipt = page.locator(".lf-margin-item").filter(has=page.locator(".lf-reacts"))
+    assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
+    assert errors == []
+    page.close()
+
+
+def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, serve):
+    """Nested, sibling, and slotted targets follow their rendered order."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    readings = page.evaluate(
+        """async () => {
+          const { marginAction, registerMarginItem } =
+            await import('/runtime/living-margin.js');
+          const makeRecord = label => {
+            const shell = document.createElement('div');
+            const root = shell.attachShadow({mode: 'open'});
+            const target = document.createElement('p');
+            target.textContent = `${label} target`;
+            root.append(target);
+            const controls = marginAction(document.createElement('button'), {
+              glyph: '!', label: `${label} controls`
+            });
+            return {label, shell, target, controls};
+          };
+          const first = makeRecord('first');
+          const nested = makeRecord('nested');
+          first.shell.shadowRoot.append(nested.shell);
+          const second = makeRecord('second');
+          const slottedShell = document.createElement('div');
+          const slottedRoot = slottedShell.attachShadow({mode: 'open'});
+          slottedRoot.innerHTML = '<slot name="b"></slot><slot name="a"></slot>';
+          const makeSlottedRecord = (label, slot) => {
+            const target = document.createElement('p');
+            target.slot = slot;
+            target.textContent = `${label} target`;
+            const controls = marginAction(document.createElement('button'), {
+              glyph: '!', label: `${label} controls`
+            });
+            return {label, shell: slottedShell, target, controls};
+          };
+          const slotA = makeSlottedRecord('slot a', 'a');
+          const slotB = makeSlottedRecord('slot b', 'b');
+          slottedShell.append(slotA.target, slotB.target);
+          const main = document.querySelector('main');
+          main.append(first.shell, second.shell, slottedShell);
+          const records = [slotA, nested, second, slotB, first];
+          for (const record of records) {
+            const {target, controls} = record;
+            const margin = registerMarginItem({target, controls});
+            record.margin = margin;
+          }
+          await new Promise(done =>
+            requestAnimationFrame(() => requestAnimationFrame(done))
+          );
+          const readings = [first, nested, second, slotA, slotB].map(({shell, target, controls}) => ({
+            ownsTarget: controls.parentElement?.lfEntry?.target === target,
+            inDocument: controls.getRootNode() === document,
+            itemCount: shell.shadowRoot.querySelectorAll('.lf-margin-item').length,
+            commonAction: controls.matches('.lf-margin-action'),
+            minHeight: getComputedStyle(controls).minHeight,
+            radius: getComputedStyle(controls).borderRadius,
+            visibleWord: controls.querySelector('.lf-margin-action-label')?.textContent,
+          }));
+          const testTargets = new Set(records.map(({target}) => target));
+          const itemOrder = [...main.querySelectorAll(':scope > .lf-margin-item')]
+            .filter(item => testTargets.has(item.lfEntry?.target))
+            .map(item => item.lfEntry.target.textContent);
+          records.forEach(({margin, shell}) => { margin.unregister(); shell.remove(); });
+          return {readings, itemOrder};
+        }"""
+    )
+    assert readings == {
+        "readings": [
+            {
+                "ownsTarget": True,
+                "inDocument": True,
+                "itemCount": 0,
+                "commonAction": True,
+                "minHeight": "30px",
+                "radius": "999px",
+                "visibleWord": "first controls",
+            },
+            {
+                "ownsTarget": True,
+                "inDocument": True,
+                "itemCount": 0,
+                "commonAction": True,
+                "minHeight": "30px",
+                "radius": "999px",
+                "visibleWord": "nested controls",
+            },
+            {
+                "ownsTarget": True,
+                "inDocument": True,
+                "itemCount": 0,
+                "commonAction": True,
+                "minHeight": "30px",
+                "radius": "999px",
+                "visibleWord": "second controls",
+            },
+            {
+                "ownsTarget": True,
+                "inDocument": True,
+                "itemCount": 0,
+                "commonAction": True,
+                "minHeight": "30px",
+                "radius": "999px",
+                "visibleWord": "slot a controls",
+            },
+            {
+                "ownsTarget": True,
+                "inDocument": True,
+                "itemCount": 0,
+                "commonAction": True,
+                "minHeight": "30px",
+                "radius": "999px",
+                "visibleWord": "slot b controls",
+            },
+        ],
+        "itemOrder": [
+            "first target",
+            "nested target",
+            "second target",
+            "slot b target",
+            "slot a target",
+        ],
+    }
+    assert errors == []
+    page.close()
 
 
 def test_the_preview_stands_in_the_room_the_page_has_beside_the_panel(browser, serve):
@@ -227,7 +556,7 @@ def test_the_margin_keeps_its_page_coordinate_while_the_reader_scrolls(browser, 
     before = offset()
     page.evaluate("() => document.body.scrollBy({top: 320, behavior: 'instant'})")
     page.evaluate(
-        "() => import('/runtime/widget-api.js').then(({layoutMarginRows}) => layoutMarginRows())"
+        "() => import('/runtime/margin-layout.js').then(({layoutMarginRows}) => layoutMarginRows())"
     )
     assert offset() == pytest.approx(before, abs=1)
 

@@ -9,14 +9,8 @@ export { conversationInput, landInConversation } from "./conversation/landing.js
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
+export { marginAction, registerMarginItem } from "./living-margin.js";
 export { scrollerFor } from "./navigation.js";
-export {
-  layoutMarginRows,
-  marginAnchorFor,
-  registerMarginRow,
-  scheduleMarginLayout,
-  updateMarginRow,
-} from "./margin-layout.js";
 export { announce, toast } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";

@@ -240,7 +240,7 @@ import { createDispatch } from "./runtime/keyboard/dispatch.js";
 import { createKeyline } from "./runtime/keyboard/keyline.js";
 import { createReference } from "./runtime/keyboard/reference.js";
 import { createScopes, keys, paintKeys, saying } from "./runtime/keyboard/scopes.js";
-import { createLivingMargin } from "./runtime/living-margin.js";
+import { createLivingMargin, marginAction } from "./runtime/living-margin.js";
 import { createNavigation, scrollerFor } from "./runtime/navigation.js";
 import { FOLD_MS, motion, reducedMotion, scrollBehavior } from "./runtime/motion.js";
 import { announce, createNotifications, toast } from "./runtime/notifications.js";
@@ -910,16 +910,19 @@ const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
 panel.append(panelHead, findRow, threadsBox, generalRow);
 
-// The floating control a selection raises: the comment glyph, then an ellipsis that
-// becomes the layer's reaction buttons. `.lf-fab` stays the Comment route into the
-// composer; the bar is placed and shown by showFab, and buildReactBar fills the list
-// once the registry has supplied its vocabulary. One affordance, raised only where the
-// reader has already pointed: a selection, a visual's click, an aimed item or visual
-// part, or `r`.
+// The floating Comment control names a selection before it has a stable target row.
+// Pressing its ellipsis or `r` moves Comment into that target's shared margin item and
+// adds the registry-declared reaction buttons to its right. One affordance, raised only
+// where the reader has already pointed: a selection, a visual's click, an aimed item or
+// visual part, or `r`.
 const fabBar = el("div", "lf-ui lf-fab-bar");
 fabBar.setAttribute("role", "group");
 fabBar.setAttribute("aria-label", "Respond");
-const fab = el("button", "lf-ui lf-pill lf-fab", "💬");
+const fab = marginAction(el("button", "lf-ui lf-pill lf-fab"), {
+  glyph: "💬",
+  label: "Comment",
+  collapse: "always",
+});
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
 fabBar.append(fab);
@@ -1184,6 +1187,8 @@ const {
   beside,
   dismissFab,
   fabAnchorAt,
+  fabTargetAt,
+  fabReturnTo,
   openOnItem,
   placeClear,
   placeComposer,
@@ -1194,6 +1199,7 @@ const {
 } = createSelectionSurface({
   anchoringIsReady: () => anchoringReady,
   anchorLabel: (...args) => anchorLabel(...args),
+  blockAt: (...args) => blockAt(...args),
   composer,
   composerInput,
   composerIsOpen: () => composerOpen,
@@ -1949,7 +1955,6 @@ const {
   syncReactLayout,
   undoSentence,
 } = createReactions({
-  BANNER_CLEAR,
   CONTROL_WORD_CAP,
   EVERYTHING,
   anchorLabel: (...args) => anchorLabel(...args),
@@ -1961,6 +1966,8 @@ const {
   el,
   elementById: (...args) => elementById(...args),
   fabAnchorAt,
+  fabTargetAt,
+  fabReturnTo,
   fabBar,
   focused,
   itemWord,
@@ -3422,6 +3429,7 @@ createLivingMargin({
   announce,
   approveBtn,
   banner,
+  blockAt,
   chromeRoot,
   claimState: workClaimState,
   comparisonBase,
@@ -3654,13 +3662,11 @@ async function startPage() {
     // and a mark that arrived after it would leave the copy's tab to chance.
     loadIcon().catch((err) => console.error(err)),
   ]);
-  // The box the page ends up with is not the one it started in, because a module may
-  // change it while upgrading: a page with a change to decide gives up a rail of the
-  // controls' own width, and lf-suggestion states that from the first row it builds,
-  // which is long after the layout first ran. Every reader of the box is therefore
-  // re-run here rather than left holding the pre-upgrade one — the room a wide widget
-  // spends was the one that noticed, standing a diagram out over the rail on the first
-  // shipped page to carry both.
+  // The box the page ends up with is not the one it started in, because content modules
+  // contribute controls while upgrading and the shared margin then claims the widest
+  // target item. Every reader of the box is therefore re-run here rather than left
+  // holding the pre-upgrade one — the room a wide widget spends was the one that noticed,
+  // standing a diagram out over the rail on the first shipped page to carry both.
   //
   // The observer watches that box now, so the standing answer is not this line's. What
   // is this line's is the timing: an observation is answered at the next rendering

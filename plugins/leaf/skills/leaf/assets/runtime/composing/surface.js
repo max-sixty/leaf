@@ -3,6 +3,7 @@ import { sameAnchor } from "../anchors.js";
 export function createSelectionSurface({
   anchoringIsReady,
   anchorLabel,
+  blockAt,
   composer,
   composerInput,
   composerIsOpen,
@@ -208,6 +209,7 @@ export function createSelectionSurface({
   }
   let fabAnchor = null;
   let fabOrigin = null;
+  let fabFloating = true;
   const union = (rects) => {
     if (!rects.length) return null;
     const left = Math.min(...rects.map((rect) => rect.left));
@@ -253,7 +255,7 @@ export function createSelectionSurface({
   function showFab(
     anchor,
     target = null,
-    { returnFocus = "target", origin = null } = {},
+    { returnFocus = "target", origin = null, place = true } = {},
   ) {
     const previous = fabAnchor;
     const leavingBar = !anchor && fabBar.contains(document.activeElement);
@@ -264,6 +266,7 @@ export function createSelectionSurface({
           : visualActionAnchor(previous)
         : null;
     fabAnchor = anchor;
+    fabFloating = !fabAnchor || place;
     fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
     // Comment's own display is stated beside the bar's, being what the passage sweeps
@@ -275,7 +278,11 @@ export function createSelectionSurface({
       // The tokens already standing on this very anchor read pressed, and a press on one
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintStanding(fabBar, reactionsOn(fabAnchor));
-      if (!placeFab(target ?? anchorBox(fabAnchor))) {
+      // A docked margin control can name an item whose rendered box is currently off
+      // screen. `r` still needs the durable anchor so it can extend that existing item;
+      // in that route the floating bar is never painted and placement is deliberately
+      // skipped. Every route that actually shows the bar keeps the geometry gate.
+      if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
         fabAnchor = null;
         fabOrigin = null;
         fabBar.style.display = "none";
@@ -297,10 +304,33 @@ export function createSelectionSurface({
     showFab(null);
   }
   function refreshFab() {
-    if (!fabAnchor) return;
+    // A target row holds its anchor without floating the bar; layout cannot reject that
+    // semantic place merely because the target's rendered box has scrolled away.
+    if (!fabAnchor || !fabFloating) return;
     if (fabAnchor.quote) updateFab();
     else if (!placeFab()) showFab(null, null, { returnFocus: "page" });
   }
+  // The durable anchor names the authored coordinate an event can replay, while the
+  // margin needs the rendered block the gesture is visibly on. Those are deliberately
+  // different for selected words inside a paragraph without an ID: the event names its
+  // enclosing section, but both the temporary picker and the standing receipt sit at
+  // the paragraph. Match seatReactions' shadow-boundary rule so live and replay agree.
+  const fabTargetAt = () => {
+    if (!fabAnchor) return null;
+    const found = resolveAnchor(fabAnchor, pageText());
+    if (!found) return null;
+    if (!fabAnchor.quote) return found.element;
+    const block = blockAt(found.segments?.[0]?.node);
+    if (!block) return found.element ?? null;
+    const root = block.getRootNode();
+    return root instanceof ShadowRoot ? root.host : block;
+  };
+  const fabReturnTo = () =>
+    fabAnchor && !fabAnchor.quote
+      ? fabOrigin?.isConnected
+        ? fabOrigin
+        : visualActionAnchor(fabAnchor)
+      : null;
   // The one way an item under a gesture becomes the composer's anchor, so no two routes
   // can come to write different anchors for the same press.
   function openOnItem(item, from) {
@@ -383,9 +413,7 @@ export function createSelectionSurface({
         const range = pageRange(selection);
         if (range.intersectsNode(ev.target)) rememberPointerSelection();
       }
-      actionPress = Boolean(
-        ev.target.closest?.(".lf-fab-bar, .lf-react-strip, .lf-composer"),
-      );
+      actionPress = Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
     },
     true,
   );
@@ -456,10 +484,7 @@ export function createSelectionSurface({
       !fabAnchor?.quote &&
       fabAnchor?.section === visual.id &&
       fabAnchor?.visual === visual.part?.part;
-    if (
-      !sameVisual &&
-      !target.closest?.(".lf-fab-bar, .lf-react-strip, .lf-composer")
-    ) {
+    if (!sameVisual && !target.closest?.(".lf-react-surface, .lf-composer")) {
       showFab(null, null, { returnFocus: "page" });
       // The armed react press goes with the bar it was armed on.
       setReact(false);
@@ -573,6 +598,8 @@ export function createSelectionSurface({
     beside,
     dismissFab,
     fabAnchorAt,
+    fabTargetAt,
+    fabReturnTo,
     openOnItem,
     activateAimTarget,
     placeClear,

@@ -1562,9 +1562,7 @@ lf-source pre { margin: 0; border: 0; border-radius: 0; }
 lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
-.lf-draft-pencil { opacity: .45; }
-lf-draft:hover .lf-draft-pencil,
-lf-draft:is(:focus-within, .lf-focus-within) .lf-draft-pencil { opacity: 1; }
+.lf-draft-pencil { opacity: 1; }
 /* The one control whose face is deliberately the document's: the box shows the page's
    words in the page's serif, or the double-clicked word reflows under the pointer the
    moment the box opens. Stated unlayered, so it outranks the runtime's layered
@@ -1592,7 +1590,8 @@ lf-draft:is(:focus-within, .lf-focus-within) .lf-draft-pencil { opacity: 1; }
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }
-.lf-draft-controls { justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.lf-draft-controls { justify-content: flex-end; gap: 4px; margin-top: 6px; }
+.lf-margin-item > .lf-draft-controls { align-items: center; margin-top: 0; }
 .lf-draft-history { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule);
                     font-size: var(--t-5); color: var(--ink-2); }
 .lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }

@@ -1,3 +1,5 @@
+import { marginAction, registerMarginItem } from "./living-margin.js";
+
 // Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
 // carrying the event a second press takes back. The reaction rides the pill rather than
 // a map beside it, so a reconcile that keeps the node keeps the fact with it.
@@ -11,7 +13,6 @@ export function paintReactionStanding(strip, standing) {
 }
 
 export function createReactions({
-  BANNER_CLEAR,
   CONTROL_WORD_CAP,
   EVERYTHING,
   anchorLabel,
@@ -23,6 +24,8 @@ export function createReactions({
   el,
   elementById,
   fabAnchorAt,
+  fabTargetAt,
+  fabReturnTo,
   fabBar,
   focused,
   itemWord,
@@ -50,22 +53,34 @@ export function createReactions({
   // while the token stands on its target, so a closed surface keeps the reader's marks
   // without offering the whole vocabulary. Digits remain keyboard accelerators without
   // changing the shape of every pill.
-  function reactPill(name, entry, pressed) {
-    const pill = offer("button", "lf-pill lf-react");
+  function reactPill(name, entry, pressed, { margin = false } = {}) {
+    const pill = offer("button", `${margin ? "" : "lf-pill "}lf-react`);
     pill.dataset.token = name;
     pill.title = `${name} — ${entry.means}`;
     pill.setAttribute("aria-label", name);
-    pill.append(
-      el("span", "lf-react-glyph", entry.glyph),
-      el("span", "lf-react-word", name),
-    );
+    if (margin)
+      marginAction(pill, {
+        glyph: entry.glyph,
+        label: name,
+      });
+    else
+      pill.append(
+        el("span", "lf-react-glyph", entry.glyph),
+        el("span", "lf-react-word", name),
+      );
     pill.onclick = () => pressed(name, pill);
     return pill;
   }
 
   const surfaces = new WeakMap();
   let surfaceOrdinal = 0;
-  function buildReactSurface(surface, pressed, { label, target }) {
+  let marginSurface = null;
+  let marginOffer = null;
+  function buildReactSurface(
+    surface,
+    pressed,
+    { label, target, marginActions = false },
+  ) {
     if (!reactionTokens().length) return surface;
     surface.classList.add("lf-react-surface");
     const trigger = offer("button", "lf-pill lf-react-trigger", "…");
@@ -78,11 +93,16 @@ export function createReactions({
     palette.setAttribute("aria-label", label);
     trigger.setAttribute("aria-controls", palette.id);
     for (const [name, entry] of reactionTokens())
-      palette.append(reactPill(name, entry, pressed));
+      palette.append(reactPill(name, entry, pressed, { margin: marginActions }));
     surface.append(trigger, palette);
     surfaces.set(surface, { palette, target, trigger });
-    trigger.onclick = () =>
-      setReact(!(reactArmed && reactSurface === surface), { surface });
+    trigger.onclick = () => {
+      if (surface === fabBar)
+        setReact(!(reactArmed && reactSurface === marginSurface), {
+          focusPicker: true,
+        });
+      else setReact(!(reactArmed && reactSurface === surface), { surface });
+    };
     return surface;
   }
 
@@ -90,6 +110,14 @@ export function createReactions({
     buildReactSurface(fabBar, reactHere, {
       label: "Reactions for this selection or item",
       target: () => anchorWord(fabAnchorAt()),
+    });
+    marginSurface = el("div", "lf-margin-reactions");
+    marginSurface.setAttribute("role", "group");
+    marginSurface.setAttribute("aria-label", "Comment or react");
+    buildReactSurface(marginSurface, reactHere, {
+      label: "Reactions for this selection or item",
+      target: () => anchorWord(fabAnchorAt()),
+      marginActions: true,
     });
   }
 
@@ -103,11 +131,14 @@ export function createReactions({
 
   async function reactHere(name, pill) {
     const anchor = fabAnchorAt();
+    const returnTo = fabReturnTo();
     if (!anchor) return;
     if (pill.lfReaction) {
       await withdraw(pill.lfReaction);
+      seatCommentInBar(true);
       showFab(null);
       setReact(false);
+      if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
       return;
     }
     const event = {
@@ -119,8 +150,10 @@ export function createReactions({
     if (designIsOn()) event.about = "layer";
     const sent = await sendReaction(event, pill, anchorWord(anchor));
     if (!sent) return;
+    seatCommentInBar(true);
     showFab(null);
     setReact(false);
+    if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
     getSelection()?.removeAllRanges();
   }
 
@@ -146,43 +179,66 @@ export function createReactions({
   const latestAgentStrip = (held) => held.querySelector(".lf-react-strip.lf-open");
   const pickerFor = (surface) => surfaces.get(surface);
 
+  function raiseMarginSurface() {
+    const anchor = fabAnchorAt();
+    const target = anchor && fabTargetAt();
+    if (!marginSurface || !target) return false;
+    const comment = fabBar.querySelector(":scope > .lf-fab");
+    if (comment) {
+      marginAction(comment, { glyph: "💬", label: "Comment" });
+      marginSurface.prepend(comment);
+    }
+    fabBar.dataset.lfMarginRaised = "1";
+    paintReactionStanding(
+      marginSurface,
+      [...fabBar.querySelectorAll(".lf-react[aria-pressed='true']")]
+        .map((pill) => pill.lfReaction)
+        .filter(Boolean),
+    );
+    marginOffer = registerMarginItem({
+      target,
+      controls: marginSurface,
+      side: "after",
+      // The choices borrow whatever RHS is available and dock as one item when it is
+      // not. Reserving their temporary width would move the page the first time `r`
+      // opened and leave that larger rail behind after the choices closed.
+      claim: false,
+    });
+    return true;
+  }
+
+  function lowerMarginSurface() {
+    marginOffer?.unregister();
+    marginOffer = null;
+    seatCommentInBar(false);
+    delete fabBar.dataset.lfMarginRaised;
+  }
+
+  function seatCommentInBar(takeFocus) {
+    const comment = marginSurface?.querySelector(":scope > .lf-fab");
+    if (!comment) return;
+    fabBar.prepend(comment);
+    marginAction(comment, {
+      glyph: "💬",
+      label: "Comment",
+      collapse: "always",
+    });
+    if (takeFocus) comment.focus({ preventScroll: true });
+  }
+
   function closeSurface(surface) {
     surface?.classList.remove("lf-react-open");
     pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
   }
 
-  function placePalette(surface) {
-    if (surface !== fabBar) return;
-    const palette = pickerFor(surface)?.palette;
-    if (!palette) return;
-    surface.classList.remove("lf-react-above", "lf-react-stacked");
-    palette.style.transform = "";
-    let bar = fabBar.getBoundingClientRect();
-    if (
-      !document.body.hasAttribute("data-lf-panel") &&
-      bar.left >= 8 &&
-      bar.right <= innerWidth - 8
-    )
-      return;
-    surface.classList.add("lf-react-stacked");
-    let box = palette.getBoundingClientRect();
-    const shift = Math.max(8 - box.left, Math.min(0, innerWidth - 8 - box.right));
-    if (shift) palette.style.transform = `translateX(${shift}px)`;
-    box = palette.getBoundingClientRect();
-    bar = fabBar.getBoundingClientRect();
-    if (box.bottom > innerHeight - 8 && bar.top - box.height - 6 >= BANNER_CLEAR)
-      surface.classList.add("lf-react-above");
-  }
-
-  // Growing the compact surface is not a new target, so keep Comment fixed while only
-  // placing the list. Layout calls this before it would reanchor the bar.
+  // A page picker lives in the shared margin item and therefore owns its geometry.
+  // Returning true keeps the floating Comment bar from trying to re-place the same
+  // gesture while the margin has it; message-local reaction strips need no such claim.
   function syncReactLayout() {
-    if (!reactArmed || reactSurface !== fabBar) return false;
-    placePalette(fabBar);
-    return true;
+    return reactArmed && reactSurface === marginSurface;
   }
 
-  function setReact(on, { surface = null } = {}) {
+  function setReact(on, { surface = null, focusPicker = false } = {}) {
     if (on === reactArmed && (!on || surface === reactSurface || !surface)) return;
     if (on && claimsEsc(focused())) return;
     closeSurface(reactSurface);
@@ -196,10 +252,24 @@ export function createReactions({
         if (strip) reactSurface = strip;
         else if (fabAnchorAt() || here) {
           if (here) {
-            showFab({ section: here.id });
+            // The item may be represented by a docked row after its containing block,
+            // with the target itself off screen. Keep the semantic anchor without
+            // asking a floating bar to find geometry; the shared item is the surface.
+            showFab({ section: here.id }, null, {
+              origin: reactFrom,
+              place: false,
+            });
             reactRaised = true;
           }
-          reactSurface = fabBar;
+          if (!raiseMarginSurface()) {
+            if (reactRaised) showFab(null);
+            reactRaised = false;
+            reactSurface = null;
+            reactFrom = null;
+            showToast("That reaction target is no longer available");
+            return;
+          }
+          reactSurface = marginSurface;
         } else {
           reactSurface = null;
           reactFrom = null;
@@ -215,8 +285,11 @@ export function createReactions({
       reactArmed = true;
       reactSurface.classList.add("lf-react-open");
       pickerFor(reactSurface).trigger.setAttribute("aria-expanded", "true");
-      placePalette(reactSurface);
-      if (surface && reactFrom === pickerFor(reactSurface).trigger)
+      if (focusPicker || (surface && reactFrom === pickerFor(reactSurface).trigger))
+        pickerFor(reactSurface).palette.querySelector(".lf-react")?.focus({
+          preventScroll: true,
+        });
+      else if (reactFrom === pickerFor(fabBar)?.trigger)
         pickerFor(reactSurface).palette.querySelector(".lf-react")?.focus({
           preventScroll: true,
         });
@@ -224,12 +297,14 @@ export function createReactions({
     } else {
       const from = reactFrom;
       const trigger = pickerFor(reactSurface)?.trigger;
+      const active = focused();
       reactArmed = false;
       reactSurface = null;
       reactFrom = null;
       if (reactRaised) showFab(null);
       reactRaised = false;
-      const active = focused();
+      lowerMarginSurface();
+      if (fabAnchorAt()) showFab(fabAnchorAt());
       if (active?.closest?.(".lf-react-palette")) {
         const destination =
           from?.isConnected && from.checkVisibility?.()

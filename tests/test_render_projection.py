@@ -3605,10 +3605,11 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     d = serve.page_dir
     page, errors = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
-    draft.get_by_role("button", name="Edit ledger-cargo").click()
+    controls = page.locator(".lf-draft-controls[data-lf-for='ledger-cargo']")
+    controls.get_by_role("button", name="Edit ledger-cargo").click()
     provided = "ledger_id,amount\n7,42"
     draft.get_by_role("textbox", name="Edit ledger-cargo").fill(provided)
-    draft.get_by_role("button", name="Save").click()
+    controls.get_by_role("button", name="Save").click()
     round_trip(page)
     expect(page.get_by_role("button", name="Decisions (4)")).to_be_visible()
 
@@ -3767,7 +3768,8 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     d = serve.page_dir
     page, errors = open_page(browser, url)
     draft = page.locator("#ledger-cargo")
-    draft.get_by_role("button", name="Edit ledger-cargo").click()
+    controls = page.locator(".lf-draft-controls[data-lf-for='ledger-cargo']")
+    controls.get_by_role("button", name="Edit ledger-cargo").click()
     editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
     editor.fill(
         "ledger_id,customer_name,billing_email,amount\n7,Alice,a@example.test,42"
@@ -3780,7 +3782,7 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
     editor.fill(
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42"
     )
-    draft.get_by_role("button", name="Save").click()
+    controls.get_by_role("button", name="Save").click()
     round_trip(page)
 
     edit = next(

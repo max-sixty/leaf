@@ -416,9 +416,20 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
 
     expect(page.locator(".lf-target-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-target-match")).not_to_have_count(0)
-    mark = page.locator(".lf-target-match").first.bounding_box()
-    keyline_top = page.locator(".lf-keyline").bounding_box()["y"]
-    assert mark["y"] > 42 and mark["y"] + mark["height"] < keyline_top
+    # Both boxes off one frame. The layer redraws every match as one span it replaces
+    # whole (paintHere's replaceChildren), and the instant scroll this search just made
+    # delivers its own scroll event a frame later — so a handle taken out here is
+    # measured after the node it named has been swapped for an identical one, and reads
+    # as an element with no box rather than as the mark standing exactly where it was.
+    placed = page.evaluate(
+        """() => {
+          const mark = document.querySelector('.lf-target-match')
+                               .getBoundingClientRect();
+          const line = document.querySelector('.lf-keyline').getBoundingClientRect();
+          return {top: mark.top, bottom: mark.bottom, keyline: line.top};
+        }"""
+    )
+    assert placed["top"] > 42 and placed["bottom"] < placed["keyline"]
 
     page.keyboard.press("Enter")
     assert page.evaluate("() => getSelection().toString()") == "copper needle"

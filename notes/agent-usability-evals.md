@@ -20,7 +20,7 @@ The former catalog combined three kinds of information:
 - package-authoring facts: registry extension keys and their contracts;
 - machine-facing declarations: each widget's JSON Schema for authored
   attributes, its full `x-*` behavior declarations, and layer-wide contract
-  facts for state, reports, and asks.
+  facts for state, reports, and decisions.
 
 Only the first belongs in every page-authoring turn. Loading the whole file may
 be truncated before the agent reaches the entry it needs. Even when it fits,
@@ -100,9 +100,9 @@ solved the agent experience.
 
 | Case | Fixture or request | Binary criteria |
 | --- | --- | --- |
-| Cold informational page | A short report with three sections and no decision | Leaf triggers; the page validates; the default table of contents is present; the first handoff is unstamped; the status has no invented ask. |
+| Cold informational page | A short report with three sections and no decision | Leaf triggers; the page validates; the default table of contents is present; the first handoff is unstamped; the status has no invented decision. |
 | Discovery guardrail | A normal request for a concise answer that does not ask for a page or shared review | Leaf does not trigger and no page directory or server is created. |
-| Cold decision page | Evidence and three mutually exclusive choices | One visible Ask contains the evidence and an `lf-options` control; the handoff says what gesture answers it; no duplicate sign-off is invented. |
+| Cold decision page | Evidence and three mutually exclusive choices | One visible Decision contains the evidence and an `lf-options` control; the handoff says what gesture answers it; no duplicate sign-off is invented. |
 | Unfamiliar package | A fixture adds a widget whose name and contract are absent from the base package | The agent discovers it in the page's registry, retrieves its entry, and authors valid markup without reading package source. |
 | Reading parity | Facts are distributed across prose, a disclosure, an inactive tab, a chart, projected data, and a reader-selected option | The agent answers a fixed question set from the current reading with no omissions or stale values. |
 | Competing authorities | `index.html` conflicts with the last valid revision; a standing action also overrides authored state | The agent identifies what the person currently sees and does not report the rejected source or superseded authored state as current. |
@@ -145,7 +145,7 @@ result-retention policy.
 Selective registry access addresses creation. Existing-page comprehension may
 need a separate derived reading, for example `leaf page read PAGE`: a compact,
 hierarchical text projection of the reader-accessible words, widget meanings,
-standing decisions, external values, comments, open asks, version identity, and
+standing decisions, external values, threads, open decisions, version identity, and
 source diagnostics. It would be emitted on demand from the same document, log,
 data, and registry authorities, not stored as another current-state file. It
 would include collapsed and inactive content with labels rather than hiding it,

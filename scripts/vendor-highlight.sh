@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js.
+# Rebuild skills/leaf/assets/vendor/highlight.esm.js.
 #
 # Unlike mermaid and Sortable, upstream ships no browser-native ESM build: the
 # `es/` directory re-exports CommonJS and only resolves through a bundler. So the
@@ -18,7 +18,7 @@ set -euo pipefail
 
 HLJS_VERSION=11.12.0
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ASSETS="$ROOT/plugins/leaf/skills/leaf/assets"
+ASSETS="$ROOT/skills/leaf/assets"
 OUT="$ASSETS/vendor/highlight.esm.js"
 
 # Where leaf's name for a language differs from highlight.js's module. Every

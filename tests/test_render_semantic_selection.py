@@ -120,7 +120,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     """A layer may remove the complete reaction vocabulary. Then c is the only action
     on the captured target, so the second short-line slot keeps its ordinary way out."""
     registry = json.loads(
-        (ROOT / "plugins/leaf/skills/leaf/packages/default/registry.json").read_text()
+        (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page, errors = open_page(

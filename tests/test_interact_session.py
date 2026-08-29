@@ -21,12 +21,13 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, INTERACT_SCRIPT
+from conftest import CLAUDE_IDENTITY, CODEX_IDENTITY, LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     HELD_LEASES,
     PAGE,
     PLUGIN_ROOT,
+    SKILL_ROOT,
     _status,
     available_loopback_port,
     check,
@@ -2352,7 +2353,7 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
 
 
 def test_a_codex_session_id_with_no_codex_above_it_is_refused(tmp_path, codex_env):
-    """A hand-built environment: LEAF_SESSION_ID states a Codex session and
+    """A hand-built environment: CODEX_THREAD_ID states a Codex session and
     nothing running Codex is above this process, so there is no process whose
     life is that session's. Nothing to fall back on either — a pid guessed here
     is a claim that expires by itself, and every state that follows from one is
@@ -3390,15 +3391,16 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
 
 def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tmp_path):
-    """The script a host actually runs decides nothing; it runs interact.py under uv.
+    """The script a host actually runs decides nothing; it runs the `leaf` CLI
+    under uv, out of the payload project beside it.
 
     Driven the way a host drives it — a separate `python3`, the payload's own copy of
-    the script, the hook payload on stdin — because the wiring is the subject, and no
-    part of it (uv, the path to interact.py, the command name, the stdin protocol) is
+    the guard, the hook payload on stdin — because the wiring is the subject, and no
+    part of it (uv, the project it syncs, the command name, the stdin protocol) is
     visible from inside this process.
 
     Failing open is the other half, and the case worth arranging is the one where
-    interact.py never starts: silence on both streams and a return code that leaves
+    the CLI never starts: silence on both streams and a return code that leaves
     the turn alone. It is also the case a hook cannot report, so nothing but this
     test ever sees it.
     """
@@ -3418,17 +3420,17 @@ def test_the_registered_hook_answers_out_of_interact_or_says_nothing(claimed, tm
     stop = json.dumps({"hook_event_name": "Stop", "session_id": "s1"})
     answered = run(stop)
     assert answered.returncode == 0, answered.stderr
-    assert answered.stdout, "nothing came back: interact.py never answered under uv"
+    assert answered.stdout, "nothing came back: the CLI never answered under uv"
     blocked = json.loads(answered.stdout)
     assert blocked["decision"] == "block"
     assert f"{claimed.resolve()}: no watcher" in blocked["reason"]
 
-    # A session holding nothing is interact.py's answer too, now that the hook keeps
+    # A session holding nothing is the CLI's answer too, now that the hook keeps
     # no cheaper reading of the claims to stand itself down by.
     stranger = run(json.dumps({"hook_event_name": "Stop", "session_id": "s2"}))
     assert (stranger.returncode, stranger.stdout, stranger.stderr) == (0, "", "")
 
-    # The two shapes of a leaf failure a turn must not notice: interact.py raising,
+    # The two shapes of a leaf failure a turn must not notice: the CLI raising,
     # and no uv there to raise it.
     crashed = run("not a hook payload")
     assert (crashed.returncode, crashed.stdout, crashed.stderr) == (0, "", "")
@@ -3740,13 +3742,9 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     """Disabled desired state makes re-vendor replace the whole contract."""
     publish(page_dir)
     old_skill = page_dir.parent / "old-skill"
-    old_script = old_skill / "scripts" / "interact.py"
-    old_script.parent.mkdir(parents=True)
-    old_script.write_text(Path(INTERACT_SCRIPT).read_text())
-    shutil.copytree(
-        Path(INTERACT_SCRIPT).parent / "leaf",
-        old_script.parent / "leaf",
-    )
+    old_scripts = old_skill / "scripts"
+    old_scripts.mkdir(parents=True)
+    shutil.copytree(SKILL_ROOT / "scripts" / "leaf", old_scripts / "leaf")
     shutil.copytree(schema_model.ASSETS, old_skill / "assets")
     old_registry = files_model.read_json(page_dir / "registry.json")
     del old_registry["$events"]["kinds"]["comment"]["record"]["properties"]["attempt"]
@@ -3758,13 +3756,18 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
         monkeypatch.delenv("CLAUDE_PID")
     old_server = spawn(
         [
-            sys.executable,
-            str(old_script),
+            *LEAF_COMMAND,
             "server",
             "run",
             str(page_dir),
             *(["--standing"] if lifetime == "standing" else []),
         ],
+        # The old skill's own copy of the package, so `SKILL_ROOT` resolves into
+        # it and this server answers out of the registry beside it rather than
+        # the checkout's. PYTHONPATH is what puts that copy first: the `leaf`
+        # this environment installs is editable, and reaches sys.path through a
+        # .pth file site reads after PYTHONPATH.
+        env=os.environ | {"PYTHONPATH": str(old_scripts)},
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -3962,8 +3965,7 @@ def test_server_run_standing_declines_the_claim_a_host_session_offers(page_dir, 
     the suite's own session, which every command here already runs under."""
     process = spawn(
         [
-            sys.executable,
-            str(INTERACT_SCRIPT),
+            *LEAF_COMMAND,
             "server",
             "run",
             "--standing",

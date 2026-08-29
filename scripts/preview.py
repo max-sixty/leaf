@@ -38,7 +38,7 @@ from pathlib import Path
 from example_data import data_operations
 
 ROOT = Path(__file__).resolve().parent.parent
-LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
+LEAF = ROOT / "bin" / "leaf"
 PAGE = ROOT / ".tmp" / "preview"  # gitignored, and stable so the port persists
 PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text(encoding="utf-8"))
 

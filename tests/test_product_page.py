@@ -15,8 +15,8 @@ from leaf.registry import validation as registry_validation
 from leaf.validation import compatibility as validation_model
 
 ROOT = Path(__file__).parent.parent
-ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
-DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
+ASSETS = ROOT / "skills" / "leaf" / "assets"
+DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 
 
@@ -24,8 +24,8 @@ def test_docs_pages_link_the_shipped_theme():
     # Kernel and default package, in cascade order: a docs page renders the whole
     # vocabulary script-free, and the default widgets' rules are the second file.
     targets = (
-        "../plugins/leaf/skills/leaf/assets/theme.css",
-        "../plugins/leaf/skills/leaf/packages/default/theme.css",
+        "../skills/leaf/assets/theme.css",
+        "../skills/leaf/packages/default/theme.css",
     )
     for layer in (ASSETS, DEFAULT_PACKAGE):
         assert (layer / "theme.css").is_file()

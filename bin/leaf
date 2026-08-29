@@ -1,0 +1,20 @@
+#!/bin/sh
+# The one entry point. Claude Code appends every enabled plugin's bin/ to PATH;
+# Codex resolves this launcher from the active skill directory.
+#
+# The directory above it is a uv project — the repository and the installed
+# plugin are the same tree — and this runs that project: uv keeps one
+# environment per installed version and syncs it in place on first use.
+# `--no-dev` because the project's dev group is the test suite and the
+# repository scripts, recorded in the shipped lock but never a host's to
+# install. `-q` because an agent reads stderr back and an ordinary sync has
+# nothing to say; a failed resolve is reported either way.
+#
+# The module rather than the `leaf` console script: where this path is long
+# enough to pass the ~127-byte shebang limit — a host cache path reaches it —
+# uv writes the console script as a `/bin/sh` trampoline, and `-m` leaves no
+# trampoline to reason about. `__main__.py` fixes `prog_name`, so usage lines
+# still read `leaf`. Which host session is running, and under what id, is read
+# from the environment in `host.py`, not set here.
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec uv run -q --no-dev --project "$root" python -m leaf "$@"

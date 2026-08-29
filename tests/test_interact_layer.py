@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     PLUGIN_ROOT,
@@ -17,7 +18,9 @@ from interact_support import (
     add_test_widget,
     case_alias,
     check,
+    install_payload,
     record_claim,
+    shipped_payload,
     widget_entry,
 )
 from leaf import cli as cli_model
@@ -42,7 +45,8 @@ from leaf import vendoring as vendoring_model
   Build and run interactive pages a session shares with its user.
 
 Options:
-  --help  Show this message and exit.
+  --version  Print the payload directory this leaf runs from.
+  --help     Show this message and exit.
 
 Commands:
   ack         Acknowledge one batch, then wait for the next.
@@ -273,17 +277,13 @@ def test_init_help_names_the_source_revision_and_version_layout():
 
 
 @pytest.mark.parametrize(
-    ("args", "needs_playwright"),
+    "args",
     [
-        (["version", "check", "page", "--render"], True),
-        (["version", "export", "page", "-o", "export"], True),
-        (["version", "check", "export"], False),
-        (["reply", "page", "--to", "c1", "--text", "export"], False),
+        ["version", "check", "page", "--render"],
+        ["reply", "page", "--to", "c1", "--text", "export"],
     ],
 )
-def test_shim_adds_playwright_only_for_browser_commands(
-    tmp_path, monkeypatch, args, needs_playwright
-):
+def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch, args):
     fake_uv = tmp_path / "uv"
     fake_uv.write_text(
         '#!/bin/sh\nfor cli_arg in "$@"; do\n  printf "%s\\n" "$cli_arg"\ndone\n'
@@ -298,18 +298,71 @@ def test_shim_adds_playwright_only_for_browser_commands(
         text=True,
         check=False,
     )
-    dispatched = result.stdout.splitlines()
-    script_at = next(
-        i for i, arg in enumerate(dispatched) if arg.endswith("interact.py")
-    )
-
     assert result.returncode == 0, result.stderr
-    # Everything before the script path is uv's, and this states the whole of it
-    # rather than that some flag appears somewhere in it: an index named here
-    # would take back the host's say as surely as a lock would.
-    assert dispatched[1:script_at] == (
-        ["--with", "playwright>=1.49"] if needs_playwright else ["-q"]
-    )
+    dispatched = result.stdout.splitlines()
+    # One dispatch shape for every command, stated whole rather than as flags
+    # that appear somewhere in it: an index named here would take the host's say
+    # away, and the project has to be the payload beside the launcher rather
+    # than whatever project the caller's directory sits in. `--no-dev` because
+    # the dev group is the suite and the repo's own scripts, neither a host's to
+    # install. The module rather than the `leaf` console script because a long
+    # payload path turns the console script into a `/bin/sh` trampoline.
+    assert dispatched == [
+        "run",
+        "-q",
+        "--no-dev",
+        "--project",
+        str(PLUGIN_ROOT),
+        "python",
+        "-m",
+        "leaf",
+        *args,
+    ]
+
+
+def test_the_version_flag_names_the_payload_this_leaf_ran_out_of(tmp_path):
+    """Which copy of leaf answered is otherwise unknowable from outside it. A
+    host session runs the payload its plugin cache holds and a checkout stands
+    beside it; `bin/leaf` is identical across versions and nothing the CLI
+    prints says where it came from. So `--version` prints the payload directory
+    rather than a number, which is what tells a stale cache from a checkout.
+
+    Two copies asked the same question, because either half alone is satisfied
+    by a flag that prints a constant, or the directory the command was typed in.
+    The second is a payload of its own — one skill deep, which is the layout
+    `SKILL_ROOT` walks up from — and nothing about it is this checkout.
+    PYTHONPATH is what puts it first: the `leaf` this environment installs is
+    editable, and reaches sys.path through a .pth file site reads after it.
+
+    Eager and page-free, so it answers with no page named and nothing written
+    where it ran, which is the whole of what a session asking the question has.
+    """
+    cached = tmp_path / "cache" / "leaf"
+    scripts = cached / "skills" / "leaf" / "scripts"
+    scripts.mkdir(parents=True)
+    shutil.copytree(SKILL_ROOT / "scripts" / "leaf", scripts / "leaf")
+    elsewhere = tmp_path / "unrelated-project"
+    elsewhere.mkdir()
+
+    def asked(**environment):
+        return subprocess.run(
+            [*LEAF_COMMAND, "--version"],
+            cwd=elsewhere,
+            env=os.environ | environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    here = asked()
+    assert here.returncode == 0, here.stderr
+    assert here.stdout.strip() == str(PLUGIN_ROOT.resolve())
+
+    there = asked(PYTHONPATH=str(scripts))
+    assert there.returncode == 0, there.stderr
+    assert there.stdout.strip() == str(cached.resolve())
+
+    assert list(elsewhere.iterdir()) == []
 
 
 def test_claude_and_codex_load_the_same_plugin_payload():
@@ -326,10 +379,10 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text()
     )
 
-    assert claude_marketplace["plugins"][0]["source"] == "./plugins/leaf"
+    assert claude_marketplace["plugins"][0]["source"] == "./"
     assert codex_marketplace["plugins"][0]["source"] == {
         "source": "local",
-        "path": "./plugins/leaf",
+        "path": "./",
     }
     assert codex_marketplace["plugins"][0]["policy"] == {
         "installation": "AVAILABLE",
@@ -340,6 +393,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     assert "version" not in codex_manifest
     for relative in [
         "bin/leaf",
+        # The project `bin/leaf` runs and the resolution an install gets.
+        "pyproject.toml",
+        "uv.lock",
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
@@ -350,19 +406,47 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/serving-pages.md",
         "skills/leaf/packages/command-hub/registry.json",
         "skills/leaf/packages/default/registry.json",
-        "skills/leaf/scripts/interact.py",
+        # The form a leaf process re-launches itself in.
+        "skills/leaf/scripts/leaf/__main__.py",
     ]:
         assert (PLUGIN_ROOT / relative).is_file()
-    assert not [path for path in PLUGIN_ROOT.rglob("*") if path.is_symlink()]
-    # Shipping a lock would take the client's own index out of the loop, per
-    # `plugins/leaf/CLAUDE.md`. The nightly test below proves that against a real
-    # index; this is the half every run sees.
-    assert not list(PLUGIN_ROOT.rglob("*.lock"))
+    # AGENTS.md is a genuine symlink to CLAUDE.md, shipped as part of the tracked
+    # tree; the invariant a host's copy needs is that nothing escapes the tree
+    # being copied, not that nothing in it is a link.
+    escaping = [
+        path
+        for path in shipped_payload()
+        if path.is_symlink()
+        and not path.resolve().is_relative_to(PLUGIN_ROOT.resolve())
+    ]
+    assert escaping == []
+    # A lock pins the resolution and not where it comes from, which is why one
+    # ships: `uv sync` pointed at another index asks *that* index for the pinned
+    # versions rather than fetching the files.pythonhosted.org URLs written
+    # beside them, and `--offline` installs from the cache without asking
+    # anyone. What would take the host's own index out of the loop is the
+    # payload naming one — in the project file, or in a `uv.toml` beside it —
+    # so that is what this forbids. Read off the lines rather than a parsed
+    # table because a comment is free to discuss an index where a setting is
+    # not, and the project's own floor is 3.10, with no `tomllib` to parse
+    # with. The nightly test below drives the same claim through a real
+    # resolve against a closed port; this is the half every run sees.
+    configured = [
+        line
+        for line in (PLUGIN_ROOT / "pyproject.toml").read_text().splitlines()
+        if "index" in line and not line.lstrip().startswith("#")
+    ]
+    assert configured == []
+    assert not [path for path in shipped_payload() if path.name == "uv.toml"]
+    assert [
+        path.relative_to(PLUGIN_ROOT).as_posix()
+        for path in shipped_payload()
+        if path.suffix == ".lock"
+    ] == ["uv.lock"]
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_path):
-    installed = tmp_path / "host" / "plugins" / "leaf"
-    shutil.copytree(PLUGIN_ROOT, installed)
+    installed = install_payload(tmp_path / "host" / "leaf")
 
     conflicts = []
     for path in installed.rglob("*"):
@@ -428,11 +512,12 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     ]
 
 
-@pytest.mark.nightly  # the resolve asks the host's index for the header
+@pytest.mark.nightly  # the sync asks the host's index for the payload's wheels
 def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     """The index a host configures is the only place leaf may look for its
-    dependencies, and resolving the PEP 723 header is the only way it gets a
-    wheel.
+    dependencies, and syncing the payload project is the only way it gets a
+    wheel. The lock it ships pins which versions, never where they come from:
+    the sync asks the configured index for the versions the lock names.
 
     Both halves need a cache directory of their own, because a wheel already in
     the developer's cache answers before any index is consulted and the run would
@@ -446,8 +531,7 @@ def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     around it. It declines the developer's own index settings, in their
     environment and in their `uv.toml` alike, since either would serve the run and
     read as leaf ignoring the port it was pointed at."""
-    installed = tmp_path / "plugins" / "leaf"
-    shutil.copytree(PLUGIN_ROOT, installed)
+    installed = install_payload(tmp_path / "leaf")
 
     unconfigured = {
         name: value

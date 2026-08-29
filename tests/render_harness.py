@@ -59,9 +59,6 @@ from playwright.sync_api import expect
 pytestmark = pytest.mark.nightly
 
 ROOT = Path(__file__).parent.parent
-COMMAND_HUB_PACKAGE = (
-    ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "command-hub"
-)
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"

@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import INTERACT_SCRIPT
+from conftest import LEAF_COMMAND
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_endpoint as event_endpoint_model
@@ -49,7 +49,9 @@ from leaf.served_state import page as served_page
 from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
-PLUGIN_ROOT = ROOT / "plugins" / "leaf"
+# The checkout and the payload a host installs are one tree now; PLUGIN_ROOT still
+# names the role a path plays — "what a host runs" — for the tests built on that.
+PLUGIN_ROOT = ROOT
 # The payload's manifests, hooks and launcher hang off PLUGIN_ROOT; the six product parts
 # sit one skill directory below it. Both are wanted often enough to be worth naming, and
 # spelled by hand the two are one plausible typo apart — a glob a level short matches
@@ -62,13 +64,14 @@ COMMAND_SUBJECTS = (
     "</lf-agent>"
 )
 
+# No path work: `leaf` is installed into the environment this interpreter runs
+# in, so a child of it imports the same modules the tests do.
 PROBE_BOOTSTRAP = """\
 import contextlib
 import os
 from pathlib import Path
 import sys
 
-sys.path.insert(0, os.environ["LEAF_SCRIPTS"])
 from leaf import cli as cli_model
 """
 
@@ -81,10 +84,38 @@ def spawn_probe(spawn, page_dir, body, **environment):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env=os.environ
-        | {"LEAF_SCRIPTS": str(INTERACT_SCRIPT.parent), "PAGE": str(page_dir)}
-        | env,
+        env=os.environ | {"PAGE": str(page_dir)} | env,
     )
+
+
+def shipped_payload():
+    """Every git-tracked path in the repo — what a host's copy carries whole.
+
+    Git is the source of truth for what ships rather than a filesystem walk with an
+    exclusion list: `.venv`, `__pycache__`, and every other build tool's cache now
+    live under this same root the checkout and the payload share, and none of them
+    is tracked.
+    """
+    listed = subprocess.run(
+        ["git", "-C", str(PLUGIN_ROOT), "ls-files"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return [PLUGIN_ROOT / relative for relative in listed.splitlines()]
+
+
+def install_payload(destination):
+    """Copy the payload into `destination` the way a host installs it — the tracked
+    tree, whole — and say where it landed."""
+    for path in shipped_payload():
+        target = destination / path.relative_to(PLUGIN_ROOT)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            target.symlink_to(os.readlink(path))
+        else:
+            shutil.copy2(path, target)
+    return destination
 
 
 def wait_for_path(path, failure):
@@ -1128,8 +1159,7 @@ def managed_server(spawn):
         record_claim(page_dir, id=session_id, pid=session_pid)
         process = spawn(
             [
-                sys.executable,
-                str(INTERACT_SCRIPT),
+                *LEAF_COMMAND,
                 "server",
                 "run",
                 str(page_dir),
@@ -1155,8 +1185,7 @@ def start_through_the_launcher(page_dir, *flags, session_id="starter"):
     that returns."""
     return subprocess.run(
         [
-            sys.executable,
-            str(INTERACT_SCRIPT),
+            *LEAF_COMMAND,
             "server",
             "start",
             *flags,
@@ -1184,8 +1213,7 @@ def standing_server(spawn, sessionless):
     def start(page_dir):
         process = spawn(
             [
-                sys.executable,
-                str(INTERACT_SCRIPT),
+                *LEAF_COMMAND,
                 "server",
                 "run",
                 str(page_dir),

@@ -126,8 +126,8 @@ export default [
   {
     ignores: [
       "examples/gallery.html",
-      "plugins/leaf/skills/leaf/assets/vendor/**",
-      "plugins/leaf/skills/leaf/packages/*/vendor/**",
+      "skills/leaf/assets/vendor/**",
+      "skills/leaf/packages/*/vendor/**",
     ],
     linterOptions: { noInlineConfig: true },
   },
@@ -137,7 +137,7 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks/*.js"],
+    files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
     rules: {
       ...publicRuntimeBoundary,
       "no-restricted-syntax": [
@@ -150,7 +150,7 @@ export default [
     },
   },
   {
-    files: ["plugins/leaf/skills/leaf/assets/leaf.js"],
+    files: ["skills/leaf/assets/leaf.js"],
     rules: {
       ...entryBoundary,
       "no-restricted-syntax": [
@@ -165,11 +165,11 @@ export default [
     },
   },
   {
-    files: ["plugins/leaf/skills/leaf/assets/runtime/**/*.js"],
+    files: ["skills/leaf/assets/runtime/**/*.js"],
     rules: ownerBoundary,
   },
   {
-    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks/standalone.js"],
+    files: ["skills/leaf/scripts/leaf/render-checks/standalone.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -185,7 +185,7 @@ export default [
     },
   },
   {
-    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks/init.js"],
+    files: ["skills/leaf/scripts/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
   },
 ];

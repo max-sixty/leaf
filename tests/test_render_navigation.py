@@ -1,7 +1,6 @@
 """Comment marks, addresses, and keyboard navigation tests."""
 
 import re
-from pathlib import Path
 
 import pytest
 from leaf import event_log as events_model
@@ -2641,7 +2640,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     what a click would take, and its keyup half has no place in a table of presses. A third
     is how every drift this register replaced began — a `keydown` beside a display list,
     the two of them free to disagree about which keys the widget answers."""
-    layer = Path(__file__).resolve().parent.parent / "plugins/leaf/skills/leaf"
+    layer = ROOT / "skills/leaf"
     sources = [
         layer / "assets/leaf.js",
         *sorted((layer / "assets/runtime").rglob("*.js")),

@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "leaf",
-      "source": "./plugins/leaf",
+      "source": "./",
       "description": "Generative UI: the agent builds the page your task needs, writes new widgets when the project calls for them, and answers your comments and edits over a messaging and collaboration bus.",
       "license": "MIT",
       "keywords": [

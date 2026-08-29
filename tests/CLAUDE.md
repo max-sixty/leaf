@@ -6,9 +6,9 @@ assert once they are visible. The difficult part is arranging the test so that a
 green result could only have come from the behavior named by the test.
 
 This file owns test setup, suite structure, and testing mechanics. The runtime's
-`CLAUDE.md` and `plugins/leaf/skills/leaf/references/internals/` own the product
-protocols. Keep implementation rules there; state here only what a test must
-observe or control.
+`CLAUDE.md` and `skills/leaf/references/internals/` own the product protocols.
+Keep implementation rules there; state here only what a test must observe or
+control.
 
 ## Run the narrowest useful surface
 
@@ -50,10 +50,24 @@ rebasing. CI adds `--run-nightly` after main moves.
 and CI fonts. It accepts pytest arguments and needs a Docker daemon that can run
 `linux/amd64`.
 
-The developer environment comes from `pyproject.toml` and `uv.lock`. Leaf's
-installed dependencies remain in `interact.py`'s PEP 723 header. Pytest adds
-`plugins/leaf/skills/leaf/scripts` to the import path so tests can import the
-`leaf` owner modules directly.
+The developer environment comes from the one `pyproject.toml` and `uv.lock` at
+the repo root, which is also the payload project: `uv sync` installs `leaf`
+from this checkout editable, dev group included. So a test importing `leaf`
+gets the checkout directly, and nothing puts a directory on the import path.
+
+A test that runs leaf as a process of its own has two addresses and they answer
+different questions. `LEAF_COMMAND` in `conftest.py` is `python -m leaf` under
+this environment's interpreter, which is what the product's own children run and
+what a test of a command's behavior should use. `PLUGIN_ROOT / "bin" / "leaf"`
+is the launcher a host and an agent type runs, and it brings uv, `--no-dev`, and
+the environment uv syncs for the payload project along with it — use it where
+what a host actually runs is the subject: that resolution itself, or a process
+chain that has to look like one an agent started. It leaves `.venv` behind at
+the repo root, beside `__pycache__` for every module the suite imports; neither
+is tracked, so `shipped_payload()` and `install_payload()` read what `git
+ls-files` reports rather than walking the filesystem, which keeps those and any
+other build tool's cache out of the copy that stands in for an install without
+naming either.
 
 ## Put each assertion at the boundary that owns it
 

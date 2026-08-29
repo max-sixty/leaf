@@ -8,7 +8,7 @@
       "name": "leaf",
       "source": {
         "source": "local",
-        "path": "./plugins/leaf"
+        "path": "./"
       },
       "policy": {
         "installation": "AVAILABLE",

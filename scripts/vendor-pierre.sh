@@ -9,9 +9,9 @@ PIERRE_VERSION=1.3.6
 SHIKI_VERSION=4.4.3
 ESBUILD_VERSION=0.28.2
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ASSETS="$ROOT/plugins/leaf/skills/leaf/assets"
-OUT="$ROOT/plugins/leaf/skills/leaf/packages/default/vendor/pierre-diffs.esm.js"
-NOTICES="$ROOT/plugins/leaf/skills/leaf/packages/default/vendor/pierre-diffs.LICENSES.txt"
+ASSETS="$ROOT/skills/leaf/assets"
+OUT="$ROOT/skills/leaf/packages/default/vendor/pierre-diffs.esm.js"
+NOTICES="$ROOT/skills/leaf/packages/default/vendor/pierre-diffs.LICENSES.txt"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

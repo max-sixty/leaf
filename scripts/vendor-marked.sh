@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild plugins/leaf/skills/leaf/assets/vendor/marked.esm.js.
+# Rebuild skills/leaf/assets/vendor/marked.esm.js.
 #
 # marked is zero-dependency and its package export is already one browser-native
 # ESM file, so unlike highlight.js there is nothing to bundle: vendoring is a
@@ -11,7 +11,7 @@ set -euo pipefail
 
 MARKED_VERSION=18.0.10
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/plugins/leaf/skills/leaf/assets/vendor/marked.esm.js"
+OUT="$ROOT/skills/leaf/assets/vendor/marked.esm.js"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

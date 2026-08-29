@@ -42,10 +42,9 @@ codex plugin add leaf@leaf
 
 No config or account is required. It needs
 [`uv`](https://docs.astral.sh/uv/) and
-[`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (`interact.py`
-declares its Python dependencies in a PEP 723 header, and `uv` resolves them through
-whatever index you have already configured), plus a browser on the same machine as the
-session.
+[`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (the plugin is a
+uv project, and the first run syncs its environment through whatever index you have
+already configured), plus a browser on the same machine as the session.
 
 Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
 and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
@@ -56,7 +55,7 @@ currently about.
 A package carries a reusable theme, widget, browser module, data contract, or role
 guide. Leaf's own content widgets use this contract. The
 [package tutorial](docs/packages.html) builds a small one; the
-[package reference](plugins/leaf/skills/leaf/references/packages.md) owns the complete
+[package reference](skills/leaf/references/packages.md) owns the complete
 contract.
 
 ## Examples

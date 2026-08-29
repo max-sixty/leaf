@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import INTERACT_SCRIPT
+from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -200,7 +200,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
 
 def test_a_reader_who_closes_the_tab_is_not_a_server_error(page_dir):
     """Closing a tab mid-response is how nearly every page ends, and it used to put a
-    BrokenPipeError traceback naming interact.py on the server's stderr —
+    BrokenPipeError traceback naming leaf's own modules on the server's stderr —
     indistinguishable, in a log or in a suite's output, from the server having a
     fault.
 
@@ -2696,8 +2696,7 @@ def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
     assert calls == [
         (
             [
-                sys.executable,
-                str(INTERACT_SCRIPT.resolve()),
+                *LEAF_COMMAND,
                 "server",
                 "_serve",
                 str(page_dir),

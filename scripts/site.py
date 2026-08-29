@@ -41,7 +41,7 @@ from urllib.parse import unquote, urlsplit
 from example_data import data_operations
 
 ROOT = Path(__file__).resolve().parent.parent
-LEAF = ROOT / "plugins" / "leaf" / "bin" / "leaf"
+LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 OUT = (
@@ -60,7 +60,7 @@ RUNTIME = "runtime.js"
 
 # The payload files a docs page is *wearing* rather than pointing at: the stylesheet it
 # is styled by and the icon its tab shows. Every other path into the payload is source to
-# read and becomes a GitHub link (REWRITES); these have to resolve on the host, so the
+# read and becomes a GitHub link (PAYLOAD_SOURCE); these have to resolve on the host, so
 # link is rewritten to name the site's own copy — which is the vendored layer's, so the
 # site is styled by the file its examples are styled by rather than by a second copy of
 # the same rules. Rewritten first and on their own, and the rule has to say *the link
@@ -71,11 +71,11 @@ RUNTIME = "runtime.js"
 # A pattern rather than a literal, because the literal is the same rule with a
 # formatter's opinion baked into it. It read as the whole <link> tag until prettier
 # started writing the void element `<link … />` and splitting this one over four lines;
-# the literal quietly stopped matching, the generic ../plugins/ rule below took the href
+# the literal quietly stopped matching, the generic ../skills/ rule below took the href
 # instead, and every page shipped with its stylesheet pointing at a GitHub blob view —
 # a link that resolves, so the dead-link check has nothing to say, over a page with no
 # theme on it.
-PAYLOAD = "../plugins/leaf/skills/leaf"
+PAYLOAD = "../skills/leaf"
 WORN = {
     f"{PAYLOAD}/assets/theme.css": "theme.css",
     f"{PAYLOAD}/assets/icon.svg": "icon.svg",
@@ -95,7 +95,7 @@ DEFAULT_THEME = re.compile(
 # Everything else a page reaches into the payload for is source to read, and becomes the
 # link that reads it. Both sides are literal, so a page naming something else keeps what
 # it named and the link check below is what notices.
-PAYLOAD_SOURCE = ("../plugins/", f"{REPO}/blob/main/plugins/")
+PAYLOAD_SOURCE = ("../skills/", f"{REPO}/blob/main/skills/")
 # An example is a page directory here, so its link is the directory rather than a file:
 # examples/triage-board/ , where the index below sends a reader on to the version file.
 # A live server can keep the root address because it injects the exact projected-version

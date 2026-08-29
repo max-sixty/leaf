@@ -9,27 +9,20 @@
     <title>how leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf: one uv script, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
+      content="The mechanism behind leaf: one local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
-    <link
-      rel="icon"
-      href="../plugins/leaf/skills/leaf/assets/icon.svg"
-      type="image/svg+xml"
-    />
+    <link rel="icon" href="../skills/leaf/assets/icon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="how leaf works" />
     <meta
       property="og:description"
-      content="One uv script, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
+      content="One local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
     <meta property="og:url" content="https://leaf.page/how-it-works.html" />
     <meta property="og:image" content="https://leaf.page/session-light.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="../plugins/leaf/skills/leaf/assets/theme.css" />
-    <link
-      rel="stylesheet"
-      href="../plugins/leaf/skills/leaf/packages/default/theme.css"
-    />
+    <link rel="stylesheet" href="../skills/leaf/assets/theme.css" />
+    <link rel="stylesheet" href="../skills/leaf/packages/default/theme.css" />
     <link rel="stylesheet" href="site.css" />
   </head>
   <body>
@@ -47,7 +40,7 @@
         <h1>How leaf works</h1>
         <p class="lede" id="lede">
           No daemon, no database, no build step: the server starts with the session and
-          stops with it. One <code>uv</code> script serves the page and mediates an
+          stops with it. One <code>leaf</code> process serves the page and mediates an
           append-only event log; an ES-module runtime renders the widgets and injects
           the comments, threads, banner, and version picker.
         </p>
@@ -65,8 +58,8 @@
         >
           <title id="arch-title">
             The agent writes version files and runs leaf commands, both reaching the
-            browser through interact.py's loopback server; leaf wait carries a comment
-            back into the agent's context.
+            browser through leaf's loopback server; leaf wait carries a comment back
+            into the agent's context.
           </title>
           <defs>
             <marker
@@ -140,7 +133,7 @@
               font-weight="600"
               fill="var(--ink)"
             >
-              interact.py
+              leaf server
             </text>
             <text
               x="360"
@@ -518,9 +511,7 @@ $ leaf ack ./review 3</code></pre>
           layer, then vendors its runtime, theme, registry, and widget modules into the
           page's directory. Because pages are self-contained, a version you approved
           can't change under you when the defaults do. The
-          <a href="../plugins/leaf/skills/leaf/references/packages.md"
-            >package contract</a
-          >
+          <a href="../skills/leaf/references/packages.md">package contract</a>
           owns composition order and replacement rules.
         </p>
         <p id="what-is-customizable">

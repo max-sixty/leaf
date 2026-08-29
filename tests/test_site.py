@@ -24,6 +24,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+from interact_support import COMMAND_HUB_PACKAGE
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -31,11 +32,8 @@ from playwright.sync_api import expect
 from render_support import BOTH_STAMPS, ONE_FRAME, navigate, open_page, select
 
 ROOT = Path(__file__).parent.parent
-ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
-DEFAULT_PACKAGE = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "default"
-COMMAND_HUB_PACKAGE = (
-    ROOT / "plugins" / "leaf" / "skills" / "leaf" / "packages" / "command-hub"
-)
+ASSETS = ROOT / "skills" / "leaf" / "assets"
+DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 
@@ -125,7 +123,7 @@ def test_only_the_stylesheet_link_becomes_the_served_copy(site):
     alone sends a reader after the token block to the CSS the site serves, which is a
     resolving link the dead-link check has nothing to say about and the wrong file."""
     published = (site / "packages.html").read_text()
-    source = f"{site_build.REPO}/blob/main/plugins/leaf/skills/leaf/assets/theme.css"
+    source = f"{site_build.REPO}/blob/main/skills/leaf/assets/theme.css"
     assert f'href="{source}"' in published
     assert published.count('href="theme.css"') == 1
 

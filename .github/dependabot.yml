@@ -1,14 +1,13 @@
 version: 2
 
-# Nothing watched anything here before this file. Two of leaf's pinned versions
-# stay outside it and are `tend-weekly`'s, in
-# `.claude/skills/running-tend/SKILL.md`: `interact.py`'s PEP 723 header, which
-# is a comment block Dependabot cannot read, and the bundles under
-# `assets/vendor/`, which are rebuilt by their scripts rather than resolved from
-# a manifest.
+# Nothing watched anything here before this file. The pinned versions that stay
+# outside it are `tend-weekly`'s, in `.claude/skills/running-tend/SKILL.md`: the
+# bundles under `assets/vendor/`, which are rebuilt by their scripts rather than
+# resolved from a manifest.
 #
-# `uv.lock` is the developer and CI environment only — the suite and its tools.
-# It is not what installs leaf.
+# The uv entry watches the repository's one lock. Its runtime packages are what
+# an install of leaf actually resolves — a bump there changes what every host
+# runs — and the dev group is the suite's; the lock records both.
 #
 # Grouped so each ecosystem opens one PR a week rather than one per dependency;
 # on a repo this size the review cost of a group is the same as a single bump.
@@ -26,5 +25,5 @@ updates:
     schedule:
       interval: weekly
     groups:
-      dev-dependencies:
+      dependencies:
         patterns: ["*"]

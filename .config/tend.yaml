@@ -1,8 +1,8 @@
 bot_name: leaf-agent
 
 # Everything in this repo runs through `uv` (CLAUDE.md): the suite is
-# `uv run pytest tests`, and `leaf` itself is a PEP 723 script that resolves its
-# own dependencies. `setup-uv` is where the agent gets uv, on the same unpinned
+# `uv run pytest tests`, and `leaf` itself is a uv project that syncs its own
+# environment. `setup-uv` is where the agent gets uv, on the same unpinned
 # action `ci.yaml` uses, so both take a uv new enough to read `uv.lock`'s
 # revision; `uv sync --frozen` warms `.venv` so the sandbox
 # inherits it rather than resolving from scratch on every run, and installs the

@@ -1,4 +1,4 @@
-"""Shared fixtures for payload modules exposed through pytest's source root."""
+"""Shared fixtures, and the address the suite starts a leaf process at."""
 
 import os
 import shutil
@@ -12,15 +12,16 @@ from leaf import files as files_model
 from leaf import host as host_model
 from playwright.sync_api import sync_playwright
 
-INTERACT_SCRIPT = (
-    Path(__file__).parent.parent
-    / "plugins"
-    / "leaf"
-    / "skills"
-    / "leaf"
-    / "scripts"
-    / "interact.py"
-)
+# The leaf a test runs as a process of its own. There is no script to name any
+# more: the payload is a distribution this environment installs, so `python -m
+# leaf` under this interpreter is the CLI's only address that does not go
+# through a launcher — and it is the one leaf uses for its own children, in
+# `hosting.start_server` and `cmd_codex_start`. Use it wherever the subject is
+# what a command does. Where the subject is what a host actually runs — the
+# launcher's own resolution, or a process chain that has to look like one an
+# agent started — a test runs `PLUGIN_ROOT / "bin" / "leaf"` instead, and gets
+# uv, the payload project and the environment uv syncs for it along with it.
+LEAF_COMMAND = [sys.executable, "-m", "leaf"]
 # Domain test modules import their assertions explicitly; these two support modules
 # own the shared fixtures and register them once for the complete suite.
 pytest_plugins = ("interact_support", "render_support")

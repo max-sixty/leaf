@@ -19,12 +19,14 @@ choice depends on purpose or intent the code cannot supply.
 
 ## Repository map
 
-`plugins/leaf/` is the payload installed by both Claude Code and Codex. The root
-`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` files
-point at it. Its main parts are:
+The repository is the plugin: `.claude-plugin/marketplace.json` and
+`.agents/plugins/marketplace.json` both name `./` as the payload, and both
+Claude Code and Codex install the tracked tree whole. Its main parts are:
 
-- `skills/leaf/scripts/interact.py` and `scripts/leaf/`: the CLI, server, event
-  model, validation, projection, vendoring, and export;
+- `pyproject.toml`, `uv.lock`, and `bin/leaf`: the uv project — runtime
+  dependencies plus the suite's dev group — and the launcher that runs it;
+- `skills/leaf/scripts/leaf/`: the CLI, server, event model, validation,
+  projection, vendoring, and export;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
 - `skills/leaf/packages/`: the default and optional bundled content vocabularies,
   widgets, modules, and vendor files;
@@ -37,13 +39,46 @@ site, demo, and vendor tooling.
 
 Read the scoped instructions for the area being changed:
 
-- `plugins/leaf/CLAUDE.md`: shipped-payload and host dependency rules;
-- `plugins/leaf/skills/leaf/CLAUDE.md`: browser, widget, registry, and theme;
-- `plugins/leaf/skills/leaf/scripts/CLAUDE.md`: Python boundaries and protocol
-  references;
+- `skills/leaf/CLAUDE.md`: browser, widget, registry, and theme;
+- `skills/leaf/scripts/CLAUDE.md`: Python boundaries and protocol references;
 - `examples/CLAUDE.md`: corpus and preview fixtures;
 - `tests/CLAUDE.md`: test setup and evidence rules;
 - `scripts/CLAUDE.md`: repository tooling and generated outputs.
+
+### The install runs this tree
+
+An install is this tracked tree, copied into a host's plugin cache. Claude Code
+copies exactly the tracked files; Codex copies its marketplace clone wholesale,
+`.git` included, and a local-directory marketplace would sweep in a checkout's
+`.venv` too — measured, 163M — so point Codex at the git source. Nothing is
+built at install time; the environment appears on the first `bin/leaf` run,
+where `uv` syncs `.venv` beside `pyproject.toml`, so the install has to be
+writable by the session running leaf.
+
+`pyproject.toml` states each runtime dependency at the lowest version the suite
+passes on, with no upper cap, and `uv.lock` ships beside it, so an install runs
+the resolution the suite was last green on. Shipping the lock does not take the
+host's index out of the loop: it records versions and hashes, and `uv sync`
+asks the host's configured index for them, so a private mirror answers and an
+offline run installs from `uv`'s cache. Python arrives on the same terms. The
+host also supplies the `jq` authoring dependency at the minimum version named
+in the README. The dev group — pytest, the accessibility checks, the demo
+recorder's frames — is recorded in that same lock but never installed on a
+host: `bin/leaf` passes `--no-dev`. Playwright is a runtime dependency, since
+the skill's own flow renders pages; browser checks launch the host's installed
+Chrome, and leaf does not download a browser.
+
+`uv` owns `.venv/`; a `.venv` inside an installed copy is uv doing its job, not
+stray state to clean up. Nothing else is written back: no cache leaf keeps for
+itself, no generated file, no repaired state. Plugin updates may replace the
+directory wholesale, so what has to survive one belongs in the page directory
+or the state home.
+
+Files under `skills/leaf/assets/vendor/` and
+`skills/leaf/packages/default/vendor/` are committed payload outputs. Their
+generators and source-version choices live under `scripts/`; follow
+`scripts/CLAUDE.md`, update or run the owning script, and do not patch a
+generated bundle directly.
 
 ## Cross-runtime invariants
 
@@ -69,8 +104,8 @@ The page directory is the durable record and deployment unit. `index.html` is
 mutable author source; revisions and stamped versions are immutable. The event
 log is append-only, while `data.json` is the explicit replace-in-place authority
 for typed external data. A source id keeps one contract for the page's lifetime.
-`plugins/leaf/skills/leaf/references/internals/page-storage.md` defines the
-complete layout.
+`skills/leaf/references/internals/page-storage.md` defines the complete
+layout.
 
 A request is a durable, non-undoable one-shot instruction whose external effect
 may precede its receipt. The append door admits one pending request per declared

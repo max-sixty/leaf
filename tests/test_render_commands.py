@@ -4,12 +4,12 @@ import hashlib
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import INTERACT_SCRIPT
+from conftest import LEAF_COMMAND
+from interact_support import install_payload
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
@@ -196,8 +196,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     def gate(*args):
         return subprocess.run(
             [
-                sys.executable,
-                str(INTERACT_SCRIPT),
+                *LEAF_COMMAND,
                 "version",
                 "check",
                 str(d),
@@ -226,8 +225,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path):
     """Exercise the copied artifact a host installs, never an import from this checkout."""
     root = Path(__file__).parent.parent
-    installed = tmp_path / "host" / "plugins" / "leaf"
-    shutil.copytree(root / "plugins" / "leaf", installed)
+    installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
     elsewhere = tmp_path / "unrelated-project"
     elsewhere.mkdir()
@@ -666,9 +664,9 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
     """`leaf` is what the skill hands an agent, so the shim's own resolution
-    is load-bearing: it finds the script from its location rather than the cwd,
-    and on `--render` it supplies the Playwright the PEP 723 header deliberately
-    omits. Running it from an unrelated directory exercises both.
+    is load-bearing: it names the payload project from its own location rather
+    than letting uv find whatever project the cwd sits in. Running it from an
+    unrelated directory exercises that.
 
     The version under it carries a mermaid body that doesn't parse — a shape the
     static lint cannot reach, since it validates the element and never the
@@ -680,7 +678,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path):
         CliRunner().invoke(cli_model.cli, ["version", "check", str(d)]).exit_code == 0
     )
 
-    shim = Path(__file__).parent.parent / "plugins" / "leaf" / "bin" / "leaf"
+    shim = Path(__file__).parent.parent / "bin" / "leaf"
     run = subprocess.run(
         [str(shim), "version", "check", str(d), "--render"],
         cwd=tmp_path,

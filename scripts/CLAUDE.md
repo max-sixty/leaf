@@ -1,7 +1,8 @@
 # Repository tooling
 
-These scripts are developer tools, not part of the installed plugin. They use the
-environment pinned by the root `pyproject.toml` and `uv.lock`.
+These scripts are developer tooling: the installed plugin is the whole tracked tree,
+so a host copies these along with it, but nothing under `skills/leaf` reads them at
+runtime. They use the environment pinned by the root `pyproject.toml` and `uv.lock`.
 
 ## Examples and previews
 
@@ -26,17 +27,16 @@ keep it when the product can make those frames stale.
 
 ## Vendored bundles
 
-- `vendor-highlight.sh` rebuilds
-  `plugins/leaf/skills/leaf/assets/vendor/highlight.esm.js` from the registry's
-  `$languages.names`.
+- `vendor-highlight.sh` rebuilds `skills/leaf/assets/vendor/highlight.esm.js` from
+  the registry's `$languages.names`.
 - `vendor-marked.sh` copies the dependency-free Markdown renderer used for
   thread messages.
 - `vendor-pierre.sh` builds the bounded Pierre diff renderer and license notices
   from the registry's `$languages.names` and the two shipped diff themes.
 - `vendor-plot.sh` bundles Observable Plot with d3 into
-  `plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js`; Plot's
-  published ESM leaves d3 as a bare external import, so copying it alone is not
-  a browser-loadable bundle.
+  `skills/leaf/packages/default/vendor/plot.esm.js`; Plot's published ESM leaves
+  d3 as a bare external import, so copying it alone is not a browser-loadable
+  bundle.
 
 Run the owning script after changing its source dependency or registry input;
 do not patch generated bundles or `examples/gallery.html` directly.

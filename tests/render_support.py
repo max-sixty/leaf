@@ -5,6 +5,7 @@ runtime probes, and domain-specific readings. Existing tests import this facade 
 fixture can move between those owners without making test modules coordinate it.
 """
 
+from interact_support import COMMAND_HUB_PACKAGE
 from render_cases_interaction import (
     BOXLESS_SECTION_PAGE,
     CHANGE_SHAPES_PAGE,
@@ -281,7 +282,6 @@ from render_harness import (
     BOARD_PAGE,
     BOTH_STAMPS,
     CARRIED_PAGE,
-    COMMAND_HUB_PACKAGE,
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     EXAMPLES,

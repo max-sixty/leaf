@@ -264,7 +264,7 @@ ever rendered. The width is the gap, not the detector.
 
 Two smaller differences worth recording. Lavish is an npm package whose chrome bundles
 React, Excalidraw, mermaid and Tailwind through esbuild, delivered on demand by `npx -y`;
-leaf has no build step, one `uv` script and one ES module, installed by the host from the
+leaf has no build step, one `uv` project and one ES module, installed by the host from the
 repository. And their URLs differ in kind: a lavish session key is `sha256` of the file
 path truncated, an identifier rather than a secret, with the loopback bind as the
 boundary, while leaf mints `secrets.token_urlsafe(16)`, because a leaf server binds every

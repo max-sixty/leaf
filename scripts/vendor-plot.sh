@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js.
+# Rebuild skills/leaf/packages/default/vendor/plot.esm.js.
 #
 # Observable Plot draws lf-chart. Nothing published is loadable as it stands, and
 # there are three things to try: `src/index.js` is browser-native ESM but imports
@@ -20,7 +20,7 @@ set -euo pipefail
 
 PLOT_VERSION=0.6.17
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/plugins/leaf/skills/leaf/packages/default/vendor/plot.esm.js"
+OUT="$ROOT/skills/leaf/packages/default/vendor/plot.esm.js"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

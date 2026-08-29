@@ -6,11 +6,13 @@ import re
 import time
 
 import pytest
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
-from leaf import validation as validation_model
+from leaf.render_gate import scheme as render_gate_scheme
+from leaf.render_gate import version as render_gate_model
+from leaf.validation import compatibility as validation_model
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -46,6 +48,7 @@ from render_support import (
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
+    Traffic,
     _traffic,
     _until,
     arrange_return,
@@ -98,7 +101,7 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
 
     def break_probe(page):
         page.route(
-            "**/_leaf/render-checks.js",
+            "**/_leaf/render-checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -120,7 +123,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
 
     def make_readiness_async(page):
         page.route(
-            "**/_leaf/render-checks.js",
+            "**/_leaf/render-checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -151,7 +154,7 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
                 body="await new Promise(() => {});",
             )
 
-        page.route("**/_leaf/render-checks.js", never_finishes)
+        page.route("**/_leaf/render-checks/index.js", never_finishes)
 
     failures = render_gate_model.render_version(
         primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=100
@@ -161,6 +164,47 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     assert failures
     assert all("did not load" in failure for failure in failures)
     assert all("within 100ms" in failure for failure in failures)
+
+
+def test_the_render_gate_waits_for_the_page_to_be_presented(browser, serve):
+    """Applied state is not yet a visible page when the first read was slow enough to
+    show the recovery sheet. The sheet's animation ends before its minimum dwell does,
+    so neither caught-up state nor an empty animation list says the page is available
+    to a visual reading. Hold each scheme's first read past the sheet's delay and plant
+    syntax the gate can report only after the runtime's presentation stamp releases it.
+    """
+    delayed = []
+
+    def delay_first_read(page):
+        first = True
+
+        def answer(route):
+            nonlocal first
+            if first:
+                first = False
+                delayed.append(route.request.url)
+                time.sleep(0.05)
+            route.continue_()
+
+        page.route("**/api/state*", answer)
+
+    waiting_page = UNANSWERED_CODE_PAGE.replace(
+        "</head>",
+        "<style>:root { --lf-presentation-delay: 0ms; "
+        "--lf-presentation-dwell: 800ms; }</style>\n</head>",
+    )
+    failures = render_gate_model.render_version(
+        primed(browser, delay_first_read), serve(waiting_page)
+    )
+
+    assert len(delayed) == 2, "both scheme reads must cross the presentation boundary"
+    for scheme in ("light", "dark"):
+        assert any(
+            failure.startswith(
+                f"[{scheme}] code marked cm is the ink of the code around it"
+            )
+            for failure in failures
+        ), (scheme, failures)
 
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
@@ -200,24 +244,16 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     round_trip(page)
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
-def test_an_example_comes_up_for_a_reader_who_left_something_standing(
-    browser, serve, example
-):
-    """The corpus read the way a reader reads it the second time. `test_example_renders`
-    above is every example's first visit; this is the same examples with the panel
-    open, a tray standing, or design mode on, which is what the reader who opened one
-    of those gets back on every load until they close it."""
-    assert arrival_findings(browser, serve(example)) == []
-
-
 def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
-    """The sweep above asks whether each example survives an arrangement; this asks
-    whether the reading covers them. The probe speaks only to a returning reader, so
-    every finding here is the arrival pass's, and what it is held to is the
-    arrangements the runtime declares — all of them, in order, because a pass that
-    stopped at the first would leave every surface after it exactly as unwatched as it
-    was before."""
+    """Every arrangement the layer restores is exercised on one representative page.
+
+    Restoring reader furniture is layer-owned and identical under every authored
+    version, so multiplying this reading across the corpus repeats the mechanism rather
+    than adding an input. The probe speaks only to a returning reader, and every finding
+    here is the arrival pass's. It is held to the arrangements the runtime declares —
+    all of them, in order, because a pass that stopped at the first would leave every
+    surface after it exactly as unwatched as it was before.
+    """
 
     def prepare(page):
         # At document start, before the page's own scripts, so what is read is what the
@@ -355,7 +391,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
@@ -372,7 +408,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         )
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
     # one document; one seen here is the platform under load and says nothing.
-    assert [e for e in errors if not render_gate_model.resize_observer_error(e)] == []
+    assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
     page.close()
 
 
@@ -429,7 +465,7 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
 
     assert len(pages) == 4
     assert (
-        render_gate_model.recurring_resize_observer_error("render attempt") in failures
+        render_gate_scheme.recurring_resize_observer_error("render attempt") in failures
     )
 
 
@@ -486,7 +522,7 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     )
     page, errors = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
-    assert errors == [render_gate_model.recurring_resize_observer_error("navigation")]
+    assert errors == [render_gate_scheme.recurring_resize_observer_error("navigation")]
     page.close()
 
 
@@ -696,8 +732,8 @@ def test_example_renders(browser, serve, example):
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
-    render_gate.render_version — the pass `version check --render` runs on agent-authored
-    pages — so this sweep also proves the gate a user's page goes through."""
+    render_gate.version.render_version — the pass `version check --render` runs on
+    agent-authored pages — so this sweep also proves the gate a user's page goes through."""
     assert render_gate_model.render_version(browser, serve(example)) == []
 
 
@@ -1069,7 +1105,7 @@ def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
     empty one every rect starts as — zero-sized at the document's origin — and the runtime
     hangs the mark on the boxes the element shows through instead. `#veiled` has one and
     is fine. `#ghost` has none, and there the paint has nowhere to land: this is the fault
-    that reached a reader as `n` appearing to do nothing at all, on a page whose remaining
+    that reached a reader as `a` appearing to do nothing at all, on a page whose remaining
     asks were all suggestions, while the gate rendered it green.
 
     TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
@@ -1510,13 +1546,14 @@ def test_both_trays_stand_on_the_one_edge_the_reader_drew(browser, serve, other_
 
     The `other_leaf` fixture is the whole reason there is a second tray to swap to: a
     tray of one — the page the reader is already on — is not worth a control, so without
-    a neighbour `l` is dead."""
+    a neighbour `g l` is unavailable."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     trays = EDGES[1]
     trays.stand(page)
     edge_settled(page, trays)
     draw_edge(page, trays, 160)
 
+    page.keyboard.press("g")
     page.keyboard.press("l")
     expect(page.locator(".lf-others-panel")).to_be_visible()
     page.wait_for_function(
@@ -1549,11 +1586,11 @@ def test_a_tray_that_takes_a_strip_is_counted_against_the_margins_floor(browser,
     cramped = "() => document.body.hasAttribute('data-lf-cramped')"
     room = page.evaluate(cramped)
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     edge_settled(page, EDGES[1])
     standing = page.evaluate(cramped)
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
     page.wait_for_function("() => document.body.getAnimations().length === 0")
     given_back = page.evaluate(cramped)
@@ -1588,7 +1625,7 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 1200, 900)
     page.evaluate(ROOM_EVERY_FRAME, 60)
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     edge_settled(page, EDGES[1])
     page.wait_for_function("() => window.__room.length >= 60")
     trace = page.evaluate("() => window.__room")
@@ -1682,8 +1719,8 @@ def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     )
 
 
-def test_a_traffic_wait_accounts_for_the_response_it_consumes():
-    """The waiter may resume before Traffic's ordinary response listener under load."""
+def test_a_traffic_wait_accounts_for_the_trip_it_consumes():
+    """The waiter may resume before Traffic's ordinary listeners under load."""
 
     class LateTraffic:
         done = False
@@ -1691,8 +1728,8 @@ def test_a_traffic_wait_accounts_for_the_response_it_consumes():
         def settle(self):
             pass
 
-        def settle_response(self, response):
-            assert response == "answer"
+        def settle_finished(self, request):
+            assert request == "trip"
             self.done = True
 
         def __str__(self):
@@ -1702,10 +1739,75 @@ def test_a_traffic_wait_accounts_for_the_response_it_consumes():
         lf_traffic = LateTraffic()
 
         def wait_for_event(self, event, **_kwargs):
-            assert event == "response"
-            return "answer"
+            assert event == "requestfinished"
+            return "trip"
 
-    _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the response")
+    _until(EarlyPage(), lambda traffic: traffic.done, "accounted for the trip")
+
+
+def test_traffic_leaves_a_body_the_browser_has_not_finished_handing_over():
+    """`Response.json` waits on the finished fact with no deadline of its own, so a
+    body read before the browser has one is the single wait here that cannot run out —
+    the one that spent a whole CI run's bound and named no test. A response settles
+    when its trip finishes and waits in the queue until then."""
+
+    class Request:
+        url = "http://page/api/state"
+
+    class Unfinished:
+        ok = True
+        read = False
+        request = Request()
+
+        def json(self):
+            self.read = True
+            return {"events": []}
+
+    class Page:
+        """The page's own event surface, which is all Traffic asks of one."""
+
+        def __init__(self):
+            self.listeners = {}
+
+        def on(self, event, handler):
+            self.listeners[event] = handler
+
+    page = Page()
+    traffic = Traffic(page)
+    response = Unfinished()
+
+    page.listeners["response"](response)
+    traffic.settle()
+    assert not response.read, "a body was read before the browser had all of it"
+    assert traffic.heard == 1, "the headers stopped counting as a state answer"
+
+    page.listeners["requestfinished"](response.request)
+    traffic.settle()
+    assert response.read, "the finished body never settled, so the queue only grows"
+
+
+def test_a_traffic_wait_accepts_completion_delivered_with_its_timeout():
+    """Traffic's own requestfinished listener can settle the trip as the waiter times
+    out, so the final reading is taken after the deadline rather than before it."""
+
+    class EdgeTraffic:
+        done = False
+
+        def settle(self):
+            pass
+
+        def __str__(self):
+            return f"done={self.done}"
+
+    class EdgePage:
+        lf_traffic = EdgeTraffic()
+
+        def wait_for_event(self, event, **_kwargs):
+            assert event == "requestfinished"
+            self.lf_traffic.done = True
+            raise PlaywrightTimeout("the trip met its deadline")
+
+    _until(EdgePage(), lambda traffic: traffic.done, "accounted for the trip")
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

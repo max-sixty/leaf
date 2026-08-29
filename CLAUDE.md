@@ -10,6 +10,10 @@ code. Prefer the simpler interface even when it is incompatible. Delete and
 regenerate stale state. Add a guard only for a reachable condition with a useful
 response.
 
+Use this freedom to try coherent new features and learn from them without
+settling every product detail first. Surface architectural problems, but fix
+them separately when the experiment leaves the architecture easy to change.
+
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
 
@@ -55,9 +59,11 @@ the decision rests on. Use `restated` when a rewrite invalidates one. An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event.
 
 Actions and reports share the registry-declared coordinate of owner widget,
-fold unit, and facet. Python and JavaScript derive winners, retractions, and
-settlement from the same declarations. Page-widget state is bounded by document
-version; widgets frozen into thread markup use the conversation window.
+fold unit, and facet. Python derives winners, retractions, settlement, asks,
+threads, and updates in one transaction-consistent browser view. JavaScript
+resolves that view onto live DOM nodes and overlays only unresolved local
+gestures. Page-widget state is bounded by document version; widgets frozen into
+thread markup use the conversation window.
 
 The page directory is the durable record and deployment unit. `index.html` is
 mutable author source; revisions and stamped versions are immutable. The event
@@ -65,6 +71,16 @@ log is append-only, while `data.json` is the explicit replace-in-place authority
 for typed external data. A source id keeps one contract for the page's lifetime.
 `plugins/leaf/skills/leaf/references/internals/page-storage.md` defines the
 complete layout.
+
+A request is a durable, non-undoable one-shot instruction whose external effect
+may precede its receipt. The append door admits one pending request per declared
+seat atomically; failure reopens the seat and success completes it. Exactly one
+terminal receipt names each accepted request. Page seats are scoped to their
+authored revision, while a seat in frozen thread markup lasts for that document's
+whole lifetime. Packages own verbs, host meaning, guidance, and UI; Leaf owns only
+the typed transport and canonical lifecycle projection. A package may declare that a
+ready request is a reader ask; acceptance hands the turn to the host, success closes it,
+and failure returns it through that same projection.
 
 ### Validate once and share readings
 

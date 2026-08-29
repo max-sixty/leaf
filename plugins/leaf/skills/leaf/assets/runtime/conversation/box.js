@@ -50,12 +50,12 @@ export function createConversationBox({ post, renderPanel, showToast, wireInput 
       save: (value) => saveDraft(ctx, value),
       send: async (text, raw) => {
         if (!(await sendComment(text, raw))) return;
-        showToast(`Sent to ${runtime.agent}`);
+        showToast("Message recorded");
       },
       altSend: hold
         ? async (text, raw) => {
             if (!(await sendComment(text, raw, true))) return;
-            showToast(`Sent to ${runtime.agent} — goal paused`);
+            showToast("Message recorded — goal paused");
           }
         : null,
     });

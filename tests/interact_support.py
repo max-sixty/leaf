@@ -30,7 +30,8 @@ from conftest import INTERACT_SCRIPT
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_endpoint as event_endpoint_model
-from leaf import events as events_model
+from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
@@ -39,11 +40,13 @@ from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
-from leaf import served_state as served_state_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import structure as structure_model
-from leaf import validation as validation_model
+from leaf import vendoring as vendoring_model
+from leaf.served_state import page as served_page
+from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "leaf"
@@ -53,6 +56,11 @@ PLUGIN_ROOT = ROOT / "plugins" / "leaf"
 # nothing and reports nothing.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
+COMMAND_SUBJECTS = (
+    '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+    '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
+    "</lf-agent>"
+)
 
 PROBE_BOOTSTRAP = """\
 import contextlib
@@ -258,9 +266,7 @@ def stamp(d, version, text="stamped", completes=()):
 
 def page_state(d):
     events = events_model.read_events(d)
-    return served_state_model.full_state(
-        d, events, files_model.published_versions(d, events)
-    )
+    return served_page.full_state(d, events, files_model.published_versions(d, events))
 
 
 def record_claim(page, **fields):
@@ -560,7 +566,7 @@ def logged(page_dir, *events):
     `append_event` stamps an id onto what it is handed and these are constants."""
     for event in events:
         events_model.append_event(page_dir, dict(event))
-    return events_model.build_threads(
+    return event_folds_model.build_threads(
         events_model.read_events(page_dir),
         passages_model.enclosing_ids(
             (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
@@ -590,7 +596,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
 
     def init_result():
         try:
-            layer_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir)
         except SystemExit as error:
             return str(error)
         return None
@@ -895,7 +901,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
         HELD_LEASES.pop().close()
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
-            if service_model.running_server(lease.parent):
+            if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
 
 
@@ -935,7 +941,7 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         )
     else:
         serving(directory, record["port"])
-    return service_model.page_url("127.0.0.1", 59999, service_model.host_key())
+    return server_model.page_url("127.0.0.1", 59999, server_model.host_key())
 
 
 @pytest.fixture
@@ -971,7 +977,7 @@ def comment_once_served():
 
         def post():
             while not stopped.wait(0.1):
-                if service_model.running_server(page_dir):
+                if server_model.running_server(page_dir):
                     events_model.append_event(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )

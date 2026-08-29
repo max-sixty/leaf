@@ -1,6 +1,6 @@
 [default.extend-words]
 # A render check quotes the passage print drops at 40 characters, so it can cut a
-# word in half; tests/test_render_controls.py expects one of those cuts.
+# word in half; tests/test_render_commands.py expects one of those cuts.
 recor = "recor"
 # tests/test_interact_anchors.py aims a section anchor at `backfil-first`, one letter off an
 # id the fixture holds, because a near-miss is the typo the gate exists to refuse —

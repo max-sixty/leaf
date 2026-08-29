@@ -16,7 +16,13 @@ user editing the document through it — widget=element id, action=verb, detail
 per widget, revision the edit was made against), report (agent; a worker's
 provisional state change on a page widget — same widget/action/detail/revision
 shape as an action, validated by the widget's x-report declaration at the
-`leaf report` door, and standing only until a stamped revision answers it), note
+`leaf report` door, and standing only until a stamped revision answers it),
+request (user; a durable, non-undoable one-shot instruction whose widget,
+action, typed detail, and revision are validated against the holder's
+`x-request` declaration and exact direct-child offers; when that declaration has
+`ask: true`, the ready lifecycle is a reader ask, acceptance hands it to the host,
+and a failed receipt reopens it), receipt (agent; exactly
+one terminal `succeeded` or `failed` outcome naming a prior request), note
 (agent; one stamped checkpoint's public `version`, exact `revision`, and
 changelog, carrying `restated`: the element ids whose decisions that revision
 took back, and `settles`: the report or work targets the stamp answered), error (the page's own runtime reporting a
@@ -42,7 +48,8 @@ The server stamps every other
 browser-posted event author=user; agent-side `leaf comment`, `leaf reply`, `leaf edit`,
 `leaf report`, and `version stamp` stamp the wire
 role author=claude plus the posting session's own voice: `agent`, its display name,
-and `session`, its host session id. Several agent sessions can write to one page,
+and `session`, its host session id. `leaf receipt` uses that same identity. Several
+agent sessions can write to one page,
 so the voice is read from the poster's environment rather than from the current
 watcher's claim record — and identity is the session id, because a display name
 is anyone's to choose and two workers may share one.

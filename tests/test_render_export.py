@@ -31,7 +31,7 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
 
     def break_probe(page):
         page.route(
-            "**/_leaf/render-checks.js",
+            "**/_leaf/render-checks/index.js",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/javascript; charset=utf-8",
@@ -238,10 +238,15 @@ def test_an_exported_example_stands_on_its_own(example, browser, serve, tmp_path
         // chrome is one the browser works itself and a label the page speaks through
         // (data-lf-said); the rest belonged to a runtime the file has not got, so a
         // mark reading "choose one" invites a reader who cannot answer it.
-        inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
-            .filter(el => el.checkVisibility() && el.textContent.trim()
-                          && !el.matches(':has(input, select, textarea, a[href], button)')
-                          && !el.closest('label, summary, a[href]'))
+            inert: [...document.querySelectorAll('[data-lf-offer]:not([data-lf-said])')]
+                .filter(el => el.checkVisibility() && el.textContent.trim()
+                              && !el.matches(':has(input, select, textarea, a[href], button)')
+                              // A label may name a native control outside its offered
+                              // wrapper. `label.control` is the platform's resolved
+                              // association, so this is just as live as a descendant.
+                              && ![...el.querySelectorAll('label')]
+                                  .some(label => label.control)
+                              && !el.closest('label, summary, a[href]'))
             .map(el => (el.className || el.tagName.toLowerCase()) + ': '
                        + el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 24)),
         // The same claim in paint. A hand or a grab says a gesture lands here, and in a

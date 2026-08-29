@@ -1,0 +1,128 @@
+/* One geometry owner for controls and readings that hang in the document margin. */
+const rows = new Map();
+const GAP = 4;
+let pending = 0;
+let observer = null;
+let observedColumn = null;
+
+export const marginColumn = () => document.querySelector("main") || document.body;
+
+function scheduleMarginLayout() {
+  cancelAnimationFrame(pending);
+  pending = requestAnimationFrame(layoutMarginRows);
+}
+
+function observeLayout() {
+  const column = marginColumn();
+  if (!observer) {
+    observer = new ResizeObserver(scheduleMarginLayout);
+    observer.observe(document.body);
+  }
+  if (observedColumn === column) return;
+  if (observedColumn) observer.unobserve(observedColumn);
+  observedColumn = column;
+  observer.observe(observedColumn);
+}
+
+export function registerMarginRow(row, options = {}) {
+  rows.set(row, options);
+  observeLayout();
+  scheduleMarginLayout();
+  return () => unregisterMarginRow(row);
+}
+
+export function updateMarginRow(row, options = {}) {
+  if (!rows.has(row)) return registerMarginRow(row, options);
+  rows.set(row, options);
+  observeLayout();
+  scheduleMarginLayout();
+  return () => unregisterMarginRow(row);
+}
+
+export function unregisterMarginRow(row) {
+  rows.delete(row);
+  row?.classList.remove("lf-docked", "lf-waiting");
+  if (row) row.style.transform = "";
+  if (!rows.size) {
+    observer?.disconnect();
+    observer = null;
+    observedColumn = null;
+    for (const el of document.querySelectorAll("[data-lf-wide][data-lf-yield]"))
+      el.removeAttribute("data-lf-yield");
+  }
+  scheduleMarginLayout();
+}
+
+export const marginAnchorFor = (row) => rows.get(row)?.anchor ?? null;
+
+export function layoutMarginRows() {
+  pending = 0;
+  const column = marginColumn();
+  const columnRect = column.getBoundingClientRect();
+  for (const [row, options] of rows) {
+    if (!row.isConnected) {
+      rows.delete(row);
+      continue;
+    }
+    row.classList.remove("lf-docked", "lf-waiting");
+    row.style.transform = "";
+    options.place?.(row, columnRect);
+  }
+  if (!rows.size) {
+    observer?.disconnect();
+    observer = null;
+    observedColumn = null;
+  }
+
+  const room = document.body.getBoundingClientRect().right;
+  const measured = [...rows].map(([row, options]) => {
+    const anchor =
+      typeof options.anchor === "function" ? options.anchor() : options.anchor;
+    const rect = row.getBoundingClientRect();
+    return {
+      row,
+      options,
+      rect,
+      hangs: options.hangs?.(row, rect, columnRect, room) ?? true,
+      shown:
+        options.shown?.(anchor) ??
+        (anchor instanceof Element ? anchor.checkVisibility() : row.checkVisibility()),
+    };
+  });
+  const inMargin = [];
+  for (const { row, options, rect, shown, hangs } of measured) {
+    if (!shown) row.classList.add("lf-waiting");
+    else if (!hangs || rect.right > room) {
+      if (options.fallback === "hide") row.classList.add("lf-waiting");
+      else row.classList.add("lf-docked");
+    } else inMargin.push(row);
+  }
+
+  const placed = inMargin
+    .map((row) => ({
+      row,
+      rect: row.getBoundingClientRect(),
+      priority: rows.get(row)?.priority ?? 0,
+    }))
+    .sort((a, b) => a.priority - b.priority || a.rect.top - b.rect.top);
+  const bands = [];
+  for (const { row, rect } of placed) {
+    let top = rect.top;
+    for (const band of [...bands].sort((a, b) => a.top - b.top))
+      if (top < band.bottom + GAP && top + rect.height > band.top - GAP)
+        top = band.bottom + GAP;
+    const push = top - rect.top;
+    if (push) row.style.transform = `translateY(${push}px)`;
+    bands.push({ top, bottom: top + rect.height });
+  }
+
+  for (const el of document.querySelectorAll("[data-lf-wide]")) {
+    const box = el.getBoundingClientRect();
+    if (bands.some((band) => band.top < box.bottom && band.bottom > box.top))
+      el.setAttribute("data-lf-yield", "r");
+    else el.removeAttribute("data-lf-yield");
+  }
+  document.dispatchEvent(new CustomEvent("lf-margin-layout"));
+}
+
+export { scheduleMarginLayout };

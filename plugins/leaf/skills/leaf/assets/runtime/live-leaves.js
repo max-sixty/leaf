@@ -26,22 +26,27 @@ export function createLiveLeaves({
   // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
   // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
   // browser's, a row being a link, and the row says so with no `run` to give. The reader
-  // arrives here by key — `l` lands focus on the first neighbour — so the scope names what
-  // activating does rather than leaving it to the platform's own contract.
+  // arrives here by key — `g l` lands focus on the first neighbour — so the scope names
+  // what activating does rather than leaving it to the platform's own contract.
   const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
   keys(
     othersPanel,
     "In the leaves tray",
     [
       {
+        id: "leaf.walk",
         keys: ["ArrowUp", "ArrowDown"],
+        routes: [
+          { id: "leaf.previous", binding: "ArrowUp", does: "Previous leaf" },
+          { id: "leaf.next", binding: "ArrowDown", does: "Next leaf" },
+        ],
         does: "Walk the leaves",
         line: "walk the leaves",
         repeat: true,
         run: (binding) => walkRows(othersLinks(), binding === "ArrowDown" ? 1 : -1),
       },
     ],
-    leavesOffered, // the scope's own liveness: a tray with something to walk
+    () => othersLinks().length > 0,
   );
 
   // A row's whole account of a page: the dot's tone and one line of words, from the
@@ -107,6 +112,7 @@ export function createLiveLeaves({
   const othersRows = new Map(); // keyed by URL; the self row under its own key
   function renderOthers(state) {
     const offeredBefore = leavesOffered();
+    const walkOfferedBefore = othersLinks().length > 0;
     // An older server ships no list, which is an empty one. A closed leaf is not
     // one of the machine's live pages and drops out of the tray on the poll that says
     // so: its server stays up so the page stays readable — a standing one for good —
@@ -144,6 +150,7 @@ export function createLiveLeaves({
         if (key !== "self")
           keys(row, "In the leaves tray", [
             {
+              id: "leaf.open",
               keys: ["Enter"],
               does: "Open that leaf in a tab",
               line: "open it in a tab",
@@ -176,7 +183,11 @@ export function createLiveLeaves({
         row.remove();
         othersRows.delete(key);
       }
-    if (offeredBefore !== leavesOffered()) paintKeys();
+    if (
+      offeredBefore !== leavesOffered() ||
+      walkOfferedBefore !== othersLinks().length > 0
+    )
+      paintKeys();
   }
 
   return { leavesOffered, othersLinks, renderOthers };

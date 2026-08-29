@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import INTERACT_SCRIPT
 from interact_support import (
+    COMMAND_SUBJECTS,
     PAGE,
     TOKEN,
     check,
@@ -31,17 +32,24 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_endpoint as event_endpoint_model
-from leaf import event_log as event_log_model
-from leaf import events as event_model
+from leaf import event_log as event_model
+from leaf import events as event_folds_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
+from leaf import leases as leases_model
+from leaf import presence as presence_model
+from leaf import projection as projection_model
 from leaf import publishing as publishing_model
-from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
-from leaf import served_state as served_state_model
+from leaf import server as server_model
 from leaf import service as service_model
+from leaf import thread_context as thread_context_model
+from leaf.registry import storage as registry_storage
+from leaf.served_state import document as served_document
+from leaf.served_state import page as served_page
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -698,6 +706,245 @@ def test_an_accepted_event_response_is_state_through_that_event(server, page_dir
     assert answer["state"]["events"][-1]["attempt"] == sent["attempt"]
 
 
+def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
+    """The browser receives a reading, not a log it must interpret again.
+
+    Its receipt, semantic coordinate, winner, undo offer, and readiness coverage all
+    name the event accepted by this same POST response and the same sequence boundary.
+    """
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+    sent = {
+        "kind": "action",
+        "revision": 1,
+        "widget": "delivery",
+        "action": "choose",
+        "detail": {"options": ["delivery-now"]},
+        "attempt": "attempt-browser-view-1",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
+
+    assert status == 200, body
+    state = json.loads(body)["state"]
+    accepted = state["events"][-1]
+    browser = state["browser"]
+    view = browser["views"]["1"]
+    [entry] = view["document"]["projection"]["entries"]
+    assert browser["basis"] == {"through_seq": accepted["seq"]}
+    assert view["basis"] == {"revision": 1, "through_seq": accepted["seq"]}
+    assert browser["receipts"][-1]["id"] == accepted["id"]
+    assert entry["event"]["id"] == accepted["id"]
+    assert entry["coordinate"] == ["delivery", "delivery", "selection"]
+    assert entry["value"] == ["delivery-now"]
+    assert view["document"]["projection"]["actions"] == [accepted["id"]]
+    assert view["undo"][0]["event"]["id"] == accepted["id"]
+    assert view["undo"][0]["restores_desired"] is False
+    assert view["coverage"] == [
+        {"event": accepted, "coordinate": ["delivery", "delivery", "selection"]}
+    ]
+
+
+def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
+    """The DOM need not re-fold the log to know a prior action will reappear."""
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+
+    for option, attempt in (
+        ("delivery-now", "attempt-prior-winner-1"),
+        ("delivery-later", "attempt-prior-winner-2"),
+    ):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": 1,
+                    "widget": "delivery",
+                    "action": "choose",
+                    "detail": {"options": [option]},
+                    "attempt": attempt,
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+
+    latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
+    assert latest["event"]["detail"] == {"options": ["delivery-later"]}
+    assert latest["restores_desired"] is True
+
+
+def test_undo_offer_keeps_the_doors_active_page_containment(monkeypatch):
+    """A pinned view paints its own projection but admits undo against live threads."""
+    active_within = {"settled-on-live-page": ("live",)}
+    view_within = {"settled-on-pinned-view": ("pinned",)}
+    seen = []
+
+    def record_undo_read(_event, _events, within):
+        seen.append(within)
+
+    monkeypatch.setattr(served_document, "undo_error", record_undo_read)
+    empty = projection_model.StateProjection({}, {}, {}, {}, {})
+    event = {"id": "reader-resolve", "kind": "resolve", "author": "user"}
+
+    candidates = served_document._browser_undo_candidates(
+        [event], active_within, view_within, {}, empty, empty
+    )
+
+    assert [candidate["event"] for candidate in candidates] == [event]
+    assert seen == [active_within]
+
+
+def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):
+    for path in (page_dir / "revisions").glob("*.html"):
+        path.unlink()
+    (page_dir / "index.html").unlink()
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq=0")
+
+    assert status == 400
+    assert json.loads(body) == {
+        "error": f"no active revision; write {page_dir / 'index.html'} first"
+    }
+
+
+def test_state_refuses_a_view_revision_the_page_does_not_have(server, page_dir):
+    publish(page_dir)
+
+    status, body = fetch(f"{server}/api/state?revision=999")
+
+    assert status == 400
+    assert json.loads(body) == {"error": "unknown view revision r999"}
+
+
+def test_an_event_with_an_unknown_view_revision_is_not_appended(server, page_dir):
+    publish(page_dir)
+    before = event_model.read_events(page_dir)
+    layer = json.loads(fetch(f"{server}/api/state")[1])["layer"]
+    address = urllib.parse.urlsplit(server)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    event = {
+        "kind": "comment",
+        "revision": 1,
+        "text": "This request cannot receive a view for its claimed revision.",
+        "attempt": "attempt-unknown-view",
+    }
+
+    connection.request(
+        "POST",
+        f"/api/event?t={TOKEN}",
+        body=json.dumps(event),
+        headers={
+            "Content-Type": "application/json",
+            "Leaf-Layer": layer,
+            "Leaf-View-Revision": "999",
+        },
+    )
+    response = connection.getresponse()
+    body = json.loads(response.read())
+    connection.close()
+
+    assert response.status == 400
+    assert body["error"] == "unknown view revision r999"
+    assert body["final"] is True
+    assert event_model.read_events(page_dir) == before
+
+
+def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
+    """A version diff compares with the state the live DOM has actually applied.
+
+    Later writes may land while its immutable base document is loading. The on-demand
+    view therefore names the already-observed sequence and projects no event beyond it.
+    """
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace(
+            "</section>",
+            '<lf-options id="delivery" choose>'
+            '<lf-option id="delivery-now">Now</lf-option>'
+            '<lf-option id="delivery-later">Later</lf-option>'
+            "</lf-options></section>",
+        )
+    )
+    publish(page_dir)
+
+    def choose(option, attempt):
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "action",
+                    "revision": 1,
+                    "widget": "delivery",
+                    "action": "choose",
+                    "detail": {"options": [option]},
+                    "attempt": attempt,
+                }
+            ).encode(),
+        )
+        assert status == 200, body
+        return json.loads(body)["state"]["events"][-1]
+
+    first = choose("delivery-now", "attempt-comparison-first")
+    choose("delivery-later", "attempt-comparison-later")
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={first['seq']}")
+
+    assert status == 200, body
+    browser = json.loads(body)["browser"]
+    assert set(browser["views"]) == {"1"}
+    view = browser["views"]["1"]
+    assert browser["basis"] == {"through_seq": first["seq"]}
+    assert view["basis"] == {"revision": 1, "through_seq": first["seq"]}
+    assert view["document"]["projection"]["desired"] == [first["id"]]
+
+
+def test_a_comparison_view_refuses_a_future_log_boundary(server, page_dir):
+    publish(page_dir)
+    latest = event_model.read_events(page_dir)[-1]["seq"]
+
+    status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest + 1}")
+
+    assert status == 400
+    assert json.loads(body) == {
+        "error": f"view sequence {latest + 1} is newer than log sequence {latest}"
+    }
+
+
+def test_state_projects_only_the_shown_and_next_revisions(server, page_dir):
+    publish(page_dir, 1)
+    for version in (2, 3):
+        (page_dir / "versions" / f"v{version}.html").write_text(
+            PAGE.replace("<title>t</title>", f"<title>v{version}</title>")
+        )
+        publish(page_dir, version)
+
+    status, body = fetch(f"{server}/api/state?revision=1")
+
+    assert status == 200, body
+    state = json.loads(body)
+    assert state["active"]["revision"] == 3
+    assert set(state["browser"]["views"]) == {"1", "3"}
+
+
 def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     server, page_dir, monkeypatch
 ):
@@ -720,19 +967,19 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
     scanned = threading.Event()
     original = http_model.Handler._page_state
 
-    def own_state(handler, events, source_error=None):
-        assert service_model.lock_is_held(page_dir / "comments.jsonl")
+    def own_state(handler, events, source_error=None, view_revision=None):
+        assert leases_model.lock_is_held(page_dir / "comments.jsonl")
         own_state_read.set()
-        return original(handler, events, source_error)
+        return original(handler, events, source_error, view_revision)
 
     def neighbours(directory):
         assert directory == page_dir
-        assert not service_model.lock_is_held(page_dir / "comments.jsonl")
+        assert not leases_model.lock_is_held(page_dir / "comments.jsonl")
         scanned.set()
         return []
 
     monkeypatch.setattr(http_model.Handler, "_page_state", own_state)
-    monkeypatch.setattr(served_state_model, "other_leaves", neighbours)
+    monkeypatch.setattr(presence_model, "other_leaves", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -783,7 +1030,7 @@ def test_concurrent_retries_share_one_attempt_execution_then_release_it(
         "attempt": "attempt-flight-001",
     }
     results = []
-    layer = registry_model.layer_generation(page_dir)
+    layer = registry_storage.layer_generation(page_dir)
 
     def post():
         # A real retry already carries the layer of the attempt it is retrying. The
@@ -836,10 +1083,10 @@ def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """A no-op lock cannot honestly promise one append for one attempt."""
-    monkeypatch.setattr(event_log_model, "fcntl", None)
+    monkeypatch.setattr(event_model, "fcntl", None)
     with (
         pytest.raises(RuntimeError, match="cross-process file locking"),
-        event_log_model.flocked(page_dir / ".lock"),
+        event_model.flocked(page_dir / ".lock"),
     ):
         pass
 
@@ -848,14 +1095,14 @@ def test_server_startup_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
     """Standing startup must fail before it opens a socket or records a URL."""
-    monkeypatch.setattr(event_log_model, "fcntl", None)
-    monkeypatch.setattr(service_model, "fcntl", None)
+    monkeypatch.setattr(event_model, "fcntl", None)
+    monkeypatch.setattr(leases_model, "fcntl", None)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.cmd_serve(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
         hosting_model.start_server(page_dir, standing=True)
     with pytest.raises(RuntimeError, match="cross-process file locking"):
-        service_model.lock_is_held(page_dir / "server.lock")
+        leases_model.lock_is_held(page_dir / "server.lock")
     assert not (page_dir / "server.lock").exists()
     assert not (page_dir / "service.json").exists()
 
@@ -918,6 +1165,397 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         "detail": {"card": "card-baffle", "to": "col-doing", "index": 0},
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
+
+
+def test_server_admits_only_a_widget_declared_host_request(server, page_dir):
+    """A package verb reaches the host as typed intent, never as prose the
+    coordinator has to interpret. The browser door resolves the widget against the
+    revision the reader used and validates its complete detail there."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    invalid = [
+        (
+            {
+                "target": "goal",
+                "worker": "worker",
+                "worktree": "tree",
+                "extra": "guess",
+            },
+            "detail is invalid",
+        ),
+        ({}, "detail is invalid"),
+        (
+            {"target": "other-goal", "worker": "worker", "worktree": "tree"},
+            "must match its authored `target`",
+        ),
+    ]
+    for detail, message in invalid:
+        status, body = fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": 1,
+                    "widget": "commands",
+                    "action": "restart",
+                    "detail": detail,
+                }
+            ).encode(),
+        )
+        assert status == 400, body
+        assert message in json.loads(body)["error"]
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+
+    assert status == 200, body
+    request = event_model.read_events(page_dir)[-1]
+    assert request["kind"] == "request" and request["author"] == "user"
+    assert (request["widget"], request["action"], request["detail"]) == (
+        "commands",
+        "restart",
+        {"target": "goal", "worker": "worker", "worktree": "tree"},
+    )
+
+
+def test_server_refuses_a_host_verb_the_widget_instance_did_not_offer(server, page_dir):
+    """The package declaration names every verb the widget family can speak, while
+    the authored children name the commands this particular target offers. A crafted
+    POST must not turn a restart-only surface into a request to land the target."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "land",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+
+    assert status == 400, body
+    assert "not offered" in json.loads(body)["error"]
+    assert not [
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request"
+    ]
+
+
+def test_server_refuses_a_second_request_while_the_first_is_pending(server, page_dir):
+    """The operation holder is one atomic choice surface. Its browser lock is only
+    presentation: a stale second tab can still POST before seeing the first request,
+    so the append boundary must serialize the pending lifecycle."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    first_status, first_body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+    assert first_status == 200, first_body
+    second_status, second_body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "commands",
+                "action": "drop",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            }
+        ).encode(),
+    )
+
+    assert second_status == 400, second_body
+    assert "pending request" in json.loads(second_body)["error"]
+    requests = [
+        event
+        for event in event_model.read_events(page_dir)
+        if event["kind"] == "request"
+    ]
+    assert [(event["action"], event["detail"]) for event in requests] == [
+        ("restart", {"target": "goal", "worker": "worker", "worktree": "tree"})
+    ]
+
+
+def test_request_lifecycle_reopens_on_failure_and_resets_in_a_later_revision(
+    server, page_dir
+):
+    """Failure makes another attempt meaningful, success closes the instruction, and
+    a later authored revision is a new surface. These are protocol facts at POST, not
+    assumptions made only by the package's current browser module."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        '<lf-operation verb="drop"><strong>Drop</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+
+    def ask(revision, action):
+        return fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": revision,
+                    "widget": "commands",
+                    "action": action,
+                    "detail": {
+                        "target": "goal",
+                        "worker": "worker",
+                        "worktree": "tree",
+                    },
+                }
+            ).encode(),
+        )
+
+    first_status, first_body = ask(1, "restart")
+    assert first_status == 200, first_body
+    first = event_model.read_events(page_dir)[-1]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": first["id"],
+            "status": "failed",
+            "text": "Worker lease disappeared",
+        },
+    )
+
+    retry_status, retry_body = ask(1, "drop")
+    assert retry_status == 200, retry_body
+    retry = event_model.read_events(page_dir)[-1]
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": retry["id"],
+            "status": "succeeded",
+            "text": "Archived the branch",
+        },
+    )
+
+    closed_status, closed_body = ask(1, "restart")
+    assert closed_status == 400, closed_body
+    assert "already completed request" in json.loads(closed_body)["error"]
+
+    (page_dir / "versions" / "v2.html").write_text(
+        version.read_text().replace("What next?", "What next now?")
+    )
+    publish(page_dir, 2)
+    next_status, next_body = ask(2, "restart")
+    assert next_status == 200, next_body
+
+
+def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
+    server, page_dir
+):
+    """Thread markup is a frozen second document, not part of each page revision. Its
+    one-shot operation therefore remains pending when the authored page advances."""
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
+    publish(page_dir)
+    root = event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "What should happen to this branch?",
+        },
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Choose the host operation.",
+            "markup": (
+                '<lf-operations id="thread-commands" target="goal" worker="worker" '
+                'worktree="tree" label="Next">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations>"
+            ),
+        },
+    )
+
+    def ask(revision):
+        return fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "request",
+                    "revision": revision,
+                    "widget": "thread-commands",
+                    "action": "restart",
+                    "detail": {
+                        "target": "goal",
+                        "worker": "worker",
+                        "worktree": "tree",
+                    },
+                }
+            ).encode(),
+        )
+
+    first_status, first_body = ask(1)
+    assert first_status == 200, first_body
+    (page_dir / "versions" / "v2.html").write_text(
+        (page_dir / "versions" / "v1.html")
+        .read_text()
+        .replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    )
+    publish(page_dir, 2)
+
+    repeated_status, repeated_body = ask(2)
+    assert repeated_status == 400, repeated_body
+    assert "pending request" in json.loads(repeated_body)["error"]
+
+
+def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
+    server, page_dir
+):
+    """Frozen thread markup may point into the page, so POST checks the combined
+    document after the fragment-only door has verified its local structure."""
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v1.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
+    publish(page_dir)
+    root = event_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Act?"},
+    )
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "agent": "Codex",
+            "parent": root["id"],
+            "text": "Choose.",
+            "markup": (
+                '<lf-operations id="thread-commands" target="worker" worker="tree" '
+                'worktree="goal" label="Next">'
+                '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+                "</lf-operations>"
+            ),
+        },
+    )
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "request",
+                "revision": 1,
+                "widget": "thread-commands",
+                "action": "restart",
+                "detail": {
+                    "target": "worker",
+                    "worker": "tree",
+                    "worktree": "goal",
+                },
+            }
+        ).encode(),
+    )
+
+    assert status == 400, body
+    assert "where role='goal'" in json.loads(body)["error"]
 
 
 @pytest.mark.parametrize(
@@ -1186,7 +1824,7 @@ def test_a_seat_conversation_does_not_lock_out_the_answer_it_is_about(server, pa
 def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     server, page_dir
 ):
-    """A custom scalar reads the declared roll-up, not ask containment."""
+    """A custom scalar reads the declared roll-up, including request phases."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-task"]["x-awaits"]["rollup"] = True
     scalar = {"type": "string", "pattern": "^[0-9]+$"}
@@ -1254,11 +1892,18 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="active">'
+            '<lf-tasks id="quota-tasks"><lf-task id="quota-task" status="blocked">'
             "<strong>Task</strong>"
+            '<lf-agent id="quota-worker" state="waiting" on="quota-task">'
+            '<strong>Worker</strong><lf-worktree id="quota-tree" '
+            'source="project-worktrees"></lf-worktree></lf-agent>'
             '<lf-quota id="quota" slots="1"></lf-quota>'
             '<lf-options id="quota-intervention" choose label="Proceed?">'
             '<lf-option id="quota-ready" chosen>Ready</lf-option></lf-options>'
+            '<lf-operations id="quota-operations" target="quota-task" '
+            'worker="quota-worker" worktree="quota-tree" label="Restart?">'
+            '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+            "</lf-operations>"
             '<lf-task id="quota-child" status="active"><strong>Child</strong></lf-task>'
             "</lf-task>"
             '<lf-task id="quota-destination" status="active">'
@@ -1276,6 +1921,25 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         "action": "increase",
         "detail": {"slots": "2"},
     }
+    # The policy choice is answered, but the ready host operation is still the
+    # reader's turn and therefore closes an action requiring the parent not to ask.
+    status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
+    assert status == 400
+    assert "still awaiting the reader" in json.loads(body)["error"]
+
+    requested = {
+        "kind": "request",
+        "revision": revision,
+        "widget": "quota-operations",
+        "action": "restart",
+        "detail": {
+            "target": "quota-task",
+            "worker": "quota-worker",
+            "worktree": "quota-tree",
+        },
+    }
+    assert fetch(f"{server}/api/event", data=json.dumps(requested).encode())[0] == 200
+
     event_model.append_event(
         page_dir,
         {
@@ -1288,7 +1952,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         },
     )
     # The answered direct intervention takes precedence over the nested task, so the
-    # stopped parent is available while that answer stands.
+    # stopped parent is available while that answer and pending request stand.
     assert fetch(f"{server}/api/event", data=json.dumps(event).encode())[0] == 200
 
     event_model.append_event(
@@ -1429,6 +2093,46 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
     assert len({e["id"] for e in events}) == 20  # server-minted, all distinct
 
 
+def test_event_ids_are_globally_strong_and_unique_within_the_log(page_dir, monkeypatch):
+    """A request id is also an external recovery key. Mint enough entropy for
+    that job, retry an extraordinary local collision, and refuse a caller-supplied
+    duplicate rather than letting one receipt settle two events."""
+    minted = iter(["a" * 32, "a" * 32, "b" * 32])
+    widths = []
+
+    def token_hex(width):
+        widths.append(width)
+        return next(minted)
+
+    monkeypatch.setattr(event_model.secrets, "token_hex", token_hex)
+    first = event_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "first"}
+    )
+    second = event_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "second"}
+    )
+
+    assert widths == [16, 16, 16]
+    assert (first["id"], second["id"]) == ("a" * 32, "b" * 32)
+    with pytest.raises(ValueError, match="event id .* already exists"):
+        event_model.append_event(
+            page_dir,
+            {
+                "id": first["id"],
+                "kind": "request",
+                "author": "user",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            },
+        )
+
+
 def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
@@ -1443,7 +2147,7 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
             "lifetime": "standing",
         },
     )
-    access = service_model.page_access(page_dir, "box.tailnet.example")
+    access = server_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
     assert access["port"] == 41234
     assert access["lifetime"] == "standing"
@@ -1467,7 +2171,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir):
     error = events[-1]
     assert error["kind"] == "error" and error["author"] == "page"
     assert error in service_model.unacknowledged(events, 0)
-    assert served_state_model.presence(page_dir, events)["pending"] == 0
+    assert presence_model.presence(page_dir, events)["pending"] == 0
     result = CliRunner().invoke(
         cli_model.cli, ["ack", str(page_dir), str(error["seq"])]
     )
@@ -1495,12 +2199,12 @@ def test_an_open_stream_records_that_the_page_is_open(server, page_dir):
     that proof — `curl`, the render gate and `page state` all read, and a tab
     that has no news never reads again."""
     events = event_model.read_events(page_dir)
-    assert served_state_model.presence(page_dir, events)["viewed"] is None
+    assert presence_model.presence(page_dir, events)["viewed"] is None
     fetch(f"{server}/api/state")
-    assert served_state_model.presence(page_dir, events)["viewed"] is None
+    assert presence_model.presence(page_dir, events)["viewed"] is None
     stream, heard = _news(server)
     heard()
-    assert served_state_model.presence(page_dir, events)["viewed"] is not None
+    assert presence_model.presence(page_dir, events)["viewed"] is not None
     stream.close()
 
 
@@ -1816,13 +2520,13 @@ def test_a_page_is_reached_where_the_ssh_session_reached_this_machine(
     already used rather than a hostname guessed from this end. The server binds that
     address alone: the open port faces only the network the session crossed."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    access = service_model.page_access(page_dir)
+    access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("10.20.30.40", "10.20.30.40")
 
 
 def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
-    access = service_model.page_access(page_dir)
+    access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
 
 
@@ -1835,7 +2539,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
     families and goes in the URL as given. Derivation stays in memory until the
     server-lease winner records it."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    stated = service_model.page_access(page_dir, host="devbox.corp.example")
+    stated = server_model.page_access(page_dir, host="devbox.corp.example")
     assert (stated["host"], stated["bind"]) == ("devbox.corp.example", "::")
     service = {
         **stated,
@@ -1844,7 +2548,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         "lifetime": "standing",
     }
     files_model.write_json(page_dir / "service.json", service)
-    assert service_model.page_access(page_dir) == service
+    assert server_model.page_access(page_dir) == service
 
 
 def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
@@ -1855,10 +2559,10 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     host:port."""
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
         with pytest.raises(SystemExit):
-            service_model.page_access(page_dir, host=junk)
+            server_model.page_access(page_dir, host=junk)
     assert not (page_dir / "service.json").exists()
 
-    assert service_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
+    assert server_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
 
 def test_the_stated_host_wildcard_serves_both_families(wildcard_server):
@@ -1917,8 +2621,8 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     user's browser has been polling one URL since it died, so a fresh address or
     key there would leave the page it reopens talking to nothing."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    recorded = service_model.page_access(page_dir)
-    minted = service_model.host_key()
+    recorded = server_model.page_access(page_dir)
+    minted = server_model.host_key()
     service = {
         **recorded,
         "port": 41234,
@@ -1928,8 +2632,8 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     files_model.write_json(page_dir / "service.json", service)
 
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51235 172.16.0.1 22")
-    assert service_model.page_access(page_dir) == service
-    assert service_model.host_key() == minted
+    assert server_model.page_access(page_dir) == service
+    assert server_model.host_key() == minted
 
 
 def test_start_server_spawns_the_public_entrypoint(page_dir, monkeypatch):
@@ -2030,7 +2734,7 @@ def test_a_page_left_standing_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(service_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_standing(host_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -2077,7 +2781,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     assert sorted(path.relative_to(home) for path in home.rglob("*")) == planted
     (left,) = nested.rglob("left/service.json")
     assert not files_model.read_json(left)["enabled"]
-    assert not service_model.lock_is_held(left.parent / "server.lock")
+    assert not leases_model.lock_is_held(left.parent / "server.lock")
 
 
 def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
@@ -2089,7 +2793,7 @@ def test_one_key_reads_every_page_this_machine_serves(page_dir, tmp_path):
     assert (
         CliRunner().invoke(cli_model.cli, ["page", "init", str(second)]).exit_code == 0
     )
-    key = service_model.host_key()
+    key = server_model.host_key()
 
     servers = [
         hosting_model.LeafHTTPServer(
@@ -2124,7 +2828,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     page ships about itself (`presence`), so the panel's row and that page's own
     banner judge from one shape — where the claiming session is working included,
     which is the one thing on a row's hover that no title could ever say."""
-    pages = service_model.state_home() / "pages"
+    pages = host_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     files_model.write_json(
         pages / "live" / "status.json",
@@ -2236,14 +2940,14 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     )
     entered = threading.Event()
     release = threading.Event()
-    original = served_state_model.full_state
+    original = served_page.full_state
 
     def held_state(*args, **kwargs):
         entered.set()
         assert release.wait(5)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(served_state_model, "full_state", held_state)
+    monkeypatch.setattr(served_page, "full_state", held_state)
     response = []
 
     def read_state():
@@ -2270,7 +2974,7 @@ def test_state_reads_claims_and_their_log_floor_in_one_transaction(
     writer = threading.Thread(target=resolve_then_claim)
     writer.start()
     assert writer_entered.wait(5)
-    assert service_model.lock_is_held(page_dir / "comments.jsonl")
+    assert leases_model.lock_is_held(page_dir / "comments.jsonl")
     release.set()
     reader.join(5)
     writer.join(5)
@@ -2294,9 +2998,7 @@ def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
     reader already arrived on, because there is one key for the machine — so a
     `--host` reader sees the neighbours, and sees no key they were not already
     holding. Gating it again is what to do if the key is ever scoped per page."""
-    neighbour_page(
-        service_model.state_home() / "pages" / "live", title="The other page"
-    )
+    neighbour_page(host_model.state_home() / "pages" / "live", title="The other page")
     state = json.loads(fetch(f"{wildcard_server}/api/state")[1])
     assert [entry["title"] for entry in state["others"]] == ["The other page"]
 
@@ -2304,11 +3006,9 @@ def test_others_ships_on_a_network_facing_bind_too(wildcard_server):
 def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     """A v6 address is colons all the way down, and the authority separates its port
     with one too."""
+    assert server_model.page_url("fd00::1", 41999, "k") == "http://[fd00::1]:41999/?t=k"
     assert (
-        service_model.page_url("fd00::1", 41999, "k") == "http://[fd00::1]:41999/?t=k"
-    )
-    assert (
-        service_model.page_url("10.20.30.40", 41999, "k")
+        server_model.page_url("10.20.30.40", 41999, "k")
         == "http://10.20.30.40:41999/?t=k"
     )
 
@@ -2526,8 +3226,8 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
         "the tear took the reply with it, so nothing below is being read"
     )
-    assert event_model.thread_roots(events)["r-kept"] == "c-lost"
-    threads = event_model.build_threads(events, {})  # nothing published to sit on
+    assert thread_context_model.thread_roots(events)["r-kept"] == "c-lost"
+    threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
     assert list(threads) == ["c-lost"], (
         f"the two readings put the reply in different conversations: {list(threads)}"
     )

@@ -31,7 +31,7 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
   color: var(--accent); font-size: .72em; line-height: 1;
   vertical-align: super; cursor: help;
 }
-.lf-gloss-mark:focus-visible {
+.lf-gloss-mark:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: gloss-mark; outline-offset: var(--here-ring-gap);
 }
 .lf-gloss-popover {
@@ -467,7 +467,7 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 @media screen {
  :where(html:not(.lf-copy)) {
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
-                     :has(> .lf-pick:focus-visible)) > .lf-pick::before {
+                     :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
                      border-color: var(--muted); }
  }
 }
@@ -477,7 +477,7 @@ lf-option .lf-pick:not([data-lf-said]) { font-size: 0; gap: 0; }
 lf-option[chosen] > .lf-pick { color: var(--ok-ink); }
 lf-option[chosen] > .lf-pick::before { content: "✓"; border-color: var(--ok);
                      background: var(--ok); }
-lf-option .lf-pick:focus-visible { outline: var(--here-ring); --lf-here-ring: options-pick;
+lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
 /* The digit a keyboard pick answers by, worn as the shared address chip. The option's
  * gutter reads status, address, then prose, so the digit starts after the status rule
@@ -487,7 +487,7 @@ lf-option .lf-pick:focus-visible { outline: var(--here-ring); --lf-here-ring: op
 lf-option > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
 @media screen {
- html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:focus-visible)
+ html:not(.lf-copy) lf-options[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))
                     > lf-option > .lf-address { display: block; }
 }
 /* The thread multi-question's submit (the module adds it there alone): one press
@@ -603,7 +603,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * their side runs the same way. Inset, the ring is inside the box it names and the
      * clip has nothing of it to take. The group's own frame is what stands off the
      * page, which is the gap's job on a box that stands alone. */
-    & .lf-btn:focus-visible { outline-offset: calc(-1 * var(--here-ring-w)); }
+    & .lf-btn:is(:focus-visible, .lf-focus-visible) { outline-offset: calc(-1 * var(--here-ring-w)); }
     /* The hairline between neighbours: one line, stated once, on the upper of the
      * two, so a child no rule here names arrives already separated. It is the only
      * border in the group: a cell wears none of its own, and the card's is withheld
@@ -657,7 +657,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * to the other — a page repainting itself over a tenth of a second for a change nobody
      * on it made. It is also how the contrast sweep found this, by reading a cell mid-flip
      * and getting a grey that belongs to neither palette. */
-    & > lf-option:is(:hover, :has(> .lf-pick:focus-visible)) {
+    & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[recommended] { --stripe: var(--accent); }
     & > lf-option[chosen] { --stripe: var(--ok); --fill: var(--ok-tint); }
@@ -701,7 +701,7 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      visibility: hidden; }
     /* The group is one control, so it is focused as one: the ring keyboard focus earns
      * is the group's, in the ask mark's own band — both read the --here-ring pair
-     * (theme.css) — because the two facts coincide whenever `n` lands here, and
+     * (theme.css) — because the two facts coincide whenever `a` lands here, and
      * they must draw one ring. They drew two: the focused cell wore an inset accent
      * ring of its own, so stepping to a group framed its first option twice over — the
      * mark outside the border, the cell's ring inside it — and the first option read as
@@ -723,10 +723,10 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
      * "not in the page's words yet" ring until the reader tabbed away, and an ask
      * written out around its control drew one band around a paragraph of context and
      * another a few pixels inside it. */
-    &:has(> lf-option > .lf-pick:focus-visible):not(:where([data-lf-ask]) *):not([data-lf-restated],
+    &:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible)):not(:where([data-lf-ask]) *):not([data-lf-restated],
                      [data-lf-pending], [data-lf-reported]) { outline: var(--here-ring); --lf-here-ring: options-joined;
                      outline-offset: var(--here-ring-gap); }
-    & > lf-option > .lf-pick:focus-visible { outline: none; }
+    & > lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: none; }
   }
   /* The leading column holds a status rule, a keyboard address, and the gap before the
    * option's words. The rule starts at the ordinary 8px inset. The address follows one
@@ -887,7 +887,7 @@ lf-options[settled] > .lf-settled {
  * is authored namespace for a fact no version carries (lf-options.js). */
 lf-options[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 lf-options[settled] > .lf-settled:hover { border-color: var(--border-2); }
-lf-options[settled] > .lf-settled:focus-visible { outline: var(--here-ring); --lf-here-ring: options-settled;
+lf-options[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-settled;
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
@@ -1068,7 +1068,7 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
-lf-card .lf-grip:focus-visible { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: 1px;
+lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: 1px;
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
 lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
@@ -1128,14 +1128,14 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
 /* lf-shot: a before/after pair of screenshots, one on screen at a time. Both
  * frames occupy the same grid cell, so the box is the taller of the two and
  * flipping between them moves nothing under it — which is the whole point, the
- * change being the only thing that shifts. The target is the frame: a transparent
- * label fills the cell over both, so the pointer rests on the change and clicks
- * without aiming, where a switch under the image charged every alternation a look
- * away and a re-aim. The state is a checkbox and one :has(:checked) rule, so it
+ * change being the only thing that shifts. The target is the frame: one transparent
+ * checkbox fills it and its instruction row, so a click works the native control exactly
+ * where the pointer rests. That avoids the look away and re-aim a switch under the image
+ * charged every alternation. The state is a checkbox and one :has(:checked) rule, so it
  * needs no script — which is what keeps it flipping in an exported copy, where every
  * handler has gone and `version export` leaves a control the browser drives alone
  * for exactly this. Print shows both frames stacked, since paper has nothing to
- * press — the label and the switch drop with the other offers and the captions,
+ * press — the checkbox and the switch row drop with the other offers and the captions,
  * which are the only words saying which frame is which, stay. */
 lf-shot { display: block; margin: 16px 0; }
 lf-shot .lf-shotframe { position: relative; grid-area: 1 / 1;
@@ -1150,20 +1150,31 @@ lf-shot .lf-shotcap { position: absolute; top: 6px; left: 6px;
     font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
     padding: 2px 7px; border-radius: 999px; background: var(--veil);
     border: 1px solid var(--rule); color: var(--muted); }
-/* Over both frames rather than beside them, and carrying no ink of its own: what says
-   the image is live is the cursor and the words below, so nothing here is drawn on top
-   of the change the reader came to read. */
-lf-shot .lf-shotflip { grid-area: 1 / 1; z-index: 1; cursor: pointer; }
+/* The native checkbox covers both grid rows rather than being activated through a label
+   elsewhere in the layout. That keeps focus — and therefore the viewport — exactly at
+   the point the reader clicked. It carries no ink of its own: the cursor and words below
+   say the image is live without drawing over the change. */
+lf-shot > input.lf-shotflip { grid-area: 1 / 1 / 3 / 2; z-index: 2;
+    align-self: stretch; justify-self: stretch; width: 100%; height: 100%;
+    min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0;
+    appearance: none; opacity: 0; cursor: pointer; }
 lf-shot .lf-shotpick { grid-area: 2 / 1; display: flex;
     align-items: center; margin-top: var(--sp-2); font-size: var(--t-5);
     color: var(--muted); }
 lf-shot .lf-shotpick label { display: inline-flex; gap: 5px; align-items: center;
     cursor: pointer; }
-lf-shot .lf-shotpick input:focus-visible { outline: var(--here-ring); --lf-here-ring: shotpick;
-    outline-offset: 1px; }
+lf-shot .lf-shotpick label::before { content: ""; display: inline-grid; place-items: center;
+    box-sizing: border-box; width: 13px; height: 13px; flex: none;
+    border: 1px solid var(--border-2); border-radius: 2px; background: var(--card); }
+lf-shot:has(> input.lf-shotflip:checked) .lf-shotpick label::before { content: "✓";
+    border-color: var(--accent); background: var(--accent); color: var(--paper);
+    font-size: 10px; line-height: 1; }
+lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) .lf-shotframe { outline: var(--here-ring);
+    --lf-here-ring: shot-frame; outline-offset: 1px; }
 
 @media print {
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
+  lf-shot > input.lf-shotflip { display: none; }
   lf-shot .lf-shotframe { visibility: visible !important; margin-bottom: var(--sp-2); }
 }
 
@@ -1429,7 +1440,7 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:host(.lf-rendered) summary:focus-visible { outline: var(--here-ring); --lf-here-ring: code-summary;
+:host(.lf-rendered) summary:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-summary;
                                             outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
@@ -1458,7 +1469,7 @@ lf-chart .lf-chart-swatch { width: 9px; height: 9px; border-radius: 2px;
                           border-radius: 0; overflow-x: auto; color: var(--ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:host(.lf-rendered) code[data-code]:focus-visible { outline: var(--here-ring);
+:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
                           --lf-here-ring: code-pre-shadow;
                           outline-offset: calc(-1 * var(--here-ring-w)); }
 /* Pierre owns the line and inline-diff paint. Leaf supplies brighter semantic fills
@@ -1501,7 +1512,7 @@ lf-tree .lf-tree-badge.del { background: var(--danger-tint); color: var(--danger
 
 /* lf-code rendered form: numbered lines, hi ranges, notes docked at their line. */
 lf-code.lf-rendered pre { counter-reset: lf-code-line; padding: 12px 0; }
-lf-code.lf-rendered pre:focus-visible { outline: var(--here-ring); --lf-here-ring: code-pre-light;
+lf-code.lf-rendered pre:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: code-pre-light;
              outline-offset: calc(-1 * var(--here-ring-w)); }
 /* The same max-content floor as the shadow slice's line spans: an hi range's tint has
    to run the whole scrolled line, not stop at the fold. */
@@ -1570,24 +1581,33 @@ lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6p
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
 .lf-draft-pencil { opacity: .45; }
-lf-draft:hover .lf-draft-pencil, lf-draft:focus-within .lf-draft-pencil { opacity: 1; }
+lf-draft:hover .lf-draft-pencil,
+lf-draft:is(:focus-within, .lf-focus-within) .lf-draft-pencil { opacity: 1; }
 /* The one control whose face is deliberately the document's: the box shows the page's
    words in the page's serif, or the double-clicked word reflows under the pointer the
    moment the box opens. Stated unlayered, so it outranks the runtime's layered
    UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
            font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-.lf-draft-edit.lf-ui:focus { box-shadow: none; }
+.lf-draft-edit.lf-ui:is(:focus, .lf-focus) { box-shadow: none; }
 .lf-draft-controls, .lf-draft-history { display: none; }
 @media screen {
   html:not(.lf-copy) {
     lf-draft:has(.lf-draft-edit) { border-style: solid;
                border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
                box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+    lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--here-ring);
+               --lf-here-ring: draft-editor;
+               outline-offset: calc(-1 * (var(--here-ring-w) + var(--here-ring-gap))); }
     lf-draft:has(.lf-draft-edit) > .lf-draft-body,
     lf-draft:has(.lf-draft-edit) .lf-draft-pencil { display: none; }
     .lf-draft-controls { display: flex; }
     .lf-draft-history { display: block; }
+  }
+}
+@media (forced-colors: active) {
+  html:not(.lf-copy) lf-draft:has(.lf-draft-edit:focus-visible) {
+    outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }
 .lf-draft-controls { justify-content: flex-end; gap: 6px; margin-top: 6px; }

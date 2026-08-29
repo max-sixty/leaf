@@ -22,12 +22,15 @@ from interact_support import (
     widget_entry,
 )
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
+from leaf import host as host_model
 from leaf import layer as layer_model
+from leaf import locations as interact_locations
+from leaf import packages as packages_model
 from leaf import schema as schema_model
-from leaf import service as service_model
+from leaf import vendoring as vendoring_model
 
 
 @pytest.mark.parametrize(
@@ -50,6 +53,7 @@ Commands:
   events      Print the event log as JSON lines.
   package     Create and check packages.
   page        Create pages and add media.
+  receipt     Record the terminal outcome of a reader request.
   reply       Reply to a thread as the agent.
   report      Report a state change onto a page widget, as a worker.
   resolve     Close a thread as the agent.
@@ -551,13 +555,13 @@ def test_init_refuses_case_aliased_file_directory_collisions_before_writing(
     nested = tmp_path / "nested" / "vendor" / "cache" / "chunk.js"
     nested.parent.mkdir(parents=True)
     nested.write_text("nested")
-    location = layer_model._path_location
+    location = vendoring_model.path_location
 
     def case_insensitive(path):
         found = location(path)
         return found._replace(tail=tuple(part.casefold() for part in found.tail))
 
-    monkeypatch.setattr(layer_model, "_path_location", case_insensitive)
+    monkeypatch.setattr(vendoring_model, "path_location", case_insensitive)
 
     result = runner.invoke(
         cli_model.cli,
@@ -612,8 +616,8 @@ def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
     is a different question; `test_a_run_ends_only_the_servers_it_started` asks
     it."""
     root = tmp_path_factory.getbasetemp()
-    assert service_model.config_home().is_relative_to(root)
-    assert service_model.state_home().is_relative_to(root)
+    assert host_model.config_home().is_relative_to(root)
+    assert host_model.state_home().is_relative_to(root)
 
 
 def test_init_user_layer_applies(tmp_path, monkeypatch):
@@ -814,21 +818,24 @@ def test_path_case_policy_matches_the_filesystem(tmp_path):
     probe.mkdir()
     alias_resolves = (tmp_path / "cASEpROBE").exists()
 
-    assert interact_files._filesystem_case_sensitive(tmp_path) is not alias_resolves
+    assert interact_locations._filesystem_case_sensitive(tmp_path) is not alias_resolves
 
 
 def test_path_overlap_respects_case_sensitive_future_names(tmp_path, monkeypatch):
     upper = tmp_path / "FutureScope"
     lower = tmp_path / "fUTUREsCOPE"
-    monkeypatch.setattr(interact_files, "_filesystem_case_sensitive", lambda path: True)
-    assert not interact_files.locations_overlap(
-        interact_files._path_location(upper), interact_files._path_location(lower)
+    monkeypatch.setattr(
+        interact_locations, "_filesystem_case_sensitive", lambda path: True
+    )
+    assert not interact_locations.locations_overlap(
+        interact_locations.path_location(upper),
+        interact_locations.path_location(lower),
     )
 
     monkeypatch.setattr(
-        interact_files, "_filesystem_case_sensitive", lambda path: False
+        interact_locations, "_filesystem_case_sensitive", lambda path: False
     )
-    assert interact_files.paths_same(upper, lower)
+    assert interact_locations.paths_same(upper, lower)
 
 
 @pytest.mark.parametrize(
@@ -848,8 +855,8 @@ def test_initialized_page_owns_runtime_state_paths(tmp_path, monkeypatch, name):
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert layer_model.initialized_page_owning(page / name) == page
-    assert layer_model.initialized_page_owning(page / ".leaf" / name) is None
+    assert packages_model.initialized_page_owning(page / name) == page
+    assert packages_model.initialized_page_owning(page / ".leaf" / name) is None
 
 
 @pytest.mark.parametrize(
@@ -863,12 +870,12 @@ def test_initialized_page_owns_declared_directory_trees(
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
 
-    assert layer_model.initialized_page_owning(page / directory / "future") == page
+    assert packages_model.initialized_page_owning(page / directory / "future") == page
 
 
 def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        interact_files, "_filesystem_case_sensitive", lambda path: False
+        interact_locations, "_filesystem_case_sensitive", lambda path: False
     )
     first = tmp_path / "Result.css"
     second = tmp_path / "rESULT.CSS"
@@ -978,17 +985,17 @@ def test_a_failed_fresh_commit_does_not_mark_the_page_initialized(
     """The stable log marks a completed init, not one that failed while committing."""
     monkeypatch.chdir(tmp_path)
     page = tmp_path / "interrupted-page"
-    original_replace_files = layer_model.replace_files
+    original_replace_files = vendoring_model.replace_files
 
     def fail_layer_commit(files):
         if any(path.name == "registry.json" for path, _, _ in files):
             raise OSError("layer commit failed")
         return original_replace_files(files)
 
-    monkeypatch.setattr(layer_model, "replace_files", fail_layer_commit)
+    monkeypatch.setattr(vendoring_model, "replace_files", fail_layer_commit)
 
     with pytest.raises(OSError, match="layer commit failed"):
-        layer_model.cmd_init(page)
+        vendoring_model.cmd_init(page)
 
     assert not (page / "comments.jsonl").exists()
 

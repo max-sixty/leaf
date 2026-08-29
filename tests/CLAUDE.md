@@ -200,9 +200,9 @@ is written over, and a ring has two.
 Prefer the public route through the product. A CLI test should invoke the command
 or the same command function used by the entry point. A browser test should serve a
 vendored page and use its HTTP API. A render-gate test should call
-`leaf.render_gate.render_version`, not reproduce one of its probes. Test a helper directly
-only when the helper itself carries a contract that would otherwise be hard to
-diagnose, such as the traffic wait reaching its deadline.
+`leaf.render_gate.version.render_version`, not reproduce one of its probes. Test a
+helper directly only when the helper itself carries a contract that would otherwise
+be hard to diagnose, such as the traffic wait reaching its deadline.
 
 Re-vendor before trusting a result that depends on runtime, theme, registry, or
 widget changes. A page directory owns the layer copied into it by `page init`; it
@@ -271,6 +271,10 @@ panel state and drafts live in `localStorage`, while reading position lives in
 are not two tabs for a single reader unless they share a browser context.
 `Browser.new_page` creates an independent context; `one_reader` supplies one context
 for the tests whose subject is shared tab state.
+
+The static product-site session is the deliberate exception for semantic page state:
+it has no Python authority, so its illustrative gestures last for the current load and
+reset on reload. Do not make browser storage a durable event log for that exhibit.
 
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
 supplies the same language, charset, CSP, theme, module, and main-content shell to
@@ -384,6 +388,16 @@ property in transit for two frames. That is fixed in the theme, which is why no
 reading here carries such a wait — a wait in front of a reading whose subject never
 moves is a mechanism that cannot fail and cannot help.
 
+A wait states its end as well as its fact. `page.evaluate` takes no timeout in any
+binding, so a promise awaited inside it — an animation's `finished`, a module's load, a
+listener's next call — is a wait nothing bounds. It does not fail in thirty seconds
+naming its test: it spends the job's whole step, and the share of the suite already
+handed to that worker never runs. Bound the await with a `setTimeout` that rejects
+naming what never arrived and the bound it passed, as `render_checks.py`'s probe loader
+races one and the diff renders in `test_render_anchors.py` hold a frame poll against
+one, or state the fact from inside the page and read it with `wait_for_function`.
+`SERVED_TIMEOUT_MS` is the patience the payload gives such a wait.
+
 ### A state the page passes through is not a state to poll for
 
 Use Playwright's `expect(...)` for a state that will become stable and remain true.
@@ -422,7 +436,7 @@ and a measurement taken behind it then compares a reading with itself and passes
 the same coalesced frame as above, but it fails differently: not late by a poll, but
 green because nothing was ever asserted. `test_the_press_that_lights_a_key_moves_no_glyph`
 measures one address chip either side of the press that lights its next key, and the chip
-says "g a 1" at both — waiting on its text, the test passed two runs in three with the fix
+says "g h 1" at both — waiting on its text, the test passed two runs in three with the fix
 reverted. It waits on the offer narrowing instead, which is what the press actually
 writes. So a test whose subject is what a press does *within* a surface waits on some
 other fact of that press, and its bug-back is run more than once: a wait that is

@@ -121,10 +121,21 @@ def _matching_attempt(f, event: dict) -> dict | None:
     return None
 
 
+def _event_id_exists(f, event_id: str) -> bool:
+    """Whether this log already owns an event identity."""
+    f.seek(0)
+    for raw in f:
+        try:
+            existing = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if existing.get("id") == event_id:
+            return True
+    return False
+
+
 def _append_event_unlocked(f, event: dict) -> dict:
     """Append while the caller holds this log file's exclusive lease."""
-    event.setdefault("id", secrets.token_hex(4))
-    event.setdefault("ts", now_iso())
     # Attempt identity is checked under the log's append lock. Checking before
     # this point would leave two server threads free to observe absence together
     # and append together. Content and time deliberately play no part: an
@@ -132,6 +143,20 @@ def _append_event_unlocked(f, event: dict) -> dict:
     # event.
     if event.get("attempt") and (existing := _matching_attempt(f, event)):
         return existing
+    if "id" in event:
+        if _event_id_exists(f, event["id"]):
+            raise ValueError(f"event id {event['id']!r} already exists")
+    else:
+        # Event ids escape the page with host requests as durable idempotency and
+        # recovery keys. Keep them globally collision-resistant, and still prove
+        # uniqueness against this log under the append lease rather than treating
+        # probability as an invariant.
+        while True:
+            candidate = secrets.token_hex(16)
+            if not _event_id_exists(f, candidate):
+                event["id"] = candidate
+                break
+    event.setdefault("ts", now_iso())
     # A crash can tear the previous append mid-line: SIGKILL under a buffered
     # flush, a full disk. The line discipline is the writer's, so the writer
     # restores it — without this, the next event glues onto the torn fragment

@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Offline editing, after six weeks of beta</title>
     <meta
       http-equiv="Content-Security-Policy"
@@ -362,9 +365,9 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
             <strong>Telemetry</strong> Queue depth, resync time, and clash counts, all
             without document content.
           </lf-task>
-          <lf-task id="off-t-docs" status="active" owner="devrel" when="first patch">
-            <strong>Help centre page</strong> One page on what works offline and what
-            does not, linked from the banner.
+          <lf-task id="off-t-docs" status="stalled" owner="devrel" when="first patch">
+            <strong>Help centre page</strong> The first drafting pass left no durable
+            copy; the owner is diagnosing before asking for a disposition.
           </lf-task>
         </lf-tasks>
       </section>

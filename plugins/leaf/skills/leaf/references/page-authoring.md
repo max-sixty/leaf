@@ -15,7 +15,7 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
   <link rel="stylesheet" href="/theme.css">
@@ -103,7 +103,7 @@ An ask must name itself without context outside the ask. Give an options group a
 `<strong>` title. When the context begins above the actionable widget, wrap the
 heading, introduction, evidence, and that one widget in `lf-ask`. The inner
 widget still records the answer; the wrapper is what the Asks tray names and
-what `n` / `p` aligns below the banner, so the reader arrives at the premise
+what `a` / `A` aligns below the banner, so the reader arrives at the premise
 before the options.
 
 The question leads the group in every shape it takes, and opens at the same
@@ -140,9 +140,9 @@ suggestion, and a suggestion does not propose a widget's state.
 
 ## Honoring reader state
 
-The event log outranks authored markup. The browser replays every standing action
-onto later revisions, but the source must eventually record the decision so the
-page reads correctly without the log:
+The event log outranks authored markup. The server projects every standing action
+and the browser replays that view onto later revisions, but the source must
+eventually record the decision so the page reads correctly without the log:
 
 - Mark every picked option `chosen`.
 - Carry an option a reader wrote in the group's last cell into the group as an

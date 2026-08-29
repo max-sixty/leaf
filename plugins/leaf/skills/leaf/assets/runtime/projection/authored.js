@@ -51,9 +51,9 @@ export function createAuthoredProjection(dependencies) {
   // both readings collapse to the sorted ids, and comparing them stays a !==.
   //
   // The id-bearing ones only, because an id is how a member of that set is named
-  // everywhere else: in the action detail the fold reads back (foldedFacet sorts
-  // the ids the log carries) and in interact.py's reading of the same page, which
-  // can see none but those. One marked element without an id contributed an empty
+  // everywhere else: in the canonical value the server projects (and the local
+  // outbox adapter sorts before that round trip) and in interact.py's reading of the
+  // same page, which can see none but those. One marked element without an id contributed an empty
   // string that sorted to the front of the join, so a set the two sides agreed on
   // came out with a leading space on this one.
   function domFacet(el, record) {

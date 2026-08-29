@@ -5,9 +5,10 @@ import re
 
 import pytest
 from leaf import conversation as conversation_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from playwright.sync_api import expect
+from render_harness import leaf_page
 from render_support import (
     PANEL_PAGE,
     PART_DIAGRAM_PAGE,
@@ -15,6 +16,7 @@ from render_support import (
     open_page,
     panel_comment,
     panel_settled,
+    resized,
     round_trip,
     select,
     told,
@@ -254,11 +256,542 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     page.close()
 
 
+def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
+    """Whole and part anchors differ in both directions: a reaction on the diagram
+    must not read pressed when the action bar moves to one declared node."""
+    url = serve(PART_DIAGRAM_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "this",
+            "anchor": {"section": "flow"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator('#flow g[id^="flowchart-S-"]').click()
+    expect(page.locator('.lf-fab-bar .lf-react[data-token="this"]')).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_reflow(
+    browser, serve
+):
+    """The target, not the point inside it, places the action bar. A layout change
+    resolves that same target again, and the quiet outline stays on it until an
+    outside press dismisses both."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+    bar = page.locator(".lf-fab-bar")
+
+    box = start.bounding_box()
+    page.mouse.click(box["x"] + 4, box["y"] + box["height"] / 2)
+    assert errors == []
+    expect(bar).to_be_visible()
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    first = bar.bounding_box()
+
+    page.mouse.click(
+        box["x"] + box["width"] - 4,
+        box["y"] + box["height"] / 2,
+    )
+    second = bar.bounding_box()
+    assert abs(second["x"] - first["x"]) <= 1, (first, second)
+    assert abs(second["y"] - first["y"]) <= 1, (first, second)
+
+    resized(page, 860, 720)
+    after_resize = bar.bounding_box()
+    box = start.bounding_box()
+    page.mouse.click(
+        box["x"] + box["width"] / 2,
+        box["y"] + box["height"] - 4,
+    )
+    after_reactivation = bar.bounding_box()
+    assert abs(after_resize["x"] - after_reactivation["x"]) <= 1, (
+        after_resize,
+        after_reactivation,
+    )
+    assert abs(after_resize["y"] - after_reactivation["y"]) <= 1, (
+        after_resize,
+        after_reactivation,
+    )
+
+    page.locator('#flow g[id^="flowchart-U-"]').click()
+    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    whole = bar.bounding_box()
+    assert (
+        abs(whole["x"] - after_reactivation["x"]) > 1
+        or abs(whole["y"] - after_reactivation["y"]) > 1
+    ), (after_reactivation, whole)
+
+    start.click()
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-action-target\b"))
+
+    page.locator("h1").click()
+    expect(bar).to_be_hidden()
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_declared_visual_keeps_its_parts_inside_a_generic_figure(browser, serve):
+    """A semantic visual provider owns hits inside it even when ordinary figure markup
+    wraps it. The generic fallback must not swallow the provider's stable part API."""
+    wrapped = PART_DIAGRAM_PAGE.replace(
+        '<lf-diagram id="flow"', '<figure id="frame"><lf-diagram id="flow"', 1
+    ).replace(
+        "</lf-diagram>",
+        '</lf-diagram><figcaption id="caption">Request path caption</figcaption></figure>',
+        1,
+    )
+    page, errors = open_page(browser, serve(wrapped))
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+
+    page.locator("#caption").click()
+    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator("#frame")).not_to_have_class(
+        re.compile(r"\blf-action-target\b")
+    )
+    assert page.locator(".lf-visual-action").evaluate_all(
+        "controls => controls.map(control => control.lfAnchor)"
+    ) == [
+        {"section": "flow"},
+        {"section": "flow", "visual": "node:S"},
+    ]
+
+    start.click()
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", re.compile("Start request")
+    )
+    expect(
+        page.get_by_role("button", name="React or comment on Start request")
+    ).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
+    """A linked picture and a button icon retain their native activation. Leaf adds no
+    nested proxy and pointer activation does not raise the visual action bar."""
+    page_markup = leaf_page(
+        "interactive pictures",
+        """
+<h1 id="top">Interactive pictures</h1>
+<a id="visit" href="#after"><svg id="linked-picture" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
+<button id="native-button" type="button"><svg id="button-picture" viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" /></svg>Run</button>
+<p id="after">Destination</p>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+
+    expect(page.locator(".lf-visual-action")).to_have_count(0)
+    page.locator("#linked-picture").click()
+    expect(page).to_have_url(re.compile(r"#after$"))
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.locator("#button-picture").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
+    """ARIA widgets are controls even when their implementation contains a picture.
+    The shared interaction boundary keeps Leaf from adding a second activation target."""
+    page_markup = leaf_page(
+        "custom control pictures",
+        """
+<h1 id="top">Custom control pictures</h1>
+<div id="gain" role="slider" tabindex="0" aria-label="Gain" aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
+  <svg id="gain-picture" viewBox="0 0 100 20" width="200" height="40"><rect x="0" y="8" width="100" height="4" /></svg>
+</div>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+
+    expect(page.locator(".lf-visual-action")).to_have_count(0)
+    page.locator("#gain-picture").click()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
+    browser, serve
+):
+    """A declared visual part is a keyboard target as well as a pointer target.
+    Enter uses the click path and wins over an older text selection, just as a fresh
+    pointer activation does."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    title = page.locator("h1")
+    box = title.bounding_box()
+    select(
+        page,
+        (box["x"] + 2, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+    expect(start).not_to_have_attribute("role", "button")
+    expect(start).not_to_have_attribute("tabindex", re.compile(".+"))
+    expect(
+        page.get_by_role("button", name="React or comment on Handle request")
+    ).to_have_count(0)
+
+    whole_control = page.locator(".lf-visual-action").first
+    page.locator("#flow").evaluate("flow => { flow.style.marginTop = '1100px'; }")
+    whole_control.focus()
+    expect(page.locator("#flow")).to_be_in_viewport()
+    page.keyboard.press("Enter")
+    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-action-target\b"))
+    assert page.evaluate("() => getSelection().toString().trim()") == ""
+    whole_bar = page.locator(".lf-fab-bar").bounding_box()
+    keyline = page.locator(".lf-keyline").bounding_box()
+    assert (
+        whole_bar["x"] + whole_bar["width"] <= keyline["x"]
+        or keyline["x"] + keyline["width"] <= whole_bar["x"]
+        or whole_bar["y"] + whole_bar["height"] <= keyline["y"] - 6
+    ), (whole_bar, keyline)
+
+    control = page.locator(".lf-visual-action").filter(
+        has_text=re.compile(r"^React or comment on Start request$")
+    )
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    assert page.evaluate("() => getSelection().toString().trim()") == ""
+    assert page.evaluate(
+        "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
+    )
+    assert "close actions" in key_line(page)
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(control).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
+    """Sibling anonymous pictures under one authored item are one durable target. Leaf
+    exposes one Tab stop for that anchor and returns Escape to the control that opened it."""
+    page_markup = leaf_page(
+        "picture gallery",
+        """
+<h1 id="top">Picture gallery</h1>
+<section id="gallery">
+  <h2>Gallery</h2>
+  <svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg>
+  <svg viewBox="0 0 20 20" width="40" height="40"><rect x="2" y="2" width="16" height="16" /></svg>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+    controls = page.locator(".lf-visual-action")
+
+    expect(controls).to_have_count(1)
+    control = controls.first
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(control).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
+    """A retained proxy resolves its stable anchor when focused. It does not keep a
+    renderer node that has been replaced, and it opens the container before scrolling."""
+    folded = PART_DIAGRAM_PAGE.replace(
+        '<lf-diagram id="flow"',
+        '<details id="folded" open><summary>Flow</summary><lf-diagram id="flow"',
+        1,
+    ).replace("</lf-diagram>", "</lf-diagram></details>", 1)
+    page, errors = open_page(browser, serve(folded))
+    control = page.locator(".lf-visual-action").filter(
+        has_text=re.compile(r"^React or comment on Start request$")
+    )
+    expect(control).to_have_count(1)
+    page.evaluate(
+        """() => {
+          const oldPart = document.querySelector('#flow g[id^="flowchart-S-"]');
+          const newPart = oldPart.cloneNode(true);
+          oldPart.scrollIntoView = () => { window.lfScrolledPart = 'old'; };
+          newPart.scrollIntoView = () => { window.lfScrolledPart = 'new'; };
+          oldPart.replaceWith(newPart);
+          document.querySelector('#flow').visualParts.set('node:S', {
+            element: newPart,
+            label: 'Start request',
+          });
+          document.querySelector('#folded').open = false;
+        }"""
+    )
+
+    control.focus()
+    expect(control).to_be_focused()
+    expect(page.locator("#folded")).to_have_attribute("open", "")
+    assert page.evaluate("() => window.lfScrolledPart") == "new"
+    assert errors == []
+    page.close()
+
+
+def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, serve):
+    """A provider can update one part's current label without replacing the proxy for
+    that stable anchor. The focused control changes its name and remains focused."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    control = page.locator(".lf-visual-action").filter(
+        has_text=re.compile(r"^React or comment on Start request$")
+    )
+    control.focus()
+    control.evaluate("control => { window.lfRetainedVisualControl = control; }")
+    page.evaluate(
+        """() => {
+          const diagram = document.querySelector('#flow');
+          const current = diagram.visualParts.get('node:S');
+          diagram.visualParts.set('node:S', { ...current, label: 'Begin request' });
+          document.dispatchEvent(new CustomEvent('lf-projection'));
+        }"""
+    )
+
+    page.wait_for_function(
+        "() => window.lfRetainedVisualControl.textContent.endsWith('Begin request')"
+    )
+    assert page.evaluate(
+        """() => window.lfRetainedVisualControl.isConnected &&
+          document.activeElement === window.lfRetainedVisualControl"""
+    )
+    assert errors == []
+    page.close()
+
+
+def test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted(browser, serve):
+    """Several visuals staged in one declared shadow root share a stable proxy holder.
+    Repainting anchors must not detach and blur the control the reader is standing on."""
+    page_markup = leaf_page(
+        "shadow pictures",
+        """
+<h1 id="top">Shadow pictures</h1>
+<lf-diff id="patch"><pre>
+diff --git a/value.txt b/value.txt
+--- a/value.txt
++++ b/value.txt
+@@ -1 +1 @@
+-before
++after
+</pre></lf-diff>
+""",
+    )
+    page, errors = open_page(browser, serve(page_markup))
+    page.evaluate(
+        """() => {
+          const root = document.querySelector('#patch').shadowRoot;
+          for (const id of ['shadow-first', 'shadow-second']) {
+            const picture = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            picture.id = id;
+            picture.setAttribute('viewBox', '0 0 20 20');
+            root.append(picture);
+          }
+          document.dispatchEvent(new CustomEvent('lf-projection'));
+        }"""
+    )
+    controls = page.locator(".lf-visual-action")
+    expect(controls).to_have_count(2)
+    expect(page.locator(".lf-visual-actions")).to_have_count(1)
+    second = controls.nth(1)
+    second.focus()
+    expect(second).to_be_focused()
+
+    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-projection'))")
+    expect(second).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
+    browser, serve
+):
+    """The shared placement path listens to nested scroll boxes, clips target
+    geometry to what is actually shown, and retracts the bar once none remains."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    diagram = page.locator("#flow")
+    start = diagram.locator('g[id^="flowchart-S-"]')
+    bar = page.locator(".lf-fab-bar")
+    diagram.evaluate("element => { element.style.width = '240px'; }")
+
+    control = page.get_by_role("button", name="React or comment on Start request")
+    control.focus()
+    page.keyboard.press("Enter")
+    assert page.evaluate(
+        "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
+    )
+    before_target = start.bounding_box()
+    before_bar = bar.bounding_box()
+    moved = diagram.evaluate(
+        """element => {
+          element.scrollLeft = Math.min(24, element.scrollWidth - element.clientWidth);
+          return element.scrollLeft;
+        }"""
+    )
+    assert moved > 0
+    page.wait_for_function(
+        """([was, beforeTarget]) => {
+          const now = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          const box = document.querySelector('#flow g[id^="flowchart-S-"]')
+            .getBoundingClientRect();
+          return Math.abs(now.left - was) > 1 && box.left < beforeTarget;
+        }""",
+        arg=[before_bar["x"], before_target["x"]],
+    )
+    after_target = start.bounding_box()
+    after_bar = bar.bounding_box()
+    assert (
+        abs(
+            (after_bar["x"] - before_bar["x"])
+            - (after_target["x"] - before_target["x"])
+        )
+        <= 2
+    ), (before_target, before_bar, after_target, after_bar)
+
+    diagram.evaluate("element => { element.scrollLeft = element.scrollWidth; }")
+    expect(bar).to_be_hidden()
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert errors == []
+    page.close()
+
+
+def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node(
+    browser, serve
+):
+    """The compatibility click after a drag must not replace freshly selected words
+    with the visual target that happens to contain the drag's endpoint."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+    label = start.get_by_text("Start request", exact=True)
+    box = label.bounding_box()
+    select(
+        page,
+        (box["x"] + 2, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
+        steps=12,
+    )
+
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    assert "Start request" in page.evaluate("() => getSelection().toString()")
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+        "aria-label", re.compile("Start request")
+    )
+
+    # Repeating the same drag still counts as a selection gesture even though the final
+    # semantic passage equals the selection that existed before the press.
+    select(
+        page,
+        (box["x"] + 2, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
+        steps=12,
+    )
+    repeated = page.evaluate("() => getSelection().toString()")
+    assert "Start request" in repeated
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+
+    # A plain click is not a drag. It can still choose the visual under the retained
+    # passage, and that explicit target clears the native selection.
+    start.click()
+    assert page.evaluate("() => getSelection().toString()") == ""
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
+    """When a keyboard-raised action completes, focus returns to the proxy that named
+    the target instead of remaining inside a hidden action bar."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    control = page.get_by_role("button", name="React or comment on Start request")
+    control.focus()
+    page.keyboard.press("Enter")
+    assert page.evaluate(
+        "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
+    )
+
+    page.keyboard.press("Enter")
+    round_trip(page)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(control).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
+    """Selection changes can come from touch handles and browser commands without a
+    mouseup or keyup in the page. The new passage replaces the visual target, and
+    clearing that passage dismisses the shared action surface."""
+    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    control = page.get_by_role("button", name="React or comment on Start request")
+    start = page.locator('#flow g[id^="flowchart-S-"]')
+    control.focus()
+    page.keyboard.press("Enter")
+    expect(start).to_have_class(re.compile(r"\blf-action-target\b"))
+
+    page.evaluate(
+        """() => {
+          const text = document.querySelector('h1').firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }"""
+    )
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))
+
+    page.evaluate("() => getSelection().removeAllRanges()")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
+    browser, serve, tmp_path
+):
+    """Keyboard parity belongs to the live Leaf layer: an exported drawing keeps
+    neither dead controls nor runtime roles on Mermaid's generated SVG."""
+    url = serve(PART_DIAGRAM_PAGE)
+    out = tmp_path / "diagram-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir))
+    page = browser.new_page()
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+    assert page.evaluate(
+        """() => ({
+          controls: document.querySelectorAll('.lf-visual-action').length,
+          rewritten: document.querySelectorAll(
+            '#flow g[role="button"], #flow g[tabindex]'
+          ).length,
+        })"""
+    ) == {"controls": 0, "rewritten": 0}
+    assert errors == []
+    page.close()
+
+
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     """One row of offers per thread at rest: the strip under the latest agent message,
     which is the one `r` arms. Every other reply shows the tokens standing on it and
     takes no room with none. The rest of the rows are there for a reader who is in the
-    thread — the pointer over the card or the focus j/k puts on it — so a mark taken
+    thread — the pointer over the card or the focus t/T puts on it — so a mark taken
     back can be put back, by hand or by keyboard, and the press that empties a row
     keeps both the row and its own focus. A token at rest is a muted glyph whose box
     arrives as paint under the pointer, the pill's own box unmoved."""
@@ -466,6 +999,24 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     told(page)
     expect(page.locator(".lf-comments")).to_have_text("Comments (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
+    assert errors == []
+    page.close()
+
+
+def test_escape_keeps_selection_actions_dismissed(browser, serve):
+    """Escape closes only the action layer. The native selection remains available for
+    Copy, and the keyup half of the same press must not immediately raise the bar again."""
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    select_paragraph(page, "#how-store")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_be_visible()
+    selected = page.evaluate("() => getSelection().toString()")
+    bar.locator("[data-lf-offer][tabindex]").first.focus()
+
+    page.keyboard.press("Escape")
+    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    assert not bar.is_visible()
+    assert page.evaluate("() => getSelection().toString()") == selected
     assert errors == []
     page.close()
 

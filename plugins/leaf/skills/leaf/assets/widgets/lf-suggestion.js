@@ -66,10 +66,11 @@
  * each other, which a translate nudges apart without touching layout. */
 import {
   actionStands,
-  agentName,
   alignText,
   FOLD_MS,
   inChrome,
+  layoutMarginRows,
+  marginAnchorFor,
   measure,
   motion,
   offer,
@@ -79,10 +80,13 @@ import {
   relabel,
   renderRetired,
   reserve,
+  registerMarginRow,
+  scheduleMarginLayout,
   says,
   sendAction,
   textNodesUnder,
   toast,
+  updateMarginRow,
 } from "/runtime/widget-api.js";
 
 // Each control's word in both states — what #name writes, and what the control
@@ -93,33 +97,10 @@ const WORDS = {
 };
 const verb = (btn) => (btn.matches(".lf-sug-accept") ? "accept" : "reject");
 
-// Every row on the page against the anchor it hangs from, so one observer serves
-// all of them and the pass can ask each whether its change is on screen.
-const rows = new Map();
-let pending = 0;
-let observer = null;
-let observedColumn = null;
 let railStated = false; // --rail is measured off the first row and holds for the page
-
-const schedule = () => {
-  cancelAnimationFrame(pending);
-  pending = requestAnimationFrame(relayout);
-};
 
 // What the row hangs off, and so also what it hangs in.
 const column = () => document.querySelector("main") || document.body;
-
-function observeLayout() {
-  const nextColumn = column();
-  if (!observer) {
-    observer = new ResizeObserver(schedule);
-    observer.observe(document.body);
-  }
-  if (observedColumn === nextColumn) return;
-  if (observedColumn) observer.unobserve(observedColumn);
-  observedColumn = nextColumn;
-  observer.observe(observedColumn);
-}
 
 // ---------- word-level emphasis ----------
 // A block replacement asked the reader to eyeball-diff two paragraphs for the words
@@ -192,77 +173,13 @@ function toRanges(segments, spans) {
   return ranges;
 }
 
-// Undock every row, bring back the ones that were waiting, clear the nudges, then
-// decide again from a clean layout. A row keeps the margin only if its change is
-// rendered — an anchor that isn't leaves it hanging beside the block it was
-// hoisted to rather than beside the change — and only if the page is wide enough
-// to hold it there: body's own right edge is the page's, since the open comment
-// panel is cleared by body's margin (syncLayout). The rest dock into flow.
-const GAP = 4;
-function relayout() {
-  for (const row of rows.keys()) {
-    row.classList.remove("lf-docked", "lf-waiting");
-    row.style.transform = "";
-  }
-  const room = document.body.getBoundingClientRect().right;
-  // Measure every row before moving any: docking one changes the flow the others
-  // sit in, so a decision taken mid-pass reads a half-applied layout.
-  const measured = [...rows].map(([row, anchor]) => ({
-    row,
-    rect: row.getBoundingClientRect(),
-    // Whether the change is rendered at all, asked rather than measured: the anchor
-    // is an empty span with nothing to measure, and a collapsed container reports its
-    // content's last rendered geometry rather than nothing, so a rect could not say.
-    shown: anchor.checkVisibility(),
-  }));
-  const inMargin = [];
-  for (const { row, rect, shown } of measured) {
-    if (!shown) row.classList.add("lf-waiting");
-    else if (rect.right > room) row.classList.add("lf-docked");
-    else inMargin.push(row);
-  }
-  // Those still in the margin walk down the page, each pushed clear of the one
-  // above. Re-measured, because docking moved the text they hang beside — and
-  // carried here as a list, rather than read back off the class just written.
-  const placed = inMargin
-    .map((row) => ({ row, rect: row.getBoundingClientRect() }))
-    .sort((a, b) => a.rect.top - b.rect.top);
-  let floor = -Infinity;
-  const bands = [];
-  for (const { row, rect } of placed) {
-    const push = Math.max(0, floor + GAP - rect.top);
-    if (push) row.style.transform = `translateY(${push}px)`;
-    floor = rect.top + push + rect.height;
-    bands.push({ top: rect.top + push, bottom: floor });
-  }
-  // The margin is spoken for at the rows' own heights, and nowhere else. A wide
-  // widget grows right into the very space a row hangs in — the row sits 22px off
-  // the column, not in the strip reserved at the page's far edge — so an exhibit
-  // level with a row must decline that side, and `clear`, which settles the same
-  // collision with a sidenote on the left, cannot see a positioned row. The rows'
-  // final bands are known only here, after docking and the nudge walk, so this
-  // pass is what says which exhibits a row actually reaches; the theme spends the
-  // mark (data-lf-yield), and refusing the side page-wide instead held a board
-  // 1400px below the only row to the column with the margin beside it empty.
-  // The write converges rather than cycles: declining a side can only make a box
-  // taller, which moves rows below it down by the same growth, so no band gains a
-  // widget it did not already hold, and the next observer pass repaints the same
-  // answer. The value carries the side, so a margin idiom on the left is another
-  // letter rather than a second attribute.
-  for (const el of document.querySelectorAll("[data-lf-wide]")) {
-    const box = el.getBoundingClientRect();
-    if (bands.some((band) => band.top < box.bottom && band.bottom > box.top))
-      el.setAttribute("data-lf-yield", "r");
-    else el.removeAttribute("data-lf-yield");
-  }
-}
-
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
     #row = null;
     #anchor = null;
     #deciding = null; // the decision in flight, so a second press joins it
+    #unregisterLayout = null;
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one —
@@ -271,7 +188,6 @@ customElements.define(
       // text nodes and move with them).
       if (!once(this)) {
         this.#hang();
-        if (this.#row) observeLayout();
         return;
       }
       // Presentation, not input, so an exhibited pending change gets it too:
@@ -292,7 +208,7 @@ customElements.define(
       // may be waiting on geometry the anchor only now has, and the caller is about
       // to focus it, so the layout question is answered now rather than at the
       // observer's next frame.
-      this.addEventListener("lf-reveal", () => relayout());
+      this.addEventListener("lf-reveal", () => layoutMarginRows());
       this.#row = offer("span", "lf-sug-actions");
       this.#row.style.positionAnchor = `--sug-${this.id}`;
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
@@ -329,20 +245,15 @@ customElements.define(
       // the current main's carries the vertical one, since anything that moves content
       // down the page changes its height. A live version replaces that main, so the one
       // shared observer follows it rather than retaining the detached version.
-      observeLayout();
     }
 
     disconnectedCallback() {
-      rows.delete(this.#row);
+      this.#unregisterLayout?.();
+      this.#unregisterLayout = null;
       this.#row?.remove(); // it is no longer in the subtree that took it before
-      if (!rows.size) {
-        observer?.disconnect();
-        observer = null;
-        observedColumn = null;
-      }
       emphasized.delete(this);
       repaintEmphasis();
-      schedule();
+      scheduleMarginLayout();
     }
 
     // The row belongs to the column rather than to the change, so that `left:
@@ -357,9 +268,24 @@ customElements.define(
       let perch = this;
       while (perch.parentElement !== col && col.contains(perch.parentElement))
         perch = perch.parentElement;
-      perch.after(this.#row);
-      rows.set(this.#row, this.#anchor);
-      schedule();
+      // Several suggestions can share one top-level block. Insert among the rows already
+      // docked there by source position, so both first mount and reconnection preserve the
+      // page's reading and keyboard order.
+      let dock = perch;
+      while (
+        dock.nextElementSibling?.classList.contains("lf-sug-actions") &&
+        marginAnchorFor(dock.nextElementSibling) &&
+        this.#anchor.compareDocumentPosition(marginAnchorFor(dock.nextElementSibling)) &
+          Node.DOCUMENT_POSITION_PRECEDING
+      )
+        dock = dock.nextElementSibling;
+      dock.after(this.#row);
+      const options = { anchor: this.#anchor };
+      if (this.#unregisterLayout) updateMarginRow(this.#row, options);
+      else {
+        this.#unregisterLayout = registerMarginRow(this.#row, options);
+      }
+      scheduleMarginLayout();
     }
 
     // Through `offer` like every other injected control, so the markers and the
@@ -448,7 +374,7 @@ customElements.define(
         // same event list also carried a later undo: authored state then stands.
         if (actionStands(accepted)) this.#settle(outcome);
         toast(
-          `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — sent to ${agentName()}`,
+          `${outcome === "accept" ? "Accepted" : "Rejected"} “${label}” — recorded`,
         );
         return true;
       });
@@ -498,7 +424,7 @@ customElements.define(
       repaintEmphasis();
       this.#voice();
       fold?.();
-      schedule(); // the rows below may no longer need the nudge they had
+      scheduleMarginLayout(); // the rows below may no longer need the nudge they had
       // The banner's count of what the page is still asking is derived from the page,
       // so tell it the page changed rather than making it poll the DOM.
       document.dispatchEvent(new CustomEvent("lf-answered"));

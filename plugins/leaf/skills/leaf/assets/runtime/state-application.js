@@ -1,3 +1,14 @@
+const APPLICATION_RUNTIME_FIELDS = Object.freeze([
+  "agent",
+  "browser",
+  "events",
+  "lastEventSeq",
+  "reading",
+  "state",
+  "statePhase",
+  "view",
+]);
+
 export function createStateApplication(dependencies) {
   const {
     LIVE_ROOT,
@@ -35,6 +46,7 @@ export function createStateApplication(dependencies) {
     showComparison,
     showNews,
     showToast,
+    snapshotVersionNavigation,
     settleAcceptedDrafts,
     stateSignoff,
     trackActivation,
@@ -74,7 +86,10 @@ export function createStateApplication(dependencies) {
       if (dataChanged) notifyDataSubscribers();
     };
     const nextEvents = state.events;
-    const eventSeq = nextEvents.at(-1)?.seq ?? 0;
+    const nextBrowser = state.browser;
+    const eventSeq = nextBrowser?.basis?.through_seq;
+    if (!Number.isInteger(eventSeq) || eventSeq < 0)
+      throw new TypeError("state browser must name its log sequence");
     // An answer taken before the one the page holds is judged as a stale sequence is
     // (takenBefore). Before the sequence gate because a stale answer may carry the same
     // sequence as the newer one and differ in everything the sequence does not order —
@@ -168,25 +183,46 @@ export function createStateApplication(dependencies) {
       (!midComposition() || activationIsForced()) &&
       !versionMenuIsOpen() &&
       targetRevision === state.active.revision;
-    const priorEvents = runtime.events;
-    const priorStatePhase = runtime.statePhase;
-    const priorLastEventSeq = runtime.lastEventSeq;
-    const priorReading = runtime.reading;
-    const priorState = runtime.state;
-    const priorActive = runtime.active;
-    const priorVersions = runtime.versions;
-    const priorCurrentLabel = runtime.currentLabel;
-    const priorCurrentRevision = runtime.currentRevision;
-    const priorCurrentStamp = runtime.currentStamp;
+    // The last coordinate the commit boundary judges, beside sequence and active
+    // revision: the answer holds a view of the revision the page named when it asked and
+    // of the one it may activate into, and of no others. An activation between the ask
+    // and the answer leaves the page on neither — it is showing a revision this answer
+    // says nothing about, so there is no view here to install and no version to move to.
+    // Dropped like the gates above: the page's next read names the revision it holds
+    // now, and that answer projects it.
+    const showing = willActivate ? targetRevision : runtime.currentRevision;
+    if (!nextBrowser.views?.[String(showing)]) {
+      notifyChangedData();
+      return;
+    }
+    const prior = {
+      runtime: Object.fromEntries(
+        APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
+      ),
+    };
+    const restoreVersionNavigation = snapshotVersionNavigation();
+    let nextAgentMsgCount = null;
+    let replyToast = null;
     let restoreClaimState = () => {};
     const apply = async () => {
       runtime.events = nextEvents;
+      runtime.browser = nextBrowser;
       let activation = null;
       runtime.statePhase = "ready";
       if (willActivate) {
         clearForcedActivation();
         activation = await activateRevision(incoming, state.active);
       }
+      runtime.view = nextBrowser.views?.[String(runtime.currentRevision)] ?? null;
+      // What is left for this to catch, now that a late answer is dropped above: an
+      // answer that is malformed rather than late, and an activation that left the page
+      // somewhere the gate did not predict. Both are faults, so both are loud.
+      if (
+        !runtime.view ||
+        runtime.view.basis?.through_seq !== eventSeq ||
+        runtime.view.basis?.revision !== runtime.currentRevision
+      )
+        throw new TypeError("state browser has no matching revision view");
       settleAcceptedDrafts();
       runtime.agent = state.agent || "Claude";
       restoreClaimState = replaceClaimState({
@@ -204,15 +240,18 @@ export function createStateApplication(dependencies) {
         renderPanel();
         // Sign-off is a fact in the log, not a click this tab happens to remember, so a
         // reload (or the other tab) shows it too.
-        const agentReplies = runtime.events.filter(
-          (e) => e.author === "claude" && e.kind === "reply",
+        const agentReplies = (runtime.browser.conversation?.threads ?? []).flatMap(
+          (thread) =>
+            thread.msgs.filter(
+              (message) => message.author === "claude" && message.kind === "reply",
+            ),
         );
         if (agentMsgCount >= 0 && agentReplies.length > agentMsgCount && !panelIsOpen())
-          showToast(
-            `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
-            () => setPanel(true),
-          );
-        agentMsgCount = agentReplies.length;
+          replyToast = {
+            message: `${agentReplies.at(-1).agent || "Agent"} replied — open Comments`,
+            onClick: () => setPanel(true),
+          };
+        nextAgentMsgCount = agentReplies.length;
       }
       // Last, because the panel has just rendered the log: a widget carried by a reply is
       // on the page by now, so an action naming one that isn't names a widget no version
@@ -250,7 +289,7 @@ export function createStateApplication(dependencies) {
       // every surviving optimistic action, then releases the entries whose attempts the
       // read contained. A same-widget event later in this state can therefore never be
       // skipped under the hold and exposed only after the hold disappears.
-      accountOutbox(nextEvents);
+      accountOutbox(nextBrowser.receipts ?? []);
       // Sequence consumers render after replay, so their history and the widget's
       // standing body describe the same poll. This also fires when the event list did
       // not grow: applyAction may have deferred while a user was typing, then become
@@ -293,24 +332,18 @@ export function createStateApplication(dependencies) {
       // rendering it. If any required surface refuses the state, restore the last whole
       // reading so focus, panel, and undo cannot consume a log tail the page never
       // adopted. The next poll retries the candidate from the same complete boundary.
-      runtime.events = priorEvents;
-      runtime.statePhase = priorStatePhase;
-      runtime.lastEventSeq = priorLastEventSeq;
-      runtime.reading = priorReading;
-      runtime.state = priorState;
-      if (priorReading === null)
+      Object.assign(runtime, prior.runtime);
+      restoreVersionNavigation();
+      if (runtime.reading === null)
         document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.reading);
-      else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, priorReading);
-      runtime.active = priorActive;
-      runtime.versions = priorVersions;
-      runtime.currentLabel = priorCurrentLabel;
-      runtime.currentRevision = priorCurrentRevision;
-      runtime.currentStamp = priorCurrentStamp;
+      else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
       stateSignoff(getSignoffDeclared());
       restoreClaimState();
       if (willActivate) location.reload();
       throw error;
     }
+    if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
+    if (replyToast) showToast(replyToast.message, replyToast.onClick);
   }
 
   return { receiveState };

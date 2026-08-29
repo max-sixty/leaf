@@ -23,6 +23,7 @@ const goalSignatures = new WeakMap();
 const headerSignatures = new WeakMap();
 const stoppedSignatures = new WeakMap();
 const fleetSignatures = new WeakMap();
+const fleetModes = new WeakMap();
 const configured = new WeakSet();
 
 function descendants(plan, source) {
@@ -56,9 +57,16 @@ function button(label, target, cls = "") {
       const command = closestCommandRole(target, "command");
       const goal = closestCommandRole(target.parentElement, "goal");
       if (goal && closestCommandRole(goal, "command") === command)
-        goal.setAttribute("data-lf-open", "");
+        setWorkers(goal, true);
     }
   });
+  return node;
+}
+
+function viewButton(label, view, open, cls = "") {
+  const node = speakingOffer("button", label, cls);
+  node.dataset.lfView = view;
+  node.addEventListener("click", open);
   return node;
 }
 
@@ -83,6 +91,7 @@ function projectionFocus(plan) {
   const goal = !kind && closestCommandRole(root.parentElement, "goal");
   const href = active.getAttribute("href");
   const summary = active.localName === "summary";
+  const view = active.dataset.lfView;
   const offerClass = [...active.classList].find((cls) => cls.startsWith("lf-task-"));
   return () => {
     if (active.isConnected) return;
@@ -93,19 +102,41 @@ function projectionFocus(plan) {
       ? [...(replacementRoot?.querySelectorAll("a[href]") ?? [])].find(
           (candidate) => candidate.getAttribute("href") === href,
         )
-      : offerClass
-        ? replacementRoot?.querySelector(`.${offerClass}`)
-        : summary
-          ? replacementRoot?.querySelector(":scope > summary")
-          : null;
+      : view
+        ? replacementRoot?.querySelector(`[data-lf-view="${view}"]`)
+        : offerClass
+          ? replacementRoot?.querySelector(`.${offerClass}`)
+          : summary
+            ? replacementRoot?.querySelector(":scope > summary")
+            : null;
     replacement?.focus({ preventScroll: true });
   };
 }
 
-function toggleWorkers(goal) {
-  goal.toggleAttribute("data-lf-open");
+function openStopped(plan) {
+  const box = plan.querySelector(":scope > .lf-stopped-view[data-lf-gen]");
+  if (!box) return;
+  box.open = true;
+  box.querySelector(":scope > summary")?.focus({ preventScroll: true });
+}
+
+function openFleet(plan, mode) {
+  fleetModes.set(plan, mode);
+  render(plan);
+  const box = plan.querySelector(":scope > .lf-fleet-view[data-lf-gen]");
+  if (!box) return;
+  box.open = true;
+  box.querySelector(":scope > summary")?.focus({ preventScroll: true });
+}
+
+function setWorkers(goal, open) {
+  goal.toggleAttribute("data-lf-open", open);
   const crew = goal.querySelector(":scope > .lf-task-meta .lf-task-crew");
-  crew?.setAttribute("aria-expanded", String(goal.hasAttribute("data-lf-open")));
+  crew?.setAttribute("aria-expanded", String(open));
+}
+
+function toggleWorkers(goal) {
+  setWorkers(goal, !goal.hasAttribute("data-lf-open"));
 }
 
 function configureGoal(goal) {
@@ -117,7 +148,14 @@ function configureGoal(goal) {
     const conversation = conversationBox(goal, "Say something here");
     if (conversation) goal.append(conversation);
   }
-  goal.addEventListener("lf-reveal", () => goal.setAttribute("data-lf-open", ""));
+  goal.addEventListener("lf-reveal", (event) => {
+    const target = event.detail?.target;
+    if (
+      target instanceof Node &&
+      directCommandRole(goal, "worker").some((worker) => worker.contains(target))
+    )
+      setWorkers(goal, true);
+  });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
     if (event.target.closest("button, a, textarea, input, summary, [data-lf-offer]"))
@@ -226,20 +264,27 @@ function renderHeader(snapshot) {
   const facts = document.createElement("div");
   facts.className = "lf-command-facts";
   facts.append(
-    button(`${snapshot.running.length} running`, snapshot.running[0]?.element || plan),
-    button(
-      `${snapshot.liveWorkers.length} workers`,
-      snapshot.liveWorkers[0]?.element || plan,
+    viewButton(`${snapshot.running.length} running`, "running", () =>
+      openFleet(plan, "running"),
+    ),
+    viewButton(`${snapshot.liveWorkers.length} workers`, "workers", () =>
+      openFleet(plan, "all"),
     ),
   );
   if (snapshot.quiet.length)
     facts.append(
-      button(`${snapshot.quiet.length} quiet`, snapshot.quiet[0].element, "warn"),
+      viewButton(
+        `${snapshot.quiet.length} quiet`,
+        "quiet",
+        () => openFleet(plan, "quiet"),
+        "warn",
+      ),
     );
   facts.append(
-    button(
+    viewButton(
       `${snapshot.stopped.length} stopped`,
-      snapshot.stopped[0]?.element || plan,
+      "stopped",
+      () => openStopped(plan),
       snapshot.stopped.length ? "danger" : "",
     ),
   );
@@ -330,16 +375,24 @@ function renderStopped(snapshot) {
 
 function renderFleet(snapshot) {
   const { plan } = snapshot;
+  const mode = fleetModes.get(plan) ?? "all";
+  const workers =
+    mode === "running"
+      ? snapshot.running
+      : mode === "quiet"
+        ? snapshot.quiet
+        : snapshot.liveWorkers;
   const old = plan.querySelector(":scope > .lf-fleet-view[data-lf-gen]");
-  const signature = JSON.stringify(
-    snapshot.liveWorkers.map((worker) => [
+  const signature = JSON.stringify([
+    mode,
+    workers.map((worker) => [
       worker.element.id,
       worker.state,
       worker.remit.id,
       worker.assignment?.id,
       worker.assignment && snapshot.byElement.get(worker.assignment).title,
     ]),
-  );
+  ]);
   if (fleetSignatures.get(plan) === signature) return false;
   fleetSignatures.set(plan, signature);
   const box = document.createElement("details");
@@ -349,11 +402,13 @@ function renderFleet(snapshot) {
   box.append(
     speakingOffer(
       "summary",
-      `Fleet · ${snapshot.liveWorkers.length} live worker${snapshot.liveWorkers.length === 1 ? "" : "s"}`,
+      mode === "all"
+        ? `Fleet · ${workers.length} live worker${workers.length === 1 ? "" : "s"}`
+        : `${mode === "running" ? "Running" : "Quiet"} · ${workers.length} worker${workers.length === 1 ? "" : "s"}`,
     ),
   );
   const list = document.createElement("ul");
-  for (const worker of snapshot.liveWorkers) {
+  for (const worker of workers) {
     const focus = worker.assignment && snapshot.byElement.get(worker.assignment);
     const remit =
       worker.remit === plan
@@ -374,7 +429,11 @@ function renderFleet(snapshot) {
   }
   box.append(list);
   if (old) old.replaceWith(box);
-  else plan.append(box);
+  else {
+    const stopped = plan.querySelector(":scope > .lf-stopped-view[data-lf-gen]");
+    if (stopped) stopped.after(box);
+    else plan.querySelector(":scope > .lf-command-head")?.after(box);
+  }
   return true;
 }
 

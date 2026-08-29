@@ -43,6 +43,29 @@
   properties built for this, and finding what it is wants its own sitting rather than a
   guess at the end of another change.
 
+- **Let the Living Margin carry short anchored conversations.** Its current markers
+  answer “what is happening here?”, while the Asks tray answers “what still needs me?”
+  and the Comments panel holds complete conversation history. A marker could reveal a
+  short thread on hover or focus, pin it on click, and offer `Reply`, `Resolve`, and
+  `Open conversation` from the pinned card. Longer threads could show the root and
+  latest reply followed by `Open thread (N)`. This would make the margin the quick path
+  for local discussion without asking it to absorb search, detached comments, history,
+  or long-form replies.
+
+- **Prototype a LessWrong-like left comment margin as an alternate presentation.** It
+  would expose more comment text at a glance than the right-side semantic map, but it
+  also competes with the Leaves/Asks tray, privileges comments over changes and
+  decisions, and needs collision rules when several comments meet one passage. Try it
+  only where the margin is wide and sparse, cluster overflow, and collapse it to the
+  existing mobile Map sheet. Do not show left comment cards and right map markers as
+  permanent simultaneous rails.
+
+- **Keep narrow-page navigation legible as the margin evolves.** `Map` is currently the
+  only header control created by the narrow breakpoint; it replaces the hidden rail,
+  while the other controls merely reorder or appear because page state calls for them.
+  Preserve that one-for-one relationship if the margin gains conversations or another
+  presentation, rather than accumulating width-only destinations in the header.
+
 - **Card density in the comment panel.** Halving the thread card's padding and margins
   frees 570px of a 4,612px list — half of what folding the reply box bought — while
   hiding nothing and overturning no contract. It is a change to how every card looks, so
@@ -113,6 +136,20 @@
   session after re-vendoring. Today the comment is dispatched to a leaf session by
   hand. If this recurs, evaluate carrying the comment anchor and page URL in the
   dispatch and allowing that page to re-vendor from a named checkout.
+
+- **Make optional packages one command to use.** Command Hub currently has to be
+  selected by its checkout-relative `examples/packages/command-hub` path. First, ship
+  it as an optional package in Leaf's installed payload and let
+  `leaf page init --package command-hub PAGE` resolve that bundled name through the
+  ordinary package composition path. This is enough for an agent to create and
+  dogfood a hub without asking the user to find a checkout, launcher, or package
+  directory; Command Hub remains a package rather than becoming core vocabulary.
+
+  Later, let `leaf package install SOURCE` place an outside package in a user-owned
+  store and make the same `--package NAME` form select it. Package names should resolve
+  to directories before composition, so bundled and installed packages keep one
+  contract. Let dogfooding determine what installation needs for source identity,
+  updates, pinning, and trust rather than adding those policies to the first shortcut.
 
 - **Deferred design-mode additions.** Each needs evidence before implementation:
 

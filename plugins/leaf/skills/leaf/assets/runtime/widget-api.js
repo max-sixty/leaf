@@ -1,7 +1,8 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; leaf.js composes those owners and owns boot only. */
 export { ARRANGEMENTS } from "./arrangements.js";
-export { itemWord, shownBand, shownBox, shownParts } from "./anchors.js";
+export { itemWord } from "./anchors.js";
+export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { answeredContext, askSource, openAsks } from "./asks/model.js";
 export { conversationBox } from "./conversation/box.js";
 export { conversationInput, landInConversation } from "./conversation/landing.js";
@@ -9,10 +10,18 @@ export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
 export { scrollerFor } from "./navigation.js";
+export {
+  layoutMarginRows,
+  marginAnchorFor,
+  registerMarginRow,
+  scheduleMarginLayout,
+  updateMarginRow,
+} from "./margin-layout.js";
 export { announce, toast } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
+export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
+export { alignText } from "./text-alignment.js";
 export {
-  alignText,
   inChrome,
   inUi,
   renderRetired,
@@ -34,7 +43,13 @@ export {
   layerFact,
   matchesWhen,
 } from "./registry.js";
-export { FOLD_MS, REDUCED, SCROLL, motion } from "./motion.js";
+export {
+  FOLD_MS,
+  motion,
+  onMotionPreferenceChange,
+  reducedMotion,
+  scrollBehavior,
+} from "./motion.js";
 export { quietWord } from "./presentation.js";
 export { projectData } from "./projection/data.js";
 export { tabStore } from "./storage.js";

@@ -11,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    COMMAND_SUBJECTS,
     OPTIONS,
     PAGE,
     PHRASING_CONTENT,
@@ -34,21 +35,22 @@ from interact_support import (
     state_json,
     suggest,
 )
+from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
-from leaf import event_log as event_log_model
-from leaf import events as events_model
+from leaf import data_contracts as data_contracts_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import structure as structure_model
-from leaf import validation as validation_model
+from leaf.validation import compatibility as validation_model
 
 
 def test_check_accepts_a_valid_page(page_dir):
@@ -386,7 +388,7 @@ def test_the_context_an_anchor_stores_is_one_number_on_both_sides():
 
     The quote itself is uncapped on both sides. This is the neighbourhood only."""
     _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
-    assert int(found.group(1)) == passages_model.CONTEXT
+    assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
 
 def test_the_render_viewport_is_wide_enough_to_have_margins():
@@ -539,7 +541,8 @@ def test_the_group_stands_down_for_every_outline_the_log_paints():
     }
     assert painted, "the kernel paints no state outline at all, so this reads nothing"
     rule = re.search(
-        r"&:has\(> lf-option > \.lf-pick:focus-visible\)([^{]*)\{([^}]*)\}",
+        r"&:has\(> lf-option > \.lf-pick:is\(:focus-visible, \.lf-focus-visible\)\)"
+        r"([^{]*)\{([^}]*)\}",
         theme,
         re.DOTALL,
     )
@@ -1423,6 +1426,166 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert event["detail"] == {"status": "review"} and event["revision"] == 1
 
 
+def test_receipt_settles_one_known_request_once(page_dir, monkeypatch):
+    """The host's result names the exact request it executed. A second terminal
+    account would make one side effect have two outcomes, so the CLI door refuses it."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    request = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+    pending = state_json(page_dir)["requests"]
+    assert len(pending) == 1
+    lifecycle = pending[0]
+    assert lifecycle["seat"] == {
+        "document": {"kind": "page", "revision": 1},
+        "widget": "commands",
+    }
+    assert lifecycle["phase"] == "pending"
+    assert lifecycle["latest"]["request"]["id"] == request["id"]
+    assert lifecycle["latest"]["receipt"] is None
+    unknown = CliRunner().invoke(
+        cli_model.cli,
+        ["receipt", str(page_dir), "missing", "failed", "--text", "No request"],
+    )
+    assert unknown.exit_code == 1
+    assert "unknown request 'missing'" in unknown.output
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "coordinator-1")
+    monkeypatch.setenv("LEAF_AGENT", "Atlas lead")
+    accepted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "receipt",
+            str(page_dir),
+            request["id"],
+            "succeeded",
+            "--text",
+            "Started w-9 on the preserved branch",
+        ],
+    )
+    assert accepted.exit_code == 0, accepted.output
+    receipt = events_model.read_events(page_dir)[-1]
+    assert (receipt["kind"], receipt["request"], receipt["status"]) == (
+        "receipt",
+        request["id"],
+        "succeeded",
+    )
+    assert receipt["text"] == "Started w-9 on the preserved branch"
+    assert (receipt["agent"], receipt["session"]) == (
+        "Atlas lead",
+        "coordinator-1",
+    )
+    projected = state_json(page_dir)["requests"][0]
+    assert projected["phase"] == "completed"
+    assert projected["latest"]["receipt"]["id"] == receipt["id"]
+    assert (
+        projected["latest"]["receipt"]["text"] == "Started w-9 on the preserved branch"
+    )
+
+    duplicate = CliRunner().invoke(
+        cli_model.cli,
+        ["receipt", str(page_dir), request["id"], "failed", "--text", "Again"],
+    )
+    assert duplicate.exit_code == 1
+    assert "already has receipt" in duplicate.output
+    assert (
+        len(
+            [
+                event
+                for event in events_model.read_events(page_dir)
+                if event["kind"] == "receipt"
+            ]
+        )
+        == 1
+    )
+
+
+def test_page_state_groups_failed_retry_as_one_request_lifecycle(page_dir):
+    """Attempts belong to the seat that admits them. A failed attempt leaves that
+    lifecycle ready, and the retry becomes its latest attempt rather than a second
+    partly joined request record."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    ready_asks = {ask["id"] for ask in state_json(page_dir)["asks"]}
+    assert "commands" in ready_asks
+    assert "goal" not in ready_asks
+    first = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+    assert "commands" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    failure = events_model.append_event(
+        page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": first["id"],
+            "status": "failed",
+            "text": "Worker lease disappeared",
+        },
+    )
+    assert "commands" in {ask["id"] for ask in state_json(page_dir)["asks"]}
+    retry = events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+
+    lifecycles = state_json(page_dir)["requests"]
+    assert len(lifecycles) == 1
+    lifecycle = lifecycles[0]
+    assert lifecycle["phase"] == "pending"
+    assert len(lifecycle["attempts"]) == 2
+    assert lifecycle["attempts"][0]["receipt"]["id"] == failure["id"]
+    assert lifecycle["latest"]["request"]["id"] == retry["id"]
+    assert lifecycle["latest"]["receipt"] is None
+    assert "commands" not in {ask["id"] for ask in state_json(page_dir)["asks"]}
+
+
 def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
     """A report is provisional news with the reviewer precedence reversed:
     silence leaves it painting, writing the reported state absorbs it, and a
@@ -1548,7 +1711,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
         assert at_commit.wait(timeout=10), "publish never reached its note commit"
-        serialized = service_model.lock_is_held(page_dir / "comments.jsonl")
+        serialized = leases_model.lock_is_held(page_dir / "comments.jsonl")
         reporting = executor.submit(
             conversation_model.cmd_report,
             page_dir,
@@ -2393,7 +2556,7 @@ def test_data_set_validates_the_json_value_it_writes(page_dir):
         contract="build-map",
     )
 
-    with pytest.raises(data_model.DataError, match="value is invalid"):
+    with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
         data_model.cmd_data_set(page_dir, "builds", {1: "passing"})
 
     assert data_model.read_data(page_dir) == {"revision": 0, "sources": {}}
@@ -2415,11 +2578,11 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
     with pytest.raises(
-        data_model.DataError, match="recursive reference did not terminate"
+        data_contracts_model.DataError, match="recursive reference did not terminate"
     ):
         data_model.cmd_data_set(page_dir, "loop", {})
 
-    assert data_model.data_contract_errors(
+    assert data_contracts_model.data_contract_errors(
         {
             "revision": 1,
             "sources": {
@@ -2467,14 +2630,14 @@ def test_the_data_store_refuses_non_contract_json(page_dir, stored, message):
     """
     (page_dir / "data.json").write_text(stored)
 
-    with pytest.raises(data_model.DataError, match=message):
+    with pytest.raises(data_contracts_model.DataError, match=message):
         data_model.read_data_store(page_dir)
 
 
 def test_the_data_store_wraps_invalid_utf8_at_its_boundary(page_dir):
     (page_dir / "data.json").write_bytes(b"\xff")
 
-    with pytest.raises(data_model.DataError, match="invalid JSON"):
+    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
         data_model.read_data_store(page_dir)
 
 
@@ -2879,7 +3042,7 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     )
     publish(page_dir)
     tied = "2026-08-24T12:00:00-07:00"
-    monkeypatch.setattr(event_log_model, "now_iso", lambda: tied)
+    monkeypatch.setattr(events_model, "now_iso", lambda: tied)
     first = events_model.append_event(
         page_dir,
         {

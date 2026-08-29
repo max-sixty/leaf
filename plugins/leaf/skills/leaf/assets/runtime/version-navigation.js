@@ -46,8 +46,14 @@ export function createVersionNavigation({
   // a reader who leaves a comparison on and scrolls into a stretch that changed nothing
   // has only this control to read it back off, and a colour is not a thing a screen
   // reader announces.
-  const versionLabel = (comparing) =>
-    (comparing ? "Δ " : "") + `${runtime.currentLabel ?? "Draft"} ▾`;
+  // The closed control is an address, not the menu's account of the working document.
+  // Keep it to the stable version token (or Draft); the full "Draft after vN" context
+  // remains in the menu row and the control's title. `label` lets the banner reserve the
+  // largest compact token it can write without reintroducing that account as dead width.
+  const versionLabel = (
+    comparing,
+    label = runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`,
+  ) => (comparing ? "Δ " : "") + `${label} ▾`;
   const versionBtn = el("button", "lf-btn lf-version", versionLabel(false));
   // Nothing to open until the log says what versions there are, and a control that answers
   // nothing is a way in painted where there is no layer behind it — the same reason the
@@ -87,6 +93,18 @@ export function createVersionNavigation({
   const versionsToWalk = () => versionCount() > 1;
   // The walk is the versions, not every press in the menu.
   const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
+  const versionStops = () =>
+    [...versionMenu.querySelectorAll("button:not(:disabled)")].filter(
+      (control) => control.getClientRects().length,
+    );
+  // A menu is a transient reading of the chooser, not a layer over the next control a
+  // reader Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
+  // exit only from the boundary control in the direction being travelled. The native row
+  // below closes the menu first and then leaves the browser to complete that same Tab.
+  const atVersionBoundary = (end) => {
+    const stops = versionStops();
+    return document.activeElement === stops.at(end);
+  };
   // One setter stating the whole outcome, per showComposer and showFab: nothing reads
   // the class back to find out whether the menu is up.
   function showVersionMenu(open) {
@@ -138,6 +156,7 @@ export function createVersionNavigation({
   // reference's section is the two of them merged by title — on a first version, the way out
   // and nothing else.
   const NEWEST = {
+    id: "version.current",
     keys: ["v"],
     does: "Open the current page",
     line: "open the current page",
@@ -151,7 +170,12 @@ export function createVersionNavigation({
     "In the versions menu",
     [
       {
+        id: "version.walk",
         keys: ["ArrowUp", "ArrowDown"],
+        routes: [
+          { id: "version.previous", binding: "ArrowUp", does: "Previous version" },
+          { id: "version.next", binding: "ArrowDown", does: "Next version" },
+        ],
         // The walk marks as it goes, which is what the list is for: the note says in words
         // what a version changed and the page behind the menu then says it in the passages
         // themselves, without the reader having to leave the list to find out. A note is
@@ -183,18 +207,20 @@ export function createVersionNavigation({
       // same, and the keys are the shared fact rather than this row's reading of it:
       // spelled by hand, it said Enter and left Space unnamed on a control that answers
       // both.
-      { keys: PRESS, does: "Open that version", line: "open that version" },
+      {
+        id: "version.activate",
+        keys: PRESS,
+        does: "Open that version",
+        line: "open that version",
+      },
       NEWEST,
     ],
     versionsToWalk,
   );
-  // The way out is the menu standing, not the reader being inside it: a menu opened and
-  // then Tabbed out of is still over the page, and an Escape that could not reach it left
-  // the reader closing the panel underneath instead. So the rung is a mode rather than the
-  // element scope's — which is what every other layer that can outlive its own focus does
-  // (the composer holds a draft the reader clicked away from; the leaves tray stands while
-  // focus is on the button that opened it). The menu's walk stays the element scope's,
-  // because a walk has nothing to walk unless focus is on a row.
+  // The way out is the menu standing, not whether it has multiple versions to walk. So the
+  // rung is a mode rather than the element scope's: on the common first version the menu
+  // still needs Escape even though there is no neighbouring row. The menu's walk stays the
+  // element scope's, because a walk has nothing to walk unless focus is on a row.
   const VERSIONS = {
     title: "In the versions menu",
     // The way out is live wherever the way in is, which is the wider fact and not the walk's:
@@ -216,6 +242,30 @@ export function createVersionNavigation({
     claims: allButTheReference,
     rows: [
       {
+        id: "version.leave-forward",
+        keys: ["Tab"],
+        does: "Leave the versions menu forward",
+        line: "leave versions",
+        native: true,
+        // A held Tab is still one continuous trip through the controls. When its repeated
+        // keydown reaches the boundary, closing is part of that press just as it is for a
+        // fresh Tab; only the platform's focus move remains native.
+        repeat: true,
+        when: () => atVersionBoundary(-1),
+        run: () => showVersionMenu(false),
+      },
+      {
+        id: "version.leave-backward",
+        keys: ["Shift+Tab"],
+        does: "Leave the versions menu backward",
+        line: "leave versions",
+        native: true,
+        repeat: true,
+        when: () => atVersionBoundary(0),
+        run: () => showVersionMenu(false),
+      },
+      {
+        id: "version.close",
         keys: ["Escape"],
         does: "Close the versions menu",
         line: "close versions",
@@ -229,6 +279,53 @@ export function createVersionNavigation({
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
+  // A state candidate can be rejected after this owner has painted it. Keep the stable
+  // versions array, private render cache, controls, and menu subtree one restoration
+  // boundary; callers cannot reconstruct those facts from runtime fields alone. An open
+  // menu keeps its existing nodes when they never changed, because their identity carries
+  // the reader's focus.
+  function snapshotVersionNavigation() {
+    const prior = {
+      active: structuredClone(runtime.active),
+      currentLabel: runtime.currentLabel,
+      currentRevision: runtime.currentRevision,
+      currentStamp: runtime.currentStamp,
+      latestAttributes: [...latestChip.attributes].map(({ name, value }) => [
+        name,
+        value,
+      ]),
+      latestText: latestChip.textContent,
+      lastVersionsKey,
+      menuChildren: [...versionMenu.childNodes],
+      versionBtnDisabled: versionBtn.disabled,
+      versions: structuredClone(versions),
+      versionsWalkable,
+    };
+    return () => {
+      const repaintKeys = versionsWalkable !== prior.versionsWalkable;
+      versions.splice(0, versions.length, ...prior.versions);
+      runtime.active = prior.active;
+      runtime.currentLabel = prior.currentLabel;
+      runtime.currentRevision = prior.currentRevision;
+      runtime.currentStamp = prior.currentStamp;
+      lastVersionsKey = prior.lastVersionsKey;
+      versionsWalkable = prior.versionsWalkable;
+      const menuChildren = [...versionMenu.childNodes];
+      if (
+        menuChildren.length !== prior.menuChildren.length ||
+        menuChildren.some((child, index) => child !== prior.menuChildren[index])
+      )
+        versionMenu.replaceChildren(...prior.menuChildren);
+      versionBtn.disabled = prior.versionBtnDisabled;
+      paintDiff();
+      for (const { name } of [...latestChip.attributes])
+        latestChip.removeAttribute(name);
+      for (const [name, value] of prior.latestAttributes)
+        latestChip.setAttribute(name, value);
+      latestChip.textContent = prior.latestText;
+      if (repaintKeys) paintKeys();
+    };
+  }
   const goVersion = (version) => {
     if (version === runtime.currentStamp) return;
     const target = versions.find((candidate) => candidate.version === version);
@@ -267,8 +364,7 @@ export function createVersionNavigation({
       versionsWalkable = walkable;
       paintKeys();
     }
-    const notes = {};
-    for (const e of runtime.events) if (e.kind === "note") notes[e.version] = e.text;
+    const notes = runtime.browser?.version_notes ?? {};
     const key = JSON.stringify([
       state.active,
       state.versions,
@@ -405,6 +501,7 @@ export function createVersionNavigation({
     goActive,
     goVersion,
     renderVersions,
+    snapshotVersionNavigation,
     showVersionMenu,
     versionBtn,
     versionLabel,

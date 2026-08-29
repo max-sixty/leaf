@@ -9,11 +9,11 @@ from datetime import datetime, timedelta
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
+from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
@@ -633,7 +633,7 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     url = serve(ASK_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")
@@ -655,7 +655,7 @@ def test_a_selected_question_uses_enter_for_words_and_digits_for_picks(browser, 
     page.close()
 
     page, errors = open_page(browser, url)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
@@ -774,7 +774,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
     # And a reader arriving by keyboard can see where they landed. One control, one
     # ring: keyboard focus rings the group, in the same stroke and band as the ask
-    # mark, so `n` landing here — which paints the mark and focuses the first pick in
+    # mark, so `a` landing here — which paints the mark and focuses the first pick in
     # one move — draws one ring rather than nesting two. The focused cell wore its own
     # inset ring once, and the first option of every group the walk reached read as
     # singled out. Which cell holds the keyboard is the wash, the paint the pointer's
@@ -810,7 +810,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     # measured is the landing the reader gets rather than a state the test staged.
     ring = "el => [getComputedStyle(el).outline, getComputedStyle(el).outlineOffset]"
     focused = page.locator("#approach").evaluate(ring)
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#approach[data-lf-ask]")).to_have_count(1)
     assert page.locator("#approach").evaluate(ring) == focused, (
         "the walk's landing draws a different ring than the focus it hands over"
@@ -1725,11 +1725,19 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
         "opening the draft's editor answered the question"
     )
 
+    words = page.locator("#ro-column-p")
+    box = words.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+    assert page.evaluate("() => !getSelection().isCollapsed")
+    assert not option.evaluate(picked), "selecting the option's words answered it"
+
     assert [e for e in sent_events(serve.page_dir) if e["kind"] == "action"] == [], (
         "the reader working the evidence sent Claude a decision they never made"
     )
 
     # And the option's own words still answer it, which is what the card is for.
+    page.evaluate("() => getSelection().removeAllRanges()")
     page.locator("#ro-column-p").click()
     expect(page.locator("#ro-column > .lf-pick")).to_have_text("your pick")
     round_trip(page)

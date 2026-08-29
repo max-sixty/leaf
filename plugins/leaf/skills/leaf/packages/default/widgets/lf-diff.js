@@ -86,6 +86,7 @@ function summaryNode(file) {
   );
   keys(summary, "On a diff", [
     {
+      id: "diff.toggle",
       keys: () => DISCLOSE(summary),
       does: () => `${details.open ? "Hide" : "Show"} that file's diff`,
       line: () => `${details.open ? "hide" : "show"} this file`,

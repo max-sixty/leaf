@@ -4,10 +4,10 @@ import re
 from pathlib import Path
 
 import pytest
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
+from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
     ASK_ROW_SAYS,
@@ -61,6 +61,94 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
+    """Hoisted decision rows keep source order through upgrade and reconnection."""
+    source = leaf_page(
+        "suggestion-order",
+        """
+<h1>Release wording</h1>
+<section id="shared-block">
+  <p>First <lf-suggestion id="first-change"><lf-new>first proposal</lf-new></lf-suggestion>.</p>
+  <p>Second <lf-suggestion id="second-change"><lf-new>second proposal</lf-new></lf-suggestion>.</p>
+  <p>Third <lf-suggestion id="third-change"><lf-new>third proposal</lf-new></lf-suggestion>.</p>
+</section>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    expect(page.locator(".lf-sug-actions")).to_have_count(3)
+    assert page.locator(".lf-sug-actions").evaluate_all(
+        "rows => rows.map(row => row.dataset.lfFor)"
+    ) == ["first-change", "second-change", "third-change"]
+    page.locator("#first-change").evaluate(
+        "el => { const parent = el.parentNode; const next = el.nextSibling;"
+        "        el.remove(); parent.insertBefore(el, next); }"
+    )
+    assert page.locator(".lf-sug-actions").evaluate_all(
+        "rows => rows.map(row => row.dataset.lfFor)"
+    ) == ["first-change", "second-change", "third-change"], (
+        "reconnecting the first suggestion moved its controls after later source rows"
+    )
+    page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
+    walked = []
+    for _ in range(3):
+        walked.append(
+            page.evaluate(
+                "() => document.activeElement.closest('.lf-sug-actions')?.dataset.lfFor"
+            )
+        )
+        # Each row has two controls; walk to the next row's first control.
+        page.keyboard.press("Tab")
+        page.keyboard.press("Tab")
+    assert walked == ["first-change", "second-change", "third-change"]
+    assert errors == []
+    page.close()
+
+
+def test_a_detached_board_releases_and_restores_its_motion_subscription(browser, serve):
+    """Version replacement does not retain a board through a media-query listener."""
+    context = browser.new_context(viewport={"width": 1000, "height": 800})
+    context.add_init_script(
+        """(() => {
+          window.__lfMotionListeners = {added: 0, removed: 0};
+          const add = MediaQueryList.prototype.addEventListener;
+          const remove = MediaQueryList.prototype.removeEventListener;
+          MediaQueryList.prototype.addEventListener = function(type, listener, options) {
+            if (type === 'change' && this.media === '(prefers-reduced-motion: reduce)')
+              window.__lfMotionListeners.added++;
+            return add.call(this, type, listener, options);
+          };
+          MediaQueryList.prototype.removeEventListener = function(type, listener, options) {
+            if (type === 'change' && this.media === '(prefers-reduced-motion: reduce)')
+              window.__lfMotionListeners.removed++;
+            return remove.call(this, type, listener, options);
+          };
+        })()"""
+    )
+    try:
+        page, errors = open_page(browser, serve(BOARD_PAGE), context=context)
+        before = page.evaluate("() => ({...window.__lfMotionListeners})")
+        page.evaluate(
+            """() => {
+              window.__lfDetachedBoard = document.querySelector('lf-board');
+              window.__lfDetachedBoard.remove();
+            }"""
+        )
+        released = page.evaluate("() => ({...window.__lfMotionListeners})")
+        assert released["removed"] > before["removed"], (
+            f"detaching the board retained its motion listener: {before=}, {released=}"
+        )
+        page.evaluate(
+            "() => document.querySelector('main').append(window.__lfDetachedBoard)"
+        )
+        restored = page.evaluate("() => ({...window.__lfMotionListeners})")
+        assert restored["added"] > before["added"], (
+            f"reconnecting the board did not restore live motion changes: {restored=}"
+        )
+        assert errors == []
+    finally:
+        context.close()
 
 
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
@@ -222,6 +310,31 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert touch_errors == []
     touch.close()
     context.close()
+
+
+def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
+    """A nested control owns its click even when its platform contract is an ARIA role."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "gloss control",
+                '<h1>Term</h1><p><lf-gloss tip="An explanation.">'
+                'term <span role="button" tabindex="0">work it</span>'
+                "</lf-gloss></p>",
+            )
+        ),
+    )
+    control = page.get_by_role("button", name="work it", exact=True)
+    bubble = page.get_by_role("note")
+    control.hover()
+    expect(bubble).to_be_visible()
+    control.click()
+    page.mouse.move(0, 0)
+    page.locator("body").focus()
+    expect(bubble).to_be_hidden()
+    assert errors == []
+    page.close()
 
 
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
@@ -649,9 +762,9 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     was — on the previous ask's Accept — while the announce said otherwise, so
     Enter was aimed at a decision the reader had already seen."""
     page, errors = open_page(browser, serve(COLLAPSED_PAGE))
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("[data-lf-for='sug-now'] .lf-sug-accept")).to_be_focused()
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#later")).to_have_attribute("open", "")
     expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_focused()
     assert errors == []
@@ -787,7 +900,7 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     assert page.locator("lf-new #now > .lf-mark-note").count() == 1
     page.locator(f"[data-lf-for='sug'] .lf-sug-{outcome}").click()
     expect(page.locator(".lf-toast")).to_have_text(
-        f"{verb} “Retry three times.” — sent to Claude"
+        f"{verb} “Retry three times.” — recorded"
     )
     assert errors == []
     page.close()
@@ -955,77 +1068,6 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
         ("sug-thistle", "accept"),
         ("sug-in-card", "accept"),
     ]
-    assert errors == []
-    page.close()
-
-
-def test_a_key_gives_every_blanket_answer_the_banner_offers(browser, serve):
-    """A is the banner's blanket answers in a press — the same controls, so the log
-    records each decision one at a time exactly as a click does. Neither the key nor
-    its legend names a verb: which verbs a page offers is the registry's answer
-    (x-awaits.all), so the reference states the words the banner is writing at the
-    moment it is opened. A sentence written into the table would have said "accept" in
-    core, and gone on saying it for the second widget to declare a verb of its own.
-
-    The shift is part of the key rather than decoration, and the walk beside it is
-    spelled in directions (n/p) rather than in this letter, so the letter is this
-    press's alone — and stands for nothing unshifted, an unshifted `a` that settled
-    every change on the page being a press far too cheap for what it does. Caps lock is
-    where reading the glyph instead of asking for the modifier fails in both
-    directions: it writes an uppercase key out of a bare press, which must not end the
-    matter, and a lowercase one out of the shifted press that must."""
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    help_el = page.locator(".lf-help")
-
-    page.keyboard.press("?")
-    expect(help_el).to_contain_text("Accept all 3 waiting on you")
-    page.keyboard.press("Escape")
-
-    # A decision taken on its own control leaves two, and the legend says two: it is
-    # read when the reference opens rather than held from when the table was written.
-    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
-    expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
-    page.keyboard.press("?")
-    expect(help_el).to_contain_text("Accept all 2 waiting on you")
-    page.keyboard.press("Escape")
-
-    # An unshifted uppercase press is what caps lock sends, and the dispatcher refuses
-    # it: dispatched at the protocol level, which is the only place that press exists.
-    cdp = page.context.new_cdp_session(page)
-    for kind in ("keyDown", "keyUp"):
-        cdp.send(
-            "Input.dispatchKeyEvent",
-            {
-                "type": kind,
-                "key": "A",
-                "code": "KeyA",
-                "windowsVirtualKeyCode": 65,
-                "text": "A" if kind == "keyDown" else "",
-            },
-        )
-    told(page)
-    expect(page.get_by_role("button", name="Accept all (2)")).to_be_visible()
-
-    page.keyboard.press("Shift+A")
-    for widget in ("sug-thistle", "sug-in-card"):
-        expect(page.locator(f"[data-lf-for='{widget}'] .lf-sug-accept")).to_have_text(
-            "✓ Accepted", use_inner_text=True
-        )
-    # Nothing left to answer, so the control goes and the key goes with it.
-    expect(page.get_by_role("button", name=re.compile("Accept all"))).to_be_hidden()
-    page.keyboard.press("?")
-    expect(help_el).to_be_visible()
-    expect(help_el).not_to_contain_text("Accept all")
-
-    round_trip(page)
-    logged = [
-        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
-    ]
-    assert [(e["widget"], e["action"]) for e in logged] == [
-        ("sug-refill", "accept"),
-        ("sug-thistle", "accept"),
-        ("sug-in-card", "accept"),
-    ], "the key's decisions have to reach the log one at a time, like the button's"
     assert errors == []
     page.close()
 
@@ -1324,11 +1366,9 @@ def test_the_banner_counts_what_the_page_is_still_asking(browser, serve):
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
-    """j/k step the open threads; n/p step the things the page is waiting on the reader
-    for. Every walk here is a borrowed pair naming its direction rather than what it
-    walks — vim's list, less's half page, next and previous — which is what left `a`
-    free for the tray that shows the list they walk (⇧A is the answer that takes all of
-    them at once).
+    """t/T step the open threads; a/A step the things the page is waiting on the reader
+    for. The category letter stays under one finger: lowercase advances and Shift goes
+    back. Both walks repeat when held because walking often takes several presses.
     It wraps rather than clamping, because an ask leaves the list as soon as it is
     answered — forward is the direction with somewhere to go, and one key that stopped
     at the last one would strand the reader there.
@@ -1340,7 +1380,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page, errors = open_page(browser, serve(ASKS_PAGE))
     walked = []
     for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:  # one past the end: it wraps
-        page.keyboard.press("n")
+        page.keyboard.press("a")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the ask this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
@@ -1361,13 +1401,13 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         "span lf-pick lf-ui",
     ], f"the walk landed on something else: {walked}"
 
-    # And back, from where the last press left them: p wraps at this end too, and the
+    # And back, from where the last press left them: A wraps at this end too, and the
     # step off a suggestion is measured from the suggestion rather than from the ✓ Accept
     # holding the focus — that row is hoisted out into the page margin as a sibling of the
     # block it decides, so a walk reading it where it hangs would step back onto the
     # change the reader is standing on.
     for expected in reversed(ASKS_IN_ORDER):
-        page.keyboard.press("p")
+        page.keyboard.press("Shift+a")
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
 
@@ -1399,7 +1439,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # change they have just settled.
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
     expect(page.locator(".lf-asks")).to_have_text("Asks (3)")
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#t-baffles")).to_be_focused()
     assert errors == []
     page.close()
@@ -1409,7 +1449,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     """The ask is the question's whole reading region, not only its answer control.
 
     An options group used to be both the state owner and the navigation target. When
-    the heading, premise, and evidence stood immediately above it, `n` centred the
+    the heading, premise, and evidence stood immediately above it, `a` centred the
     options and made the reader scroll backward before they could answer. `lf-ask`
     encodes that broader unit while the nested x-awaits widget still owns the action:
     the walk focuses the first answering control, rings the region, and aligns the
@@ -1434,7 +1474,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     assert before["room"] > 500, "the page has no room to put the ask at its start"
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     expect(page.locator("#storage-ask")).to_have_attribute("data-lf-ask", "1")
     expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
@@ -1461,9 +1501,9 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
 def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     """The walk measures from the reader, the way d/u measure from the scroll position
-    and j/k from the focused thread. It kept an id of its own instead, so every walk
+    and t/T from the focused thread. It kept an id of its own instead, so every walk
     the reader had not made with this key started at the top of the page: scroll
-    halfway down and press `n` and you were taken back past everything you had read,
+    halfway down and press `a` and you were taken back past everything you had read,
     and so was anyone who had just selected a paragraph to comment on.
 
     Three readings of where they are, and the page is left in each state in turn: what
@@ -1482,14 +1522,14 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     # it, not the question above it. They are standing *in* that suggestion, which is
     # why it is the ask they step off rather than the one they step to.
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
 
     # The banner's press opens the tray and keeps the focus, so the walk after it
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     page.locator(".lf-asks").click()
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
 
     # A selection outranks the mark, because it is the reader saying where they are
@@ -1503,10 +1543,10 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
         select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
 
     drag_over_the_done_task()
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#t-baffles")).to_have_attribute("data-lf-ask", "1")
     drag_over_the_done_task()
-    page.keyboard.press("p")
+    page.keyboard.press("Shift+a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert errors == []
     page.close()
@@ -1559,7 +1599,7 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     page, errors = open_page(browser, url)
     resized(page, 1200, 900)
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert len(rows) == 1, rows
@@ -1969,7 +2009,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     page, errors = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 1200, 900)
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
 
@@ -1989,10 +2029,9 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     page.close()
 
 
-def test_a_opens_a_tray_of_what_the_page_is_waiting_for(browser, serve):
-    """`a` shows the list n/p walk, which until now the reader could only see by
-    walking it: there was no way to tell what a page wanted without visiting each ask
-    in turn, and no way to take them in any order but the page's.
+def test_the_asks_control_opens_what_the_page_is_waiting_for(browser, serve):
+    """The banner control shows the list a/A walk, so the reader can see what a page
+    wants without visiting each ask in turn and can take them in any order.
 
     The rows are openAsks() and nothing else — the same list the banner counts — so
     they arrive in document order and a twelfth widget joins the tray by declaring
@@ -2011,11 +2050,13 @@ def test_a_opens_a_tray_of_what_the_page_is_waiting_for(browser, serve):
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray holds no rows"
 
-    page.keyboard.press("a")
+    asks_control = page.locator(".lf-asks")
+    asks_control.focus()
+    page.keyboard.press("Enter")
     expect(tray).to_be_visible()
     rows = page.evaluate(ASK_ROW_SAYS)
     assert [r["at"] for r in rows] == ASKS_IN_ORDER, (
-        "the tray is openAsks() in document order, the list n/p walk"
+        "the tray is openAsks() in document order, the list a/A walk"
     )
     for row in rows:
         assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no usable size"
@@ -2043,7 +2084,8 @@ def test_a_opens_a_tray_of_what_the_page_is_waiting_for(browser, serve):
 
     # And closing takes the rest with it, for the reason the docstring gives: a tray
     # that is down is not a list, so it holds nothing to reach and nothing to press.
-    page.keyboard.press("a")
+    asks_control.focus()
+    page.keyboard.press("Enter")
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
     assert errors == []
@@ -2062,7 +2104,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
     presses no keys and so never has a tray to restore. It took a reader with the
     tray open pressing reload, which is what this now is."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     tray = page.locator(".lf-asks-panel")
     expect(tray).to_be_visible()
     expect(page.locator("button.lf-asks-row")).to_have_count(len(ASKS_IN_ORDER))
@@ -2081,7 +2123,7 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
 
 
 def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
-    """Pressing a row does what `n` does — one function does both, so the tray can
+    """Pressing a row does what `a` does — one function does both, so the tray can
     never drift into a second way of arriving at an ask. It scrolls there, rings the
     ask, and puts the focus on the control that answers it, which is what lets the
     reader answer in the page beside the words arguing for it rather than in the list.
@@ -2090,8 +2132,11 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     tray are two surfaces showing where the reader is standing, painted from the one
     reading of it (markHere), so neither can say something the other doesn't."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 1200, 620)
-    page.keyboard.press("a")
+    # Narrow enough that the tray covers the page. A destination selected from a covering
+    # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
+    # correctly behind an opaque surface.
+    resized(page, 560, 620)
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
 
     # The last of the four, which a short window leaves well off screen.
@@ -2104,16 +2149,14 @@ def test_a_row_stands_the_reader_on_the_control_that_answers_it(browser, serve):
     )
 
     page.locator("button.lf-asks-row[data-lf-at='t-bath']").click()
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
     # A blocked task has no control of its own to answer it, so the ask itself takes the
     # focus — the landing is a place to stand either way.
     expect(page.locator("#t-bath")).to_be_focused()
     expect(page.locator("#t-bath")).to_have_attribute("data-lf-ask", "1")
-    expect(page.locator("button.lf-asks-row[data-lf-at='t-bath']")).to_have_attribute(
-        "data-lf-ask", "1"
-    )
-    # And one ask is standing, not two: the row is another box the same ask shows
-    # through, never a second answer to where the reader is.
+    # The covering tray has gone, so its projected rows go with it. The page carries the
+    # one standing mark rather than leaving a second, hidden authority in the closed tray.
     marked = page.evaluate(
         """() => [...document.querySelectorAll('[data-lf-ask]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""
@@ -2143,7 +2186,7 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     })"""
 
     resized(page, 1200, 800)
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     page.wait_for_function(
         """() => getComputedStyle(document.body).marginLeft !== '0px'"""
@@ -2176,14 +2219,16 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
 
     The `other_leaf` fixture is the whole reason the leaves tray has anything to show:
     a tray of one — the page the reader is already on — is not worth a control, so
-    without a neighbour `l` is dead and there is no second tray to be exclusive with."""
+    without a neighbour `g l` is unavailable and there is no second tray to be exclusive
+    with."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     asks, leaves = page.locator(".lf-asks-panel"), page.locator(".lf-others-panel")
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(asks).to_be_visible()
     expect(leaves).to_be_hidden()
 
+    page.keyboard.press("g")
     page.keyboard.press("l")
     expect(leaves).to_be_visible()
     expect(asks).to_be_hidden()
@@ -2192,7 +2237,7 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         """() => getComputedStyle(document.body).marginLeft === '0px'"""
     )
 
-    page.keyboard.press("a")
+    page.locator(".lf-asks").click()
     expect(asks).to_be_visible()
     expect(leaves).to_be_hidden()
 
@@ -2210,7 +2255,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     the box left out — and an element with none measures (0,0) at the document's origin,
     which is not a degenerate answer but a wrong one. Everything that asked the wrapper
     where it was believed it, so the travel centred the top of the document and a page
-    whose open asks were all suggestions answered `n` by appearing to do nothing at all.
+    whose open asks were all suggestions answered `a` by appearing to do nothing at all.
 
     Hanging the ring on the pieces instead covered that and said the wrong thing about
     the change: two outlines meeting down the middle of a sentence, or stacked across
@@ -2232,7 +2277,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
       const box = r.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
     # Where the reader now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
@@ -2245,7 +2290,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     was = page.evaluate("() => document.body.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # The condition everything below rests on, stated rather than assumed: put
@@ -2322,12 +2367,12 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
       const box = r.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#live-question")).to_have_attribute("data-lf-ask", "1")
     was = page.evaluate("() => document.body.scrollTop")
     assert was > 0, "the reader must have somewhere to have come from"
 
-    page.keyboard.press("n")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
@@ -2395,8 +2440,8 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     note = page.locator("#sug-refill .lf-mark-note")
     expect(note).to_have_count(1)
 
-    page.keyboard.press("n")
-    page.keyboard.press("n")
+    page.keyboard.press("a")
+    page.keyboard.press("a")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # By tag rather than by class: the slots are wearing the comment's own outline too,

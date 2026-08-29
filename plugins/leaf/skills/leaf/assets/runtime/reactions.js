@@ -1,9 +1,20 @@
+// Which tokens stand on a target, painted on its strip: pressed, wearing the word, and
+// carrying the event a second press takes back. The reaction rides the pill rather than
+// a map beside it, so a reconcile that keeps the node keeps the fact with it.
+export function paintReactionStanding(strip, standing) {
+  const by = new Map(standing.map((x) => [x.token, x]));
+  for (const pill of strip.querySelectorAll(":scope > .lf-react")) {
+    const on = by.get(pill.dataset.token) ?? null;
+    pill.setAttribute("aria-pressed", on ? "true" : "false");
+    pill.lfReaction = on;
+  }
+}
+
 export function createReactions({
   CONTROL_WORD_CAP,
   EVERYTHING,
   anchorLabel,
   announce,
-  beside,
   claimsEsc,
   commentsReveal,
   currentRevision,
@@ -23,8 +34,6 @@ export function createReactions({
   reactionVocabulary,
   saying,
   showFab,
-  shownBox,
-  shownRect,
   standingConversation,
   standingItem,
   undoable,
@@ -124,8 +133,7 @@ export function createReactions({
   // page strip where nothing stands, the page whole being what an anchorless reaction is
   // aimed at. Armed, the mode owns the keys (REACT claims everything, as the address chord
   // does); Escape or a stray key lets it go, and what the arming raised — the bar, or the
-  // panel — goes down with it, unless a digit spent it, which is the reader landing in
-  // what the arming showed (the chord's `keepShown`).
+  // panel — goes down with it, unless a digit spent it.
   let reactArmed = false;
   let reactRaised = false;
   let reactRevealed = null;
@@ -147,10 +155,7 @@ export function createReactions({
       if (strip) reactSurface = strip;
       else if (fabAnchorAt() || here) {
         if (here) {
-          showFab(
-            { section: here.id },
-            ...beside(shownRect(here, new Map()) ?? shownBox(here)),
-          );
+          showFab({ section: here.id });
           reactRaised = true;
         }
         reactSurface = fabBar;
@@ -188,6 +193,8 @@ export function createReactions({
     claims: EVERYTHING,
     rows: [
       {
+        id: "reaction.choose",
+        runFromReference: false,
         keys: () =>
           reactionTokens()
             .slice(0, 9)
@@ -210,6 +217,7 @@ export function createReactions({
         },
       },
       {
+        id: "reaction.cancel",
         keys: ["Escape"],
         does: "Put the reaction down",
         line: "cancel",

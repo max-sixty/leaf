@@ -6,13 +6,13 @@ import re
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import exporting as exporting_model
-from leaf import registry as registry_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
+from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -42,6 +42,7 @@ from render_support import (
     RAIL_FIT,
     REPLY_HOST_PAGE,
     ROOM_GEOMETRY,
+    SOURCE_EXAMPLES,
     TOKEN,
     TWIN_V1,
     TWIN_V2,
@@ -51,10 +52,12 @@ from render_support import (
     composer_quote,
     leaf_page,
     live_url,
+    nudge,
     open_page,
     page_registry,
     panel_settled,
     record_claim,
+    refuse,
     resized,
     stamp_version_file,
     told,
@@ -217,7 +220,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         # the DOM with no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
         page.locator(".lf-comments").click()
-        registry = registry_model.load_registry(serve.page_dir)
+        registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         for carried in [e for e in events if e.get("markup")]:
             for wid, rec in structure_model.parse_structure(
@@ -348,13 +351,15 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     )
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
 def test_an_anchor_written_from_the_file_lands_on_the_page(browser, serve, example):
     """The claim `leaf comment` makes is that a quote read out of the version file
     names the same passage in the browser. Checked on the pages people actually write,
     because the ways it can fail are all theirs: a diagram that renders to a picture, an
     attribute the runtime turns into text, two paragraphs whose join is a space in one
-    reading and nothing in the other."""
+    reading and nothing in the other. The generated gallery derives its tab bodies from
+    these sources; its generation check owns that composition, while this sweep keeps
+    one file reading for every page an author can change."""
     # The markup rather than the example, so a shipped log stays out. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and
@@ -494,7 +499,13 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     page.close()
 
 
-def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
+def test_a_reply_toast_survives_a_failed_state_and_keeps_its_agent(browser, serve):
+    """A failed candidate owns neither the agent name nor the reply count.
+
+    The first read reaches panel and version rendering before malformed projection data
+    rejects it. That candidate must announce nothing and leave no version behind; a
+    complete retry announces the reply once with the agent recorded on the message.
+    """
     url = serve(TWIN_V1)
     d = serve.page_dir
     root = events_model.append_event(
@@ -506,22 +517,110 @@ def test_a_reply_toast_keeps_its_originating_agent(browser, serve):
             "text": "which host answers?",
         },
     )
-    record_claim(d, id="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-comments")).to_have_text("Comments (1)")
 
-    events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "claude",
-            "agent": "Codex",
-            "parent": root["id"],
-            "text": "this one does",
-        },
+    broken = []
+
+    def fail_after_rendering_the_panel(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        state["agent"] = "Rejected agent"
+        rejected_version = {
+            **state["versions"][-1],
+            "version": state["versions"][-1]["version"] + 100,
+        }
+        state["versions"].append(rejected_version)
+        state["browser"].setdefault("version_notes", {})[
+            str(rejected_version["version"])
+        ] = "Rejected version"
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_rendering_the_panel)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        events_model.append_event(
+            d,
+            {
+                "kind": "reply",
+                "author": "claude",
+                "agent": "Codex",
+                "parent": root["id"],
+                "text": "this one does",
+            },
+        )
+    assert (
+        page.evaluate(
+            "async () => (await import('/runtime/widget-api.js')).agentName()"
+        )
+        == "Claude"
     )
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+
+    version_menu = page.locator(".lf-version-menu")
+    assert version_menu.get_attribute("aria-keyshortcuts") is None
+    page.locator(".lf-version").click()
+    expect(version_menu).not_to_contain_text("Rejected version")
+    page.keyboard.press("Escape")
+
+    toast = page.locator(".lf-toast")
+    assert "show" not in toast.get_attribute("class").split()
+    page.wait_for_timeout(100)
+    assert "Codex replied" not in page.locator(".lf-live").text_content()
+
+    page.unroute("**/api/state*")
+    nudge(d)
     told(page)
-    expect(page.locator(".lf-toast")).to_have_text("Codex replied — open Comments")
+    expect(toast).to_have_text("Codex replied — open Comments")
+    expect(toast).to_have_class(re.compile(r"\bshow\b"))
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
+    """Rollback preserves an unchanged chooser subtree and its focused row."""
+    url = serve(TWIN_V1)
+    d = serve.page_dir
+    page, errors = open_page(browser, url)
+    page.locator(".lf-version").click()
+    menu = page.locator(".lf-version-menu")
+    row = menu.locator(".lf-version-row").first
+    expect(row).to_be_focused()
+
+    broken = []
+
+    def fail_after_rendering_versions(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_rendering_versions)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        nudge(d)
+    expect(menu).to_be_visible()
+    expect(row).to_be_focused()
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+
+    page.unroute("**/api/state*")
+    nudge(d)
+    told(page)
     assert errors == []
     page.close()
 
@@ -913,6 +1012,18 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"the document ends {room['foot']:.0f}px short of its own end, under a "
         f"{room['line']:.0f}px key line"
     )
+
+    # The covering shelf is taller than the desktop row. A reader can cross that
+    # breakpoint by rotating or resizing an already-open page, so the flow reservation
+    # follows the rendered banner in both directions rather than keeping its startup
+    # measurement and either covering the document or leaving a blank strip.
+    for width in (390, 900):
+        resized(page, width, 844)
+        room = page.evaluate(CHROME_ROOM)
+        assert abs(room["head"] - room["banner"]) <= 1, (
+            f"after resizing to {width}px, the document reserved {room['head']:.0f}px "
+            f"for a {room['banner']:.0f}px banner"
+        )
 
     page.emulate_media(media="print")
     printed = page.evaluate(CHROME_ROOM)

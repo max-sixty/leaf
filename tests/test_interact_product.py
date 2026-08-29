@@ -7,10 +7,12 @@ import re
 import shutil
 from pathlib import Path
 
+import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
+    COMMAND_SUBJECTS,
     PAGE,
     ROOT,
     _report,
@@ -26,18 +28,19 @@ from interact_support import (
     published,
     state_json,
 )
-from leaf import checking as checking_model
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import layer as layer_model
-from leaf import registry as registry_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
-from leaf import validation as validation_model
+from leaf.registry import storage as registry_storage
+from leaf.structure import parse_structure
+from leaf.validation import compatibility as validation_model
+from leaf.validation.instances import reference_errors
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -112,7 +115,7 @@ def test_stamp_assigns_versions_and_copies_the_exact_source(page_dir):
 
 
 def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir):
-    kinds = registry_model.load_registry(page_dir)["$events"]["kinds"]
+    kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
@@ -126,7 +129,7 @@ def test_page_events_name_revisions_while_stamps_and_signoff_name_both(page_dir)
 
 def test_choose_requires_an_id(page_dir):
     # Actions name their widget by id, so an interactive group can't go without one.
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
@@ -138,7 +141,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
     # The registry marks a specimen's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-specimen id="sp" label="a decision">'
         '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
@@ -153,7 +156,7 @@ def test_specimen_admits_interactive_widgets(page_dir):
 def test_an_ask_region_frames_exactly_one_request(page_dir):
     """A broad Ask has one source of liveness and state; zero leaves navigation
     pointing at nothing, while two make its answer and roll-up ownership ambiguous."""
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
@@ -172,6 +175,19 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
         )
         == []
     )
+    request = (
+        '<lf-operations id="host-request" target="goal" worker="worker" '
+        'worktree="tree" label="Restart?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert (
+        fragment_errors(
+            f'<lf-ask id="ask-request"><h2>Recover it</h2>{request}</lf-ask>',
+            registry,
+        )
+        == []
+    )
 
     # Evidence can quote another request-shaped widget without giving this Ask a
     # second live source. The runtime already excludes x-exhibit descendants from the
@@ -186,7 +202,7 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
     empty = fragment_errors(
         '<lf-ask id="ask-empty"><h2>Nothing to answer</h2></lf-ask>', registry
     )
-    assert "an Ask must frame exactly one x-awaits widget, found none" in " ".join(
+    assert "an Ask must frame exactly one declared ask source, found none" in " ".join(
         empty
     )
 
@@ -194,8 +210,54 @@ def test_an_ask_region_frames_exactly_one_request(page_dir):
         f'<lf-ask id="ask-crowded">{first}{second}</lf-ask>', registry
     )
     message = " ".join(crowded)
-    assert "an Ask must frame exactly one x-awaits widget" in message
+    assert "an Ask must frame exactly one declared ask source" in message
     assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
+
+
+def test_a_request_holder_offers_at_least_one_command(page_dir):
+    """A ready request seat cannot be an Ask the reader has no way to answer."""
+    registry = registry_storage.load_registry(page_dir)
+    empty = (
+        '<lf-operations id="host-request" target="goal" worker="worker" '
+        'worktree="tree" label="Restart?"></lf-operations>'
+    )
+
+    assert "an x-request holder must offer at least one declared verb" in " ".join(
+        fragment_errors(empty, registry)
+    )
+    duplicate = (
+        '<lf-operations id="host-request" target="goal" worker="worker" '
+        'worktree="tree" label="Restart?">'
+        '<lf-operation verb="restart"><strong>Restart cleanly</strong></lf-operation>'
+        '<lf-operation verb="restart"><strong>Restart in place</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert "must offer each verb once; repeated ['restart']" in " ".join(
+        fragment_errors(duplicate, registry)
+    )
+
+
+def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
+    """Existing ids are insufficient when a typed host command swaps its subjects."""
+    registry = registry_storage.load_registry(page_dir)
+    parser = parse_structure(
+        '<lf-command id="hub">'
+        '<lf-task id="goal" status="active"><strong>Goal</strong>'
+        '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+        '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
+        "</lf-agent>"
+        '<lf-operations id="commands" target="worker" worker="tree" '
+        'worktree="goal" label="Do it">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+
+    errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+
+    assert len(errors) == 3
+    assert "$command.widgets widget where role='goal'" in errors[0]
+    assert "$command.widgets widget where role='worker'" in errors[1]
+    assert "$command.widgets widget where role='evidence'" in errors[2]
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
@@ -203,7 +265,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
 ):
     """A settled group needs an id for its disclosure state. Once the whole
     unreferenced group leaves, its ids are advisory rather than an error."""
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     assert "'id' is a dependency of 'settled'" in " ".join(
         fragment_errors(
             '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
@@ -223,21 +285,21 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     (page_dir / "index.html").write_bytes(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
-    assert checking_model.cmd_check(page_dir) == 0
+    assert checking_command.cmd_check(page_dir) == 0
     capsys.readouterr()
 
     (page_dir / "versions" / "v2.html").write_text(PAGE)
     (page_dir / "index.html").write_bytes(
         (page_dir / "versions" / "v2.html").read_bytes()
     )
-    assert checking_model.cmd_check(page_dir) == 0
+    assert checking_command.cmd_check(page_dir) == 0
     assert "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick']" in (
         capsys.readouterr().out
     )
 
 
 def test_registry_examples_validate(page_dir):
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     assert any(
         tag.startswith("lf-") and "x-example" in entry
         for tag, entry in registry.items()
@@ -249,7 +311,7 @@ def test_registry_examples_validate(page_dir):
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
-    registry = registry_model.load_registry(page_dir)
+    registry = registry_storage.load_registry(page_dir)
     registry["lf-diff"]["x-example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
@@ -519,6 +581,53 @@ def test_reply_validates_widget_markup(page_dir):
     assert event["author"] == "claude"
     assert event["text"] == "See:"
     assert event["markup"].startswith("<lf-diagram")
+
+
+def test_reply_validates_typed_references_against_the_page(page_dir):
+    """A frozen request must not enter the log already unable to pass POST."""
+    subjects = (
+        '<lf-command id="hub"><lf-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
+    )
+    (page_dir / "versions" / "v2.html").write_text(
+        PAGE.replace("</section>", subjects + "</section>")
+    )
+    publish(page_dir, version=2)
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
+    )
+
+    def reply(markup):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c1",
+                "--text",
+                "Choose:",
+                "--markup",
+                markup,
+            ],
+        )
+
+    swapped = reply(
+        '<lf-operations id="commands" target="worker" worker="tree" '
+        'worktree="goal" label="Next">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert swapped.exit_code != 0
+    assert "where role='goal'" in swapped.output
+
+    valid = reply(
+        '<lf-operations id="commands" target="goal" worker="worker" '
+        'worktree="tree" label="Next">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations>"
+    )
+    assert valid.exit_code == 0, valid.output
 
 
 def test_a_version_response_cannot_take_an_agent_reply(page_dir):

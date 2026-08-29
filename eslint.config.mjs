@@ -137,7 +137,7 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks.js"],
+    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks/*.js"],
     rules: {
       ...publicRuntimeBoundary,
       "no-restricted-syntax": [
@@ -169,7 +169,7 @@ export default [
     rules: ownerBoundary,
   },
   {
-    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks-standalone.js"],
+    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks/standalone.js"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -185,7 +185,7 @@ export default [
     },
   },
   {
-    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks-init.js"],
+    files: ["plugins/leaf/skills/leaf/scripts/leaf/render-checks/init.js"],
     languageOptions: { sourceType: "script" },
   },
 ];

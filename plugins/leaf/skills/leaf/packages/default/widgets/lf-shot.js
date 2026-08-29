@@ -11,14 +11,16 @@
  * what it is worth. The switch was a radio each under the frame: two targets 83px apart
  * and 20px tall, together a fiftieth of the image's area, so every alternation spent a
  * look away from the change, an aim, and a re-aim for the second click — and a
- * comparison is many alternations. The frame is the target now. A transparent label
- * over the image drives one checkbox, so the pointer rests on the change and clicks
- * without aiming, and the two states swap under it.
+ * comparison is many alternations. The frame is the target now. One transparent native
+ * checkbox spans the image and instruction row, so the pointer rests on the change and
+ * clicks without aiming, and the two states swap under it. A remote checkbox driven
+ * through a label made browsers scroll the control to the middle of the viewport, which
+ * tore the reader away from a tall comparison.
  *
- * Everything that needs is native: the state is a checkbox, the swap a `:has(:checked)`
- * rule in the theme. No handler runs after the upgrade, so a serialized copy of this
- * page — DOM kept, script tags dropped — still flips, and a printed one stacks both
- * frames instead. A dragged slider would have survived neither.
+ * Everything that drives the flip is native: the state is a checkbox, the swap a
+ * `:has(:checked)` rule in the theme. A serialized copy of this page — DOM kept, script
+ * tags dropped — still flips, and a printed one stacks both frames instead. A dragged
+ * slider would have survived neither.
  *
  * Two kinds of word, and they are marked differently on purpose. Each frame's caption
  * names which state it holds, which is the widget's own word and the only thing telling
@@ -55,13 +57,6 @@ customElements.define(
         this.append(frame);
       }
 
-      // The target: transparent, the frame's own size, and driving the checkbox below by
-      // `for`. It carries the offer marker like any other control a widget hangs, so
-      // paper drops it and a float steps around it where one would otherwise stand on
-      // the image; the copy keeps it, the checkbox's state being the browser's.
-      const flip = offer("label", "lf-shotflip");
-      flip.htmlFor = `lf-shot-${this.id}-flip`;
-
       // The switch sits under the frame and not on it. It is not what the reader works
       // during a comparison — the image is — so it is the keyboard's handle and the word
       // that says the image is live, and a chip in the frame's corner buys neither of
@@ -69,21 +64,21 @@ customElements.define(
       // it landed on the very pill the pair existed to show.
       const row = offer("div", "lf-shotpick");
       const label = offer("label", "");
-      const box = document.createElement("input");
+      const box = offer("input", "lf-shotflip");
       box.type = "checkbox";
-      box.id = flip.htmlFor;
-      // `.lf-ui` because it carries an id: which item a comment is on is asked as
-      // `[id]:not(.lf-ui)` of the element itself, so an injected id without the class
-      // answers that question with itself.
-      box.className = "lf-ui";
-      box.ariaLabel = `${alt}: show the after state`;
+      box.id = `lf-shot-${this.id}-flip`;
+      // Start with the words painted beside the control (WCAG Label in Name), then add
+      // the comparison's identity so several shots do not become identical stops.
+      box.ariaLabel = `flip — or click the image — ${alt}`;
       // The word for the bigger target is this label's own, not a note beside it. A
       // pointer cursor is the only other thing saying the image is live, and it says so
       // to whoever has already hovered — while an offer standing outside a control, with
       // words and nothing to work, is what a copy has no way to honour
-      // (`test_an_exported_example_stands_on_its_own` refuses one). Inside, the press the
-      // words name is the label over the frame, and paper drops both together.
-      label.append(box, " flip — or click the image");
+      // (`test_an_exported_example_stands_on_its_own` refuses one). Inside, the direct
+      // checkbox covers the words as well as the frame, and paper drops it and this
+      // offered instruction together.
+      label.htmlFor = box.id;
+      label.append("flip — or click the image");
       row.append(label);
 
       // Space is the platform's here, the control being a checkbox, so the row binds no
@@ -95,6 +90,7 @@ customElements.define(
       // form's submit, and there is no form on a leaf page.
       keys(box, "On a screenshot", [
         {
+          id: "screenshot.toggle",
           keys: [" "],
           does: () => `Show the ${box.checked ? "before" : "after"} frame`,
           line: () => `show ${box.checked ? "before" : "after"}`,
@@ -103,7 +99,10 @@ customElements.define(
       // A toggle is no focus move, so nothing else would repaint the word it just changed.
       box.addEventListener("change", paintKeys);
 
-      this.append(flip, row);
+      // The native control is the direct grid item over both the frame and this row.
+      // A pointer works the checkbox where it already is, so neither image nor words
+      // forward focus to an offscreen control and the page keeps its reading position.
+      this.append(box, row);
       settle(this.register(shots));
     }
 

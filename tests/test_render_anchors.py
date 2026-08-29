@@ -5,11 +5,12 @@ import re
 
 import pytest
 from axe_playwright_python.sync_playwright import Axe
-from leaf import events as events_model
-from leaf import passages as passages_model
-from leaf import registry as registry_model
+from leaf import anchor_capture as anchor_capture_model
+from leaf import event_log as events_model
+from leaf.registry import storage as registry_storage
 from playwright.sync_api import expect
 from render_support import (
+    ADDRESSED_PAGE,
     AIM_SEAM,
     AIM_SEAM_PAGE,
     ASTRAL_PAGE,
@@ -26,10 +27,10 @@ from render_support import (
     INLINE_PAGE,
     LONG_PAGE,
     NATIVE_CONTROL_PAGE,
-    REPLY_HOST_PAGE,
     SAID_PAGE,
     SHOT_SRC,
     SHOTS,
+    SOURCE_EXAMPLES,
     SUGGESTION_PAGE,
     TAIL_PAGE,
     THIN_V1,
@@ -59,63 +60,52 @@ pytestmark = pytest.mark.nightly
 
 
 def test_the_banner_stands_where_it_says_it_does(browser, serve):
-    """`blocksOnScreen` decides which blocks count as the ones being read, and it draws
-    the line at the banner's lower edge — captureView stores the first of them as the
-    reader's landmark, and the ask walk starts from it. It reads that edge off
-    --lf-banner-h, the one place the height is stated and the term seven rules place
-    themselves against.
+    """The document reserves exactly the head covered by the painted banner.
 
-    Two ways that could quietly stop being a reading. The token could go — renamed,
-    moved off body, put behind a query — and `parseFloat` of nothing is NaN, which the
-    fallback turns into a line at zero: every block on the page counts as read, the
-    landmark becomes whatever is at the top of the document, and nothing raises. Or the
-    banner could come to be drawn to some other height, and the declaration would answer
-    for a bar that is not there.
-
-    So the number is asked of both ends: what the stylesheet says, and where the bar the
-    reader is looking at actually ends. The second is narrower than it looks, and worth
-    saying so — `.lf-banner` takes its height from this very token, so changing the token
-    moves both ends together and the comparison holds. What it catches is the bar coming
-    to a different size than its height: a padding or a border added to the banner, or a
-    package theme setting the height directly. The first assertion is the one that
-    catches the token itself going away."""
+    A missing reservation puts the first block under the banner. A mismatched reservation
+    also makes anchored browser scrolls stop above or below the visible page.
+    """
     url = serve(LONG_PAGE)
     page, errors = open_page(browser, url)
     stated, drawn = page.evaluate(
         """() => [
-        parseFloat(
-          getComputedStyle(document.body).getPropertyValue('--lf-banner-h')),
-        document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
-    ]"""
+            parseFloat(getComputedStyle(document.body, '::before').height),
+            document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
+        ]"""
     )
     page.close()
 
     assert stated > 0, (
-        "--lf-banner-h no longer resolves on body, so the anchor pass reads its "
-        f"on-screen line as {stated} and every block on the page counts as one the "
-        "reader is looking at"
+        f"the banner reserves {stated}px, so the page's first block is no longer held "
+        "clear of its painted chrome"
     )
     assert drawn == stated, (
-        f"the banner is drawn to {drawn}px and states {stated}px, so the line the "
-        "anchor pass draws between read and unread is in neither place"
+        f"the banner is drawn to {drawn}px but the page reserves {stated}px, so the "
+        "first block and anchored scrolls land against different edges"
     )
     assert errors == [], errors
 
 
-@pytest.mark.parametrize("example", EXAMPLES, ids=lambda p: p.stem)
+@pytest.mark.parametrize("example", SOURCE_EXAMPLES, ids=lambda p: p.stem)
 def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, example):
     """Anchoring has to work on the pages people actually write, not on a fixture built
     to suit it. Every failure here has been a place where what the reader selects and
     what the search reads come apart — an uppercased header, a widget's own chrome, the
     stylesheet a rendered diagram carries — and a hand-built page has none of them. So
-    this drags across every pair of adjacent blocks in every shipped example, which is
+    this drags across every pair of adjacent blocks in every source example, which is
     the shape a real selection takes, and asks for the highlight the composer promises.
+
+    The generated gallery is not another authored input: scripts/gallery.py derives a
+    tab from each source `<main>` and a separate test rejects any drift. Repeating every
+    source passage inside that composition used to be most of this sweep's runtime. Tab
+    labels and hidden-panel navigation have focused gesture tests, so the source corpus
+    retains the content variations while those tests retain the gallery's mechanism.
 
     "Every" includes the words a widget renders into a control, which is why the filter
     below is the runtime's own rule rather than a test for the chrome class: while it was
     the class, the sweep that proves every passage is quotable structurally could not see
-    the passages that weren't. It reaches six tab names, two column headings and a settled
-    group's summary line in the gallery alone."""
+    the passages that weren't. Across the source corpus it reaches attribute-rendered
+    headings, settled summaries, and the tab names in parallel-workstreams."""
     page, errors = open_page(browser, serve(example))
     result = page.evaluate("""async () => {
         const tick = () => new Promise(r => setTimeout(r, 0));
@@ -283,7 +273,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
     ]
 
     for index, (selector, quote, section) in enumerate(cases, 1):
-        expected_anchor = passages_model.capture_anchor(
+        expected_anchor = anchor_capture_model.capture_anchor(
             FENCED_CAPTURE_PAGE, registry, quote, section
         )
         selected = page.evaluate(
@@ -600,21 +590,22 @@ def test_one_chip_says_every_keyboard_address(browser, serve):
     carries the whole motion it is halfway through. So the shared minimum and padding are
     compared and the result of them is not, and the difference is asserted in the
     direction it has to run.
-    The face is compared because it is the half a letter made load-bearing: in the
-    document's sans a lowercase l is a bare stroke, and the chord's second link wore what
-    read as 12."""
-    url = serve(REPLY_HOST_PAGE)
+    The face is compared because the same address vocabulary must not change voice between
+    a document control and the chord layer."""
+    url = serve(ADDRESSED_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
 
-    # `n` opens the panel on the first ask and lands on its mark, which is what paints
-    # that group's digits; g c then aims the chord at the comments, which paints theirs.
-    page.keyboard.press("n")
+    # Focus inside the first panel ask paints that group's digits; g h then aims the
+    # chord at the document's hyperlinks, which paints its own numeric addresses.
+    page.keyboard.press("g")
+    page.keyboard.press("c")
+    page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-address").first
     expect(picked).to_be_visible()
     page.keyboard.press("g")
-    page.keyboard.press("c")
+    page.keyboard.press("h")
     addressed = page.locator(CHIPS).first
     expect(addressed).to_be_visible()
 
@@ -1225,7 +1216,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     It is also what a version bump of the vendored bundle has to survive."""
     url = serve(CODE_PAGE)
     page, errors = open_page(browser, url)
-    langs = registry_model.load_registry(serve.page_dir)["$languages"]["names"]
+    langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
@@ -2769,7 +2760,8 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     expect(page.locator(".lf-help")).to_contain_text("In the versions menu")
-    expect(page.locator(".lf-help")).to_contain_text("Walk the versions")
+    expect(page.locator(".lf-help")).to_contain_text("Previous version")
+    expect(page.locator(".lf-help")).to_contain_text("Next version")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-help")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
@@ -2796,7 +2788,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).to_be_focused()
 
-    # v opens it from anywhere on the page, the way l opens the leaves tray, and lands
+    # v opens it from anywhere on the page, the way g l opens the leaves tray, and lands
     # where the walk should carry on from, so that walk is the next press rather than a
     # Tab-hunt across the banner. This menu is the only place the notes are, so what each
     # version changed is reachable by keyboard through this key or not at all.
@@ -2862,7 +2854,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     Which presses are asserted is decided by what a suspended one leaves to read. A key
     the mode swallows moves nothing, and nothing is what an assertion made too early reads
     on a key that worked — so the presses here are the two whose effect is a class and a
-    focus move in the same task as the keydown (`j` and `c`, both of which would raise the
+    focus move in the same task as the keydown (`t` and `c`, both of which would raise the
     panel and one of which would take the focus out of the menu). `d` lands a glide later,
     where "not yet" and "never" read alike; the line is where it is held, off the same
     claim the dispatcher reads."""
@@ -2908,7 +2900,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
 
-    page.keyboard.press("j")  # would raise the panel and walk focus out of the menu
+    page.keyboard.press("t")  # would raise the panel and walk focus out of the menu
     page.keyboard.press("c")  # would raise it and put focus in its box
     expect(panel).to_be_hidden()
     expect(row).to_be_focused()
@@ -2918,7 +2910,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     # standing over the page rather than the key being broken.
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-thread").first).to_be_focused()
     assert errors == []
@@ -2940,6 +2932,50 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     right to."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+
+    # A comparison checkbox is the menu's internal Tab stop rather than part of its
+    # arrow-key row walk. Reaching it must not be mistaken for leaving the popup.
+    compared, compared_errors = open_page(browser, url.replace("/v1.html", "/v2.html"))
+    compared.keyboard.press("v")
+    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.keyboard.press("Tab")
+    comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
+    expect(comparison).to_be_focused()
+    expect(compared.locator(".lf-version-menu")).to_be_visible()
+    expect(compared.locator(".lf-keyline")).not_to_contain_text("leave versions")
+    compared.keyboard.press("?")
+    expect(compared.locator(".lf-help")).not_to_contain_text("Leave the versions menu")
+    compared.keyboard.press("Escape")
+    expect(comparison).to_be_focused()
+
+    # Holding Tab sends repeated keydowns after the first stop. The boundary action must
+    # repeat too: leaving the browser's focus move native does not mean leaving the menu
+    # painted over the control that move reaches.
+    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    compared.keyboard.up("Tab")
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
+
+    compared.keyboard.press("v")
+    compared.locator('.lf-version-row[data-lf-version="2"]').focus()
+    compared.keyboard.down("Shift")
+    compared.keyboard.down("Tab")
+    expect(comparison).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    compared.keyboard.up("Tab")
+    compared.keyboard.up("Shift")
+    expect(compared.locator(".lf-version-menu")).to_be_hidden()
+    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
+    assert compared_errors == []
+    compared.close()
+
     page, errors = open_page(browser, url, pin=True)
 
     page.keyboard.press("v")

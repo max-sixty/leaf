@@ -113,7 +113,10 @@ export function createBanner({ agentName, ago, dot, el, presented, statusText })
       return;
     }
     if (state === null) {
-      showStatus("offline", "Server offline — comments won't send");
+      showStatus(
+        "offline",
+        "Server offline — reconnecting. Keep this page open so pending changes can send.",
+      );
       return;
     }
     const { status, pending } = state;

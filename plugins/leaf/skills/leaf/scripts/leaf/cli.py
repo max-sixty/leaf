@@ -6,17 +6,19 @@ from pathlib import Path
 
 import click
 
-from leaf.checking import cmd_check
+from leaf.agent_state import cmd_page_state
 from leaf.conversation import cmd_comment, cmd_edit, cmd_reply, cmd_report, cmd_resolve
 from leaf.data import cmd_data_clear, cmd_data_set
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook, unanswered_asks
+from leaf.host import host_identity
 from leaf.hosting import cmd_serve, cmd_stop, start_server
-from leaf.layer import cmd_init, cmd_package_check, cmd_package_init
 from leaf.media import cmd_media
-from leaf.page import cmd_catalog, cmd_guidance, cmd_page_state
+from leaf.packages import cmd_package_check, cmd_package_init
+from leaf.page import cmd_catalog, cmd_guidance
 from leaf.passages import active_enclosing
 from leaf.publishing import cmd_stamp
+from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
     ANSWER_ASK_INSTRUCTION,
@@ -24,13 +26,14 @@ from leaf.schema import (
 )
 from leaf.service import (
     PageTransaction,
-    host_identity,
     restore_page_claim,
     take_page_claim,
     unacknowledged,
 )
 from leaf.session import cmd_ack, cmd_status, cmd_wait
 from leaf.transcript import cmd_events, cmd_transcript
+from leaf.validation.command import cmd_check
+from leaf.vendoring import cmd_init
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -517,6 +520,20 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
     cmd_report(resolve_dir(dir), widget, verb, fields)
+
+
+@cli.command(short_help="Record the terminal outcome of a reader request.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("request", metavar="REQUEST")
+@click.argument(
+    "status",
+    type=click.Choice(["succeeded", "failed"]),
+    metavar="succeeded|failed",
+)
+@click.option("--text", help="host outcome (default: stdin)")
+def receipt(dir: str, request: str, status: str, text: str) -> None:
+    """Record exactly one terminal host outcome for REQUEST."""
+    cmd_receipt(resolve_dir(dir), request, status, text)
 
 
 @cli.command(short_help="Print the event log as JSON lines.")

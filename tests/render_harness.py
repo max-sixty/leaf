@@ -42,15 +42,16 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import files as files_model
+from leaf import host as host_model
 from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
-from leaf import render_gate as render_gate_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import structure as structure_model
+from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -61,6 +62,13 @@ COMMAND_HUB_PACKAGE = ROOT / "examples" / "packages" / "command-hub"
 EXAMPLE_PACKAGES = json.loads((ROOT / "examples" / "layer.json").read_text())
 EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
+# The inputs scripts/gallery.py composes. The gallery is a generated presentation of
+# these pages, not an eleventh author source; tests that exercise authored content use
+# this set while tests of the gallery's own rendering or export keep EXAMPLES.
+SOURCE_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "gallery")
+assert SOURCE_EXAMPLES and len(SOURCE_EXAMPLES) + 1 == len(EXAMPLES), (
+    "expected exactly one generated gallery beside the source examples"
+)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -441,7 +449,7 @@ def serve(tmp_path, monkeypatch, clone_initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
-        if project.exists() or service_model.config_home().exists():
+        if project.exists() or host_model.config_home().exists():
             initialize(d)
         else:
             clone_initialized_page("examples", d, initialize)
@@ -591,9 +599,11 @@ class Traffic:
             set()
         )  # event posts in the air, each counted once whichever way it ends
         self._answered = set()  # requests whose one response has entered the counters
+        self._complete = set()  # requests the browser has finished delivering
         self._responses = []  # bodies are read outside Playwright's response callback
         page.on("request", self._out)
         page.on("response", self._responded)
+        page.on("requestfinished", self._delivered)
         page.on("requestfailed", self._back)
         # A navigation is the third way a trip ends, and the one the browser reports
         # for neither kind: a post the reload kills mid-flight gets no `response` and
@@ -634,15 +644,22 @@ class Traffic:
         self._back(request)
         self._responses.append(response)
 
-    def settle_response(self, response):
-        """Account for the exact response a causal wait just consumed.
+    def _delivered(self, request):
+        """The browser has the whole body, so reading it cannot block."""
+        self._complete.add(request)
 
-        Playwright resolves `wait_for_event("response")` independently of ordinary
-        response listeners. Under load the waiter can resume first; explicitly entering
-        that response here closes the ordering without polling or sleeping. `_responded`
-        deduplicates the later listener whichever one wins.
+    def settle_finished(self, request):
+        """Account for the exact trip a causal wait just consumed.
+
+        Playwright resolves `wait_for_event("requestfinished")` independently of
+        ordinary listeners. Under load the waiter can resume first; explicitly entering
+        that trip here closes the ordering without polling or sleeping. `_responded`
+        and `_delivered` deduplicate the later listeners whichever one wins.
         """
-        self._responded(response)
+        self._delivered(request)
+        response = request.response()
+        if response is not None:
+            self._responded(response)
         self.settle()
 
     def settle(self):
@@ -650,10 +667,27 @@ class Traffic:
 
         Playwright may yield while `response.json()` asks its driver for the body. Doing
         that inside `_responded` let the test re-enter between `acked` and `pending`,
-        after the response event that could wake it had already fired."""
-        while self._responses:
-            responses, self._responses = self._responses, []
-            for response in responses:
+        after the response event that could wake it had already fired.
+
+        A body is read only once `requestfinished` says the browser holds all of it. The
+        `response` event fires on the headers, and `Response.json` then waits on the
+        finished fact with no deadline of its own — the one wait in this harness that
+        cannot run out. A page that abandons an answer it no longer wants leaves a
+        request the browser never finishes, and reading that body stopped a worker
+        dead: a locally reproduced wedge was traced with both workers inside
+        `Response.json`, and the runs on main that spend their whole 45-minute bound
+        name no test and leave no traceback. A run reaches that bound only with both
+        workers stopped, and on the CI runs parsed for it the second one was past this
+        site, in teardown. Queued and unread, such a response instead lets `_until`
+        reach its own deadline and print the counters."""
+        while True:
+            ready = [r for r in self._responses if r.request in self._complete]
+            if not ready:
+                return
+            self._responses = [
+                r for r in self._responses if r.request not in self._complete
+            ]
+            for response in ready:
                 self._settle(response)
 
     def _settle(self, response):
@@ -724,20 +758,24 @@ def _until(page, fact, wanted):
     """Block until `fact` holds of the page's traffic.
 
     The events the counters are built from arrive while the client is blocked inside a
-    Playwright call, so this blocks on each next response and asks again — no polling
-    interval to pick, and nothing added to the page. The response returned by that wait
-    is entered into Traffic directly because Playwright does not order the waiter after
-    ordinary response listeners; the delivery fact therefore changes before this caller
-    asks again.
+    Playwright call, so this blocks on each next finished trip and asks again — no
+    polling interval to pick, and nothing added to the page. The request returned by that
+    wait is entered into Traffic directly because Playwright does not order the waiter
+    after ordinary listeners; the delivery fact therefore changes before this caller asks
+    again.
 
-    It wakes on responses alone, where the counters answer to failures too, so a fact that
-    came true through a failed request waits for the next poll that is answered to be
-    noticed. A page with every poll routed to `abort` has no such next, and a wait on one
-    runs its timeout out and says so rather than passing.
+    It wakes on finished trips rather than on arriving headers, because a body is what
+    the counters are read from and `requestfinished` is the browser saying it has one.
+    The counters answer to failures too, so a fact that came true through a failed
+    request waits for the next trip that finishes to be noticed. A page with every poll
+    routed to `abort` has no such next, and a wait on one runs its timeout out and says
+    so rather than passing.
 
     A wait that runs out names the caller's wanted fact and prints its starting and final
-    counters. No response preserves Playwright's timeout as the cause; a busy response
-    stream reaches the same explicit deadline instead of waking this loop forever."""
+    counters. The final reading comes after the timeout because the page's own
+    `requestfinished` listener may settle the fact as the timeout is delivered. No
+    finished trip preserves Playwright's timeout as the cause; a busy stream reaches the
+    same explicit deadline instead of waking this loop forever."""
     if fact(_traffic(page)):
         return
     began = str(_traffic(page))
@@ -747,12 +785,14 @@ def _until(page, fact, wanted):
             remaining = int((deadline - time.monotonic()) * 1000)
             if remaining <= 0:
                 raise PlaywrightTimeout("responses outlived the wait deadline")
-            response = page.wait_for_event("response", timeout=remaining)
-            page.lf_traffic.settle_response(response)
+            request = page.wait_for_event("requestfinished", timeout=remaining)
+            page.lf_traffic.settle_finished(request)
     except PlaywrightTimeout as ran_out:
+        ended = _traffic(page)
+        if fact(ended):
+            return
         raise AssertionError(
-            f"the page never {wanted}: the wait began on {began} and gave up on "
-            f"{_traffic(page)}"
+            f"the page never {wanted}: the wait began on {began} and gave up on {ended}"
         ) from ran_out
 
 
@@ -1373,8 +1413,8 @@ def resized(page, width, height):
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
 
 
-def select(page, start, end, steps=8):
-    """Drag a selection from one point to another, pressing on a whole pixel.
+def hold_selection(page, start, end, steps=8):
+    """Drag a selection without releasing, pressing on a whole pixel.
 
     A fractional start point loses the selection outright wherever it and its own
     floor fall either side of a glyph's caret boundary: the drag runs, the mouseup
@@ -1391,6 +1431,11 @@ def select(page, start, end, steps=8):
     page.mouse.move(math.floor(start[0]), math.floor(start[1]))
     page.mouse.down()
     page.mouse.move(end[0], end[1], steps=steps)
+
+
+def select(page, start, end, steps=8):
+    """Drag and release a selection."""
+    hold_selection(page, start, end, steps)
     page.mouse.up()
 
 

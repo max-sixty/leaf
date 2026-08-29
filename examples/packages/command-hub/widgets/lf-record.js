@@ -3,6 +3,8 @@ import { declarationFor, once, watchHistory } from "/runtime/widget-api.js";
 
 const kinds = new Set([
   "action",
+  "request",
+  "receipt",
   "comment",
   "resolve",
   "unresolve",
@@ -48,6 +50,18 @@ function reportReceipt(event) {
   return `${pageName(event.widget)} reported ${detail ?? event.action} (${event.widget})`;
 }
 
+function hostRequestReceipt(event) {
+  const target = event.detail?.target;
+  return `Requested ${event.action.replaceAll("-", " ")} · ${pageName(target)}${target ? ` (${target})` : ""}`;
+}
+
+function hostOutcomeReceipt(event, events) {
+  const request = events.find((candidate) => candidate.id === event.request);
+  const operation = request?.action?.replaceAll("-", " ") ?? "request";
+  const target = request?.detail?.target;
+  return `${operation} ${event.status} · ${pageName(target)}${target ? ` (${target})` : ""} · ${event.text}`;
+}
+
 function threadRoot(event, events) {
   let current = event;
   const seen = new Set();
@@ -69,6 +83,8 @@ function receipt(event, events) {
   });
   let words;
   if (event.kind === "action") words = actionReceipt(event);
+  else if (event.kind === "request") words = hostRequestReceipt(event);
+  else if (event.kind === "receipt") words = hostOutcomeReceipt(event, events);
   else if (event.holds)
     words = `sent and paused · ${pageName(event.holds)} (${event.holds})`;
   else if (event.kind === "report") words = reportReceipt(event);

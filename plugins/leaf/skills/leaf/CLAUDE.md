@@ -26,6 +26,12 @@ runtime owners. An owner may publish a factory-built capability after boot wires
 dependencies; it never reaches back through the entry module or public facade.
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
+`runtime/deferred-modals.js` holds authored modals outside the top layer until the
+first presentation boundary;
+`runtime/layer-client.js` owns the vendored-generation gate, shared event POST,
+and page-error channel;
+`runtime/requests.js` owns typed one-shot request availability, sending, and the
+server-projected request lifecycle watcher;
 `runtime/asks/model.js` owns request discovery and folding;
 `runtime/asks/view.js` owns ask chrome, marking, and the ask walk;
 `runtime/composing/capture.js` owns selection capture and snapping;
@@ -38,8 +44,8 @@ and tray panels;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
-`runtime/reactions.js` owns reaction vocabulary, pills, sending, the armed mode, and
-reaction-specific undo wording;
+`runtime/reactions.js` owns reaction vocabulary, pills and their standing paint,
+sending, the armed mode, and reaction-specific undo wording;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
@@ -55,6 +61,8 @@ event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, version preparation,
 state commit, projection, notification, outbox accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, and tab-icon paint;
+`runtime/banner-shelf.js` owns news-control reservation and focus continuity, action-shelf
+overflow travel, and the banner's touch bridge to the document scroller;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
@@ -69,28 +77,52 @@ rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
 guards, deferred measurement, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
-`runtime/scrolling.js` owns the document scroller identity and the gutter its bar
-takes;
+`runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
+and the gutter its bar takes;
+`runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
+the declaration-derived names and layout queries the runtime supplies it;
+`runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
+document room left after the panel and trays;
 `runtime/presentation.js` owns runtime paint and the words it projects;
 `runtime/reach.js` owns keyboard access to overflow and the containing block a
 scroller owes what it scrolls;
 `runtime/shadow.js` owns declared shadow roots, their theme slice, and shared
 highlight rules;
+`runtime/widget-loader.js` owns registry loading, pre-upgrade passage fences,
+dynamic widget imports, and initial settlement;
 `runtime/storage.js` owns page addressing and browser-backed stores;
 `runtime/syntax.js` owns code tokenization and highlighting;
 `runtime/passages.js` owns the DOM reading and quote resolver;
+`runtime/text-alignment.js` owns lossless, language-aware whole-text alignment;
+`runtime/view-continuity.js` owns persisted semantic reading landmarks, arrival
+landing across authored-document replacement, and the page-block reading used to
+start directional walks;
+`runtime/pointer.js` owns the shared unrounded pointer position;
+`runtime/geometry.js` owns the shared readings of visible boxes and clipping;
 `runtime/navigation.js` owns reader travel and scroller selection;
-`runtime/anchors.js` owns anchor geometry, paint, and anchor-specific travel;
-`runtime/conversation/model.js` owns the thread fold;
+`runtime/anchors.js` owns anchor resolution, paint, and anchor-specific travel;
+`runtime/conversation/model.js` adapts server-projected threads to browser callers;
 `runtime/conversation/messages.js` owns message rendering;
+`runtime/conversation/replies.js` owns reply drafts, mirrored send state, and delivery;
+`runtime/conversation/inline.js` owns conversation seats rendered into the page;
 `runtime/conversation/box.js` owns page-seated first-message boxes;
-`runtime/conversation/landing.js` owns conversation input discovery and focus travel;
+`runtime/conversation/folding.js` owns resolution-fold state and motion;
+`runtime/conversation/landing.js` owns conversation input discovery, focus travel,
+and panel arrival;
+`runtime/conversation/narrowing.js` owns comment-panel search and waiting-on-reader
+filter state;
 `runtime/conversation/placement.js` owns document-order grouping;
+`runtime/conversation/reaction-strips.js` owns the panel's message and page reaction
+surfaces;
+`runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
+state, and their reply, resolve, and reopen controls;
+`runtime/conversation/thread-list.js` owns retained panel list reconciliation;
 `runtime/conversation/work-lines.js` owns live claim seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation;
 `runtime/projection/authored.js` owns captured authored state and restore
 statements; `runtime/projection/data.js` owns keyed runtime-data DOM
-reconciliation; `runtime/projection/fold.js` owns canonical action and report state;
+reconciliation; `runtime/projection/fold.js` adapts canonical action and report state
+to live DOM nodes and the local outbox;
 `runtime/projection.js` owns projection reconciliation and undo. The entry module
 composes their mutually dependent callbacks.
 
@@ -280,11 +312,11 @@ accepted event because its rendering failed.
 
 A recorded action may be optimistic because its gesture has already changed the
 DOM. Drag and edit are examples. `stageOutboxAction` gives that local value the
-same semantic coordinate as logged state and commits it on the exact widget and
-unit nodes that carry it. `stateProjection` overlays all surviving recorded
-outbox actions after logged winners in `outboxOrder`. Until a complete read
-accounts for an attempt, its local winner outranks any older log winner on the
-same coordinate.
+same semantic coordinate as the server view and commits it on the exact widget
+and unit nodes that carry it. The browser projection adapter overlays all
+surviving recorded outbox actions after authoritative winners in `outboxOrder`.
+Until a complete read accounts for an attempt, its local winner outranks any
+older log winner on the same coordinate.
 
 A press whose result has not changed the DOM waits for the log. Recordless
 settlements and completion presses do not enter the optimistic overlay. The
@@ -309,11 +341,11 @@ represents the DOM. Delivery may continue while that correction waits for a
 live drag or editor to finish.
 
 `accountOutbox` runs only after `receiveState` has installed and rendered a
-complete state. It links accepted events to entries, resolves readers waiting on
+complete state. It links receipt events to entries, resolves readers waiting on
 those events, removes non-action entries whose delivery is complete, and calls
-`releaseProjectedOutbox` for actions. Never remove an action merely because a
-POST returned 200 or because an attempt appears in an event array that failed
-partway through rendering.
+`releaseProjectedOutbox` for actions. Never remove an action merely because a POST
+returned 200 or because an attempt appears in a receipt list that failed partway
+through rendering.
 
 `unaccountedGesture` is true while undo is in flight, the outbox is nonempty, or
 a widget is visibly dragging. Navigation and undo both consult it. Navigating
@@ -345,7 +377,7 @@ therefore survives its response.
 The DOM is a projection of three ordered inputs:
 
 1. the authored state captured from this version;
-2. standing actions and reports in the authoritative log window;
+2. standing actions and reports in the server's transaction-consistent browser view;
 3. surviving optimistic recorded actions in the outbox.
 
 The semantic coordinate is
@@ -364,16 +396,24 @@ projections. `x-awaits.answers` says which actions actually close the request;
 orthogonal actions do not, and neither does a conversation standing in the widget's
 declared `x-conversation` seat — that takes the request off the reader's list without
 answering it, which is why this gate reads the projection with no seats in
-it. `x-awaits.rollup` derives a nested request from direct
-interventions and child roll-ups, using the same reducer in the browser and file
-projection.
+it. `x-awaits.rollup` derives a nested request from direct interventions and child
+roll-ups in Python; the browser receives the resulting ids and awaiting values.
 
-`stateProjection(upto)` is the pure derived view. It classifies every action and
-report, applies version and retraction windows, drops withdrawn actions and
-answered reports, folds the last action for each coordinate, retains report
-winners, overlays unresolved local records, and gives a reader action precedence
-over a provisional report on the same coordinate. Winners on independent
-coordinates compose in event order through `compareProjected`.
+Python's `state_projection` is the durable derived view. Under the same page
+transaction as `/api/state`, `browser_state` serializes its classified events and
+winners, asks, conversations, updates, undo candidates, receipts, and coverage at
+one `through_seq`. A normal response projects the revision the tab shows and the
+active revision it may install next. A version comparison requests its older base
+from `/api/view` at the exact `through_seq` already applied to the live DOM, so every
+view used together has the same sequence basis without every state read parsing all
+historical revisions. Page coordinates use that revision's document window;
+conversation coordinates use the unbounded frozen-markup window.
+
+The browser's `stateProjection` is a DOM adapter. It resolves those declared
+coordinates back to current widget modules and overlays unresolved local records.
+It does not derive retractions, settlements, thread structure, asks, updates, or
+undo eligibility from raw events. Winners on independent coordinates still
+compose in event order through `compareProjected`.
 
 The two durable channels share the coordinate model but retain their meaning:
 
@@ -387,8 +427,8 @@ The two durable channels share the coordinate model but retain their meaning:
 `stateProjection` is uncached because registry declarations resolve through the
 live DOM. Thread construction and recordless restoration can replace node
 identities. Its result has four views: `actions`, `reports`, `classified`, and
-`desired`. Add a consumer to one of these views instead of building another fold
-over raw `events`.
+`desired`. Add a browser consumer to one of these views or extend the Python wire
+view instead of building another fold over raw `events`.
 
 `committedProjection` is not a second state authority. It is a checkpoint of
 what node identities and semantic winner the DOM currently represents. Each
@@ -399,11 +439,11 @@ its authored baseline stands.
 
 `projectionCommitted` compares the desired coordinate with that checkpoint.
 Terminal events count as committed because this version has no applicable state
-to paint. `projectionCoverage` converts coordinate commits back to event
-coverage for `data-lf-applied`: superseded actions and answered reports are
-covered when the coordinate that represents them is committed, and an undo is
-covered when its target's coordinate has moved to the prior winner or authored
-baseline.
+to paint. The server supplies coverage records and `projectionCoverage` checks
+their coordinates against DOM commits for `data-lf-applied`: superseded actions
+and answered reports are covered when the coordinate that represents them is
+committed, and an undo is covered when its target's coordinate has moved to the
+prior winner or authored baseline.
 
 ### Reconciliation
 
@@ -511,9 +551,9 @@ documents written after this version. A widget instantiated inside frozen thread
 markup is in chrome and reads the whole action sequence because the conversation,
 not a page version, owns it.
 
-Threads also read the whole log. `retractionFloors(Infinity)` keeps a
-conversation current on a pinned page even when the document projection remains
-historical. Registry-declared `x-conversation` seats show an exact-section
+The server projects threads from the whole log, so a conversation stays current
+on a pinned page even when the document projection remains historical.
+Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document; the Comments panel
 keeps the complete thread and its interactive replies. A root declared with
 `response: {kind: version, verb: <answer>}` keeps that exact-section view
@@ -522,8 +562,9 @@ response. Dropping the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note
 records the version floor for each affected id or report event; silence in a
-later version does not revive retracted state. `retractedIds` uses containment,
-not a global id lookup, when deciding which detailed parts an action rests on.
+later version does not revive retracted state. Python's projection uses
+containment, not a global id lookup, when deciding which detailed parts an action
+rests on.
 
 ### Event sequences for modules
 
@@ -565,12 +606,12 @@ field, verb, or widget name. Claims use their required detail as `detail.text`
 and `text`. The state boundary performs this normalization once, before
 downstream code sees private status storage.
 
-`sequence` is the action traversal. It applies widget, optional verb, version
-window, and liveness in one place, then returns structured clones so modules
-cannot mutate the private event list. `watchActions` and `watchUpdates` subscribe
-the two public readings to `lf-actions` and invoke the callback immediately. The
-same rendering function therefore handles a module connected before the first
-state and one constructed by a later thread reconcile.
+`actionSequence` traverses the classified events in the installed server view,
+then returns structured clones so modules cannot mutate the reading.
+`updateSequence` filters the server-normalized update feed. `watchActions` and
+`watchUpdates` subscribe the two public readings to `lf-actions` and invoke the
+callback immediately. The same rendering function therefore handles a module
+connected before the first state and one constructed by a later thread reconcile.
 
 `lf-actions` fires after a complete state has reconciled, including a read whose
 event list did not grow and the heartbeat's re-application of the state the page
@@ -589,7 +630,7 @@ assertion is as old as its revision.
 `actionStands` answers whether one accepted action is still the reader's winner
 for its semantic coordinate. It treats a newly accepted event as standing when
 the tab has not yet installed an event list containing its id, then asks
-`stateProjection` once authoritative history contains it. Modules use this
+the installed projection once an authoritative receipt contains it. Modules use this
 after a send whose visible choreography depends on whether the accepted action
 survived later events.
 
@@ -622,6 +663,8 @@ The extension keys describe general behavior:
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
+| `x-request` | direct-child command offers, typed one-shot external-operation verbs, and whether a ready lifecycle is an ask |
+| `x-refers` | element-id attributes and optional package-owned map predicates that type their targets |
 | `x-parent` | the child widgets whose decisions belong to this holder |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
@@ -659,6 +702,10 @@ behavior, the layer implements it once. Current examples are:
 - `renderRetired` marks slots retired by the declared holder relation.
 - `rowPresence` reads `x-awaits`, while the ask tray projects a declared `x-ask`
   region around that source where one exists; neither names a tag.
+- A holder declaring `x-request.ask` joins that same ask projection only while its
+  canonical request lifecycle is `ready`. Pending and completed requests are the host's
+  turn; a failed receipt returns the holder to the reader without a package-maintained
+  pending flag.
 - `standingState` exposes replay winners to the render gate without naming a
   widget, the panel's own folds included: a widget an agent sent folds the way a
   page widget does and the poll replays it the same way, so the premise that
@@ -708,6 +755,21 @@ minimum obligations:
   `false` only while a live gesture makes application unsafe.
 - Call `sendAction` for recorded user state. The detail must match the declared
   browser schema.
+- Call `sendRequest` for a one-shot external operation. Its detail must match the
+  widget's `x-request` verb and the verb must be offered by one of this instance's
+  declared direct children; an authored holder has at least one such child and offers
+  each verb once. Requests are not replayable state and are not undoable;
+  project it with `watchRequestLifecycle` instead of joining raw history or inventing
+  a pending store. Core supplies the request seat, its ordered `{request, receipt}`
+  attempts, the latest attempt, and the lifecycle phase (`ready`, `pending`, or
+  `completed`) under the right document boundary: page holders read only the current
+  revision, while holders in frozen thread markup read their whole lifetime. Python
+  places this lifecycle in the browser view; modules do not join raw event history.
+  When `x-request.ask` is true, that same lifecycle is also the ask projection's source:
+  ready means the reader owes the choice, pending and completed do not, and a failure
+  reopens it. Browser and POST eligibility consume that shared projection.
+  `watchHistory` remains the audit-log surface for widgets that intentionally render
+  events themselves.
 - For a verb with `requires`, use `actionAvailable(el, verb)` for both its
   visible control state and its gesture guard. `sendAction` and POST repeat that
   declared check at their respective doors.
@@ -930,6 +992,9 @@ element outlines, and the open composer's pending mark. It clears and paints
 through the same composed-tree helpers, then records exactly what it drew in
 `marked`, `pendingMarks`, and `pendingOutline`. Other features consult those
 records rather than looking for arbitrary DOM paint.
+The anchor runtime exposes only the questions those features ask — `isMarked`,
+`placedAt`, and a snapshot from `pendingMarkParts` — so the pass-owned maps and
+arrays cannot acquire a second writer through the entrypoint.
 
 The same pass answers a second question and records it apart. `placed` is where
 each thread's passage lands in this version; `marked` is what was drawn for it.
@@ -946,8 +1011,8 @@ panel's focus paints its own passage apart from every other mark, as
 parts. It reads the focus, through `closest`, rather than being written where a
 travel left the reader — the argument `markHere` makes for the ask ring, and for
 the same reason. Every route that puts the reader in a thread therefore paints
-it: the quote's press, the `j`/`k` walk, a `g c` digit, a click on the card, a
-reply box. A press on a page mark reaches `showThread`, which focuses the thread
+it: the quote's press, the `t`/`T` walk, a click on the card, a reply box. A
+press on a page mark reaches `showThread`, which focuses the thread
 with `preventScroll` before its deliberate reveal; the page and card therefore
 both say which comment that press opened, and the next key belongs to the thread
 scope. `paintHere` repaints it beside the ask ring, and `paintAnchors` repaints
@@ -1055,7 +1120,7 @@ without closing the thread.
 
 `scrollToThread` is the one travel every "show me that comment's passage" ends
 in. The target's own box first comes into view instantly, including inside a
-sideways scroller, then `jumpBy` glides the exact mark to its final position in
+sideways scroller, then `moveScrollerBy` glides the exact mark to its final position in
 the region that holds it. The travel owns no standing or arrival state. Focus
 already supplies the durable answer through `paintStanding`, and a transient
 page effect does not observe, restart, or reconcile across the browser's
@@ -1075,11 +1140,14 @@ outside selection, quote capture, widget word readings, and clipboard output.
 `display: contents` descendants paint. `shownParts` returns the visible elements
 on which an outline can be drawn. `shownRect` clips the result through scrolling
 ancestors and the viewport, stopping ancestor clipping at a fixed-position box.
+`clippedRect` applies that same clipping walk to a box already measured from a
+Range, using the element that owns the Range as the start of the walk.
 Use:
 
 - `shownBox` for travel, bounds, and reading-position landmarks;
 - `shownParts` for ask rings and element-anchor outlines;
-- `shownRect` for visible placement of floating chrome and address chips.
+- `shownRect` for visible placement of floating chrome and address chips;
+- `clippedRect` only when the subject has no element box of its own.
 
 Do not read `getBoundingClientRect()` directly when the target may generate no
 box. A `display: contents` element reports an origin-like zero rectangle that
@@ -1149,9 +1217,11 @@ The document scrolls `body`, not the viewport. `pageScroller` is the shared
 answer for reading position, paging, and libraries. A library that guesses
 `document.scrollingElement` must be given `pageScroller` explicitly — through
 `scrollerFor(el)` where the widget may be one an agent sent, since a widget in a
-message is scrolled by the panel's own list and by nothing else. The open
-comment panel and tray panel each occupy their own strip when the viewport can
-hold it and cover the page under their respective media query otherwise.
+message is scrolled by the panel's own list and by nothing else. Comments and
+trays are alternate auxiliary workspaces, so only one stands at a time. The
+strip-taking workspaces—Comments and Asks—take room when the viewport can hold
+them and cover the page under their respective media query otherwise; Leaves
+always covers because its rows leave this page.
 `stateStrip` and `stateRoom` are the geometry readings, and both count every
 strip the chrome holds and the gutter the scroller's own bar takes — a window is
 the page's box on neither count; CSS owns the body's corresponding layout. The
@@ -1415,12 +1485,12 @@ a surface too, and what keeps it one layer is `HELP` standing nearer with a clai
 over the whole keyboard, so the box's letters were never the page's to take back.
 
 The rule holds for a sequence as much as for a surface, where the stack it is
-about is the reader's rather than the dispatcher's. The address chord arms on `g`
-and narrows to a list on the letter, and each of those is an Escape's worth of
-state — the armed chip says so, reading `g` and then `g c`, and the chips on the
-page narrow with it — so one scope owes two presses out. A letter that also
-reveals its list owes the reveal back with it: `reveal` returns its own undo, and
-`setChord` runs that on every way down but the digit's.
+about is the reader's rather than the dispatcher's. The address chord arms on
+`g`. A panel mnemonic exchanges that window for its destination, so `g c` leaves
+the Comments panel as one Escape rung. A document-list mnemonic narrows the
+window instead: the armed chip reads `g` and then `g h`, the chips on the page
+narrow with it, and Escape returns to the destination menu before another Escape
+closes it.
 
 A layer also owes a way out at all, over the same page the way in is live on.
 `versionsOffered` (there is a menu) answers for the key, the mode binding its
@@ -1438,7 +1508,7 @@ so its ordinary Escape rung remains the route back.
 
 `rung()` has a single `panelOpen` branch, and that is the rule rather than a
 looseness in it: a surface and where the reader stands in it are one layer. The
-panel's list and the thread `j` walks to are the same rung, which is why `c` from
+panel's list and the thread `t` walks to are the same rung, which is why `c` from
 either of them is the box — the box being the layer below. So the click that
 opened the panel is the press one Escape gives back, whichever of its contents
 the reader walked to first.
@@ -1447,18 +1517,20 @@ The register owns capabilities, not controls. Every capability the chrome offers
 has a row, and each control that reaches one names its key through `also`; a
 control is a route to a capability rather than a capability of its own, so a
 second route needs no second row. A run heading in the comment panel presses the
-page to where that run is about, which is what `g c` already reaches through any
-thread in the run — where `w` and `/` are capabilities nothing else reaches, and
-each earns a row. A capability with no row is one the key line never advertises,
+page to where that run is about. That travel is a capability, just as `w` and `/`
+are capabilities nothing else reaches, and each earns a row. A capability with
+no row is one the key line never advertises,
 the reference never lists, and a reader working from the keyboard never finds,
 because those three are projections of the register. Add the row in the change
 that adds the capability.
 
-The letter comes from a word the surface says. `l` opens the leaves, `a` the
-asks, `w` the comments waiting on the reader — each spelling what the reader can
-read off the control it presses. Where the letter a control's word wants is
-already taken, change the word or take a different capability's: a key spelling
-something nothing on screen says is a key nobody reaches for twice.
+Directional walks use the category's letter, with case stating direction: lowercase
+advances and Shift goes back. `t`/`T` walks open threads and `a`/`A` walks open
+asks. Keep these as single-key presses rather than prefix sequences; a walk is
+often repeated or held. Other letters come from words the surface says: `w`
+narrows to comments waiting on the reader, while `g c`, `g a`, and `g l` go to
+Comments, Asks, and All leaves. A key spelling something nothing on screen says
+is a key nobody reaches for twice.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which
@@ -1466,8 +1538,10 @@ way this press will go, and Escape takes the mode off through the rung ladder
 rather than through a second binding of its own.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `c` comments on it, `a` and `l` open what
-is about it. A surface holds the presses whose subject is that surface's own
+the presses whose subject is the page: `c` comments on it, `t`/`T` and `a`/`A`
+walk its open sets, and `g` opens its destinations. A surface holds the presses
+whose
+subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
 on: `w` narrows the comment panel's list and `/` searches it, and both live in
 `PANEL`. The page's alphabet is small and every letter spent there is spent on
@@ -1476,8 +1550,9 @@ every page, so a letter earns page scope only by acting on the page.
 A surface may also hold the next step of a page key, which is the third row in
 `PANEL` and the one exception the rule has: the page's `c` lands the reader on
 the comment list and the panel's `c` puts them in its box. The letter is the
-same because the intent is, one scope in — `g` names a list and then a member of
-it — and the inner row stands down wherever the page's own key has a nearer
+same because the intent is, one scope in — as `g` names a document list and then
+a member of it — and the inner row stands down wherever the page's own key has a
+nearer
 answer, so the two never offer the reader a choice about which one runs.
 
 A scope's rows act on contents the reader is looking at rather than standing in,
@@ -1485,10 +1560,9 @@ which is why they can be sorted by surface at all. One press is not like that:
 `c` follows the reader, and what it means is whatever they are standing in.
 
 That it reaches into the panel is not an exception. Page scope already crosses
-there, and the register says so twice: `g c N` is a page address that lands the
-reader in a panel textarea, and `openAsks` counts a widget an agent sent as an
-ask like any other, so `g a N` can put them inside a thread. A page key that
-takes the reader somewhere owes them an answer once they are standing there.
+there: `t`/`T` can land on cards in Comments, and `a`/`A` can land on an ask an
+agent sent inside a thread. A page key that takes the reader somewhere owes them
+an answer once they are standing there.
 Rescoping `c` per surface would not even buy the tidiness it looks like — the
 reader stands in one place at a time, so it is several rows spelling one key,
 each live exactly where the others are not.
@@ -1512,8 +1586,8 @@ letters are all shadowed — the typing scope claims a letter first — so the p
 that promised the comments left `w` and `/` unreachable until the reader pressed
 Escape. The panel's row is not the several-rows-one-key shape either, because it
 stands down wherever the page's key has the nearer answer: a live 💬, or the
-conversation the reader is standing in, whose own box `Enter` and `g c N` already
-reach. A resolved thread offers no box, so the row answers there and the general
+conversation the reader is standing in, whose own box `Enter` already reaches.
+A resolved thread offers no box, so the row answers there and the general
 box is the honest destination.
 
 The item's box is the composer, on the item, and not a widget's own conversation
@@ -1547,6 +1621,10 @@ A row has these meanings:
   can act at the reader's current position.
 - `run` performs one result. A run-less row names a press it does not make: the
   platform's own on a link, or one another scope's row already runs.
+- `native: true` performs `run` without preventing the platform default. Use it
+  when Leaf must change state before the browser completes the same press, not
+  to leave an otherwise owned press half-handled. It still follows the ordinary
+  `repeat` policy; declare `repeat: true` when repeated keydowns must also run.
 
 `live` answers the declared liveness once for every projection. Do not repeat a
 guard inside `run` if the guard changes whether the key should be shown. When
@@ -1572,8 +1650,9 @@ fact used by a word or liveness predicate changes.
 Scopes nest by focus. `scopesFor` produces the active stack and element scopes
 are spliced where their elements stand. The dispatcher walks innermost first.
 The first live row answering the event runs, prevents the platform default when
-it owns the press, and stops. A focused widget may shadow a page key without
-either scope naming the other.
+it owns the press, and stops. A `native` row runs and stops the scope walk but
+leaves that default intact. A focused widget may shadow a page key without either
+scope naming the other.
 
 `claims` lists platform keys a scope consumes even when no registered row answers
 them. A text entry scope uses `takesLetters` and claims character keys plus the keys
@@ -1666,9 +1745,17 @@ keep that state in an attribute, so one `MutationObserver` over `open` and
 ### Standing somewhere
 
 Focus is the reader's current place. `focused` follows it through declared
-shadow roots. `markHere` paints one `--here-ring` around the semantic ask or
-control that contains focus. The ring is derived on each paint; it does not
-store the ask walk's position.
+shadow roots. A native label activation may pass through `body` or a focusable
+container between the pointer press and the control's focus; Leaf treats that
+interval as one logical standing without changing DOM focus or preventing label
+text selection.
+`documentFocused` retargets the logical standing to its document host. Painted
+focus readings use one of those two functions; CSS reads the matching `.lf-focus`,
+`.lf-focus-visible`, and `.lf-focus-within` projections. A key ends the pointer
+interval and restores physical focus before dispatch. Code that acts on physical
+focus otherwise reads `document.activeElement` directly. `markHere` paints one
+`--here-ring` around the semantic ask or control that contains focus. The ring
+is derived on each paint; it does not store the ask walk's position.
 
 A control that draws the band on itself draws it only where nothing else holds
 that box's one outline. An ask written out around the control wears the band
@@ -1698,7 +1785,7 @@ back, with nothing the reader did moving either. An answered ask parts from neit
 list, so a picked group gains no ring, and a press from one of its picks names the
 option under the focus rather than the question.
 
-The ring is therefore paintable on an ask the `n`/`p` walk will not step to and the
+The ring is therefore paintable on an ask the `a`/`A` walk will not step to and the
 tray does not list, which is the accepted cost: the walk and the tray are the reader's
 list and this is not. Nothing strands the reader there — `markHere` looks its tray row
 up by id and finds none, the same as on every page with the tray shut, and the Escape
@@ -1855,17 +1942,25 @@ its rows travel within the page and the reader must keep the target visible.
 Both entry controls call the same tray setter.
 
 `restoreTray` runs after all declarations exist and after the first projection
-can populate state-dependent rows. It restores intent through `showTray` without
-replaying opening motion. `ARRANGEMENTS` supplies one render arrangement for
-each persisted tray.
+can populate state-dependent rows. It calls its supplied `beforeOpen` policy to
+retire Comments, then presents the remembered tray directly without replaying
+opening motion. `ARRANGEMENTS` supplies one render arrangement for each persisted
+tray.
 
-Ask rows come from `x-awaits`, not from a list of ask tags. Where that source is
+Ask rows come from `x-awaits` and ready holders declaring `x-request.ask`, not from a
+list of ask tags. Where an `x-awaits` source is
 nested in an `x-ask` region, the row names the region: its heading, context, and
 evidence are the request the reader is being sent to, while the source remains
 the owner of the answer. `itemSays` supplies each row's own label. Selecting a
-row travels through the same ask-arrival function as `n` and `p`, so numbered
-and directional navigation agree about focus, reveal, start-aligned scroll, and
+tray row travels through the same ask-arrival function as `a` and `A`, so the
+panel and directional walk agree about focus, reveal, start-aligned scroll, and
 `landed`.
+
+A request ask is answered at acceptance rather than by replayable widget state. Its
+pending lifecycle therefore leaves the reader's list immediately and hands the next
+word to the host; a terminal failure returns it, while success keeps it closed. Page
+holders scope that reading to their authored revision and frozen thread holders scope it
+to the conversation document's lifetime, exactly as the request seat does.
 
 An ask is answered by a verb listed in `x-awaits.answers`; do not infer that every
 state change is an answer. Two things take a request off the reader's list, and only
@@ -1888,7 +1983,7 @@ resolve the original thread. Comments owns the reader-facing clarification; the
 page's Ask remains the proposal with the agent rather than counting both.
 
 `asksTheReader` is that combined reading and is what `openAsks` returns, so the
-banner, the tray and the `n`/`p` walk all follow it: those three are the reader's
+banner, the tray and the `a`/`A` walk all follow it: those three are the reader's
 list, and a request the agent owes the next word on does not belong on one.
 
 Three readings ask the other question — whether the request is *answered* — and all
@@ -1907,34 +2002,38 @@ visible/navigation surface. `actionAvailable` still queries whether the source o
 ancestor's request is open. A module reading `openAsks()` calls `askSource()` when it
 needs the actionable widget rather than the reader-facing region.
 
-### Address chord
+### Go-to chord
 
-`g` opens one address mode. A second letter names a list, and a decimal number
-names a member. `g g` and `g G` complete the chord themselves, gliding to the top and
-bottom of the visible scroller. When a comment holds focus, `g t` and `g b`
+`g` opens one destination mode. `c`, `a`, and `l` complete a direct trip to
+Comments, Asks, and All leaves. `h` and `d` name the document's numbered
+hyperlink and disclosure lists, and a decimal number names a member. `g g` and
+`g G` complete the chord themselves, gliding to the top and bottom of the visible
+scroller. When a comment holds focus, `g t` and `g b`
 place that card at the top or bottom of its list without moving the page. From a
 beside-panel, `g p` returns focus to the page while keeping the panel and its narrowing.
 An edge is one place, so the second key is the whole address; because every page has a
 top, the mode never arms empty and the page-level `g` row needs no capability gate.
-`ADDRESSES` is the whole list vocabulary. Each entry declares:
+`PANEL_DESTINATIONS` is the direct panel vocabulary. Each entry declares its
+mnemonic, words, capability, and landing. `ADDRESSES` is the numbered document-list
+vocabulary. Each entry declares:
 
 - its letter and user-facing name;
 - the sentence shown in help;
 - its members in stable address order;
-- the box a chip is placed from, where that is not the member itself;
-- how to show a list that draws nothing until asked;
 - how to arrive at one member.
 
 A list's capability is not declared: it is whether the list is non-empty, read
 where the row asks. Consumers do not branch on which address list is active.
-Adding a list adds one entry. The page-level `g` row promises only the mode;
-ranges belong to the list rows inside it.
+Adding a panel destination or a numbered list adds one entry to its vocabulary.
+The page-level `g` row promises only the mode; destinations and ranges belong to
+the rows inside it.
 
-Arming the mode paints the whole offer: every list contributes chips at once, and
-a letter narrows them to its own list. Further digits narrow the chips by numeric
+Arming the mode paints the whole offer. A panel mnemonic completes the travel and
+moves focus inside the panel. Every numbered list contributes chips at once, and
+its mnemonic narrows them to that list. Further digits narrow the chips by numeric
 prefix. A number selects immediately when it is unambiguous. When an exact number
 also prefixes a longer one, Enter selects the exact member and another digit
-continues the address. Escape removes one digit before it backs out to the lists.
+continues the address. Escape removes one digit before it backs out to the menu.
 A chip carries the whole address — leader, letter, number, and Enter when it is
 required — so it states which member this is and what remains to type. Every key
 on it is set at the chip's one size, and the split between what is
@@ -1950,19 +2049,15 @@ by an equal negative margin — so a press lights one more key and moves no glyp
 in advance instead, the key crossing between the halves steps by that padding, which is the
 same fault one glyph smaller.
 
-`addressKeys` is the one spelling of a complete address, including Enter when it
-is required. `chordKeys` is the one reading of how far the chord has come: the
-key line drops those keys, having said them in
-the chip that heads it, the reference puts them in front of each row so every entry
-shows the complete chord, a chip on the page sets them back, and the placeholder
-that speaks a reply box's whole address joins the whole array.
+`chordKeys` is the one reading of how far a numbered address has come. The key
+line drops those keys after saying them in the chip that heads it, the reference
+puts them in front of each row so every entry shows the complete chord, and a
+chip on the page sets them back.
 
-Addresses are stable within the document. The first addressable members do not
-change identity as the reader scrolls. Chips are painted only for members whose
-`shownRect` is visible, but an off-screen member remains reachable by the same
-address. A list drawn nowhere the reader can see, such as the comments behind a
-shut panel, therefore contributes no chip until its letter reveals it. Chips live
-in runtime chrome rather than authored markup.
+Numbered addresses are stable within the document. The first addressable members
+do not change identity as the reader scrolls. Chips are painted only for members
+whose `shownRect` is visible, but an off-screen member remains reachable by the
+same address. Chips live in runtime chrome rather than authored markup.
 
 `NATIVE` describes the platform controls a chord may land on and the immediate
 word for their next press. A summary says whether it will open or close from its
@@ -2031,7 +2126,7 @@ thread's box rather than a particular scroll offset.
 
 The list is the page's order, not the log's. `inPageOrder` sorts by where the
 anchor pass placed each thread and breaks ties by log order, so the panel, the
-marks down the page, the j/k walk and the `g c` digits are one order. A thread
+marks down the page, and the `t`/`T` walk are one order. A thread
 whose passage this version rewrote falls back to the element its anchor names,
 because an id survives a rewrite that takes a quote down with it. A thread that
 resolves nowhere — a comment about the page as a whole, or one whose element is
@@ -2235,13 +2330,15 @@ and finite motion boundary, reads screen and print, and reapplies standing state
 A local browser check is required after changing `leaf.js`, a widget module, the
 registry, or the theme.
 
-The named JavaScript exports in `leaf/render-checks.js`, invoked by
-`leaf/render_checks.py` and composed by `leaf/render_gate.py`, each answer one failure
-class. The served module imports the public widget API statically, so the JavaScript
-parser and module loader validate its syntax, dependencies, and named exports.
-`coveredWords` is reexported from the import-free `render-checks-standalone.js`, which
+The named JavaScript exports in `leaf/render-checks/index.js`, invoked by
+`leaf/render_checks.py` and composed by `leaf/render_gate/`, each answer one failure
+class. That facade is `leaf/render-checks/index.js`; its directory groups runtime,
+reachability, layout, replay, word, widget-contract, and framing probe owners. The
+served graph imports the public widget API statically, so the JavaScript parser and
+module loader validate its syntax, dependencies, and named exports.
+`coveredWords` is reexported from the import-free `render-checks/standalone.js`, which
 lets the same implementation inspect an exported `file://` copy after its runtime has
-been removed. `render-checks-init.js` installs the pre-navigation window-error channel.
+been removed. `render-checks/init.js` installs the pre-navigation window-error channel.
 
 | Reading | Contract |
 | --- | --- |

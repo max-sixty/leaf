@@ -29,6 +29,7 @@
  * matters at 17px. */
 
 :root {
+  color-scheme: light dark;
   /* Warm neutrals: the paper is ivory rather than white and every grey above it
      carries the same warmth, so nothing on the page reads as a cool grey pasted
      onto a warm ground. */
@@ -364,28 +365,15 @@
  * widgets that scroll instead (lf-board, lf-diff, pre) are untouched; a metric's headline
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
-/* The strips the page reserves out of its own width are named here rather than written
- * straight into the padding by whoever claims one, because a copy has to subtract exactly
- * what the padding added. A live page measures the box it ended up with and needs no such
- * agreement; a copy runs no script and states the room from the viewport, so every strip
- * it does not know about is room it hands a wide widget twice. Written as one rule per
- * strip, that is a term the room rule has to remember per claimant and a combination per
- * pair. Here the side is one token, and the padding and the room both read it.
- *
- * A side takes more than one claimant, which it did not have to while the rail was on the
- * right and a sidenote's margin on the left. Both are the right's now, and they are not
- * summed: they stand in the same strip and may cover each other (the norm is beside
- * aside.sidenote), so what the page owes is room for the wider of them and nothing more.
- * A claim of its own per claimant is what lets that side be a max rather than a race —
- * two rules writing one token settle it by cascade order, which is a silent answer to a
- * question neither rule is asking. So the shape follows the count: a side with one
- * claimant is written by that claimant, and a side with two folds their claims here. The
- * The left has one claimant and keeps the one-claimant shape: aside.sidebar writes
- * --strip-l directly. A second claimant on either side turns that side into a max, and
- * is the point at which the fold is worth its terms. */
+/* Margin features claim named strips instead of overwriting page padding themselves.
+ * A static copy must subtract exactly the room its padding reserved; the live page can
+ * measure its final box, but both still need one shared answer. The right side now hosts
+ * sidenotes, suggestion controls, and the living map. They occupy the same strip and are
+ * collision-laid-out rather than summed, so the page reserves only the widest claim.
+ * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
-       --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px));
+       --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px), var(--claim-map, 0px));
        padding-left: var(--strip-l, 0px); padding-right: var(--strip-r); }
  /* The document arrives with authored initial state while the log may already hold
  * another one. The theme holds its canonical main from stylesheet parse, and leaf.js releases it only
@@ -699,6 +687,9 @@ main { max-width: var(--col); margin: 0 auto; padding: 72px var(--col-pad) 96px;
    * column, and four widgets letting a diagram out were found the day it could. */
   @container style(--lf-frame: 1) { * { --lf-room: 0px; } }
   main > * { --lf-room: inherit; }
+}
+@media screen and (max-width: 640px) {
+  main { padding-top: 28px; padding-bottom: 72px; }
 }
 /* The headings are the body serif at weight, size and spacing — one voice, four
  * volumes — rather than a display face over a text face. A page whose subject is
@@ -1409,6 +1400,48 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     color: var(--ok-ink); background: var(--ok-tint); }
 .lf-sug-actions[data-lf-outcome="reject"] .lf-sug-reject { border-color: var(--danger);
     color: var(--danger-ink); background: var(--danger-tint); }
+
+/* The living margin is a retained projection of page state. Its markers share the
+ * suggestion rail's geometry owner, so one packing pass keeps every marginal control
+ * clear and every wide exhibit yields at the rows it actually meets. */
+.lf-living-margin { position: absolute; z-index: 2; pointer-events: none; }
+.lf-living-margin[hidden] { display: none; }
+.lf-margin-toolbar { position: absolute; inset: 0; }
+.lf-margin-marker { position: absolute; left: 100%; width: 32px; min-height: 30px;
+    margin-left: 22px; padding: 3px; border: 1px solid var(--rule);
+    border-radius: 999px; background: var(--paper); color: var(--muted);
+    display: inline-flex; align-items: center; justify-content: center; gap: 1px;
+    font: 600 var(--t-6)/1 var(--sans); white-space: nowrap; pointer-events: auto;
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--ink) 10%, transparent); cursor: pointer; }
+.lf-margin-marker:is(:hover, :focus-visible, [aria-pressed="true"]) {
+    border-color: var(--accent); color: var(--ink); background: var(--paper); }
+.lf-margin-marker:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--here-ring); --lf-here-ring: margin-marker; outline-offset: 2px; }
+.lf-margin-marker.lf-waiting { display: none; }
+.lf-margin-facet { width: 10px; text-align: center; }
+.lf-margin-change { color: var(--accent); }
+.lf-margin-comment { color: var(--mark-ink); }
+.lf-margin-ask { color: var(--warn-ink); }
+.lf-margin-decision { color: var(--ok-ink); }
+.lf-margin-activity { color: var(--accent); }
+.lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
+    height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
+    border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
+    font: 600 10px/14px var(--sans); text-align: center; }
+.lf-margin-target { outline: var(--here-ring); --lf-here-ring: margin-target;
+    outline-offset: 3px; }
+@media screen and (min-width: 900px) {
+  body:has(.lf-living-margin:not([hidden])) { --claim-map: 54px; }
+}
+@media screen and (max-width: 899px) {
+  .lf-living-margin { display: none; }
+}
+@media (pointer: coarse) {
+  .lf-margin-marker { width: 44px; min-height: 44px; margin-left: 10px; }
+}
+@media print {
+  .lf-living-margin { display: none !important; }
+}
 /* A page carrying a change to decide gives the rail up out of its own width,
  * rather than hanging the controls in whatever centring happens to leave over.
  * How wide is the row's own business: lf-suggestion.js measures the first row it
@@ -1486,7 +1519,7 @@ html.lf-versioning::view-transition-new(root) {
 /* Reduced motion: one global guard covers every animation and transition in the
  * theme and the injected layers (!important outranks inline styles, so
  * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and SCROLL, which answer the same preference themselves.
+ * motion() and the live motion readings, which answer the same preference themselves.
  *
  * The two halves are not written alike, because a duration is a way of keeping
  * an animation and no way at all of keeping a transition. An animation is

@@ -7,7 +7,8 @@ import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import data as data_model
-from leaf import events as events_model
+from leaf import event_log as events_model
+from leaf import leases as leases_model
 from leaf import service as service_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -97,7 +98,7 @@ OVER_WORDS = """(el, id) => {
 #
 # Two `bounding_box()` calls are two instants, and the page moves between them: a viewport
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
-# straight into the answer. `n` scrolls to the ask it steps to, the body is the scroller,
+# straight into the answer. `a` scrolls to the ask it steps to, the body is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
 # so the chip's offset came back a pixel out on about half of the runs, on whichever row
 # the frame happened to fall between. Nothing had moved by then except the window, which is
@@ -207,9 +208,9 @@ def mark_shows_beside_composer(page):
     }""")
 
 
-# Every list the g chord addresses, on one page: comments (the test adds them), an ask,
-# links, and a disclosure. The lists have to stand together, because what the chord is for
-# is that one letter chooses between them.
+# Every kind of destination the g chord offers, on one page: the tests add comments, this
+# fixture supplies an ask, and the authored document supplies links and a disclosure.
+# They stand together so one chord must distinguish direct panels from numbered lists.
 ADDRESSED_PAGE = leaf_page(
     "addressed",
     """
@@ -246,7 +247,7 @@ session.</p></details>
 CHIPS = ".lf-addresses > .lf-address"
 # The half of each address already behind the reader. A chip carries the whole motion, so
 # how far in they are is the split rather than the text: `g` alone once the window is up,
-# and `g c` once a letter has named a list. The selector arrives as an argument so the one
+# and `g h` once a letter has named a list. The selector arrives as an argument so the one
 # spelling above is the one this reads.
 SPENT = """(sel) => [...document.querySelectorAll(sel)]
     .map(chip => chip.querySelector('.lf-spent').textContent)"""
@@ -935,8 +936,8 @@ SUGGEST_BLOCK = (
 def live_watcher(page_dir, page):
     """Hold the exact lease `leaf wait` uses for the duration of the block."""
     session = service_model.page_claim(page_dir)
-    lease = service_model.take_waiter_lease(
-        service_model.waiter_lease_path(page_dir, session)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(page_dir, session)
     )
     assert lease
     told(page)

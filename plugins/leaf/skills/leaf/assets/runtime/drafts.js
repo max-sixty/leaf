@@ -62,7 +62,7 @@ const parseDraftRecord = (value) => {
   }
 };
 const attemptAccepted = (attempt) =>
-  runtime.events.some((event) => event.attempt === attempt);
+  (runtime.browser?.receipts ?? []).some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {

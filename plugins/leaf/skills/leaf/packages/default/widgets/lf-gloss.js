@@ -9,7 +9,14 @@
  * Enter, and Space reach it; clicking either the phrase or mark pins the card for touch
  * and careful reading. The manual popover puts the card in the top layer, clear of
  * clipping widgets, while this module owns its viewport placement. */
-import { keys, offer, once, paintKeys, reachedForWords } from "/runtime/widget-api.js";
+import {
+  keys,
+  offer,
+  once,
+  paintKeys,
+  reachedForWords,
+  worksInside,
+} from "/runtime/widget-api.js";
 
 let nextId = 0;
 
@@ -67,6 +74,7 @@ customElements.define(
 
       keys(this.#mark, "On an explanation", [
         {
+          id: "explanation.close",
           keys: ["Escape"],
           does: "Close this explanation",
           line: "close explanation",
@@ -142,10 +150,7 @@ customElements.define(
 
     #click(event) {
       if (event.defaultPrevented || reachedForWords(this)) return;
-      const nested = event.target.closest(
-        "a, button, input, select, textarea, summary, [contenteditable], " +
-          "[data-lf-offer]",
-      );
+      const nested = worksInside(event.target, this);
       if (nested && nested !== this.#mark) return;
       if (event.target.closest(".lf-gloss-popover")) return;
       this.#dismissed = false;

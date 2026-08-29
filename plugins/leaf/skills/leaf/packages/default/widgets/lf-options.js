@@ -101,7 +101,6 @@
 import {
   HIDDEN,
   actionStands,
-  agentName,
   conversationBox,
   conversationInput,
   inChrome,
@@ -111,6 +110,7 @@ import {
   offer,
   once,
   quoted,
+  reachedForWords,
   relabel,
   reserve,
   sendAction,
@@ -184,23 +184,10 @@ customElements.define(
       if (this.hasAttribute("settled")) this.#settle();
       if (!choosable) return;
       this.addEventListener("click", (e) => {
-        // A click that ends a drag-select is that selection's, not a pick. The runtime
-        // guards its own controls (see `offer`); this is the option, which is no control
-        // at all — a drag across an option's prose ends here, not on the mark. Same
-        // question, so the same test: did this click's mouseup leave the selection where
-        // it is (its focus end)? Asking whether the selection contains the option instead
-        // answers yes for any selection over the group, and the option stops taking picks
-        // until the user clears it.
+        // A click ending a drag-select belongs to the selection rather than the option.
         const option = e.target.closest?.("lf-option");
-        const sel = getSelection();
-        if (
-          e.detail !== 0 &&
-          sel &&
-          !sel.isCollapsed &&
-          option?.contains(sel.focusNode)
-        )
-          return;
         if (!option || option.parentElement !== this) return;
+        if (e.detail !== 0 && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the reader was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
@@ -225,7 +212,7 @@ customElements.define(
             : `Dropped “${name}”`;
         sendAction(this, "choose", { options: [...next].map((o) => o.id) }).then(
           (ok) => {
-            if (ok) toast(`${said} — sent to ${agentName()}`);
+            if (ok) toast(`${said} — recorded`);
           },
         );
       });
@@ -284,7 +271,7 @@ customElements.define(
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         if (actionStands(accepted)) this.#answered(true);
-        toast(`Marked answered — sent to ${agentName()}`);
+        toast("Marked answered — recorded");
         return true;
       });
       this.#sending(sent);
@@ -347,10 +334,11 @@ customElements.define(
         // branch the reader could see.
         keys(mark, SECTION, [
           {
+            id: "option.toggle-nth",
+            runFromReference: false,
             // The digits this group has, so the row cannot offer an address no option
             // wears. Stated rather than counted at each paint, because a group's options
-            // are the markup's and do not change under the reader — where the chord's
-            // comment digits count open threads, which resolve as they are answered.
+            // come from markup and do not change under the reader.
             keys: addresses,
             label: addresses.length > 1 ? `1–${addresses.length}` : "1",
             does: "Toggle the nth option",
@@ -362,6 +350,7 @@ customElements.define(
             },
           },
           {
+            id: "option.write",
             keys: ["Enter"],
             does: "Write another option",
             line: "write another option",
@@ -373,7 +362,16 @@ customElements.define(
               }),
           },
           {
+            id: "option.walk",
             keys: ["ArrowUp", "ArrowDown"],
+            routes: [
+              {
+                id: "option.previous",
+                binding: "ArrowUp",
+                does: "Previous option",
+              },
+              { id: "option.next", binding: "ArrowDown", does: "Next option" },
+            ],
             does: "Walk the options",
             line: "walk the options",
             repeat: true,
@@ -385,6 +383,7 @@ customElements.define(
               ]?.focus(),
           },
           {
+            id: "option.toggle",
             keys: [" "],
             does: "Toggle the focused option",
             line: "toggle",
@@ -392,7 +391,12 @@ customElements.define(
           },
           // Tab is the platform's, and reaching the mark is what a reader has to know
           // before any of the above is any use. No binding, so the line never offers it.
-          { keys: [], label: "⇥", does: "Reach an option's mark" },
+          {
+            id: "option.reach",
+            keys: [],
+            label: "⇥",
+            does: "Reach an option's mark",
+          },
         ]);
       }
     }

@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leaf examples gallery</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
@@ -368,9 +368,9 @@ export function merge(base: Doc, mine: Edit[], theirs: Edit[]): Doc {
             <strong>Telemetry</strong> Queue depth, resync time, and clash counts, all
             without document content.
           </lf-task>
-          <lf-task id="off-t-docs" status="active" owner="devrel" when="first patch">
-            <strong>Help centre page</strong> One page on what works offline and what
-            does not, linked from the banner.
+          <lf-task id="off-t-docs" status="stalled" owner="devrel" when="first patch">
+            <strong>Help centre page</strong> The first drafting pass left no durable
+            copy; the owner is diagnosing before asking for a disposition.
           </lf-task>
         </lf-tasks>
       </section>
@@ -1746,7 +1746,7 @@ outside average, before, after
             <lf-task id="parser-stream" status="done">
               <strong>Streaming core</strong> Constant memory over the full corpus.
             </lf-task>
-            <lf-task id="parser-cdata" status="done">
+            <lf-task id="parser-cdata" status="active">
               <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
               <lf-agent id="w-2" state="working" on="parser-cdata">
                 <strong>w-2</strong> CDATA specialist: escaped-markup corpus cases.
@@ -1756,39 +1756,43 @@ outside average, before, after
           </lf-task>
           <lf-task
             id="parser-dedupe"
-            status="stalled"
+            status="blocked"
             stopped-at="2026-08-21T08:12:00-07:00"
           >
             <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
             activity produced no commit. Last worktree:
-            <a href="#tree-w-2">atlas/xml-cdata</a>.
+            <a href="#tree-w-5">atlas/dedupe-attempt</a>.
             <lf-agent id="w-5" state="reaped" on="parser-dedupe">
               <strong>w-5</strong> Dedupe specialist, reaped after three hours without a
               commit; its branch and evidence remain inspectable.
               <lf-worktree id="tree-w-5" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="ask-dedupe-region">
-              <lf-options
-                id="ask-dedupe"
-                label="What should happen to the stalled work?"
-                choose
-              >
-                <lf-option id="dedupe-restart" for="parser-dedupe" recommended>
-                  <strong>Restart with a fresh worker</strong> Preserve the branch,
-                  commits, and comments; reap the old worker.
-                </lf-option>
-                <lf-option id="dedupe-snooze" for="parser-dedupe">
-                  <strong>Park it for tomorrow</strong> Keep the branch and take it out
-                  of today's plan.
-                </lf-option>
-                <lf-option id="dedupe-drop" for="parser-dedupe">
-                  <strong>Drop it</strong> Archive the branch; corpus storage stays at
-                  40 GB for this rewrite.
-                </lf-option>
-              </lf-options>
-            </lf-ask>
+            <lf-operations
+              id="dedupe-operations"
+              target="parser-dedupe"
+              worker="w-5"
+              worktree="tree-w-5"
+              label="What should the host do with the stalled work?"
+            >
+              <lf-operation verb="restart" recommended>
+                <strong>Restart with a fresh worker</strong> Preserve the branch,
+                commits, and comments; reap the old worker.
+              </lf-operation>
+              <lf-operation verb="park">
+                <strong>Park it for tomorrow</strong> Keep the branch and take it out of
+                today's plan.
+              </lf-operation>
+              <lf-operation verb="drop">
+                <strong>Drop it</strong> Archive the branch; corpus storage stays at 40
+                GB for this rewrite.
+              </lf-operation>
+            </lf-operations>
           </lf-task>
-          <lf-task id="parser-zero" status="active">
+          <lf-task
+            id="parser-zero"
+            status="active"
+            stopped-at="2026-08-21T08:46:00-07:00"
+          >
             <strong>Choose the zero-row behavior</strong> This policy is consequential
             enough to wait for an explicit choice.
             <lf-ask id="ask-zero-region">
@@ -1810,41 +1814,37 @@ outside average, before, after
           </lf-task>
         </lf-task>
 
-        <lf-task
-          id="goal-schema"
-          status="active"
-          when="week 3"
-          talk
-          stopped-at="2026-08-21T07:20:00-07:00"
-        >
+        <lf-task id="goal-schema" status="active" when="week 3" talk>
           <strong>Reconcile schema and ledger</strong> Two goals and the nightly wait
           behind the schema choice.
           <lf-task
             id="schema-choice"
-            status="active"
+            status="review"
             stopped-at="2026-08-21T07:20:00-07:00"
           >
             <strong>Choose the additive schema</strong> Both columns are nullable; the
             migration and reverse path are green.
-            <lf-agent id="w-8" state="working" on="schema-choice">
+            <lf-agent id="w-8" state="waiting" on="schema-choice">
               <strong>w-8</strong> Schema-choice specialist: migration and
               reconciliation evidence.
               <lf-worktree id="tree-w-8" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="ask-schema-region">
-              <lf-options id="ask-schema" label="Land the schema migration?" choose>
-                <lf-option id="schema-land" for="schema-choice" recommended>
-                  <lf-chip tone="ok">tests green</lf-chip
-                  ><lf-chip>unblocks 4 leaves</lf-chip>
-                  <strong>Land it now</strong> Shadow reads before anything depends on
-                  it.
-                </lf-option>
-                <lf-option id="schema-hold" for="schema-choice">
-                  <lf-chip tone="warn">4 idle behind it</lf-chip>
-                  <strong>Hold for the backfill</strong> One larger review tomorrow.
-                </lf-option>
-              </lf-options>
-            </lf-ask>
+            <lf-operations
+              id="schema-operations"
+              target="schema-choice"
+              worker="w-8"
+              worktree="tree-w-8"
+              label="What should the host do with the schema branch?"
+            >
+              <lf-operation verb="land" recommended>
+                <strong>Land it now</strong> Tests are green, it unblocks the dependent
+                work, and shadow reads begin before anything depends on it.
+              </lf-operation>
+              <lf-operation verb="hold">
+                <strong>Hold for the backfill</strong> Keep the dependent work idle and
+                take one larger review tomorrow.
+              </lf-operation>
+            </lf-operations>
           </lf-task>
           <lf-task id="schema-backfill" status="planned" needs="schema-choice">
             <strong>Backfill reconciliation fields</strong>
@@ -1878,38 +1878,40 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           </lf-task>
         </lf-task>
 
-        <lf-task
-          id="goal-api"
-          status="active"
-          when="week 4"
-          talk
-          stopped-at="2026-08-21T10:35:00-07:00"
-        >
+        <lf-task id="goal-api" status="active" when="week 4" talk>
           <strong>Publish the parser contract</strong> Review the branch, not its
           author. A line comment routes to a fresh evidence worker and stays anchored
           here.
-          <lf-task id="api-shape" status="active">
+          <lf-task
+            id="api-shape"
+            status="review"
+            stopped-at="2026-08-21T10:35:00-07:00"
+          >
             <strong>Review the public result type</strong>
-            <lf-agent id="w-3" state="working" on="api-shape">
+            <lf-agent id="w-3" state="waiting" on="api-shape">
               <strong>w-3</strong> Public-contract specialist: result types and
               compatibility tests.
               <lf-worktree id="tree-w-3" source="atlas-worktrees"></lf-worktree>
             </lf-agent>
-            <lf-ask id="ask-api-region">
-              <lf-options id="ask-api" label="Disposition for atlas/public-api" choose>
-                <lf-option id="api-land" for="api-shape" recommended>
-                  <strong>Land</strong> The compatibility suite is green.
-                </lf-option>
-                <lf-option id="api-revise" for="api-shape">
-                  <strong>Request changes</strong> Restate this card and dispatch a
-                  fresh revision worker; the request remains in the record.
-                </lf-option>
-                <lf-option id="api-override" for="api-shape">
-                  <strong>Land as-is — discard revision</strong> Explicitly overtake a
-                  standing change request and reap its reviser.
-                </lf-option>
-              </lf-options>
-            </lf-ask>
+            <lf-operations
+              id="api-operations"
+              target="api-shape"
+              worker="w-3"
+              worktree="tree-w-3"
+              label="What should the host do with atlas/public-api?"
+            >
+              <lf-operation verb="land" recommended>
+                <strong>Land</strong> The compatibility suite is green.
+              </lf-operation>
+              <lf-operation verb="request-changes">
+                <strong>Request changes</strong> Restate this card and dispatch a fresh
+                revision worker; the request remains in the record.
+              </lf-operation>
+              <lf-operation verb="land-as-is">
+                <strong>Land as-is — discard revision</strong> Explicitly overtake a
+                standing change request and reap its reviser.
+              </lf-operation>
+            </lf-operations>
           </lf-task>
           <lf-task id="api-errors" status="planned" needs="api-shape">
             <strong>Map structured failures</strong>

@@ -13,6 +13,7 @@ from interact_support import (
     ACCEPT,
     ADOPTED,
     COMMAND_HUB_PACKAGE,
+    COMMAND_SUBJECTS,
     COMMENT,
     PAGE,
     PILOT_PURGE,
@@ -52,16 +53,20 @@ from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_endpoint as event_endpoint_model
-from leaf import events as events_model
-from leaf import layer as layer_model
+from leaf import event_log as events_model
+from leaf import events as event_folds_model
+from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
-from leaf import registry as registry_model
-from leaf import render_gate as render_gate_model
 from leaf import schema as schema_model
-from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import styles as styles_model
+from leaf import vendoring as vendoring_model
+from leaf.registry import contract as registry_contract
+from leaf.registry import layer as registry_layer
+from leaf.registry import storage as registry_storage
+from leaf.registry import validation as registry_validation
+from leaf.render_gate import preview as render_gate_model
 
 
 def test_an_accept_carries_its_thread_resolution(page_dir):
@@ -104,9 +109,9 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     )
     spk = passages_model.spoken(
         (page_dir / "versions" / "v1.html").read_text(encoding="utf-8"),
-        registry_model.require_registry(page_dir),
+        registry_storage.require_registry(page_dir),
     )
-    threads = events_model.build_threads(
+    threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
     assert threads["c1"]["resolved"]["id"] == "a1"
@@ -114,7 +119,7 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
     events_model.append_event(
         page_dir, {"kind": "undo", "author": "user", "undoes": "a1"}
     )
-    threads = events_model.build_threads(
+    threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
     )
     assert threads["c1"]["resolved"] is None
@@ -355,6 +360,107 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
     assert "decide" in result.output
+
+
+def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
+    """A recorded request must remain interpretable for the life of the log."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "request",
+            "author": "user",
+            "revision": 1,
+            "widget": "commands",
+            "action": "restart",
+            "detail": {"target": "goal", "worker": "worker", "worktree": "tree"},
+        },
+    )
+    registry = json.loads((page_dir / "registry.json").read_text())
+    del registry["lf-operations"]["x-request"]["verbs"]["restart"]
+    registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir(parents=True)
+    (overlay / "registry.json").write_text(
+        json.dumps(
+            {
+                "lf-operations": registry["lf-operations"],
+                "lf-operation": registry["lf-operation"],
+            }
+        )
+    )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "no longer speaks" in result.output
+    assert "request contract" in result.output and "restart" in result.output
+
+
+@pytest.mark.parametrize("receipt_requests", [["missing"], ["request-1", "request-1"]])
+def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
+    page_dir, receipt_requests
+):
+    """Re-vendoring rejects orphan and duplicate terminal outcomes in log order."""
+    operation = (
+        '<lf-command id="hub"><lf-task id="goal" status="blocked">'
+        "<strong>Goal</strong>"
+        + COMMAND_SUBJECTS
+        + '<lf-operations id="commands" target="goal" worker="worker" worktree="tree" label="What next?">'
+        '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
+        "</lf-operations></lf-task></lf-command>"
+    )
+    version = page_dir / "versions" / "v1.html"
+    version.write_text(
+        version.read_text().replace("</section>", operation + "</section>")
+    )
+    publish(page_dir)
+    if receipt_requests[0] != "missing":
+        events_model.append_event(
+            page_dir,
+            {
+                "id": "request-1",
+                "kind": "request",
+                "author": "user",
+                "revision": 1,
+                "widget": "commands",
+                "action": "restart",
+                "detail": {
+                    "target": "goal",
+                    "worker": "worker",
+                    "worktree": "tree",
+                },
+            },
+        )
+    for index, request in enumerate(receipt_requests, 1):
+        events_model.append_event(
+            page_dir,
+            {
+                "id": f"receipt-{index}",
+                "kind": "receipt",
+                "author": "claude",
+                "request": request,
+                "status": "succeeded",
+                "text": "Host operation completed",
+            },
+        )
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code != 0
+    assert "receipt contract" in result.output, result.output
 
 
 def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
@@ -627,12 +733,12 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
-    transition = service_model.transition_lock(page_dir)
+    transition = leases_model.transition_lock(page_dir)
     report_validated = threading.Event()
     release_report = threading.Event()
     init_waiting = threading.Event()
     real_append = events_model.append_event
-    real_flocked = layer_model.flocked
+    real_flocked = vendoring_model.flocked
 
     def paused_append(directory, event):
         if event["kind"] == "report":
@@ -648,7 +754,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
             yield held
 
     monkeypatch.setattr(conversation_model, "append_event", paused_append)
-    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     outcomes, errors = [], []
 
     def report():
@@ -662,7 +768,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
     def revendoring():
         try:
-            layer_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir)
             outcomes.append("revendored")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
@@ -685,10 +791,10 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
 
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
-    before = registry_model.layer_generation(page_dir)
-    transition = service_model.transition_lock(page_dir)
+    before = registry_storage.layer_generation(page_dir)
+    transition = leases_model.transition_lock(page_dir)
     init_waiting = threading.Event()
-    real_flocked = layer_model.flocked
+    real_flocked = vendoring_model.flocked
 
     @contextlib.contextmanager
     def observed_flocked(path):
@@ -697,12 +803,12 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         with real_flocked(path) as held:
             yield held
 
-    monkeypatch.setattr(layer_model, "flocked", observed_flocked)
+    monkeypatch.setattr(vendoring_model, "flocked", observed_flocked)
     errors = []
 
     def revendoring():
         try:
-            layer_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir)
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
 
@@ -710,12 +816,12 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
         initing = threading.Thread(target=revendoring, name="re-vendor")
         initing.start()
         assert init_waiting.wait(5)
-        assert registry_model.layer_generation(page_dir) == before
+        assert registry_storage.layer_generation(page_dir) == before
 
     initing.join(timeout=5)
     assert not initing.is_alive()
     assert errors == []
-    assert registry_model.layer_generation(page_dir) != before
+    assert registry_storage.layer_generation(page_dir) != before
 
 
 def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
@@ -781,7 +887,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
     overlay.mkdir(parents=True)
     local = widget_entry("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    layer_model.cmd_init(page_dir)
+    vendoring_model.cmd_init(page_dir)
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -934,8 +1040,8 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
     registry = json.loads((page_dir / "registry.json").read_text())
     change(registry["lf-test-data"])
 
-    with pytest.raises(registry_model.RegistryError, match=message):
-        registry_model.validate_registry(registry, "test registry")
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
@@ -948,7 +1054,7 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     )
     registry["lf-test-data"]["required"].remove("source")
 
-    assert registry_model.validate_registry(registry, "test registry") is registry
+    assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
 @pytest.mark.parametrize(
@@ -981,8 +1087,8 @@ def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
     registry = json.loads((page_dir / "registry.json").read_text())
     change(registry["lf-num"])
 
-    with pytest.raises(registry_model.RegistryError, match=message):
-        registry_model.validate_registry(registry, "test registry")
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
@@ -1008,10 +1114,10 @@ def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
     }
 
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="x-measured timestamp attribute `at` is an authored snapshot instant",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
@@ -1036,10 +1142,10 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     }
 
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="x-data source attributes are authored bindings",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
 
 def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
@@ -1174,7 +1280,7 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     The words are the control: they must differ, or `spoken({})` would be the
     whole reading and the distinction this rests on would not exist."""
     html = (page_dir / "versions" / "v1.html").read_text(encoding="utf-8")
-    registry = registry_model.require_registry(page_dir)
+    registry = registry_storage.require_registry(page_dir)
     full = passages_model.spoken(html, registry)
     assert passages_model.enclosing_ids(html) == passages_model.enclosing_of(full)
     bare = passages_model.spoken(html, {})
@@ -1216,13 +1322,13 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.spoken(html, registry_model.require_registry(page_dir))
+    spk = passages_model.spoken(html, registry_storage.require_registry(page_dir))
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(html)]
     events = events_model.read_events(page_dir)
     for within in folds:
         assert (
-            events_model.build_threads(events, within)["c1"]["resolved"]["action"]
+            event_folds_model.build_threads(events, within)["c1"]["resolved"]["action"]
             == "accept"
         )
 
@@ -1239,7 +1345,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     )
     events = events_model.read_events(page_dir)
     for within in folds:
-        assert events_model.build_threads(events, within)["c1"]["resolved"] is None
+        assert event_folds_model.build_threads(events, within)["c1"]["resolved"] is None
 
 
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
@@ -1335,8 +1441,8 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-content", "words"),
         ("x-parent", []),
         # Each of these names attributes, so an empty one declares nothing while
-        # reading as a declaration. x-refers was the one without the floor.
-        ("x-refers", []),
+        # reading as a declaration.
+        ("x-refers", {}),
         ("x-lines", []),
         ("x-paints", []),
         ("x-says", []),
@@ -1406,7 +1512,7 @@ def test_a_version_response_requires_a_standing_request(page_dir):
 
     del registry["lf-diagram"]["x-conversation"]["response"]
     registry["lf-diagram"]["x-awaits"] = {}
-    assert registry_model.validate_registry(registry, "test registry") is registry
+    assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
 def test_a_version_response_names_an_authored_answer_record(page_dir):
@@ -1415,17 +1521,17 @@ def test_a_version_response_names_an_authored_answer_record(page_dir):
     response["verb"] = "answer"
 
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="x-awaits does not declare as an answer verb",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
     registry["lf-options"]["x-awaits"]["answers"].append("answer")
     with pytest.raises(
-        registry_model.RegistryError,
+        registry_contract.RegistryError,
         match="has no attribute or value record for a version to change",
     ):
-        registry_model.validate_registry(registry, "test registry")
+        registry_validation.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize(
@@ -1494,6 +1600,110 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "detail schema must declare an object" in result.output
+
+
+def test_request_detail_schemas_match_the_post_object_contract(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-operations"]["x-request"]["verbs"]["restart"]["detail"] = {
+        "type": "string"
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "<lf-operations> x-request verb `restart` detail schema" in result.output
+    assert "must declare an object" in result.output
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            "optional-field",
+            "field `target`, but that field is not declared and required",
+        ),
+        (
+            "non-string-bound-field",
+            "binds detail field `target`, which must be a string",
+        ),
+        ("unknown-attribute", "to `missing`, which is not a declared string attribute"),
+        (
+            "optional-bound-attribute",
+            "to `target`, which is not a required authored attribute",
+        ),
+        (
+            "mutable-bound-attribute",
+            "to `target`, which is written by x-state or x-report",
+        ),
+        ("optional-id", "x-request instances are addressable"),
+        ("no-upgrade", "declares x-request"),
+        ("unknown-offer", "x-request offers unknown widget <lf-unknown>"),
+        ("wrong-parent", "does not name it in x-parent"),
+        ("freeform-offer", "must be a non-empty string enum"),
+        (
+            "optional-offer-attribute",
+            "offer <lf-operation> attribute `verb` must be required",
+        ),
+        ("unknown-offered-verb", "names undeclared verbs ['explode']"),
+        ("unoffered-verb", "verbs ['restart'] cannot be offered"),
+        ("self-framing-ask", "declares both x-ask and x-request.ask"),
+    ],
+)
+def test_an_x_request_declaration_closes_its_widget_boundary(
+    page_dir, mutation, message
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    operations = registry["lf-operations"]
+    restart = operations["x-request"]["verbs"]["restart"]
+    if mutation == "optional-field":
+        restart["detail"]["required"] = []
+    elif mutation == "non-string-bound-field":
+        restart["detail"]["properties"]["target"] = {"type": "integer"}
+    elif mutation == "unknown-attribute":
+        restart["bind"]["target"] = "missing"
+    elif mutation == "optional-bound-attribute":
+        operations["required"].remove("target")
+    elif mutation == "mutable-bound-attribute":
+        operations["properties"]["overruled"] = {"type": "boolean"}
+        operations["x-report"] = {
+            "retarget": {
+                "detail": {
+                    "type": "object",
+                    "properties": {"target": {"type": "string"}},
+                    "required": ["target"],
+                    "additionalProperties": False,
+                },
+                "facet": "target",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "target", "value": "target"},
+            }
+        }
+    elif mutation == "optional-id":
+        operations["required"].remove("id")
+    elif mutation == "no-upgrade":
+        operations["x-upgrade"] = False
+    elif mutation == "unknown-offer":
+        operations["x-request"]["offers"] = {"lf-unknown": "verb"}
+    elif mutation == "wrong-parent":
+        registry["lf-operation"]["x-parent"] = ["lf-command"]
+    elif mutation == "freeform-offer":
+        registry["lf-operation"]["properties"]["verb"] = {"type": "string"}
+    elif mutation == "optional-offer-attribute":
+        registry["lf-operation"]["required"].remove("verb")
+    elif mutation == "unknown-offered-verb":
+        registry["lf-operation"]["properties"]["verb"]["enum"].append("explode")
+    elif mutation == "unoffered-verb":
+        registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
+    elif mutation == "self-framing-ask":
+        operations["x-ask"] = True
+        operations["x-content"] = "prose"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert message in result.output
 
 
 @pytest.mark.parametrize("subschema", [True, False])
@@ -2156,7 +2366,7 @@ def test_a_self_position_record_stays_within_the_declared_parent_relation(page_d
     ("tag", "key", "value", "missing"),
     [
         ("lf-event", "x-says", {"at": "before", "colour": "after"}, "colour"),
-        ("lf-option", "x-refers", ["for", "about"], "about"),
+        ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
@@ -2185,6 +2395,28 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
     result = check(page_dir)
     assert result.exit_code != 0
     assert f"<{tag}> {key} names undeclared attributes ['{missing}']" in result.output
+
+
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        (
+            {"via": "$missing.widgets", "where": {"role": "goal"}},
+            "names unknown registry map '$missing.widgets'",
+        ),
+        (
+            {"via": "$command.widgets", "where": {"role": "imaginary"}},
+            "but no declared widget matches",
+        ),
+    ],
+)
+def test_a_typed_reference_names_a_reachable_package_role(page_dir, reference, message):
+    """A bad package relation fails at the registry door, not on every instance."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-option"]["x-refers"]["for"] = reference
+
+    with pytest.raises(registry_contract.RegistryError, match=re.escape(message)):
+        registry_validation.validate_registry(registry, "test registry")
 
 
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
@@ -2321,7 +2553,7 @@ def test_an_event_kind_contract_replaces_whole_across_layers():
     replacement = {"record": {"const": "new"}}
     merged = {"$events": {"kinds": {"signal": old}}}
 
-    registry_model.merge_layer_entries(
+    registry_layer.merge_layer_entries(
         merged, {"$events": {"kinds": {"signal": replacement}}}
     )
 
@@ -2362,8 +2594,8 @@ def test_an_overlay_cannot_silently_drop_an_event_kind(page_dir, tmp_path):
     merged = json.loads((page_dir / "registry.json").read_text())
     assert "note" in merged["$events"]["kinds"]
 
-    with pytest.raises(registry_model.RegistryError, match="current layer writes"):
-        registry_model.validate_registry(registry, "incoming")
+    with pytest.raises(registry_contract.RegistryError, match="current layer writes"):
+        registry_validation.validate_registry(registry, "incoming")
 
 
 def test_a_widget_nobody_has_touched_is_not_the_gate_s_business(page_dir):
@@ -2757,7 +2989,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
 def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     schema = {"type": "string", "format": "date-time"}
 
-    assert registry_model.json_validator(schema).is_valid(value) is valid
+    assert registry_contract.json_validator(schema).is_valid(value) is valid
 
 
 def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
@@ -2833,7 +3065,7 @@ def test_shared_package_declarations_compose_by_member():
     lane = {"role": "holder", "state": "phase"}
     merged = {"$workflow": {"widgets": {"lf-board": board}}}
 
-    registry_model.merge_layer_entries(
+    registry_layer.merge_layer_entries(
         merged, {"$workflow": {"widgets": {"lf-lane": lane}}}
     )
 

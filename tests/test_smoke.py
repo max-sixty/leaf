@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import render_support
-from leaf import render_gate as render_gate_model
+from leaf.render_gate import version as render_gate_model
 
 serve = render_support.serve
 

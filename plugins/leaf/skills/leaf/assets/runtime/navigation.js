@@ -3,8 +3,8 @@ export const scrollerFor = (...args) => publishedNavigation.scrollerFor(...args)
 
 export function createNavigation({
   BANNER_CLEAR,
-  REDUCED,
-  SCROLL,
+  reducedMotion,
+  scrollBehavior,
   beside,
   inChrome,
   inPanel,
@@ -69,7 +69,7 @@ export function createNavigation({
     const [left, top] = beside(shownBox(item));
     openOnItem(item, { left, top });
   }
-  // j/k walk the open threads: panel focus and the page highlight move as a pair — they are
+  // t/T walk the open threads: panel focus and the page highlight move as a pair — they are
   // two views of the same thread. Clamped at the ends, not wrapped; never empty, because the
   // keys are live only while open threads exist, and hasThreads counts what renderThreads
   // wrote here in the same synchronous pass.
@@ -91,7 +91,7 @@ export function createNavigation({
     // half of the press still travels. Both halves therefore go where they were pointed.
     const standing = next === document.activeElement;
     next.focus({ preventScroll: true });
-    if (standing) next.scrollIntoView({ behavior: SCROLL, block: "nearest" });
+    if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     scrollToThread(next.dataset.id);
   }
 
@@ -99,9 +99,9 @@ export function createNavigation({
   // placement inside the panel, not travel to the passage the comment is about, so it
   // moves only the thread scroller and keeps the card's focus. Native scroll placement
   // reads the list's declared scroll-padding, including its sticky heading and focus-ring
-  // room, from the same authority the j/k walk uses.
+  // room, from the same authority the t/T walk uses.
   function placeThreadEdge(thread, edge) {
-    thread.scrollIntoView({ behavior: SCROLL, block: edge });
+    thread.scrollIntoView({ behavior: scrollBehavior(), block: edge });
   }
 
   // d and u step the reader half a page down and up — less's pair, and half a page rather
@@ -120,13 +120,14 @@ export function createNavigation({
   // scrollTo's smooth takes three times as long over the same distance and has no dial,
   // which is what read as gradual when the step rode it. So the runtime drives the step
   // itself: PAGE_MS of easing out, each write `instant` rather than `auto` since a page is
-  // free to set `scroll-behavior: smooth` on the box it scrolls (jumpBy says the same) and
+  // free to set `scroll-behavior: smooth` on the box it scrolls (moveScrollerBy says the
+  // same) and
   // a glide built from smooth writes would never land. A press mid-flight retargets from
   // the goal, so two quick presses move exactly a page; the goal is clamped, so pressing on
   // at the foot banks no debt for u to press back through; and the step stands down the
   // moment the box moves under another hand — a wheel, a centering — because the reader's
   // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
-  // rest of the runtime's motion already gives (SCROLL).
+  // rest of the runtime's motion already gives (scrollBehavior()).
   //
   // The page the step halves is the one the reader can see. The document's box lends its
   // top edge to the fixed banner, and scroll-padding-top — declared on that scroller, read
@@ -167,7 +168,7 @@ export function createNavigation({
   // back through, and an edge may be asked for as the height it cannot exceed.
   function glideTo(box, goal) {
     goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
-    if (REDUCED) {
+    if (reducedMotion()) {
       box.scrollTo({ top: goal, behavior: "instant" });
       return;
     }
@@ -177,6 +178,11 @@ export function createNavigation({
     const tick = (now) => {
       if (!holding(box)) {
         glide = null; // the box moved under another hand; theirs wins
+        return;
+      }
+      if (reducedMotion()) {
+        box.scrollTo({ top: goal, behavior: "instant" });
+        glide = null;
         return;
       }
       // Floored as well as capped: a rAF timestamp is its frame's start, which can precede

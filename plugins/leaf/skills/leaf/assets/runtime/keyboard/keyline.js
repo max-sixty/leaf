@@ -18,10 +18,9 @@ export function createKeyline({
   //
   // The rows the line shows, innermost scope first: the ones carrying a word for it. A row
   // is skipped where any of its bindings has been named already, so an inner scope's own
-  // word for a press wins and the generic one behind it stays quiet — the case that names
-  // this is `g c` aimed over an option's pick mark, where the chord's "1–3 comments" and the
-  // mark's "1–5 toggle the nth" would otherwise stand side by side, two promises for one
-  // press.
+  // word for a press wins and the generic one behind it stays quiet — for example, a
+  // numbered hyperlink address over an option's pick mark must not sit beside the mark's
+  // own "1–5 toggle the nth" promise for the same digit.
   function lineRows(scopes) {
     const named = new Set();
     const nearer = shadow();
@@ -62,7 +61,7 @@ export function createKeyline({
     const wayOut = candidates.slice(1).find((row) => bindings(row).includes("Escape"));
     const short = new Set([first, wayOut ?? candidates[1]].filter(Boolean));
     // Read where it is painted, like every other cell: the chord's chip says which stage the
-    // reader is at (`g`, then `g c`), and a string fixed at declaration could only say one.
+    // reader is at (`g`, then `g h`), and a string fixed at declaration could only say one.
     const chord = word(scopes.find((s) => s.chord)?.chord);
     // Everything but More, which the reader may be standing on. `textContent = ""` takes
     // it out of the document, and removing a focused element blurs it: it returns on the

@@ -4,7 +4,8 @@ import re
 
 import pytest
 from leaf import conversation as conversation_model
-from leaf import events as events_model
+from leaf import event_log as events_model
+from leaf import render_checks as render_checks_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -249,13 +250,11 @@ def test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next(
         context.close()
 
 
-def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
+def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     """A thread can move, not just appear: resolving the first one sends it to the
-    resolved disclosure and renumbers every thread after it — the address its reply
-    box speaks moving with it, on nodes that are kept rather than remade. The
-    disclosure itself is kept too, so the user's open toggle survives the next
-    resolution instead of snapping shut on every arrival, which is what the rebuild
-    did."""
+    resolved disclosure while every surviving node stays put. The disclosure itself is
+    kept too, so the user's open toggle survives the next resolution instead of snapping
+    shut on every arrival, which is what the rebuild did."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-comments").click()
     panel_settled(page)
@@ -265,7 +264,7 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
         if e["kind"] == "comment"
     ]
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 2"
+        "placeholder", "Reply"
     )
     page.evaluate(
         """(id) => { window.__second = document.querySelector(`.lf-thread[data-id="${id}"]`); }""",
@@ -281,10 +280,9 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
     expect(page.locator(f'.lf-details .lf-thread[data-id="{c1}"]')).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_count(0)
     expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
-    # The survivors renumber without being remade: same node, new address, and the
-    # address its placeholder speaks moved with it.
+    # The survivor stays the same node.
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 1"
+        "placeholder", "Reply"
     )
     assert page.evaluate(
         """(id) => window.__second === document.querySelector(`.lf-thread[data-id="${id}"]`)""",
@@ -319,8 +317,8 @@ def test_resolving_an_early_thread_renumbers_the_rest_in_place(browser, serve):
 def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
     """The list is the page's order, not the log's. A reader walking a long
     conversation walks it the way they walk the prose it is about, and every other
-    reading of these threads already does: the marks down the page, the j/k walk, the
-    g c digits. So the threads are written here in the reverse of the page's order and
+    reading of these threads already does: the marks down the page and the t/T walk. So
+    the threads are written here in the reverse of the page's order and
     the panel is asked for its own, which is only the page's if something sorted it.
 
     A thread with nowhere in the page to be — a comment about the whole of it — comes
@@ -347,14 +345,13 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
         whole,
     ], "the panel is not reading in the page's order"
 
-    # The addresses and the walk are the same order, because both read the list itself.
     expect(page.locator(f'.lf-thread[data-id="{lede}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 1"
+        "placeholder", "Reply"
     )
     page.locator("body").click()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
-    page.keyboard.press("j")
+    page.keyboard.press("t")
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_be_focused()
     assert errors == []
     page.close()
@@ -872,10 +869,8 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
 
     What the log says is true from that first frame regardless — Comments counts down
     and Resolved counts up while the pixels catch up — and a thread on its way out is
-    out of the keys' reach from the same frame, so j/k and the g addresses walk what
-    is left rather than a corpse that is about to go. Its own reply box gives up the
-    address with them: the box under it has just taken that digit, and two boxes
-    offering g c 1 is a key line promising a press that lands on one of them.
+    out of the t/T walk from the same frame rather than remaining a destination that is
+    about to disappear.
 
     Held at its first frame rather than sampled mid-flight, the way the suggestion's
     own fold is read: mid-flight is a race with the clock that passes on a fast
@@ -916,7 +911,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         f"the list stood as {held['standing']} with the fold still to play"
     )
     assert held["walkable"] == [c2, c3], (
-        "a thread on its way out is still walkable by j/k and addressable by g, so a "
+        "a thread on its way out is still walkable by t/T, so a "
         f"key can land on room that is about to go: the list offered {held['walkable']}"
     )
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
@@ -930,12 +925,11 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
     expect(page.locator(".lf-comments")).to_have_text("Comments (2)")
     expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
-    # The address the fold gave up, read where a reader reads it.
     expect(page.locator(f'[data-id="{c1}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
     )
     expect(page.locator(f'.lf-thread[data-id="{c2}"] textarea')).to_have_attribute(
-        "placeholder", "Reply · g c 1"
+        "placeholder", "Reply"
     )
 
     # Half way down, the outcome is still on screen. A fold from the bottom takes the
@@ -1128,11 +1122,23 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
     # once: its node left the list when the thread reopened, and the record it must
     # not clear on its way is the live fold's. Cleared, the thread is pulled out of
     # the list in the middle of the motion carrying it away.
+    # The await states its own end. `page.evaluate` takes no timeout in any binding, so
+    # an animation that never settles `finished` is a wait nothing bounds: this one
+    # didn't, and what should have been this test failing under its own name was the
+    # job's whole 45-minute step, spent here, with the share of the suite already handed
+    # to this worker never run. `SERVED_TIMEOUT_MS` is the patience the payload's own
+    # probes give a promise they await inside `evaluate`, and the rejection comes back
+    # through `evaluate` naming the motion that stopped and the bound it passed.
     page.evaluate(
-        "async (i) => { const m = window.__lfHeld[i];"
+        "async ([i, ranOutMs]) => { const m = window.__lfHeld[i];"
         " m.play(); m.currentTime = m.effect.getComputedTiming().duration;"
-        " await m.finished; }",
-        before,
+        " let timer;"
+        " try {"
+        "   await Promise.race([m.finished, new Promise((_, ranOut) => {"
+        "     timer = setTimeout(() => ranOut(new Error("
+        "       `held fold ${i} did not finish within ${ranOutMs}ms`)), ranOutMs); })]);"
+        " } finally { clearTimeout(timer); } }",
+        [before, render_checks_model.SERVED_TIMEOUT_MS],
     )
     expect(going.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
     assert errors == []
@@ -1192,6 +1198,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert {c for c in surface["global"] if c.startswith("lf-")} == {
         "lf-copy",
         "lf-ui",
+        # A native label can pass through an intermediate focus target. These project
+        # the held control's focus until activation settles.
+        "lf-focus",
+        "lf-focus-visible",
         "lf-btn",
         "lf-pill",
         "lf-address",
@@ -1213,6 +1223,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-mark",
         "lf-react",
         "lf-docked",  # a seat's measured fallback, the word a suggestion row docks under
+        # Visual reactions add a quiet keyboard proxy beside the authored target and
+        # an outline on the target while its shared action bar is standing.
+        "lf-visual-actions",
+        "lf-visual-action",
+        "lf-action-target",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
@@ -1886,7 +1901,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
             " return l.scrollHeight > l.clientHeight; }"
         ), "the list does not scroll, so nothing here can be cut by its edge"
 
-        # The walk keys, not Tab: a thread is tabindex -1 and j/k are how a reader
+        # The walk keys, not Tab: a thread is tabindex -1 and t/T are how a reader
         # reaches one. Every landing on the way down and again on the way up, because
         # the two directions align opposite edges of the box with the scrollport and
         # only one of them was ever wrong at a time.
@@ -1900,7 +1915,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
         page.keyboard.press("c")
         expect(page.locator(".lf-threads")).to_be_focused()
         walked, faults = 0, []
-        for key in ("j",) * threads + ("k",) * threads:
+        for key in ("t",) * threads + ("Shift+t",) * threads:
             page.keyboard.press(key)
             page.evaluate(RENDERED)
             walked += 1
@@ -1924,7 +1939,7 @@ def test_no_ring_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered(
             "the walk ends outside a scroll region, so the cut half proved nothing"
         )
 
-        # The list's own controls, which j and k never reach: Reply and Resolve inside a
+        # The list's own controls, which t and T never reach: Reply and Resolve inside a
         # card draw their rings outside themselves, as does a run heading, which is a
         # button. They are what the room reserved at this list's edges is for — the
         # threads' own rings being inset, nothing else spends it — so without this pass
@@ -2129,7 +2144,7 @@ BURY = """(want) => {
 def test_a_comment_the_pointer_lands_on_comes_out_from_under_the_run_heading(
     browser, serve
 ):
-    """The walk above never sees this, and that is the point of having it twice: j/k
+    """The walk above never sees this, and that is the point of having it twice: t/T
     scroll their landing into the band the list declares unlandable, so the keyboard
     cannot put a thread anywhere its ring is cut. A click scrolls nothing. The reader
     nudges the list a dozen pixels, the run heading pins over the first card of its run,
@@ -2233,7 +2248,7 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
     focus event hears nothing and the reader presses at a card that will not come.
 
     Which is why the press asks where the gesture left the reader rather than which
-    thread the focus moved to. The keyboard half of this was already answered — `k` at
+    thread the focus moved to. The keyboard half of this was already answered — `T` at
     the top of the walk lands the thread it is already on — and this is the same shape
     one scope out."""
     url = serve(PANEL_PAGE)
@@ -2284,6 +2299,85 @@ def test_a_press_on_the_comment_the_reader_is_already_in_brings_it_back(browser,
         context.close()
 
 
+def test_a_cancelled_panel_press_does_not_suppress_the_next_focus_landing(
+    browser, serve
+):
+    """A touch scroll begins as a press and ends in ``pointercancel`` when the browser
+    takes the gesture. Cancellation must not undo the scroll by landing the card, but it
+    must end the provisional press: the next independent focus arrival still brings its
+    thread out from under the run heading.
+
+    Dispatch the pointer events directly so the browser does not add a mouse click or a
+    default focus after the cancellation. An unrelated pointer first proves which gesture
+    owns the hold; the matching cancellation and the focus after it then distinguish
+    release-without-landing from both a stale hold and an ordinary pointer-up landing."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    for i in range(4):
+        panel_comment(d, f"About the lede, {i}.", {"section": "lede"})
+        panel_comment(d, f"About the store, {i}.", {"section": "how-store"})
+        panel_comment(d, f"About the merge, {i}.", {"section": "merge-both"})
+
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-comments").click()
+        panel_settled(page)
+
+        first = page.locator(".lf-threads > .lf-thread").first
+        first.evaluate("el => el.focus({preventScroll: true})")
+        page.evaluate(RENDERED)
+        page.evaluate(BURY, 20)
+        page.evaluate(RENDERED)
+        before = page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+        assert page.evaluate(UNDER_HEADING)["covered"] >= 20, (
+            "the setup did not put the first card under its heading"
+        )
+
+        page.evaluate(
+            """() => {
+              const card = document.querySelector('.lf-threads > .lf-thread');
+              card.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true, isPrimary: true, pointerId: 7,
+              }));
+              dispatchEvent(new PointerEvent('pointercancel', {
+                isPrimary: false, pointerId: 8,
+              }));
+            }"""
+        )
+        page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
+        first.evaluate("el => el.focus({preventScroll: true})")
+        page.evaluate(RENDERED)
+        assert page.evaluate(COVERED_TOP) is not None, (
+            "an unrelated pointer cancellation released the active panel gesture"
+        )
+
+        page.evaluate(
+            """() => dispatchEvent(new PointerEvent('pointercancel', {
+              isPrimary: true, pointerId: 7,
+            }))"""
+        )
+        assert (
+            page.evaluate("() => document.querySelector('.lf-threads').scrollTop")
+            == before
+        ), "cancelling a touch-scroll gesture landed the thread and undid the scroll"
+
+        page.locator(".lf-threads").evaluate("el => el.focus({preventScroll: true})")
+        first.evaluate("el => el.focus({preventScroll: true})")
+        page.evaluate(RENDERED)
+        assert page.evaluate(COVERED_TOP) is None, (
+            "the cancelled press suppressed the next focus landing and left the card "
+            f"under its heading: {page.evaluate(COVERED_TOP)}"
+        )
+
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
 def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serve):
     """The panel's quote is words and a press at once — it says which passage the comment
     is about, and pressing it travels the page there. So a reader who drags across it to
@@ -2308,7 +2402,25 @@ def test_a_drag_across_a_quote_takes_its_words_and_not_its_passage(browser, serv
         page.locator(".lf-comments").click()
         panel_settled(page)
         page.evaluate("() => { document.querySelector('.lf-threads').scrollTop = 0; }")
+        # Keep the quoted passage outside the page's readable viewport. This test is the
+        # drag/plain-press contrast: a readable destination deliberately stays put now,
+        # so only an offscreen passage can prove the plain press still travels.
+        page.evaluate("() => document.body.scrollTo(0, document.body.scrollHeight)")
         page.evaluate(RENDERED)
+        destination = page.evaluate(
+            """() => {
+              const target = document.querySelector('#merge-both').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              return {top: target.top, bottom: target.bottom,
+                      banner: banner.bottom, height: innerHeight};
+            }"""
+        )
+        assert (
+            destination["bottom"] <= destination["banner"]
+            or destination["top"] >= destination["height"]
+        ), (
+            f"the quoted passage is still readable, so a click need not travel: {destination}"
+        )
 
         where = "() => document.body.scrollTop"
         before = page.evaluate(where)
@@ -2476,7 +2588,7 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         page.keyboard.press("c")
         expect(page.locator(".lf-threads")).to_be_focused()
         faults = []
-        for key in ("j",) * 8 + ("k",) * 8:
+        for key in ("t",) * 8 + ("Shift+t",) * 8:
             page.keyboard.press(key)
             page.evaluate(RENDERED)
             under = page.evaluate(COVERED_TOP)

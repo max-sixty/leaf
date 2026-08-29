@@ -6,21 +6,41 @@ projection, rendering, and publishing. `interact.py` is the PEP 723 entrypoint;
 
 The main owners are:
 
-- `files`, `page`, and `revisioning`: atomic page files and immutable revisions;
+- `files` and `revisioning`: atomic page files and immutable revisions;
+- `locations`: filesystem path identity, containment, and overlap;
+- `page`: vendored page guidance and vocabulary catalog;
+- `agent_state`: the agent-facing folded page-state reading;
+- `transcript`: the agent-facing raw event stream and Markdown transcript;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;
-- `event_endpoint`: browser-event admission, retry coordination, and append;
-- `events`, `conversation`, `projection`, and `work`: event folds and their
-  standing readings;
-- `session`, `service`, `hosting`, and `hooks`: host identity, process lifetime,
-  and leases;
-- `served_state` and `http`: browser-facing state readings and HTTP transport;
-- `registry` and `layer`: registry storage and layer composition;
-- `registry_contract`, `schema`, `structure`, `styles`, and `validation`: the
-  merged vocabulary contract and authored-page gates;
-- `passages`: the file-side text reading and anchor capture;
-- `render_checks`, `render_gate`, and `exporting`: browser probes, validation,
+- `event_endpoint` and `event_contracts`: browser-event admission, retry
+  coordination and append, and shared browser/CLI event contracts;
+- `events` and `projection`: standing event and durable state folds;
+- `thread_context` and `conversation`: thread identity, frozen markup, bounded
+  delivery context, and conversation writes;
+- `work`: transient work claims and widget work seats;
+- `asks`: declaration-driven page and thread request projections;
+- `host`: local paths, process readings, host identity, and session lifetime;
+- `leases`: process-backed page, transition, and waiter leases;
+- `service`: page claims, serialized transactions, and status;
+- `server` and `hosting`: server address and lifetime state, and the HTTP process;
+- `session` and `hooks`: wait delivery and host lifecycle;
+- `presence`: page, claim, and neighboring-leaf presence readings;
+- `served_state/` and `http`: browser-facing projections and change readings,
+  and HTTP transport;
+- `registry/`: registry vocabulary contracts, composition validation, storage,
+  and page-facing readings;
+- `layer`: package discovery and layer composition;
+- `packages`: package authoring commands and filesystem safety gates;
+- `vendoring`: page initialization, layer transitions, and atomic installation;
+- `schema`, `structure`, `styles`, and `validation/`: authored-page gates, the
+  complete source reading, and the `version check` command;
+- `passages` and `anchor_capture`: the file-side text reading and authored
+  anchor construction;
+- `render_checks`, `render_gate/`, and `exporting`: browser probes, validation,
   and standalone export;
-- `data`, `media`, and `publishing`: page-bound inputs and deployment outputs.
+- `data` and `data_contracts`: typed snapshot storage, commands, bindings, and
+  registry-contract validation;
+- `media` and `publishing`: page-bound media and deployment outputs.
 
 Do not put domain logic back into `interact.py` or branch across these owners in
 the CLI.
@@ -58,3 +78,29 @@ when adding a command.
 The registry is the common contract with the browser. Server-side event gates,
 state folds, catalog output, package checks, and markup validation must consume
 its declarations without a widget-name list.
+
+Within `registry/`, `contract` owns shared schema helpers and layer readings,
+`layer`, `widgets`, and `state` own their complete vocabulary contracts,
+`validation` composes those gates, `storage` owns the vendored-file cache and
+page lookup, and `reactions` owns reaction descriptions. Import the owner
+directly; the package initializer is only a marker.
+
+Within `served_state/`, `wire` serializes one declared fold, `conversation` and
+`document` own their scoped browser readings, `browser` assembles the requested
+views, `page` composes the complete served response, and `reading` names
+filesystem changes for the news stream. Import the owner directly; the package
+initializer is only a marker.
+
+Within `render_gate/`, `models` owns the values passed between phases, `scheme`
+owns one browser/color lifecycle, `readings` owns raw probe results, `reporting`
+owns human findings, `version` owns retry policy, `preview` owns ephemeral
+servers, and `command` owns the CLI boundary. Import the owner directly; the
+package initializer is only a marker.
+
+Within `validation/`, `markup` owns shared document structure rules, `instances`
+owns registry-declared instance rules, `admission` owns incoming message markup,
+`compatibility` owns layer changes against the standing log, `source_history`
+owns predecessor readings and continuity, `transitions` compares authored
+revisions with standing actions and reports, `source` composes those gates into
+one reading, and `command` owns its CLI and render handoff. Import the owner
+directly; the package initializer is only a marker, not a second API to maintain.

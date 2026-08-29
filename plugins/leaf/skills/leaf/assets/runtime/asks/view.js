@@ -1,6 +1,6 @@
 export function createAskView({
   PAGE_PAINT_ATTRIBUTE,
-  SCROLL,
+  scrollBehavior,
   announce,
   askEntry,
   askSource,
@@ -10,6 +10,8 @@ export function createAskView({
   asksPanel,
   banner,
   blocksOnScreen,
+  closeTray,
+  documentFocused,
   el,
   elementById,
   inChrome,
@@ -31,6 +33,7 @@ export function createAskView({
   showNews,
   shownParts,
   tagsDeclaring,
+  trayCovers,
   unansweredAsks,
   versionBtn,
 }) {
@@ -52,20 +55,28 @@ export function createAskView({
       const label = verb[0].toUpperCase() + verb.slice(1);
       const btn = el("button", "lf-btn lf-answer-all", "");
       btn.title = `${label} every one still waiting on you`;
+      let answering = false;
       btn.onclick = async () => {
-        btn.disabled = true;
+        if (answering) return;
+        answering = true;
+        // Native disabling immediately drops keyboard focus on body, before the events
+        // this press sends can settle and hide the control. Keep the busy button in the
+        // focus model so showNews can hand its place to the next standing destination;
+        // the guard above still makes a repeated activation inert.
+        btn.setAttribute("aria-disabled", "true");
         try {
           for (const ask of openAsks()) {
             const source = askSource(ask);
             if (askEntry(source)?.all === verb) await source[verb]?.();
           }
         } finally {
-          btn.disabled = false;
+          answering = false;
+          btn.removeAttribute("aria-disabled");
         }
       };
       showNews(btn, false);
       bulkButtons.set(verb, { btn, label });
-      banner.insertBefore(btn, versionBtn);
+      versionBtn.before(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncAsks writes, measured in the face it will render in (see reserve).
       reserve(btn, [`✓ ${label} all (999)`]);
@@ -73,10 +84,8 @@ export function createAskView({
   }
 
   // Each blanket answer with the asks it would take, from the list above. The banner
-  // writes its controls from this and the A key reads the same call, so the count on the
-  // row, the count the "?" reference promises, and the presses the key makes are one
-  // reading rather than three — and neither surface names a verb, since which verbs there
-  // are is the registry's answer.
+  // writes its controls and counts from this one reading, without naming a verb in core;
+  // which verbs exist is the registry's answer.
   function blanketAnswers(asks) {
     return [...bulkButtons].map(([verb, { btn, label }]) => ({
       btn,
@@ -84,18 +93,12 @@ export function createAskView({
       n: asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length,
     }));
   }
-  // The ones with something to answer right now. Declared rather than assigned, like
-  // openAsks above it: the key table is written further up the file, so a const would put
-  // this in its own dead zone for anything asked of that table before the module ends.
-  function standingAnswers() {
-    return blanketAnswers(openAsks()).filter((a) => a.n);
-  }
-
   // The banner's reading of that one list. Refreshed from every signal that can change
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
   // page's own words change), and every poll, which is where the fold moves and where a
   // send that failed has its optimism taken back.
   let shortcutsOffered = false;
+  let rowWalkOffered = false;
   function syncAsks() {
     const asks = openAsks();
     // While the tray stands its button stands too, whatever the count just did — the
@@ -110,12 +113,14 @@ export function createAskView({
       showNews(btn, Boolean(n));
       btn.textContent = `✓ ${label} all (${n})`;
     }
-    // The n/p and A rows stand on this list, so the surfaces reading them are repainted
+    // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and showTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = asksOffered();
-    if (offered !== shortcutsOffered) {
+    const walkOffered = asks.length > 0;
+    if (offered !== shortcutsOffered || walkOffered !== rowWalkOffered) {
       shortcutsOffered = offered;
+      rowWalkOffered = walkOffered;
       paintKeys();
     } else paintHere();
   }
@@ -166,6 +171,7 @@ export function createAskView({
         };
         keys(row, "In the asks tray", [
           {
+            id: "ask.open",
             keys: PRESS,
             does: "Go to this ask and stand on the control that answers it",
             line: "go to this ask",
@@ -279,11 +285,11 @@ export function createAskView({
   // ask parts from neither list: its question is settled, so there is nothing left there to
   // be standing in, and a settled group goes on being named by its own words.
   //
-  // document.activeElement rather than focused(), for the reason askPosition gives: a
+  // Document focus rather than the inner control, for the reason askPosition gives: a
   // control staged in a shadow tree retargets to its host, and the host is the place in the
   // document this wants.
   function standingIn() {
-    const held = document.activeElement;
+    const held = documentFocused();
     if (!held || held === document.body) return null;
     const place = askPlace(held);
     return (
@@ -335,9 +341,9 @@ export function createAskView({
   const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
   // Where the walk measures from: where the reader is standing, rather than where the walk
   // last put them. It carried an id of its own, so every walk the reader had not made with
-  // this key started at the top of the page — select a paragraph and press `n` and you were
+  // this key started at the top of the page — select a paragraph and press `a` and you were
   // taken back past everything you had read, and so was anyone scrolled halfway down
-  // pressing it for the first time. d/u measure from the scroll position and j/k from the
+  // pressing it for the first time. d/u measure from the scroll position and t/T from the
   // focused thread; this measured from its own memory, which is the one place the reader
   // isn't.
   //
@@ -346,11 +352,11 @@ export function createAskView({
   // reading. Every one of them can be absent, and then the first ask is the only answer
   // there is.
   //
-  // document.activeElement rather than focused(): a control staged in a shadow tree
+  // Document focus rather than the inner control: a control staged in a shadow tree
   // retargets to its host, which is exactly what this question wants — a place in the
   // document to measure the asks against, not the control the register would dispatch to.
   function askPosition() {
-    const held = document.activeElement;
+    const held = documentFocused();
     // The banner stands over the page rather than in it, and its controls are addresses
     // the reader holds from wherever they are. The Asks button focuses itself on the way
     // to running this, so measuring from it would send every press on it back to the top.
@@ -393,19 +399,22 @@ export function createAskView({
     (control ?? source).focus({ preventScroll: true });
   }
 
-  // Standing on one ask: what n and p do once they have decided which, what a press on a
-  // tray row does having been told outright, and where `g a` lands a digit. One function
-  // because it is one act — a second would be a second answer to "how do I put the reader on
-  // an ask", and the two would drift the first time either the reveal or the focus rule
-  // changed.
+  // Standing on one ask: what a and A do once they have decided which, and what a press on
+  // a tray row does having been told outright. One function because it is one act — a
+  // second would be a second answer to "how do I put the reader on an ask", and the two
+  // would drift the first time either the reveal or the focus rule changed.
   //
   // The list comes with the ask, because the announcement names a place in it and the caller
-  // is the one that knows which list it walked: the walk's own, the tray's, or the whole of
-  // what the page is waiting on where an address reached past the nine it can spell.
+  // is the one that knows which list it walked: the walk's own or the tray's.
   function goToAsk(next, asks) {
     // A thread's ask lives in the panel, which has no geometry while closed — the
     // same reason reveal() opens a settled group before the scroll.
     if (inChrome(next) && !panelIsOpen()) setPanel(true);
+    // A tray beside the page stays standing as a working index. A covering tray has
+    // become the whole visible surface, so selecting a page destination closes it
+    // before the reveal and focus land; otherwise the correct navigation happens
+    // invisibly behind the very sheet that offered it.
+    if (!inChrome(next) && openTray("asks") && trayCovers()) closeTray();
     reveal(next); // a settled group or an inactive tab has no geometry until it opens
     const source = askSource(next);
     if (source !== next) reveal(source); // let the answering widget settle its own chrome
@@ -418,7 +427,7 @@ export function createAskView({
     // One travel for both, because which box it moves is now the travel's own question
     // (scrollerFor) rather than a second one asked here; what stays is the destination,
     // which is the banner's clearance in the document and the middle of the list.
-    scrollToElement(next, SCROLL, inChrome(next) ? "center" : "start");
+    scrollToElement(next, scrollBehavior(), inChrome(next) ? "center" : "start");
     announce(`${asks.indexOf(next) + 1} of ${asks.length} waiting on you`);
   }
   function stepAsk(dir) {
@@ -440,7 +449,6 @@ export function createAskView({
     renderAsks,
     setLanded,
     standOn,
-    standingAnswers,
     standingIn,
     stepAsk,
     syncAsks,

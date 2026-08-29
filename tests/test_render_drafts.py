@@ -7,7 +7,7 @@ import re
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import events as events_model
+from leaf import event_log as events_model
 from leaf import session as session_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1009,7 +1009,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    expect(first.locator(".lf-toast")).to_contain_text("Sent to Claude")
+    expect(first.locator(".lf-toast")).to_contain_text("Message recorded")
     roots = [
         event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
     ]
@@ -1877,6 +1877,9 @@ def test_registered_control_keys_activate_once(browser, serve):
     page.locator("#draft-ops .lf-draft-pencil").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#draft-ops textarea")).to_be_focused()
+    assert page.locator("#draft-ops").evaluate(
+        "el => getComputedStyle(el).outlineStyle !== 'none'"
+    ), "the draft editor received focus without a visible focus indicator"
     page.keyboard.press("Escape")
 
     mark = page.locator("#opts .lf-pick").first
@@ -2123,7 +2126,7 @@ def test_the_half_page_step_never_paints_behind_where_it_started(browser, serve)
 
 def test_the_half_page_keys_jump_under_reduced_motion(browser, serve):
     """Under reduced motion the step forgoes its glide and jumps, like every other
-    motion here (SCROLL) — read straight after the press, since a jump leaves nothing
+    motion here (scrollBehavior()) — read straight after the press, since a jump leaves nothing
     to wait for and a glide would read as wherever its first frame had got to."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},

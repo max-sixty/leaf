@@ -8,12 +8,16 @@ RENDER_VIEWPORT = {"width": 1200, "height": 900}
 # beside it turns a wedged preview into a useful failure rather than an unbounded evaluate.
 SERVED_TIMEOUT_MS = 30_000
 
-PROBE_ROUTE = "/_leaf/render-checks.js"
-PROBE_SOURCE = Path(__file__).with_name("render-checks.js")
-STANDALONE_ROUTE = "/_leaf/render-checks-standalone.js"
-STANDALONE_SOURCE = Path(__file__).with_name("render-checks-standalone.js")
-WINDOW_ERRORS_SOURCE = Path(__file__).with_name("render-checks-init.js")
-STANDALONE_FILE_ROUTE = "file:///_leaf/render-checks-standalone.js"
+PROBE_ROOT = Path(__file__).with_name("render-checks")
+PROBE_ROUTE = "/_leaf/render-checks/index.js"
+STANDALONE_ROUTE = "/_leaf/render-checks/standalone.js"
+STANDALONE_SOURCE = PROBE_ROOT / "standalone.js"
+WINDOW_ERRORS_SOURCE = PROBE_ROOT / "init.js"
+STANDALONE_FILE_ROUTE = "file:///_leaf/render-checks/standalone.js"
+PROBE_SOURCES = {
+    f"/_leaf/render-checks/{source.name}": source
+    for source in sorted(PROBE_ROOT.glob("*.js"))
+}
 
 _PROBE_CACHE = "__leafRenderChecks"
 _LOAD_PROBES = f"""async (call) => {{

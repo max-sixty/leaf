@@ -34,6 +34,7 @@ export const STRIP_TRAY_RULE = `body:is(${STRIP_TRAYS.map(
 export const TRAY_KEY = "lf-tray-up";
 
 export function createTrays({
+  beforeOpen,
   drawnEdge,
   el,
   keys,
@@ -82,10 +83,10 @@ export function createTrays({
   });
 
   // What the page is still waiting on the reader for, and the way to the next one — the
-  // same list n/p step and the "?" overlay names, counted here so a reader who
+  // same list a/A step and the "?" overlay names, counted here so a reader who
   // has not scrolled that far still knows there is something to answer.
   const asksBtn = el("button", "lf-btn lf-asks", "");
-  asksBtn.title = "Go to the next thing this page is waiting on you for";
+  asksBtn.title = "Show or hide what this page needs your input on";
   // The machine's live leaves and what each is doing: a left panel of rows, each a
   // link opening that page in its own tab, judged by the same `presented` the banner
   // answers with, from the same facts — `others` on /api/state carries them for every
@@ -101,7 +102,8 @@ export function createTrays({
   // aria-label the card needs (axe: aria-prohibited-attr, serious).
   const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
   othersPanel.setAttribute("aria-label", "Leaves on this machine");
-  traysEdge.handle(othersPanel);
+  othersPanel.tabIndex = -1;
+  traysEdge.handle(othersPanel, () => othersBtn);
   const leavesList = trayList(othersPanel);
   // A tray of the page's own open asks, on the same edge: one row per thing the page is
   // waiting on the reader for, in the order the page asks them. The list is openAsks() and
@@ -109,7 +111,8 @@ export function createTrays({
   // what kind of thing it is standing for.
   const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
   asksPanel.setAttribute("aria-label", "What this page is waiting on you for");
-  traysEdge.handle(asksPanel);
+  asksPanel.tabIndex = -1;
+  traysEdge.handle(asksPanel, () => asksBtn);
   const asksList = trayList(asksPanel);
 
   // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
@@ -131,6 +134,9 @@ export function createTrays({
   const openTray = (key) => trayUp === key;
   function showTray(key) {
     if (trayUp === key) return;
+    // Comments and trays are alternate workspaces. Retire the standing one before another
+    // opens so layout, focus, and persisted state never have to reconcile two of them.
+    if (key) beforeOpen();
     trayUp = key;
     for (const [name, { panel, btn, paint }] of trays) {
       const open = name === key;
@@ -199,6 +205,7 @@ export function createTrays({
     if (!trayUp) return;
     const tray = trays.get(trayUp);
     if (!tray) return;
+    beforeOpen();
     tray.btn.setAttribute("aria-expanded", "true");
     tray.paint?.();
     tray.panel.classList.add("open");
@@ -214,25 +221,33 @@ export function createTrays({
     if (pagePresented()) restoreTray();
   }
 
-  // Each tray's one offer: something to show, or the tray already standing — the key that
-  // opened it must still close it, and its button must still be pressable. The button's
-  // visibility and the key both ask the tray's own predicate, so the two surfaces cannot
-  // disagree about whether there is a tray to open. An asks tray of none is the same.
+  // Each tray's one offer: something to show, or the tray already standing so its button
+  // can still close it. An asks tray of none is the same.
   const asksOffered = () =>
     pagePresented() && (openAsks().length > 0 || openTray("asks"));
   const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
   // The asks tray's own walk, the leaves tray's twin: ArrowUp and ArrowDown are the page's
   // scroll everywhere else and the tray's here, and Enter is the platform's, a row being a
   // button — so the scope names what walking does and leaves the press to the button.
-  keys(asksPanel, "In the asks tray", [
-    {
-      keys: ["ArrowUp", "ArrowDown"],
-      does: "Walk the asks",
-      line: "walk the asks",
-      repeat: true,
-      run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
-    },
-  ]);
+  keys(
+    asksPanel,
+    "In the asks tray",
+    [
+      {
+        id: "ask.walk",
+        keys: ["ArrowUp", "ArrowDown"],
+        routes: [
+          { id: "ask.previous", binding: "ArrowUp", does: "Previous ask" },
+          { id: "ask.next", binding: "ArrowDown", does: "Next ask" },
+        ],
+        does: "Walk the asks",
+        line: "walk the asks",
+        repeat: true,
+        run: (binding) => walkRows(askRows(), binding === "ArrowDown" ? 1 : -1),
+      },
+    ],
+    () => askRows().length > 0,
+  );
 
   const trayStrip = () =>
     STRIP_TRAYS.includes(trayUp) && !traysEdge.over.matches ? traysEdge.width() : 0;

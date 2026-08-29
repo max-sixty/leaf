@@ -13,8 +13,54 @@ $ARGUMENTS
 
 ## Return to the user
 
-Once the page has a URL, repeat that exact URL every time you return to the user
-in chat, including interim updates, questions, and the final handoff.
+After first handing over the page's URL, repeat that exact URL every time you
+return to the user in chat, including interim updates, questions, and the final
+handoff.
+
+## Start here
+
+Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
+command takes the directory explicitly. A page holds mutable `index.html`,
+immutable valid revisions, stamped versions, the event log, service state, and
+its vendored layer. Export or copy anything that must outlive that live state.
+
+Resolve `${CLAUDE_SKILL_DIR}/../../bin/leaf` and use that launcher for every
+command shown as `leaf`. Claude Code also puts it on `PATH`. If the resolved file
+is absent, report that the plugin payload is incomplete. A checkout keeps it at
+`plugins/leaf/bin/leaf`.
+
+1. Run `leaf page init <page>`, then run and read
+   `leaf page catalog <page>`.
+2. Read `references/page-authoring.md`. Write the page to `<page>/index.html`
+   using only the catalog's tags, attributes, and idioms. A valid save becomes
+   the active immutable revision; an invalid save leaves the last valid revision
+   live and reports its diagnostic in page state and the browser.
+3. Match the handoff ceremony to the page's intended lifetime, regardless of
+   its shape or whether it asks a question:
+   - For a quick page that will be revised or dropped after an immediate
+     reaction, run `leaf version check <page>` and fix every failure. Do not
+     stamp it or delay its first handoff for a browser review.
+   - For a finished record that work will rely on after the conversation, run
+     the pre-handover review in `references/page-authoring.md`, including
+     `leaf version check <page> --render`, and fix every failure. Then stamp it
+     with `leaf version stamp <page> --text "<changelog>"` before its URL first
+     reaches the user.
+   - If a later stamp turns a quick page into a record, run that review before
+     the stamp.
+4. Start the service with `leaf server start <page>` and retain its exact URL.
+   The key in that URL opens the page.
+5. Read `references/conversation-loop.md`. Set
+   `leaf status <page> waiting "<what you want back>"`; leave the detail empty
+   with `leaf status <page> waiting ""` on an informational page with no
+   concrete ask.
+6. Send the exact URL and one sentence naming the available gesture: comment,
+   use the stated control, or approve declared sign-off.
+7. Enter the host wait loop defined in `references/conversation-loop.md`.
+
+The conversation reference owns acknowledgement, event processing, later
+revisions and stamps, replies, sign-off, and ending. Follow it before each wait
+or delivered batch and before setting the page idle. Edit only `index.html`;
+Leaf alone writes immutable revisions and versions.
 
 ## Page contract
 
@@ -35,15 +81,6 @@ place and drop a superseded claim rather than narrating its withdrawal — the
 `version stamp` changelog and the event log carry the history, so the column does
 not have to.
 
-The stakes decide the ceremony. A quick page — one that exists to get a
-reaction now and will be revised or dropped on it, whatever shape it takes —
-goes live whenever a valid source save passes the markup check. A finished
-record — one that later work reads from after the conversation ends: a write-up,
-a findings report, the design a build follows — also passes the browser gate and
-a read-through before its URL first reaches the user. A quick page becomes a
-record when a stamped version makes it one; that review runs before the stamp.
-Both kinds set status and enter the wait loop.
-
 Packages may also carry guidance for roles involved in the page. `leaf page
 guidance <page>` lists the available audiences, and `leaf page guidance <page>
 <audience>` prints one guide. Read the assigned audience before acting in that
@@ -53,48 +90,6 @@ Every ask has a control beside its evidence. A page that needs approval declares
 sign-off; an informative page does not. Save freely as the subject changes and
 stamp meaningful checkpoints. Use status detail for progress between revisions.
 Keep the waiter alive while work continues so comments can affect the next step.
-
-## Page and launcher
-
-Pages conventionally live at `~/.local/state/leaf/pages/<slug>/`, though every
-command takes the directory explicitly. A page holds mutable `index.html`,
-immutable valid revisions, stamped versions, the event log, service state, and
-its vendored layer. Export or copy anything that must outlive that live state.
-
-Resolve `${CLAUDE_SKILL_DIR}/../../bin/leaf` and use that launcher for every
-command shown as `leaf`. Claude Code also puts it on `PATH`. If the resolved file
-is absent, report that the plugin payload is incomplete. A checkout keeps it at
-`plugins/leaf/bin/leaf`.
-
-## Build and hand over
-
-1. Run `leaf page init <page>`, then run and read
-   `leaf page catalog <page>`.
-2. Read `references/page-authoring.md`. Write the page to `<page>/index.html`
-   using only the catalog's tags, attributes, and idioms. A valid save becomes
-   the active immutable revision; an invalid save leaves the last valid revision
-   live and reports its diagnostic in page state and the browser.
-3. Start the service with `leaf server start <page>` and retain its exact URL.
-   The key in that URL opens the page.
-4. Stamp a meaningful checkpoint with
-   `leaf version stamp <page> --text "<changelog>"`. Stamping checks the exact
-   current source and assigns the next version number.
-5. On a finished record, run the pre-handover review in
-   `references/page-authoring.md`, including
-   `leaf version check <page> --render`, before the URL first reaches the
-   user — or, when a stamp turns a quick page into a record, before that stamp.
-   A quick page otherwise goes live on the source check alone.
-6. Read `references/conversation-loop.md`. Set
-   `leaf status <page> waiting "<what you want back>"`; leave the detail empty
-   on an informational page with no concrete ask.
-7. Send the exact URL and one sentence naming the available gesture: comment,
-   use the stated control, or approve declared sign-off.
-8. Enter the host wait loop defined in `references/conversation-loop.md`.
-
-The conversation reference owns acknowledgement, event processing, later
-revisions and stamps, replies, sign-off, and ending. Follow it before each wait
-or delivered batch and before setting the page idle. Edit only `index.html`;
-Leaf alone writes immutable revisions and versions.
 
 ## Conditional references
 

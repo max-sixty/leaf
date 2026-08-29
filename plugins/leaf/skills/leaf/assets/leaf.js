@@ -125,7 +125,7 @@
  * reached at all.
  *
  * Two page modes make a destination explicit before acting on it. `s` draws short,
- * viewport-local hints on the smallest visible text blocks and atomic visuals; `/`
+ * viewport-local hints on stable items and declared visual parts; `/`
  * inside that mode searches all page text, Tab walks repeated matches, and Enter turns
  * the current result into an ordinary native selection. Both routes end at the same
  * passage or item the pointer path uses, so the existing `c` comments on it and no second
@@ -1167,16 +1167,15 @@ const { landTyping, mayLandTyping, pageSelection, selectionAnchor, snapSelection
   });
 
 const {
+  activateAimTarget,
   BANNER_CLEAR,
   activateVisual,
   beside,
   dismissFab,
   fabAnchorAt,
   openOnItem,
-  openOnVisual,
   placeClear,
   placeComposer,
-  raiseOnItem,
   refreshFab,
   showFab,
   standDown,
@@ -1231,18 +1230,16 @@ const {
 });
 
 const { AIM, aimIsOn, aimedItem } = createAim({
+  activateAimTarget,
+  aimTargetAt,
   designPress,
   designTarget,
   inChrome: (node) => inChrome(node),
-  itemAt,
   openOnDesign,
-  openOnVisual,
   pointerAt,
-  raiseOnItem,
   refreshAim,
   spell,
   standDown,
-  visualAt,
 });
 // ---------- design mode ----------
 let designRuntime;
@@ -1901,28 +1898,23 @@ const { GO, GOTO, isChordArmed, paintAddresses, setChord } = createAddress({
 });
 
 const { SELECT, isSelecting, paintTargets, startSelecting } = createTargetSelection({
+  activateAimTarget,
+  aimTargets,
   allButTheReference,
   anchoringIsReady: () => anchoringReady,
   announce,
   banner,
   blockAt: (...args) => blockAt(...args),
-  containsAcross: (...args) => containsAcross(...args),
   contextAround: (...args) => contextAround(...args),
   cut: (...args) => cut(...args),
   el,
   findText: (...args) => findText(...args),
   focused,
   inChrome: (node) => inChrome(node),
-  isItem,
-  itemSelector: () => ITEM,
-  itemSays,
-  itemWord,
   keyline: keylineEl,
-  pageQueryAll: (...args) => pageQueryAll(...args),
   pageText: (...args) => pageText(...args),
   paintHere,
   quoteFrom: (...args) => quoteFrom(...args),
-  raiseOnItem,
   rangeOf: (...args) => rangeOf(...args),
   scrollToRange,
   selectionInput,
@@ -1930,8 +1922,6 @@ const { SELECT, isSelecting, paintTargets, startSelecting } = createTargetSelect
   selectionSearch,
   selectionStatus,
   shownRect: (...args) => shownRect(...args),
-  textBlockSelector: () => TEXT_BLOCK,
-  textNodesUnder: (...args) => textNodesUnder(...args),
   updateFab,
 });
 
@@ -2534,8 +2524,8 @@ const PAGE = {
     {
       id: "selection.open",
       keys: ["s"],
-      does: "Select a visible passage by hint, or search all page text",
-      line: "select passage",
+      does: "Select a visible item by hint, or search all page text",
+      line: "select item",
       // Once a target is in hand, its actions own the two short-line slots. Escape clears
       // it, while this projection-only gate leaves s live to replace the target and keeps
       // that capability in the complete reference.
@@ -3052,6 +3042,12 @@ function restoreView(...args) {
 }
 function sectionOf(...args) {
   return anchorRuntime.sectionOf(...args);
+}
+function aimTargetAt(...args) {
+  return anchorRuntime.aimTargetAt(...args);
+}
+function aimTargets(...args) {
+  return anchorRuntime.aimTargets(...args);
 }
 function isItem(...args) {
   return anchorRuntime.isItem(...args);

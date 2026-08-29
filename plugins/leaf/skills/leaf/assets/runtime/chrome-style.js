@@ -1345,13 +1345,12 @@ ${MARK_RULES}
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */
     .lf-addresses > .lf-address.lf-in { transform: translate(-50%, 0); }
-    /* Passage selection borrows the address chip's face but not its meaning. These hints
-       are deliberately local to the viewport: the page gives every visible text block a
-       short, prefix-free name for the few seconds this mode stands. Unlike addresses,
-       hints are never dropped for a collision — they are the route itself, not a reminder
-       of a stable route that works without being drawn. Paragraph-like blocks put enough
-       vertical air between their starts for the shared square to remain legible, and a
-       wrapped block contributes one start rather than one chip per line. */
+    /* Item selection borrows the address chip's face but not its meaning. These hints are
+       deliberately local to the viewport: the page gives every visible item a short,
+       prefix-free name for the few seconds this mode stands. Unlike addresses, hints are
+       never dropped for a collision — they are the route itself, not a reminder of a
+       stable route that works without being drawn. Nested targets that begin at the same
+       corner are spread by the hint pass before this layer is shown. */
     .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
     .lf-targets > .lf-target-hint { position: absolute; display: block;
       transform: translate(-50%, -50%); }

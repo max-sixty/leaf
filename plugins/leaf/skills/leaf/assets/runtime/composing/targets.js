@@ -1,34 +1,29 @@
-// Keyboard passage selection. `s` opens a viewport-local map of the smallest text blocks
-// a reader can see; `/` replaces that map with ordinary whole-page find. Both routes end
-// by making a native Selection (or raising an atomic item), so comment capture has one input
-// no matter whether the passage came from a pointer, caret browsing, a hint, or search.
+import { sameAnchor } from "../anchors.js";
+
+// Keyboard item aim. `s` opens a viewport-local map of the same stable items and visual
+// parts Alt-click reaches; `/` replaces that map with ordinary whole-page text search.
 
 const HINT_KEYS = [..."asdfghjklqwertyuiopzxcvbnm"];
 const MIN_SEARCH = 3;
 
 export function createTargetSelection({
+  activateAimTarget,
+  aimTargets,
   allButTheReference,
   anchoringIsReady,
   announce,
   banner,
   blockAt,
-  containsAcross,
   contextAround,
   cut,
   el,
   findText,
   focused,
   inChrome,
-  isItem,
-  itemSelector,
-  itemSays,
-  itemWord,
   keyline,
-  pageQueryAll,
   pageText,
   paintHere,
   quoteFrom,
-  raiseOnItem,
   rangeOf,
   scrollToRange,
   selectionInput,
@@ -36,8 +31,6 @@ export function createTargetSelection({
   selectionSearch,
   selectionStatus,
   shownRect,
-  textBlockSelector,
-  textNodesUnder,
   updateFab,
 }) {
   let open = false;
@@ -114,51 +107,11 @@ export function createTargetSelection({
 
   function visibleTargets() {
     const cache = clips();
-    const text = [];
-    for (const block of pageQueryAll(textBlockSelector())) {
-      if (inChrome(block)) continue;
-      const segments = textNodesUnder(block).filter(
-        (segment) => blockAt(segment.node) === block,
-      );
-      const quote = quoteFrom(segments);
-      if ([...quote].length < MIN_SEARCH) continue;
-      const range = rangeOf(segments);
-      const rect = firstShown(range, block, cache);
-      if (rect) text.push({ kind: "text", block, quote, range, rect });
-    }
-
-    // A text-bearing widget is reached through the blocks inside it. Items without one —
-    // an image, chart, or other atomic visual — remain literal targets of their own. Keep
-    // only the innermost visible atomic item so a widget and its empty wrapper never wear
-    // two hints for the same press.
-    const items = pageQueryAll(itemSelector())
-      .filter((item) => isItem(item) && !inChrome(item))
-      .filter((item) => !text.some(({ block }) => containsAcross(item, block)))
-      .map((item) => ({ item, rect: shownRect(item, cache) }))
-      .filter(({ rect }) => exposed(rect));
-    const atomic = items
-      .filter(
-        ({ item }) =>
-          !items.some(
-            ({ item: other }) => other !== item && containsAcross(item, other),
-          ),
-      )
-      .map(({ item, rect }) => ({
-        kind: "item",
-        item,
-        quote: (() => {
-          const name =
-            itemSays(item) ||
-            item.getAttribute("aria-label") ||
-            item.querySelector("[aria-label]")?.getAttribute("aria-label");
-          return [itemWord(item), name].filter(Boolean).join(": ");
-        })(),
-        rect,
-      }));
-
-    const targets = [...text, ...atomic].sort(
-      (a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left,
-    );
+    const targets = aimTargets()
+      .filter(({ element }) => !inChrome(element))
+      .map((target) => ({ ...target, rect: shownRect(target.element, cache) }))
+      .filter(({ rect }) => exposed(rect))
+      .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
     const codes = hintCodes(targets.length);
     return targets.map((target, index) => ({
       ...target,
@@ -181,12 +134,10 @@ export function createTargetSelection({
     if (on) {
       candidates = visibleTargets();
       if (!candidates.length) {
-        announce(
-          "There is no visible passage to select. Press slash to search the page.",
-        );
+        announce("There is no visible item to select. Press slash to search the page.");
       } else {
         announce(
-          `Select a passage — type one of ${candidates.length} hints, press Tab to hear them, or slash to search the page.`,
+          `Select an item — type one of ${candidates.length} hints, press Tab to hear them, or slash to search the page.`,
         );
       }
     } else {
@@ -212,7 +163,7 @@ export function createTargetSelection({
       matches = [];
       active = -1;
       document.body.focus({ preventScroll: true });
-      announce("Select a passage — type a hint, or slash to search the page.");
+      announce("Select an item — type a hint, or slash to search the page.");
     }
     paintHere();
   }
@@ -287,28 +238,20 @@ export function createTargetSelection({
     );
   }
 
-  function chooseText(range, quote, kind) {
+  function choose(target) {
     setOpen(false);
     document.body.focus({ preventScroll: true });
-    const selection = getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    updateFab();
-    announce(`Selected ${kind}: ${cut(quote, 0, 72)}. Press c to comment.`);
-  }
-
-  function choose(target) {
-    if (target.kind === "item") {
-      setOpen(false);
-      document.body.focus({ preventScroll: true });
-      const { left, right, top, bottom } =
-        shownRect(target.item, clips()) ?? target.rect;
-      raiseOnItem(target.item, {
-        left: (left + right) / 2,
-        top: (top + bottom) / 2,
-      });
-      announce(`Selected ${target.quote}. Press c to comment.`);
-    } else chooseText(target.range, target.quote, "passage");
+    const { left, right, top, bottom } =
+      shownRect(target.element, clips()) ?? target.rect;
+    activateAimTarget(target, {
+      left: (left + right) / 2,
+      top: (top + bottom) / 2,
+    });
+    announce(
+      target.anchor.visual
+        ? `Commenting on ${target.label}.`
+        : `Selected ${target.label}. Press c to comment.`,
+    );
   }
 
   function typeHint(key) {
@@ -320,7 +263,7 @@ export function createTargetSelection({
     if (!left.length) {
       prefix = "";
       announce("That hint is not on screen. The hints are reset.");
-    } else announce(`${left.length} passages remain.`);
+    } else announce(`${left.length} items remain.`);
     paintHere();
   }
 
@@ -332,7 +275,7 @@ export function createTargetSelection({
     hintActive = (hintActive + direction + targets.length) % targets.length;
     const target = targets[hintActive];
     announce(
-      `Hint ${target.code}: ${cut(target.quote, 0, 72)}. Press Enter to select.`,
+      `Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to select.`,
     );
     paintHere();
   }
@@ -345,7 +288,14 @@ export function createTargetSelection({
   function chooseMatch() {
     const range = matchRange();
     if (!range) return;
-    chooseText(range, quoteFrom(matches[active]), "match");
+    const quote = quoteFrom(matches[active]);
+    setOpen(false);
+    document.body.focus({ preventScroll: true });
+    const selection = getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    updateFab();
+    announce(`Selected match: ${cut(quote, 0, 72)}. Press c to comment.`);
   }
 
   function back() {
@@ -353,7 +303,7 @@ export function createTargetSelection({
     if (prefix) {
       prefix = prefix.slice(0, -1);
       hintActive = -1;
-      announce(prefix ? `Hint ${prefix}.` : "All passage hints.");
+      announce(prefix ? `Hint ${prefix}.` : "All item hints.");
       return paintHere();
     }
     setOpen(false, true);
@@ -373,6 +323,49 @@ export function createTargetSelection({
     return chip;
   }
 
+  const overlaps = (a, b) =>
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const movedBy = (box, top) => ({
+    left: box.left,
+    right: box.right,
+    top,
+    bottom: top + box.height,
+    width: box.width,
+    height: box.height,
+  });
+  // Nested items can begin at exactly the same corner. Hints are the only route to their
+  // targets, so keep every one and step later faces down (or up at the key line) until
+  // each is legible. Read every face before moving one, keeping the pass to one layout.
+  function spreadHints(chips) {
+    const gap = 2;
+    const measured = chips.map((chip) => [chip, chip.getBoundingClientRect()]);
+    const placed = [];
+    for (const [chip, start] of measured) {
+      let box = start;
+      for (
+        let collisions = placed.filter((other) => overlaps(box, other));
+        collisions.length;
+        collisions = placed.filter((other) => overlaps(box, other))
+      )
+        box = movedBy(box, Math.max(...collisions.map((other) => other.bottom)) + gap);
+      if (box.bottom > bottomCovered()) {
+        box = start;
+        for (
+          let collisions = placed.filter((other) => overlaps(box, other));
+          collisions.length;
+          collisions = placed.filter((other) => overlaps(box, other))
+        )
+          box = movedBy(
+            box,
+            Math.min(...collisions.map((other) => other.top)) - gap - box.height,
+          );
+      }
+      const shift = box.top - start.top;
+      if (shift) chip.style.top = `${parseFloat(chip.style.top) + shift}px`;
+      placed.push(box);
+    }
+  }
+
   function paintTargets() {
     if (!open) {
       if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
@@ -385,9 +378,7 @@ export function createTargetSelection({
       const still = heard
         ? candidates.findIndex(
             (target) =>
-              target.kind === heard.kind &&
-              (target.block ?? target.item) === (heard.block ?? heard.item) &&
-              target.code === heard.code,
+              sameAnchor(target.anchor, heard.anchor) && target.code === heard.code,
           )
         : -1;
       hintActive = still;
@@ -397,11 +388,7 @@ export function createTargetSelection({
       const cache = clips();
       for (const target of candidates) {
         if (!target.code.startsWith(prefix)) continue;
-        const rect = refreshed
-          ? target.rect
-          : target.kind === "text"
-            ? firstShown(target.range, target.block, cache)
-            : shownRect(target.item, cache);
+        const rect = refreshed ? target.rect : shownRect(target.element, cache);
         if (!exposed(rect)) continue;
         const chip = hintChip(target);
         chip.style.left = `${Math.max(10, rect.left)}px`;
@@ -425,6 +412,7 @@ export function createTargetSelection({
         }
     }
     selectionLayer.replaceChildren(...drawn);
+    if (!searching) spreadHints(drawn);
   }
 
   selectionInput.addEventListener("input", search);
@@ -439,7 +427,7 @@ export function createTargetSelection({
   addEventListener("resize", () => open && paintHere());
 
   const SELECT = {
-    title: "Selecting a passage",
+    title: "Selecting an item",
     at: () => open,
     claims: allButTheReference,
     rows: [
@@ -447,7 +435,7 @@ export function createTargetSelection({
         id: "selection.hint.choose",
         keys: HINT_KEYS,
         label: "a–z",
-        does: "Choose the passage wearing that hint",
+        does: "Choose the item wearing that hint",
         line: "choose hint",
         when: () => !searching && candidates.length > 0,
         run: typeHint,
@@ -459,15 +447,15 @@ export function createTargetSelection({
           {
             id: "selection.hint.next",
             binding: "Tab",
-            does: "Hear the next visible target",
+            does: "Hear the next visible item",
           },
           {
             id: "selection.hint.previous",
             binding: "Shift+Tab",
-            does: "Hear the previous visible target",
+            does: "Hear the previous visible item",
           },
         ],
-        does: "Hear the next / previous visible target",
+        does: "Hear the next / previous visible item",
         line: "browse hints",
         repeat: true,
         when: () => !searching && candidates.length > 0,
@@ -523,10 +511,10 @@ export function createTargetSelection({
         keys: ["Escape"],
         does: () =>
           searching
-            ? "Return to the visible passage hints"
+            ? "Return to the visible item hints"
             : prefix
               ? "Remove the last hint letter"
-              : "Cancel passage selection",
+              : "Cancel item selection",
         line: () =>
           searching ? "back to hints" : prefix ? "back one letter" : "cancel",
         run: back,

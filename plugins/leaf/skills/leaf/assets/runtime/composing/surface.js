@@ -309,14 +309,12 @@ export function createSelectionSurface({
     showFab(null, null, { returnFocus: "none" });
     openComposer({ section: item.id }, "", from.left, from.top);
   }
-  function openOnVisual({ id, part }, from) {
+  // The aim has one activation door for pointer and keyboard. A whole item raises the
+  // cheap-answer bar; a declared visual part opens its anchored composer directly.
+  function activateAimTarget({ anchor }, from) {
+    if (!anchor.visual) return showFab(anchor);
     showFab(null, null, { returnFocus: "none" });
-    openComposer({ section: id, visual: part.part }, "", from.left, from.top);
-  }
-  // The ⌥ press takes the item whole rather than opening the composer on it: the bar
-  // offers the cheap answers first, and its own Comment is the way through to the box.
-  function raiseOnItem(item) {
-    showFab({ section: item.id });
+    openComposer(anchor, "", from.left, from.top);
   }
   // The button follows the selection. What counts as one is measured on the quote it would
   // store, not on the selection's own toString(): those are different strings, and gating on
@@ -580,8 +578,7 @@ export function createSelectionSurface({
     dismissFab,
     fabAnchorAt,
     openOnItem,
-    openOnVisual,
-    raiseOnItem,
+    activateAimTarget,
     placeClear,
     placeComposer,
     refreshFab,

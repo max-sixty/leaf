@@ -397,6 +397,43 @@ export function createAnchors(dependencies) {
     const at = short.lastIndexOf(" ");
     return (at > ITEM_SAYS_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
   }
+  const aimLabel = (
+    item,
+    says = itemSays(item) ||
+      item?.getAttribute("aria-label") ||
+      item?.querySelector("[aria-label]")?.getAttribute("aria-label"),
+  ) => [itemWord(item), says].filter(Boolean).join(": ");
+  const itemAimTarget = (item) => ({
+    anchor: { section: item.id },
+    element: item,
+    label: aimLabel(item),
+  });
+  // One reading for the pointer aim and the keyboard's item hints. A declared picture
+  // part outranks the authored item around it; everywhere else the innermost stable id
+  // is the target.
+  function aimTargetAt(node) {
+    const visual = visualAt(node, { unclaimed: false });
+    if (visual?.part)
+      return {
+        anchor: { section: visual.id, visual: visual.part.part },
+        element: visual.part.element,
+        label: aimLabel(sectionOf({ section: visual.id }), visual.part.label),
+      };
+    const item = itemAt(node);
+    return item ? itemAimTarget(item) : null;
+  }
+  function aimTargets() {
+    return [
+      ...pageQueryAll(ITEM).filter(isItem).map(itemAimTarget),
+      ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
+        [...declaredVisualParts(visual)].flatMap((token) => {
+          const part = visualPart(visual, token);
+          const target = part ? aimTargetAt(part.element) : null;
+          return target?.anchor.visual ? [target] : [];
+        }),
+      ),
+    ];
+  }
   function resolveAnchor(anchor, text) {
     // An element anchor asks a different question — whether the section is still on the
     // user's page — and the whole page is not an answer to it. Existence alone isn't
@@ -1260,6 +1297,8 @@ export function createAnchors(dependencies) {
     itemAt,
     itemWord,
     itemSays,
+    aimTargetAt,
+    aimTargets,
     visualAt,
     visualActionAnchor,
     visualPartAt,

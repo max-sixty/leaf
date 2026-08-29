@@ -978,7 +978,9 @@ def test_a_decision_not_yet_honored_wears_the_pending_mark(browser, serve):
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
-    draft.get_by_role("button", name="Save").click()
+    page.locator(".lf-draft-controls[data-lf-for='draft-ops']").get_by_role(
+        "button", name="Save"
+    ).click()
     expect(page.locator("#draft-ops[data-lf-pending]")).to_have_count(1)
 
     # Both actions must be in the log before the honoring version publishes, and the

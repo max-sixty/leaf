@@ -1,77 +1,26 @@
-/* lf-suggestion: Claude's edit to content the user has already seen, offered
- * as a proposal rather than shipped as a fait accompli. The user accepts or
- * rejects it in place; the outcome rides the action channel lf-board opened, and
- * the next version carries the settled markup.
+/* lf-suggestion: an edit to content the reader has already seen, offered as a
+ * proposal rather than shipped as a fait accompli. Accept or Reject rides the action
+ * channel; the next version eventually carries the settled markup.
  *
- * Deciding is the end of the matter on screen: the element settles to the
- * surviving slot as soon as the log has taken the decision (the theme drops every
- * mark from it), long before the honoring version exists — the live view is the
- * version plus the user's actions replayed on it. So applyAction states an
- * absolute outcome, which makes a reload, a second tab, and the sender itself all
- * converge on the same view. A pick can be cleared by clicking its mark again; a
- * decision can't. Changing your mind is a comment, and the version reverses it.
+ * The log owns the absolute outcome, so reloads and tabs converge. Once that outcome
+ * stands, the surviving slot remains and the retired slot folds away as trackable
+ * motion. The pressed control stays where the gesture happened and changes to a past-
+ * tense record while its pair gives up ink but not room. Each control therefore reserves
+ * the width of both of its possible words from the table below before it is shown.
  *
- * What deciding must not be is the page rearranging itself under the hand that
- * pressed. It was both. A block change is a struck old paragraph over a tinted
- * new one, so accepting took 179 measured pixels out of the middle of the page in
- * one frame, and everything below jumped up under the pointer; and the row the
- * user had just pressed cleared itself in the same frame, leaving a corner toast
- * as the only evidence that anything had been done at all. Two rules answer it,
- * both of them already written down. Where something has to move it moves as
- * motion, so the retired slot folds over a fifth of a second and the eye follows
- * the sentence to where it went. And the pressed control's own line holds still:
- * the row stays, the control the user pressed says what it did ("✓ Accepted"),
- * and its pair goes without giving up its room. The rail is reserved for the
- * page's life whether or not any row is left in it, so the standing record costs
- * nothing that was going to be reclaimed — and a reader who looks back at the
- * margin can see which changes they took.
- *
- * The word a decision leaves behind has its room from the start: a control that
- * took the room for two more glyphs at the moment it was pressed would move its
- * neighbour on the one line where nothing may. Each control reserves the width of
- * its own decided word as the row is built (reserve), measured in the control's
- * live face rather than stated as a number, so the reservation re-measures itself
- * when the font moves — and the one table below is what the controls write and
- * what they reserve, so the two cannot drift.
- *
- * Placement: the controls hang in the theme's rail, off the column's right edge,
- * on the line the change starts. Two elements say that, because one box cannot.
- * The row is the column's own child, inserted after the block the change sits
- * in: `left: 100%` is the page margin only where the column is the containing
- * block, and inside a positioned widget — a board card — it is that card's edge,
- * which no measurement can undo. Its line comes from a CSS anchor, an empty span
- * the widget prepends to itself and the row names: `top: anchor(top)` is the line
- * that span sits on, mid-sentence included, and the page reflows underneath with
- * both riding along. Hoisted, the row still meets the reader and the tab order
- * beside the change it decides, because it follows that change's own block.
- *
- * The span was there first because the wrapper generated no box to anchor from, and
- * it stays now that the wrapper has one. Which form the wrapper takes is a
- * stylesheet's to say, and a project layer says it again; a span the widget builds
- * for itself is the one thing it can anchor from whatever a layer decides. Anchoring
- * off the wrapper reads correctly on the shipped theme and takes the controls off the
- * page entirely under a layer that makes it `display: contents`, because
- * `checkVisibility()` is false for an element with no box: every row goes to
- * `lf-waiting`, and a change nobody can accept is worse than one with no ring.
- *
- * That margin is the theme's rail, reserved by a page that carries a row at all;
- * measuring is what finds it, not what makes it. Three things are measured, all by
- * one observer serving every suggestion on the page: whether the change is on
- * screen — one inside a collapsed container (a closed <details>, a tab that isn't
- * showing) has no line to hang on, and its row waits, hidden, for the reflow that
- * opens it; whether the page is wide enough to hold the row beside the column
- * (below the rail's breakpoint it keeps its whole width, and an open thread panel
- * takes the rest), where it isn't the row docks into flow where it was hoisted to,
- * a control line under the block it follows; and whether two rows land on top of
- * each other, which a translate nudges apart without touching layout. */
+ * The suggestion owns only those controls and their semantics. It contributes the row
+ * through `registerMarginItem`; the living margin joins it to comment threads,
+ * decisions, outcomes, activity, and temporary reaction controls for this same target.
+ * That owner hoists and places the one resulting item, measures the rail, docks it when
+ * the margin is too narrow, and reads rendered descendants when a project makes the
+ * target `display: contents`. A suggestion never creates a second RHS surface or
+ * geometry model of its own. */
 import {
   actionStands,
   alignText,
   FOLD_MS,
-  inChrome,
-  layoutMarginRows,
-  marginAnchorFor,
   measure,
+  marginAction,
   motion,
   offer,
   once,
@@ -79,14 +28,12 @@ import {
   quoted,
   relabel,
   renderRetired,
+  registerMarginItem,
   reserve,
-  registerMarginRow,
-  scheduleMarginLayout,
   says,
   sendAction,
   textNodesUnder,
   toast,
-  updateMarginRow,
 } from "/runtime/widget-api.js";
 
 // Each control's word in both states — what #name writes, and what the control
@@ -95,12 +42,11 @@ const WORDS = {
   accept: ["✓ Accept", "✓ Accepted"],
   reject: ["✗ Reject", "✗ Rejected"],
 };
+const FACE = {
+  accept: { glyph: "✓", tone: "positive" },
+  reject: { glyph: "✗", tone: "negative" },
+};
 const verb = (btn) => (btn.matches(".lf-sug-accept") ? "accept" : "reject");
-
-let railStated = false; // --rail is measured off the first row and holds for the page
-
-// What the row hangs off, and so also what it hangs in.
-const column = () => document.querySelector("main") || document.body;
 
 // ---------- word-level emphasis ----------
 // A block replacement asked the reader to eyeball-diff two paragraphs for the words
@@ -177,17 +123,14 @@ customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
     #row = null;
-    #anchor = null;
     #deciding = null; // the decision in flight, so a second press joins it
-    #unregisterLayout = null;
+    #margin = null;
 
     connectedCallback() {
-      // Re-connection — a card dragged to another column, a replay moving one —
-      // must be harmless, and the row is no longer in the subtree that moves, so
-      // hanging it again is what carries it along (the emphasis ranges ride the
-      // text nodes and move with them).
+      // Re-connection — a card dragged to another column, a replay moving one — must
+      // restore this target's contribution to the shared margin item.
       if (!once(this)) {
-        this.#hang();
+        this.#offer();
         return;
       }
       // Presentation, not input, so an exhibited pending change gets it too:
@@ -198,22 +141,17 @@ customElements.define(
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
       if (quoted(this)) return;
-      // The line the change starts on, named for the row to hang from. Empty, so
-      // it takes no space and says nothing; ids match [a-z0-9-] and `version check` keeps
-      // them unique, so the id is already the dashed-ident the name needs.
-      this.#anchor = offer("span", "lf-sug-line");
-      this.#anchor.style.anchorName = `--sug-${this.id}`;
-      this.prepend(this.#anchor);
       // The runtime says it just opened this element's containers (reveal): the row
-      // may be waiting on geometry the anchor only now has, and the caller is about
+      // may be waiting on geometry the target only now has, and the caller is about
       // to focus it, so the layout question is answered now rather than at the
       // observer's next frame.
-      this.addEventListener("lf-reveal", () => layoutMarginRows());
+      this.addEventListener("lf-reveal", () =>
+        this.#margin?.update({ immediate: true }),
+      );
       this.#row = offer("span", "lf-sug-actions");
-      this.#row.style.positionAnchor = `--sug-${this.id}`;
       this.#row.dataset.lfFor = this.id; // which change it decides, for anyone reading the page
       this.#row.append(this.#button("accept"), this.#button("reject"));
-      this.#hang();
+      this.#offer();
       // Off the row's own box, so it waits for one: this change may be one an agent sent
       // in a reply, and the panel holding it opens later. Measured before, both numbers
       // came off a row of no width at all — each control floored at nothing, so the
@@ -225,75 +163,46 @@ customElements.define(
         // holds still when the word changes (see the module header).
         for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
           reserve(btn, WORDS[verb(btn)]);
-        // The rail is the row it holds: measured off the first row once its controls
-        // hold their decided words' room, and stated on the root element — the page's
-        // own inline style, so an exported copy keeps the value it was rendered with.
-        // theme.css spends it (body's padding-right) and deliberately states no number.
-        //
-        // The page's own row states it, and a row standing in the panel is not in the
-        // page's margin — it is beside a message, in a column of its own. A page whose
-        // only changes arrive in replies wants no rail at all, and taking one from that
-        // row would move the document's right edge when the reader opened the panel.
-        if (railStated || inChrome(this)) return;
-        railStated = true;
-        const width =
-          this.#row.getBoundingClientRect().width +
-          parseFloat(getComputedStyle(this.#row).marginLeft);
-        document.documentElement.style.setProperty("--rail", Math.ceil(width) + "px");
+        this.#margin?.update();
       });
-      // The body's box carries the horizontal question (viewport, thread panel);
-      // the current main's carries the vertical one, since anything that moves content
-      // down the page changes its height. A live version replaces that main, so the one
-      // shared observer follows it rather than retaining the detached version.
     }
 
     disconnectedCallback() {
-      this.#unregisterLayout?.();
-      this.#unregisterLayout = null;
-      this.#row?.remove(); // it is no longer in the subtree that took it before
+      this.#margin?.unregister();
+      this.#margin = null;
       emphasized.delete(this);
       repaintEmphasis();
-      scheduleMarginLayout();
     }
 
-    // The row belongs to the column rather than to the change, so that `left:
-    // 100%` means the page margin (see the header). It goes after the change's
-    // own top-level block, which is the reader's and the tab order's place for
-    // it. A suggestion authored outside the column — `version check` accepts prose
-    // anywhere in body — has none of that margin to reach, and keeps its row
-    // beside itself; the measurement then docks it like any row without room.
-    #hang() {
-      if (!this.#row) return; // a quoted one grew none
-      const col = column();
-      let perch = this;
-      while (perch.parentElement !== col && col.contains(perch.parentElement))
-        perch = perch.parentElement;
-      // Several suggestions can share one top-level block. Insert among the rows already
-      // docked there by source position, so both first mount and reconnection preserve the
-      // page's reading and keyboard order.
-      let dock = perch;
-      while (
-        dock.nextElementSibling?.classList.contains("lf-sug-actions") &&
-        marginAnchorFor(dock.nextElementSibling) &&
-        this.#anchor.compareDocumentPosition(marginAnchorFor(dock.nextElementSibling)) &
-          Node.DOCUMENT_POSITION_PRECEDING
-      )
-        dock = dock.nextElementSibling;
-      dock.after(this.#row);
-      const options = { anchor: this.#anchor };
-      if (this.#unregisterLayout) updateMarginRow(this.#row, options);
-      else {
-        this.#unregisterLayout = registerMarginRow(this.#row, options);
-      }
-      scheduleMarginLayout();
+    #offer() {
+      if (!this.#row || this.#margin) return;
+      this.#margin = registerMarginItem({
+        target: () => this,
+        controls: this.#row,
+        items: () => [
+          {
+            id: `suggestion:${this.id}`,
+            text: this.dataset.lfState
+              ? `${this.dataset.lfState === "accept" ? "Accepted" : "Rejected"} suggested change`
+              : "Accept or reject suggested change",
+            activate: () =>
+              this.#row
+                .querySelector(
+                  this.dataset.lfState
+                    ? `.lf-sug-${this.dataset.lfState}`
+                    : "[role='button']",
+                )
+                ?.focus({ preventScroll: true }),
+          },
+        ],
+      });
     }
 
-    // Through `offer` like every other injected control, so the markers and the
-    // element are the runtime's one answer rather than this widget's: "✓ Accept" is
-    // a thing to do, and a press is a span (see offer) whatever it says. lf-pill is
-    // the margin's shape, the runtime's word too.
+    // Through `offer` like every other injected control, then through marginAction so
+    // this widget supplies only the verb and tone. The shared RHS contract supplies
+    // its shape, focus treatment, and responsive label behavior.
     #button(outcome) {
-      const btn = offer("button", `lf-pill lf-sug-${outcome}`);
+      const btn = offer("button", `lf-sug-${outcome}`);
       btn.onclick = () => this.#decide(outcome);
       this.#name(btn, false, this.#label());
       return btn;
@@ -315,6 +224,10 @@ customElements.define(
       // hidden box, and words nobody can see are nobody's to quote.
       relabel(btn, WORDS[kind][decided ? 1 : 0], {
         says: decided && this.#row?.dataset.lfOutcome === kind,
+      });
+      marginAction(btn, {
+        ...FACE[kind],
+        label: WORDS[kind][decided ? 1 : 0].replace(/^\S+\s+/, ""),
       });
       btn.setAttribute(
         "aria-label",
@@ -417,6 +330,7 @@ customElements.define(
         for (const btn of this.#row.querySelectorAll(":scope > [role='button']"))
           this.#name(btn, true, change);
       }
+      this.#margin?.update();
       // The emphasis goes with the pending state: a decided suggestion is plain
       // prose. So does the word naming each slot, which is the same fact said to
       // whoever is listening.
@@ -424,7 +338,6 @@ customElements.define(
       repaintEmphasis();
       this.#voice();
       fold?.();
-      scheduleMarginLayout(); // the rows below may no longer need the nudge they had
       // The banner's count of what the page is still asking is derived from the page,
       // so tell it the page changed rather than making it poll the DOM.
       document.dispatchEvent(new CustomEvent("lf-answered"));

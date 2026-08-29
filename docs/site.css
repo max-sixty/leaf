@@ -9,17 +9,6 @@
  * theme inlined and do not link this file; a copy of a leaf page is that page,
  * not a page of this site. */
 
-/* ---------- what a phone changes ---------- */
-
-/* A leaf page is served to the machine its session runs on, so the theme sizes
- * for a desktop and lets a token like `$XDG_CONFIG_HOME/leaf/` set the width
- * of the cell holding it. The site is read wherever the link is opened, and on a
- * 390px column that one token is wider than the page: it takes the table with
- * it, and the table takes the document, which then scrolls sideways under
- * everything. Breaking inside a word is the smaller loss, and it costs nothing
- * at a width where the word fits. */
-code { overflow-wrap: anywhere; }
-
 /* ---------- the bar across the top ---------- */
 
 /* Sits inside main, at the document's own column: a header band spanning wider
@@ -69,6 +58,45 @@ svg.arch { display: block; margin: 20px auto; width: 100%; max-width: 720px;
             grid-template-columns: minmax(11rem, max-content) 1fr; --lf-frame: 1; }
 .exhibits dt { font-weight: 600; }
 .exhibits dd { margin: 0 0 10px; color: var(--ink-2); font-size: var(--t-5); }
+
+/* ---------- package references ---------- */
+
+.package-next { margin-top: var(--sp-4); }
+.package-next dt { margin-top: var(--sp-2); }
+.package-next dd { color: var(--ink-2); }
+
+/* ---------- reference pages ---------- */
+
+/* A reference index is a set of addresses, not a data table. The links wrap to
+ * their content, so an incomplete final line leaves space rather than a painted cell. */
+.reference-index { display: flex; flex-wrap: wrap; gap: 6px 20px;
+                   margin: 18px 0 40px; padding: 14px 0;
+                   border-block: 1px solid var(--rule); --lf-frame: 1; }
+.reference-index a { text-decoration: none; }
+.reference-index a:is(:hover, :focus-visible) { text-decoration: underline; }
+.reference-index code { padding: 0; background: none; white-space: nowrap;
+                        overflow-wrap: normal; font-size: var(--t-5); }
+
+/* A declaration keeps the same hierarchy open or closed: term, summary, then an
+ * optional disclosure inside the prose column. */
+.reference-entry { display: grid; grid-template-columns: 9rem minmax(0, 1fr);
+                   gap: var(--sp-3); margin: 0; padding: 18px 0;
+                   border-bottom: 1px solid var(--rule); scroll-margin-top: 18px; }
+.reference-entry h3 { margin: 0; font-size: var(--t-4); line-height: 1.6; }
+.reference-entry h3 code { font-size: 84%; white-space: nowrap; overflow-wrap: normal; }
+.reference-copy > p { margin: 0; }
+.reference-more { margin: 8px 0 0; padding: 0; border: 0; border-radius: 0;
+                  background: none; }
+.reference-more > summary { width: max-content; color: var(--accent);
+                            font: 500 var(--t-5)/1.5 var(--sans); }
+.reference-more > p { margin: 8px 0 0; color: var(--ink-2); }
+.reference-entry:target { border-bottom-color: var(--accent); }
+.reference-entry:target h3 code { color: var(--accent); }
+
+@media screen and (max-width: 640px) {
+  .reference-index { column-gap: var(--sp-3); }
+  .reference-entry { grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); }
+}
 
 /* ---------- the foot ---------- */
 

@@ -514,15 +514,14 @@ $ leaf ack ./review 3</code></pre>
       <section id="layer">
         <h2>Each page owns its layer</h2>
         <p>
-          <code>page init</code> vendors the whole layer (runtime, theme, registry,
-          widget modules) into the page's directory. The kernel and bundled default
-          package come first, followed by selected packages in command order, your
-          <code>~/.config/leaf/</code> package, and the project's
-          <code>.leaf/</code> package. Theme files concatenate in that order; guidance
-          files concatenate by audience; registry entries add or replace by entry;
-          modules and vendored files replace by filename. Because pages are
-          self-contained, a version you approved can't change under you when the
-          defaults do.
+          <code>page init</code> composes the kernel and packages into one checked
+          layer, then vendors its runtime, theme, registry, and widget modules into the
+          page's directory. Because pages are self-contained, a version you approved
+          can't change under you when the defaults do. The
+          <a href="../plugins/leaf/skills/leaf/references/packages.md"
+            >package contract</a
+          >
+          owns composition order and replacement rules.
         </p>
         <p id="what-is-customizable">
           The kernel is the machine: the runtime and chrome, shared tokens and idioms,
@@ -534,9 +533,8 @@ $ leaf ack ./review 3</code></pre>
           default widget reaches the page through the same door as a project widget. You
           or the agent can restyle or replace an entry or file and add new ones beside
           it; the checked result must still satisfy the kernel's generic event and
-          runtime contracts. No package can remove an earlier entry, since composition
-          adds and replaces but never subtracts. The
-          <a href="packages.html">package guide</a> shows how to author each shape.
+          runtime contracts. The <a href="packages.html">package tutorial</a> builds the
+          smallest useful example.
         </p>
       </section>
 

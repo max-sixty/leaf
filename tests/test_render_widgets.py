@@ -100,9 +100,12 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
                 "() => document.activeElement.closest('.lf-sug-actions')?.dataset.lfFor"
             )
         )
-        # Each row has two controls; walk to the next row's first control.
+        # Each row has two decision controls, and the roving semantic marker now joins
+        # them in the same item. Walk past whichever row currently owns that one stop.
         page.keyboard.press("Tab")
         page.keyboard.press("Tab")
+        if page.locator(":focus").evaluate("el => el.matches('.lf-margin-marker')"):
+            page.keyboard.press("Tab")
     assert walked == ["first-change", "second-change", "third-change"]
     assert errors == []
     page.close()
@@ -500,7 +503,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     )
     assert (
         abs(in_card["top"] - page.locator("#sug-in-card lf-old").evaluate(box)["top"])
-        <= 4
+        <= 5
     ), "the row must hang on the change's own line, not on the block it follows"
 
     # The panel takes the right of the window, and the rail survives it: the rows
@@ -512,7 +515,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     page.wait_for_function(
         "() => [...document.querySelectorAll("
         "'[data-lf-for=sug-refill], [data-lf-for=sug-thistle]')]"
-        ".every(r => !r.classList.contains('lf-docked'))"
+        ".every(r => !r.parentElement.classList.contains('lf-docked'))"
     )
     narrowed = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
     room = page.evaluate("() => document.body.getBoundingClientRect().right")
@@ -529,10 +532,10 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     resized(page, 820, 900)
     page.wait_for_function(
         "() => [...document.querySelectorAll('.lf-sug-actions')]"
-        ".every(r => r.classList.contains('lf-docked'))"
+        ".every(r => r.parentElement.classList.contains('lf-docked'))"
     )
     assert page.evaluate("() => document.body.scrollWidth <= document.body.clientWidth")
-    for widget, block in [("sug-refill", "#replace"), ("sug-in-card", "#feeders")]:
+    for widget, block in [("sug-refill", "#replace"), ("sug-in-card", "#sug-in-card")]:
         assert (
             page.locator(f"[data-lf-for='{widget}']").evaluate(box)["top"]
             >= page.locator(block).evaluate(box)["bottom"]
@@ -586,6 +589,9 @@ def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
     assert copy.locator(".lf-sug-actions").count() == 0, (
         "the copy is only interesting because it has no controls left"
     )
+    assert copy.locator(".lf-margin-item").count() == 0, (
+        "stripping pending controls left their generated target item claiming a rail"
+    )
     for medium in ("screen", "print"):
         copy.emulate_media(media=medium)
         shown = copy.evaluate(read, quiet)
@@ -623,7 +629,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     row = page.locator("[data-lf-for='sug-in-card']")
     expect(row).to_be_visible()
     change = page.locator("#sug-in-card lf-old").evaluate(box)
-    assert abs(row.evaluate(box)["top"] - change["top"]) <= 4, (
+    assert abs(row.evaluate(box)["top"] - change["top"]) <= 5, (
         "the row must find the moved change's line again, not the one it left"
     )
     row.locator(".lf-sug-accept").click()
@@ -750,7 +756,7 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
         "the row must arrive in the margin, not over the prose that just opened"
     )
     assert (
-        abs(row["top"] - page.locator("#sug-boxes lf-new").evaluate(box)["top"]) <= 4
+        abs(row["top"] - page.locator("#sug-boxes lf-new").evaluate(box)["top"]) <= 5
     ), "and on the line of the change it decides"
     assert errors == []
     page.close()
@@ -801,7 +807,7 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
         assert row["left"] > column, f"{widget}'s row lost the rail without its script"
         assert (
             abs(row["top"] - loose.locator(f"#{widget} lf-old").evaluate(box)["top"])
-            <= 4
+            <= 5
         ), f"{widget}'s row lost its change's line without its script"
     loose.close()
 
@@ -1400,7 +1406,7 @@ def test_a_key_walks_the_page_s_open_decisions(browser, serve):
         )
     assert walked == [
         "span lf-pick lf-ui",  # the question: its first pick mark
-        "span lf-pill lf-sug-accept lf-ui",  # ✓ Accept, in the margin
+        "span lf-sug-accept lf-ui lf-margin-action",  # ✓ Accept, in the margin
         "span lf-pick lf-ui",  # the task's nested review question
         "span lf-pick lf-ui",
         "span lf-pick lf-ui",

@@ -3629,7 +3629,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("c")  # panel open, so the old second action would show
     expect(page.locator(".lf-panel")).to_be_visible()
 
-    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator(".lf-draft-controls .lf-draft-pencil").click()
     ta = page.locator("lf-draft textarea")
     expect(ta).to_be_focused()
     ta.fill("Ship it — but louder.")
@@ -3637,7 +3637,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
-    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator(".lf-draft-controls .lf-draft-pencil").click()
     expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
     page.keyboard.press("Escape")
 

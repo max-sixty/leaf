@@ -99,16 +99,9 @@ def test_a_traffic_wait_stops_when_responses_outlive_its_deadline(monkeypatch):
 def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
     """A missing public export names the browser boundary instead of raising a traceback.
 
-    The gate's own patience, because the deadline is the other test's subject and this
-    one races it. Two findings can carry the "browser probe module failed" prefix: the
-    module's rejection, which names the export, and `_load_probes`'s own timeout, which
-    names only the route and the bound. Capped at 500ms this test asked a loaded runner
-    to reject a module faster than its own clock, and the runner lost on
-    [33272123196](https://github.com/max-sixty/leaf/actions/runs/33272123196) and
-    [33273079113](https://github.com/max-sixty/leaf/actions/runs/33273079113) — where
-    the prefix assertion below passed and the export assertion failed, which is the one
-    shape a beaten deadline can produce. Uncapped, only the arrangement can answer, and
-    a module that never rejects at all still fails rather than passing as this one.
+    The neighboring stalled-module test owns the short deadline. This test uses the
+    gate's default so the module rejection, rather than the driver's timeout, supplies
+    the finding.
     """
 
     def break_probe(page):

@@ -1191,6 +1191,13 @@ ${MARK_RULES}
       border: 1px solid currentColor; border-radius: 999px; font-size: var(--t-6); }
     .lf-margin-kind-symbol { width: 10px; text-align: center; font-weight: 700; }
     .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
+    .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
+    .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
+    .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
+    .lf-margin-thread .lf-say { align-items: flex-end; }
+    .lf-margin-thread .lf-say textarea { min-width: 0; }
+    .lf-margin-thread-open { display: block; margin: 8px 0 0 auto; color: var(--muted);
+      font-size: var(--t-6); }
     .lf-margin-preview-action, .lf-page-map-action { width: 100%; min-width: 0;
       display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
       align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

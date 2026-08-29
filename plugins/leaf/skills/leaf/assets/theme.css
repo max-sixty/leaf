@@ -366,9 +366,10 @@
  * of a 138px card and across whatever the grid had put beside it. */
 /* Margin features claim named strips instead of overwriting page padding themselves.
  * A static copy must subtract exactly the room its padding reserved; the live page can
- * measure its final box, but both still need one shared answer. The right side now hosts
- * sidenotes, suggestion controls, and the living map. They occupy the same strip and are
- * collision-laid-out rather than summed, so the page reserves only the widest claim.
+ * measure its final box, but both still need one shared answer. The right side hosts
+ * sidenotes, suggestion controls, and the living map's inline conversations. They occupy
+ * the same strip and are collision-laid-out rather than summed, so the page reserves only
+ * the widest claim.
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
 body { margin: 0; background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
@@ -1431,6 +1432,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     outline-offset: calc(-1 * var(--here-ring-w)); }
 @media screen and (min-width: 900px) {
   body:has(.lf-living-margin:not([hidden])) { --claim-map: 54px; }
+}
+@media screen and (min-width: 1152px) {
+  body:not([data-lf-cramped]):has(
+      .lf-living-margin:not([hidden]) .lf-margin-marker[data-lf-kinds~="comment"]
+    ) {
+    --claim-map: var(--note);
+  }
 }
 @media screen and (max-width: 899px) {
   .lf-living-margin { display: none; }

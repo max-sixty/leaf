@@ -3354,6 +3354,7 @@ createLivingMargin({
   pageScroller,
   paintKeys,
   placedAt,
+  renderMarginThread: conversationRuntime.renderMarginThread,
   scrollBehavior,
   scrollToElement,
   showThread,

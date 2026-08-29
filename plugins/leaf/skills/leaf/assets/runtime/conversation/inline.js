@@ -1,4 +1,4 @@
-/* Inline conversation seats rendered into the authored page. */
+/* Textual conversation views rendered outside the retained Comments list. */
 export function createInlineConversations({
   ago,
   el,
@@ -126,5 +126,11 @@ export function createInlineConversations({
     }
   }
 
-  return { renderConversations };
+  function renderMarginThread(host, thread) {
+    const node = conversationThreadNode(host, thread);
+    setChildren(host, [node]);
+    return node;
+  }
+
+  return { renderConversations, renderMarginThread };
 }

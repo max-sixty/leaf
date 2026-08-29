@@ -47,6 +47,8 @@ shared tray furniture;
 `runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
 `runtime/reactions.js` owns reaction vocabulary, lists and their standing paint,
 sending, keyboard mode, and reaction-specific undo wording;
+`runtime/living-margin.js` owns the page map, inline margin threads, and compact map
+sheet; `runtime/margin-layout.js` owns collision layout for everything in that margin;
 `runtime/design.js` owns layer-review mode, targets, and legend geometry;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
@@ -556,10 +558,10 @@ not a page version, owns it.
 The server projects threads from the whole log, so a conversation stays current
 on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
-textual view while the owner exists in the current document; the Comments panel
-keeps the complete thread and its interactive replies. A root declared with
-`response: {kind: version, verb: <answer>}` keeps that exact-section view
-text-only and refuses an agent reply because the next authored version is its
+textual view while the owner exists in the current document. The living margin and
+Comments panel keep complete threads with mirrored interactive replies. A root
+declared with `response: {kind: version, verb: <answer>}` keeps that exact-section
+view text-only and refuses an agent reply because the next authored version is its
 response. Dropping the owner drops only the inline seat.
 
 `restated` and answered-report relations persist through version notes. The note

@@ -72,6 +72,7 @@ export function createLivingMargin(dependencies) {
     pageScroller,
     paintKeys,
     placedAt,
+    renderMarginThread,
     scrollBehavior,
     scrollToElement,
     showThread,
@@ -200,6 +201,7 @@ export function createLivingMargin(dependencies) {
         text: trimmed(
           thread.root.text || anchorLabel(thread.root.anchor, thread.root.about),
         ),
+        thread,
         activate: () => showThread(id),
       });
     }
@@ -524,7 +526,9 @@ export function createLivingMargin(dependencies) {
         row.onclick = (event) => {
           togglePinned(row.lfEntry, row);
           if (event.detail === 0 && pinnedKey === row.lfEntry.key)
-            previewList.querySelector("button")?.focus({ preventScroll: true });
+            previewList
+              .querySelector("textarea, button")
+              ?.focus({ preventScroll: true });
         };
         row.addEventListener("pointerenter", () => {
           suppressedKey = null;
@@ -569,7 +573,7 @@ export function createLivingMargin(dependencies) {
 
   function buildPreview(entry) {
     const focusedItem = preview.contains(document.activeElement)
-      ? document.activeElement.dataset.lfMarginItem
+      ? document.activeElement.closest?.("[data-lf-margin-item]")?.dataset.lfMarginItem
       : null;
     previewTitle.textContent = entry.title;
     previewKinds.replaceChildren(
@@ -582,33 +586,60 @@ export function createLivingMargin(dependencies) {
         return chip;
       }),
     );
-    previewList.replaceChildren(
-      ...entry.items.map((item) => {
-        const button = el("button", "lf-margin-preview-action");
-        button.type = "button";
-        button.append(
-          el(
-            "span",
-            `lf-margin-action-kind lf-margin-${item.kind}`,
-            KINDS[item.kind].label,
-          ),
-          el("span", "lf-margin-action-text", item.text || entry.title),
-        );
-        button.setAttribute(
-          "aria-label",
-          `Open ${KINDS[item.kind].label.toLowerCase()}: ${item.text || entry.title}`,
-        );
-        button.dataset.lfMarginItem = item.id;
-        button.onclick = () => activate(item, entry);
-        return button;
-      }),
-    );
+    const nodes = entry.items.map((item) => previewItemNode(entry, item));
+    const keep = new Set(nodes);
+    for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
+    let cursor = previewList.firstChild;
+    for (const node of nodes) {
+      if (node === cursor) cursor = cursor.nextSibling;
+      else previewList.insertBefore(node, cursor);
+    }
     if (focusedItem) {
       const replacement = [
         ...previewList.querySelectorAll("[data-lf-margin-item]"),
       ].find((candidate) => candidate.dataset.lfMarginItem === focusedItem);
       (replacement ?? previewClose).focus({ preventScroll: true });
     }
+  }
+
+  function previewItemNode(entry, item) {
+    let node = [...previewList.children].find(
+      (candidate) => candidate.dataset.lfMarginItem === item.id,
+    );
+    if (item.kind === "comment") {
+      if (!node?.classList.contains("lf-margin-thread")) {
+        node?.remove();
+        node = el("section", "lf-margin-thread");
+        const body = el("div", "lf-margin-thread-body");
+        const open = el("button", "lf-btn lf-margin-thread-open", "Open in Comments");
+        open.type = "button";
+        node.append(body, open);
+      }
+      renderMarginThread(
+        node.querySelector(":scope > .lf-margin-thread-body"),
+        item.thread,
+      );
+      node.querySelector(":scope > .lf-margin-thread-open").onclick = () =>
+        activate(item, entry);
+    } else {
+      if (!node?.classList.contains("lf-margin-preview-action")) {
+        node?.remove();
+        node = el("button", "lf-margin-preview-action");
+        node.type = "button";
+        node.append(el("span"), el("span", "lf-margin-action-text"));
+      }
+      const kind = node.firstElementChild;
+      kind.className = `lf-margin-action-kind lf-margin-${item.kind}`;
+      kind.textContent = KINDS[item.kind].label;
+      node.lastElementChild.textContent = item.text || entry.title;
+      node.setAttribute(
+        "aria-label",
+        `Open ${KINDS[item.kind].label.toLowerCase()}: ${item.text || entry.title}`,
+      );
+      node.onclick = () => activate(item, entry);
+    }
+    node.dataset.lfMarginItem = item.id;
+    return node;
   }
 
   function highlight(target) {

@@ -272,7 +272,7 @@ export function createConversation(dependencies) {
 
   const waitingNote = el("div", "lf-empty", "Loading current comments…");
 
-  const { renderConversations } = createInlineConversations({
+  const { renderConversations, renderMarginThread } = createInlineConversations({
     ago,
     el,
     elementById,
@@ -371,6 +371,7 @@ export function createConversation(dependencies) {
     paintWorkLines,
     widen,
     paintThreadQuotes: cards.paintThreadQuotes,
+    renderMarginThread,
     renderPanel,
     showThread,
     get threadList() {

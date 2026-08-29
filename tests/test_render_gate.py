@@ -166,6 +166,50 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     assert all("within 100ms" in failure for failure in failures)
 
 
+def test_a_probe_that_never_answers_is_a_gate_finding(browser, serve):
+    """The probe an answer comes from has the gate's deadline too, not only the load.
+
+    Two readings await a promise the page supplies rather than a fact it states:
+    `nextFrame` waits on a rendering turn, and `retiredSlots` on each holder's
+    animations. A page whose compositor has stopped drawing settles neither, and
+    `page.evaluate` takes no timeout in any binding — so the gate stopped there with
+    no probe named and nothing printed, which is the one failure a reader cannot tell
+    from a slow machine. Now it says which probe stopped and the bound it passed.
+
+    The real facade is served rather than a stub, because the readings before this one
+    have to run for the gate to reach a probe at all; only the export that awaits the
+    page is replaced, and a local export outranks the `export *` that would supply it.
+    The replacement keeps its own resolver, as `requestAnimationFrame` keeps the
+    callback it was handed. A promise nothing holds is collectable, and the driver
+    reports that collection as a failure of its own — which is a different arrangement
+    from the one that stopped these runs, and one no deadline is needed to end.
+    """
+    facade = (render_checks_model.PROBE_ROOT / "index.js").read_text()
+
+    def hold_probe(page):
+        page.route(
+            "**/_leaf/render-checks/index.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body=facade.replace('from "./', 'from "/_leaf/render-checks/')
+                + "\nconst held = [];\n"
+                + "export const nextFrame = () =>"
+                + " new Promise((settle) => held.push(settle));\n",
+            ),
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=3000
+    )
+
+    assert failures
+    assert all("probe nextFrame did not answer" in failure for failure in failures), (
+        f"a probe that never answers has to name itself, and this came back as {failures}"
+    )
+    assert all("within 3000ms" in failure for failure in failures)
+
+
 def test_the_render_gate_waits_for_the_page_to_be_presented(browser, serve):
     """Applied state is not yet a visible page when the first read was slow enough to
     show the recovery sheet. The sheet's animation ends before its minimum dwell does,

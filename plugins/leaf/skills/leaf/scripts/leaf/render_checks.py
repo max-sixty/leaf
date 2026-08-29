@@ -42,13 +42,35 @@ _LOAD_PROBES = f"""async (call) => {{
     }}
   }}
 }}"""
+# The answer states its end as well as its fact, on the same deadline the load above
+# states. `page.evaluate` takes no timeout in any binding, so a probe that awaits a
+# promise the page never settles — a rendering turn a stopped compositor never gives,
+# an animation whose `finished` never comes — is a wait nothing bounds: not the gate's
+# `served_timeout_ms`, not Playwright's own default, not the suite's. It runs for as
+# long as the process lives, with no probe named and nothing printed.
 _INVOKE_PROBE = f"""async (call) => {{
   await ({_LOAD_PROBES})(call);
   const probes = globalThis.{_PROBE_CACHE}.probes;
   const probe = probes[call.name];
   if (typeof probe !== "function")
     throw new TypeError(`unknown Leaf browser probe ${{call.name}}`);
-  return probe(...call.args);
+  let timer;
+  try {{
+    return await Promise.race([
+      probe(...call.args),
+      new Promise((_, reject) => {{
+        timer = setTimeout(
+          () => reject(new Error(
+            `Leaf browser probe ${{call.name}} did not answer ` +
+            `within ${{call.timeoutMs}}ms`
+          )),
+          call.timeoutMs,
+        );
+      }}),
+    ]);
+  }} finally {{
+    clearTimeout(timer);
+  }}
 }}"""
 _POLL_PROBE = f"""(call) => {{
   const probe = globalThis.{_PROBE_CACHE}?.probes?.[call.name];

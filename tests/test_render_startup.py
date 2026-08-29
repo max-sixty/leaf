@@ -2134,12 +2134,23 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
     # And the mark itself is an image the browser will render, which is the one thing
     # a string comparison above cannot say: an SVG this file mangles decodes to nothing
     # and shows as a blank tab, with no error anywhere to find it by.
-    drawn = page.evaluate("""() => new Promise((done) => {
+    page.evaluate("""() => {
         const img = new Image();
+        globalThis.__lfTabMarkWidth = null;
+        globalThis.__lfTabMarkImage = img;
+        const done = (width) => {
+          globalThis.__lfTabMarkWidth = width;
+          delete globalThis.__lfTabMarkImage;
+        };
         img.onload = () => done(img.naturalWidth);
         img.onerror = () => done(0);
         img.src = document.querySelector('link[rel=icon]').getAttribute('href');
-    })""")
+    }""")
+    page.wait_for_function(
+        "() => globalThis.__lfTabMarkWidth !== null",
+        timeout=render_checks_model.SERVED_TIMEOUT_MS,
+    )
+    drawn = page.evaluate("() => globalThis.__lfTabMarkWidth")
     assert drawn > 0, "the tab's mark is not an image the browser can decode"
     assert errors == []
     page.close()

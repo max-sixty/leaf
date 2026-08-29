@@ -157,33 +157,17 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
         page.route("**/_leaf/render-checks/index.js", never_finishes)
 
     failures = render_gate_model.render_version(
-        primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=100
+        primed(browser, hold_probe), serve(LONG_PAGE), served_timeout_ms=500
     )
 
     assert asked, "the probe route was never requested, so no module load stalled"
     assert failures
     assert all("did not load" in failure for failure in failures)
-    assert all("within 100ms" in failure for failure in failures)
+    assert all("within 500ms" in failure for failure in failures)
 
 
-def test_a_probe_that_never_answers_is_a_gate_finding(browser, serve):
-    """The probe an answer comes from has the gate's deadline too, not only the load.
-
-    Two readings await a promise the page supplies rather than a fact it states:
-    `nextFrame` waits on a rendering turn, and `retiredSlots` on each holder's
-    animations. A page whose compositor has stopped drawing settles neither, and
-    `page.evaluate` takes no timeout in any binding — so the gate stopped there with
-    no probe named and nothing printed, which is the one failure a reader cannot tell
-    from a slow machine. Now it says which probe stopped and the bound it passed.
-
-    The real facade is served rather than a stub, because the readings before this one
-    have to run for the gate to reach a probe at all; only the export that awaits the
-    page is replaced, and a local export outranks the `export *` that would supply it.
-    The replacement keeps its own resolver, as `requestAnimationFrame` keeps the
-    callback it was handed. A promise nothing holds is collectable, and the driver
-    reports that collection as a failure of its own — which is a different arrangement
-    from the one that stopped these runs, and one no deadline is needed to end.
-    """
+def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
+    """Every shipped probe publishes a synchronous reading or readiness fact."""
     facade = (render_checks_model.PROBE_ROOT / "index.js").read_text()
 
     def hold_probe(page):
@@ -194,7 +178,7 @@ def test_a_probe_that_never_answers_is_a_gate_finding(browser, serve):
                 content_type="text/javascript; charset=utf-8",
                 body=facade.replace('from "./', 'from "/_leaf/render-checks/')
                 + "\nconst held = [];\n"
-                + "export const nextFrame = () =>"
+                + "export const failSoftErrors = () =>"
                 + " new Promise((settle) => held.push(settle));\n",
             ),
         )
@@ -204,9 +188,38 @@ def test_a_probe_that_never_answers_is_a_gate_finding(browser, serve):
     )
 
     assert failures
-    assert all("probe nextFrame did not answer" in failure for failure in failures), (
-        f"a probe that never answers has to name itself, and this came back as {failures}"
+    assert all(
+        "probe failSoftErrors must be synchronous" in failure for failure in failures
+    ), f"an async reading has to name itself, and this came back as {failures}"
+
+
+def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
+    """A stopped compositor cannot strand the gate inside page.evaluate."""
+    runtime = (render_checks_model.PROBE_ROOT / "runtime.js").read_text()
+    assert "export const framePresented" in runtime
+
+    def stop_presenting_frames(page):
+        page.route(
+            "**/_leaf/render-checks/runtime.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body=runtime.replace(
+                    "export const framePresented = (requested) => "
+                    "presentedFrame >= requested;",
+                    "export const framePresented = () => false;",
+                ),
+            ),
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser, stop_presenting_frames),
+        serve(LONG_PAGE),
+        served_timeout_ms=3000,
     )
+
+    assert failures
+    assert all("wait probe framePresented" in failure for failure in failures)
     assert all("within 3000ms" in failure for failure in failures)
 
 

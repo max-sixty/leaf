@@ -53,7 +53,7 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // declaring anything to either pass. Spliced after `main`, `left` and `right` are in
 // scope, the way OPEN_ROOTS is spliced where `roots` is wanted.
 
-export async function misplacedBoxes() {
+export function misplacedBoxes() {
   // shownBand is the runtime's own: what a container lets the reader see of what it
   // holds, or nothing where it shows all of it. Imported rather than restated, so the
   // band a handover is refused against and the band the page paints to cannot come
@@ -478,7 +478,7 @@ export function withheldRoom() {
 // unwrapped would push every column it spans out and name them all.
 // A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
 // is real.
-export async function squeezedTables() {
+export function squeezedTables() {
   const main = document.querySelector("main");
   if (!main) return [];
   const at = (el) => `<${el.tagName.toLowerCase()}${el.id ? " id=" + el.id : ""}>`;

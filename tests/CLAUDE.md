@@ -391,13 +391,15 @@ A wait states its end as well as its fact. `page.evaluate` takes no timeout in a
 binding, so a promise awaited inside it — an animation's `finished`, a module's load, a
 listener's next call — is a wait nothing bounds. It does not fail in thirty seconds
 naming its test: it spends the job's whole step, and the share of the suite already
-handed to that worker never runs. Bound the await with a `setTimeout` that rejects
-naming what never arrived and the bound it passed, as `render_checks.py` races one
-around its probe module's load and around each probe's own answer, and the diff renders
-in `test_render_anchors.py` hold a frame poll against one, or state the fact from inside
-the page and read it with `wait_for_function`. `SERVED_TIMEOUT_MS` is the patience the
-payload gives such a wait. A reading taken through `evaluate_probe` therefore already
-states its end, and needs no race of its own.
+handed to that worker never runs. Prefer stating synchronous readiness inside the page
+and polling it with `wait_for_probe`, whose driver-side wait carries
+`SERVED_TIMEOUT_MS`; the render gate requests a frame and separately polls the fact
+that it was presented for exactly this reason. `render_checks.py` starts its module
+import without awaiting it, then lets the driver poll the load result against that same
+deadline; it refuses a probe that returns a Promise. The diff renders in
+`test_render_anchors.py` hold a frame poll against an explicit rejecting timer, but a
+shipped probe's ordinary browser lifecycle is always a synchronous fact observed from
+outside the page.
 
 ### A state the page passes through is not a state to poll for
 
@@ -537,7 +539,11 @@ make the assertion first, then continue or fulfill the route, wait for the handl
 finish, remove the route, and only then close the page. A route handler is a live
 browser resource even after product state no longer depends on it; abandoning one can
 hang context teardown after every assertion passed. Put release and `unroute` in
-cleanup that also runs when the assertion fails.
+cleanup that also runs when the assertion fails. When a handler calls `route.fetch()`,
+use `page.unroute_all(behavior="wait")` (or the context equivalent) before teardown:
+the fetched response body belongs to that page or context, so ordinary close can
+dispose it while a handler is still reading it and surface the callback's failure from
+the next Playwright call.
 
 The assertion should name the ordering the route created. For a serialized-send test,
 hold the first POST, make the second gesture, and inspect `Traffic.sends` before

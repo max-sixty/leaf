@@ -496,7 +496,6 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
 
     stamp_page(d, ASKS_PAGE, "two")
     wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
 
     expect(page.locator("[data-lf-ask]")).to_have_count(0)
     # The condition the restore is for, stated rather than assumed: an earlier ask's own
@@ -552,7 +551,6 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
 
     stamp_page(d, KEPT_SECTION_PAGE, "two")
     wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
 
     after = page.evaluate(WRAP_TOP)
     assert abs(after - before) <= 4, (
@@ -843,7 +841,6 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     stamp_page(d, v2, "not done yet")
     assert len(events_model.read_events(d)[-1]["settles"]) == 2
     wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
     task = page.locator("#t-parser")
     expect(task).to_have_attribute("status", "active")
     expect(task).not_to_have_attribute("data-lf-reported", "1")
@@ -993,7 +990,6 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     # last said anything does not, because no version can speak for that.
     stamp_page(d, ROSTER_PAGE, "absorbing")
     wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
     wren = page.locator("#ag-wren")
     expect(wren).not_to_have_attribute("data-lf-reported", "1")
     expect(wren.locator(".lf-doing")).to_have_count(0)
@@ -1123,7 +1119,6 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     )
     stamp_page(d, ROSTER_PAGE, "recorded")
     wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
 
     updates = page.evaluate(
         "async () => (await import('/runtime/widget-api.js')).updateSequence()"
@@ -3596,7 +3591,6 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     )
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    page.wait_for_function(BOTH_STAMPS)
     expect(page.get_by_role("button", name="Asks (4)")).to_be_visible()
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-pending")

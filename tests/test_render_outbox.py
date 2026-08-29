@@ -331,11 +331,23 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page.close()
 
 
-def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, serve):
+def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
+    browser, serve, request
+):
     """Acceptance and rendering are separate outcomes. A malformed response state
     cannot be repaired by re-posting its accepted attempt, so delivery advances, while
     replay and undo remain held until a later complete response accounts for it."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+
+    def close_page():
+        if page.is_closed():
+            return
+        try:
+            page.unroute_all(behavior="wait")
+        finally:
+            page.close()
+
+    request.addfinalizer(close_page)
     older = []
     lifted = False
 
@@ -452,6 +464,12 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(browser, 
     expect(page.locator("#sug-in-card lf-old")).to_be_visible()
     assert "leaf: state in event response" in reported.value.text
     assert reported.value.text in errors
+    # This test transforms event responses with route.fetch(). A news-triggered POST
+    # can enter that handler after the last assertion; closing its context then disposes
+    # the APIResponse while the handler is still reading it, and Playwright reports that
+    # callback's `Response has been disposed` from the next test's browser call. Remove
+    # the routes and wait for any handler already running before their owning page goes.
+    page.unroute_all(behavior="wait")
     assert all(error == reported.value.text or "400" in error for error in errors)
     page.close()
 

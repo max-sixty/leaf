@@ -207,6 +207,50 @@ def test_the_skill_routes_every_reference_it_ships():
         assert relative in skill, relative
 
 
+def test_the_python_instructions_name_every_module_they_own():
+    """Every Python owner is named in the instruction scope that routes it."""
+    scripts = SKILL_ROOT / "scripts"
+    instructions = (scripts / "CLAUDE.md").read_text(encoding="utf-8")
+    paragraphs = instructions.split("\n\n")
+    within = {
+        match.group(1): paragraph
+        for paragraph in paragraphs
+        if (match := re.match(r"Within `([^`/]+)/`", paragraph))
+    }
+    outside = "\n\n".join(p for p in paragraphs if not p.startswith("Within `"))
+
+    # Keep package names scoped so `registry/layer` cannot be satisfied by the
+    # top-level `layer` owner.
+    def names(scope):
+        return {
+            part.removesuffix(".py")
+            for span in re.findall(r"`([^`]+)`", scope)
+            for part in span.split("/")
+        }
+
+    package_root = scripts / "leaf"
+    modules = sorted(
+        path.relative_to(package_root)
+        for path in package_root.rglob("*.py")
+        if path.name != "__init__.py"
+    )
+    assert modules, "no modules read — an empty set names itself"
+    packages = sorted({m.parent.as_posix() for m in modules} - {"."})
+    assert not set(packages) - set(within), (
+        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
+    )
+
+    unnamed = [
+        module.as_posix()
+        for module in modules
+        if module.stem
+        not in names(
+            outside if module.parent.as_posix() == "." else within[module.parent.name]
+        )
+    ]
+    assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
+
+
 def test_hidden_hook_remains_callable():
     result = CliRunner().invoke(cli_model.cli, ["hook"], input="{}")
 

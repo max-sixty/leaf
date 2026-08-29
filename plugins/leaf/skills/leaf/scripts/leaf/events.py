@@ -57,6 +57,15 @@ def undo_error(event: dict, events: list, within: dict) -> str | None:
         return f"unknown undoes {event['undoes']!r}"
     if target["author"] != "user":
         return f"{target['kind']} {target['id']} is not the reader's own gesture"
+    # Asked before the kind's own questions rather than after them, because a gesture
+    # already taken back is gone from the folds those questions read: `build_threads`
+    # drops a withdrawn reaction, so the thread walk below found none and raised
+    # StopIteration out of the append door. That is a 500, which the browser is told to
+    # retry against a state that will never change again — the outbox wedges on the
+    # gesture instead of putting it back. Withdrawal is a fact about the target and not
+    # about its kind, and it is the same no-op whichever kind carries it.
+    if target["id"] in taken_back(events):
+        return f"{target['id']} has already been taken back"
     if target["kind"] in MESSAGE_KINDS:
         if not is_reaction(target):
             return (
@@ -80,8 +89,6 @@ def undo_error(event: dict, events: list, within: dict) -> str | None:
             f"{target['kind']} events cannot be taken back (the kinds that can "
             f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
         )
-    if target["id"] in taken_back(events):
-        return f"{target['id']} has already been taken back"
     return None
 
 

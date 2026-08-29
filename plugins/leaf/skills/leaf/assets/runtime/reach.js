@@ -62,6 +62,7 @@ const FOCUSABLE =
 const overflows = (el) =>
   el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
 const mayScroll = new Set();
+export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
 export function reachScrollers(root) {
   // The root too: a rebuilt widget is handed as itself, and the panel's thread list is
   // its own scroller.

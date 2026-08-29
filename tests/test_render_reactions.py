@@ -541,7 +541,11 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     assert page.evaluate(
         "() => document.querySelector('.lf-fab-bar').contains(document.activeElement)"
     )
-    assert "unselect" in key_line(page)
+    # The captured target spends the short line's two slots on its actions; Escape still
+    # clears it below and remains in the complete reference.
+    line = key_line(page)
+    assert "comment on the diagram" in line and "react" in line
+    assert "unselect" not in line
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
@@ -771,6 +775,8 @@ def test_dragging_a_diagram_label_keeps_the_passage_instead_of_clicking_the_node
         (box["x"] + box["width"] - 2, box["y"] + box["height"] / 2),
         steps=12,
     )
+    # The compatibility click restores the preserved range in its queued completion.
+    page.wait_for_function("() => getSelection().toString().includes('Start request')")
     repeated = page.evaluate("() => getSelection().toString()")
     assert "Start request" in repeated
     expect(start).not_to_have_class(re.compile(r"\blf-action-target\b"))

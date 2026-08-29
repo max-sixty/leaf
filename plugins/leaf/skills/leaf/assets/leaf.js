@@ -314,6 +314,7 @@ import {
   relabel,
   reserve,
   WORKS,
+  WORKS_WITHOUT_TAB_STOP,
   worksInside,
 } from "./runtime/widget-elements.js";
 import {
@@ -326,7 +327,7 @@ import {
   renderQuiet,
   renderSaid,
 } from "./runtime/presentation.js";
-import { reachScrollers } from "./runtime/reach.js";
+import { reachScrollers, runtimeOwnsScrollerStop } from "./runtime/reach.js";
 import { pageScroller, scrollerGutter } from "./runtime/scrolling.js";
 import {
   matchesWhen,
@@ -3401,7 +3402,8 @@ anchorRuntime = createAnchors({
   threadsBox,
   under,
   withdraw,
-  worksSelector: WORKS,
+  worksWithoutTabStopSelector: WORKS_WITHOUT_TAB_STOP,
+  runtimeOwnsScrollerStop,
 });
 const { ITEM, NOTE } = anchorRuntime;
 

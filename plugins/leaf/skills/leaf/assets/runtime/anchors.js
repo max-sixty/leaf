@@ -79,7 +79,8 @@ export function createAnchors(dependencies) {
     threadsBox,
     under,
     withdraw,
-    worksSelector,
+    worksWithoutTabStopSelector,
+    runtimeOwnsScrollerStop,
   } = dependencies;
 
   // ---------- anchors ----------
@@ -127,7 +128,7 @@ export function createAnchors(dependencies) {
   const genericVisualSelector = "svg, img, figure";
   const visualSelector = () =>
     [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
-  const interactiveSelector = `${worksSelector},[data-lf-offer]`;
+  const interactiveWithoutTabStopSelector = `${worksWithoutTabStopSelector},[data-lf-offer]`;
   const parentAcross = (element) =>
     element?.parentElement ?? element?.getRootNode()?.host ?? null;
   const outermostAcross = (element, selector) => {
@@ -139,8 +140,17 @@ export function createAnchors(dependencies) {
     }
     return element;
   };
-  const unclaimedVisualGesture = (target) =>
-    !inChrome(target) && !inUi(target) && !closestAcross(target, interactiveSelector);
+  const claimsVisualGesture = (element) =>
+    element.matches(interactiveWithoutTabStopSelector) ||
+    (element.hasAttribute("tabindex") &&
+      element.tabIndex >= 0 &&
+      !runtimeOwnsScrollerStop(element));
+  const unclaimedVisualGesture = (target) => {
+    if (inChrome(target) || inUi(target)) return false;
+    for (let element = target; element; element = parentAcross(element))
+      if (claimsVisualGesture(element)) return false;
+    return true;
+  };
   // A declared provider owns every hit inside it, including an inner svg wrapped by a
   // generic figure. Without one, the outermost ordinary picture is the target. Generated
   // ids remain implementation details; the nearest authored id is the durable seat.

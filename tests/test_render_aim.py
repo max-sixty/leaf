@@ -620,11 +620,11 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     landed on — and the button does not do what it does: the panel stays closed."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     page.keyboard.press("i")
-    comments = page.locator(".lf-banner .lf-threads-toggle")
-    said = comments.inner_text()  # "Threads (0)" — the control's word is what it shows
-    comments.hover()
+    threads = page.locator(".lf-banner .lf-threads-toggle")
+    said = threads.inner_text()  # "Threads (0)" — the control's word is what it shows
+    threads.hover()
     expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
-    comments.click()
+    threads.click()
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
     expect(page.locator(".lf-panel")).to_be_hidden()
@@ -657,7 +657,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page.keyboard.press("i")
     box = page.locator(".lf-panel").bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads-toggle")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads")
     assert page.evaluate(
         """() => {
              const aim = document.querySelector('.lf-aim').getBoundingClientRect();
@@ -693,7 +693,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     held = geometry(page, edge)
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · Comment panel width · comments"
+        "layer · Thread panel width · threads"
     )
     page.close()
 

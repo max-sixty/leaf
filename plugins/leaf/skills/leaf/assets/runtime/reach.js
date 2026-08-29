@@ -116,5 +116,13 @@ function paintReach() {
     }
     const wanted = overflows(el) ? 0 : -1;
     if (el.tabIndex !== wanted) el.tabIndex = wanted;
+    // Said in a marker of the runtime's own, because the stop is indistinguishable from
+    // an authored one once written and the layer reads a tab stop as the page's markup
+    // working the element (WORKS). It is not: this stop offers scrolling and nothing
+    // else, and reading it as a gesture took the ⌥ aim and the keyboard proxy off every
+    // picture wide enough to overflow its column — a wide diagram beside a reserved
+    // margin rail lost both the moment the rail narrowed it. Written beside the stop
+    // rather than beside the candidate, so it says what is true right now.
+    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.reach, wanted === 0);
   }
 }

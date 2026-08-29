@@ -111,7 +111,9 @@ export const WORKS = [
   "video[controls]",
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
-  "[tabindex]:not([tabindex='-1'])",
+  // Not the stop the runtime writes on a box that scrolls (reach.js): that one offers
+  // scrolling and says nothing about what the page's markup works here.
+  "[tabindex]:not([tabindex='-1']):not([data-lf-reach])",
   "[role='application']",
   "[role='button']",
   "[role='checkbox']",

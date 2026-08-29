@@ -1009,6 +1009,12 @@ lf-card .lf-grip { position: absolute; top: 2px; right: 0; color: var(--muted);
           touch-action: none; /* the handle owns the gesture; scroll stays on the card */ }
 lf-card:hover > .lf-grip { color: var(--ink-2); }
 lf-card .lf-grip:hover { background: var(--chip); }
+/* The ring is inset rather than offset a pixel out, as the layer's other small controls
+   have theirs, because this one is flush with its card's edge inside lf-board, which
+   scrolls sideways. At the width where three columns reach their 10rem floor the board
+   clips a pixel outside the last column's cards, so the ring's right run and both
+   corners on that side fell outside the clip while the grip itself stayed whole. An
+   inset ring cannot leave the box it names, at any scroll position. */
 lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: calc(-1 * var(--here-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */

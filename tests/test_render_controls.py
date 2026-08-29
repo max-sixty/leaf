@@ -3073,7 +3073,7 @@ def test_the_ring_reading_names_every_way_a_box_can_draw_nothing_past_its_edge(
     stop would pass the other three and prove nothing.
     """
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example.read_text(), comments=2)
+    url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
     page.locator(".lf-sug-accept").first.focus()
     # The probe's control must begin clear of the viewport edge. Its subject is each
@@ -3135,7 +3135,7 @@ def test_the_ring_reading_tells_a_ring_from_the_layers_other_outlines(browser, s
     The real ring goes last, as the control: without it a reading that claimed nothing at
     all would pass the three cases above and prove only that it was silent."""
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example.read_text(), comments=2)
+    url = serve(example, comments=2, seed_log=False)
     page, errors = open_page(browser, url)
     page.locator(".lf-sug-accept").first.focus()
 

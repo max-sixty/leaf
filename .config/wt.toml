@@ -14,3 +14,14 @@ checks = "pre-commit run -a"
 # before the landing pushes.
 [[pre-merge]]
 tests = "uv run pytest tests --run-nightly"
+
+[aliases]
+cloud = '''
+uv sync --frozen
+uv run playwright install chromium --only-shell
+uv run playwright install chrome
+uv tool install pre-commit
+# urllib matches the IPv6 URL's bracketed host literally.
+NO_PROXY="${NO_PROXY:-},${no_proxy:-},[::1]"; export NO_PROXY no_proxy="$NO_PROXY"
+uv run pytest tests {{ args }}
+'''

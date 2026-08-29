@@ -12,6 +12,7 @@ from render_support import (
     compare_with,
     live_url,
     open_page,
+    panel_settled,
     resized,
     round_trip,
     ticked,
@@ -35,6 +36,43 @@ OUTCOME_ON_DECISION = {
     "action": "choose",
     "detail": {"options": ["br-steel"]},
 }
+
+
+def test_the_preview_stands_in_the_room_the_page_has_beside_the_panel(browser, serve):
+    """An open panel takes its strip out of the page, so the margin's preview keeps to
+    what is left. Placed against the window instead, a card the reader left open stands
+    over the panel — and the box it covers first is the narrowing box at the top of it,
+    whose ring then reads as a control the reader can see only half of."""
+    page, errors = open_page(
+        browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION, COMMENT_ON_DECISION])
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment outcome"]')
+    marker.hover()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    page.wait_for_function(
+        "() => Boolean(document.querySelector('.lf-margin-preview').style.left)"
+    )
+    preview_box = preview.bounding_box()
+    panel_box = page.locator(".lf-panel").bounding_box()
+    room_right = page.evaluate("() => document.body.getBoundingClientRect().right")
+    assert panel_box["x"] < page.evaluate("innerWidth"), (
+        f"the panel is not standing beside the page, so this reads nothing: {panel_box}"
+    )
+    assert preview_box["x"] + preview_box["width"] <= panel_box["x"] + 0.5, (
+        f"the preview stands in the panel: {preview_box} against {panel_box}"
+    )
+    assert preview_box["x"] + preview_box["width"] <= room_right + 0.5, (
+        f"the preview stands outside the page's room: {preview_box} of {room_right}"
+    )
+    assert preview_box["x"] >= 0, (
+        f"the preview is off the left of the window: {preview_box}"
+    )
+
+    assert errors == []
+    page.close()
 
 
 def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(

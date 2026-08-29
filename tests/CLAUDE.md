@@ -445,6 +445,18 @@ writes. So a test whose subject is what a press does *within* a surface waits on
 other fact of that press, and its bug-back is run more than once: a wait that is
 sometimes real looks exactly like a wait that is.
 
+A retrying assertion that a paint has *not* happened is the same trap wearing the other
+sign, and it is worse, because retrying is what usually rescues a reader from it. A
+positive assertion polls until the frame arrives; a negative one is satisfied by the
+first poll, and the first poll is before the frame. So it passes on the state the press
+has not reached yet and goes on passing while the paint it denies lands a frame later.
+`not_to_have_attribute("data-lf-ask", …)` read straight after a `.focus()` is green
+whatever `markHere` is about to do. Wait on a positive fact the same frame writes — the
+key line's word, through `key_line` — and read the absence behind it. Bug-back with a
+probe that paints the mark the assertion denies, not by reverting the change: reverting
+usually stops the mark being painted at all, which is a red for the wrong reason and
+tells you nothing about whether the assertion could see it.
+
 The key line is the sharpest case of the rule above, because a second mechanism will
 supply its answer late. Every state application repaints it, the heartbeat's every
 two seconds included, so an auto-retrying assertion on what it says goes green on

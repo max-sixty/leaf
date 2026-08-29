@@ -1052,8 +1052,14 @@ lf-tabs.lf-rendered > lf-tab { margin-top: 14px; }
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block and has none;
  * that is the whole difference between this widget and lf-shot's checkbox. */
+/* The guard weighs nothing (`:where`), because the block margin below has to stay
+ * reachable by the edge trim in theme.css: that trim is a `:nth-last-child(1 of ...)`,
+ * and a margin stated under `html:not(.lf-copy)` outranks it, so a tabs block ending a
+ * page's column reserved 32px against a neighbour it hadn't got and `main` painted 128px
+ * of inset under 96px of declaration (TRAPPED_MARGINS, on gallery and
+ * parallel-workstreams). Every rule in here says what it weighs on its own. */
 @media screen {
-  html:not(.lf-copy) {
+  :where(html:not(.lf-copy)) {
     lf-tabs.lf-rendered { margin: var(--sp-4) 0 32px;
       border: 1px solid var(--border-2); border-radius: var(--r);
       background: var(--card); --lf-frame: 1; }

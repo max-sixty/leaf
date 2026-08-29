@@ -50,6 +50,10 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+def draft_controls(page, draft_id="draft-ops"):
+    return page.locator(f".lf-draft-controls[data-lf-for='{draft_id}']")
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -106,7 +110,7 @@ def test_page_round_trip(browser, serve):
     assert draft.locator(".lf-draft-body").inner_text() == DRAFT_TEXT
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(DRAFT_EDITED)
-    draft.get_by_role("button", name="Save").click()
+    draft_controls(page).get_by_role("button", name="Save").click()
     page.wait_for_function(
         "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
         arg=DRAFT_EDITED,
@@ -302,7 +306,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # reaches for it the instant the editor goes, so a style that hadn't caught up
     # would drop a keyboard user back at the top of the page.
     page.keyboard.press("Escape")
-    expect(page.locator("#draft-ops .lf-draft-pencil")).to_be_focused()
+    expect(draft_controls(page).locator(".lf-draft-pencil")).to_be_focused()
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft came back from an edit a different shape than it went in"
     )
@@ -310,7 +314,7 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     # Reopened through the other door, because print is where the box has to be
     # gone and its words still there — and print emulation blurs the textarea it
     # hides, so an editor opened before this point is no longer one Escape closes.
-    page.locator("#draft-ops .lf-draft-pencil").click()
+    draft_controls(page).locator(".lf-draft-pencil").click()
     expect(page.locator("#draft-ops textarea")).to_be_visible()
     page.emulate_media(media="print")
     assert page.locator("#draft-ops").inner_text() == DRAFT_TEXT, (
@@ -414,7 +418,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
           };
         }"""
     )
-    draft.get_by_role("button", name="Save").click()
+    draft_controls(page).get_by_role("button", name="Save").click()
     # A 503 cannot say whether the server appended before its answer was lost. Keep
     # the one saved gesture visibly pending and its draft recoverable; reopening the
     # editor would invite a second gesture while this attempt is still retrying.
@@ -466,11 +470,11 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     sent = "The first save still owns this body."
     draft.locator(".lf-draft-body").dblclick()
     draft.locator("textarea").fill(sent)
-    draft.get_by_role("button", name="Save").click()
+    draft_controls(page).get_by_role("button", name="Save").click()
     expect(draft).to_have_attribute("aria-busy", "true")
     assert page.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == sent
 
-    draft.locator(".lf-draft-pencil").click()
+    draft_controls(page).locator(".lf-draft-pencil").click()
     expect(draft.locator("textarea")).to_have_count(0)
     expect(page.locator(".lf-toast")).to_contain_text("Wait for the current edit")
 
@@ -487,7 +491,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     ]
     assert [event["detail"]["text"] for event in events] == [sent]
 
-    draft.locator(".lf-draft-pencil").click()
+    draft_controls(page).locator(".lf-draft-pencil").click()
     expect(draft.locator("textarea")).to_be_focused()
     page.keyboard.press("Escape")
     assert errors == []
@@ -515,7 +519,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     first_draft.locator("textarea").fill(edited)
     expect(second_draft.locator("textarea")).to_have_value(edited)
 
-    first_draft.get_by_role("button", name="Save").click()
+    draft_controls(first).get_by_role("button", name="Save").click()
     round_trip(first)
     expect(second_draft.locator("textarea")).to_have_count(0)
     # The body the other tab is left looking at is the log's, which is what closing the
@@ -538,7 +542,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     assert second_draft.locator("textarea").count() == 0, (
         "the second tab opened an editor for a keystroke nobody made there"
     )
-    first_draft.get_by_role("button", name="Cancel").click()
+    draft_controls(first).get_by_role("button", name="Cancel").click()
     second.wait_for_function(STORED_DRAFT_SETTLED, arg="edit:draft-ops")
     second_draft.locator(".lf-draft-body").dblclick()
     expect(second_draft.locator("textarea")).to_have_value(edited)
@@ -570,9 +574,9 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    first_draft.get_by_role("button", name="Save").click()
+    draft_controls(first).get_by_role("button", name="Save").click()
     _until(first, lambda traffic: traffic.sends == 1, "held the first draft edit")
-    second_draft.get_by_role("button", name="Save").click()
+    draft_controls(second).get_by_role("button", name="Save").click()
     round_trip(second)
 
     held[0].continue_()
@@ -1397,7 +1401,7 @@ def test_a_stale_cancel_cannot_settle_a_newer_durable_generation(
     expect(stale_draft.locator("textarea")).to_have_value(old)
     assert stale.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
 
-    stale_draft.get_by_role("button", name="Cancel").click()
+    draft_controls(stale).get_by_role("button", name="Cancel").click()
     expect(current_draft.locator("textarea")).to_have_value(newer)
     assert current.evaluate(STORED_DRAFT_TEXT, "edit:draft-ops") == newer
     stale_draft.locator(".lf-draft-body").dblclick()
@@ -1718,7 +1722,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     for index, text in enumerate(edits, 1):
         draft.locator(".lf-draft-body").dblclick()
         draft.locator("textarea").fill(text)
-        draft.get_by_role("button", name="Save").click()
+        draft_controls(page).get_by_role("button", name="Save").click()
         round_trip(page)  # the history is drawn from the log, not the box
         expect(draft.locator(".lf-draft-history > summary")).to_have_text(
             f"Changes · {index} {'edit' if index == 1 else 'edits'}"
@@ -1969,7 +1973,7 @@ def test_registered_control_keys_activate_once(browser, serve):
     delivers this event with `repeat` set."""
     page, errors = open_page(browser, serve(KEYS_PAGE))
 
-    page.locator("#draft-ops .lf-draft-pencil").focus()
+    draft_controls(page).locator(".lf-draft-pencil").focus()
     page.keyboard.press("Enter")
     expect(page.locator("#draft-ops textarea")).to_be_focused()
     assert page.locator("#draft-ops").evaluate(

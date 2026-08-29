@@ -725,6 +725,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "x-upgrade": False,
     }
     project_only = {
+        "description": "project-only shape",
         "type": "object",
         "properties": {},
         "additionalProperties": False,
@@ -1531,6 +1532,23 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
         assert "widgets/lf-unfinished.js" in result.output
+
+
+def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
+    assert created.exit_code == 0, created.output
+    add_test_widget(tmp_path / ".leaf", "lf-toned-note")
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-toned-note"]["description"] = "   "
+    registry_path.write_text(json.dumps(registry))
+
+    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+
+    assert result.exit_code != 0
+    assert "<lf-toned-note> must carry a non-empty description" in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(

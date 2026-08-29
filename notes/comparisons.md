@@ -17,6 +17,26 @@ authors trusted a model to do at design time, and those ceilings hold as models 
 leaf's side of each comparison should be primitives that get better as the agent does —
 the document, the log, the open vocabulary — rather than a library that caps it.
 
+## Explainer animation
+
+Read on 2026-08-29 from the projects' documentation, repositories and published
+packages. Remotion and Manim render video; Markdy and Elucim describe explanations
+that run in the browser. The second group is nearer to a leaf package, while the first
+is useful when the intended artifact is a marketing video.
+
+| Project | Authoring model | Relevance to leaf |
+| ------- | --------------- | ----------------- |
+| [Remotion](https://www.remotion.dev/) | React components evaluated by frame, with a Studio preview and a render pipeline. It has first-party [agent skills](https://www.remotion.dev/docs/ai/skills) and active releases. | The broadest production option for branded video, captions and mixed media. Its application and render stack is too heavy for an embedded leaf widget. |
+| [Manim Community](https://docs.manim.community/en/stable/) | Python scenes made from mathematical objects and transformations, rendered to video. | The strongest external option for mathematical and algorithmic explanations. Its scene code and rendered output do not supply a live browser explanation. |
+| [Markdy](https://markdy.com/docs/) | A browser DSL with semantic nodes, groups, flows and beats; the runtime handles layout, edge routing and motion. It can import Mermaid. | The closest match to animated diagrams as code. The project began in April 2026 and is still moving quickly. On 2026-08-29, `@markdy/cli@1.1.1` failed to install because its declared `@markdy/compat` dependency was absent from npm. It is a design reference to retest, rather than a dependency to adopt now. |
+| [Elucim](https://elucim.com/) | JSON or YAML scenes with SVG and mathematical primitives, explicit timelines and state machines, designed for agent generation. | The closest broad model for 3Blue1Brown-style concept explanations. The project began in March 2026 and still has a very small community, so it is also a design reference. |
+
+All four separate semantic states from the motion between them. A leaf experiment can
+keep its state vocabulary small and leave autoplay, controls and export as playback
+policy. Remotion or Manim can produce standalone marketing videos; an embedded package
+should remain closer to the Markdy and Elucim authoring models until one of them matures
+enough to vendor.
+
 ## Claude Code Artifacts
 
 Read on 2026-08-22, from Claude Code's own documentation.

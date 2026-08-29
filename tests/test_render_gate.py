@@ -247,10 +247,12 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
         route.continue_()
 
     page.route("**/api/event", slow)
-    page.locator(".lf-answer-all").first.click()
-    page.wait_for_event(
-        "request", predicate=lambda r: "/api/event" in r.url, timeout=5000
-    )
+    # Armed around the press rather than after it. The post goes out from the click's
+    # own handler, so the request is issued while `click` is still in flight — under any
+    # load at all it is announced before a wait registered afterwards can hear it, and
+    # the wait then spends its whole timeout on a trip that already left.
+    with page.expect_request(lambda r: "/api/event" in r.url):
+        page.locator(".lf-answer-all").first.click()
     page.unroute("**/api/event")
     page.goto(url, wait_until="load")
     page.wait_for_function(BOTH_STAMPS)

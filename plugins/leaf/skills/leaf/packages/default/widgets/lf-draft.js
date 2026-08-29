@@ -32,10 +32,11 @@
  *    x-state rather than remembered here.
  *
  * Editing has two doors: double-click the text (the fast path), or the ✎ button (the
- * door keyboards and touch can use; it also makes the block *look* editable). It sits
- * in a control row the draft always has, which Cancel and Save join for the length of
- * an edit — one row of the same button either way, so opening one changes what the box
- * offers without changing its shape. Unsent keystrokes ride the runtime's draft store
+ * door keyboards and touch can use; it also makes the block *look* editable). The draft
+ * contributes that control to its target's shared margin item. Cancel and Save replace
+ * it for the length of an edit, inside width reserved before presentation, so opening the
+ * editor changes what the one RHS item offers without moving the document. Unsent
+ * keystrokes ride the runtime's draft store
  * (saveDraft/clearDraft), the composer's discipline: written on input, cleared only by a
  * successful send or explicit Cancel, so reload, version switch, server death and the
  * tab's own close all recover. The text goes in bare, an empty edit being a real
@@ -80,12 +81,15 @@ import {
   offer,
   quoted,
   revisionLabel,
+  registerMarginItem,
   sendAction,
   sendDraft,
   toast,
   keys,
   saveDraft,
   loadDraft,
+  measure,
+  marginAction,
   clearDraft,
   watchDraft,
   alignText,
@@ -148,6 +152,8 @@ customElements.define(
   class extends HTMLElement {
     #body;
     #pencil;
+    #cancel;
+    #save;
     #row;
     #raw;
     #history = null;
@@ -155,9 +161,13 @@ customElements.define(
     #alignments = new Map();
     #ta = null;
     #sending = false;
+    #margin = null;
 
     connectedCallback() {
-      if (!once(this)) return;
+      if (!once(this)) {
+        this.#offer();
+        return;
+      }
 
       const raw = capture(this);
       this.#raw = raw;
@@ -186,13 +196,26 @@ customElements.define(
         },
       ]);
 
-      this.#pencil = this.#button("✎", () => this.#open());
+      this.#pencil = this.#marginButton("✎", "Edit", () => this.#open());
       this.#pencil.classList.add("lf-draft-pencil");
       this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
       this.#pencil.title = "Edit this text — or double-click it";
       this.#row = offer("div", "lf-draft-controls");
-      this.#row.append(this.#pencil);
-      this.append(this.#row);
+      this.#row.dataset.lfFor = this.id;
+      this.#cancel = this.#marginButton("×", "Cancel", () => this.#close(true));
+      this.#save = this.#marginButton("✓", "Save", () => this.#commit(), "primary");
+      // Reserve the editor's wider pair before the page is presented, then keep the
+      // resting pencil against the marker at the row's right edge. Opening the editor
+      // changes what the one row offers without moving the document beneath it.
+      this.#row.style.opacity = "0";
+      this.#row.append(this.#cancel, this.#save);
+      this.#offer();
+      measure(this.#row, () => {
+        this.#row.style.minWidth = `${Math.ceil(this.#row.getBoundingClientRect().width)}px`;
+        this.#row.replaceChildren(this.#pencil);
+        this.#row.style.opacity = "";
+        this.#margin?.update();
+      });
       watchActions(this, "edit", (actions) => this.#renderHistory(actions));
 
       // The fast path, taken before the browser paints the selection this gesture
@@ -229,10 +252,40 @@ customElements.define(
       else if (pending === raw) clearEdit(this.id);
     }
 
+    disconnectedCallback() {
+      this.#margin?.unregister();
+      this.#margin = null;
+    }
+
+    #offer() {
+      if (!this.#row || this.#margin) return;
+      this.#margin = registerMarginItem({
+        target: () => this,
+        controls: this.#row,
+        items: () => [
+          {
+            id: `draft:${this.id}`,
+            text: this.#ta ? "Save or cancel draft edit" : `Edit ${this.id}`,
+            activate: () => (this.#ta ?? this.#pencil)?.focus({ preventScroll: true }),
+          },
+        ],
+      });
+    }
+
     #button(text, onClick, variant) {
       const b = offer("button", "lf-btn" + (variant ? " " + variant : ""), text);
       b.addEventListener("click", onClick);
       return b;
+    }
+
+    #marginButton(glyph, label, onClick, tone = "neutral") {
+      const button = marginAction(offer("button", ""), {
+        glyph,
+        label,
+        tone,
+      });
+      button.addEventListener("click", onClick);
+      return button;
     }
 
     #delta(before, after, cache = true) {
@@ -406,12 +459,10 @@ customElements.define(
           run: () => this.#close(false),
         },
       ]);
-      this.#row.append(
-        this.#button("Cancel", () => this.#close(true)),
-        this.#button("Save", () => this.#commit(), "primary"),
-      );
+      this.#row.replaceChildren(this.#cancel, this.#save);
       this.#ta = ta;
       this.#body.after(ta);
+      this.#margin?.update();
       ta.focus();
       // Only the pointer names a place; the pencil and a recovered draft leave the
       // caret where focus put it, at the start of the text. The range was measured
@@ -427,12 +478,15 @@ customElements.define(
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.
-      const stood = this.contains(document.activeElement);
+      const stood =
+        this.contains(document.activeElement) ||
+        this.#row.contains(document.activeElement);
       this.#ta.remove();
       this.#ta = null;
       // States the whole row rather than removing two buttons from it, so read mode
       // is one call from anywhere.
       this.#row.replaceChildren(this.#pencil);
+      this.#margin?.update();
       if (stood) this.#pencil.focus();
     }
 

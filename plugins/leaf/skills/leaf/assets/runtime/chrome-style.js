@@ -197,20 +197,9 @@ export function chromeStyle({
      wear. */
   .lf-btn:disabled, .lf-btn[aria-disabled="true"] { opacity: .55; cursor: default; }
   .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-  /* The margin's press. Two shapes cover every labelled press the product makes: .lf-btn
-     in the runtime's furniture, and this pill out in the page margin, where a control
-     stands beside the reader's own words and hairline scale is what keeps it from
-     shouting over them. Stated once, at document level, because the margin's controls
-     live on both sides of the chrome's scope line — the runtime's 💬 and a suggestion's
-     ✓ Accept often share a line, and two hand-matched copies of this look were held
-     together only by a test. A decided suggestion re-states background and cursor over
-     these; its rules carry the attribute the decision wrote, so they outrank this.
-
-     The look is the pill's and the hand is the press's, which is one rule apart and was
-     one rule too few. Not every wearer is a control — the composer's head says which
-     page it is writing about in a pill of the same make — so a shape stating the hand
-     itself put one under a label that answers nothing. It reads the two ways a press is
-     spelled here: the platform's element, and the attribute offer() writes on a span. */
+  /* Pills remain the compact label shape used by chrome and conversation surfaces.
+     Target actions use .lf-margin-action below: one stricter control type shared by
+     content widgets, page-map information, and communication gestures. */
   /* Words for a reader listening, silent on screen: real text, the one thing every
      screen reader announces in every mode, clipped to nothing where paint already says
      the same fact to the eye (renderQuiet, and lf-code's highlighted lines). Worn with
@@ -242,6 +231,50 @@ export function chromeStyle({
   .lf-pill { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--card); color: var(--ink-2); white-space: nowrap; }
   .lf-pill:is(button, [role="button"]) { cursor: pointer; }
   .lf-pill:is(button, [role="button"]):hover { background: var(--chip); }
+  /* The pluggable RHS action. Contributors choose glyph, label, tone, and collapse
+     policy through marginAction(); this declaration owns every visual and interactive
+     constant that makes unlike verbs read as one family. Width may follow the word,
+     but height, capsule, type, state, and focus never follow the contributor. */
+  .lf-margin-action {
+    box-sizing: border-box; min-width: 30px; min-height: 30px; padding: 2px 9px;
+    border: 1px solid var(--border-2); border-radius: 999px;
+    background: var(--card); color: var(--ink-2);
+    display: inline-flex; align-items: center; justify-content: center; gap: 0;
+    font: 600 var(--t-6)/1 var(--sans); white-space: nowrap; cursor: pointer;
+    scroll-margin-block: var(--here-ring-room);
+  }
+  .lf-margin-action:hover:not([aria-disabled="true"]) { background: var(--chip); }
+  .lf-margin-action:is(:focus-visible, .lf-focus-visible) {
+    outline: var(--here-ring); --lf-here-ring: margin-action; outline-offset: 1px;
+  }
+  .lf-margin-action[aria-disabled="true"] { cursor: default; }
+  .lf-margin-action[data-lf-tone="positive"]:hover:not([aria-disabled="true"]) {
+    border-color: var(--ok); color: var(--ok-ink); background: var(--ok-tint);
+  }
+  .lf-margin-action[data-lf-tone="negative"]:hover:not([aria-disabled="true"]) {
+    border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
+  }
+  .lf-margin-action[data-lf-tone="positive"][aria-disabled="true"] {
+    border-color: var(--ok); color: var(--ok-ink); background: var(--ok-tint);
+  }
+  .lf-margin-action[data-lf-tone="negative"][aria-disabled="true"] {
+    border-color: var(--danger); color: var(--danger-ink); background: var(--danger-tint);
+  }
+  .lf-margin-action[data-lf-tone="primary"] {
+    border-color: var(--accent); background: var(--accent); color: var(--paper);
+  }
+  .lf-margin-action[data-lf-tone="primary"]:hover:not([aria-disabled="true"]) {
+    filter: brightness(.92); background: var(--accent);
+  }
+  .lf-margin-action.lf-react[aria-pressed="true"] {
+    border-color: var(--mark-ink); color: var(--mark-ink); background: var(--mark);
+  }
+  .lf-margin-action-glyph { line-height: 1; }
+  .lf-margin-action-space { white-space: pre; }
+  .lf-margin-item.lf-condensed > .lf-margin-contribution { min-width: 0 !important; }
+  .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
+    width: 30px; min-width: 30px !important; padding-inline: 0;
+  }
   /* A gesture the log has not answered yet, in the platform's own word for it, which
      is why no tag is named here: any widget that says aria-busy is painted, and
      lf-draft was saying it to screen readers alone before this rule existed.
@@ -269,7 +302,7 @@ export function chromeStyle({
 
      Each states its own gap, because they stand at different densities and the ring may
      not reach its neighbour: the standing gap is what a box with room around it takes,
-     the composer's row puts 6px between two buttons, and a suggestion's pills sit 4px
+     the composer's row puts 6px between two buttons, and margin actions sit 4px
      apart out in the margin. The pill's rule was the suggestion family's, which is a
      family stating a fact about a shape the runtime owns — its own rules there are for
      what a decided suggestion adds, and a focus ring is nothing a decision changes. */
@@ -417,22 +450,12 @@ ${MARK_RULES}
   /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
      registry being script state no file can hold (BAKE). */
   html.lf-copy mark.lf-react { background: var(--react); color: inherit; }
-  /* The glyphs of the reactions standing on a block — a pill per reaction, the pill
-     being the reaction's own eraser (anchors.js seatReactions). Docked by default: a
-     float at the block's start, taking a glyph's width off its first line, which is
-     the whole answer on paper and on a narrow window. Given the room — the theme's
-     900px breakpoint, and the panel not having taken it (data-lf-cramped, the posture a
-     sidenote docks under too) — it hangs in the column's right margin instead, level
-     with the block's first line: the seat is positioned with no top, so its static
-     position is that line, and left: 100% is the margin wherever the column is the
-     containing block, 22px off it as a suggestion's controls hang. */
-  .lf-reacts { float: right; margin: 0 0 4px 8px; display: inline-flex; gap: 4px;
-    white-space: nowrap; }
-  .lf-react-mark { min-width: 26px; text-align: center; }
-  @media screen and (min-width: 900px) {
-    body:not([data-lf-cramped]) .lf-reacts:not(.lf-docked) { float: none; position: absolute;
-      left: 100%; margin: 0 0 0 22px; padding-right: var(--here-ring-room); z-index: 1; }
-  }
+  /* The glyphs of the reactions standing on a target — a pill per reaction, the pill
+     being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
+     contribution: the living margin joins it to the target's other RHS controls and
+     decides whether their one complete item hangs or docks. */
+  .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .lf-react-mark { text-align: center; }
   /* The draft's own passage — a standing annotation like the posted mark, which is why
      it may share the hairline where the ⌥ aim's promise may not (the .lf-aim rule in
      the scope block says why). Only the colour separates it from a posted mark, and the
@@ -1023,9 +1046,8 @@ ${MARK_RULES}
        margin held two idioms four centimetres apart and the louder one was the one
        raised over the reader's sentence. Where a control stands decides which it
        wears. In the runtime's own furniture — the banner, the panel, the composer — a
-       press is a .lf-btn and looks like one; out in the margin it is a .lf-pill, the
-       marginal mark stated once at document level where the theme's margin controls
-       wear it too.
+       press is a .lf-btn and looks like one; beside page content it is the shared
+       .lf-margin-action.
 
        The shadow is the one thing this control adds, and it earns it: this is the only
        pill that floats over the page's own content rather than standing in the empty
@@ -1033,9 +1055,10 @@ ${MARK_RULES}
        whatever it happens to be over. */
     .lf-fab-bar { position: absolute; z-index: 8950; display: none; align-items: center;
       gap: 4px; white-space: nowrap; }
-    /* The comment glyph and ellipsis are the bar's two stable presses. Both use the
-       margin pill and carry the shadow the floating surface earns. The ellipsis gives
-       its place to the reaction buttons without moving Comment. */
+    .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
+    /* The comment glyph and ellipsis are the bar's two stable presses. Both carry the
+       shadow the floating surface earns. The ellipsis gives its place to the reaction
+       buttons without moving Comment. */
     .lf-fab-bar > .lf-pill { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
     /* A reaction surface offers one quiet ellipsis. It disappears when its list opens;
        a standing token remains visible in a closed message or page strip as the reader's
@@ -1044,26 +1067,13 @@ ${MARK_RULES}
     .lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
       color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
     .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-    /* Inline is one row. Let its real width reach placePalette rather than shrinking
-       into a tall column that technically fits beside Comment; stacked is the one
-       form that may wrap. */
-    .lf-fab-bar:not(.lf-react-stacked) > .lf-react-palette { flex-wrap: nowrap; }
+    .lf-fab-bar > .lf-react-palette { flex-wrap: nowrap; }
     .lf-react-open > .lf-react-trigger { display: none; }
     .lf-react-surface:not(.lf-react-open) .lf-react:not([aria-pressed="true"]) {
       display: none; }
     .lf-react-strip:not(.lf-react-open) > .lf-react-palette:not(:has(> [aria-pressed="true"])) {
       display: none; }
     .lf-fab-bar:not(.lf-react-open) > .lf-react-palette { display: none; }
-    /* The floating bar expands in place when there is room. Near an edge or an open
-       Threads panel, the same list sits below the stable comment control and clamps to
-       the viewport. */
-    .lf-fab-bar.lf-react-stacked > .lf-react-palette {
-      position: absolute; top: calc(100% + 6px); right: 0;
-      width: max-content; max-width: calc(100vw - 16px); padding: 4px;
-      border: 1px solid var(--border-2); border-radius: 8px; background: var(--paper);
-      box-shadow: 0 4px 14px rgba(0,0,0,.16); }
-    .lf-fab-bar.lf-react-above > .lf-react-palette {
-      top: auto; bottom: calc(100% + 6px); }
     /* The glyph is the whole label until the token stands on its target; then the word
        joins it. State is paint — ink, border, fill — and the word's extra width is the
        reader's own receipt, not incoming chrome moving under their press. */
@@ -1424,7 +1434,7 @@ ${MARK_RULES}
       .lf-version-menu { right: calc(8px + var(--lf-safe-right)); }
     }
     /* Coarse pointers get physical room without making the mouse layout pay for it.
-       Marginal pills and reaction tokens remain visually compact; their boxes, panel
+       Margin actions and reaction tokens remain visually compact; their boxes, panel
        controls, and the otherwise eight-pixel resize edge become comfortable aims.
 
        A mouse can follow a whole seam without preventing anything underneath it from
@@ -1435,11 +1445,16 @@ ${MARK_RULES}
        changing sides when a covering sheet meets a phone, and its line remains on the seam
        rather than following the middle of the hit box. */
     @media (pointer: coarse) {
-      .lf-btn, .lf-pill:is(button, [role="button"]) { min-height: 44px; }
+      .lf-btn, .lf-pill:is(button, [role="button"]), .lf-margin-action {
+        min-height: 44px;
+      }
       .lf-banner-actions > .lf-btn { min-height: 44px; }
       .lf-panel-head .lf-btn { min-width: 44px; }
       .lf-pill:is(button, [role="button"]) { display: inline-flex; align-items: center; }
       .lf-react { min-width: 44px; }
+      .lf-margin-item.lf-condensed .lf-margin-action[data-lf-collapse="auto"] {
+        width: 44px; min-width: 44px !important;
+      }
       .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
       .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
         transform: translateY(-50%); }

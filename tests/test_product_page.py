@@ -11,7 +11,8 @@ import click
 import pytest
 from click.testing import CliRunner
 from leaf import cli as cli_model
-from leaf import schema as schema_model
+from leaf.registry import validation as registry_validation
+from leaf.validation import compatibility as validation_model
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "plugins" / "leaf" / "skills" / "leaf" / "assets"
@@ -54,40 +55,28 @@ def test_docs_pages_use_only_registered_widgets():
     assert used and used <= set(registry)
 
 
-def test_package_guide_documents_every_key_a_registry_entry_may_declare():
-    """The guide's table of `x-` keys is written by hand, and the vocabulary it
-    describes is not closed — a widget declaring a behaviour the layer didn't have
-    adds a key, and the table is the only place an author meets it. Nothing held the
-    two together, so the table drifted four keys behind the schema and the guide read
-    as complete the whole time: a key it omits is one nobody writing a widget knows
-    they may write.
-
-    Against `EXTENSION_SCHEMA` rather than the shipped registries, because that is the
-    closed set — `additionalProperties: False` means no entry can declare a key outside
-    it, and a key lands there first, before any widget adopts it. Deriving the list from
-    the registries instead would let a key go undocumented for as long as it went
-    unused, which is exactly the stretch in which someone reads the guide to find out
-    what is available."""
-    documented = " ".join(
-        (DOCS / "packages.html").read_text().split()
-    )  # collapsed: prettier decides where the lines in a table cell fall
-    keys = sorted(
-        k for k in schema_model.EXTENSION_SCHEMA["properties"] if k[:2] == "x-"
-    )
-    assert keys, "no extension keys read — an empty vocabulary demonstrates itself"
-    undocumented = [
-        k for k in keys if not re.search(rf"\b{re.escape(k)}\b", documented)
-    ]
-    assert not undocumented, (
-        f"docs/packages.html documents no {', '.join(undocumented)}"
-    )
-
-
 def test_package_guide_sits_beside_how_it_works():
     packages = (DOCS / "packages.html").read_text()
     assert 'href="how-it-works.html"' in packages
+    assert 'href="registry.html"' in packages
+    assert 'href="packages.html"' in (DOCS / "registry.html").read_text()
     for source in ("index.html", "how-it-works.html"):
         assert 'href="packages.html"' in (DOCS / source).read_text()
+
+
+def test_package_tutorial_registry_entry_is_valid(page_dir):
+    blocks = re.findall(
+        r"<pre><code[^>]*>(.*?)</code></pre>",
+        (DOCS / "packages.html").read_text(),
+        re.DOTALL,
+    )
+    entry = json.loads(
+        html.unescape(next(block for block in blocks if block[0] == "{"))
+    )
+    registry = json.loads((page_dir / "registry.json").read_text()) | entry
+
+    registry_validation.validate_registry(registry, "package tutorial")
+    validation_model.validate_registry_examples(registry, "package tutorial")
 
 
 def test_how_it_works_quotes_the_real_check_success_line(page_dir):

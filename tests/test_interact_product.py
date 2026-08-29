@@ -461,6 +461,22 @@ def test_every_widget_in_the_vocabulary_stands_in_an_example():
     )
 
 
+def test_shipped_widget_purposes_live_in_their_descriptions():
+    registry = validation_model.incoming_registry(
+        [
+            schema_model.ASSETS,
+            schema_model.DEFAULT_PACKAGE,
+            COMMAND_HUB_PACKAGE,
+        ]
+    )
+    titled = [
+        tag
+        for tag, entry in registry.items()
+        if tag.startswith("lf-") and "title" in entry
+    ]
+    assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
+
+
 def test_gallery_is_generated_from_the_examples():
     """examples/gallery.html is derived; a commit that lets it drift fails here."""
     spec = importlib.util.spec_from_file_location(
@@ -478,12 +494,8 @@ def test_gallery_is_generated_from_the_examples():
     )
 
 
-def test_the_key_table_is_generated_from_the_registry():
-    """docs/packages.html's table of x- keys is written from the registry's $keys —
-    one home for what a key means, read by agents and the site alike — so a
-    commit that lets the two drift fails here. Compared with the whitespace between
-    tags dropped, because prettier re-flows the page and a formatter's line breaks are
-    not what the table says."""
+def test_the_key_reference_is_generated_from_the_registry():
+    """The registry reference is written from the same $keys agents query."""
     spec = importlib.util.spec_from_file_location(
         "keydocs", Path(__file__).parent.parent / "scripts" / "keydocs.py"
     )
@@ -500,13 +512,22 @@ def test_the_key_table_is_generated_from_the_registry():
     assert said(keydocs.build(committed)) == said(committed), (
         "the registry's $keys changed — rerun scripts/keydocs.py"
     )
-    # And that the region holds a row for every key the registry documents.
+    # Every key appears once in the index and once at its generated definition.
     keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
         "$keys"
     ]
+    disclosures = []
     for key in keys:
         if key != "description":
-            assert f"<td><code>{key}</code></td>" in said(committed), key
+            assert f'<a href="#{key}"><code>{key}</code></a>' in said(committed), key
+            assert f'id="{key}"' in said(committed), key
+            if keydocs.summary(keys[key])[1]:
+                disclosures.append(key)
+
+    labels = re.findall(
+        r'<summary aria-label="Full ([^"]+) contract">', said(committed)
+    )
+    assert labels == sorted(disclosures)
 
 
 def test_no_example_writes_another_example_s_sentences():

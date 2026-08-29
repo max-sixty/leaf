@@ -64,8 +64,11 @@ package/
 No individual file is required. The kernel supplies the files every complete layer
 needs. Theme files concatenate. Runtime, icon, widget, and vendor files replace by
 path. A later package replaces a tag's complete registry entry and one member inside
-a shared `$` entry. Guidance files with the same audience name concatenate in package
-order. The merged vocabulary is validated before vendoring.
+a shared `$` entry. A tag can be added or replaced whole, but it has no deletion marker.
+Shared `$` entries compose by member, and map-valued members compose one level further
+by key; `null` deletes at either of those shared-entry grains when the merged registry
+still validates. Guidance files with the same audience name concatenate in package order.
+The merged vocabulary is validated before vendoring.
 
 Each file directly under `guidance/` is named `<audience>.md`; the filename must match
 `[a-z][a-z0-9-]*\.md`. Those files are for guidance that applies across the package.
@@ -92,6 +95,10 @@ with the same fresh epoch it writes into the merged registry; without that pair,
 a runtime loaded before a re-vendor could speak the replacement registry as though
 the two files were one contract.
 
+A replacement `icon.svg` must be valid SVG and contain an element with
+`class="lf-tone"`. The runtime paints the page's status on that element; without it,
+the tab mark cannot say whether the page is working, waiting, or offline.
+
 ## A theme change
 
 Tokens change every surface that reads them: `--accent`, `--r`, the three faces
@@ -102,16 +109,26 @@ reuses across pages is an idiom — declare it under `$idioms` in the package's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
 Presentation unique to one page stays in that version's `<style>`.
 
+A rule that draws a box's inset — padding, border, or tinted field — declares
+`--lf-frame: 1` in the same rule. The shared layout uses that declaration to trim child
+margins and bound wide content, and the render gate reports a frame that omits it. The
+runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-wide]`, and
+`[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
+tags. In particular, an interactive affordance stands down inside
+`[data-lf-exhibit]`, where the widget is quoted rather than offered. The stylesheet is
+inlined into an export, so use fonts available on the reader's machine rather than a
+remote font a standalone copy would have to fetch.
+
 ## A widget
 
 The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
 stands as one of the page's decisions. The merged registry's `$keys` entry defines each key,
-and the shipped widget entries are the worked examples. Set the JSON Schema `title` to a
-short purpose an author can use during compact discovery; an entry without one falls
-back to its full `description`. An entry's `x-example` must validate and is the markup an
-author queries with that entry.
+and the shipped widget entries are the worked examples. Every widget entry carries a
+non-empty `description`. Its first plain sentence identifies the widget's purpose; the
+rest explains its detailed contract. An entry's `x-example` must validate and is the
+markup an author queries with that entry.
 
 A CSS-only widget is an entry and a theme rule. One with behavior takes a module. The
 skill's own `CLAUDE.md`, one directory up from this file, defines what the module owes:

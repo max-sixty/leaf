@@ -3227,6 +3227,7 @@ def test_check_reads_widths_where_the_document_states_them(page_dir):
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-idless-decision"] = {
+        "description": "A decision without an address.",
         "type": "object",
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
@@ -3491,6 +3492,19 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
     )
     assert status == 200, body
+    # And comes off once, however the second press gets here — the racing tab of the
+    # door's own docstring. A withdrawn reaction is gone from `build_threads`, so the
+    # kind's thread walk had nothing to find and raised out of the door instead: a 500
+    # the browser is told to retry, against a state that will never answer differently.
+    # The no-op costs a toast, which is what a final refusal is.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": nod["id"]}).encode(),
+    )
+    assert status == 400, body
+    answer = json.loads(body)
+    assert answer["final"] is True, body
+    assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a conversation, and the withdrawal would orphan
     # the answer; the reader's move is in the thread it opened.
     conversation_model.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)

@@ -1,10 +1,5 @@
 import { clippedRect, shownBox, shownParts, shownRect } from "./geometry.js";
-import {
-  registerMarginRow,
-  scheduleMarginLayout,
-  unregisterMarginRow,
-  updateMarginRow,
-} from "./margin-layout.js";
+import { marginAction, registerMarginItem } from "./living-margin.js";
 import { moveScrollerBy } from "./scrolling.js";
 
 /* Anchor resolution, painting, and anchor-specific travel. */
@@ -844,65 +839,50 @@ export function createAnchors(dependencies) {
     }
   }
 
-  // The margin glyphs: one seat per block, holding a pill per reaction whose passage
-  // starts in it, in log order. The seat is the block's first child and positioned
-  // absolutely with no `top`, so its static position — the block's first line — is where
-  // it stands, in the column's right margin (`left: 100%`, as a suggestion's controls
-  // hang there): no anchor name written onto the author's element, no measurement to
-  // re-derive on a resize, and a copy at any width keeps it level with its block. Two
-  // reactions on one block share the seat rather than stacking on one point. The pill is
-  // the reaction's own eraser — its press is the ordinary undo naming the event — and
-  // wears the token's glyph, the token being the runtime's word for what it means.
+  // The margin glyphs: one contribution per target, holding a pill per reaction whose
+  // passage starts there, in log order. The living margin seats that contribution beside
+  // the same target's decisions and available actions, so adding a committed reaction
+  // cannot grow a second RHS row. Two reactions on one target share the contribution
+  // rather than stacking on one point. The pill is the reaction's own eraser — its press
+  // is the ordinary undo naming the event — and wears the token's glyph, the token being
+  // the runtime's word for what it means.
   //
   // Reconciled rather than rebuilt, so a pill whose press is in flight is the node the
   // reader pressed; stale seats are swept the way note lines are. The seat wears lf-ui
   // and data-lf-gen: an account of the passage, not words of the page, so selection,
-  // quote capture and the diff readings skip it, and a frame's first-child trim does.
-  // A seat says which placement it is (data-lf-seat), so the one standing before an
-  // element and the one starting the same element's flow are told apart even where
-  // the element is its parent's first child and the two nodes would otherwise be the
-  // same node seen from two sides.
-  const seatOf = (at, before) => {
-    const node = before
-      ? at.previousElementSibling
-      : at.querySelector(`:scope > .${SEAT}`);
-    return node?.classList.contains(SEAT) &&
-      node.dataset.lfSeat === (before ? "before" : "inside")
-      ? node
-      : null;
-  };
-  // Whether the seat hangs in the column's margin or docks at the block's start. It
-  // hangs off its containing block, and a positioned box the passage stands in — a
-  // card, an option, a framed exhibit — is that block, so the glyph would land beside
-  // the card rather than beside the column, over a neighbour or under a clip. Measured
-  // rather than known, the way a suggestion's row decides whether it fits: hung, then
-  // docked wherever it did not reach the column's own margin. Undocked first, so a
-  // seat docked once is asked again when the room comes back.
-  const registeredSeats = new WeakSet();
-  const seatOptions = (seat) => ({
-    anchor: () => seat.parentElement,
-    hangs: (row, box, column, room) =>
-      getComputedStyle(row).position === "absolute" &&
-      box.left >= column.right - 1 &&
-      box.right <= room,
-  });
+  // quote capture and the diff readings skip it. Keep the target-to-contribution record
+  // here rather than rediscovering it from DOM position: the shared margin owns where
+  // the seat lives and may move it whenever another module joins the target.
+  const reactionSeats = new Map();
   function seatReactions(seats) {
     const kept = new Set();
-    const placements = [...seats].flatMap(([at, held]) =>
-      ["before", "inside"]
-        .filter((placement) => held[placement].length)
-        .map((placement) => [at, placement === "before", held[placement]]),
-    );
-    for (const [at, before, roots] of placements) {
-      let seat = seatOf(at, before);
-      if (!seat) {
-        seat = el("span", `lf-ui ${SEAT}`);
+    for (const [at, held] of seats) {
+      const roots = [...held.before, ...held.inside];
+      let record = reactionSeats.get(at);
+      if (!record) {
+        const seat = el("span", `lf-ui ${SEAT}`);
         seat.dataset.lfGen = "1";
-        seat.dataset.lfSeat = before ? "before" : "inside";
-        if (before) at.before(seat);
-        else at.prepend(seat);
+        record = { seat, roots: [], margin: null };
+        reactionSeats.set(at, record);
+        record.margin = registerMarginItem({
+          target: at,
+          controls: seat,
+          items: () =>
+            record.roots.map((root) => ({
+              id: `reaction:${root.id}`,
+              text: `Take back ${root.token}`,
+              activate: () =>
+                record.seat
+                  .querySelector(`[data-event="${CSS.escape(root.id)}"]`)
+                  ?.focus({ preventScroll: true }),
+            })),
+          side: "after",
+          claim: false,
+        });
       }
-      kept.add(seat);
+      const { seat } = record;
+      record.roots = roots;
+      kept.add(at);
       // What it stands for, for anyone reading the page: the element's id where it
       // has one, the way a suggestion's row names the change it decides.
       if (at.id) seat.dataset.lfFor = at.id;
@@ -911,7 +891,11 @@ export function createAnchors(dependencies) {
         let mark = seat.querySelector(`:scope > [data-event="${root.id}"]`);
         if (!mark) {
           const entry = registry.$reactions.tokens[root.token];
-          mark = offer("button", "lf-pill lf-react-mark", entry?.glyph ?? root.token);
+          mark = marginAction(offer("button", "lf-react-mark"), {
+            glyph: entry?.glyph ?? root.token,
+            label: root.token,
+            collapse: "always",
+          });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;
           mark.title = `${root.token} — press to take it back`;
@@ -926,25 +910,18 @@ export function createAnchors(dependencies) {
         if (seat.children[i] !== mark)
           seat.insertBefore(mark, seat.children[i] ?? null);
       });
+      record.margin.update();
     }
-    for (const seat of pageQueryAll(`.${SEAT}`))
-      if (!kept.has(seat)) {
-        unregisterMarginRow(seat);
-        seat.remove();
+    for (const [at, record] of reactionSeats)
+      if (!kept.has(at)) {
+        record.margin.unregister();
+        reactionSeats.delete(at);
       }
-    dockSeats();
   }
-  // Asked again whenever the room changes under the seats — the panel opening or
-  // closing, the window resizing (syncLayout) — as well as at every paint.
+  // Kept as the anchor runtime's layout hook: callers do not need to know that seats
+  // now ask the shared target item to remeasure instead of registering their own rows.
   function dockSeats() {
-    for (const seat of pageQueryAll(`.${SEAT}`)) {
-      if (registeredSeats.has(seat)) updateMarginRow(seat, seatOptions(seat));
-      else {
-        registeredSeats.add(seat);
-        registerMarginRow(seat, seatOptions(seat));
-      }
-    }
-    scheduleMarginLayout();
+    for (const record of reactionSeats.values()) record.margin.update();
   }
 
   // Re-resolve marks after a package replaces derived passage nodes during replay.

@@ -106,8 +106,8 @@ CONTROL_ARCHETYPES = (
         "target": ".lf-signoff",
     },
     {
-        "name": "suggestion",
-        "coverage": ".lf-sug-actions > [role=button]",
+        "name": "margin-action",
+        "coverage": ".lf-margin-action",
         "target": '[data-lf-for="stable-suggestion"] .lf-sug-accept',
     },
     {
@@ -3682,7 +3682,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # would otherwise close it with its first Escape, so the page walk proves
             # the inset editor ring the way a reader actually reaches it.
             if scope == "the page":
-                pencil = page.locator("lf-draft .lf-draft-pencil").first
+                pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
                 if pencil.count() and pencil.is_visible():
                     pencil.click()
             page.evaluate(RING_WALK_START)

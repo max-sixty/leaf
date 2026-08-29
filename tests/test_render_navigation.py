@@ -2958,6 +2958,51 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     page.close()
 
 
+def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser, serve):
+    """A repaint that schedules the next one is a loop no surface reports.
+
+    `paintCoreControls` runs inside `paintHere` and writes what the More control
+    currently says, `aria-expanded` among it. The runtime watches `open` and
+    `aria-expanded` over the whole document, because those two attributes are how both
+    spellings of a disclosure keep which way they stand, and it repaints the line for
+    either. So the paint delivered its own write back to itself and asked for another
+    frame, and the page went on repainting for as long as it was open — every browser
+    test on every page paying for it, which is where it showed: the nightly suite ran
+    half again as long and the run went over its bound with a fifth of the tests unread.
+
+    Nothing on screen says so, which is why the reading is the page's own frames against
+    its own state applications. Every application repaints the line and says so through
+    `lf-actions`, the heartbeat's re-application of state the page already holds
+    included, so a line that repaints more often than the state moves is repainting for
+    a reason the page has not got."""
+    page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
+    page.evaluate(
+        """() => {
+          const probe = { frames: 0, paints: 0, applied: 0 };
+          window.__lfProbe = probe;
+          document.addEventListener("lf-actions", () => { probe.applied += 1; });
+          new MutationObserver(() => { probe.paints += 1; }).observe(
+            document.querySelector(".lf-keyline"),
+            { attributes: true, childList: true, subtree: true },
+          );
+          const tick = () => { probe.frames += 1; requestAnimationFrame(tick); };
+          requestAnimationFrame(tick);
+        }"""
+    )
+    # The window is the page's own frames rather than a duration: a loop of this shape
+    # repaints once per frame whatever the machine's speed, so counting frames is what
+    # makes the contrast the same size on a loaded runner as on a desk.
+    page.wait_for_function("() => window.__lfProbe.frames >= 90")
+    probe = page.evaluate("() => window.__lfProbe")
+
+    assert probe["paints"] <= probe["applied"] + 1, (
+        "the key line repainted without the state moving over "
+        f"{probe['frames']} frames: {probe}"
+    )
+    assert errors == []
+    page.close()
+
+
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     """A scope takes the keys it uses, so a control that has no Escape of its own
     leaves the rung standing behind it. The banner's version chooser swallowed it,
@@ -3584,7 +3629,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("c")  # panel open, so the old second action would show
     expect(page.locator(".lf-panel")).to_be_visible()
 
-    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator(".lf-draft-controls .lf-draft-pencil").click()
     ta = page.locator("lf-draft textarea")
     expect(ta).to_be_focused()
     ta.fill("Ship it — but louder.")
@@ -3592,7 +3637,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
-    page.locator("lf-draft .lf-draft-pencil").click()
+    page.locator(".lf-draft-controls .lf-draft-pencil").click()
     expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
     page.keyboard.press("Escape")
 

@@ -715,12 +715,19 @@ export function createLivingMargin(dependencies) {
       const minTop = Math.max(12, bannerBottom + 8);
       const maxTop = Math.max(minTop, innerHeight - card.height - 12);
       const top = Math.max(minTop, Math.min(maxTop, marker.top));
-      const rightRoom = innerWidth - marker.right - 12;
+      // The room is the page's own and not the window's, which is the side's version of
+      // the banner line two above. An open panel takes its strip out of the body rather
+      // than standing over it (chrome-style.js), so a card placed against the window
+      // stands in the panel — and one the reader left open covers the narrowing box at
+      // the top of it, where the ring of the box they are typing in goes under this
+      // card's ×. The margin's card belongs in the column the margin is drawn in.
+      const roomRight = document.body.getBoundingClientRect().right;
+      const rightRoom = roomRight - marker.right - 12;
       const left =
         rightRoom >= card.width + 8
           ? marker.right + 8
           : Math.max(12, marker.left - card.width - 8);
-      preview.style.left = `${Math.min(left, innerWidth - card.width - 12)}px`;
+      preview.style.left = `${Math.min(left, roomRight - card.width - 12)}px`;
       preview.style.top = `${top}px`;
     });
   }

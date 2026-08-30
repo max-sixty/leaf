@@ -1259,6 +1259,7 @@ const {
 const { AIM, aimIsOn, aimedItem } = createAim({
   activateAimTarget,
   aimTargetAt,
+  designIsOn: () => designOn,
   designPress,
   designTarget,
   inChrome: (node) => inChrome(node),
@@ -3406,6 +3407,7 @@ livingMargin = createLivingMargin({
   comparisonBase,
   comparisonChanges,
   compact: commentsEdge.over,
+  closestAcross,
   el,
   elementById,
   goToDecision,
@@ -3463,6 +3465,7 @@ designRuntime = createDesign({
   itemWord,
   layerPart,
   legendRoot,
+  marginTargetAt: (...args) => livingMargin.marginTargetAt(...args),
   openComposer,
   pageScroller,
   pageShifted,

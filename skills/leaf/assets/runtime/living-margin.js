@@ -180,6 +180,7 @@ export function createLivingMargin(dependencies) {
     comparisonBase,
     comparisonChanges,
     compact,
+    closestAcross,
     el,
     elementById,
     goToDecision,
@@ -290,6 +291,15 @@ export function createLivingMargin(dependencies) {
   let highlighted = null;
   let rovingFrame = 0;
   let sheetActivation = false;
+
+  // A margin item is hoisted away from the page target it belongs to, so ancestry
+  // cannot answer what a press on one of its controls is about. Keep that relationship
+  // behind the owner that performs the hoist. Design mode uses it to turn the press into
+  // a comment on the target and the named control instead of letting the action fire.
+  function marginTargetAt(node) {
+    const at = node?.nodeType === 1 ? node : node?.parentElement;
+    return closestAcross(at, "[data-lf-margin-for]")?.lfTarget ?? null;
+  }
 
   function groupFor(groups, target) {
     let group = groups.get(target);
@@ -735,6 +745,7 @@ export function createLivingMargin(dependencies) {
         inlineHosts.set(target, host);
       }
       host.dataset.lfMarginFor = target.id || targetPath(target);
+      host.lfTarget = target;
       host.setAttribute("aria-label", `Actions for ${itemWord(target)}`);
       const controls = (side) =>
         offers
@@ -821,6 +832,7 @@ export function createLivingMargin(dependencies) {
         registerMarginRow(host, markerOptions(host));
       } else updateMarginRow(host, markerOptions(host));
       host.lfEntry = entry;
+      host.lfTarget = entry.target;
       host.dataset.lfMarginFor = entry.target.id || entry.key;
       host.setAttribute("aria-label", `Page actions for ${entry.title}`);
       marker.lfEntry = entry;
@@ -1139,5 +1151,5 @@ export function createLivingMargin(dependencies) {
   });
   render();
 
-  return { openPageMapItem, pageMapItems, render };
+  return { marginTargetAt, openPageMapItem, pageMapItems, render };
 }

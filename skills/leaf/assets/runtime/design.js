@@ -37,6 +37,7 @@ export function createDesign(dependencies) {
     itemWord,
     layerPart,
     legendRoot,
+    marginTargetAt,
     openComposer,
     pageScroller,
     pageShifted,
@@ -223,19 +224,22 @@ export function createDesign(dependencies) {
   function designTarget(node) {
     const at = node?.nodeType === 1 ? node : node?.parentElement;
     if (!at || closestAcross(at, DESIGN_OWN)) return null;
+    const marginTarget = marginTargetAt(at);
     // In the layer, the nearest id — but the author's before the runtime's. The runtime's
     // own parts wear its namespace and are the target themselves; a widget an agent sent
     // wears an authored id and its module's generated parts wear the runtime's, so passing
     // over those lands on the widget, which is where `itemAt` lands out on the page. Taking
     // the nearest of any kind anchored a design comment on `lf-mermaid-3` — a number that
     // changes with draw order — and `layerPart` then read it back as a part of the layer.
-    const el = inChrome(at)
-      ? (closestAcross(at, '[id]:not([id^="lf-"])') ?? closestAcross(at, "[id]"))
-      : itemAt(at);
+    const el =
+      marginTarget ??
+      (inChrome(at)
+        ? (closestAcross(at, '[id]:not([id^="lf-"])') ?? closestAcross(at, "[id]"))
+        : itemAt(at));
     if (!el) return null;
     const control = closestAcross(at, CONTROLS);
     const part =
-      control && control !== el && containsAcross(el, control)
+      control && control !== el && (marginTarget === el || containsAcross(el, control))
         ? controlWord(control)
         : "";
     return { el, part };
@@ -263,17 +267,24 @@ export function createDesign(dependencies) {
     return `${tag.startsWith("lf-") ? tag : itemWord(el)} · ${el.id}`;
   }
 
-  // Which presses the mode takes at the press, ahead of the page: everything but prose. A
-  // widget, a control, a picture, the chrome — none has words to select and each has
-  // something a press would otherwise do, and the mode's promise is that it does none of
-  // it. Prose is left to the browser, so a drag still selects, and the click that ends a
-  // plain press on it reaches the handler in the entry module rather than being taken here.
+  // Which presses the mode takes at the press, ahead of the page: everything but prose and
+  // the mode's own machinery. A widget, a control, a picture, the chrome — none has words
+  // to select and each has something a press would otherwise do, and the mode's promise is
+  // that it does none of it. Whether the press has a durable target decides only whether a
+  // composer can open; it never gives the activation back to the page. Prose is left to the
+  // browser, so a drag still selects, and the click that ends a plain press on it reaches
+  // the handler in the entry module rather than being taken here.
   const PRESSED = () =>
     [...tagsDeclaring(() => true), CONTROLS, "svg", "img", "figure"].join(",");
-  const designPress = (target) =>
-    designOn &&
-    Boolean(designTarget(target)) &&
-    (inChrome(target) || Boolean(closestAcross(target, PRESSED())));
+  function designPress(target) {
+    const at = target?.nodeType === 1 ? target : target?.parentElement;
+    return Boolean(
+      designOn &&
+      at &&
+      !closestAcross(at, DESIGN_OWN) &&
+      (inChrome(at) || closestAcross(at, PRESSED())),
+    );
+  }
 
   // The one way a design target becomes the composer's anchor: the element by id, and the
   // control's word where the press landed on one.

@@ -32,6 +32,7 @@ from render_support import (
     PICTURE_PAGE,
     REPLAYED_PAGE,
     SPECIMEN_PAGE,
+    SUGGESTION_PAGE,
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
     aim_targets,
@@ -510,15 +511,24 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
 def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser, serve):
     """A press in design mode is a comment about the layer, and that is all it does.
 
-    The mode is the ⌥ aim generalized: a press on a widget names the widget rather than
-    working it, so a pick mark can be pointed at without picking. The comment posts
-    with `about: "layer"`, which is how the agent tells "this control looks wrong" from
-    a remark about the words — nothing about the anchor alone says which. Both halves
-    are asserted: the log's event, and the page exactly as it was."""
+    The mode is primary while it stands, even over the ⌥ aim: a modified press on a
+    widget names the widget rather than aiming or working it, so a pick mark can be
+    pointed at without picking. The comment posts with `about: "layer"`, which is how
+    the agent tells "this control looks wrong" from a remark about the words — nothing
+    about the anchor alone says which. Both halves are asserted: the log's event, and
+    the page exactly as it was."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     option = page.locator("#opt-shim")
     before = page.evaluate(PAGE_MARKUP)
     page.keyboard.press("i")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-help")
+    expect(reference).to_be_visible()
+    expect(reference.locator('tr[data-lf-command="aim.respond"]')).to_have_count(0)
+    page.keyboard.press("Escape")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
 
     # The mode shows what is on the page rather than waiting for the pointer: a legend
@@ -542,7 +552,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     option.hover()
     expect(page.locator(".lf-inspect")).to_have_text("lf-option · opt-shim")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "opt-shim")
-    option.click()
+    option.click(modifiers=["Alt"])
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
@@ -556,7 +566,10 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         == before
     )
     assert not page.evaluate(FOCUS_IN_PAGE)
-    page.locator(".lf-composer textarea").fill("the ring reads too heavy")
+    composer_input = page.locator(".lf-composer textarea")
+    composer_input.click()
+    expect(composer_input).to_be_focused()
+    composer_input.fill("the ring reads too heavy")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     events = events_model.read_events(serve.page_dir)
@@ -583,13 +596,15 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     page.close()
 
 
-def test_design_mode_names_every_platform_control_from_the_shared_boundary(
+def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     browser, serve
 ):
-    """Design mode names and captures controls from the runtime's full platform list.
+    """Design mode captures controls from the runtime's full platform list.
 
     A slider nested in an ordinary section has no widget tag or native element name to
     put it on a smaller selector. Its ARIA role must still become the named design part.
+    An unnamed disclosure is the fail-closed control: even without a durable comment
+    target, its activation must not leak through the active mode.
     """
     page, errors = open_page(
         browser,
@@ -599,7 +614,8 @@ def test_design_mode_names_every_platform_control_from_the_shared_boundary(
                 '<h1>Controls</h1><section id="volume">'
                 '<span role="slider" tabindex="0" aria-label="Volume" '
                 'aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">50</span>'
-                "</section>",
+                "</section>"
+                "<details><summary>More controls</summary><p>Hidden</p></details>",
             )
         ),
     )
@@ -607,10 +623,115 @@ def test_design_mode_names_every_platform_control_from_the_shared_boundary(
     slider = page.get_by_role("slider", name="Volume")
     slider.hover()
     expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-inspect")).to_have_text("Volume · section · volume")
+    page.keyboard.up("Alt")
     slider.click()
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "layer · Volume · section · volume"
     )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    disclosure = page.locator("details")
+    summary = disclosure.locator("summary")
+    summary.click()
+    assert not disclosure.evaluate("el => el.open"), (
+        "target resolution failed open and activated the disclosure under Design mode"
+    )
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    summary.focus()
+    page.keyboard.press("Enter")
+    assert disclosure.evaluate("el => el.open"), (
+        "Design mode swallowed the disclosure's keyboard activation"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, serve):
+    """A hoisted target control remains a design target, not a live action.
+
+    Margin actions stand beside the readable column rather than inside the widget they
+    act on. Design mode still has to name the underlying widget and take the pointer
+    press before the action starts; otherwise Accept sends while the composer opens
+    nowhere.
+    """
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    resized(page, 1440, 900)
+    page.keyboard.press("i")
+    accept = page.locator('[data-lf-margin-for="sug-refill"] .lf-sug-accept')
+    expect(accept).to_be_visible()
+
+    accept.hover()
+    expect(page.locator(".lf-inspect")).to_have_text(
+        re.compile(r"^Accept .* · lf-suggestion · sug-refill$")
+    )
+    accept.click()
+
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
+    )
+    assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
+        "the margin action started while Design mode was opening its comment"
+    )
+    round_trip(page)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["widget"] == "sug-refill"
+    ], "the margin action reached the durable log despite Design mode"
+    assert errors == []
+    page.close()
+
+    # The same hoist exists inside frozen markup in a conversation. Its target belongs
+    # to that conversation document, so the margin owner hands Design mode the exact
+    # element rather than making it reconstruct ownership from a diagnostic id or path.
+    url = serve(leaf_page("inline margin action", '<h1 id="h">Review</h1>'))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-inline-margin",
+            "author": "user",
+            "revision": 1,
+            "text": "Show me the proposed wording.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-inline-margin",
+            "revision": 1,
+            "text": "Here is the change:",
+            "markup": (
+                '<lf-suggestion id="reply-suggestion">'
+                "<lf-old>Keep the long label.</lf-old>"
+                "<lf-new>Use the short label.</lf-new>"
+                "</lf-suggestion>"
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.keyboard.press("i")
+    accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
+    expect(accept).to_be_visible()
+
+    accept.click()
+
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        re.compile(r"^layer · Accept .* · lf-suggestion · reply-suggestion$")
+    )
+    round_trip(page)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["widget"] == "reply-suggestion"
+    ], "the inline margin action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
@@ -643,7 +764,11 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     ]
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    expect(page.locator(".lf-thread textarea")).to_be_focused()
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread")).to_be_focused()
+    page.keyboard.press("i")
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
     # say. A fixed box is not clipped by the root scrollport, while body is the layout shell
@@ -652,7 +777,6 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     # click on the chrome drew nothing over the chrome. Wide enough for the panel to stand
     # beside the page, which is where the shell and the panel part company.
     resized(page, 1280, 800)
-    page.locator(".lf-banner .lf-threads-toggle").click()
     expect(page.locator(".lf-panel")).to_be_visible()
     page.wait_for_function(
         "() => document.querySelector('.lf-panel').getBoundingClientRect().left"

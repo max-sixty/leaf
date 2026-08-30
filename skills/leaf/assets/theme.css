@@ -900,12 +900,12 @@ dd { margin: 0 0 8px 0; }
    scrolls. That also gives a wide exhibit no invitation to paint through it: --lf-room
    is measured after the strip has been taken. `data-lf-cramped` is the same runtime veto
    sidenotes obey when a panel or tray has narrowed the page without narrowing the
-   viewport. With no runtime, the media query is the complete answer. A sidebar and a
-   sidenote together wait for 1416px, the ordinary 1152px margin floor plus the sidebar's
-   264px; granting both at the ordinary floor shrank the prose to 504px. The paired
-   number is held to those two tokens in test_the_sidebar_and_note_floor_is_their_sum.
-   Paper gets only the base in-flow form, and therefore neither a sticky box nor an empty
-   margin.
+   viewport. With no runtime, the media query is
+   the complete answer. A sidebar and a sidenote together wait for 1416px, the ordinary
+   1152px margin floor plus the sidebar's 264px; granting both at the ordinary floor
+   shrank the prose to 504px. The paired number is held to those two tokens in
+   test_the_sidebar_and_note_floor_is_their_sum. Paper gets only the base in-flow form,
+   and therefore neither a sticky box nor an empty margin.
 
    Direct-child margins are trimmed because a sidebar is a placement wrapper, not a
    second rhythm around what it holds. This keeps an lf-toc's quiet spine and makes the
@@ -917,12 +917,14 @@ aside.sidebar { display: flow-root; margin: var(--sp-4) 0 30px; }
 aside.sidebar > :first-child { margin-top: 0; }
 aside.sidebar > :last-child { margin-bottom: 0; }
 @media screen and (min-width: 1152px) {
-  body:not([data-lf-cramped]):has(main > aside.sidebar):not(:has(aside.sidenote)) {
+  html:not(.lf-copy)
+    body:not([data-lf-cramped]):has(main > aside.sidebar):not(:has(aside.sidenote)) {
     --strip-l: var(--sidebar);
   }
-  body:not([data-lf-cramped]):not(:has(aside.sidenote))
+  html:not(.lf-copy) body:not([data-lf-cramped]):not(:has(aside.sidenote))
     main > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
+    --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
     width: calc(var(--sidebar) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
@@ -931,7 +933,7 @@ aside.sidebar > :last-child { margin-bottom: 0; }
   }
 }
 @media screen and (min-width: 1416px) {
-  body:has(main > aside.sidebar):has(aside.sidenote) {
+  html:not(.lf-copy) body:has(main > aside.sidebar):has(aside.sidenote) {
     /* The media query answers for a static viewport. The runtime reads this override
        from body on every stateStrip pass, so a panel or tray that leaves less than the
        same combined floor vetoes both strips even though the viewport remains wide.
@@ -939,12 +941,14 @@ aside.sidebar > :last-child { margin-bottom: 0; }
        makes the answer disappear as soon as it is used and the next pass flip back. */
     --strip-min: 1416px;
   }
-  body:not([data-lf-cramped]):has(main > aside.sidebar):has(aside.sidenote) {
+  html:not(.lf-copy)
+    body:not([data-lf-cramped]):has(main > aside.sidebar):has(aside.sidenote) {
     --strip-l: var(--sidebar);
   }
-  body:not([data-lf-cramped]):has(aside.sidenote)
+  html:not(.lf-copy) body:not([data-lf-cramped]):has(aside.sidenote)
     main > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
+    --lf-sidebar-posture: margin;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
     width: calc(var(--sidebar) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));

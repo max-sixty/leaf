@@ -1199,6 +1199,41 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
     ], "a float carried off the edge of the window went out with the handover"
 
 
+def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
+    browser, serve
+):
+    """Fixed placement answers for a box wholly outside the column, not one crossing it.
+
+    The first shape is the roomy sidebar posture: it starts in the outer gutter and never
+    moves beneath the pointer. The second differs only in its horizontal position and
+    straddles the readable column, so exempting fixed boxes outright would make the gate
+    blind to the same spill it catches in flow and in floats."""
+    source = leaf_page(
+        "fixed margin residents",
+        """
+<style>
+#fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
+#fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
+</style>
+<h1>Migration plan</h1>
+<div id="fixed-margin">A stable route in the margin.</div>
+<div id="fixed-half">A route crossing into the argument.</div>
+<p>Move one cohort at a time while keeping the old readers available.</p>
+""",
+    )
+
+    failures = render_gate_model.render_version(browser, serve(source))
+
+    assert not [f for f in failures if "fixed-margin" in f], (
+        f"the fixed margin resident was reported for standing where it was put: {failures}"
+    )
+    assert [
+        f
+        for f in failures
+        if "<div id=fixed-half> is set" in f and "past the column" in f
+    ], f"a fixed box crossing the column escaped the gate: {failures}"
+
+
 def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, serve):
     """Both residents of the right margin are pinned by the flow — the controls level
     with the change they decide, the note level with the block it annotates — so on a

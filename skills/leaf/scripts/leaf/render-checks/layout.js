@@ -25,8 +25,8 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // Two kinds of element answer for their own width and not to this, and both say
 // so in their computed style. The margin has legitimate residents — a
 // suggestion's controls, a sidenote, the hidden line the paint pass writes — and
-// each is out there by its own declaration: placed absolutely, or floated clear
-// of the column. Where the box sits is what separates a resident from a spill,
+// each is out there by its own declaration: placed absolutely or fixed, or floated
+// clear of the column. Where the box sits is what separates a resident from a spill,
 // which crosses the column's edge rather than clearing it, having started inside
 // and run out. So a float that merely overflows is still reported, and a widget's
 // own float inside the column (an option's .facts rail) is never in question.
@@ -44,8 +44,8 @@ export const bodyOverflow = () => document.body.scrollWidth - document.body.clie
 // width of. A spill is reported once, at the outermost element that has it,
 // because everything inside one inherits its box and would name the same fault a
 // dozen times over.
-// What stands in the page's margin by its own declaration — placed absolutely, or
-// floated clear of the column — as one reading shared by the two passes that decision:
+// What stands in the page's margin by its own declaration — placed absolutely or fixed,
+// or floated clear of the column — is one reading shared by the two passes that decision:
 // MISPLACED_BOXES, deciding whether a wide widget was drawn over one, and
 // WITHHELD_ROOM, deciding whether an exhibit's sideways scroll answers to a margin's
 // occupant or to room the layer withheld. A resident is whatever answered for itself
@@ -96,6 +96,11 @@ export function misplacedBoxes() {
     const b = el.getBoundingClientRect();
     return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
   };
+  const positionedInTheMargin = (el, s) => {
+    if (s.position !== "absolute" && s.position !== "fixed") return false;
+    const b = el.getBoundingClientRect();
+    return b.right <= left + 1 || b.left >= right - 1;
+  };
   const residents = [];
   for (const el of main.querySelectorAll("*")) {
     if (!el.checkVisibility() || el.hasAttribute("data-lf-wide")) continue;
@@ -106,7 +111,8 @@ export function misplacedBoxes() {
     // drawn across one has taken nothing from anybody.
     if (b.width < 2) continue;
     const clear = b.right <= left + 1 || b.left >= right - 1;
-    if (clear && (s.position === "absolute" || inTheMargin(el, s))) residents.push(el);
+    if (clear && (positionedInTheMargin(el, s) || inTheMargin(el, s)))
+      residents.push(el);
   }
 
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
@@ -115,10 +121,10 @@ export function misplacedBoxes() {
   // of this pass having gone straight past the container that cut it.
   const answeredFor = (el) => {
     const own = getComputedStyle(el);
-    if (own.position === "absolute" || inTheMargin(el, own)) return true;
+    if (positionedInTheMargin(el, own) || inTheMargin(el, own)) return true;
     for (let a = el.parentElement; a && a !== main; a = a.parentElement) {
       const s = getComputedStyle(a);
-      if (s.position === "absolute" || inTheMargin(a, s)) return true;
+      if (positionedInTheMargin(a, s) || inTheMargin(a, s)) return true;
       if (shownBand(a)) return true;
     }
     return false;

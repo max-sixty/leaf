@@ -16,6 +16,12 @@ export const dragging = (el, on) => {
   paintKeys();
 };
 
+// ResizeObserver covers size changes. A view swap can instead keep its outer box while
+// rearranging descendants, so the widget states that geometry change explicitly.
+export const LAYOUT = "lf-layout";
+export const layoutChanged = (el) =>
+  el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
+
 let publishedMeasure;
 export { publishedMeasure as measure };
 

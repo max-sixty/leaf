@@ -1,6 +1,7 @@
 """Board, suggestion, ask, and widget composition tests."""
 
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -243,6 +244,434 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     )
     assert direct_errors == []
     direct.close()
+
+
+def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it(
+    browser, serve
+):
+    """The roomy margin is a stable reading map rather than a compressed outline.
+
+    Section rows divide the available height according to the content they lead, a
+    moving lens shows the visible band, and late content growth redraws both. Labels
+    reveal without moving the map or changing the item under the pointer. The same
+    links remain an ordinary open outline where the margin posture is unavailable."""
+    source = leaf_page(
+        "contents map",
+        """
+<h1>Migration plan for the readers already in flight</h1>
+<style>body { scroll-behavior: smooth; }</style>
+<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+<section><h2 id="prepare">Prepare the copy without moving the active readers</h2><p>Take a snapshot.</p></section>
+<div style="height: 90px"></div>
+<section><h3 id="capacity">Check capacity before opening the longer transfer window</h3><p>Leave room for both copies.</p></section>
+<div id="late-content" style="height: 180px"></div>
+<section><h2 id="move">Move each cohort while preserving its reading position</h2><p>Shift one cohort at a time.</p></section>
+<div style="height: 640px"></div>
+<section><h2 id="verify">Verify both readings before releasing the original copy</h2><p>Compare the totals.</p></section>
+<div style="height: 360px"></div>
+""",
+    )
+    url = serve(source)
+    page, errors = open_page(browser, url)
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page")
+    toc = page.locator("#contents")
+    start = nav.locator(".lf-toc-start a")
+    prepare = nav.get_by_role("link", name="Prepare the copy", exact=False)
+    capacity = nav.get_by_role("link", name="Check capacity", exact=False)
+    verify = nav.get_by_role("link", name="Verify both readings", exact=False)
+    page.mouse.move(1200, 700)
+    expect(start).to_have_attribute(
+        "aria-label", "Migration plan for the readers already in flight"
+    )
+    expect(start).to_have_attribute(
+        "data-lf-label", "Migration plan for the readers already in flight"
+    )
+    expect(start).to_have_attribute("href", re.compile(r"^#lf-contents-section-0"))
+    expect(start).to_have_attribute("aria-current", "location")
+    expect(toc).to_have_css("position", "fixed")
+    expect(page.locator("aside.sidebar")).to_have_css("position", "sticky")
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
+    motion = prepare.evaluate(
+        "node => { const s = getComputedStyle(node); "
+        "return {property: s.transitionProperty, duration: s.transitionDuration, "
+        "timing: s.transitionTimingFunction}; }"
+    )
+    assert motion == {
+        "property": "color, opacity",
+        "duration": "0.12s, 0.24s",
+        "timing": "ease-out, ease-out",
+    }
+    nav_box = nav.bounding_box()
+    assert nav_box is not None
+    assert nav_box["height"] >= 790, f"the reading map used only {nav_box['height']}px"
+    markers = nav.locator(".lf-toc-start, li").evaluate_all(
+        """items => items.map(item => {
+          const style = getComputedStyle(item, '::before');
+          const box = item.getBoundingClientRect();
+          return {content: style.content, width: style.width, height: style.height,
+                  color: style.backgroundColor, x: box.x + parseFloat(style.left),
+                  y: box.y + parseFloat(style.top)};
+        })"""
+    )
+    assert markers[0]["content"] == '""' and markers[0]["width"] == "3px"
+    assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
+    assert len({round(marker["x"]) for marker in markers}) == 1
+    assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
+    assert markers[3]["y"] - markers[2]["y"] > markers[2]["y"] - markers[1]["y"]
+
+    # The start row and top-level sections share one typographic edge. Depth changes
+    # indentation, never the spine or the marker position.
+    text_edge = (
+        "node => node.getBoundingClientRect().x "
+        "+ parseFloat(getComputedStyle(node).paddingLeft)"
+    )
+    assert abs(start.evaluate(text_edge) - prepare.evaluate(text_edge)) <= 1
+    assert capacity.evaluate(text_edge) > prepare.evaluate(text_edge) + 7
+    title_type = start.evaluate(
+        "node => { const s = getComputedStyle(node); "
+        "return {family: s.fontFamily, caps: s.fontVariantCaps}; }"
+    )
+    section_type = prepare.evaluate(
+        "node => { const s = getComputedStyle(node); "
+        "return {family: s.fontFamily, caps: s.fontVariantCaps}; }"
+    )
+    assert title_type == {**section_type, "caps": "normal"}
+    expect(prepare).to_have_css("-webkit-line-clamp", "2")
+
+    lens = nav.locator(".lf-toc-window")
+    lens_before = lens.bounding_box()
+    assert lens_before is not None
+    assert 14 <= lens_before["height"] < nav_box["height"]
+
+    # A Mermaid render, image load, disclosure, or other late block can change the
+    # document after upgrade. Growing one such block must move the later sections in
+    # the map without changing the rail's own box.
+    move_before = markers[3]["y"]
+    page.locator("#late-content").evaluate("node => { node.style.height = '580px'; }")
+    page.wait_for_function(
+        "before => { const item = document.querySelector('a[href=\"#move\"]').parentElement; "
+        "const style = getComputedStyle(item, '::before'); "
+        "return item.getBoundingClientRect().y + parseFloat(style.top) > before + 20; }",
+        arg=move_before,
+    )
+    assert nav.bounding_box() == nav_box
+    hidden_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
+        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
+        "return [r.x, r.y, r.width, r.height]; })"
+    )
+
+    prepare.evaluate(
+        "node => node.addEventListener('pointerdown', () => { window.lfTocPressed = true; }, { once: true })"
+    )
+    prepare_box = prepare.bounding_box()
+    assert prepare_box is not None
+    before_hash = page.evaluate("location.hash")
+    page.mouse.click(prepare_box["x"] + 4, prepare_box["y"] + 4)
+    assert page.evaluate("location.hash") == before_hash
+    assert page.evaluate("window.lfTocPressed") is None
+    expect(prepare).to_have_css("opacity", "1")
+    expect(prepare).to_have_css("pointer-events", "auto")
+    revealed_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
+        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
+        "return [r.x, r.y, r.width, r.height]; })"
+    )
+    assert revealed_boxes == hidden_boxes
+
+    # A fixed sidebar is outside body's native wheel chain. The map forwards a vertical
+    # wheel to the document scroller while leaving its own coordinate system fixed.
+    page.evaluate("document.body.scrollTo({top: 0, behavior: 'instant'})")
+    page.mouse.move(nav_box["x"] + nav_box["width"] / 2, nav_box["y"] + 300)
+    page.mouse.wheel(0, 260)
+    assert page.evaluate("document.body.scrollTop") >= 250, (
+        "the wheel bridge inherited the page's authored smooth-scroll delay"
+    )
+    page.mouse.wheel(0, 260)
+    page.mouse.wheel(0, 260)
+    assert page.evaluate("document.body.scrollTop") >= 750, (
+        "rapid wheels were coalesced instead of accumulating"
+    )
+    assert page.locator("aside.sidebar").evaluate("node => node.scrollTop") == 0
+
+    # Map travel keeps the reader oriented rather than teleporting. This records the
+    # browser's actual scroll sequence; it does not make a duration claim.
+    page.evaluate(
+        "() => { document.body.scrollTo({top: 0, behavior: 'instant'}); "
+        "window.lfTocFrames = []; "
+        "const sample = () => { window.lfTocFrames.push(document.body.scrollTop); "
+        "if (window.lfTocFrames.length < 90) requestAnimationFrame(sample); }; "
+        "requestAnimationFrame(sample); }"
+    )
+    verify.click()
+    expect(page).to_have_url(re.compile(r"#verify$"))
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    frames = page.evaluate("window.lfTocFrames")
+    travelled = [position for position in frames if position > 0]
+    assert len({round(position) for position in travelled}) >= 3, frames
+    assert all(left <= right for left, right in pairwise(travelled)), frames
+
+    start_href = start.get_attribute("href")
+    assert start_href is not None
+    start.click()
+    expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
+    expect(page.locator(":target")).to_have_attribute("id", start_href[1:])
+    assert (
+        page.locator(start_href).evaluate("node => node.getBoundingClientRect().top")
+        < 150
+    )
+
+    page.evaluate("document.body.scrollTo({top: 0, behavior: 'instant'})")
+    prepare.click()
+    expect(page).to_have_url(re.compile(r"#prepare$"))
+    expect(prepare).to_have_attribute("aria-current", "location")
+    after_navigation = nav.bounding_box()
+    assert after_navigation is not None
+    assert after_navigation["y"] == nav_box["y"], (
+        "following a link moved the contents rail"
+    )
+    assert prepare.evaluate("node => node.matches(':hover')")
+
+    page.locator("#verify").evaluate(
+        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    expect(verify).to_have_attribute("aria-current", "location")
+    page.wait_for_function(
+        "({ before, travel }) => "
+        "document.querySelector('.lf-toc-window').getBoundingClientRect().y "
+        "> before + travel",
+        arg={"before": lens_before["y"], "travel": nav_box["height"] * 0.08},
+    )
+    lens_after = lens.bounding_box()
+    assert lens_after is not None
+    assert lens_after["y"] > lens_before["y"] + nav_box["height"] * 0.08
+
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
+    page.locator("body").focus()
+    page.keyboard.press("Tab")
+    expect(start).to_be_focused()
+    expect(start).to_have_css("opacity", "1")
+    expect(start).to_have_css("outline-style", "solid")
+    expect(start).to_have_css("outline-width", "2px")
+    expect(start).to_have_css("outline-offset", "-2px")
+
+    page.locator("body").focus()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(prepare).to_have_css("opacity", "1")
+    expect(start).to_be_hidden()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+
+    resized(page, 700, 900)
+    expect(prepare).to_have_css("opacity", "1")
+    expect(prepare).to_have_css("pointer-events", "auto")
+    expect(start).to_be_hidden()
+
+    resized(page, 1400, 900)
+    page.emulate_media(media="print")
+    page.evaluate(RENDERED)
+    expect(prepare).to_have_css("opacity", "1")
+    expect(start).to_be_hidden()
+
+    page.emulate_media(media="screen")
+    page.evaluate(RENDERED)
+    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
+    page.evaluate(RENDERED)
+    expect(prepare).to_have_css("opacity", "1")
+    expect(prepare).to_have_css("pointer-events", "auto")
+    expect(start).to_be_hidden()
+    expect(page.locator("aside.sidebar")).to_have_css("position", "static")
+    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
+    page.evaluate(RENDERED)
+
+    page.emulate_media(media="screen", forced_colors="active")
+    page.evaluate(RENDERED)
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
+    forced_colors = nav.evaluate(
+        "node => { const rows = node.querySelector('.lf-toc-rows'); "
+        "const lens = node.querySelector('.lf-toc-window'); "
+        "const items = [...node.querySelectorAll('.lf-toc-start, li')]; "
+        "const current = items.find(item => item.querySelector('[aria-current]')); "
+        "return { spine: getComputedStyle(rows, '::before').backgroundColor, "
+        "lens: getComputedStyle(lens).backgroundColor, "
+        "current: getComputedStyle(current, '::before').backgroundColor, "
+        "inactive: items.filter(item => item !== current).map(item => "
+        "getComputedStyle(item, '::before').backgroundColor) }; }"
+    )
+    canvas = page.locator("body").evaluate(
+        "node => getComputedStyle(node).backgroundColor"
+    )
+    assert forced_colors["spine"] != canvas
+    assert forced_colors["lens"] == forced_colors["current"]
+    assert forced_colors["lens"] != forced_colors["spine"]
+    assert all(color == forced_colors["spine"] for color in forced_colors["inactive"])
+
+    page.emulate_media(media="screen", forced_colors="none", reduced_motion="reduce")
+    page.evaluate(RENDERED)
+    prepare_box = prepare.bounding_box()
+    assert prepare_box is not None
+    page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
+    expect(prepare).to_have_css("opacity", "1")
+    expect(prepare).to_have_css("pointer-events", "auto")
+    expect(prepare).to_have_css("transition-duration", "0s")
+    start.click()
+    expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
+    assert (
+        page.locator(start_href).evaluate("node => node.getBoundingClientRect().top")
+        < 150
+    )
+    assert errors == []
+    page.close()
+
+    # A wide touch screen still gets the ordinary sticky sidebar. The ToC fixes itself
+    # only in the fine-pointer posture where its hover map and wheel bridge are active.
+    context = browser.new_context(
+        viewport={"width": 1400, "height": 900}, has_touch=True
+    )
+    coarse, coarse_errors = open_page(browser, url, context=context)
+    expect(coarse.locator("aside.sidebar")).to_have_css("position", "sticky")
+    expect(coarse.locator("#contents")).to_have_css("position", "static")
+    expect(
+        coarse.get_by_role("navigation", name="On this page").get_by_role(
+            "link", name="Prepare the copy", exact=False
+        )
+    ).to_have_css("opacity", "1")
+    coarse.locator("aside.sidebar").evaluate(
+        "node => { node.style.maxHeight = '80px'; node.scrollTop = 0; }"
+    )
+    coarse.evaluate("document.body.scrollTo({top: 0, behavior: 'instant'})")
+    coarse_box = coarse.locator("aside.sidebar").bounding_box()
+    assert coarse_box is not None
+    coarse.mouse.move(coarse_box["x"] + 40, coarse_box["y"] + 40)
+    coarse.mouse.wheel(0, 80)
+    coarse.wait_for_function(
+        "() => document.querySelector('aside.sidebar').scrollTop > 0"
+    )
+    assert coarse.evaluate("document.body.scrollTop") == 0, (
+        "the in-flow ToC stole a wheel from its own overflowing sidebar"
+    )
+    assert coarse_errors == []
+    coarse.close()
+    context.close()
+
+
+def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser, serve):
+    """Density may make labels terser, never make the map taller than its spine.
+
+    Two-line labels establish a real flex minimum. Enough of them once stretched an
+    810px map past 1200px, so the lens described one coordinate system while the lower
+    markers occupied another. In the dense voice labels leave the flex geometry and the
+    row under the pointer reveals alone, keeping every destination without painting an
+    unreadable stack of sixty lines."""
+    sections = "\n".join(
+        f"<section><h2 id='part-{index}'>Part {index}: preserve the active readers "
+        f"while the longer migration window remains open</h2>"
+        f"<p>Move cohort {index} only after its reading is stable.</p></section>"
+        for index in range(1, 61)
+    )
+    source = leaf_page(
+        "dense contents map",
+        f"""
+<h1>A migration with many independently verifiable steps</h1>
+<aside class="sidebar"><lf-toc id="dense-contents"></lf-toc></aside>
+{sections}
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    toc = page.locator("#dense-contents")
+    nav = page.get_by_role("navigation", name="On this page")
+    expect(toc).to_have_attribute("data-lf-dense", "")
+    expect(nav.locator("li a").first).to_have_css("-webkit-line-clamp", "1")
+
+    nav_box = nav.bounding_box()
+    assert nav_box is not None
+    assert nav.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
+    markers = nav.locator(".lf-toc-start, li").evaluate_all(
+        "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
+        "const r = item.getBoundingClientRect(); return r.y + parseFloat(s.top); })"
+    )
+    assert markers[-1] <= nav_box["y"] + nav_box["height"]
+
+    page.mouse.move(nav_box["x"] + 30, nav_box["y"] + 100)
+    page.wait_for_timeout(300)
+    shown = nav.locator(".lf-toc-start a, li a").evaluate_all(
+        "links => links.filter(link => getComputedStyle(link).opacity === '1')"
+        ".map(link => link.textContent || link.getAttribute('aria-label'))"
+    )
+    assert len(shown) == 1, f"the dense map painted overlapping labels: {shown}"
+    hovered = nav.locator("li:hover a")
+    expect(hovered).to_have_count(1)
+    expect(hovered).to_have_css("pointer-events", "auto")
+    href = hovered.get_attribute("href")
+    hovered.click()
+    expect(page).to_have_url(re.compile(rf"{re.escape(href)}$"))
+    assert errors == []
+    page.close()
+
+
+def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
+    browser, serve
+):
+    """An equal-height panel swap changes the map without resizing the document.
+
+    Both panels occupy the same outer height but put their heading at a different point.
+    The active panel's heading must own the remaining span and the hidden panel must own
+    none; at the bottom, current location means the last visible heading rather than the
+    last heading in DOM order."""
+    source = leaf_page(
+        "tabbed contents map",
+        """
+<h1>Two routes through the same migration window</h1>
+<style>#first-route, #second-route { height: 1100px; overflow: hidden; }</style>
+<aside class="sidebar"><lf-toc id="tab-contents"></lf-toc></aside>
+<lf-tabs id="routes">
+  <lf-tab id="first-route" label="First route">
+    <h2 id="first-heading">Prepare the readers before opening the window</h2>
+    <div style="height: 900px"></div>
+  </lf-tab>
+  <lf-tab id="second-route" label="Second route">
+    <div style="height: 420px"></div>
+    <h2 id="second-heading">Verify the readers after closing the window</h2>
+    <div style="height: 480px"></div>
+  </lf-tab>
+</lf-tabs>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    first = page.get_by_role("navigation", name="On this page").get_by_role(
+        "link", name="Prepare the readers", exact=False
+    )
+    second = page.get_by_role("navigation", name="On this page").get_by_role(
+        "link", name="Verify the readers", exact=False
+    )
+    span = "node => Number(node.parentElement.style.getPropertyValue('--lf-toc-span'))"
+    main_height = page.locator("main").evaluate("node => node.scrollHeight")
+    assert first.evaluate(span) > 500
+    assert second.evaluate(span) == 0
+
+    page.evaluate("document.body.scrollTop = document.body.scrollHeight")
+    expect(first).to_have_attribute("aria-current", "location")
+    expect(second).not_to_have_attribute("aria-current", "location")
+
+    page.get_by_role("tab", name="Second route").click()
+    page.wait_for_function(
+        "() => Number(document.querySelector('a[href=\"#second-heading\"]')"
+        ".parentElement.style.getPropertyValue('--lf-toc-span')) > 400"
+    )
+    assert page.locator("main").evaluate("node => node.scrollHeight") == main_height
+    assert first.evaluate(span) == 0
+    assert second.evaluate(span) > 400
+    page.evaluate("document.body.scrollTop = document.body.scrollHeight")
+    expect(second).to_have_attribute("aria-current", "location")
+    expect(first).not_to_have_attribute("aria-current", "location")
+    assert errors == []
+    page.close()
 
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):

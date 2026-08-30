@@ -11,7 +11,15 @@
  * a Δ count, so a change can't hide behind an inactive tab. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
-import { once, keys, offer, relabel, tabStore, HIDDEN } from "/runtime/widget-api.js";
+import {
+  HIDDEN,
+  keys,
+  layoutChanged,
+  offer,
+  once,
+  relabel,
+  tabStore,
+} from "/runtime/widget-api.js";
 
 const TAB_KEY = "lf-tabs:";
 
@@ -126,6 +134,7 @@ customElements.define(
         btn.tabIndex = panel === active ? 0 : -1;
       }
       if (remember) tabStore.set(TAB_KEY + this.id, active.id);
+      layoutChanged(this);
     }
 
     // One Δn chip per tab holding marked passages, so the toast's count is

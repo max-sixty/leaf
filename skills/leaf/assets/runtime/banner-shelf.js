@@ -1,3 +1,5 @@
+import { moveScrollerFromWheel } from "./scrolling.js";
+
 export function createBannerShelf({ banner, el, pageScroller }) {
   const bannerActions = el("div", "lf-banner-actions");
 
@@ -103,12 +105,6 @@ export function createBannerShelf({ banner, el, pageScroller }) {
           : event.deltaMode === 2
             ? bannerActions.clientWidth
             : 1;
-      const pageUnit =
-        event.deltaMode === 1
-          ? 16
-          : event.deltaMode === 2
-            ? pageScroller.clientHeight
-            : 1;
       const shelfDelta = event.deltaY * shelfUnit;
       const before = bannerActions.scrollLeft;
       const limit = Math.max(0, bannerActions.scrollWidth - bannerActions.clientWidth);
@@ -117,12 +113,9 @@ export function createBannerShelf({ banner, el, pageScroller }) {
       const remainder = shelfDelta
         ? 1 - Math.min(1, Math.abs(consumed / shelfDelta))
         : 0;
-      const pageBefore = pageScroller.scrollTop;
-      const pageLocked = getComputedStyle(pageScroller).overflowY === "hidden";
-      if (remainder && !pageLocked)
-        pageScroller.scrollTop += event.deltaY * pageUnit * remainder;
-      if (bannerActions.scrollLeft !== before || pageScroller.scrollTop !== pageBefore)
-        event.preventDefault();
+      const pageMoved =
+        remainder && moveScrollerFromWheel(pageScroller, event, remainder);
+      if (bannerActions.scrollLeft !== before || pageMoved) event.preventDefault();
     },
     { passive: false },
   );

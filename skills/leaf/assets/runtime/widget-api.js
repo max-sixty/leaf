@@ -1,7 +1,7 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; leaf.js composes those owners and owns boot only. */
 export { ARRANGEMENTS } from "./arrangements.js";
-export { itemWord } from "./anchors.js";
+export { followFragment, itemWord } from "./anchors.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { answeredContext, decisionSource, openDecisions } from "./decisions/model.js";
 export { conversationBox } from "./conversation/box.js";
@@ -11,6 +11,7 @@ export { PRESS, labelOf } from "./keyboard/bindings.js";
 export { keys, paintKeys, saying } from "./keyboard/scopes.js";
 export { marginAction, registerMarginItem } from "./living-margin.js";
 export { scrollerFor } from "./navigation.js";
+export { moveScrollerFromWheel } from "./scrolling.js";
 export { announce, toast } from "./notifications.js";
 export { actionAvailable, actionStands, sendAction } from "./outbox.js";
 export { requestAvailable, sendRequest, watchRequestLifecycle } from "./requests.js";
@@ -60,7 +61,9 @@ export {
 } from "./updates.js";
 export {
   HIDDEN,
+  LAYOUT,
   dragging,
+  layoutChanged,
   measure,
   offer,
   quoted,

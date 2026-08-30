@@ -82,10 +82,10 @@ its key scope, and forced live activation;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/widget-elements.js` owns widget-element construction, labels, gesture
-guards, deferred measurement, and control sizing;
+guards, deferred measurement, layout-change signalling, and control sizing;
 `runtime/registry.js` owns vocabulary queries;
 `runtime/scrolling.js` owns the document scroller identity, relative scroller moves,
-and the gutter its bar takes;
+fixed-surface wheel forwarding, and the gutter its bar takes;
 `runtime/chrome-style.js` owns the comment layer's private stylesheet, built from
 the declaration-derived names and layout queries the runtime supplies it;
 `runtime/chrome-layout.js` owns comment-panel visibility, chrome geometry, and the
@@ -786,6 +786,9 @@ minimum obligations:
   reopens it. Browser and POST eligibility consume that shared projection.
   `watchHistory` remains the audit-log surface for widgets that intentionally render
   events themselves.
+- Call `layoutChanged(el)` after view state rearranges descendants without resizing its
+  outer box. `ResizeObserver` already covers size changes; geometry consumers listen to
+  this signal instead of watching every DOM mutation.
 - For a verb with `requires`, use `actionAvailable(el, verb)` for both its
   visible control state and its gesture guard. `sendAction` and POST repeat that
   declared check at their respective doors.

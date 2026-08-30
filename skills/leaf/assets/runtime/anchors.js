@@ -5,6 +5,7 @@ import { moveScrollerBy } from "./scrolling.js";
 /* Anchor resolution, painting, and anchor-specific travel. */
 let publishedAnchors;
 export const itemWord = (...args) => publishedAnchors.itemWord(...args);
+export const followFragment = (...args) => publishedAnchors.followFragment(...args);
 // Anchors are shallow records of primitive coordinates. Compare the complete records:
 // reading only the left operand's keys made a whole-visual anchor equal the part anchor
 // that extended it, but not the other way around.
@@ -49,6 +50,7 @@ export function createAnchors(dependencies) {
     elementOver,
     findQuote,
     focusedThreadOf,
+    glideTo,
     inChrome,
     inUi,
     inspectEl,
@@ -1036,6 +1038,27 @@ export function createAnchors(dependencies) {
     moveScrollerBy(box, centreBy(el, block, box), behavior);
   }
 
+  // Follow a real fragment while keeping the whole journey visible. Setting location.hash
+  // preserves the platform's history and :target semantics. Measure the destination from
+  // its revealed box first, because an authored `scroll-behavior: smooth` makes the native
+  // fragment movement asynchronous and therefore cannot supply a synchronous goal. Cancel
+  // that native movement in the same task, before it can paint, then let the shared
+  // reading-page glide carry the reader between the two positions.
+  function followFragment(el, fragment, block = "start") {
+    reveal(el);
+    const box = scrollerFor(el);
+    if (!under(el, box)) return;
+    const goal = box.scrollTop + centreBy(el, block, box);
+    if (location.hash === fragment) {
+      glideTo(box, goal);
+      return;
+    }
+    const from = box.scrollTop;
+    location.hash = fragment;
+    box.scrollTo({ top: from, behavior: "instant" });
+    glideTo(box, goal);
+  }
+
   // A comment destination already fully visible in its own scroller needs no travel.
   // Compare its unclipped geometry with what every clipping ancestor actually exposes;
   // an element can be in the viewport while still hidden behind a nested scroller edge.
@@ -1301,6 +1324,7 @@ export function createAnchors(dependencies) {
     paintAnchors,
     fragmentId,
     markAt,
+    followFragment,
     scrollToElement,
     scrollToRange,
     scrollToThread,

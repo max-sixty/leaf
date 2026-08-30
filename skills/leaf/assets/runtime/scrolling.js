@@ -13,6 +13,30 @@ export const pageScroller = document.body;
 export const moveScrollerBy = (box, top, behavior = "instant") =>
   box.scrollBy({ top, behavior });
 
+// A wheel that begins in a fixed surface does not reach body's non-root scroller in
+// Chromium, even when the surface has no overflow left to consume. Fixed page furniture
+// calls this bridge rather than each restating delta modes, modified gestures, and the
+// page lock. The caller prevents the native event only when this moved the destination.
+export function moveScrollerFromWheel(box, event, fraction = 1) {
+  if (
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    !event.deltaY ||
+    Math.abs(event.deltaY) <= Math.abs(event.deltaX) ||
+    getComputedStyle(box).overflowY === "hidden"
+  )
+    return false;
+  const unit =
+    event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? box.clientHeight : 1;
+  const before = box.scrollTop;
+  box.scrollTo({
+    top: before + event.deltaY * unit * fraction,
+    behavior: "instant",
+  });
+  return box.scrollTop !== before;
+}
+
 // The room the scroller's own bar takes out of the page, which is a fact about the
 // scroller and so belongs beside it: every geometry reading that starts from the window
 // owes it, and each of them differs in what the gutter is coming off rather than in how it

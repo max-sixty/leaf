@@ -3394,6 +3394,7 @@ anchorRuntime = createAnchors({
   elementOver,
   findQuote,
   focusedThreadOf,
+  glideTo,
   inChrome,
   inUi,
   inspectEl,

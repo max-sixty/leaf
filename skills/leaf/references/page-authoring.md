@@ -202,8 +202,9 @@ opens the disclosure when a comment or a walk lands inside one. A decision never
 collapses, and neither does the evidence it turns on.
 
 The title names the page, and the lede under it carries the finding. A section
-that reaches a finding says it in the heading, in a clause short enough to scan,
-and a `<summary>` and an option's `<strong>` do the same for what they cover.
+that reaches a finding says it in the heading, briefly enough to scan in an
+`lf-toc` margin; supporting qualifications belong in the opening sentence. A
+`<summary>` and an option's `<strong>` do the same for what they cover.
 "Why the prefixes matter" and "What we learned" promise a finding and withhold
 it. A name that only says what it holds is right where there is no finding to
 state, over a list, a table, or a board that speaks for itself.

@@ -216,11 +216,21 @@ export function bake() {
   // them by the offer marker rather than by the tabindex attribute pseudo-controls used
   // to carry. A wrapper around a non-offered native control is the exception: the browser
   // still owns that complete interaction in the copy.
+  //
+  // A *valued* marker, because `offer` writes the empty one on the boxes a widget builds
+  // to hold its controls — a suggestion's ✓/✗ row among them — and those are not presses
+  // to take away. Matched on the bare attribute this loop removed the box outright, with
+  // whatever the copy keeps still inside it: the "✓ Accepted" a decided change speaks
+  // through went out with the row it stood in, and the rail the copy holds open for that
+  // record had nothing left to show. What empties a box is the walk below, which is the
+  // reading that was already right.
   const browserControl =
     "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
   for (const control of [
-    ...document.querySelectorAll("[data-lf-offer]:not([data-lf-said])"),
+    ...document.querySelectorAll(
+      "[data-lf-offer]:not([data-lf-offer='']):not([data-lf-said])",
+    ),
   ].reverse()) {
     if (
       control.querySelector(browserControl) ||

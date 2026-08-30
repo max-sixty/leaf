@@ -1084,6 +1084,17 @@ export function createLivingMargin(dependencies) {
     focusMapControl();
   });
   previewClose.onclick = () => closePreview(true);
+  // A dismissal the platform makes — Escape, a press outside the card — returns focus to
+  // the marker that opened it, and does so while the hide is still running. The marker's
+  // focus listener would re-show the card from inside that operation, which throws
+  // InvalidStateError and leaves the reader's Escape half-done. Suppressing the entry is
+  // what closePreview(true) says for its own dismissal; `beforetoggle` is where it can be
+  // said before the focus lands. Only the platform's path reaches it with an entry still
+  // standing: closePreview clears previewEntry before it hides, so a move between markers
+  // goes on re-opening the card at the marker the reader arrived at.
+  preview.addEventListener("beforetoggle", (event) => {
+    if (event.newState === "closed" && previewEntry) suppressedKey = previewEntry.key;
+  });
   preview.addEventListener("toggle", (event) => {
     if (event.newState !== "closed" || !previewEntry) return;
     const button = previewButton;

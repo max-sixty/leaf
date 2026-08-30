@@ -1899,7 +1899,7 @@ def test_an_agent_question_opens_another_thread_without_returning_the_decision(
 
     conversation = page.locator("#jobs > .lf-conversation")
     conversation.locator(".lf-say textarea").fill("Neither — do the camera first.")
-    conversation.locator(".lf-say [role='button']").click()
+    conversation.locator(".lf-say [data-lf-offer='button']").click()
     round_trip(page)
     expect(decisions).to_have_text("Asks (2)")
     expect(rows).to_have_count(2)
@@ -1948,7 +1948,7 @@ def test_a_question_owns_one_thread_in_the_page_and_panel(browser, serve):
 
     conversation = page.locator("#jobs > .lf-conversation")
     box = conversation.locator(".lf-say textarea")
-    send = conversation.locator(".lf-say [role='button']")
+    send = conversation.locator(".lf-say [data-lf-offer='button']")
     # What the box is for, in both registers a reader has: the words on screen and the
     # name read aloud, saying the same thing. It names what the cell supplies rather
     # than the act of typing into it — a box under a menu that invites the reader to
@@ -2077,7 +2077,7 @@ def test_a_question_says_what_the_agent_is_doing_about_it(browser, serve):
     d = serve.page_dir
     conversation = page.locator("#jobs > .lf-conversation")
     conversation.locator(".lf-say textarea").fill("Which of these is cheapest?")
-    conversation.locator(".lf-say [role='button']").click()
+    conversation.locator(".lf-say [data-lf-offer='button']").click()
     round_trip(page)
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     work_line = conversation.locator(".lf-work-line")

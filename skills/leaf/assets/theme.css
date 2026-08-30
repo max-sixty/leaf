@@ -1381,10 +1381,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     outline-offset: calc(-1 * var(--here-ring-w)); }
 @media screen {
   @container lf-shell (min-width: 900px) {
-  body:has(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden])) > main {
+  body:has(:where(.lf-living-margin:not([hidden]) .lf-margin-marker:not([hidden]))) > main {
     /* The 30px marker hangs 22px off the column and its complete host keeps the
        shared focus-ring room at the outer edge. Claim all three, or opening a side
-       panel leaves that last band past body's room and the layout hides the marker. */
+       panel leaves that last band past body's room and the layout hides the marker.
+       Both this claim and the wider card claim below hold their condition in :where(),
+       so the two carry the same specificity and document order decides between them —
+       which is what says the card wins where a thread needs it. Counted instead, this
+       condition names one more compound than the card's, so it outranked the card and a
+       page with a thread on it kept the narrow rail. */
     --claim-map: calc(52px + var(--here-ring-room));
   }
   main:has(.lf-margin-item[data-lf-claims-rail]) {
@@ -1395,7 +1400,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 @media screen {
   @container lf-shell (min-width: 1152px) {
   body:has(
-      .lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])
+      :where(.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden]))
     ) > main {
     --claim-map: var(--note);
   }

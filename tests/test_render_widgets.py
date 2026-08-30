@@ -1894,7 +1894,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         )
     assert walked == [
         "span lf-pick lf-ui",  # the question: its first pick mark
-        "span lf-sug-accept lf-ui lf-margin-action",  # ✓ Accept, in the margin
+        "button lf-sug-accept lf-ui lf-margin-action",  # ✓ Accept, in the margin
         "span lf-pick lf-ui",  # the task's nested review question
         "span lf-pick lf-ui",
         "span lf-pick lf-ui",

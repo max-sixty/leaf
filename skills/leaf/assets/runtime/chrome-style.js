@@ -1150,6 +1150,8 @@ ${MARK_RULES}
     .lf-help table { display: table; width: 100%; table-layout: fixed;
       border-collapse: collapse; }
     .lf-help td { padding: 3px 0; vertical-align: baseline; }
+    .lf-help tr.lf-chord-control td { padding-top: 8px;
+      border-top: 1px solid var(--rule); }
     .lf-help td:first-child { width: 104px; white-space: nowrap; }
     .lf-help-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
       border: 0; border-radius: 4px; background: transparent; color: inherit;
@@ -1248,6 +1250,8 @@ ${MARK_RULES}
     .lf-keyline:empty { display: none; }
     .lf-keyline .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
     .lf-keyline .lf-key[hidden] { display: none; }
+    .lf-keyline .lf-chord-control { margin-inline-start: 4px;
+      padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
     .lf-key-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
       pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
       border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
@@ -1282,7 +1286,13 @@ ${MARK_RULES}
     .lf-addresses > .lf-address { position: absolute; display: block;
       transform: translate(-50%, -50%); }
     .lf-addresses > .lf-chord-address { min-width: 0; height: auto; padding: 0;
-      border: 0; background: transparent; }
+      border: 2px solid var(--accent); border-radius: 6px; background: var(--card);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 20%, transparent); }
+    .lf-addresses > .lf-chord-address::after { position: absolute; top: 100%; left: 50%;
+      width: 5px; height: 5px; box-sizing: border-box;
+      border: 0 solid var(--accent); border-width: 0 2px 2px 0;
+      background: var(--card); content: "";
+      transform: translate(-50%, -3px) rotate(45deg); }
     /* Under the banner there is no room to straddle the corner, so the chip hangs below
        the covered edge instead — the same step the legend's tag makes, and the same class
        name, because it is the same fact about the same bar. */
@@ -1408,6 +1418,10 @@ ${MARK_RULES}
       .lf-dot { background: CanvasText !important; }
       .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: Highlight;
         background: Highlight; color: HighlightText; }
+      .lf-addresses > .lf-chord-address { border-color: Highlight;
+        box-shadow: none; }
+      .lf-addresses > .lf-chord-address::after { border-color: Highlight;
+        background: Canvas; }
       :scope :focus-visible { outline: 2px solid Highlight !important;
         outline-offset: 2px !important; box-shadow: none !important; }
       :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {

@@ -4,6 +4,8 @@ import {
   commandPresentations,
   declaredBindings,
   live,
+  spell,
+  spokenBinding,
   word,
 } from "./bindings.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
@@ -221,6 +223,16 @@ export function createReference({
         ...(word(row.chord) ?? []),
         ...completeRowSteps(row, route),
       ];
+      const spokenReferenceSteps = (row, route, steps) => {
+        const declared = route ? [route.binding] : declaredBindings(row);
+        if (declared.length !== 1) return steps;
+        const binding = declared[0];
+        const visual = spell(binding);
+        const spoken = [...steps];
+        const index = spoken.lastIndexOf(visual);
+        if (index !== -1) spoken[index] = spokenBinding(binding);
+        return spoken;
+      };
       const commandButtons = [];
       const availableWhere = (row, scopeTitle, scopeReach) => {
         const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
@@ -238,9 +250,14 @@ export function createReference({
             tr.dataset.lfCommand = id;
             tr.id = `lf-help-row-${total + entries.length}`;
             tr.setAttribute("role", "row");
+            if (row.chordControl) tr.classList.add("lf-chord-control");
             const steps = referenceSteps(row, route);
             const label = steps.join(" ");
-            const sequence = keySequence(steps, neutralStates(steps));
+            const sequence = keySequence(
+              steps,
+              neutralStates(steps),
+              spokenReferenceSteps(row, route, steps),
+            );
             sequence.id = `lf-help-key-${total + entries.length}`;
             const keyCell = document.createElement("td");
             keyCell.setAttribute("role", "gridcell");

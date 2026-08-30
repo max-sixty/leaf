@@ -19,16 +19,20 @@ export const pressedStates = (steps) => steps.map(() => "pressed");
 
 export const neutralStates = (steps) => steps.map(() => "neutral");
 
-export function keySequence(steps, states = neutralStates(steps)) {
-  if (!steps.length || states.length !== steps.length)
-    throw new Error("leaf: a key sequence needs one state per step");
+export function keySequence(steps, states = neutralStates(steps), spokenSteps = steps) {
+  if (
+    !steps.length ||
+    states.length !== steps.length ||
+    spokenSteps.length !== steps.length
+  )
+    throw new Error("leaf: a key sequence needs one state and spoken label per step");
 
   const sequence = document.createElement("span");
   sequence.className = "lf-key-sequence";
   sequence.setAttribute("role", "group");
   sequence.setAttribute(
     "aria-label",
-    steps.map((step) => step.replaceAll(" / ", " or ")).join(" then "),
+    spokenSteps.map((step) => step.replaceAll(" / ", " or ")).join(" then "),
   );
   steps.forEach((step, i) => {
     const state = states[i];

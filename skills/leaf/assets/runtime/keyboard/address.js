@@ -461,12 +461,17 @@ export function createAddress({
         // the wrong list wanted the other one, and cancelling put them back on the page,
         // pressing `g` again to reach a window that had been standing the whole time.
         keys: ["Escape"],
+        chordControl: true,
         does: () => (aimedList ? "Back to the lists" : "Cancel the chord"),
         line: () => (aimedList ? "back to the lists" : "cancel"),
         // Re-arming rather than a field of its own: `setChord` is where arming, aiming and
         // disarming already live, and re-opening the window with no list named is exactly
         // what the second stage backs out to.
-        run: () => setChord(Boolean(aimedList)),
+        run: () => {
+          if (aimedList) return setChord(true);
+          setChord(false);
+          announce("Go to cancelled");
+        },
       },
     ],
   };

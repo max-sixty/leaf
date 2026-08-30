@@ -187,6 +187,7 @@ export function createKeyline({
         const active = bindings(row);
         const commands = commandPresentations(row, active).map(({ id }) => id);
         span.dataset.lfCommands = commands.join(" ");
+        if (row.chordControl) span.classList.add("lf-chord-control");
       }
       span.append(keySequence(steps, states));
       if (said) span.append(el("span", "", said));

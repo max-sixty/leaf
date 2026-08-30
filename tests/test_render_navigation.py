@@ -1290,7 +1290,7 @@ def test_the_g_chord_reaches_panels_and_document_lists(browser, serve):
     expect(page.locator(CHIPS).first).to_be_visible()
     # The chips are the eye's copy of a mode; a reader who cannot see them is told the
     # window opened and what it holds, off the same rows the line just drew.
-    expect(page.locator(".lf-live")).to_contain_text("T Threads panel")
+    expect(page.locator(".lf-live")).to_contain_text("Shift+t Threads panel")
     expect(page.locator(".lf-live")).to_contain_text("h hyperlinks")
     expect(page.locator(".lf-live")).not_to_contain_text("1–2 hyperlinks")
 
@@ -1566,7 +1566,8 @@ def test_numbered_addresses_show_the_remaining_route_in_the_ordinary_key_face(
     """The page shows every suffix that can still reach a visible target.
 
     Before the list key, the letter keeps identical digits distinct. Afterwards only the
-    digit remains. Every unpressed key uses the ordinary available-binding face."""
+    digit remains. Every unpressed key uses the ordinary available-binding face, while
+    the carrier identifies the live targeting layer without making the route bulky."""
     url = serve(ADDRESSED_PAGE)
     page, errors = open_page(browser, url)
     resized(page, 1280, 800)
@@ -1578,6 +1579,19 @@ def test_numbered_addresses_show_the_remaining_route_in_the_ordinary_key_face(
     expect(choice).to_have_text("h")
     expect(choice).to_have_attribute("data-lf-key-state", "neutral")
     expect(page.locator(CHIPS)).to_have_text(["m›1", "h›1", "h›2", "f›1"])
+    assert page.locator(CHIPS).first.evaluate(
+        """chip => {
+          const style = getComputedStyle(chip);
+          return style.borderTopStyle === 'solid'
+            && style.borderTopWidth !== '0px'
+            && style.backgroundColor !== 'rgba(0, 0, 0, 0)'
+            && style.boxShadow !== 'none';
+        }"""
+    ), "the active inline route has no accent carrier"
+    assert page.locator(CHIPS).first.evaluate(
+        """chip => chip.getBoundingClientRect().height
+          <= chip.querySelector('kbd').getBoundingClientRect().height + 4"""
+    ), "the accent carrier makes the inline route needlessly tall"
     assert (
         page.locator(f"{CHIPS} kbd").evaluate_all(
             "keys => keys.map(key => key.dataset.lfKeyState)"
@@ -2029,6 +2043,9 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     ).to_have_text(["g"])
     expect(page.locator(CHIPS)).to_have_text(["m›1", "h›1", "h›2", "f›1"])
     expect(line).to_contain_text("cancel")
+    expect(line.locator('[data-lf-commands="navigation.address.back"]')).to_have_class(
+        re.compile(r"\blf-chord-control\b")
+    )
 
     # The letter narrows the window to its own list, which is the second layer.
     page.keyboard.press("h")
@@ -2050,6 +2067,7 @@ def test_escape_gives_the_chord_back_one_press_at_a_time(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(line).not_to_contain_text("cancel")
+    expect(page.locator(".lf-live")).to_have_text("Go to cancelled")
     assert errors == []
     page.close()
 
@@ -3905,6 +3923,12 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             ".lf-key-sequence > kbd"
         )
     ).to_have_text(["g", "G"])
+    expect(
+        help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
+    ).to_have_attribute("aria-label", "g then Shift+g")
+    chord_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
+    expect(chord_control).to_have_class(re.compile(r"\blf-chord-control\b"))
+    expect(chord_control.locator("td").first).to_have_css("border-top-style", "solid")
     expect(help_el).not_to_contain_text("open comment's reply box")
     # And no link scope: this page holds none, while the machine's own tray is full of
     # them — a scope asked about the document at large was had by every page there is.
@@ -3946,6 +3970,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
             ".lf-key-sequence > kbd"
         )
     ).to_have_text(["g", "T"])
+    expect(
+        help_el.locator("tr", has_text="Go to the Threads panel").locator(
+            ".lf-key-sequence"
+        )
+    ).to_have_attribute("aria-label", "g then Shift+t")
     expect(help_el).not_to_contain_text("link on screen")
     expect(help_el).not_to_contain_text("waiting on you for")
     expect(help_el).to_contain_text("Next open thread")

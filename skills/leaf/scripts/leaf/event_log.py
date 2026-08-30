@@ -5,6 +5,7 @@ import json
 import os
 import secrets
 import threading
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -94,50 +95,39 @@ def _attempt_payload(event: dict) -> dict:
     }
 
 
-def _matching_attempt(f, event: dict) -> dict | None:
+def _matching_attempt(events: list[dict], event: dict) -> dict | None:
     attempt = event.get("attempt")
     if not attempt:
         return None
-    f.seek(0)
-    for raw in f:
-        try:
-            existing = json.loads(raw)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            continue
+    for existing in events:
         if existing.get("attempt") != attempt:
             continue
         if _attempt_payload(existing) != _attempt_payload(event):
             raise AttemptConflict(
                 f"attempt {attempt!r} already belongs to another event"
             )
-        return existing
+        accepted = deepcopy(existing)
+        accepted.pop("seq", None)
+        return accepted
     return None
 
 
-def _event_id_exists(f, event_id: str) -> bool:
+def _event_id_exists(events: list[dict], event_id: str) -> bool:
     """Whether this log already owns an event identity."""
-    f.seek(0)
-    for raw in f:
-        try:
-            existing = json.loads(raw)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            continue
-        if existing.get("id") == event_id:
-            return True
-    return False
+    return any(existing.get("id") == event_id for existing in events)
 
 
-def _append_event_unlocked(f, event: dict) -> dict:
+def _append_event_unlocked(f, event: dict, events: list[dict]) -> tuple[dict, bool]:
     """Append while the caller holds this log file's exclusive lease."""
     # Attempt identity is checked under the log's append lock. Checking before
     # this point would leave two server threads free to observe absence together
     # and append together. Content and time deliberately play no part: an
     # intentional later identical message has a fresh attempt and is a second
     # event.
-    if event.get("attempt") and (existing := _matching_attempt(f, event)):
-        return existing
+    if event.get("attempt") and (existing := _matching_attempt(events, event)):
+        return existing, False
     if "id" in event:
-        if _event_id_exists(f, event["id"]):
+        if _event_id_exists(events, event["id"]):
             raise ValueError(f"event id {event['id']!r} already exists")
     else:
         # Event ids escape the page with host requests as durable idempotency and
@@ -146,7 +136,7 @@ def _append_event_unlocked(f, event: dict) -> dict:
         # probability as an invariant.
         while True:
             candidate = secrets.token_hex(16)
-            if not _event_id_exists(f, candidate):
+            if not _event_id_exists(events, candidate):
                 event["id"] = candidate
                 break
     event.setdefault("ts", now_iso())
@@ -165,7 +155,7 @@ def _append_event_unlocked(f, event: dict) -> dict:
     # and events are rare enough that a flush per append costs nothing.
     f.flush()
     os.fsync(f.fileno())
-    return event
+    return event, True
 
 
 def append_event(page_dir: Path, event: dict) -> dict:
@@ -174,13 +164,13 @@ def append_event(page_dir: Path, event: dict) -> dict:
     with open(log, "a", encoding="utf-8"):
         pass
     with flocked(log) as f:
-        return _append_event_unlocked(f, event)
+        f.seek(0)
+        events = _parse_events(f.read())
+        accepted, _appended = _append_event_unlocked(f, event, events)
+        return accepted
 
 
-def read_events(page_dir: Path) -> list:
-    path = page_dir / "comments.jsonl"
-    if not path.exists():
-        return []
+def _parse_events(data: bytes) -> list[dict]:
     events = []
     # The log's grammar is events joined by "\n" — the writer's own separator,
     # not splitlines()'s wider class, which once read a U+2028 inside a comment's
@@ -189,7 +179,7 @@ def read_events(page_dir: Path) -> list:
     # mid-line (ensure_ascii=False writes multi-byte UTF-8), and one strict
     # read_text of the file would raise on the tear before any line-level
     # tolerance could reach it.
-    lines = path.read_bytes().split(b"\n")
+    lines = data.split(b"\n")
     if lines and lines[-1] == b"":
         lines.pop()
     for i, line in enumerate(lines):
@@ -208,3 +198,10 @@ def read_events(page_dir: Path) -> list:
         event["seq"] = i + 1
         events.append(event)
     return events
+
+
+def read_events(page_dir: Path) -> list:
+    path = page_dir / "comments.jsonl"
+    if not path.exists():
+        return []
+    return _parse_events(path.read_bytes())

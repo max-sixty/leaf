@@ -2375,6 +2375,29 @@ def test_a_torn_tail_is_isolated_and_the_log_keeps_reading(page_dir):
     ]
 
 
+def test_a_transaction_reloads_after_an_append_fault_that_may_have_landed(
+    page_dir, monkeypatch
+):
+    """A writer can fail after durable bytes land; the transaction must read them."""
+    real_fsync = event_model.os.fsync
+
+    def sync_then_fail(fd):
+        real_fsync(fd)
+        raise OSError("failed after syncing")
+
+    with service_model.PageTransaction(page_dir) as page:
+        assert page.events == []
+        with monkeypatch.context() as patch:
+            patch.setattr(event_model.os, "fsync", sync_then_fail)
+            with pytest.raises(OSError, match="failed after syncing"):
+                page.append_event(
+                    {"kind": "comment", "author": "user", "text": "landed"}
+                )
+        assert [(event["text"], event["seq"]) for event in page.events] == [
+            ("landed", 1)
+        ]
+
+
 def test_a_reader_without_the_key_reads_and_writes_nothing(server, page_dir):
     """The page is served wherever the SSH session reached this machine, so the
     port is open to whatever else is on that network. Reading is half of it: the

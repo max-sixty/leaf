@@ -112,7 +112,17 @@ export function chromeStyle({
      the panel's width, and on a window narrow enough to lose width as well it rewraps
      every line. Both are carried as motion rather than as a jump — the transition above,
      keyed on the stamp for the reasons given there — because an eye can follow a sentence
-     that slides and cannot find one that teleports. */
+     that slides and cannot find one that teleports.
+
+     Locking the root drops its standing bar, which the reserved gutter this replaced would
+     have held open under hidden too. So where the platform draws classic bars, the strip
+     of page still visible beside the sheet widens by a bar's width as the sheet opens and
+     narrows back as it closes — one more rewrap on the window that was already rewrapping.
+     Holding the room across the lock means reserving it on every platform, the ones whose
+     bars overlay included, which is the disagreement the root's rule above exists to end;
+     the locked state is where it cost the most, a covering sheet anchored to the initial
+     containing block landing a bar's width inside the window's own edge. Both states now
+     read the same way instead: the page's box is the room its coordinates report. */
   @media screen and (not ${COVERING}) {
     body[data-lf-panel] { margin-right: var(${PANEL_PROP}); }
   }

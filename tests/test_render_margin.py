@@ -649,16 +649,28 @@ def test_only_a_page_with_threads_reserves_the_conversation_margin(browser, serv
         browser, serve(DECISION_PAGE, events=[OUTCOME_ON_DECISION])
     )
 
-    def padding_right():
-        return page.locator("body").evaluate(
-            "body => getComputedStyle(body).paddingRight"
+    # The strip is a claim main resolves from the shell, so it is read off main rather
+    # than off body's padding. A custom property computes to its unresolved expression,
+    # so the reading is taken from a probe the layout actually sizes.
+    def strip_right():
+        return page.evaluate(
+            """() => {
+              const main = document.querySelector('main');
+              const probe = document.createElement('i');
+              probe.style.cssText = 'position:fixed;visibility:hidden;height:0;'
+                + 'padding:0;border:0;width:var(--strip-r)';
+              main.append(probe);
+              const width = probe.getBoundingClientRect().width;
+              probe.remove();
+              return width;
+            }"""
         )
 
-    assert padding_right() == "57px"
+    assert strip_right() == 57
 
     events_model.append_event(serve.page_dir, COMMENT_ON_DECISION)
     told(page)
-    assert padding_right() == "384px"
+    assert strip_right() == 384
 
     assert errors == []
     page.close()

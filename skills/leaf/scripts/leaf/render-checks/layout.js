@@ -348,13 +348,27 @@ export function withheldRoom() {
   const main = document.querySelector("main");
   if (!main) return [];
   const { residents } = marginReading(main);
+  // The shell resolves --lf-room in CSS, so the property's computed value is the
+  // expression and not a length: parseFloat on it is NaN, and every comparison against
+  // NaN is false, which is this whole check going quiet without failing. A probe standing
+  // where the drawing stands inherits the same declaration — the frame's zero included —
+  // and answers in the pixels the drawing would actually have been given.
+  const roomAt = (el) => {
+    const probe = document.createElement("i");
+    probe.style.cssText =
+      "position:fixed;visibility:hidden;height:0;padding:0;border:0;width:var(--lf-room)";
+    el.append(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width;
+  };
 
   const found = [];
   for (const el of main.querySelectorAll('[data-lf-wide="drawing"]')) {
     if (!el.checkVisibility()) continue;
     const short = el.scrollWidth - el.clientWidth;
     if (short <= 1) continue;
-    const room = parseFloat(getComputedStyle(el).getPropertyValue("--lf-room"));
+    const room = roomAt(el);
     if (!(room > 0) || el.scrollWidth > room + 1) continue;
     const b = el.getBoundingClientRect();
     // A resident at the drawing's own band is the margin spoken for, whichever

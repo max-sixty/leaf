@@ -1364,12 +1364,19 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     without crossing the column."""
     url = serve(DRAWN_PAST_A_RAIL_PAGE)
     page, errors = open_page(browser, url)
+    # The shell owns --lf-room in CSS, so its computed value is the unresolved
+    # expression and only a probe answers in the width a wide exhibit would receive.
     fit = page.evaluate("""() => {
         const el = document.getElementById('flow');
         const m = document.querySelector('main');
         const s = getComputedStyle(m), b = m.getBoundingClientRect();
-        return { shows: el.clientWidth, drawn: el.scrollWidth,
-                 room: parseFloat(getComputedStyle(el).getPropertyValue('--lf-room')),
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;'
+          + 'border:0;width:var(--lf-room)';
+        el.append(probe);
+        const room = probe.getBoundingClientRect().width;
+        probe.remove();
+        return { shows: el.clientWidth, drawn: el.scrollWidth, room,
                  column: b.width - parseFloat(s.paddingLeft)
                          - parseFloat(s.paddingRight) };
     }""")
@@ -1409,9 +1416,14 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         const resident = document.getElementById('fixed-margin').getBoundingClientRect();
         const main = document.querySelector('main');
         const style = getComputedStyle(main), box = main.getBoundingClientRect();
+        const probe = document.createElement('i');
+        probe.style.cssText = 'position:fixed;visibility:hidden;height:0;padding:0;'
+          + 'border:0;width:var(--lf-room)';
+        flow.append(probe);
+        const room = probe.getBoundingClientRect().width;
+        probe.remove();
         return {scrolls: flow.scrollWidth - flow.clientWidth,
-                hasRoom: flow.scrollWidth <=
-                         parseFloat(getComputedStyle(flow).getPropertyValue('--lf-room')) + 1,
+                hasRoom: flow.scrollWidth <= room + 1,
                 clear: resident.right <= box.left + parseFloat(style.paddingLeft) + 1,
                 overlap: Math.min(f.bottom, resident.bottom) -
                          Math.max(f.top, resident.top)};
